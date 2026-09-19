@@ -158,10 +158,12 @@ Four links. Link 1 is an ADR and gates the rest.
 
 ## Exit gate
 
-- [ ] **The shape ADR is written, accepted, and answers all three open questions
+- [x] **The shape ADR is written, accepted, and answers all three open questions
       under link 1** — the empty day and whether `dayCount` is stored, the
       indicator's base and monotonicity, and the Discover/ledger consequences —
       naming what it rejected and why, including the collection object above.
+      **ADR-048**, accepted 2026-09-19; the summary and the two places it
+      contradicts this file are in the note below.
 - [ ] **The migration is written, applied locally, and its production dispatch
       is called out in the PR body** — `gh workflow run migrate-production.yml
       -f confirm=migrate` from `main`. Merging does not apply a migration; an
@@ -194,6 +196,57 @@ Four links. Link 1 is an ADR and gates the rest.
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.
+
+## 2026-09-19 — link 1 landed: ADR-048, and two of this file's premises corrected
+
+`docs/architecture/ADR-048-a-playbook-is-a-sequence-of-days.md`. The five
+decisions, shortest first:
+
+1. **Flat `stops[]`, each stop carrying `dayIndex`, 0-based, `.default(0)`.**
+   0-based because every day label in this app is already `index + 1`
+   (`TripBoardScreen.tsx:686`, `DayChips.tsx:135`, `KeepDayFlag.tsx:151`,
+   `SharedTripScreen.tsx:28`) and `citiesOfDay(detail, dayIndex)` is 0-based —
+   two `dayIndex` spellings with different bases is how off-by-ones get written.
+   The `.default()` is the whole additive property, and makes this the first
+   `SavedStop` field to adopt `KI-20260905-l`'s rule.
+2. ✳ **A GAP in the index IS an empty day, so this file's central case is
+   representable without `dayCount`.** Indices are dense over the days the user
+   *selected*, not over the days that turned out to have stops: keep `[A, B, C]`
+   with `B` empty and the stored indices are `{0, 2}`, `max + 1 = 3`. This
+   file said *"there is no stop to carry the indicator `1`, so it round-trips as
+   a two-day playbook"* — true only under the other normalisation.
+   **`dayCount` is still stored**, for the case a gap cannot reach — a
+   *trailing* empty day — because "interior rest day survives, departure day
+   vanishes" is an asymmetry no user can state, and because keep-N/insert-N is
+   the number link 4's surfaces promise before they act.
+3. ✳ **Both, at two boundaries** — this file asks the ADR to pick between a
+   contract-enforced monotonic invariant and a sort-on-read tolerance. The write
+   path enforces (on the parse already at `savedDays.ts:168`, KI-71's write-path
+   half, which this file's "the parse exists twice" correctly does not count as
+   a read site); the read boundary **stably** sorts and repairs. Enforcing at
+   the read boundary would drop rows whose stops are individually valid — 
+   `KI-20260905-l`'s hazard, re-created on purpose. The refinement therefore must
+   **not** go on `SavedStop.array()`, which all three sites share.
+4. **Discover:** `cities` must fold per day (`citiesOfStops` sorts timed stops
+   across the whole array it is handed, so day 3's 08:00 currently outranks day
+   1's 14:00); `window` goes null when `dayCount > 1`, because first-start to
+   last-end across three midnights is read by `dayLength` as a 13-hour day and
+   labelled "Long" — false, not merely imprecise; the budget band stays a total
+   and is *not* divided by `dayCount` (that is the `budgetPerPerson` defect
+   class); `season` needs no change and the ADR records that so it is not
+   rediscovered.
+5. **The adds ledger keys on the sequence and needs no migration.** A day inside
+   a sequence has no identity to key on — stops are a jsonb value, days are index
+   positions. A three-day add counts once.
+
+**Two consequences that create work this file does not list.** `F-F05`'s
+`parseSavedDayColumns(row)` helper is now a *prerequisite* rather than a
+tidy-up: three behaviours have to be identical at both read sites. And
+`BundlePlaybook.stops` (`packages/fixtures/src/bundle/schema.ts:185`) is a third
+writer of this shape — the **M25 round-trip tripwire does not catch it**, because
+`fromTrip` emits `playbooks: z.tuple([]).default([])`
+(`packages/fixtures/src/bundle/fromTrip.ts:69`), so a trip export never carries a
+`SavedStop`.
 
 ## Deliberately not here
 

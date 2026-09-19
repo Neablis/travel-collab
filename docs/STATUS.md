@@ -33,10 +33,27 @@ general setup.
 **M23 — A PLAYBOOK CAN BE MORE THAN ONE DAY — IS THE CURRENT MILESTONE AS OF 2026-09-19**,
 by **M25's gate closing**, which is the ordinary way this line moves. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 [OPEN, paused at 11/17] → M22 [OPEN, paused at 18/19] → M25 ✓ → M23 → M13 → M12 → M24 → M14 → M19`.
-**Nothing of M23 is built.** Its scope and exit gate are in
+**M23 is at 1 of 11 — link 1 (the gating ADR) has landed and no code has been
+written.** Its scope and exit gate are in
 `docs/milestones/M23-multi-day-playbooks.md`, minted 2026-09-18; read it before
 planning anything. The one-line version: a saved day **generalises** into a
 saved sequence rather than gaining a sibling object type.
+
+**The shape is decided: ADR-048, accepted 2026-09-19.** Flat `stops[]`, each
+stop carrying a 0-based `dayIndex` with a `.default(0)`; a **gap** in the index
+is an empty day; `dayCount` is **stored** for the trailing-empty case a gap
+cannot reach; the write path enforces monotonicity and the read boundary
+**stably sorts and repairs** rather than dropping the row; the adds ledger keys
+on the sequence and needs no migration. **Two of those go against a premise
+stated in the milestone file** and are marked ✳ there and in the ADR — the
+milestone's 2026-09-19 note is the short version, and Mitchell overrules either
+in the ADR if he wants the original reading. Three things the ADR found that the
+milestone file does not list: `citiesOfStops` currently sorts timed stops across
+the *whole* array, so a sequence's stored `cities` order interleaves its days;
+`savedDayFacts.window` over a sequence is read by `dayLength` as a single
+13-hour day and labelled "Long", which is false rather than imprecise; and
+`BundlePlaybook.stops` is a third writer of this shape that the M25 round-trip
+tripwire does **not** catch, because `fromTrip` emits no playbooks.
 
 **M25's GATE CLOSED 2026-09-19** — 14 of 14 boxes, `pnpm check` green (765
 tests) and `test:e2e:ci-like` at **137 passed**. A trip downloads as a
