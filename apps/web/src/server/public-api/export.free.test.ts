@@ -29,12 +29,26 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.resolve(HERE, "../../..");
 const REPO = path.resolve(WEB, "../..");
 
-/** Every file a trip travels through on its way out of, or back into, the app. */
+/**
+ * Every file a trip travels through on its way out of, or back into, the app.
+ *
+ * **Including the two surfaces a person actually clicks** (CodeRabbit, PR #191).
+ * The first version of this list stopped at the API and the converter, which
+ * left the easiest way to break the promise uncovered: a `free`-only condition
+ * on either control hides it without touching a single file below the UI. The
+ * gate box says *no entitlement anywhere on that path*, and a control nobody
+ * can see is on that path.
+ */
 const EXPORT_PATH_FILES = [
   path.join(WEB, "src/app/api/v1/trips/[tripId]/export/route.ts"),
   path.join(WEB, "src/app/api/v1/trips/import/route.ts"),
   path.join(WEB, "src/components/home/ImportTripButton.tsx"),
   path.join(REPO, "packages/fixtures/src/bundle/fromTrip.ts"),
+  // The download lives here…
+  path.join(WEB, "src/components/trip/SettingsSheet.tsx"),
+  // …and the upload on whichever of these two is on screen (M25 link 2).
+  path.join(WEB, "src/app/(app)/page.tsx"),
+  path.join(WEB, "src/components/home/FirstTripStart.tsx"),
 ];
 
 /** Prose removed: a comment explaining a rule is the rule, not a breach. */
@@ -54,12 +68,22 @@ describe("nothing on the export or import path asks what somebody paid", () => {
   });
 
   // The positive half, so the sweep above cannot pass by the files being empty
-  // or mis-pathed — the witness floor this repo's own guidance asks for.
-  it("reads files that really are the export path", () => {
-    expect(codeOf(EXPORT_PATH_FILES[0]!)).toMatch(/tripToBundle/);
-    expect(codeOf(EXPORT_PATH_FILES[1]!)).toMatch(/bundleTripCommandGroups/);
-    expect(codeOf(EXPORT_PATH_FILES[2]!)).toMatch(/v1\/trips\/import/);
-    expect(codeOf(EXPORT_PATH_FILES[3]!)).toMatch(/BundleStop/);
+  // or mis-pathed — the witness floor this repo's own guidance asks for. Each
+  // line names something only that file has, so a wrong path fails here rather
+  // than reporting a clean sweep of nothing.
+  it("reads files that really are the export path, controls included", () => {
+    const [exportRoute, importRoute, importButton, converter, sheet, home, firstRun] =
+      EXPORT_PATH_FILES.map((f) => codeOf(f!));
+    expect(exportRoute).toMatch(/tripToBundle/);
+    expect(importRoute).toMatch(/bundleTripCommandGroups/);
+    expect(importButton).toMatch(/v1\/trips\/import/);
+    expect(converter).toMatch(/BundleStop/);
+    // The download is a link to the endpoint, and the upload is this component
+    // — on Home once there are trips, on the first-run card before that.
+    expect(sheet).toMatch(/\/api\/v1\/trips\/\$\{tripId\}\/export/);
+    expect(sheet).toMatch(/Download as a file/);
+    expect(home).toMatch(/ImportTripButton/);
+    expect(firstRun).toMatch(/ImportTripButton/);
   });
 });
 
