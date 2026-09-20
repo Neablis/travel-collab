@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
+import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -75,6 +76,8 @@ export default function Home() {
   // SetTripCurrency commands against the tripId CreateTrip returns, per the
   // phase doc's sequence. Everything else the design's wizard shows is
   // Preview-wrapped (see NewTripWizard.tsx and preview-registry.ts).
+  // SPEC §32.2 — the new-trip conversation owns the whole frame on a phone.
+  const isPhone = useIsPhone();
   const [newTripOpen, setNewTripOpen] = useState(false);
   // True while the "Make this trip mine" copy this page inherited from `/demo`
   // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
@@ -482,12 +485,24 @@ export default function Home() {
           onOpenChange={setNewTripOpen}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
-          // Always the rail. The full-screen, first-run-framed variant this
-          // used to pass was already unreachable: `open` above is gated on
-          // `!hasNoTrips`, so by the time the sheet can render, both of those
-          // ternaries have resolved to the ordinary branch. First run is the
-          // inline conversation now (SPEC §32.1), not a sheet at all.
-          size="rail"
+          // **Full screen on a phone, the rail above it** (SPEC §32.2: *"the
+          // phone gets the flow… full-screen conversation"*). A 390px-wide rail
+          // is a rail in name only — it is already the whole width — and the
+          // `max-w-measure` cap it carries buys nothing there while the
+          // rounded, inset chrome costs real room for a conversation somebody
+          // is typing into.
+          //
+          // **`useIsPhone()` is the right tool here and the wrong one for
+          // chrome.** It starts `false` on the server and the first client
+          // paint, which is why `PhoneTabBar` uses `md:hidden` instead — but
+          // this sheet only renders after somebody presses New trip, long after
+          // that first paint, and the size is a discrete class set that CSS
+          // cannot switch between.
+          //
+          // The first-run framing that used to ride on this prop is gone and
+          // not coming back: `open` is gated on `!hasNoTrips`, so it was
+          // unreachable, and first run is the inline conversation now (§32.1).
+          size={isPhone ? "full" : "rail"}
           // Only the full wizard (dates/budget applied) navigates straight to
           // the new trip, matching the phase doc's own "create... apply
           // dates and budget... then navigate" sequence. "Create empty" is

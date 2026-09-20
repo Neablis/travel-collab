@@ -1004,3 +1004,18 @@ describe("Home trip list load failures", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+// SPEC §32.2 — *"the phone gets the flow… full-screen conversation"*. M26 Wave
+// 2, link 15.
+//
+// **There is deliberately no test here that the sheet is full-screen**, and the
+// lint wall is why: "full screen" is a class swap (`max-w-measure` for
+// `inset-x-0`), this file is not a `components/ui/**` primitive, and jsdom has
+// neither layout nor media queries — so a `className` assertion here would be
+// the second time in this wave I tried to make a paint claim at a layer that
+// cannot hold one. It belongs to the `phone` Playwright project at 411px, which
+// is link 16's work, and it is listed there.
+//
+// What this file still holds, unchanged above: that the conversation opens at
+// all, that it is one conversation and not two, and every behaviour of the flow
+// inside it. Those are the claims a unit test can actually make.

@@ -1021,8 +1021,23 @@ everyone agrees is temporary is a test that will have to be argued with later.
 - [ ] **[walk]** Playbooks on a phone: tabs above the search, a one-column list,
       and **one** filter sheet holding filters and sort with scope outside it.
       The shared day's map is behind a *Show route* row.
-- [ ] **[walk]** New trip owns the whole frame with a `Cancel · New trip ·
-      Empty` header and no tab bar.
+- [~] **[walk]** New trip owns the whole frame with a `Cancel · New trip ·
+      Empty` header and no tab bar. **Two of the three done, 2026-09-20.**
+      *Full frame*: `(app)/page.tsx` passes `size="full"` below the phone
+      breakpoint — `useIsPhone()` is correct here and wrong for chrome, because
+      this sheet only renders after somebody presses New trip, long after the
+      first paint the hook is false for. *No tab bar*: already true and not new
+      work — the sheet's `.overlay-layer` is `z-60` over the bar's `z-20` and
+      Radix `aria-hidden`s the page behind it, so the bar is hidden both
+      visually and to assistive technology.
+      **NOT done: the `Cancel · New trip · Empty` header.** `SheetActions`
+      requires `onSave`, so opting into that header always renders a third
+      button — and *Create empty* lives inside `NewTripConversation`, wired to
+      `submit(false)` over local `name`/`submitting`/`disabled` state. Putting a
+      second one in the header would be project rule 4; doing it properly means
+      lifting that exit out of the conversation, which is a restructure of that
+      component rather than a prop. **Whoever takes it: move the exit, do not
+      duplicate it.**
 - [ ] **A re-measurement of KI-046's own numbers on the surfaces this wave
       owns**, reported as a figure and not as an impression — the entry was
       written from measurement and is amended by measurement. **KI-046 is
@@ -1048,7 +1063,13 @@ everyone agrees is temporary is a test that will have to be argued with later.
       place. Link 4's shared-day map mounts this same panel rather than wording
       a second one differently.
 - [ ] The `phone` Playwright project covers every surface this wave built, and
-      **does not** pin link 13's layout while its question is open.
+      **does not** pin link 13's layout while its question is open. **It also
+      owns three claims the unit layer tried to make and could not**, each one
+      a class swap that jsdom has no layout or media queries to judge: that
+      `/account`'s sign out and `‹ Trips` are phone-only, that the account tabs
+      are 44px there, and that the new-trip sheet is full-frame below the
+      breakpoint. The lint wall refused all three at the unit layer, correctly.
+      They are listed here so they are covered rather than lost.
 - [ ] `DRIFT.md` §8 is updated: the stale phone-Notebook bullet struck, and the
       two states the **design** still owes (the phone conflict state, and the
       loading/failed regions for tokens and plan) stated as design-owed rather
