@@ -101,6 +101,32 @@ describe("ProfileSection", () => {
     expect(screen.queryByRole("textbox", { name: /signed in as|email/i })).toBeNull();
   });
 
+  // **Three states, and the middle one used to be told as a lie.** `undefined`
+  // is "the session probe has not answered yet"; `""` is "your provider gave no
+  // address". `AccountScreen` flattened the first into the second with
+  // `user?.email ?? ""`, so a signed-in reader was told their sign-in had
+  // supplied no address — briefly on every load, and permanently if the probe
+  // failed (CodeRabbit, PR 196). A claim about the reader's own account is the
+  // last thing to guess at.
+  it("does not claim the sign-in gave no address before the session has answered", async () => {
+    render(
+      <PreferencesProvider>
+        <ProfileSection email={undefined} />
+      </PreferencesProvider>,
+    );
+    expect(await screen.findByText("…")).toBeTruthy();
+    expect(screen.queryByText("Not provided by your sign-in")).toBeNull();
+  });
+
+  it("does say so once the session has answered with no address", async () => {
+    render(
+      <PreferencesProvider>
+        <ProfileSection email="" />
+      </PreferencesProvider>,
+    );
+    expect(await screen.findByText("Not provided by your sign-in")).toBeTruthy();
+  });
+
   it("saves a name on blur, once", async () => {
     mount();
     const field = await screen.findByLabelText("Your name");

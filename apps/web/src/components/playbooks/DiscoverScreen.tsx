@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -168,6 +168,34 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
     (def: FilterDef): readonly FilterOption[] | null => filterOptions.get(def.id) ?? null,
     [filterOptions],
   );
+
+  // **A filter the context cannot offer is cleared from STATE, not merely
+  // hidden.** The comment above says an unofferable filter "appears nowhere:
+  // not as a chip, not in *More filters*, and not in the count" — but only the
+  // controls honoured that. A budget chosen while Kyoto's results shared a
+  // currency stayed in `filters` after a scope change removed that shared
+  // currency: still counted, still sent to `searchPlaybooks`, and with no
+  // control left to see or clear it. Results were narrowed by something the
+  // reader could not find (CodeRabbit, PR 196).
+  //
+  // **Clearing is safe to do from the feed's own answer**, which is the part
+  // worth checking before writing this: `budgetCurrency` is computed in
+  // `server/playbooks.ts` over the CANDIDATES, before the budget predicate is
+  // applied. So it does not depend on the budget value, and clearing the budget
+  // cannot change the currency that caused the clear. No oscillation.
+  useEffect(() => {
+    setFilters((prev) => {
+      const cleared = FILTER_DEFS.reduce(
+        (acc, def) => (filterOptions.get(def.id) == null ? def.apply(acc, def.none) : acc),
+        { budget: prev.budget, length: prev.length } as FilterState,
+      );
+      // Returning `prev` unchanged is what keeps this effect from looping:
+      // `def.apply` always builds a new object, so an identity comparison would
+      // re-set state on every render.
+      if (cleared.budget === prev.budget && cleared.length === prev.length) return prev;
+      return { ...prev, ...cleared };
+    });
+  }, [filterOptions]);
 
   const questions: FilterState = { budget, length };
   const activeCount = activeFilterCount(questions);

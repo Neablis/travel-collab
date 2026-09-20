@@ -38,7 +38,13 @@ const UNIT_OPTIONS = [
 // forgotten (M26 link 1). Every other field here is a property of the reader
 // with no per-trip counterpart; a currency is a property of where the trip
 // happens, and a trip already carries one (`SetTripCurrency`).
-export function ProfileSection({ email }: { email: string }) {
+/**
+ * `email` is `undefined` while the session probe is still in flight, `""` when
+ * the provider genuinely supplied no address, and the address otherwise. The
+ * three are deliberately distinct: "Not provided by your sign-in" is a claim
+ * about the reader's own account, and it must not be made before anyone knows.
+ */
+export function ProfileSection({ email }: { email: string | undefined }) {
   const { preferences, loaded, save } = useAccountPreferences();
   const [name, setName] = useState(preferences.displayName ?? "");
   const [airport, setAirport] = useState(preferences.homeAirport ?? "");
@@ -168,7 +174,7 @@ export function ProfileSection({ email }: { email: string }) {
             of naming a field. */}
         <SettingsRow label="Signed in as">
           <DataText size="base" className="text-ink">
-            {email === "" ? "Not provided by your sign-in" : email}
+            {email === undefined ? "…" : email === "" ? "Not provided by your sign-in" : email}
           </DataText>
         </SettingsRow>
 

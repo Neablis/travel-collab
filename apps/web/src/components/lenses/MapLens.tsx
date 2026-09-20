@@ -11,6 +11,7 @@ import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
+import { isFatalMapError } from "./mapBootstrap";
 import { mapPaintColor } from "./mapColor";
 import { MapOfflineState } from "./MapOfflineState";
 import { useIsPhone } from "./useIsPhone";
@@ -408,17 +409,15 @@ export function MapLens({
       // just renders empty, which is already the effective behavior when
       // this fires. Kept for "positron" too: no guarantee every future style
       // swap ships every referenced sprite.
-      // **Only a style or source failure counts.** MapLibre's `error` fires for
-      // plenty that is survivable — a single tile 404 in a corner of the
-      // viewport, a missing sprite (handled just below) — and swapping the
-      // whole canvas for a panel because one tile was slow would be its own
-      // defect. A style that never parsed means nothing will ever draw.
+      // **The classification lives in `mapBootstrap.isFatalMapError`**, not
+      // here. This file used to carry its own copy of the rules, and the copy
+      // said "only a style or source failure counts" while actually treating
+      // every source-attributed error as fatal — so one tile 404 in a corner of
+      // the viewport blanked a map whose remaining tiles were fine (CodeRabbit,
+      // PR 196). Two copies of a judgement call is how one of them ends up
+      // contradicting its own comment; there is now one, with its own test.
       map.on("error", (event) => {
-        const { error, sourceId } = event as unknown as { error?: { message?: string }; sourceId?: string };
-        const message = error?.message ?? "";
-        if (/sprite|image/i.test(message)) return;
-        if (sourceId === undefined && !/style/i.test(message)) return;
-        setFailed(true);
+        if (isFatalMapError(event)) setFailed(true);
       });
 
       map.on("styleimagemissing", (e: { id: string }) => {

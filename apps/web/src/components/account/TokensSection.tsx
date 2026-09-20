@@ -277,8 +277,18 @@ export function TokensSection() {
   async function loadTrips() {
     if (trips !== null) return;
     const result = await fetchTrips();
-    if (result.ok) setTrips(result.value);
-    else setTripsFailed(true);
+    if (result.ok) {
+      // **Clear the failure before storing the trips.** `trips` stays null on a
+      // failed fetch, so the `trips !== null` guard above lets a later attempt
+      // through — but `tripsFailed` was never reset, and the failure branch in
+      // the render takes precedence over having trips. A recovered fetch would
+      // sit behind "could not be loaded" until the component remounted
+      // (CodeRabbit, PR 196).
+      setTripsFailed(false);
+      setTrips(result.value);
+    } else {
+      setTripsFailed(true);
+    }
   }
 
   async function revoke(tokenId: string) {

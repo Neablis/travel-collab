@@ -243,17 +243,41 @@ const notAClassName = new Set([
 // `pages/cityAccents.ts` says in as many words that there is no
 // `--color-brand-ink`. Flagging those would delete the institutional memory
 // this wall is built on. Comments are blanked rather than removed so line
-// numbers in the report still point at the file. `//` is only treated as a
-// comment opener when it is not preceded by `:`, so a `https://` inside a
-// string does not swallow the rest of the line — and not at all in CSS, where
-// it opens nothing.
+// numbers in the report still point at the file, and `//` opens nothing at all
+// in CSS.
+//
+// **The scan is string-aware rather than a regex.** It used to be
+// `/(^|[^:])\/\/.*$/`, which protected `https://` by refusing a `//` preceded
+// by a colon — but that is a guess about one spelling, and it missed every
+// other `//` inside a string: a PROTOCOL-RELATIVE url (`"//cdn.example.com"`),
+// or any string that simply contains two slashes. On those lines everything
+// after the quote was discarded, so a real bad token sitting later on the line
+// was never scanned and the wall passed on a defect. CodeRabbit found it on
+// PR 196, and found too that the test covering this could not have caught it:
+// the token after the url was a VALID one, so the assertion held either way.
+const stripLineComment = (line) => {
+  let quote = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quote !== null) {
+      // A backslash escapes the next character, including a closing quote.
+      if (ch === "\\") i += 1;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "/" && line[i + 1] === "/") return line.slice(0, i);
+  }
+  return line;
+};
+
 const stripComments = (source, isCss) => {
   let out = source.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
   if (!isCss) {
-    out = out
-      .split("\n")
-      .map((line) => line.replace(/(^|[^:])\/\/.*$/, "$1"))
-      .join("\n");
+    out = out.split("\n").map(stripLineComment).join("\n");
   }
   return out;
 };

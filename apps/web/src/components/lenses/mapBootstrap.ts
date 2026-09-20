@@ -48,27 +48,41 @@ export const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
  * predicate than to provoke a real tile 404 in a test.
  */
 export function isFatalMapError(event: unknown): boolean {
-  const { error, sourceId } = (event ?? {}) as { error?: { message?: string }; sourceId?: string };
+  const { error, sourceId, tile } = (event ?? {}) as {
+    error?: { message?: string };
+    sourceId?: string;
+    tile?: unknown;
+  };
   const message = error?.message ?? "";
+
   // A sprite or image that did not resolve is handled by the placeholder in
   // `createBaseMap`, which draws a blank in the slot. This test runs FIRST and
-  // wins over the source rule below on purpose: a sprite failure that also
-  // names a source is still the placeholder's, not the offline panel's.
+  // wins over everything below on purpose: a sprite failure that also names a
+  // source is still the placeholder's, not the offline panel's.
   if (/sprite|image/i.test(message)) return false;
-  // Otherwise: a **style or source** failure counts, and nothing else does.
-  // An unattributable error — no source, no mention of the style — is most
-  // often a stray MapLibre warning, and blanking the canvas on one of those
-  // would turn every warning into an outage.
+
+  // A style that never parsed means nothing will ever draw.
+  if (/style/i.test(message)) return true;
+
+  // **A TILE failure is survivable; a SOURCE failure is not**, and MapLibre
+  // tells them apart by whether the event carries the tile it was fetching.
+  // One tile 404 in a corner of the viewport leaves the rest of the map
+  // perfectly readable — swapping the whole canvas for a panel over it is its
+  // own defect. A source that failed to initialise (its TileJSON never
+  // resolved) means that source will never produce tiles at all.
   //
-  // **A source-attributed error is fatal here even though a lone tile 404 is
-  // survivable in principle.** That is this predicate's known coarseness, kept
-  // deliberately: it is MapLens's shipped behaviour, and this module's job is
-  // to carry that behaviour to a second map unchanged, not to retune it while
-  // nobody is looking. Narrowing it is a real change with its own evidence —
-  // it needs a reproduction of a corner-of-the-viewport 404 that proves the
-  // map stays useful, which is exactly the case a test cannot stage today.
-  if (sourceId === undefined && !/style/i.test(message)) return false;
-  return true;
+  // This used to read `sourceId === undefined && !/style/…` — i.e. ANY
+  // source-attributed error was fatal, tile 404s included, which contradicted
+  // the contract three lines above it. It was MapLens's shipped behaviour and
+  // was carried here deliberately rather than retuned in passing; CodeRabbit
+  // flagged the contradiction on PR 196 and it is now fixed in the one place
+  // both maps read, rather than in two places that could drift.
+  if (sourceId !== undefined) return tile === undefined;
+
+  // Unattributable: no source, no mention of the style. Most often a stray
+  // MapLibre warning, and blanking the canvas on one would turn every warning
+  // into an outage.
+  return false;
 }
 
 export type BaseMap = {

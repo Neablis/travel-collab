@@ -82,11 +82,22 @@ export function SharedDayMap({
   const [failed, setFailed] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  // **Numbering is continuous across the whole Playbook in every scope**,
-  // because that is what the list does — `playbookDays` numbers with a running
-  // counter and never restarts it. A map that renumbered from 1 inside a day
-  // would put pin 1 beside the list's row 5.
-  const geometry = useMemo(() => playbookGeometry(days), [days]);
+  // **The pins take their numbers from whatever the LIST is showing**, and the
+  // list changes its mind with the scope: `SharedDayScreen` renders
+  // `dayScope === "all" ? stop.number : group.stops.indexOf(stop) + 1`, so
+  // `All days` counts through the whole Playbook and a single day restarts at 1
+  // (§33.1).
+  //
+  // This read `playbookGeometry(days)` unconditionally, with a comment claiming
+  // the list never restarts. It does. On a two-day Playbook scoped to Day 2 the
+  // list showed 1, 2 beside pins 3, 4 — the "pin 4 beside the list's stop 5"
+  // failure `sharedDayGeometry.ts` was written to prevent, reintroduced by its
+  // own consumer. Caught by CodeRabbit on PR 196; the test that should have
+  // caught it was asserting the wrong numbers.
+  const geometry = useMemo(
+    () => playbookGeometry(days, { continuousNumbering: scope === "all" }),
+    [days, scope],
+  );
   const scoped = useMemo(
     () => (scope === "all" ? geometry : geometry.filter((g) => g.dayIndex === scope)),
     [geometry, scope],
@@ -190,6 +201,15 @@ export function SharedDayMap({
 
       if (base.map.isStyleLoaded()) draw();
       else base.map.once("load", draw);
+    }).catch(() => {
+      // `createBaseMap` can reject before any map exists — the dynamic
+      // `import("maplibre-gl")` can fail on a flaky network or a blocked chunk,
+      // and the `Map` constructor itself throws when WebGL is unavailable.
+      // Without this the rejection was unhandled AND the reader was left with a
+      // blank framed box rather than the offline state that already exists for
+      // exactly this case. `onFatalError` only ever fires on a LIVE map, so it
+      // could not cover the map that never got built.
+      if (!cancelled) setFailed(true);
     });
 
     return () => {
@@ -208,9 +228,18 @@ export function SharedDayMap({
   // a world map tells a reader less than the city name already in the list.
   if (!drawable) return null;
 
+  // **The same box the map would have occupied**, and `relative` so
+  // `MapOfflineState`'s `absolute inset-0` resolves against THIS element.
+  // Without a positioning context it resolved against whatever ancestor
+  // happened to be positioned — covering unrelated page content while this
+  // wrapper collapsed to zero height. The size has to match the map's too, or
+  // the page reflows every time the map fails or recovers.
   if (failed) {
     return (
-      <div className="mb-6" data-testid="shared-day-map-offline">
+      <div
+        className="relative mb-6 h-72 w-full overflow-hidden rounded-lg border border-hairline md:h-96"
+        data-testid="shared-day-map-offline"
+      >
         <MapOfflineState onRetry={retry} />
       </div>
     );

@@ -24,12 +24,24 @@ export type SessionUser = { id?: string | null; name?: string | null; email?: st
  * handle from it (`displayNameFor`), and it is already on the session — the JWT
  * `session` callback sets `session.user.id` on every call (`authConfig.ts`).
  *
- * Returns `null` both before the first read resolves and when nobody is signed
- * in. A caller that must tell those apart wants a different hook; no caller
- * does today, because both cases render the same thing.
+ * **Three states, not two:** `undefined` until the first read resolves, then
+ * `null` for nobody signed in, or the user.
+ *
+ * This returned `null` for both, on the reasoning that "both cases render the
+ * same thing". They do not. `AccountScreen` passes `user?.email ?? ""` to
+ * `ProfileSection`, which renders **"Not provided by your sign-in"** for an
+ * empty string — so a signed-in account with an address was told its provider
+ * had not supplied one, for as long as the session probe took, and permanently
+ * if that probe failed. A statement of fact about the reader's own account is
+ * exactly the wrong thing to guess at (CodeRabbit, PR 196).
+ *
+ * `undefined` is chosen over a `{ user, loading }` pair because every existing
+ * caller reads it optionally (`user?.email`, `user?.name`), and those keep
+ * working untouched; only a caller that must distinguish "not yet" from "not
+ * signed in" has to look.
  */
 export function useSessionUser() {
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;

@@ -196,8 +196,17 @@ describe("SharedDayMap", () => {
     expect(source.data.features).toHaveLength(2);
   });
 
-  // Scoping to a day keeps the list's numbering rather than restarting at 1.
-  it("keeps whole-Playbook numbering when scoped to the second day", async () => {
+  // **Scoping to one day restarts the numbering at 1, because the LIST does.**
+  // `SharedDayScreen` renders `dayScope === "all" ? stop.number :
+  // group.stops.indexOf(stop) + 1`.
+  //
+  // This test previously asserted `["3", "4"]` — it was written from the
+  // component's comment rather than from the screen it has to agree with, so it
+  // passed while pinning the exact defect `sharedDayGeometry.ts` exists to
+  // prevent: pins that disagree with the rows beside them. Found by CodeRabbit,
+  // PR 196. A test agreeing with the code it tests, and both wrong together, is
+  // the failure CLAUDE.md rule 3 is about.
+  it("restarts numbering at 1 when scoped to the second day, as the list does", async () => {
     render(
       <SharedDayMap
         savedDayId={DAY_ID}
@@ -209,7 +218,7 @@ describe("SharedDayMap", () => {
       />,
     );
     await settle();
-    expect(added.markers.map((el) => el.textContent)).toEqual(["3", "4"]);
+    expect(added.markers.map((el) => el.textContent)).toEqual(["1", "2"]);
   });
 
   // A leg that skipped an unlocated stop is drawn dashed, because the line

@@ -120,7 +120,14 @@ export function AccountScreen() {
           tabIndex={-1}
           className={SETTINGS_MEASURE}
         >
-          {tab === "profile" && <ProfileSection email={user?.email ?? ""} />}
+          {/* `undefined` while the session probe is in flight is passed
+              THROUGH, not flattened to `""` — `""` is ProfileSection's "your
+              provider gave no address", and asserting that before the probe
+              resolves tells a signed-in reader something false about their own
+              account. */}
+          {tab === "profile" && (
+            <ProfileSection email={user === undefined ? undefined : (user?.email ?? "")} />
+          )}
           {tab === "plan" && <PlanSection />}
           {tab === "tokens" && <TokensSection />}
         </div>

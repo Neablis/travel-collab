@@ -15,13 +15,23 @@ describe("isFatalMapError", () => {
     expect(isFatalMapError({ error: { message: "Failed to parse style" } })).toBe(true);
   });
 
-  // Coarse on purpose, and this test is here to PIN that coarseness rather
-  // than to endorse it: a source-attributed error is fatal, even though a lone
-  // tile 404 is survivable in principle. This is MapLens's shipped behaviour
-  // and the extraction carries it over unchanged. If it is ever narrowed, this
-  // is the test that must be rewritten deliberately — which is the point.
-  it("gives up on a source-attributed error, MapLens's shipped coarseness", () => {
-    expect(isFatalMapError({ error: { message: "404" }, sourceId: "openmaptiles" })).toBe(true);
+  // **A tile failure is survivable and a source failure is not**, and the
+  // discriminator is whether MapLibre attached the tile it was fetching.
+  //
+  // This pair replaces a single test that pinned the opposite — it asserted
+  // that ANY source-attributed error was fatal, which is what the code did and
+  // what its own comment three lines above denied. The test agreed with the
+  // code and both were wrong together (CodeRabbit, PR 196).
+  it("survives one tile that 404'd — the rest of the map is still readable", () => {
+    expect(
+      isFatalMapError({ error: { message: "404" }, sourceId: "openmaptiles", tile: { x: 1, y: 2, z: 3 } }),
+    ).toBe(false);
+  });
+
+  it("gives up when a SOURCE failed to initialise — it will never produce tiles", () => {
+    expect(isFatalMapError({ error: { message: "Unable to load TileJSON" }, sourceId: "openmaptiles" })).toBe(
+      true,
+    );
   });
 
   it("survives a sprite or image that did not resolve, placeholder's job", () => {

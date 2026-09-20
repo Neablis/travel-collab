@@ -226,6 +226,27 @@ test("a comment naming a bad token is not a violation, in either comment syntax"
   assert.equal(status, 0, `expected the wall to pass; got: ${stdout}${stderr}`);
 });
 
+// **The witness the test above is missing.** It ends its url line with
+// `text-ink`, a VALID token — so if the wall wrongly treated `//` inside the
+// string as a comment opener and discarded the rest of the line, that test
+// would still pass. It asserts nothing about the path it claims to cover.
+//
+// A first attempt at this witness put the bad token on the NEXT line, which
+// does not discriminate either: truncating line 1 never hid line 2, and it
+// passed against the old regex too. It was deleted rather than kept, because a
+// test that cannot fail is the thing being fixed here, not a second copy of it.
+// The same hazard on ONE line, which is the shape the old regex actually lost:
+// everything after the first `//` went, including a token later in the line.
+test("a token after a url ON THE SAME LINE is still scanned", () => {
+  const contents = [
+    'export const A = () => <a href="//cdn.example.com" className="text-nonexistent-token" />;',
+    "",
+  ].join("\n");
+  const { status, stderr, relative } = runWallAgainst("same-line-url.tsx", contents);
+  assert.equal(status, 1, "expected the wall to report the undefined token after the url");
+  assert.match(stderr, new RegExp(`${relative}:1: \\\`text-nonexistent-token\\\` — no such token`));
+});
+
 // The same non-vacuity argument the Sentry exclusion gets above: the
 // `notAClassName` entry could be a typo or left behind after the dependency
 // stopped using the word, and the wall would still pass because nothing in the
