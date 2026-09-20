@@ -45,7 +45,25 @@ M26 is about to rebuild, so the other order rebuilds them twice.
 as not done, with the reason (it needs the exit lifted out of
 `NewTripConversation`, not duplicated).
 
-## NEXT SESSION — the shared day's map panel (M26 link 4b/4c)
+## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
+
+**Built in PR #197.** `sharedDayFacts.ts` derives the title, the fact rows and
+the shape sentence from `dc.html:7495-7527`; `SharedDayMap` renders them under
+the canvas. The section below was written as a handoff and is kept as the
+record of what the design asks for — the table's `no` column is now `yes` for
+`mapTitle`, `mapFacts` and `mapNote`.
+
+**What it did NOT do**, both named rather than left to be rediscovered:
+
+- **`gaps[idx].label` is computed and not rendered.** `mapPanel` returns the
+  per-stop labels and a test covers them; putting them between stops needs
+  `SharedDayScreen`'s list.
+- **The 3.5s / 7.5s / 11s recovery ladder is still not wired into
+  `SharedDayMap`.** `mapRecovery.ts` has it and the Map *lens* uses it; the
+  shared day's map has only the fatal-error path. That, not "the rendering", is
+  what keeps M26 link 4 open — see the milestone file.
+
+The original handoff follows, unchanged.
 
 **Branch `claude/beautiful-feynman-b86spm`, PR #196, `ci` green on every pushed
 head** — run 889 on `691f804` has `static-and-unit` and `integration-e2e` both

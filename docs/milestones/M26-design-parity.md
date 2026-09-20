@@ -422,14 +422,39 @@ a leg that steps over an unlocated stop is marked `contiguous: false`, because
 it is a guess about a route that skipped something rather than a leg somebody
 took.
 
-**Not done: the rendering, and it cannot be finished to this gate's standard
-without a browser.** What remains is the `SharedDayMap` component itself —
-transcribing `MapLens.tsx`'s mount discipline (the four constraints above are
-each a bug already hit) and the 3.5s / 7.5s / 11s per-instance recovery ladder,
-which **does not exist anywhere in the build yet**: no `3500`/`7500`/`11000`
-appears in `apps/web/src`, so it is new work rather than a copy. The gate asks
-for that ladder to be **proven by forcing it**, which is a browser walk, so this
-link stays open on purpose rather than being marked done from inspection.
+**The rendering shipped in #196 (2026-09-20).** `SharedDayMap.tsx` mounts the
+canvas, numbered pins, the route line and gapped legs, carries all four
+constraints above as comments, degrades to list-only below `MIN_POINTS_TO_DRAW`,
+and answers a fatal style or source error with `MapOfflineState` and a retry
+that rebuilds the instance. The walk that shipped it also found the reason it
+had never drawn: the seed carried no coordinates (`KI-2026-09-20-d`).
+
+**4b — the panel's derived TEXT shipped in #197.** The artboard draws more
+beside the canvas than the canvas: `sharedDayFacts.ts` now derives the title
+(`Kyoto → Osaka`), up to three fact rows (`On foot` / `2.4 km · 32 min`) and the
+day's shape in a sentence, from `dc.html:7495-7527`, with every threshold a
+named constant. **Walk vs ride is decided by distance alone** — link 5c's
+answer, since the artboard's other half reads a per-stop `transit` flag no
+`SavedStop` carries.
+
+**Still open, and now for a specific reason rather than "the rendering".** Two
+things:
+
+1. **The 3.5s / 7.5s / 11s per-instance recovery ladder is NOT wired into
+   `SharedDayMap`.** `mapRecovery.ts`'s `STYLE_LOAD_LADDER_MS` exists and the
+   Map *lens* uses it; `SharedDayMap` imports `createBaseMap` only, and
+   `createBaseMap` does not carry the ladder. So a shared-day map whose style
+   never loads — `load` never fires, silently, forever — has no timed rebuild
+   behind it, only the fatal-error path. This is the gate's remaining substance
+   and it was previously described as "the rendering", which is why it read as
+   done once the component existed.
+2. **The gate asks for that ladder to be proven by FORCING it**, which is a
+   browser walk. So this link stays open on purpose rather than being marked
+   done from inspection.
+
+**Also not done, and smaller:** the per-stop gap labels (`12 min walk · 0.9 km`
+between stops in the list). `mapPanel` computes them and a test covers them;
+rendering them needs `SharedDayScreen`'s list.
 
 ---
 

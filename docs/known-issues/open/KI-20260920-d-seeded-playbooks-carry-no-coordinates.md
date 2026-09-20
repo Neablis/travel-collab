@@ -1,4 +1,4 @@
-### KI-2026-09-20-d — the seeded Playbook library carries almost no coordinates, so §16's map draws on one day out of ten
+### KI-2026-09-20-d — the two FIXTURE Playbooks carry almost no coordinates, so §16's map does not draw on a database seeded without `content:import`
 
 - **Severity:** content, and it hid a whole feature. Nothing is wrong, nothing
   errors, and the surface a milestone had just built was invisible on every
@@ -16,9 +16,24 @@
 
   The cause was the data. Both seed fixtures build a stop's place with a
   `stop()` helper that wrote `location: { name, city }` and dropped everything
-  else, so **not one saved-day stop in the repository carried a `lat`**.
-  `worthDrawing` needs two located stops on the scoped day; the library offered
-  zero anywhere.
+  else, so **not one stop in either FIXTURE carried a `lat`**. `worthDrawing`
+  needs two located stops on the scoped day; the fixtures offered zero.
+
+  **An earlier draft of this entry said "not one saved-day stop in the
+  REPOSITORY", and that was wrong** — a generalisation from the only half of
+  the data the walk could see. Measured 2026-09-20 over `content/playbooks`:
+
+  | source | days | stops | located | days whose map draws |
+  |---|---|---|---|---|
+  | `content/**` bundles (19 files) | 148 | 1156 | 929 (80%) | **143 of 148** |
+  | `packages/fixtures` (Japan + starter) | 10 | ~47 | 3 | 1 |
+
+  The bundles were always geocoded. The preview showed no maps because
+  `content:import` had never run against it, so the only Playbooks present were
+  the fixture ones. Mitchell confirmed maps appearing on the preview once that
+  import had run. **So this entry is about the fixtures, and only the
+  fixtures** — anyone reading it as "the library needs geocoding" would be
+  hand-authoring coordinates that already exist.
 
   This is the same report Mitchell made from the preview on 2026-09-19 — *"a
   playbook activity doesn't even have a map"* — which M26 answered by building
@@ -41,7 +56,7 @@
   `packages/fixtures/src/savedDayCoordinates.test.ts` holds all three facts and
   was seen red for each of them.
 
-- **Still open:** the other ~44 stops across both fixtures. **They were not
+- **Still open, and it is small:** the other ~44 stops across both fixtures, plus the 5 bundle days of 148 that still lack two located stops. **They were not
   hand-authored on purpose.** KI-39 is the entry that cost this seed a pin in
   the wrong country, `geocode-content.py`'s `--apply` skips any stop that
   already has a `lat` — so a wrong coordinate written here is permanent until

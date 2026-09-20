@@ -5,6 +5,8 @@ import type { SavedStop } from "@tc/contracts";
 import { createBaseMap } from "@/components/lenses/mapBootstrap";
 import { mapPaintColor } from "@/components/lenses/mapColor";
 import { MapOfflineState } from "@/components/lenses/MapOfflineState";
+import { useDistanceUnit } from "@/components/account/PreferencesProvider";
+import { mapPanel, mapTitle } from "./sharedDayFacts";
 import {
   allLegs,
   allPoints,
@@ -104,6 +106,24 @@ export function SharedDayMap({
   );
   const drawable = worthDrawing(scoped);
   const key = geometryKey(savedDayId, scope, scoped);
+
+  // **The panel's words** — link 4b, `dc.html:7495-7527`. Up here with the
+  // other hooks for the reason the file already gives twice: everything past
+  // the early returns below runs conditionally.
+  const unit = useDistanceUnit();
+  const panel = useMemo(() => mapPanel(scoped, unit), [scoped, unit]);
+  // The cities of the stops in view, in order. `sharedDayGeometry` drops
+  // `city` (a map needs coordinates, not names), so this reads the stops
+  // rather than the geometry.
+  const title = useMemo(
+    () =>
+      mapTitle(
+        (scope === "all" ? days : days.filter((d) => d.dayIndex === scope)).flatMap((d) =>
+          d.stops.map((st) => st.location?.city ?? ""),
+        ),
+      ),
+    [days, scope],
+  );
 
   const retry = useCallback(() => {
     setFailed(false);
@@ -246,12 +266,29 @@ export function SharedDayMap({
   }
 
   return (
-    <div
-      ref={containerRef}
-      data-testid="shared-day-map"
-      className="mb-6 h-72 w-full overflow-hidden rounded-lg border border-hairline md:h-96"
-      role="img"
-      aria-label={`Map of ${allPoints(scoped).length} located stops`}
-    />
+    <div className="mb-6">
+      {/* A plain wrapper, never a conditional around the container: a React
+          conditional here detaches the node mid-style-load and the load aborts
+          with no error (DRIFT §6 build-check 5, on its third recurrence). */}
+      <div
+        ref={containerRef}
+        data-testid="shared-day-map"
+        className="h-72 w-full overflow-hidden rounded-lg border border-hairline md:h-96"
+        role="img"
+        aria-label={`Map of ${allPoints(scoped).length} located stops`}
+      />
+      <div className="mt-3 flex flex-col gap-2" data-testid="shared-day-map-panel">
+        {title !== "" && <p className="text-sm font-medium text-ink">{title}</p>}
+        <dl className="flex flex-wrap gap-x-6 gap-y-1">
+          {panel.facts.map((fact) => (
+            <div key={fact.key} className="flex gap-2">
+              <dt className="text-xs text-slate">{fact.key}</dt>
+              <dd className="text-xs text-ink">{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-xs text-slate">{panel.note}</p>
+      </div>
+    </div>
   );
 }
