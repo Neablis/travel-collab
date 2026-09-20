@@ -47,9 +47,29 @@ as not done, with the reason (it needs the exit lifted out of
 
 ## NEXT SESSION — the shared day's map panel (M26 link 4b/4c)
 
-**Branch `claude/beautiful-feynman-b86spm`, PR #196, 63 commits, `ci` green on
-every pushed head.** The PR is finished and mergeable; this is NEW work and
-Mitchell's steer was a **fresh branch off `main`**, not more commits on #196.
+**Branch `claude/beautiful-feynman-b86spm`, PR #196, `ci` green on every pushed
+head** — run 889 on `691f804` has `static-and-unit` and `integration-e2e` both
+green. `Vercel Preview Comments` is the one red check and it is red *on
+purpose*: it fails while any Toolbar thread is unresolved, and decision 1 below
+is deliberately left open. That is why GitHub says `unstable` rather than
+`clean`; there is no conflict and no failing test.
+
+The PR is finished. This is NEW work and does **not** belong on it — a feature
+added there re-opens a 163-file review and re-pays the full suite.
+
+**Where to branch from depends on whether #196 has merged. CHECK IT, do not
+assume** (`mcp__github__pull_request_read`, or the GitHub UI; `gh` is not
+available in a cloud session).
+
+- **#196 merged** → branch off `main`. The clean case, and the one the earlier
+  wording of this line assumed without saying so.
+- **#196 still open** → branch off `claude/beautiful-feynman-b86spm`. The panel
+  builds directly on `SharedDayMap.tsx`, `sharedDayGeometry.ts` and the three
+  fixture coordinates, and **none of those exist on `main`** — branching off
+  `main` while #196 is open starts the work on a tree missing its own
+  foundation. The cost of the other choice is that CodeRabbit's pending
+  re-trigger may force changes on #196 which then have to be merged down before
+  this work can land.
 
 ### What the walk found, and it is not the map
 
