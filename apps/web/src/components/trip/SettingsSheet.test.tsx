@@ -271,11 +271,14 @@ describe("SettingsSheet — lifecycle is not here (M26 link 6a)", () => {
     expect(screen.queryByText(/undo this from the toast/i)).toBeNull();
   });
 
-  // Download is the one thing that stays, under its own heading (link 6d).
-  it("keeps Download under Take it with you", () => {
+  // Download is the one thing that stays. It was under a `Take it with you`
+  // heading (link 6d); Mitchell asked for the heading and the sentence to go
+  // and the button to say `Download Trip` (Vercel Toolbar, PR #196 preview,
+  // 2026-09-20), so the heading is asserted ABSENT rather than present.
+  it("keeps Download, and no longer under a heading", () => {
     renderSheet();
-    expect(screen.getByRole("link", { name: /download as a file/i })).toBeTruthy();
-    expect(screen.getByText(/take it with you/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /download trip/i })).toBeTruthy();
+    expect(screen.queryByText(/take it with you/i)).toBeNull();
   });
 });
 
@@ -352,24 +355,30 @@ describe("SettingsSheet role gating", () => {
     for (const myRole of ["owner", "editor", "viewer"] as const) {
       cleanup();
       renderSheet({ myRole });
-      const link = screen.getByRole("link", { name: "Download as a file" });
+      const link = screen.getByRole("link", { name: "Download Trip" });
       expect(link.getAttribute("href")).toBe(`/api/v1/trips/${tripId}/export`);
       expect(link.hasAttribute("download")).toBe(true);
     }
   });
 
-  // M26 link 6d. The fact that an export does not carry history has been true
-  // and written down since M25 — in `bundle/fromTrip.ts`, a file only the next
-  // DEVELOPER reads. The comment there says the opposite assumption is invited
-  // by the word "export", and it is invited of the person clicking the link.
+  // **This asserted the OPPOSITE until 2026-09-20, and the reversal is a
+  // decision rather than a regression.** Link 6d added a `Take it with you`
+  // heading and the sentence *"Its history does not travel: an imported trip
+  // starts fresh, with no undo, redo or revert"*, because that fact was real
+  // and buried in a comment (`bundle/fromTrip.ts`) only the next developer
+  // would read. Mitchell, on the PR #196 preview: *"drop all the extra text
+  // for download a trip, and just have button at bottom that says 'Download
+  // Trip'"*. His call, and the surface is his.
   //
-  // Asserted as a claim about undo rather than on the exact sentence, so a
-  // copy edit does not fail this while a silent deletion does.
-  it("tells the reader that a downloaded trip loses its history", () => {
+  // Kept as a test rather than deleted, pointing the other way, so the
+  // sentence cannot drift back in without somebody meeting this and deciding
+  // again. The fact itself is still true and still only in that comment —
+  // flagged to him on the thread.
+  it("says nothing about history beside the download", () => {
     renderSheet({ myRole: "owner" });
-    expect(screen.getByText("Take it with you")).toBeTruthy();
-    expect(screen.getByText(/history does not travel/i)).toBeTruthy();
-    expect(screen.getByText(/no undo, redo or revert/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
+    expect(screen.queryByText(/history does not travel/i)).toBeNull();
+    expect(screen.queryByText(/no undo, redo or revert/i)).toBeNull();
   });
 
   it("disables the rename field for a viewer, and leaves it live for an editor", () => {

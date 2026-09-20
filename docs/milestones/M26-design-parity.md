@@ -1079,10 +1079,22 @@ marked **[walk]** and are not satisfiable by a green test.
       travel. A trip shared with you offers **Leave this trip** and no Delete.
       A duplicate lands with dates and travellers cleared.
       **First two sentences WALKED 2026-09-20**: Trip settings carries no
-      Delete and no Duplicate, and ends on `TAKE IT WITH YOU` — *"A download
+      Delete and no Duplicate, and ended on `TAKE IT WITH YOU` — *"A download
       carries the plan — your days and activities. Its history does not travel:
       an imported trip starts fresh, with no undo, redo or revert."* — above
-      *Download as a file*. **The third is unwalked**: every trip the preview
+      *Download as a file*.
+      **And then Mitchell reversed the heading half, hours later, on the same
+      preview** (Vercel Toolbar, 2026-09-20): *"in trip settings, drop all the
+      extra text for download a trip, and just have button at bottom that says
+      'Download Trip'"*. So this box's own sentence no longer describes the
+      build, and it is rewritten rather than left to rot: **Download remains,
+      as one button reading `Download Trip`, with no heading and no
+      paragraph.** Link 6d's reasoning is not wrong — the history caveat is
+      real and still lives only in `bundle/fromTrip.ts`'s comment — it is
+      overruled, which is his to do, and it is flagged on the thread so the
+      fact has somewhere to go if it should come back. `SettingsSheet.test.ts`
+      now asserts the absence, pointing the other way, so the sentence cannot
+      drift back without somebody deciding again. **The third is unwalked**: every trip the preview
       offers is one this account owns, so no `Leave this trip` is reachable
       without a second signed-in browser accepting an invite.
       **All three built 2026-09-20 (links 6a, 6b, 6c), unwalked.** The one

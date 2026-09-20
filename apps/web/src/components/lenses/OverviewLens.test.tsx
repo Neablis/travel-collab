@@ -67,13 +67,13 @@ describe("OverviewLens — a failed load", () => {
 // built inside the `ready` branch, so it was missing from exactly the two
 // states a reader most needs a way out of.
 describe("OverviewLens — the chrome does not wait for the data", () => {
-  it("offers Edit in Notebook while the page is still arriving", () => {
+  it("offers Edit while the page is still arriving", () => {
     fetchPagesMock.mockReturnValue(new Promise(() => {}));
     render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
 
     // Before the summary lands there is no page id, so it points at the
     // Notebook index — which lists this page. One click further, never wrong.
-    const link = screen.getByRole("link", { name: "Edit in Notebook" });
+    const link = screen.getByRole("link", { name: "Edit" });
     expect(link.getAttribute("href")).toBe(`/trips/${TRIP_ID}/pages`);
     // And the body is a placeholder, not a sentence: the region's own label.
     expect(screen.getByRole("status", { name: "Loading the Overview" })).toBeTruthy();
@@ -84,6 +84,6 @@ describe("OverviewLens — the chrome does not wait for the data", () => {
     render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
 
     await screen.findByTestId("overview-error");
-    expect(screen.getByRole("link", { name: "Edit in Notebook" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Edit" })).toBeTruthy();
   });
 });

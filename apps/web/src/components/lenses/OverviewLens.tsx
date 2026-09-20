@@ -127,10 +127,17 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
   }, [tripId, attempt]);
 
   // **The chrome, outside every branch** — §3b, and the artboard draws it that
-  // way (`dc.html:1959-1964`: the heading row and *Edit in Notebook* sit ABOVE
+  // way (`dc.html:1959-1964`: the heading row and its action sit ABOVE
   // `loadOvBody`/`failOvBody`, not inside the arrived case). Before this it was
   // built in the `ready` branch and therefore missing from the two states a
   // reader most needs a way out of.
+  //
+  // **The label is `Edit`, and it was `Edit in Notebook`.** Mitchell, Vercel
+  // Toolbar comment on the PR #196 preview, 2026-09-20, with this link
+  // selected: *"change text to 'Edit'"*. The longer label was naming the
+  // destination; the tab it sits on is already the Overview and the reader is
+  // already in the trip, so the destination was the part that could be
+  // dropped. The href is unchanged and still resolves as described below.
   //
   // **Where it points before the page id is known.** The artboard's action is
   // `openTripHomeDoc`, resolved when it is CLICKED rather than when it is
@@ -145,7 +152,7 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
       href={pageId === null ? `/trips/${tripId}/pages` : `/trips/${tripId}/pages/${pageId}`}
       className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "no-underline")}
     >
-      Edit in Notebook
+      Edit
     </Link>
   );
 

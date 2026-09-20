@@ -158,3 +158,59 @@ test.describe("new trip on a phone", () => {
     await expect(page.getByRole("navigation", { name: "Phone navigation" })).toBeHidden();
   });
 });
+
+// **Trip settings, and both of these are Mitchell's own words on the preview**
+// (Vercel Toolbar, PR #196, 2026-09-20, Android at 411px). They live here
+// rather than at the unit layer for this file's stated reason: one is a
+// rendered width and the other is the absence of prose beside a control, and
+// the lint wall refused the class assertion for the first — correctly, because
+// a column split is geometry and geometry is measured in a browser.
+test.describe("trip settings on a phone", () => {
+  async function openTripSettings(page: import("@playwright/test").Page, name: string) {
+    const made = await page.request.post("/api/trips", { data: { name } });
+    expect(made.ok(), `create -> ${made.status()}`).toBe(true);
+    const { tripId } = (await made.json()) as { tripId: string };
+    await page.goto(`/trips/${tripId}`);
+    // The trip title IS the Trip settings trigger, and its accessible name is
+    // `<trip name> — Trip settings`. Matched on the suffix rather than
+    // `new RegExp(name)`: `e2eTripName` returns `[e2e] …`, so interpolating it
+    // into a pattern turns the prefix into a CHARACTER CLASS and the regex
+    // matches a single `e` or `2` instead of the literal title. This page has
+    // exactly one trip, so the suffix alone is unambiguous.
+    await page.getByRole("button", { name: /— Trip settings$/ }).click();
+    await expect(page.getByRole("dialog", { name: "Trip settings" })).toBeVisible();
+  }
+
+  // *"in the trip settings, make the currency type 'USD' box the same size as
+  // the input for how much is the budget"*. It was `1fr 130px`, so on a 411px
+  // phone the currency box was visibly the smaller of the two.
+  test("gives the budget and the currency equal widths", async ({ page }) => {
+    const username = `m26s${Date.now().toString(36)}`;
+    await signInAsDevUser(page, username);
+    await openTripSettings(page, e2eTripName("M26Settings"));
+
+    const budget = await page.getByLabel("Total for the trip").boundingBox();
+    const currency = await page.getByLabel("Currency", { exact: true }).boundingBox();
+    expect(budget).not.toBeNull();
+    expect(currency).not.toBeNull();
+    // Equal to the pixel, not merely "close": they are two cells of one grid,
+    // so anything other than equality means the split is still hand-computed.
+    // A 1px tolerance for sub-pixel rounding and nothing more.
+    expect(Math.abs(budget!.width - currency!.width)).toBeLessThanOrEqual(1);
+  });
+
+  // *"drop all the extra text for download a trip, and just have button at
+  // bottom that says 'Download Trip'"* — reversing link 6d's heading and its
+  // history sentence. Held here as well as at the unit layer because this is
+  // the phone frame the comment was made on.
+  test("offers Download Trip as one button, with no prose around it", async ({ page }) => {
+    const username = `m26d${Date.now().toString(36)}`;
+    await signInAsDevUser(page, username);
+    await openTripSettings(page, e2eTripName("M26Download"));
+
+    const sheet = page.getByRole("dialog", { name: "Trip settings" });
+    await expect(sheet.getByRole("link", { name: "Download Trip" })).toBeVisible();
+    await expect(sheet.getByText(/take it with you/i)).toHaveCount(0);
+    await expect(sheet.getByText(/history does not travel/i)).toHaveCount(0);
+  });
+});

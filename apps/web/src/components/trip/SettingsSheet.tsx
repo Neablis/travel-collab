@@ -422,26 +422,25 @@ export function SettingsSheet({
         )}
 
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">
-          {/* M26 link 6d, §34.2. Download gets a heading of its own and the one
-              sentence nobody has ever been shown.
+          {/* **One button, no prose** — Mitchell, Vercel Toolbar comment on the
+              PR #196 preview, 2026-09-20: *"in trip settings, drop all the
+              extra text for download a trip, and just have button at bottom
+              that says 'Download Trip'"*.
 
-              **The fact was real and buried.** `bundle/fromTrip.ts` has said
-              since M25 that an export is a snapshot of the plan, not the event
-              log: *"a re-imported trip starts a fresh stream and loses undo,
-              redo, revert and its History popover — stated here because
-              'export' invites the opposite assumption."* That assumption is
-              invited of the READER, not of the next developer, and the warning
-              sat in a comment only the next developer would read.
+              **This reverses link 6d, which is his call to make and is recorded
+              rather than quietly applied.** 6d gave Download a `Take it with
+              you` heading and a sentence — *"A download carries the plan — your
+              days and activities. Its history does not travel: an imported trip
+              starts fresh, with no undo, redo or revert."* — on the reasoning
+              that the fact was real and buried in a comment
+              (`bundle/fromTrip.ts`) where only the next developer would read
+              it. The fact is still true and still only in that comment.
+              Flagged to him on the thread; if it should come back it wants a
+              place that is not three lines above the button, and that is a
+              design question rather than a revert.
 
-              The heading scopes to Download alone. Duplicate and Delete below
-              are lifecycle, not export, and link 6a moves them to the trip
-              card's popover on Home where §34.2 and §27 put them. */}
-          <SectionHeading>Take it with you</SectionHeading>
-          <Text variant="secondary" className="text-xs">
-            A download carries the plan — your days and activities. Its history
-            does not travel: an imported trip starts fresh, with no undo, redo
-            or revert.
-          </Text>
+              Duplicate and Delete are still not here (link 6a, DRIFT D13, SPEC
+              §34.2 and §27) — see the note below. */}
           {/* **A plain anchor, which is the whole of link 2** (M25).
               `GET /api/v1/trips/{tripId}/export` is the same endpoint an API
               caller uses, and a session cookie satisfies every scope on a `v1`
@@ -466,7 +465,7 @@ export function SettingsSheet({
             download
             className={buttonVariants({ variant: "secondary" }) + " no-underline"}
           >
-            Download as a file
+            Download Trip
           </a>
           {/* **Duplicate and Delete are not here** — M26 link 6a, DRIFT D13,
               SPEC §34.2 and §27. They live on the trip card's popover on Home,
