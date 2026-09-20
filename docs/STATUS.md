@@ -59,6 +59,28 @@ The lesson is narrower than "walk the preview": **a pure module with no caller
 is not half a feature, it is zero of one**, and it reads as progress on a status
 page in a way that a missing screen does not.
 
+**THE E2E LANE HAS NOW BEEN RUN ON THIS BRANCH (2026-09-20): 143/144.** The
+one failure is `m10-map-rail`, and it is KI-49 — the cloud session's egress
+proxy blocks the tile host from the browser, so the Map lens reaches its
+`failed` state and the offline panel covers the rail. **It passes in CI**,
+where the tiles load. Running it found three real defects that the unit suite
+could not see, all from the same gap — this milestone had only ever been run
+against `vitest.unit.config.ts`:
+
+- the season cut never reached `route.int.test.ts` (integration lane);
+- `m26-phone-surfaces.spec.ts` was running in the `[desktop]` project too,
+  because its spec name went into the phone `testMatch` and not the desktop
+  `testIgnore` (the two are now one list, `PHONE_ONLY_SPECS`);
+- `responsive.spec.ts` still drove Discover's scope as `role="radio"` after
+  link 2a made it `role="tab"`.
+
+Two further failures were NOT defects and are worth knowing before the next
+session re-derives them: `m22-api-tokens` failed on an **empty** value for
+`API_TOKEN_PEPPER` in `.env.local` — the key was present, so every "is it
+set?" grep passed (written up in `docs/guidelines/cloud-agent-sessions.md`);
+and the way `m10-map-rail` fails exposed a genuine product issue filed as
+KI-2026-09-20-c, where the offline panel leaves enabled controls under it.
+
 **The phone is the only part of this that has been opened in a browser**, and it
 is green: `e2e/m26-phone-surfaces.spec.ts`, 8 tests at 411×852 against a
 production build (the `ci-like` lane). Everything Wave 1 built is still

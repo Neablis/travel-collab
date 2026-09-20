@@ -191,6 +191,37 @@ different error, so the second one landed here.
 until the expensive lane. `test:e2e:ci-like`, `test:int` and every `db:*` script
 do.
 
+### An `.env.local` KEY can be present and its VALUE still empty
+
+`setup-env.mjs` writes `.env.local` from `.env.example`, and a name whose
+example value is a placeholder lands as a bare `NAME=`. **The key is there, so
+every "is it set?" check that greps for the name passes**, and the failure
+arrives much later wearing a different face.
+
+Measured 2026-09-20. `e2e/m22-api-tokens.spec.ts` failed in a cloud session at
+`expect(token-revealed).toContainText("not shown again")` — a missing element,
+which reads as a UI regression and was investigated as one (the token section
+had just moved to `/account` in M26 link 1, so there was a plausible culprit
+sitting right there). It was not. The page snapshot Playwright captures on
+failure had the real answer in one line — *"Tokens are not available on this
+deployment just now"*, the component's own 5xx branch — and the server log
+underneath it said `ApiTokenPepperMissingError`. `grep -c "^API_TOKEN_PEPPER="
+.env.local` returned **1**, because the line was `API_TOKEN_PEPPER=`.
+
+CI does not have this: the workflow sets `API_TOKEN_PEPPER: ci-pepper`
+explicitly, so a test that fails this way locally passes there — which is the
+combination most likely to be mistaken for a defect you just introduced.
+
+Check the VALUE, not the name:
+
+    v=$(grep '^API_TOKEN_PEPPER=' apps/web/.env.local | cut -d= -f2-)
+    [ -z "$v" ] && echo EMPTY
+
+And read `test-results/**/error-context.md` before theorising. Playwright
+writes a full accessibility snapshot of the page at the moment of failure; it
+named the cause here immediately, and the twenty minutes spent reading
+component source first were avoidable.
+
 **A real environment variable wins over `.env.local`.** Node's `--env-file`
 only fills in names that are not already set (verified on Node 22:
 `PROBE=from_environment node --env-file-if-exists=.env.local` prints
