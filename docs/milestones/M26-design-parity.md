@@ -496,14 +496,34 @@ one per stop, with the phantom first bar removed.
 > function that does not exist, and the danger then is that they find something
 > plausible and reuse the wrong thing.
 
-**5c. Two derivations, one of them blocked.** `longest` — the longest leg and
-its endpoints — is pure derivation from coordinates and titles already on
-`MapStop`, and it feeds the hover note, the rail flag and the shared-day map.
-**`N min moving` and the walk-vs-ride split are blocked** on per-leg transport
-mode, which is `map-legend-modes` → `unplaced` in `preview-registry.ts`.
-`routeLegs()` splits on `kind === "transit"` as a coarser proxy that exists
-today; **ask before using it**, because shipping "on foot" over a proxy is a
-claim the data does not make.
+**5c. Two derivations, and the second is NOT blocked — the design answers it.**
+`longest` — the longest leg and its endpoints — is pure derivation from
+coordinates and titles already on `MapStop`, and it feeds the hover note, the
+rail flag and the shared-day map.
+
+**`N min moving` and the walk-vs-ride split were recorded here as blocked on
+per-leg transport mode, with an instruction to ASK before using
+`routeLegs()`'s `kind === "transit"` proxy. That question is closed, and it was
+closed all along.** The design file derives the same split without any such
+field (`Trip Planner Redesign.dc.html:7497`):
+
+```js
+const ride = km > 1.6 || pts[j].transit || pts[j + 1].transit;
+```
+
+**Distance is the primary discriminator and the transit flag is a modifier.**
+Over 1.6 km between two stops is a ride; under it is a walk. So "on foot" is
+not a claim over a proxy for a field that does not exist — it is a claim about
+DISTANCE, which the coordinates already state, and the design makes it in
+exactly those terms. `map-legend-modes` stays `unplaced` because the LEGEND
+names modes per leg; the walk-vs-ride *split* needs no such thing.
+
+**This was carried as "waiting on Mitchell" through the whole milestone and
+should not have been.** The answer was in the file the milestone is built from,
+at a line the route→artboard index points straight at. Found 2026-09-20 by
+finally doing that walk. The lesson is the cheap one: a question about what the
+design wants is answerable by reading the design, and parking it on a person is
+only correct once you have looked.
 
 **5d. Clicking a rail day scrolls the rail** the way `railTo` does — 14% from
 the top, under a 700ms lock. Today `onClick` only sets focus.

@@ -41,11 +41,21 @@ in that file and is not a preference:** M13 adds a second actor to the surfaces
 M26 is about to rebuild, so the other order rebuilds them twice.
 
 **M26 PROGRESS AS OF 2026-09-20 — every link in both waves is built.** Wave 1:
-0-10. Wave 2: 11-16. The one piece of link 5 still open is **5c's `N min
-moving`**, which needs Mitchell's answer on whether `routeLegs()`'s
-`kind === "transit"` proxy may stand in for per-leg transport mode; link 15's
-`Cancel · New trip · Empty` header is recorded as not done, with the reason (it
-needs the exit lifted out of `NewTripConversation`, not duplicated).
+0-10. Wave 2: 11-16. Link 15's `Cancel · New trip · Empty` header is recorded
+as not done, with the reason (it needs the exit lifted out of
+`NewTripConversation`, not duplicated).
+
+**LINK 5c IS CLOSED, AND IT WAS NEVER ACTUALLY BLOCKED.** It was carried all
+milestone as "needs Mitchell's answer on whether `routeLegs()`'s
+`kind === "transit"` proxy may stand in for per-leg transport mode". The
+design file answers it and always did — `Trip Planner Redesign.dc.html:7497`
+derives the walk-vs-ride split as `km > 1.6 || pts[j].transit ||
+pts[j + 1].transit`. **Distance is the discriminator; the transit flag is a
+modifier.** So "on foot" is a claim about DISTANCE, which the coordinates
+already state, not a claim over a missing field. **The question was answerable
+by reading the file the milestone is built from, at a line the route→artboard
+index points straight at** — parking it on a person was the error, and the fix
+was to do the walk link 0 built the index for.
 
 **M26 IS BUILT END TO END AS OF 2026-09-20 — every link in both waves**, and
 **the preview has now been walked.** The Definition of Done ran at Tier 3 again
