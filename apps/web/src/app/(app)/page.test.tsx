@@ -1019,3 +1019,61 @@ describe("Home trip list load failures", () => {
 // What this file still holds, unchanged above: that the conversation opens at
 // all, that it is one conversation and not two, and every behaviour of the flow
 // inside it. Those are the claims a unit test can actually make.
+
+// M26 link 7, §3b. Home used to render its date line, its heading and its three
+// buttons and then NOTHING while the list was in flight, and on failure one
+// danger-coloured line at the top whose single *Try again* re-ran the whole
+// page. Both are the dead screen §3b forbids.
+describe("Home — the states between asked and answered", () => {
+  it("paints its own shape while the list is still in flight", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).endsWith("/api/trips")) return new Promise<Response>(() => {});
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    // Both regions, by their own names — a single "Loading…" for a page that
+    // is part-painted is what §3b is against.
+    expect(await screen.findByRole("status", { name: "Loading your next trip" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading your trips" })).toBeTruthy();
+    // Rule 1: the chrome is real from the first frame, not placeholdered.
+    expect(screen.getByRole("button", { name: "New trip" })).toBeTruthy();
+  });
+
+  it("puts a failed list's retry in place, and keeps the rest of the page", async () => {
+    let attempts = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith("/api/trips")) {
+        attempts += 1;
+        return attempts === 1 ? jsonResponse({ error: "boom" }, 500) : jsonResponse({ trips: [tripSummaryFixture()] });
+      }
+      if (url.includes(`/api/trips/${tripId}`)) {
+        return jsonResponse({ detail: tripDetailFixture({ tripId, name: "Japan" }), history: historyFixture(tripId) });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const failed = await screen.findByTestId("home-trips-error");
+    expect(within(failed).getByText(/Could not load your trips/i)).toBeTruthy();
+    // The sentence that makes this a REGION's failure rather than the page's.
+    expect(within(failed).getByText(/Everything else on the page is current/i)).toBeTruthy();
+    // And it is: the page head is untouched.
+    expect(screen.getByRole("button", { name: "New trip" })).toBeTruthy();
+
+    // No placeholder under a failure notice — a breathing outline promises an
+    // arrival that is not coming.
+    expect(screen.queryByRole("status", { name: "Loading your trips" })).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading your next trip" })).toBeNull();
+
+    await userEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+    expect(screen.queryByTestId("home-trips-error")).toBeNull();
+  });
+});

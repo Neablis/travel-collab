@@ -15,6 +15,8 @@ import { Toast } from "@/components/ui/toast";
 import { PageContainer } from "@/components/ui/page-container";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { NextTripHero } from "@/components/home/NextTripHero";
+import { NextTripHeroSkeleton, TripGridSkeleton } from "@/components/home/HomeSkeletons";
+import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
@@ -115,6 +117,12 @@ export default function Home() {
   // and hooks cannot read a value declared below them.
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   const hasNoTrips = trips !== null && visibleTrips.length === 0;
+  // **Three states, named once.** `trips === null` used to mean both "still
+  // reading" and "the read failed" to every branch below, which is exactly why
+  // a failure rendered a title row and nothing else forever. `loadError` is
+  // what separates them, so the placeholder is drawn only while an answer is
+  // genuinely still coming.
+  const loading = trips === null && loadError === null;
 
   // **One composer, and an open sheet wins it.**
   //
@@ -453,21 +461,6 @@ export default function Home() {
           </Text>
         )}
 
-        {/* The list read failed (F-G03). Said out loud with a way back, rather
-            than left as an empty page: `trips` is still null, so the grid and
-            the first-run card both render nothing, and "we could not read your
-            trips" must not be mistaken for "you have no trips". */}
-        {loadError && (
-          <div role="alert" className="flex flex-wrap items-center gap-3">
-            <Text variant="secondary" className="text-danger-ink">
-              {loadError}
-            </Text>
-            <Button type="button" variant="secondary" onClick={() => void load()}>
-              Try again
-            </Button>
-          </div>
-        )}
-
         {/* Said out loud, because this page is about to navigate away on its
             own and an unexplained pause on somebody's very first authenticated
             screen reads as the app hanging. */}
@@ -520,10 +513,47 @@ export default function Home() {
           }}
         />
 
-        {nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton tripId={nextTrip.tripId} variant="secondary" />} />}
+        {/* **The two regions Home paints before its list lands** — M26 link 7,
+            §3b, `LOAD_PLAN.home`. Before this the page drew its date line, its
+            heading and its three buttons and then NOTHING, for as long as the
+            read took, and on failure added one danger-coloured line at the top
+            whose *Try again* re-ran everything. That is the dead screen §3b
+            forbids.
 
-        <div>
-          {trips !== null && visibleTrips.length === 0 ? (
+            **They resolve together, and that is not a stagger faked.** The
+            artboard lands `homeHero` at 320ms and `homeTrips` at 680ms because
+            its prototype invents the timings; here both are the ONE
+            `/api/trips` read, so they arrive in the same frame. Painting both
+            SHAPES is "a page paints its own shape immediately"; making one
+            appear before the other would be inventing a seam that does not
+            exist, which §3b names as the thing not to do. The page's real
+            second wave is per-card — `plannedOfBudgetById` and the hero's own
+            `TripDetail` — and both of those already degrade to honest absence.
+
+            Not drawn while `loadError` is set: the region below says what
+            happened instead, and a breathing placeholder above a failure
+            notice promises an arrival that is not coming. */}
+        {loading ? (
+          <NextTripHeroSkeleton />
+        ) : (
+          nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton tripId={nextTrip.tripId} variant="secondary" />} />
+        )}
+
+        <div className="flex flex-col gap-3.5">
+          {/* The failed region, in place. The heading and the three buttons
+              above are untouched — that is the whole difference from the
+              page-level line this replaces, and `RegionError`'s second
+              sentence is what tells the reader so. */}
+          {loadError !== null && (
+            <RegionError
+              title={loadError}
+              onRetry={() => void load()}
+              data-testid="home-trips-error"
+            />
+          )}
+          {loading ? (
+            <TripGridSkeleton />
+          ) : trips !== null && visibleTrips.length === 0 ? (
             /* M15's first-run moment, rebuilt. Mitchell, 2026-09-01: *"The
                first time walkthrough to build a trip when you have no trips is
                not working, i get the empty landing screen 'Plan your first
@@ -577,7 +607,7 @@ export default function Home() {
                 }
               }}
             />
-          ) : (
+          ) : trips === null ? null : (
             <>
               {visibleTrips.length > 0 && (
                 <div className="mb-3 flex items-baseline justify-between gap-3">
