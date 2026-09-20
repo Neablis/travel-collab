@@ -4,11 +4,9 @@ import type { TripDetail, TripGlobals } from "@tc/contracts";
 import { getMacro, getPreset, insertPreset } from "@tc/pages";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Button } from "@/components/ui/button";
-import { Heading } from "@/components/ui/heading";
-import { Popover } from "@/components/ui/popover";
 import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
-import { WidgetPicker } from "@/components/pages/WidgetPicker";
+import { WidgetPicker, type WidgetFilter } from "@/components/pages/WidgetPicker";
 import {
   WidgetBindControls,
   bindSummary,
@@ -55,10 +53,17 @@ export function WidgetInsert({
   detail,
   globals,
   onInsert,
+  filter,
+  onFilterChange,
 }: {
   detail: TripDetail;
   globals: TripGlobals | null;
   onInsert: (node: MacroNode) => void;
+  // The rail's filter, owned by `PageScreen` because this component unmounts
+  // whenever a widget is selected — see `WidgetFilter`. The phone sheet passes
+  // neither and the picker keeps its own.
+  filter?: WidgetFilter;
+  onFilterChange?: (next: WidgetFilter) => void;
 }) {
   const isPhone = useIsPhone();
   const [open, setOpen] = useState(false);
@@ -82,46 +87,50 @@ export function WidgetInsert({
     close();
   };
 
+  // Phone only now. The desktop rail has no trigger at all — see below.
   const trigger = (
     <Button variant="secondary" aria-expanded={open} onClick={() => setOpen((was) => !was)}>
       Insert a widget
     </Button>
   );
 
+  // **Desktop is the rail itself — no trigger, no popover, no open state.**
+  //
+  // It was a Radix Popover behind an "Insert a widget" button, on Mitchell's
+  // 2026-09-04 note: *"The widgets should be more of a popover side bar so they
+  // dont interrupt the document flow when open."* SPEC §26 is eight days later
+  // and supersedes it, and Mitchell confirmed the reading on 2026-09-20:
+  //
+  // > The rail should be open in edit mode, and the preview shrinks — that's
+  // > not breaking the rule of "what you see is what you get", it's just
+  // > shrinking the container a little bit.
+  //
+  // Which is exactly what §26 already said: *"The column is not reserved while
+  // reading: the page runs full width until edit mode opens it."* Reading is
+  // untouched, so the document still reads identically in the mode a reader
+  // sees. The popover was solving a problem §26 solves better — it kept the
+  // measure still by hiding the list behind a click, and paid for it by making
+  // the widgets a thing you open rather than a thing you have.
+  //
+  // `PageScreen` owns the column (`aside.sticky.top-29.w-80`, Editing only) and
+  // its two states; this fills the rail state. So there is nothing to open and
+  // nothing to close, and the component that used to manage `open` now manages
+  // it on the phone alone.
   if (!isPhone) {
     return (
-      <Popover
-        open={open}
-        onOpenChange={(next) => (next ? setOpen(true) : close())}
-        trigger={trigger}
-        align="end"
-        collisionPadding={12}
-        // Taller than the default popover because this one is a list that
-        // grows with the registry; `max-h-` + scroll rather than a fixed height
-        // so a filter narrowing it to two rows does not leave a tall empty box.
-        contentClassName="max-h-96 overflow-y-auto"
-      >
-        <Heading level={4} className="mb-1">Widgets</Heading>
-        <p className="mb-2 text-xs text-slate">
-          Click one to drop it where your cursor is, or drag it onto the page.
-        </p>
-        <WidgetPicker
-          draggable
-          autoFocus
-          // Closes on pick, and says so rather than leaving it to Radix. The
-          // insert puts focus back in the document (that is what "at the
-          // cursor" means — the author carries on typing), which trips
-          // Radix's own focus-outside dismissal. Relying on that would make
-          // the behaviour a side effect of where focus went, so a later change
-          // to the insert path would silently change whether the popover
-          // closes. Closing here makes it the decision it already was.
-          onPick={(presetId) => {
-            const node = build(presetId, {});
-            if (node) onInsert(node);
-            close();
-          }}
-        />
-      </Popover>
+      <WidgetPicker
+        draggable
+        filter={filter}
+        onFilterChange={onFilterChange}
+        // **Not `autoFocus`.** In a popover that was right — it opened on a
+        // click and the search was the reason you clicked. The rail opens with
+        // EDIT MODE, and stealing the caret out of the document the moment
+        // somebody starts editing is the opposite of what they asked for.
+        onPick={(presetId) => {
+          const node = build(presetId, {});
+          if (node) onInsert(node);
+        }}
+      />
     );
   }
 

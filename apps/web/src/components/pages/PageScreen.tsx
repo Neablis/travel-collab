@@ -15,6 +15,7 @@ import { PageEditor } from "@/components/pages/editor/PageEditor";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
+import { NO_WIDGET_FILTER, type WidgetFilter } from "@/components/pages/WidgetPicker";
 import { Button } from "@/components/ui/button";
 import type { Editor } from "@tiptap/react";
 import { ReadOnlyPageDoc } from "@/components/pages/editor/ReadOnlyPageDoc";
@@ -28,8 +29,8 @@ import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import { AskPill } from "@/components/assistant/AskPill";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 import { Sheet } from "@/components/ui/sheet";
-import { Text } from "@/components/ui/text";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import type { ApiError } from "@/lib/apiClient";
@@ -113,6 +114,19 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // fix, since a test that walks authoring should say so, rather than the
   // default silently being whatever an old spec assumed.
   const [editing, setEditing] = useState(false);
+  // **The rail's filter lives here because the rail does not.** §26 gives the
+  // right column two states, and selecting a widget swaps the insert rail out
+  // for that widget's settings — unmounting the picker. Owned inside it, the
+  // kind filter reset to All on every return, so working through one kind meant
+  // re-picking it after each insert (Mitchell, 2026-09-20). This component
+  // spans both column states, so it is the nearest thing that survives the
+  // swap.
+  //
+  // It deliberately does NOT reset when Editing closes: coming back to a page
+  // you were part-way through narrowing should find it as you left it, and the
+  // filter is fully visible in the control, so nothing is hidden by remembering
+  // it.
+  const [widgetFilter, setWidgetFilter] = useState<WidgetFilter>(NO_WIDGET_FILTER);
   // The live editor, handed up by `PageEditor` so the sidebar — which sits
   // beside the editor, not inside it — can insert at the cursor.
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -766,14 +780,41 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           className="sticky top-29 w-80 shrink-0"
           aria-label={selectedWidget === null ? "Insert a widget" : "Widget settings"}
         >
-          <Card raised className="p-4">
+          {/* **`tc-widget-rail` bounds the rail's height so its LIST scrolls,
+              not the page.** The design gives the column
+              `max-height: calc(100vh - 120px)` (`Trip Planner Redesign.dc.html:3956`)
+              — 120px being what `AppHeader` and the editing toolbar already
+              occupy, the same two bars `top-29` clears. `calc()` of a viewport
+              unit is an arbitrary Tailwind value the colour wall refuses and no
+              token names a viewport-relative height, so it is a named utility in
+              `globals.css` beside `.hero-grid`, which exists for exactly this.
+
+              Only the rail state gets it. `WidgetSettings` is a short form that
+              should size to its content — bounding it would strand a lone select
+              at the top of a 700px box. */}
+          <Card
+            raised
+            className={cn("p-4", selectedWidget === null && "tc-widget-rail flex flex-col")}
+          >
             {selectedWidget === null ? (
-              <div className="flex flex-col gap-3">
-                <Text variant="muted">Pick a widget to add, or select one on the page to change it.</Text>
+              <>
+                {/* The rail's own heading (`:3958`), and it replaces
+                    "Pick a widget to add, or select one on the page to change
+                    it." That line was doing the job of a trigger button's
+                    absence — explaining a list that was not on screen. The list
+                    IS on screen now, and its count line says what to do with it,
+                    so the sentence is two explanations of one thing. */}
+                <Heading level={4} className="mb-3 shrink-0">Widgets</Heading>
                 {editor !== null ? (
-                  <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
+                  <WidgetInsert
+                    detail={trip}
+                    globals={globals}
+                    onInsert={insertAtCursor}
+                    filter={widgetFilter}
+                    onFilterChange={setWidgetFilter}
+                  />
                 ) : null}
-              </div>
+              </>
             ) : (
               <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} />
             )}

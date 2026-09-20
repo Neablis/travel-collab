@@ -151,6 +151,40 @@ and no dividers — which is what "the Playbooks look the same" actually was.
 `packages/fixtures/src/savedDayCoordinates.test.ts` is the pattern for holding
 a claim about CONTENT rather than code.
 
+**THE WIDGET CONTAINER — DONE, WALKED AND ACCEPTED, 2026-09-20.** PR #198,
+green on every check on `8bece7e`. Mitchell after walking the preview: *"I
+walked, and it looks good."*
+
+**"The widget container" means the INSERT RAIL**, and it is worth one line here
+because the first reading of those words went somewhere else and cost a commit:
+he had to say it twice. The two boxes are separate and both are filed:
+
+* **The insert rail — `KI-2026-09-20-h`.** Now §26's right column, open for as
+  long as Editing is, with the four-up icon kind control, rows as cards, a
+  pinned header and a count line. **The popover is superseded — do not restore
+  it from git history**; the entry records why, in his words.
+* **The block card — `KI-2026-09-20-g`.** The box a rendered widget draws
+  itself in. Found on the way to the rail, real, unowned; one of four fixed.
+
+**The two things that made this milestone-shaped rather than a styling errand,
+both in `-h`:**
+
+1. **A browser walk found a defect every other layer passed.** The selected kind
+   icons painted their faded cells in the same token as their own ground, so
+   Inline and List were unreadable in the one state they exist to confirm —
+   while unit tests, lint, typecheck, both walls, e2e and CI were all green.
+   The design has the same collision. **On a surface whose changes are paint, a
+   walk is the instrument, not a formality.**
+2. **CodeRabbit's two findings were both real** — a `role="radio"` group with no
+   arrow keys and four tab stops, and no coverage at the widths where the rail
+   newly costs the document 320px. Both fixed, both threads resolved by it.
+
+**What is left is recorded, not pending:** `-h` carries four cosmetic items and
+one product call (`--color-brand-pressed` at 11px for the takes-line), `-g`
+carries the other three containers and the 8px-vs-10px radius question,
+`KI-2026-09-20-i` carries the docstring gate, and `KI-2026-09-20-j` carries a
+unit test that failed once and has not reproduced.
+
 ---
 
 **LINK 5c IS CLOSED, AND IT WAS NEVER ACTUALLY BLOCKED.** It was carried all
