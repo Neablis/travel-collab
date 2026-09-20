@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Text } from "@/components/ui/text";
+import { Banner } from "@/components/ui/banner";
 
 // **A trip comes back from a file** (M25 link 2, the upload half).
 //
@@ -122,10 +122,21 @@ export function ImportTripButton({
           if (file !== undefined) void importFile(file);
         }}
       />
+      {/* **A refusal is the server's own words in a BANNER** (§34.2, M26 link
+          9c). It was a line of danger-coloured text — which reads as a field
+          error beside a control, not as "the file you chose was turned away".
+          The words are unchanged; `v1`'s refusals are already written for a
+          person to act on (which file is too large and what the limit is, that
+          a bundle holds two trips), and restating them here would be a second
+          copy that drifts.
+
+          `role="alert"` overrides `Banner`'s default `role="status"`: this
+          lands after the reader has chosen a file and looked away from the
+          button, which is worth interrupting for. */}
       {failure !== null && (
-        <Text role="alert" variant="secondary" className="w-full text-danger-ink">
+        <Banner variant="danger" role="alert" className="w-full">
           {failure.message}
-        </Text>
+        </Banner>
       )}
     </>
   );

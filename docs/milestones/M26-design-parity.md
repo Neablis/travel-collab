@@ -733,6 +733,17 @@ What is left here is four things.
   the empty state never says **what a trip file is**, which §34.2 puts precisely
   there, and the refusal renders as a `Text role="alert"` rather than the
   design's `Banner`.
+
+  **Both DONE 2026-09-20.** The sentence is the artboard's own
+  (`dc.html:1530`), and *"or from another account"* is its load-bearing half:
+  a download is portable, and without saying so the control reads as a backup
+  of your own trips, which is the narrower and less useful thing.
+  The `Banner` keeps `role="alert"`, overriding the primitive's default
+  `role="status"` — a refusal that lands after the reader has chosen a file and
+  looked away from the button is worth interrupting for, and that override is
+  behaviour rather than decoration, so a test holds it. The banner's LOOK is
+  not asserted: class assertions live in `components/ui/**` by the lint wall's
+  rule and the colour wall owns the rest.
 - **D6 / KI-034 — the next-trip hero**, and the survey narrowed it usefully.
   `TripSummary` carries no start date, so `nextTrip` is `visibleTrips[0]` and
   **the selection can surface the wrong trip**. But `NextTripHero` already
@@ -934,8 +945,13 @@ marked **[walk]** and are not satisfiable by a green test.
 - [ ] **[walk]** A free account creating a trip reaches the no-access fork: one
       description, a quiet Plus note, *See plans*, and **the dock absent rather
       than disabled**. The paid half stays a registered `<Preview>`.
-- [ ] The empty state says what a trip file is, and an import refusal renders
-      the server's own words in a `Banner`.
+- [x] The empty state says what a trip file is, and an import refusal renders
+      the server's own words in a `Banner`. **Done 2026-09-20 (link 9c).** The
+      words are the server's, unchanged — `v1`'s refusals are already written
+      for a person to act on, and restating them would be a second copy that
+      drifts. The `Banner` keeps `role="alert"` over the primitive's default
+      `role="status"`, which is the half a test can hold; removing the override
+      reddens three.
 - [ ] **[walk]** The assistant's presentation is the reader's choice and it
       survives a reload; it drags, clamps to a 16px pad and **re-clamps on
       resize**; and the dock on `/plans` is hidden rather than unmounted, so the

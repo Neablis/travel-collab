@@ -546,6 +546,26 @@ describe("Home first-run experience", () => {
     expect(screen.getByText(/A name is enough to start/)).toBeDefined();
   });
 
+  // §34.2, M26 link 9c: "Import is on Home beside New trip, and again in the
+  // empty state, where the sentence about what a file is belongs." The control
+  // was in both places already; the sentence was in neither, so the fourth
+  // route in was a button whose label assumed the reader knew this app had
+  // files at all.
+  it("says what a trip file is, in the empty state, beside the import control", async () => {
+    fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const firstRun = await screen.findByTestId("first-trip-start");
+    expect(within(firstRun).getByRole("button", { name: /import a file/i })).toBeTruthy();
+    // "or from another account" is the load-bearing half: a download is
+    // portable, and without saying so this reads as a backup of your own
+    // trips — the narrower and less useful thing.
+    expect(within(firstRun).getByText(/from another account/i)).toBeTruthy();
+    expect(within(firstRun).getByText(/comes back whole from its file/i)).toBeTruthy();
+  });
+
   // The first-run screen promises "a name is enough to start", so it has to
   // offer somewhere to start. It used to do that with a "Name your trip"
   // button beside a numbered list of the four questions; **the conversation
