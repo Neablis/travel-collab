@@ -1,7 +1,7 @@
 ### KI-2026-09-20-c — the Map lens's offline panel covers the day rail, leaving enabled controls that cannot be clicked
 
 - **Severity:** real, and only invisible because the condition that triggers it
-  is rare in the environments that run the tests.
+  is rare in the environments that run the tests. (As found.)
 - **Area:** `apps/web/src/components/lenses/MapLens.tsx` (the `failed &&
   <MapOfflineState … />` overlay and the rail/legend/focus-card branch below
   it), `apps/web/src/components/lenses/MapOfflineState.tsx`.
@@ -37,17 +37,37 @@
   Fixing this does not turn the lane green here; it stops an offline person
   being handed dead controls.
 
-- **Fix sketch (not done):** the decision is which of two things the offline
-  state means. If "this lens is unavailable", the rail, legend and focus card
-  should not render at all while `failed` — no purposeless UI (project rule 2),
-  and nothing enabled sits under the panel. If "the basemap is unavailable but
-  the day list still navigates", the panel should cover only the canvas and the
-  chrome should sit above it. **Do not simply raise the rail's z-index**: that
-  produces a working day rail floating over a "we could not load the map" panel,
-  which reads as two surfaces disagreeing.
+- **Fix:** the chrome is not rendered while `failed`. One guard in
+  `MapLens.tsx` wraps the phone strip / rail+card+legend branch, so nothing
+  enabled is left underneath the panel.
 
-  Whichever is chosen, the constraint from build-check 5 is unchanged: the
-  MapLibre container div must stay mounted. Only the chrome may be branched.
+  **Option A of the two the sketch named** ("this lens is unavailable"), chosen
+  because option B's premise is mostly false: when `failed` is set the style
+  never parsed, so there are no markers and no route lines to navigate between.
+  A live rail would have been steering an empty canvas, and two surfaces
+  disagreeing is worse than one saying the lens is unavailable.
+
+  **The container div is untouched and still renders unconditionally** — the
+  constraint from DRIFT §6 build-check 5 that the sketch flagged. Only the
+  chrome is branched, so retry still has a node to rebuild into.
+
+  **Seen to fail** (CLAUDE.md rule 3): replacing the guard with `true` turns
+  the new test red — *"expected `<div aria-label="Days">` to be null"*. The
+  assertion is deliberately "the rail is GONE" rather than "the panel is on
+  top", because a z-index assertion would pass while the dead control was still
+  there, which is the defect. A second test pins the container's continued
+  presence so a future tidy-up cannot branch it by accident.
+
+  `MapLens.test.tsx` 45 passed (was 43); all lenses 329 passed.
+
+- **Still open, and separate:** `isFatalMapError` treats ANY source-attributed
+  error as fatal, which is `MapLens`'s shipped coarseness carried over
+  deliberately. It means a single tile 404 blanks the lens even though the
+  style loaded and pins would have drawn over a grey basemap. Narrowing it to
+  style-only failures is probably right, and needs a reproduction proving the
+  map stays useful in that state — which KI-49's browser-trust fix would make
+  possible for the first time.
 
 - **First noted:** 2026-09-20 (M26 link 4, found by the e2e lane after the
-  shared-day map went in).
+  shared-day map went in). **Resolved:** 2026-09-20, same day, Mitchell's call
+  to pick whichever option was right.

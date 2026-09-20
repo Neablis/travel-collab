@@ -827,7 +827,28 @@ export function MapLens({
               openPlanHref={`/trips/${detail.tripId}?view=Plan`}
             />
           )}
-          {isPhone ? (
+          {/* **The chrome goes when the map has failed** (KI-2026-09-20-c).
+              `MapOfflineState` above is `absolute inset-0`, which is the whole
+              lens rather than just the canvas, so the rail, focus card and
+              legend used to sit UNDER it: mounted, visible, enabled, and
+              impossible to click. Playwright retried one rail click 170 times
+              before timing out; a person offline just sees a day list that does
+              nothing — the "control that appears to do something and does
+              nothing" this file refuses a few hundred lines up for the viewer's
+              double-click.
+
+              Hiding the chrome rather than raising its z-index, because when
+              `failed` is set the style never parsed: there are no markers and
+              no route lines, so a working rail would be steering an empty
+              canvas. Two surfaces disagreeing is worse than one saying the
+              lens is unavailable.
+
+              **Only the chrome is branched. The container div above stays
+              mounted unconditionally** — a React conditional around it detaches
+              the node mid-style-load and the load aborts with no error, which
+              is DRIFT §6 build-check 5 and has already recurred three times. */}
+          {!failed &&
+            (isPhone ? (
             <MapDayStrip
               days={days}
               focusedDay={focusedDay}
@@ -839,12 +860,12 @@ export function MapLens({
               sync={stripSync}
             />
           ) : (
-            <>
-              <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
-              <MapFocusCard day={focusedMapDay} />
-              <MapLegend />
-            </>
-          )}
+              <>
+                <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+                <MapFocusCard day={focusedMapDay} />
+                <MapLegend />
+              </>
+            ))}
         </div>
       ) : (
         <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">

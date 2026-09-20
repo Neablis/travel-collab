@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityKind, ActivityTag, Location, TripDetail } from "@tc/contracts";
@@ -1388,3 +1388,53 @@ describe("MapLens on a phone", () => {
     expect(screen.getByTestId("map-day-strip-detail").textContent).toMatch(/2 stops/);
   });
 });
+
+// KI-2026-09-20-c. `MapOfflineState` is `absolute inset-0` — the whole lens,
+// not just the canvas — so the rail, focus card and legend used to render
+// UNDERNEATH it, mounted and enabled and impossible to click. Playwright
+// retried one rail click 170 times before timing out (m10-map-rail, cloud
+// session, 2026-09-20); a person offline would see a day list that does
+// nothing at all.
+//
+// The assertion is deliberately "the rail is GONE", not "the panel is on
+// top". A z-index assertion would pass while the dead control was still
+// there, which is the bug.
+describe("MapLens — when the map has failed", () => {
+  it("takes the day rail away rather than leaving it dead under the panel", async () => {
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    // The rail is there while the map is healthy — without this the test
+    // could pass against a lens that never renders a rail at all.
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    // A style failure, shaped the way maplibre delivers one: no `sourceId`,
+    // and a message naming the style. `isFatalMapError` treats this as fatal.
+    act(() => {
+      mapHandlers.get("error")!({ error: { message: "Failed to parse style" } });
+    });
+
+    expect(screen.getByTestId("map-offline")).toBeTruthy();
+    expect(screen.queryByLabelText("Days")).toBeNull();
+  });
+
+  // The container div is the one thing that must NOT be branched: a React
+  // conditional around it detaches the node mid-style-load and the load
+  // aborts with no error (DRIFT §6 build-check 5, three recurrences). The
+  // retry rebuilds the instance underneath the panel, so the node has to
+  // still be there to rebuild into.
+  it("keeps the maplibre container mounted so retry has something to rebuild into", async () => {
+    const { container } = renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+
+    act(() => {
+      mapHandlers.get("error")!({ error: { message: "Failed to parse style" } });
+    });
+
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- the container div is deliberately unlabelled chrome; there is no role or testid to query it by, and its PRESENCE is the whole assertion.
+    expect(container.querySelector(".map-lens-canvas, [class*='h-full w-full']")).not.toBeNull();
+  });
+});
+
