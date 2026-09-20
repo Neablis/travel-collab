@@ -45,6 +45,76 @@ M26 is about to rebuild, so the other order rebuilds them twice.
 as not done, with the reason (it needs the exit lifted out of
 `NewTripConversation`, not duplicated).
 
+## NEXT SESSION — the shared day's map panel (M26 link 4b/4c)
+
+**Branch `claude/beautiful-feynman-b86spm`, PR #196, 63 commits, `ci` green on
+every pushed head.** The PR is finished and mergeable; this is NEW work and
+Mitchell's steer was a **fresh branch off `main`**, not more commits on #196.
+
+### What the walk found, and it is not the map
+
+`/playbooks/day/[savedDayId]` → `isDay` · **line 2677** of
+`.design-sync/handoff/design/Trip Planner Redesign.dc.html` (the route→artboard
+index in `.design-sync/handoff/README.md:229` points straight at it). The
+design's map panel is **mostly derived TEXT**, and only the canvas is built:
+
+| design field | renders | built |
+|---|---|---|
+| canvas, numbered pins, route line, gapped legs | — | **yes** (`SharedDayMap.tsx`) |
+| `day.mapTitle` | the day's cities — `Kyoto → Osaka`, or the single city | no |
+| `day.mapFacts` | up to 3 k/v rows: `On foot` / `2.4 km · 32 min`, `By train or taxi` / `18 km · 25 min`, `Widest point to point` / `4.1 km` | no |
+| `day.mapNote` | one of four sentences on the day's SHAPE — *"One clean line. It never doubles back on itself."*, *"A loop — it ends near where it started."*, *"It criss-crosses. Expect to cover the same ground twice."*, *"Mostly transit — about N of the day is spent moving."* | no |
+| `gaps[idx].label` | a line **between stops in the list**: `12 min walk · 0.9 km` | no |
+| legend `On foot` / `By train or taxi` | — | honestly shelled, `map-legend-modes` → `unplaced`. A legend names a mode PER LEG and still has no field; the walk-vs-ride split needs none (link 5c). |
+
+The derivations are all in `dc.html:7495-7527`. Read them there rather than
+re-deriving: thresholds (`km > 1.6` → ride; `wander < 1.5 / < 2.6` → which
+note; `transitShare > 0.8 && rideMins > 90` → the transit note) and the
+walking/riding speed constants are decisions, not arithmetic.
+
+### REUSE, and this is a constraint rather than a preference (Mitchell, 2026-09-20)
+
+**Reuse as much of the existing components as possible — the page especially.**
+Named, so nobody re-derives what exists:
+
+* **`lib/geo.ts` → `haversineKm(a, b)`** — the distance. Do not write a second one.
+* **`lib/units.ts` → `kmLabel(km, unit)`** — the `2.4 km` / `1.5 mi` formatting,
+  and it already honours the account's distance preference. `MapHoverCard.tsx`
+  and `MapDayStrip.tsx` are the two call sites to copy the idiom from.
+* **`lenses/mapRailData.ts` → `longestLeg()`, `routeLegs()`** — the trip Map
+  lens ALREADY derives longest-leg and a travel/rest split. `MapHoverCard`
+  already renders "Longest hop N km — A to B". The shared day wants the same
+  shapes; extend or lift, do not fork.
+* **`playbooks/sharedDayGeometry.ts`** — extend it. It has the points, the legs
+  and `contiguous`; it has no distances. That is the one honest gap.
+* **The page itself**: `SharedDayScreen.tsx`'s existing layout, `Card`, `Text`,
+  `DataText`, and the rail it already renders. The panel is a new block INSIDE
+  that page, not a new page.
+
+### Still blocked, and by what
+
+* **Coordinates.** `KI-2026-09-20-d`. Every derivation above needs `lat`/`lng`
+  and the seed has three. The gateway blocks the geocoder (403 to `CONNECT
+  nominatim.openstreetmap.org:443`), so this cannot be closed from a cloud
+  session. Two routes that do not need one: lift coordinates from the 19
+  already-geocoded bundles under `content/` where the places overlap (Mexico
+  City, Glen Coe, New York are plausible — CHECK, do not assume), or run the
+  geocoder from a laptop per `docs/guidelines/content-bundles.md`.
+* **The preview's database.** It has never had `content:import` run and is not
+  reseeded by a deploy, so seed-side work stays invisible there until somebody
+  with the credential reseeds it. Mitchell knows; it is his to do.
+
+### Also worth doing, unblocked
+
+**Make a seeded Playbook genuinely multi-day.** Every day in both fixtures is
+one day (`dayIndex` is `0` everywhere), so 9 of 10 Discover cards show no tabs
+and no dividers — which is what "the Playbooks look the same" actually was.
+`dayIndex` is in the contract with `.default(0)`; the fixtures are TypeScript.
+`packages/fixtures/src/savedDayCoordinates.test.ts` is the pattern for holding
+a claim about CONTENT rather than code.
+
+---
+
 **LINK 5c IS CLOSED, AND IT WAS NEVER ACTUALLY BLOCKED.** It was carried all
 milestone as "needs Mitchell's answer on whether `routeLegs()`'s
 `kind === "transit"` proxy may stand in for per-leg transport mode". The

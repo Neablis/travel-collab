@@ -528,6 +528,27 @@ only correct once you have looked.
 **5d. Clicking a rail day scrolls the rail** the way `railTo` does — 14% from
 the top, under a 700ms lock. Today `onClick` only sets focus.
 
+**5e. The map PANEL is the unbuilt half of link 4, and it is mostly text.**
+Found 2026-09-20 by the route→artboard walk. `dc.html:2677` (`isDay`) draws a
+title (`day.mapTitle`), up to three fact rows (`day.mapFacts`), a shape note
+(`day.mapNote`) and a per-gap label between stops in the LIST
+(`gaps[idx].label`). `SharedDayMap` builds the canvas and nothing else, so even
+with coordinates the page shows a map and no prose — which is what *"the
+Playbooks look the same"* was actually about.
+
+The derivations are `dc.html:7495-7527` and the thresholds there are decisions,
+not arithmetic: `km > 1.6` → ride, `wander < 1.5 / < 2.6` → which note,
+`transitShare > 0.8 && rideMins > 90` → the transit note.
+
+**Reuse, as a constraint (Mitchell, 2026-09-20):** `lib/geo.ts`'s
+`haversineKm`, `lib/units.ts`'s `kmLabel` (already unit-aware; copy
+`MapHoverCard`/`MapDayStrip`'s idiom), `mapRailData.ts`'s `longestLeg` and
+`routeLegs` — the trip Map lens derives these already — and
+`SharedDayScreen`'s existing page and rail. The panel is a block inside that
+page, not a new page. `sharedDayGeometry.ts` is the one honest gap: it has
+points, legs and `contiguous`, and no distances. Full brief in `docs/STATUS.md`
+under **NEXT SESSION**.
+
 ## Link 6 — Trip lifecycle, and one verb with two homes
 
 **6a. D13 — Delete and Duplicate leave Trip settings.** All three sit together
