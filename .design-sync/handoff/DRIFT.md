@@ -174,6 +174,51 @@ page (partial failure, not a dead screen); and an account with nothing in it get
 empty state per surface, not one per section. `dataState` on the design component
 (`live` / `loading` / `empty` / `failed`) drives all four for review.
 
+**BUILT 2026-09-20 (M26 link 7), with five differences that are decisions rather than
+omissions.** Everything above is now real on Home, Overview and the Notebook index: a
+`Skeleton` primitive (hairline outline, no fill, one 1.8s breathe, `data-sk` stagger),
+`SkeletonRegion` (`role="status"` with the region's own name), and `RegionError`
+(`role="alert"`, a retry in place, and the sentence saying the rest of the page is still
+current). The five places the build does not match the artboard, each with its reason:
+
+1. **`homePb` has no build counterpart at all.** The Playbooks strip the region stands for
+   was deleted in M11b. This is a divergence to record, not a region to build — the design
+   side should drop `homePb` from `LOAD_PLAN.home` or say what it is now for.
+2. **`homeHero` and `homeTrips` resolve TOGETHER**, where the artboard lands them at 320ms
+   and 680ms. Both are the one `/api/trips` read here, so they arrive in the same frame.
+   Painting both *shapes* is what "a page paints its own shape immediately" asks for;
+   making one appear before the other would invent a seam that does not exist, which §3b
+   itself names as the thing not to do. Home's real second wave is per-card (each trip's
+   `TripDetail`, for the budget line and the hero's sparkline) and already degrades to
+   honest absence.
+3. **The Map lens gets no rail-then-canvas seam, and this is the "different answer" M26
+   link 7 allowed for.** `TripProvider` loads the whole `TripDetail` before the lens
+   mounts, so `mapRail` at 360ms and `mapCanvas` at 940ms have nothing to attach to — the
+   rail's data is already in hand when the first frame paints. Faking the stagger would be
+   inventing a wait. What the lens got instead is the thing it actually lacked: a
+   **style-load recovery ladder** (`mapRecovery.ts`) — a rebuild at 3.5s, a second at
+   7.5s, the offline panel at 11s — because MapLibre's worst failure emits no `error` at
+   all, `map.on("load")` simply never fires, and the reader got a paper rectangle forever
+   with nothing said about it.
+4. **The Map lens does NOT keep its day rail in the failed or the empty canvas.** The
+   artboard keeps it in both, and its failed panel says so out loud ("Your days are still
+   listed on the left"). The build hides it, because with no map underneath, a rail row
+   highlights a day and moves nothing — a control that appears to do something and does
+   not. That call was made for the failed state as `KI-2026-09-20-c` (where the panel was
+   also physically covering the rail, leaving Playwright to retry one click 170 times) and
+   is now matched in the empty state so the two do not disagree. **Design should either
+   accept it or say what a rail over a dead canvas is meant to do.**
+5. **Overview's *Edit in Notebook* points at the Notebook INDEX until the page id is
+   known.** The artboard's action is `openTripHomeDoc`, resolved when clicked rather than
+   when drawn, which is what lets it exist from the first frame; spelled in hrefs that is
+   the index first and the page itself after. One click further away and never wrong.
+
+Two things the build got right by accident and has now made deliberate: the templates
+gallery on the Notebook index is a module constant, so it is real from the first frame and
+survives a failed read — which is why `nbTpl` needs no counterpart, and a test now holds it
+outside the branch. And `nbTpl`'s own exemption from the empty state ("an account with
+nothing in it still has them") applies here for the same reason.
+
 ## 3c. Designed 2026-09-19 — the three new features, and the mobile remainder they exposed
 
 **API tokens (M22).** In **Account settings**, not a route and not anywhere trip-scoped:

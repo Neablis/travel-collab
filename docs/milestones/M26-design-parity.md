@@ -761,9 +761,27 @@ marked **[walk]** and are not satisfiable by a green test.
       container survives a tab switch, **no leg crosses a night** on `All days`,
       and a day with fewer than two located stops degrades to list-only rather
       than to an empty canvas.
-- [ ] The map's style-load recovery ladder is **proven by forcing it**, not by
+- [x] The map's style-load recovery ladder is **proven by forcing it**, not by
       inspection: a blocked style produces a rebuild at 3.5s, a second at 7.5s,
       and a list-only fallback at 11s, scoped to the instance that started it.
+      **Done 2026-09-20** — `mapRecovery.ts`, and the map stub gained a
+      `suppressLoad` knob because that is the only way to produce the failure
+      this exists for: `map.on("load")` never firing, which emits no `error`,
+      so `failed` was never set and the reader got a paper rectangle forever.
+      The test steps a fake clock through 3499ms (nothing), 3500ms (a second
+      instance, and still no panel — a rebuild is not a give-up), 7500ms (a
+      third) and 11000ms (the panel, and no fourth instance).
+      **A rebuild, not a retry**, because MapLibre offers no "load the style
+      again" on an instance whose first attempt died. **Absolute deadlines,
+      not gaps**, so a slow rebuild cannot push the give-up point past 11s
+      without anybody changing a number — asserted against `Date.now()`.
+      **`ladderRun` is separate from `attempt`**: a rung bumps `attempt`, only
+      *Try again* bumps `ladderRun`, because a rung that re-armed its own
+      ladder would retry until the tab closed.
+      The unmount test is the one worth reading: its first version (unmount,
+      advance an hour, assert no second `new Map`) passed with the disarm
+      DELETED, because the effect that would build one is gone anyway. It now
+      asserts `vi.getTimerCount()` drops to 0, and that version does go red.
 - [ ] **[walk]** The Map rail's hover card appears top-aligned to the hovered
       row, never eats a click, and disappears on leave without flickering
       between adjacent rows. **And the row itself does not change on hover** —
@@ -793,12 +811,31 @@ marked **[walk]** and are not satisfiable by a green test.
       make the sweep vacuous. Proven red both ways: `--color-brand: lab(45% -30
       5)` fails, while `oklch(0.4986 0.0903 173.4)` — the spelling §28's Ledger
       chroma bump invites — now PASSES, because the conversion handles it.*
-- [ ] **[walk]** Home, Overview and the Notebook index each paint their own
+- [~] **[walk]** Home, Overview and the Notebook index each paint their own
       shape before data arrives, fill in **region by region**, and survive a
       **partial** failure — the failed region offers a retry **in place** while
       every region that arrived stays on the page. Proven by failing one region
       deliberately, not by a fast network. The Map lens either gets its
       rail-then-canvas seam or its different answer is **recorded** here.
+      **Built 2026-09-20, unwalked.** Each surface's failure is forced in a
+      test rather than waited for: Home's `/api/trips` 500s once and recovers
+      on *Try again*; Overview's `fetchPages` fails then succeeds; the
+      Notebook's list 500s then recovers, and the assertion that the retry
+      really went back to the network is `attempts === 2` (`cachedRead` never
+      stores a failure — `queryCache.ts:189`).
+      **The Map lens took the "different answer", and it is recorded in
+      `DRIFT.md` §3b** alongside four other deliberate differences.
+      `TripProvider` loads the whole `TripDetail` before the lens mounts, so
+      `mapRail` at 360ms and `mapCanvas` at 940ms have nothing to attach to —
+      the rail's data is in hand when the first frame paints, and staging it
+      would be inventing a wait. What the lens got instead is the recovery
+      ladder above, which is the thing it actually lacked.
+      Two more differences worth not re-deriving: **Home's `homeHero` and
+      `homeTrips` resolve together**, because both are the one `/api/trips`
+      read — painting both SHAPES is §3b's rule, making one arrive first is
+      the faked stagger §3b forbids; and **`homePb` has no build counterpart
+      at all**, the Playbooks strip having been deleted in M11b, so it is a
+      divergence sent back rather than a region to build.
 - [ ] **[walk]** A free account creating a trip reaches the no-access fork: one
       description, a quiet Plus note, *See plans*, and **the dock absent rather
       than disabled**. The paid half stays a registered `<Preview>`.

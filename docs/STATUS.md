@@ -41,9 +41,32 @@ in that file and is not a preference:** M13 adds a second actor to the surfaces
 M26 is about to rebuild, so the other order rebuilds them twice.
 
 **M26 PROGRESS AS OF 2026-09-20.** Wave 1: links 0, 1, 2, 3 done; **link 4's
-shared-day map now draws** (see below); links 5–10 not started. **Wave 2: links
-11, 12, 14 and 16 done; 15 is two-thirds done; 13 is last by Mitchell's
-sequencing and not started.**
+shared-day map now draws** (see below); 5 and 6 part done; **link 7 done**;
+link 8 done; 9 and 10 not started. **Wave 2: links 11, 12, 14 and 16 done; 15
+is two-thirds done; 13 is last by Mitchell's sequencing and not started.**
+
+**LINK 7 CHANGED WHAT A BLANK MAP MEANS, and that is the part worth carrying
+forward.** §3b's region-by-region loading is built on Home, Overview and the
+Notebook index (a `Skeleton` primitive, outlines only, plus a per-region
+`RegionError` that retries in place). The Map lens took the milestone's "or its
+different answer is recorded" branch instead: `TripProvider` has the whole
+`TripDetail` before the lens mounts, so there is no seam to stage over and
+faking one would be inventing a wait. What it got is the **style-load recovery
+ladder** — a rebuild at 3.5s, another at 7.5s, the offline panel at 11s.
+
+That ladder exists for a failure nothing in this repo could see. `failed` is set
+only by an `error` event, and MapLibre's worst failure emits none: `map.on(
+"load")` simply never fires, nothing throws, and the reader gets a
+paper-coloured rectangle forever. **That is why KI-49 could say the tiles "have
+never been confirmed to paint, in any environment"** — a blank canvas was
+indistinguishable from tiles-blocked, from style-never-parsed, from a container
+measured at 0×0. It now means one thing: every rung ran and the map still did
+not load. KI-49 is not closed by this; it is diagnosable, which is the honest
+claim.
+
+Five deliberate differences from the artboard are recorded in `DRIFT.md` §3b
+rather than left for the design side to find, `homePb` (a region whose build
+counterpart was deleted in M11b) among them.
 
 **LINK 4 WAS "HALF DONE" IN A WAY WORTH NAMING, because the shape recurs.**
 `sharedDayGeometry.ts` — the pure half: which points exist, which legs join
