@@ -1124,6 +1124,55 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
+  /* Placeholders while a region is still arriving (M26 link 7, §3b,
+     dc.html:19-25). Two rules the design states in as many words, and this
+     block is the only place either is enforced:
+
+     **Outlines only, never filled.** `Skeleton` draws a hairline border and no
+     background, so nothing on a loading page can be mistaken for data. A
+     filled grey block is a value the reader did not give us.
+
+     **The breathe is load-bearing.** It "is the one thing that separates
+     'still arriving' from 'empty' or 'broken'" — all three are boxes with
+     nothing in them, and only one of them is going to change on its own.
+
+     `data-sk` carries the stagger (1/2/3) rather than three class names,
+     because that is what the handoff ships and because the attribute is also
+     what a test can count. Named rules, not `animate-[om-sk_1.8s...]`: the
+     colour wall bans arbitrary-value brackets.
+
+     Under prefers-reduced-motion the breathe stops and a fixed 0.62 opacity
+     stands in for it — dimmer than the page around it, so "arriving" still
+     reads differently from "empty", without the motion. */
+  @keyframes om-sk {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  [data-sk] {
+    animation: om-sk 1.8s ease-in-out infinite;
+  }
+
+  [data-sk="2"] {
+    animation-delay: 220ms;
+  }
+
+  [data-sk="3"] {
+    animation-delay: 440ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-sk] {
+      animation: none;
+      opacity: 0.62;
+    }
+  }
+
   /* SyncIndicator (Task 8b.3, dc.html:18/3109): the saving state's two
      expanding-ring haloes. `animate-[om-save-pulse_1.4s...]` would trip the
      color wall's any-bracket ban, so this is a named class, same pattern as

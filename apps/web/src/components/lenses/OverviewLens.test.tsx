@@ -36,7 +36,9 @@ describe("OverviewLens — a failed load", () => {
     render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
 
     expect(await screen.findByText(/Couldn't load this trip's Overview/i)).toBeTruthy();
-    expect(screen.getByTestId("overview-retry")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    // The failure reads as a region's, not the page's — §3b's whole point.
+    expect(screen.getByText(/the trip itself is fine/i)).toBeTruthy();
   });
 
   // The assertion that makes this more than a button: the retry must re-run
@@ -46,16 +48,42 @@ describe("OverviewLens — a failed load", () => {
   it("re-runs the read, and recovers when the second attempt succeeds", async () => {
     fetchPagesMock.mockResolvedValueOnce(failed);
     render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
-    await screen.findByTestId("overview-retry");
+    await screen.findByTestId("overview-error");
     expect(fetchPagesMock).toHaveBeenCalledTimes(1);
 
     // The second attempt finds no Overview page, which is a DIFFERENT and
     // real terminal state — enough to prove the read ran again without
     // dragging a whole page document into this test.
     fetchPagesMock.mockResolvedValue({ ok: true as const, value: { pages: [] } });
-    fireEvent.click(screen.getByTestId("overview-retry"));
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     await waitFor(() => expect(fetchPagesMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByText(/This trip has no Overview page/i)).toBeTruthy();
+  });
+});
+
+// §3b's first rule: "a page's chrome and primary actions are real from the
+// first frame and never placeholdered". Overview's one primary action was
+// built inside the `ready` branch, so it was missing from exactly the two
+// states a reader most needs a way out of.
+describe("OverviewLens — the chrome does not wait for the data", () => {
+  it("offers Edit in Notebook while the page is still arriving", () => {
+    fetchPagesMock.mockReturnValue(new Promise(() => {}));
+    render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
+
+    // Before the summary lands there is no page id, so it points at the
+    // Notebook index — which lists this page. One click further, never wrong.
+    const link = screen.getByRole("link", { name: "Edit in Notebook" });
+    expect(link.getAttribute("href")).toBe(`/trips/${TRIP_ID}/pages`);
+    // And the body is a placeholder, not a sentence: the region's own label.
+    expect(screen.getByRole("status", { name: "Loading the Overview" })).toBeTruthy();
+  });
+
+  it("still offers it after the read fails", async () => {
+    fetchPagesMock.mockResolvedValue(failed);
+    render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
+
+    await screen.findByTestId("overview-error");
+    expect(screen.getByRole("link", { name: "Edit in Notebook" })).toBeTruthy();
   });
 });
