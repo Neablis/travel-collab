@@ -311,7 +311,7 @@ for (const file of files) {
 }
 if (failed) process.exit(1);
 console.log(
-  `color wall OK (${files.length} files scanned, ${pending.size} pending re-skin, ${generatedNonProduct.size} generated non-product, ${colorMath.size} color-math excluded)`,
+  `color wall OK (${files.length} files scanned, ${pending.size} pending re-skin, ${generatedNonProduct.size} generated non-product excluded, ${colorMath.size} color-math excluded)`,
 );
 console.log(
   `token wall OK (${colorTokens.size} color tokens, ${textSizeTokens.size} text sizes, ${Object.keys(nonColorUtility).length} namespaces checked)`,

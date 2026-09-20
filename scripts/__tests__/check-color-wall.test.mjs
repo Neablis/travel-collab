@@ -63,6 +63,17 @@ test("the wall passes end-to-end and names the generated-non-product exclusion s
   const { status, stdout } = runWall();
   assert.equal(status, 0, `expected the wall to pass; got: ${stdout}`);
   assert.match(stdout, /1 generated non-product excluded/);
+  // The color-math list is named separately too, and for the same reason the
+  // other two are: three lists with three different rules, reported as three
+  // numbers. Merging any of them into one count is how a list that should only
+  // ever shrink quietly grows — KI-51.
+  //
+  // This assertion exists because adding the count broke the line above: the
+  // new number was spliced INTO the phrase "generated non-product excluded",
+  // and the wall's own test caught it in CI (PR 196, 2026-09-20) after a local
+  // `pnpm lint` passed — lint runs the wall, it does not check what the wall
+  // says about itself.
+  assert.match(stdout, /\d+ color-math excluded/);
 });
 
 test("the exclusion is scoped to the named file only, not the whole directory", () => {

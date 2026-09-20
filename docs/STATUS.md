@@ -74,12 +74,18 @@ against `vitest.unit.config.ts`:
 - `responsive.spec.ts` still drove Discover's scope as `role="radio"` after
   link 2a made it `role="tab"`.
 
-Two further failures were NOT defects and are worth knowing before the next
-session re-derives them: `m22-api-tokens` failed on an **empty** value for
-`API_TOKEN_PEPPER` in `.env.local` — the key was present, so every "is it
-set?" grep passed (written up in `docs/guidelines/cloud-agent-sessions.md`);
-and the way `m10-map-rail` fails exposed a genuine product issue filed as
-KI-2026-09-20-c, where the offline panel leaves enabled controls under it.
+Two further failures were NOT defects, and both are worth knowing before the
+next session re-derives them.
+
+`m22-api-tokens` failed on an **empty** value for `API_TOKEN_PEPPER` in
+`.env.local`: the key was present, so every "is it set?" grep passed. This is
+an environment trap, not a known issue — it is written up in
+`docs/guidelines/cloud-agent-sessions.md`, which is where a thing you can fix
+in your own container belongs.
+
+Separately, the WAY `m10-map-rail` fails exposed a genuine product issue: the
+Map lens's offline panel leaves enabled controls underneath it. That one is
+KI-2026-09-20-c.
 
 **The phone is the only part of this that has been opened in a browser**, and it
 is green: `e2e/m26-phone-surfaces.spec.ts`, 8 tests at 411×852 against a
