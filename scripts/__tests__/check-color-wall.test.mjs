@@ -269,3 +269,28 @@ test("every notAClassName exemption is still used by the tree it was added for",
     );
   }
 });
+
+// **The same hazard one level up, and it is the reason the scanner no longer
+// runs per line.** The stripper used to be mapped across `split("\n")`, which
+// reset its quote state at every newline — so a template literal stopped being
+// a string after its first line, and a protocol-relative url on a LATER line
+// truncated that line exactly as the old regex did.
+//
+// **The bad token must sit after the url, on a later line of a template that
+// OPENED on an earlier one.** A first draft of this put the whole template on
+// one line, where the per-line scanner tracks the backtick perfectly well — it
+// passed against the very mutation it was written to catch, which is the third
+// time in this milestone a witness asserted nothing about its own path.
+test("a token after a url on a LATER LINE of a template literal is still scanned", () => {
+  const contents = [
+    "export const css = `",
+    // Line 2 of the template: the old scanner arrived here with no quote state,
+    // read `//` as a comment opener, and dropped everything after it.
+    "  a { background: url(//cdn.example.com/x.png); } bg-amber-50",
+    "`;",
+    "",
+  ].join("\n");
+  const { status, stdout, stderr } = runWallAgainst("token-template.tsx", contents);
+  assert.equal(status, 1, `expected the wall to FAIL on bg-amber-50; got: ${stdout}${stderr}`);
+  assert.match(`${stdout}${stderr}`, /bg-amber-50/);
+});

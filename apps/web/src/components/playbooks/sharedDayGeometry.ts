@@ -1,4 +1,5 @@
 import type { SavedStop } from "@tc/contracts";
+import { MIN_POINTS_TO_DRAW } from "@tc/contracts";
 
 // SPEC §16 — the shared day is a map plus a list. This module is the map's
 // half of that, and deliberately all of it that can be decided without a
@@ -42,14 +43,20 @@ export type MapLeg = {
 
 export type DayGeometry = { dayIndex: number; points: readonly MapPoint[]; legs: readonly MapLeg[] };
 
-/** Below two located stops there is nothing a map adds over the list (§16). */
-export const MIN_POINTS_TO_DRAW = 2;
+// Re-exported so this module stays the one place the map code imports from,
+// while `@tc/contracts` stays the one place the NUMBER is written down.
+export { MIN_POINTS_TO_DRAW };
 
 function located(stop: SavedStop): stop is SavedStop & { location: { lat: number; lng: number } } {
   return (
+    // `Number.isFinite`, not `typeof === "number"`: `typeof NaN` is `"number"`,
+    // so the weaker check called a stop located and handed NaN straight to
+    // MapLibre, which silently draws nothing. Found by CodeRabbit on PR #196
+    // against the fixtures test — the same hole was here, in the code that
+    // actually feeds the map.
     stop.location != null &&
-    typeof stop.location.lat === "number" &&
-    typeof stop.location.lng === "number"
+    Number.isFinite(stop.location.lat) &&
+    Number.isFinite(stop.location.lng)
   );
 }
 

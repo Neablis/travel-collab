@@ -1477,8 +1477,13 @@ describe("MapLens — when the map has failed", () => {
       mapHandlers.get("error")!({ error: { message: "Failed to parse style" } });
     });
 
+    // **That comma used to be a selector LIST, not a descendant combinator.**
+    // `.map-lens-canvas` is always mounted, so the assertion read
+    // `expect(alwaysPresent).not.toBeNull()` and could not fail for the reason
+    // the line above it claims (CodeRabbit, PR #196). The inner MapLibre
+    // container is the recovery target and the only thing worth asserting.
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- the container div is deliberately unlabelled chrome; there is no role or testid to query it by, and its PRESENCE is the whole assertion.
-    expect(container.querySelector(".map-lens-canvas, [class*='h-full w-full']")).not.toBeNull();
+    expect(container.querySelector(".map-lens-canvas > .h-full.w-full")).not.toBeNull();
   });
 });
 

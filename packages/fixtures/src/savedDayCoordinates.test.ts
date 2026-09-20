@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { JAPAN_SAVED_DAYS } from "./japan/savedDays.ts";
 import { STARTER_SAVED_DAYS } from "./library/starterDays.ts";
+import { MIN_POINTS_TO_DRAW } from "@tc/contracts";
 
 // **The seeded Playbook library has to be able to DRAW.**
 //
@@ -20,18 +21,21 @@ import { STARTER_SAVED_DAYS } from "./library/starterDays.ts";
 // It deliberately asserts both halves of M26's gate box, because a library that
 // could only draw would be the same blind spot facing the other way.
 //
-// `2` rather than an import of `MIN_POINTS_TO_DRAW`: that constant lives in
-// `apps/web` and this package may not reach into it. If the threshold ever
-// moves, this number is wrong in the safe direction — it asserts a day has
-// enough points, and more is still enough.
-const MIN_POINTS_TO_DRAW = 2;
+// `MIN_POINTS_TO_DRAW` is imported from `@tc/contracts`, which both this
+// package and `apps/web` depend on. It used to be a local `2` with a comment
+// claiming a private copy was "wrong in the safe direction" if the app's
+// threshold moved. That was backwards: raise the app to 3 and this file still
+// counts two-point days as drawable, so the assertion stays green while no
+// seeded day draws — the precise failure it exists to prevent (CodeRabbit,
+// PR #196).
 
 type SeedStop = { location: { lat?: number; lng?: number } | null };
 type SeedDay = { name: string; stops: readonly SeedStop[] };
 
 function locatedStops(day: SeedDay): number {
   return day.stops.filter(
-    (s) => s.location !== null && typeof s.location.lat === "number" && typeof s.location.lng === "number",
+    // `Number.isFinite`, not `typeof === "number"`: `typeof NaN` is `"number"`.
+    (s) => s.location !== null && Number.isFinite(s.location.lat) && Number.isFinite(s.location.lng),
   ).length;
 }
 
@@ -69,8 +73,20 @@ describe("the seeded Playbook library, as a map draws it", () => {
         // Half a coordinate is worse than none: `allPoints` reads both, so a
         // lone `lat` is a stop that looks located and is not.
         if (hasLat !== hasLng) offenders.push(`${day.name}: lat=${loc.lat} lng=${loc.lng}`);
-        else if (hasLat && hasLng && (Math.abs(loc.lat!) > 90 || Math.abs(loc.lng!) > 180)) {
-          offenders.push(`${day.name}: off the globe at ${loc.lat},${loc.lng}`);
+        // `hasLat`/`hasLng` stay `typeof` checks above, deliberately: a present
+        // but non-finite `lat` is still PRESENT, so it belongs to this branch
+        // rather than the half-a-coordinate one. Here is where it is rejected —
+        // `Math.abs(NaN) > 90` is `false`, so the range test alone waved NaN
+        // through (CodeRabbit, PR #196).
+        else if (
+          hasLat &&
+          hasLng &&
+          (!Number.isFinite(loc.lat) ||
+            !Number.isFinite(loc.lng) ||
+            Math.abs(loc.lat!) > 90 ||
+            Math.abs(loc.lng!) > 180)
+        ) {
+          offenders.push(`${day.name}: not a real point at ${loc.lat},${loc.lng}`);
         }
       }
     }

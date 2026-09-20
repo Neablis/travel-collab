@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSession } from "next-auth/react";
 
 export type SessionUser = { id?: string | null; name?: string | null; email?: string | null };
 
@@ -39,15 +38,34 @@ export type SessionUser = { id?: string | null; name?: string | null; email?: st
  * caller reads it optionally (`user?.email`, `user?.name`), and those keep
  * working untouched; only a caller that must distinguish "not yet" from "not
  * signed in" has to look.
+ *
+ * **And a FAILED read is not a signed-out reader either.** `getSession()` is
+ * gone from this file for one reason: next-auth's `fetchData()` catches a
+ * network error or a non-OK response and returns `null`, the very same value
+ * it returns for a confirmed empty session. Reading the endpoint it reads —
+ * `/api/auth/session`, the door this comment already named — is what lets the
+ * two be told apart. A throw or a non-OK response leaves the state `undefined`,
+ * which is honest: we do not know. Only a 200 whose body carries no user is
+ * `null`. Second half of the same finding (CodeRabbit, PR 196); the first half
+ * was the initial-load case above.
  */
 export function useSessionUser() {
   const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
-    void getSession().then((session) => {
-      if (!cancelled) setUser(session?.user ?? null);
-    });
+    void (async () => {
+      try {
+        const response = await fetch("/api/auth/session", { credentials: "same-origin" });
+        if (!response.ok) throw new Error(`Session request failed: ${response.status}`);
+        const session = (await response.json()) as { user?: SessionUser | null } | null;
+        if (!cancelled) setUser(session?.user ?? null);
+      } catch {
+        // Stay `undefined`. Callers render the not-yet-known shape, which is
+        // the one state that claims nothing about the reader's account.
+        if (!cancelled) setUser(undefined);
+      }
+    })();
     return () => {
       cancelled = true;
     };

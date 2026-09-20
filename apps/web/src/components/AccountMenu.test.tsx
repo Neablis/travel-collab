@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountMenu, AccountMenuFromSession } from "./AccountMenu";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
@@ -8,6 +8,27 @@ vi.mock("next-auth/react", () => ({
   getSession: vi.fn(),
   signOut: vi.fn(async () => {}),
 }));
+
+// **`useSessionUser` reads `/api/auth/session` directly** rather than through
+// next-auth's `getSession()`, which returns `null` for a FAILED request and a
+// confirmed signed-out session alike (CodeRabbit, PR #196). The mock above is
+// still the one place a test says who is signed in; this carries its answer
+// over the transport the hook now uses, so every `mockResolvedValueOnce` and
+// `toHaveBeenCalled` below reads exactly as it did.
+beforeEach(() => {
+  vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/api/auth/session")) {
+      const { getSession } = await import("next-auth/react");
+      const session = await vi.mocked(getSession)();
+      return new Response(JSON.stringify(session ?? {}), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`unexpected fetch in this test: ${url}`);
+  });
+});
 
 const resetDemoDataMock = vi.fn();
 const fetchPreferencesMock = vi.fn(async () => ({

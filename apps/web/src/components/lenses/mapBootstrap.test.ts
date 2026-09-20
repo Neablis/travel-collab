@@ -42,7 +42,10 @@ describe("isFatalMapError", () => {
   // A sprite failure that also names a source is still the placeholder's, not
   // the offline panel's: the sprite test runs first and wins deliberately.
   it("keeps the sprite rule ahead of the source rule", () => {
-    expect(isFatalMapError({ error: { message: "sprite missing" }, sourceId: undefined })).toBe(false);
+    // `sourceId` is NAMED, which is the whole point: with `undefined` the test
+    // could not tell the intended order from the reverse one, because the
+    // source rule never got a chance to fire (CodeRabbit, PR #196).
+    expect(isFatalMapError({ error: { message: "sprite missing" }, sourceId: "openmaptiles" })).toBe(false);
   });
 
   // An error with neither a source nor the word "style" is unattributable.

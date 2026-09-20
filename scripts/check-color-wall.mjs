@@ -255,30 +255,76 @@ const notAClassName = new Set([
 // was never scanned and the wall passed on a defect. CodeRabbit found it on
 // PR 196, and found too that the test covering this could not have caught it:
 // the token after the url was a VALID one, so the assertion held either way.
-const stripLineComment = (line) => {
+//
+// **And the scan runs over the WHOLE source, not line by line.** The first
+// version of this mapped a per-line scanner across `split("\n")`, which reset
+// `quote` at every newline — so a template literal stopped being recognised
+// after its own first line, and a `//` on a later line of it truncated that
+// line exactly as before. Same defect, one level up. CodeRabbit found this one
+// too, on the fix for the first (PR 196).
+//
+// Quote state crosses a newline only for a BACKTICK: `"` and `'` cannot span
+// lines in JS, so an unclosed one is a parse artifact, and carrying it would
+// let a single stray apostrophe swallow the rest of the file. A `${` inside a
+// template returns to code — where `//` IS a comment again — so it pushes.
+const stripLineComments = (source) => {
+  let out = "";
   let quote = null;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
+  /** Backtick nesting: each `${` pushes, its matching `}` pops back into it. */
+  const templates = [];
+  let depth = 0;
+
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+
     if (quote !== null) {
-      // A backslash escapes the next character, including a closing quote.
-      if (ch === "\\") i += 1;
-      else if (ch === quote) quote = null;
+      if (ch === "\\") {
+        out += ch + (source[i + 1] ?? "");
+        i += 1;
+        continue;
+      }
+      if (quote === "`" && ch === "$" && source[i + 1] === "{") {
+        templates.push(depth);
+        depth += 1;
+        quote = null;
+        out += "${";
+        i += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      // `"` and `'` do not survive a newline; a backtick does.
+      else if (ch === "\n" && quote !== "`") quote = null;
+      out += ch;
+      continue;
+    }
+
+    if (ch === "}" && depth > 0 && templates[templates.length - 1] === depth - 1) {
+      templates.pop();
+      depth -= 1;
+      quote = "`";
+      out += ch;
       continue;
     }
     if (ch === '"' || ch === "'" || ch === "`") {
       quote = ch;
+      out += ch;
       continue;
     }
-    if (ch === "/" && line[i + 1] === "/") return line.slice(0, i);
+    if (ch === "/" && source[i + 1] === "/") {
+      // Drop to the end of the line, but KEEP the newline: every diagnostic
+      // this wall prints carries a line number.
+      while (i < source.length && source[i] !== "\n") i += 1;
+      if (i < source.length) out += "\n";
+      continue;
+    }
+    out += ch;
   }
-  return line;
+  return out;
 };
 
 const stripComments = (source, isCss) => {
   let out = source.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
-  if (!isCss) {
-    out = out.split("\n").map(stripLineComment).join("\n");
-  }
+  if (!isCss) out = stripLineComments(out);
   return out;
 };
 
