@@ -460,6 +460,26 @@ export function SettingsSheet({
         )}
 
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">
+          {/* M26 link 6d, §34.2. Download gets a heading of its own and the one
+              sentence nobody has ever been shown.
+
+              **The fact was real and buried.** `bundle/fromTrip.ts` has said
+              since M25 that an export is a snapshot of the plan, not the event
+              log: *"a re-imported trip starts a fresh stream and loses undo,
+              redo, revert and its History popover — stated here because
+              'export' invites the opposite assumption."* That assumption is
+              invited of the READER, not of the next developer, and the warning
+              sat in a comment only the next developer would read.
+
+              The heading scopes to Download alone. Duplicate and Delete below
+              are lifecycle, not export, and link 6a moves them to the trip
+              card's popover on Home where §34.2 and §27 put them. */}
+          <SectionHeading>Take it with you</SectionHeading>
+          <Text variant="secondary" className="text-xs">
+            A download carries the plan — your days and activities. Its history
+            does not travel: an imported trip starts fresh, with no undo, redo
+            or revert.
+          </Text>
           {/* **A plain anchor, which is the whole of link 2** (M25).
               `GET /api/v1/trips/{tripId}/export` is the same endpoint an API
               caller uses, and a session cookie satisfies every scope on a `v1`

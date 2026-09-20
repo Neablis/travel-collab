@@ -372,6 +372,20 @@ describe("SettingsSheet role gating", () => {
     }
   });
 
+  // M26 link 6d. The fact that an export does not carry history has been true
+  // and written down since M25 — in `bundle/fromTrip.ts`, a file only the next
+  // DEVELOPER reads. The comment there says the opposite assumption is invited
+  // by the word "export", and it is invited of the person clicking the link.
+  //
+  // Asserted as a claim about undo rather than on the exact sentence, so a
+  // copy edit does not fail this while a silent deletion does.
+  it("tells the reader that a downloaded trip loses its history", () => {
+    renderSheet(vi.fn(), { myRole: "owner" });
+    expect(screen.getByText("Take it with you")).toBeTruthy();
+    expect(screen.getByText(/history does not travel/i)).toBeTruthy();
+    expect(screen.getByText(/no undo, redo or revert/i)).toBeTruthy();
+  });
+
   it("disables the rename field for a viewer, and leaves it live for an editor", () => {
     renderSheet(vi.fn(), { myRole: "viewer" });
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
