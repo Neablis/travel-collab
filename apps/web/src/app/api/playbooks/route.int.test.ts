@@ -384,42 +384,36 @@ describe("GET /api/playbooks", () => {
     expect(names(body)).toContain(name);
   });
 
-  // The season filter (Mitchell, 2026-09-01), which replaced a twelve-entry
-  // month dropdown. There is no season column — it is bucketed from
-  // `created_at`'s month in UTC — so this asserts the bucketing end to end:
-  // a day saved now is returned by THIS season and by no other.
+  // **The season filter is cut** (M26 link 2, SPEC §33.2). It filtered on the
+  // month a day was run, and §33.2's rule — a place is a tab, a question is a
+  // chip, a property of the list rides the sentence about the list — left it
+  // nowhere to live. The predicate is gone from `server/playbooks.ts` and the
+  // param is gone from the route.
   //
-  // The expected season is computed from a table written out HERE rather than
-  // by calling `seasonOfMonth`. Deriving it with the same function the server
-  // uses would make this a tautology: get the buckets wrong and both sides move
-  // together while the test stays green.
-  it("filters by season, bucketed from the month the day was kept", async () => {
+  // This test is the old one INVERTED rather than deleted. A filter removed
+  // with nothing asserting its absence is one that quietly comes back: the
+  // SQL is still shaped to take another `and` clause, `seasonOfMonth` is still
+  // exported, and `?season=` is still a URL anyone can type. Asserting that
+  // all four values return the same day is what makes a reland fail loudly
+  // here instead of silently narrowing Discover in production.
+  //
+  // **The concept is not cut.** `SEASON_MONTHS` and `seasonOfMonth` stay —
+  // `pnpm content:verify` prints season occupancy and is a separate consumer.
+  //
+  // This needs none of the `created_at` UTC-rollover care the filtering
+  // version needed (CodeRabbit, PR 104). That machinery existed only to work
+  // out which season was the day's own; with the predicate gone, every season
+  // answers alike, so there is no month-boundary race left to lose.
+  it("ignores season entirely — every season returns the same day", async () => {
     const only = city("season");
     const name = `Seasonal ${RUN}`;
     await publish(await saveDay(name, [{ city: only }]));
 
-    // The month comes from the SAVED ROW's own `createdAt`, not from a fresh
-    // clock read here. `saveDay` persists `created_at` before this line runs,
-    // so a UTC month rollover between that write and `new Date()` here would
-    // put `mine` in the new month while the row is still stamped with the
-    // old one — an intermittent failure on the new-season assertion below
-    // (CodeRabbit, PR 104). Reading the row's own timestamp back through an
-    // unfiltered discover keeps the expectation and the data in the same
-    // month no matter when the rollover lands.
-    const seeded = (await discover(`city=${only}`)).body.days.find((d) => d.name === name)!;
-    const month = new Date(seeded.createdAt).getUTCMonth() + 1;
-    const seasonOf = (m: number) =>
-      m === 12 || m <= 2 ? "winter" : m <= 5 ? "spring" : m <= 8 ? "summer" : "fall";
-    const mine = seasonOf(month);
-    const others = ["spring", "summer", "fall", "winter"].filter((s) => s !== mine);
-    expect(others).toHaveLength(3);
-
     currentUserId = READER;
-    expect(names((await discover(`city=${only}&season=${mine}`)).body)).toContain(name);
-    for (const season of others) {
-      expect(names((await discover(`city=${only}&season=${season}`)).body), season).not.toContain(name);
+    for (const season of ["spring", "summer", "fall", "winter"]) {
+      expect(names((await discover(`city=${only}&season=${season}`)).body), season).toContain(name);
     }
-    // And no season at all is "any season", not "no season".
+    // And no season at all is the same answer, not a different one.
     expect(names((await discover(`city=${only}`)).body)).toContain(name);
   });
 

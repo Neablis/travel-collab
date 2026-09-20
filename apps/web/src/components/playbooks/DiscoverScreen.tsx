@@ -1,27 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
-import { NativeSelect } from "@/components/ui/native-select";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Popover } from "@/components/ui/popover";
+import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { UnderlineTabs } from "@/components/ui/underline-tabs";
+import { cn } from "@/lib/cn";
+import { PHONE_TOUCH } from "@/components/ui/button";
 import { searchPlaybooks } from "@/lib/apiClient";
-import {
-  BUDGET_BAND_EDGES,
-  SEASON_LABELS,
-  Season,
+import type {
+  BudgetBand,
+  DiscoverResponse,
+  DiscoverScope,
+  DiscoverSort,
   LengthBand,
-  LENGTH_BAND_LABELS,
-  type BudgetBand,
-  type DiscoverResponse,
-  type DiscoverScope,
-  type DiscoverSort,
 } from "@/lib/playbooks";
+import {
+  FILTER_DEFS,
+  activeFilterCount,
+  chipLabel,
+  clearedFilters,
+  isFilterSet,
+  moreFilters,
+  rowFilters,
+  type FilterDef,
+  type FilterOption,
+  type FilterState,
+} from "./discoverFilters";
 import { CitySearch } from "./CitySearch";
 import { DiscoverCard } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
@@ -53,10 +63,6 @@ const SORTS: readonly { value: DiscoverSort; label: string }[] = [
   { value: "newest", label: "Newest" },
 ];
 
-// The season options, in calendar order rather than enum order — a dropdown
-// that reads Spring/Summer/Fall/Winter is a dropdown nobody has to think about.
-const SEASONS: readonly Season[] = ["spring", "summer", "fall", "winter"];
-
 /** How many skeleton cards stand in while the first read is in flight. */
 const SKELETON_COUNT = 6;
 
@@ -66,7 +72,6 @@ type Filters = {
   sort: DiscoverSort;
   budget: BudgetBand;
   length: LengthBand;
-  season: Season | null;
 };
 
 const NO_FILTERS: Filters = {
@@ -75,7 +80,6 @@ const NO_FILTERS: Filters = {
   sort: "most-added",
   budget: "any",
   length: "any",
-  season: null,
 };
 
 /**
@@ -85,13 +89,59 @@ const NO_FILTERS: Filters = {
  * it: the chips above are editable from here on, and a URL that kept
  * overwriting them would fight the person using them.
  */
+/**
+ * A face chip's menu: one row per option, the current one ticked.
+ *
+ * A list of buttons rather than a `NativeSelect` inside a popover — project
+ * rule 3 bans a select inside a popover that itself opens from a menu, and the
+ * artboard draws rows with a tick column.
+ */
+function FilterMenu({
+  def,
+  options,
+  current,
+  onPick,
+}: {
+  def: FilterDef;
+  options: readonly FilterOption[];
+  current: string;
+  onPick: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col">
+      {options.map((option) => {
+        const on = option.value === current;
+        return (
+          <Button
+            key={option.value}
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-pressed={on}
+            data-testid={`filter-${def.id}-${option.value}`}
+            className="h-auto justify-start gap-2 rounded-md px-2.5 py-2 text-sm font-normal"
+            onClick={() => onPick(option.value)}
+          >
+            <span aria-hidden className="w-3.5 text-brand">
+              {on ? "✓" : ""}
+            </span>
+            <span className={on ? "font-semibold" : undefined}>{option.label}</span>
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonly string[] }) {
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, cities: [...initialCities] });
-  const { cities, scope, sort, budget, length, season } = filters;
+  const { cities, scope, sort, budget, length } = filters;
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
   const read = useCallback(
-    () => searchPlaybooks({ cities, scope, sort, budget, length, season }),
-    [cities, scope, sort, budget, length, season],
+    () => searchPlaybooks({ cities, scope, sort, budget, length }),
+    [cities, scope, sort, budget, length],
   );
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
@@ -106,38 +156,53 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
-  const budgetOptions = useMemo(() => {
-    const currency = feed.data?.budgetCurrency;
-    // The bands hide rather than compare numbers that are not comparable — see
-    // `BudgetBand`. ADR-008 makes currency trip-level, so a mixed result set is
-    // not reachable through the product's own write path, but a control that
-    // silently compared JPY to USD would be worse than an absent one.
-    if (!currency) return null;
-    const twoHundred = formatMoney(BUDGET_BAND_EDGES.twoHundred, currency);
-    const fiveHundred = formatMoney(BUDGET_BAND_EDGES.fiveHundred, currency);
-    const oneThousand = formatMoney(BUDGET_BAND_EDGES.oneThousand, currency);
-    // "Budget", not "Budget each" — the trailing "each" was on the control's
-    // label AND on every option, saying the same thing twice on one dropdown
-    // (Mitchell, 2026-09-01). The per-person reading is gone from the card and
-    // the shared-day rail too, in the same review: the number these bands
-    // compare is a day's TOTAL (`SavedDayFacts.totalCost`, a sum of priced
-    // stops with nothing to divide by), so no surface qualifies it "each" any
-    // more. Per-head math is M19's — `docs/milestones/M19-cost-model.md`.
-    //
-    // Four bands over three edges (Mitchell, Vercel toolbar comment on
-    // `/playbooks` at 411px, 2026-09-01: "the default budget options are
-    // pretty unrealistic, let's make them sub 200, sub 500, sub 1000 and
-    // above 1000") — see `BudgetBand` in `lib/playbooks.ts` for the
-    // mutually-exclusive-ranges reading of that request and the exact
-    // boundary each label's edge falls on.
-    return [
-      { value: "any" as const, label: "Any budget" },
-      { value: "under200" as const, label: `Under ${twoHundred}` },
-      { value: "200to500" as const, label: `${twoHundred} – ${fiveHundred}` },
-      { value: "500to1000" as const, label: `${fiveHundred} – ${oneThousand}` },
-      { value: "over1000" as const, label: `Over ${oneThousand}` },
-    ];
+  // Each filter's own options, resolved once against the current context. A
+  // `null` means the filter cannot honestly be offered — Budget with no shared
+  // currency — and it then appears nowhere: not as a chip, not in *More
+  // filters*, and not in the count.
+  const filterOptions = useMemo(() => {
+    const ctx = { budgetCurrency: feed.data?.budgetCurrency ?? null };
+    return new Map(FILTER_DEFS.map((def) => [def.id, def.options(ctx)] as const));
   }, [feed.data?.budgetCurrency]);
+
+  const offerable = useCallback(
+    (def: FilterDef): readonly FilterOption[] | null => filterOptions.get(def.id) ?? null,
+    [filterOptions],
+  );
+
+  // **A filter the context cannot offer is cleared from STATE, not merely
+  // hidden.** The comment above says an unofferable filter "appears nowhere:
+  // not as a chip, not in *More filters*, and not in the count" — but only the
+  // controls honoured that. A budget chosen while Kyoto's results shared a
+  // currency stayed in `filters` after a scope change removed that shared
+  // currency: still counted, still sent to `searchPlaybooks`, and with no
+  // control left to see or clear it. Results were narrowed by something the
+  // reader could not find (CodeRabbit, PR 196).
+  //
+  // **Clearing is safe to do from the feed's own answer**, which is the part
+  // worth checking before writing this: `budgetCurrency` is computed in
+  // `server/playbooks.ts` over the CANDIDATES, before the budget predicate is
+  // applied. So it does not depend on the budget value, and clearing the budget
+  // cannot change the currency that caused the clear. No oscillation.
+  useEffect(() => {
+    setFilters((prev) => {
+      const cleared = FILTER_DEFS.reduce(
+        (acc, def) => (filterOptions.get(def.id) == null ? def.apply(acc, def.none) : acc),
+        { budget: prev.budget, length: prev.length } as FilterState,
+      );
+      // Returning `prev` unchanged is what keeps this effect from looping:
+      // `def.apply` always builds a new object, so an identity comparison would
+      // re-set state on every render.
+      if (cleared.budget === prev.budget && cleared.length === prev.length) return prev;
+      return { ...prev, ...cleared };
+    });
+  }, [filterOptions]);
+
+  const questions: FilterState = { budget, length };
+  const activeCount = activeFilterCount(questions);
+
+  const setQuestion = (def: FilterDef, value: string) =>
+    setFilters((prev) => ({ ...prev, ...def.apply({ budget: prev.budget, length: prev.length }, value) }));
 
   const days = feed.data?.days ?? [];
   const siblings = feed.data?.siblings ?? [];
@@ -161,87 +226,142 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
         These days changed while you were looking — somebody published, withdrew or took one.
       </LibraryMoved>
 
+      {/* §33.2: **a place is a tab, above the search.** It was a
+          `SegmentedControl` below it — a pill, which is what a FILTER looks
+          like on this page, so the one control that changes which set you are
+          looking at wore the clothes of the ones that narrow it.
+
+          **Sticky on a phone** (§16): the tabs and the search card are how you
+          change what the list is, and a one-column list of cards is long enough
+          that scrolling into it otherwise strands you with no way to change the
+          query but to scroll back. `bg-paper` so the list does not show through
+          it, and `-mx-6 px-6` to bleed the background to the page edges while
+          the content keeps `PageContainer`'s gutter. Not sticky from `md` up,
+          where the whole header is on screen at once. */}
+      <div className="sticky top-0 z-10 -mx-6 flex flex-col gap-5 bg-paper px-6 pt-1 pb-1 md:static md:mx-0 md:px-0 md:pt-0 md:pb-0">
+      <UnderlineTabs
+        value={scope}
+        onValueChange={(value) => set("scope", value)}
+        options={SCOPES}
+        idPrefix="discover-scope"
+        aria-label="Whose days"
+      />
+
       <CitySearch
         selected={cities}
         onAdd={(city) => set("cities", cities.includes(city) ? cities : [...cities, city])}
         onRemove={(city) => set("cities", cities.filter((c) => c !== city))}
       />
+      </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <SegmentedControl
-          value={scope}
-          onValueChange={(value) => set("scope", value)}
-          options={SCOPES}
-          aria-label="Whose days"
-        />
-        <div className="flex-1" />
-        <NativeSelect
-          aria-label="Sort"
-          value={sort}
-          onChange={(e) => set("sort", e.target.value as DiscoverSort)}
-        >
-          {SORTS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </NativeSelect>
-        {budgetOptions !== null && (
-          <NativeSelect
-            aria-label="Budget"
-            value={budget}
-            onChange={(e) => set("budget", e.target.value as BudgetBand)}
-          >
-            {budgetOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </NativeSelect>
-        )}
-        {/* **How long a Playbook is** — Mitchell, 2026-09-19: "We also need to
-            be able to search and filter by length, 1, 3, 5 or 7+ days". Read
-            as EDGES of mutually exclusive bands rather than four overlapping
-            thresholds, because a `<select>`'s options have to be mutually
-            exclusive or a Playbook matches two at once — the same reading the
-            budget bands took, and confirmed with him the same day as
-            1 / 2-3 / 4-6 / 7+.
+      {/* §33.2: **the filter row is chips, and one *More filters* menu.** The
+          three `NativeSelect`s that stood here read as three of a kind while
+          being three different kinds of decision. */}
+      {/* **The desktop row: chips and a *More filters* popover.** Hidden below
+          `md`, where project rule 3 forbids this shape outright — a popover
+          opening from a row of popovers, on a screen where each one covers the
+          list it is filtering. The phone gets ONE sheet instead, below.
 
-            Unlike Budget, this one narrows in SQL: `day_count` is a column, so
-            it filters before the candidate window is truncated and its chip
-            counts cannot come apart from the page below them
-            (KI-2026-08-31). */}
-        <NativeSelect
-          aria-label="Length"
-          value={length}
-          onChange={(e) => set("length", e.target.value as LengthBand)}
+          Both are rendered and one is hidden by CSS rather than switched on
+          `useIsPhone()`: that hook starts `false` on the server and on the
+          first client paint by design, so a JS-gated filter row would show the
+          desktop shape for one paint on a phone and then swap. They share one
+          `filters` state, so there is no second source of truth — only a second
+          set of controls over the same one. */}
+      <div className="hidden flex-wrap items-center gap-2 md:flex" data-testid="discover-filters">
+        {rowFilters(questions).map((def) => {
+          const options = offerable(def);
+          if (options === null) return null;
+          const set = isFilterSet(def, questions);
+          return (
+            <Popover
+              key={def.id}
+              open={openMenu === def.id}
+              onOpenChange={(open) => setOpenMenu(open ? def.id : null)}
+              align="start"
+              contentClassName="w-56 p-1"
+              collisionPadding={12}
+              trigger={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  aria-label={def.label}
+                  data-testid={`filter-chip-${def.id}`}
+                  // §33.2: outline + slate when empty, `--color-brand-tint` +
+                  // brand border **showing its value** when set. A chip that
+                  // still reads "Budget" once a budget is chosen makes the
+                  // reader open it to find out what they asked for.
+                  className={cn(
+                    "rounded-full",
+                    set && "border-brand bg-brand-tint text-brand",
+                  )}
+                >
+                  {chipLabel(def, questions, options)}
+                </Button>
+              }
+            >
+              <FilterMenu
+                def={def}
+                options={options}
+                current={def.value(questions)}
+                onPick={(value: string) => {
+                  setQuestion(def, value);
+                  setOpenMenu(null);
+                }}
+              />
+            </Popover>
+          );
+        })}
+
+        {/* Everything that is not a face filter, grouped by label. With Length
+            as the only member today this is one group — the shape is what
+            matters, because M12's rating filter lands in it. */}
+        <Popover
+          open={openMenu === "more"}
+          onOpenChange={(open) => setOpenMenu(open ? "more" : null)}
+          align="start"
+          contentClassName="w-60 p-3"
+          collisionPadding={12}
+          trigger={
+            <Button type="button" variant="ghost" size="sm" data-testid="filter-more">
+              More filters
+            </Button>
+          }
         >
-          {LengthBand.options.map((option) => (
-            <option key={option} value={option}>
-              {LENGTH_BAND_LABELS[option]}
-            </option>
-          ))}
-        </NativeSelect>
-        {/* Season, bucketed from the day's month — Mitchell, 2026-09-01, in
-            place of the twelve-entry "Kept in <month>" dropdown that stood
-            here. Twelve options over a library of a few dozen days meant most
-            of them returned nothing; four buckets are a filter somebody can
-            actually land on. The month behind the bucket is still what a day
-            carries (`created_at`, the month it was lifted out of its source
-            trip) and the shared-day rail still names it — see `Season` in
-            lib/playbooks.ts for why there is no column. */}
-        <NativeSelect
-          aria-label="Season"
-          value={season ?? ""}
-          onChange={(e) => set("season", e.target.value === "" ? null : Season.parse(e.target.value))}
-        >
-          <option value="">Any season</option>
-          {SEASONS.map((value) => (
-            <option key={value} value={value}>
-              {SEASON_LABELS[value]}
-            </option>
-          ))}
-        </NativeSelect>
+          <div className="flex flex-col gap-3.5">
+            {moreFilters().map((def) => {
+              const options = offerable(def);
+              if (options === null) return null;
+              return (
+                <div key={def.id} className="flex flex-col gap-1.5">
+                  <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+                    {def.label}
+                  </Text>
+                  <div className="flex flex-wrap gap-1.5">
+                    {options.map((option) => {
+                      const on = def.value(questions) === option.value;
+                      return (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          aria-pressed={on}
+                          data-testid={`filter-more-${def.id}-${option.value}`}
+                          className={cn("rounded-full", on && "border-brand bg-brand-tint text-brand")}
+                          onClick={() => setQuestion(def, option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Popover>
       </div>
 
       {/* Sibling chips when a query is on, the "busy right now" row when it is
@@ -276,6 +396,192 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
         </div>
       )}
 
+      {/* §33.2: **the results sentence, which did not exist**, and it is where
+          sort lives now. `128 shared days · Most added ▾`.
+
+          **The sentence states the count only.** It used to end ", most added
+          first" — beside a live Sort control that both duplicated it and could
+          contradict it. */}
+      {/* **The phone's whole filter surface: one button, one sheet** (§16,
+          project rule 3). It carries filters AND sort — sort is a property of
+          the list and belongs with the questions when there is only one place
+          to put them — and **deliberately not scope**, which stays as the tabs
+          above the search. A place is not a sheet setting.
+
+          The count on the button is `activeFilterCount`, which excludes scope
+          and sort: the phone badge used to count "sorted by newest" as a
+          filter, which is the defect §33.2 names. */}
+      <div className="md:hidden">
+        <Button
+          type="button"
+          variant="secondary"
+          size="touch"
+          data-testid="discover-phone-filters"
+          onClick={() => setPhoneFiltersOpen(true)}
+        >
+          Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+        </Button>
+      </div>
+
+      <Sheet
+        open={phoneFiltersOpen}
+        onOpenChange={setPhoneFiltersOpen}
+        title="Filters"
+        size="bottom"
+      >
+        <div className="flex flex-col gap-5 pb-2" data-testid="discover-filter-sheet">
+          {FILTER_DEFS.map((def) => {
+            const options = offerable(def);
+            if (options === null) return null;
+            return (
+              <div key={def.id} className="flex flex-col gap-2">
+                <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+                  {def.label}
+                </Text>
+                <div className="flex flex-wrap gap-2">
+                  {options.map((option) => {
+                    const on = def.value(questions) === option.value;
+                    return (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant="secondary"
+                        size="touch"
+                        aria-pressed={on}
+                        data-testid={`sheet-${def.id}-${option.value}`}
+                        className={cn("rounded-full", on && "border-brand bg-brand-tint text-brand")}
+                        onClick={() => setQuestion(def, option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Sort, in the sheet with the filters and NOT counted as one. */}
+          <div className="flex flex-col gap-2">
+            <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+              Sort
+            </Text>
+            <div className="flex flex-wrap gap-2">
+              {SORTS.map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant="secondary"
+                  size="touch"
+                  aria-pressed={sort === option.value}
+                  data-testid={`sheet-sort-${option.value}`}
+                  className={cn("rounded-full", sort === option.value && "border-brand bg-brand-tint text-brand")}
+                  onClick={() => set("sort", option.value)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {activeCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="touch"
+              data-testid="sheet-clear-filters"
+              className="self-start text-brand"
+              onClick={() => setFilters((prev) => ({ ...prev, ...clearedFilters(prev) }))}
+            >
+              Clear filters ({activeCount})
+            </Button>
+          )}
+        </div>
+      </Sheet>
+
+      <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-2 border-t border-hairline pt-2">
+        {feed.data !== null && (
+          <Text as="span" className="text-sm text-ink" data-testid="discover-results-line">
+            {feed.data.days.length} shared {feed.data.days.length === 1 ? "day" : "days"}
+          </Text>
+        )}
+        <div className="hidden md:contents">
+        {/* The `·` of `10 shared days · Most added ▾`. It was missing: the
+            count and the sort sat side by side separated only by `gap-x-3.5`,
+            which reads as two controls rather than as the one sentence §33.2
+            asks for. Found by walking the preview, 2026-09-20 — a gap is not a
+            separator, and nothing but looking at it says so.
+
+            Inside the `md:contents` wrapper, so it is hidden with the sort
+            control it separates: on a phone sort lives in the filter sheet and
+            a middot trailing the count alone would point at nothing.
+            `aria-hidden` because it is punctuation between two elements, not a
+            word anybody needs read out. */}
+        {feed.data !== null && (
+          <span aria-hidden className="text-sm text-slate" data-testid="discover-results-sep">
+            ·
+          </span>
+        )}
+        <Popover
+          open={openMenu === "sort"}
+          onOpenChange={(open) => setOpenMenu(open ? "sort" : null)}
+          align="start"
+          contentClassName="w-56 p-1"
+          collisionPadding={12}
+          trigger={
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-label="Sort"
+              data-testid="discover-sort"
+              className="h-auto px-1 py-0 text-sm font-normal"
+            >
+              {SORTS.find((o) => o.value === sort)?.label} ▾
+            </Button>
+          }
+        >
+          <div className="flex flex-col">
+            {SORTS.map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-pressed={sort === option.value}
+                data-testid={`discover-sort-${option.value}`}
+                className="h-auto justify-start rounded-md px-2.5 py-2 text-sm font-normal"
+                onClick={() => {
+                  set("sort", option.value);
+                  setOpenMenu(null);
+                }}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </Popover>
+
+        <div className="flex-1" />
+
+        {/* **Clear filters drops the questions and nothing else** — not the
+            scope, which is a place (§33.2), and not the sort, which is a
+            property of the list. */}
+        {activeCount > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="discover-clear-filters"
+            className="h-auto px-1 py-0 text-sm font-normal text-brand underline"
+            onClick={() => setFilters((prev) => ({ ...prev, ...clearedFilters(prev) }))}
+          >
+            Clear filters ({activeCount})
+          </Button>
+        )}
+        </div>
+      </div>
+
       {feed.data?.truncated === true && (
         <Text variant="muted" className="text-xs">
           Showing the best matches. Narrow the cities to see the rest.
@@ -307,7 +613,17 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
               : "Nothing in the library matches all of these at once."
           }
           action={
-            <Button variant="primary" onClick={() => setFilters({ ...NO_FILTERS, sort })}>
+            // **Keeps the scope**, which `{ ...NO_FILTERS, sort }` did not:
+            // it reset `scope` to `everyone`, so somebody looking at *Saved*
+            // and finding nothing was moved to a different place without
+            // asking. §33.2 forbids it — a place is never reset by a control
+            // about questions. Cities go, because they are a question asked in
+            // the search card.
+            <Button
+              variant="primary"
+              onClick={() => setFilters({ ...NO_FILTERS, scope, sort })}
+              data-testid="discover-search-everywhere"
+            >
               Search everywhere
             </Button>
           }
@@ -334,7 +650,10 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           arrives a beat late. */}
       {(feed.data?.sharedDayCount ?? 0) > 0 && (
         <div className="border-t border-hairline pt-4">
-          <Link href="/playbooks/board" className="text-sm font-semibold text-brand hover:underline">
+          <Link
+            href="/playbooks/board"
+            className={cn("inline-flex items-center text-sm font-semibold text-brand hover:underline", PHONE_TOUCH)}
+          >
             Who shares the most →
           </Link>
         </div>

@@ -11,6 +11,15 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
 }));
 
+// Who is reading, which is what decides whether a card's menu offers Delete or
+// *Leave this trip* (M26 link 6b). `getSessionMock` is reset per test to the
+// owner, so every existing test keeps the menu it was written against.
+const getSessionMock = vi.fn();
+vi.mock("next-auth/react", () => ({
+  getSession: () => getSessionMock(),
+  signOut: vi.fn(async () => {}),
+}));
+
 import Home from "./page";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
@@ -22,7 +31,7 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
     tripId,
     name: "Japan",
     status: "active",
-    members: [{ userId: "dev-alice", role: "owner" }],
+    members: [{ userId: OWNER_ID, role: "owner" }],
     createdAt: "2026-07-08T12:00:00.000Z",
     ...overrides,
   };
@@ -42,15 +51,24 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const OWNER_ID = "dev-alice";
+
 beforeEach(() => {
   pushMock.mockReset();
   replaceMock.mockReset();
+  getSessionMock.mockReset();
+  getSessionMock.mockResolvedValue({ user: { id: OWNER_ID } });
 });
 
 describe("Home trip actions", () => {
   it("deletes a trip and offers an undo that restores it", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${tripId}/commands`)) {
         return jsonResponse({
           detail: tripDetailFixture({ tripId, name: "Japan" }),
@@ -92,6 +110,11 @@ describe("Home trip actions", () => {
     let resolveDelete: (r: Response) => void;
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${tripId}/commands`)) {
         return new Promise<Response>((resolve) => {
           resolveDelete = resolve;
@@ -121,6 +144,11 @@ describe("Home trip actions", () => {
   it("brings the row back and shows an error if the delete request fails", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${tripId}/commands`)) {
         return jsonResponse({ error: "concurrency-conflict" }, 409);
       }
@@ -147,6 +175,11 @@ describe("Home trip actions", () => {
     const newTripId = "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a";
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${tripId}/duplicate`)) {
         return jsonResponse({ tripId: newTripId }, 201);
       }
@@ -177,6 +210,11 @@ describe("Home trip actions", () => {
   it("shows the create-trip error inside the still-open New-trip sheet on failure", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith("/api/trips") && init?.method === "POST") {
         return jsonResponse({ error: "name already taken" }, 400);
       }
@@ -215,6 +253,11 @@ describe("Home trip actions", () => {
     let listCallCount = 0;
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith("/api/trips") && init?.method === "POST") {
         return jsonResponse({ tripId: newTripId }, 201);
       }
@@ -245,6 +288,11 @@ describe("Home trip actions", () => {
   it("renders a real, navigable Start from a Playbook link outside any Preview region", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith("/api/trips")) return jsonResponse({ trips: [] });
       return jsonResponse({ error: "unexpected" }, 404);
     });
@@ -270,6 +318,11 @@ describe("Home trip cards' planned-of-budget line", () => {
   it("gives each visible trip card its own real planned-of-budget line once its TripDetail fetch resolves", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith(`/api/trips/${secondTripId}`)) {
         return jsonResponse({
           trip: tripDetailFixture({
@@ -306,6 +359,11 @@ describe("Home trip cards' planned-of-budget line", () => {
     let resolveSecond: (r: Response) => void;
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith(`/api/trips/${secondTripId}`)) {
         return new Promise<Response>((resolve) => {
           resolveSecond = resolve;
@@ -354,6 +412,11 @@ describe("Home trip cards' planned-of-budget line", () => {
     let secondTripCallCount = 0;
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${thirdTripId}/commands`)) {
         return jsonResponse({
           detail: tripDetailFixture({ tripId: thirdTripId, name: "Chile" }),
@@ -426,6 +489,11 @@ describe("Home page head", () => {
   function renderHome(trips: TripSummary[] = [tripSummaryFixture()]) {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith("/api/trips")) return jsonResponse({ trips });
       if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
       return jsonResponse({ error: "unexpected" }, 404);
@@ -533,6 +601,26 @@ describe("Home first-run experience", () => {
     expect(screen.getByText(/A name is enough to start/)).toBeDefined();
   });
 
+  // §34.2, M26 link 9c: "Import is on Home beside New trip, and again in the
+  // empty state, where the sentence about what a file is belongs." The control
+  // was in both places already; the sentence was in neither, so the fourth
+  // route in was a button whose label assumed the reader knew this app had
+  // files at all.
+  it("says what a trip file is, in the empty state, beside the import control", async () => {
+    fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const firstRun = await screen.findByTestId("first-trip-start");
+    expect(within(firstRun).getByRole("button", { name: /import a file/i })).toBeTruthy();
+    // "or from another account" is the load-bearing half: a download is
+    // portable, and without saying so this reads as a backup of your own
+    // trips — the narrower and less useful thing.
+    expect(within(firstRun).getByText(/from another account/i)).toBeTruthy();
+    expect(within(firstRun).getByText(/comes back whole from its file/i)).toBeTruthy();
+  });
+
   // The first-run screen promises "a name is enough to start", so it has to
   // offer somewhere to start. It used to do that with a "Name your trip"
   // button beside a numbered list of the four questions; **the conversation
@@ -627,6 +715,11 @@ describe("Home first-run experience", () => {
     let listCallCount = 0;
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith("/api/trips") && init?.method === "POST") {
         return jsonResponse({ tripId: newTripId }, 201);
       }
@@ -789,6 +882,11 @@ describe("Home finishing a demo clone", () => {
   function stubEmptyListAndDuplicate(duplicateStatus = 201) {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`)) {
         return duplicateStatus === 201
           ? jsonResponse({ tripId: clonedTripId }, 201)
@@ -875,6 +973,11 @@ describe("Home finishing a demo clone", () => {
     });
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`)) return duplicatePending;
       if (url.endsWith("/api/trips")) return jsonResponse({ trips: [] });
       return jsonResponse({ error: "unexpected" }, 404);
@@ -920,6 +1023,11 @@ describe("Home finishing a demo clone", () => {
     });
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`)) {
         return jsonResponse({ tripId: clonedTripId }, 201);
       }
@@ -965,6 +1073,11 @@ describe("Home trip list load failures", () => {
   it("says the list could not be loaded, and offers a retry, when /api/trips 500s with a non-JSON body", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith("/api/trips")) return new Response("boom", { status: 500 });
       return jsonResponse({ error: "unexpected" }, 404);
     });
@@ -986,6 +1099,11 @@ describe("Home trip list load failures", () => {
     let attempt = 0;
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
       if (url.endsWith("/api/trips")) {
         attempt += 1;
         if (attempt === 1) throw new TypeError("Failed to fetch");
@@ -1002,5 +1120,187 @@ describe("Home trip list load failures", () => {
 
     expect(await screen.findByRole("heading", { name: "Japan", level: 3 })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+// SPEC §32.2 — *"the phone gets the flow… full-screen conversation"*. M26 Wave
+// 2, link 15.
+//
+// **There is deliberately no test here that the sheet is full-screen**, and the
+// lint wall is why: "full screen" is a class swap (`max-w-measure` for
+// `inset-x-0`), this file is not a `components/ui/**` primitive, and jsdom has
+// neither layout nor media queries — so a `className` assertion here would be
+// the second time in this wave I tried to make a paint claim at a layer that
+// cannot hold one. It belongs to the `phone` Playwright project at 411px, which
+// is link 16's work, and it is listed there.
+//
+// What this file still holds, unchanged above: that the conversation opens at
+// all, that it is one conversation and not two, and every behaviour of the flow
+// inside it. Those are the claims a unit test can actually make.
+
+// M26 link 7, §3b. Home used to render its date line, its heading and its three
+// buttons and then NOTHING while the list was in flight, and on failure one
+// danger-coloured line at the top whose single *Try again* re-ran the whole
+// page. Both are the dead screen §3b forbids.
+describe("Home — the states between asked and answered", () => {
+  it("paints its own shape while the list is still in flight", async () => {
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).endsWith("/api/trips")) return new Promise<Response>(() => {});
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    // Both regions, by their own names — a single "Loading…" for a page that
+    // is part-painted is what §3b is against.
+    expect(await screen.findByRole("status", { name: "Loading your next trip" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Loading your trips" })).toBeTruthy();
+    // Rule 1: the chrome is real from the first frame, not placeholdered.
+    expect(screen.getByRole("button", { name: "New trip" })).toBeTruthy();
+  });
+
+  it("puts a failed list's retry in place, and keeps the rest of the page", async () => {
+    let attempts = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/api/trips")) {
+        attempts += 1;
+        return attempts === 1 ? jsonResponse({ error: "boom" }, 500) : jsonResponse({ trips: [tripSummaryFixture()] });
+      }
+      if (url.includes(`/api/trips/${tripId}`)) {
+        return jsonResponse({ detail: tripDetailFixture({ tripId, name: "Japan" }), history: historyFixture(tripId) });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const failed = await screen.findByTestId("home-trips-error");
+    expect(within(failed).getByText(/Could not load your trips/i)).toBeTruthy();
+    // The sentence that makes this a REGION's failure rather than the page's.
+    expect(within(failed).getByText(/Everything else on the page is current/i)).toBeTruthy();
+    // And it is: the page head is untouched.
+    expect(screen.getByRole("button", { name: "New trip" })).toBeTruthy();
+
+    // No placeholder under a failure notice — a breathing outline promises an
+    // arrival that is not coming.
+    expect(screen.queryByRole("status", { name: "Loading your trips" })).toBeNull();
+    expect(screen.queryByRole("status", { name: "Loading your next trip" })).toBeNull();
+
+    await userEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+    expect(screen.queryByTestId("home-trips-error")).toBeNull();
+  });
+});
+
+// M26 link 6b, SPEC §27: "a trip someone shared with you offers Leave this
+// trip". Before this the menu offered Delete unconditionally, so a guest was
+// shown a verb `MINIMUM_ROLE.DeleteTrip` refuses — a control that appears to do
+// something and gives a silent nothing.
+describe("Home — Delete or Leave, never the wrong one", () => {
+  const GUEST_ID = "dev-bob";
+  const shared = () =>
+    tripSummaryFixture({
+      name: "Kyoto",
+      members: [
+        { userId: OWNER_ID, role: "owner" },
+        { userId: GUEST_ID, role: "editor" },
+      ],
+    });
+
+  function stubTrips(trip: TripSummary, onLeave?: (url: string, init?: RequestInit) => Response) {
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      // `useSessionUser` reads this endpoint directly now, so that a FAILED
+      // session request stays distinguishable from a signed-out one
+      // (CodeRabbit, PR #196). Each test still drives the session through
+      // `getSessionMock` exactly as before; only the transport moved.
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.includes("/membership") && onLeave) return onLeave(url, init);
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [trip] });
+      if (url.includes(`/api/trips/${tripId}`)) {
+        return jsonResponse({ detail: tripDetailFixture({ tripId, name: trip.name }), history: historyFixture(tripId) });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("offers Delete on a trip you own", async () => {
+    stubTrips(tripSummaryFixture());
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: /leave this trip/i })).toBeNull();
+  });
+
+  it("offers Leave this trip, and no Delete, on a trip shared with you", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared());
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    expect(screen.getByRole("menuitem", { name: /leave this trip/i })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
+  });
+
+  it("leaving drops the card and calls the membership endpoint, not a command", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared(), () => jsonResponse({ ok: true }));
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
+
+    await waitFor(() => expect(screen.queryByRole("link", { name: /kyoto/i })).toBeNull());
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/api/trips/${tripId}/membership`),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    // Leaving is not a planning command — no event, nothing in the trip's
+    // history, nothing for the optimistic queue to predict (ADR-003).
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/commands"),
+      expect.anything(),
+    );
+  });
+
+  // The difference between the two verbs, not an omission: §27's toast exists
+  // because Delete is destructive and `RestoreTrip` can undo it. Leaving
+  // destroys nothing, and no verb puts you back on somebody else's trip — only
+  // its owner can re-invite you. An Undo here could not keep its promise.
+  it("offers no undo toast for leaving", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared(), () => jsonResponse({ ok: true }));
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
+
+    await waitFor(() => expect(screen.queryByRole("link", { name: /kyoto/i })).toBeNull());
+    expect(screen.queryByRole("button", { name: /undo/i })).toBeNull();
+  });
+
+  it("puts the card back and says why when the server refuses", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared(), () => jsonResponse({ error: "You are not a member of this trip." }, 404));
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
+
+    expect(await screen.findByText("You are not a member of this trip.")).toBeTruthy();
+    // The optimistic removal is undone — a card that vanished on a failed
+    // request is a trip the reader now believes they are off.
+    expect(screen.getByRole("link", { name: /kyoto/i })).toBeTruthy();
   });
 });

@@ -60,9 +60,18 @@ export function Column({
   focusedTag = null,
   onToggleTag,
   readOnly = false,
+  fullWidth = false,
   keepFlag,
 }: {
   title: string;
+  /**
+   * **Take the whole width instead of the desktop's 268px** — M26 link 13.
+   *
+   * A phone shows one day at a time (§13.4), and one fixed-width column on a
+   * 390px screen leaves the card at 241px and its text at 141px. The measured
+   * numbers and the decision are in `M26-design-parity.md`'s link 13.
+   */
+  fullWidth?: boolean;
   dayId: string;
   activityIds: string[];
   activities: Record<string, ActivityView>;
@@ -152,14 +161,26 @@ export function Column({
       // look ignores the attribute entirely.
       data-city-accent={accent}
       className={cn(
-        "flex min-h-44 shrink-0 flex-col rounded-2xl p-2",
+        "flex min-h-44 flex-col rounded-2xl p-2",
+        // **`shrink-0` only while there is a row to shrink in** (M26 link 13).
+        // A phone renders ONE column and it takes the width; keeping
+        // `shrink-0` there would be harmless and keeping the 268px would not,
+        // so the two move together.
+        fullWidth ? "w-full" : "shrink-0",
         TINT_BG[accent],
         // Same ring the focused chip wears (DayChips), so "this day" reads the
         // same whichever of the two you picked it from.
         isFocused && "ring-2 ring-brand",
       )}
-      // eslint-disable-next-line no-restricted-syntax -- 268px day-column width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-      style={{ width: DAY_COLUMN_WIDTH_PX }}
+      // **268px is a DESKTOP constant, and link 13 is what it cost.** Measured
+      // 2026-09-20 at 390x844: a phone was rendering this fixed column inside a
+      // horizontally scrolling row, so a stop card was 241px wide and its text
+      // column 141px — narrow because of a layout constant, not because the
+      // screen is. §13.4 already says the answer ("a phone can hold one day at
+      // a time; the rail is how you change which"), and `fullWidth` is it.
+      //
+      // eslint-disable-next-line no-restricted-syntax -- 268px day-column width has no token equivalent, matching MapLens/ActivityCard's computed-geometry pattern
+      style={fullWidth ? undefined : { width: DAY_COLUMN_WIDTH_PX }}
     >
       {/* `data-day-header` is what the day-sync contract scrolls to, and it is
           the header rather than the `section` above for a reason a person

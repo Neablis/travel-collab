@@ -117,7 +117,13 @@ export const PREVIEW_REGISTRY = {
   //
   // `wiredUpBy` restated: "proactive drafting" was never the blocker. What is
   // outstanding is the fork itself (who gets it) and the generation behind it.
-  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "The entitlement fork and the draft it generates (design §4) — neither exists; the script collects the answers it would need" },
+  // M26 link 9a built the FREE half of §30.3's fork, so this shell is now the
+  // PAID half only: it renders where an entitled account would get a live
+  // composer continuing in the trip's context. A free account gets a real
+  // answer instead (`NewTripPlusNote`), not this. The draft itself is still
+  // M9's — the script collects the answers it would need and nothing generates
+  // anything from them.
+  "wizard-assistant-draft": { milestone: "M9", wiredUpBy: "The assistant's own draft, mid-task, for an account that holds `ai.ask` (design §4, SPEC §30.3's with-access half) — the fork itself is built, the draft is not" },
 } as const;
 
 export type PreviewId = keyof typeof PREVIEW_REGISTRY;

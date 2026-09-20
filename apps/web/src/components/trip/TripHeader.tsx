@@ -2,20 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
-import { Toast } from "@/components/ui/toast";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
-import { sendTripCommand } from "@/lib/apiClient";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { AskPill } from "@/components/assistant/AskPill";
@@ -66,9 +63,8 @@ export function TripHeader({
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, applyOutcome, preview, readOnly, myRole, accessUnknown } =
+  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, myRole, accessUnknown } =
     useTrip();
-  const router = useRouter();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
   // dayId prefill, identical to that button's own openCreate() call.
@@ -78,19 +74,17 @@ export function TripHeader({
   const { openCreate } = useEditor();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // A15: the settings sheet's own subtree closes/unmounts on a successful
-  // delete, so it can't host its own toast — it reports success here via
-  // `onDeleted` and this level raises it. Undo reconciles in place
-  // (applyOutcome, same as the undo/redo/revert commands above); dismissing
-  // without undo is the "routes back to the trip list" half of the brief —
-  // deferred until the toast closes so Undo still has a page to act on.
+  // **The delete toast is gone with the verb that raised it** — M26 link 6a,
+  // DRIFT D13. A15 built this level's toast because the settings sheet's own
+  // subtree unmounts on a successful delete and could not host one; with
+  // Delete moved to the trip card's popover on Home (SPEC §34.2, §27), Home's
+  // own toast — which has always been there, one level up from this one — is
+  // the only one, and `undoDelete` went with it.
   //
-  // A15-fix: `onDeleted` also applies the delete's own CommandOutcome via
-  // `applyOutcome` immediately (same call as the undo path below), so
-  // trip.status flips to "deleted" in TripProvider right away instead of
-  // staying "active" (and the whole board fully interactive against
-  // already-deleted server state) for the entire toast window.
-  const [deleteToast, setDeleteToast] = useState<{ tripId: string; name: string } | null>(null);
+  // The `applyOutcome` reconciliation A15-fix added is not lost, only moved
+  // out of reach: nothing on this screen can delete this trip any more, so
+  // there is no window in which `trip.status` could go stale against the
+  // server. Home reloads its list instead.
 
   // Above the early return, because it owns a useEffect and hooks cannot run
   // conditionally — and because the whole point of splitting it out is that it
@@ -113,14 +107,6 @@ export function TripHeader({
   });
 
   if (trip === null || activeTrip === null || status !== "ready") return null;
-
-  async function undoDelete() {
-    if (!deleteToast) return;
-    const { tripId: restoreId } = deleteToast;
-    setDeleteToast(null);
-    const result = await sendTripCommand({ type: "RestoreTrip", tripId: restoreId });
-    if (result.ok) applyOutcome(result.value);
-  }
 
   // Handoff §2: "neutral `Badge` state" next to the trip name — just a
   // display of activeTrip.status ("active" | "deleted", contracts/trip.ts),
@@ -493,24 +479,7 @@ export function TripHeader({
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}
-        onDeleted={(deleted, outcome) => {
-          applyOutcome(outcome);
-          setSettingsOpen(false);
-          setDeleteToast(deleted);
-        }}
       />
-
-      {deleteToast && (
-        <Toast
-          message={`Deleted "${deleteToast.name}"`}
-          actionLabel="Undo"
-          onAction={() => void undoDelete()}
-          onDismiss={() => {
-            setDeleteToast(null);
-            router.push("/");
-          }}
-        />
-      )}
     </header>
   );
 }

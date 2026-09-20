@@ -8,7 +8,7 @@ import {
   type DaySync,
 } from "@/components/trip/context/FocusProvider";
 import { DataText } from "@/components/ui/data-text";
-import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { ACCENT_INK_TEXT, dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 
 export type ChipDay = {
@@ -48,18 +48,6 @@ const DOT_BG: Record<AccentFamily, string> = {
   neutral: "bg-slate",
 };
 
-// "danger"/"warning"/"success"/"info" each carry a `-ink` token; "brand" does
-// not (its darkest tone is `-pressed`) — same map shape as TimelineLens.tsx's
-// and KeepDayFlag.tsx's own INK_TEXT. Static Record, not a template string:
-// Tailwind only emits utilities it can see as literal text.
-const INK_TEXT: Record<AccentFamily, string> = {
-  brand: "text-brand-pressed",
-  info: "text-info-ink",
-  success: "text-success-ink",
-  warning: "text-warning-ink",
-  danger: "text-danger-ink",
-  neutral: "text-slate",
-};
 
 // Dates are calendar dates (YYYY-MM-DD), not instants — construct in local
 // time so "2027-06-01" never rolls back a day in a negative-offset zone.
@@ -352,7 +340,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
                 the reason a longer city name truncated: it took a fixed
                 `shrink-0` bite out of a chip only ~72px wide. */}
             <div className="flex w-full items-baseline gap-1 overflow-hidden">
-              <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
+              <span className={cn("text-xs font-semibold", ACCENT_INK_TEXT[accent.ink])}>{day.dow}</span>
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
@@ -364,7 +352,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
                 // `!readOnly` because on a trip you cannot edit it reads as
                 // "delete this day" — see `readOnly` in the props above. The
                 // chip still deselects on a second tap; only the glyph goes.
-                <span aria-hidden className={cn("ml-auto shrink-0 text-xs leading-none", INK_TEXT[accent.ink])}>
+                <span aria-hidden className={cn("ml-auto shrink-0 text-xs leading-none", ACCENT_INK_TEXT[accent.ink])}>
                   ×
                 </span>
               )}

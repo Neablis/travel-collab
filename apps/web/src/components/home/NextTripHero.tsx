@@ -13,7 +13,7 @@ import { cityFor } from "@/components/trip/DayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
-import { formatTripDate } from "@/lib/formatDate";
+import { formatTripDate, relativeCalendarDays } from "@/lib/formatDate";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { needsBooking } from "@/lib/needsBooking";
@@ -63,7 +63,7 @@ type SparklineFetchState =
 
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
 // brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
-// primary Open plan + secondary Share (via shareSlot). Right: --color-moss
+// primary Open trip + secondary Share (via shareSlot). Right: --color-moss
 /**
  * Displays a trip overview with key statistics, budget information, and a trip-shape sparkline.
  *
@@ -83,6 +83,20 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   // "loading"/"error" never render fabricated bars.
   const [sparkline, setSparkline] = useState<SparklineFetchState>({ status: "loading" });
   const [startDate, setStartDate] = useState<string | null>(null);
+  // **Today, read in an effect and not during render.** A value derived from
+  // `new Date()` while rendering differs between the server pass and the first
+  // client one, which React reports as a hydration error — the same reason
+  // Home's own date line is set this way. `null` until the first client frame,
+  // which is also why the countdown below simply does not render yet rather
+  // than rendering a guess.
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setToday(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
+  }, []);
+  const countdown =
+    startDate === null || today === null ? null : relativeCalendarDays(startDate, today);
   // "{planned} planned of {budget}" (Task 4.1, M10 Phase 4) — derived from
   // the same real TripDetail fetch as the sparkline above, via tripSpend +
   // formatMoney (KI-2), keyed off the trip's own currency (never per-Money).
@@ -151,6 +165,25 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
         <div className="flex flex-col gap-5 border-b border-hairline p-6 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2.5">
             <Badge variant="brand">Next trip</Badge>
+            {/* **The countdown** (DRIFT D6, `dc.html:1540`, M26 link 9d). D6
+                is two things and only one of them is blocked: WHICH trip the
+                hero picks needs a start date on `TripSummary` (KI-034, still
+                open — `nextTrip` is `visibleTrips[0]`), but this hero already
+                fetches the whole `TripDetail` for its sparkline, so the date
+                it is counting to is real and has been all along.
+
+                **It stays honest about a trip that has started or passed**,
+                which the selection bug makes likely rather than theoretical:
+                `relativeCalendarDays` says "yesterday" and "12 days ago" as
+                readily as "in 47 days". A countdown that only counts down
+                would print nothing, or a negative, for exactly the case D6
+                warns the hero can land on.
+
+                Absent until the first client frame and until the trip's real
+                start date lands — see `today`'s note for why it is read in an
+                effect, and `startDate`'s for why this hero never invents a
+                date it has not been given. */}
+            {countdown !== null && <DataText size="sm">{countdown}</DataText>}
           </div>
 
           <div>
@@ -253,8 +286,15 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
           </div>
 
           <div className="mt-0.5 flex items-center gap-2">
+            {/* **`Open trip`, and it was `Open plan`** — Mitchell, Vercel
+                Toolbar comment on the PR #196 preview, 2026-09-20, with this
+                link selected: *"'Open trip' not open plan"*. The href goes to
+                the trip, not to its Plan lens, so the old label named a
+                destination the link does not have: it lands on whichever lens
+                the trip was last left on. `Open trip` is what it actually
+                does. */}
             <Link href={`/trips/${trip.tripId}`} className={cn(buttonVariants({ variant: "primary", size: "md" }))}>
-              Open plan
+              Open trip
             </Link>
             {shareSlot}
           </div>

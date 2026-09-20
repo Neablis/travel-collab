@@ -327,6 +327,25 @@ design describes only by size and colour is almost always a design-system
 component used plainly. Check `.design-sync/docs-stubs/<Name>.md` for the prop
 shape before concluding a component is missing.
 
+## Where this build deviates from the handoff on purpose
+
+**Horizontal scrollers use flex with `shrink-0` per child, not a `min-content`
+grid.** SPEC §16 asks for `grid-auto-flow: column; grid-auto-columns:
+min-content` and says so *"because it was got wrong once"* — the failure it is
+guarding against is children that shrink to fit instead of overflowing, which
+turns a scroller into a squashed row.
+
+**Same guarantee, different mechanism.** `flex` + `shrink-0` on each child
+refuses the shrink just as absolutely; the design's wording names one way of
+achieving it rather than the property that matters. Recorded here rather than
+churned, on M26 link 14, so the next parity pass recognises it as a decision
+instead of a miss — and so a reviewer comparing the two files has the answer
+without reading both.
+
+**If you are adding a new scroller:** either mechanism is fine, but the child
+must refuse to shrink. A flex child without `shrink-0` is the actual bug §16 is
+about, and neither spelling protects you from it.
+
 ## Enforcement
 
 Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`):
@@ -337,6 +356,19 @@ Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`)
    `lib/sparklineColor.ts` — retired in favor of the same 5 semantic tokens
    below, so a city's color agrees across every surface instead of the
    sparkline disagreeing with Board/Column/DayChips.)
+   **And no undefined token NAMES** (2026-09-19). The same script fails on a
+   `bg-`/`text-`/`border-`/`ring-`/`outline-`/`fill-`/`stroke-`/`divide-`
+   utility, or a `--color-*` custom property, that the `@theme` block does not
+   define. The rule above catches a *value* that should have been a token; this
+   catches a *name* that is not one, which is the mirror-image defect and was
+   invisible to every layer the repo had. `--color-*: initial` deletes
+   Tailwind's default palette, so `bg-brand-subtle`, `text-muted` and
+   `bg-amber-50` emit **no rule at all** and the box ships with no background.
+   ESLint has no opinion on a class name, and no test layer can hold the claim
+   either — jsdom has no layout, and `docs/guidelines/testing.md`'s lint wall
+   bans `toHaveClass` outside `components/ui/**`. M23 shipped a selected chip
+   with a transparent background through exactly this hole
+   (`KI-2026-09-19-g`).
 2. **No inline `style={{…}}`** outside an explicit allowlist (drag transforms,
    maplibre container sizing) — ESLint `no-restricted-syntax`. The rule only
    applies to `src/**/*.tsx` outside `components/ui/**` (and outside

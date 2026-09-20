@@ -30,32 +30,333 @@ general setup.
 
 ## Where the work is right now
 
-**M13 — COLLABORATION — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
-**M23's gate closing**, which is the ordinary way this line moves. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
+**M26 — DESIGN PARITY — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
+**Mitchell placing it** ("start the big design milestone we just created"),
+which is the other way this line moves and the reason it does not read M13.
+Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 → M13 → M12 → M24 → M14 → M19`.
+Scope, the two waves and the seven still-open questions:
+`docs/milestones/M26-design-parity.md`. **The argument for this order is written
+in that file and is not a preference:** M13 adds a second actor to the surfaces
+M26 is about to rebuild, so the other order rebuilds them twice.
+
+**M26 PROGRESS AS OF 2026-09-20 — every link in both waves is built.** Wave 1:
+0-10. Wave 2: 11-16. Link 15's `Cancel · New trip · Empty` header is recorded
+as not done, with the reason (it needs the exit lifted out of
+`NewTripConversation`, not duplicated).
+
+## NEXT SESSION — the shared day's map panel (M26 link 4b/4c)
+
+**Branch `claude/beautiful-feynman-b86spm`, PR #196, `ci` green on every pushed
+head** — run 889 on `691f804` has `static-and-unit` and `integration-e2e` both
+green. `Vercel Preview Comments` is the one red check and it is red *on
+purpose*: it fails while any Toolbar thread is unresolved, and decision 1 below
+is deliberately left open. That is why GitHub says `unstable` rather than
+`clean`; there is no conflict and no failing test.
+
+The PR is finished. This is NEW work and does **not** belong on it — a feature
+added there re-opens a 163-file review and re-pays the full suite.
+
+**Where to branch from depends on whether #196 has merged. CHECK IT, do not
+assume** (`mcp__github__pull_request_read`, or the GitHub UI; `gh` is not
+available in a cloud session).
+
+- **#196 merged** → branch off `main`. The clean case, and the one the earlier
+  wording of this line assumed without saying so.
+- **#196 still open** → branch off `claude/beautiful-feynman-b86spm`. The panel
+  builds directly on `SharedDayMap.tsx`, `sharedDayGeometry.ts` and the three
+  fixture coordinates, and **none of those exist on `main`** — branching off
+  `main` while #196 is open starts the work on a tree missing its own
+  foundation. The cost of the other choice is that CodeRabbit's pending
+  re-trigger may force changes on #196 which then have to be merged down before
+  this work can land.
+
+### What the walk found, and it is not the map
+
+`/playbooks/day/[savedDayId]` → `isDay` · **line 2677** of
+`.design-sync/handoff/design/Trip Planner Redesign.dc.html` (the route→artboard
+index in `.design-sync/handoff/README.md:229` points straight at it). The
+design's map panel is **mostly derived TEXT**, and only the canvas is built:
+
+| design field | renders | built |
+|---|---|---|
+| canvas, numbered pins, route line, gapped legs | — | **yes** (`SharedDayMap.tsx`) |
+| `day.mapTitle` | the day's cities — `Kyoto → Osaka`, or the single city | no |
+| `day.mapFacts` | up to 3 k/v rows: `On foot` / `2.4 km · 32 min`, `By train or taxi` / `18 km · 25 min`, `Widest point to point` / `4.1 km` | no |
+| `day.mapNote` | one of four sentences on the day's SHAPE — *"One clean line. It never doubles back on itself."*, *"A loop — it ends near where it started."*, *"It criss-crosses. Expect to cover the same ground twice."*, *"Mostly transit — about N of the day is spent moving."* | no |
+| `gaps[idx].label` | a line **between stops in the list**: `12 min walk · 0.9 km` | no |
+| legend `On foot` / `By train or taxi` | — | honestly shelled, `map-legend-modes` → `unplaced`. A legend names a mode PER LEG and still has no field; the walk-vs-ride split needs none (link 5c). |
+
+The derivations are all in `dc.html:7495-7527`. Read them there rather than
+re-deriving: thresholds (`km > 1.6` → ride; `wander < 1.5 / < 2.6` → which
+note; `transitShare > 0.8 && rideMins > 90` → the transit note) and the
+walking/riding speed constants are decisions, not arithmetic.
+
+### REUSE, and this is a constraint rather than a preference (Mitchell, 2026-09-20)
+
+**Reuse as much of the existing components as possible — the page especially.**
+Named, so nobody re-derives what exists:
+
+* **`lib/geo.ts` → `haversineKm(a, b)`** — the distance. Do not write a second one.
+* **`lib/units.ts` → `kmLabel(km, unit)`** — the `2.4 km` / `1.5 mi` formatting,
+  and it already honours the account's distance preference. `MapHoverCard.tsx`
+  and `MapDayStrip.tsx` are the two call sites to copy the idiom from.
+* **`lenses/mapRailData.ts` → `longestLeg()`, `routeLegs()`** — the trip Map
+  lens ALREADY derives longest-leg and a travel/rest split. `MapHoverCard`
+  already renders "Longest hop N km — A to B". The shared day wants the same
+  shapes; extend or lift, do not fork.
+* **`playbooks/sharedDayGeometry.ts`** — extend it. It has the points, the legs
+  and `contiguous`; it has no distances. That is the one honest gap.
+* **The page itself**: `SharedDayScreen.tsx`'s existing layout, `Card`, `Text`,
+  `DataText`, and the rail it already renders. The panel is a new block INSIDE
+  that page, not a new page.
+
+### Still blocked, and by what
+
+* **Coordinates.** `KI-2026-09-20-d`. Every derivation above needs `lat`/`lng`
+  and the seed has three. The gateway blocks the geocoder (403 to `CONNECT
+  nominatim.openstreetmap.org:443`), so this cannot be closed from a cloud
+  session. Two routes that do not need one: lift coordinates from the 19
+  already-geocoded bundles under `content/` where the places overlap (Mexico
+  City, Glen Coe, New York are plausible — CHECK, do not assume), or run the
+  geocoder from a laptop per `docs/guidelines/content-bundles.md`.
+* **The preview's database.** It has never had `content:import` run and is not
+  reseeded by a deploy, so seed-side work stays invisible there until somebody
+  with the credential reseeds it. Mitchell knows; it is his to do.
+
+### Also worth doing, unblocked
+
+**Make a seeded Playbook genuinely multi-day.** Every day in both fixtures is
+one day (`dayIndex` is `0` everywhere), so 9 of 10 Discover cards show no tabs
+and no dividers — which is what "the Playbooks look the same" actually was.
+`dayIndex` is in the contract with `.default(0)`; the fixtures are TypeScript.
+`packages/fixtures/src/savedDayCoordinates.test.ts` is the pattern for holding
+a claim about CONTENT rather than code.
+
+---
+
+**LINK 5c IS CLOSED, AND IT WAS NEVER ACTUALLY BLOCKED.** It was carried all
+milestone as "needs Mitchell's answer on whether `routeLegs()`'s
+`kind === "transit"` proxy may stand in for per-leg transport mode". The
+design file answers it and always did — `Trip Planner Redesign.dc.html:7497`
+derives the walk-vs-ride split as `km > 1.6 || pts[j].transit ||
+pts[j + 1].transit`. **Distance is the discriminator; the transit flag is a
+modifier.** So "on foot" is a claim about DISTANCE, which the coordinates
+already state, not a claim over a missing field. **The question was answerable
+by reading the file the milestone is built from, at a line the route→artboard
+index points straight at** — parking it on a person was the error, and the fix
+was to do the walk link 0 built the index for.
+
+**M26 IS BUILT END TO END AS OF 2026-09-20 — every link in both waves**, and
+**the preview has now been walked.** The Definition of Done ran at Tier 3 again
+after the walk's fixes: `pnpm check` EXIT 0 (typecheck, lint, walls, every
+package's unit tests and the scripts suite, 789 integration tests across 62
+files against a real Postgres), `test:e2e:ci-like` **150 passed exit 0**,
+`seed:verify` EXIT 0.
+
+**THE WALK FOUND THREE DEFECTS AND TWO UNWALKABLE BOXES, AND THE BIG ONE WAS
+IN THE SEED.** `docs/milestones/M26-design-parity.md` opens with the record;
+the two things a later session should not re-derive:
+
+1. **A feature can be built, tested, reviewed and still invisible, because the
+   demo data cannot reach it.** §16's shared-day map rendered `canvas=0` on
+   every shared day on the preview — `SharedDayMap` was right, and **not one
+   saved-day stop in the repository carried a `lat`.** Both seed fixtures'
+   `stop()` helpers built `location` as `{ name, city }` and dropped the rest,
+   so `worthDrawing`'s two-point floor was unreachable by construction. This is
+   the same thing Mitchell reported from the preview on 2026-09-19 (*"a playbook
+   activity doesn't even have a map"*), answered the first time by building a
+   component when half the answer was data. Three reviewed coordinates from
+   `coordinates.json` now make one day draw and one degrade;
+   `KI-2026-09-20-d` carries the other ~44 and why they were not typed from
+   memory. **The test that would have caught it is about CONTENT, not code**,
+   and lives in `packages/fixtures` — every unit test of the component passed,
+   because each supplies its own located fixture. The COMPONENT half is now
+   held separately, in a real browser: `e2e/m26-shared-day-map.spec.ts` asserts
+   a `canvas.maplibregl-canvas`, pins numbered as the list numbers them, and
+   `watchMapWorker`'s `loaded`. Two assertions, deliberately not one — the e2e
+   lane migrates a fresh database and never runs `db:seed`, so neither can
+   cover for the other. **Its degrade half was the seventh test in this
+   milestone to assert nothing**, and the first found by breaking the code
+   rather than by reading it: `toHaveCount(0)` on a canvas is satisfied by
+   "not yet", because MapLibre creates it in an effect.
+2. **"Not walkable" is a finding, not a blank.** Two boxes turned out to need
+   account state the seed does not produce — a `premium` account for the
+   *Chosen trips* token scope, and an account WITHOUT `ai.ask` for the
+   new-trip free fork, where every account here holds it by grant (`alice`) or
+   by trial (`demo`). Read off `GET /api/account/plan` rather than guessed,
+   and recorded on each box with the evidence, so the next attempt starts from
+   what is missing instead of from the same dead end.
+
+The two smaller defects were the kind only a renderer shows: Discover's results
+sentence was missing its `·`, and the phone Account **clipped** the signed-in
+email mid-character, because §34.5's 170px label column is a desktop rule that
+was being applied at 411px.
+
+**TWO GATE BOXES FOUND WORK THAT REVIEW DID NOT, and both were measurements.**
+Link 13's box asked for the phone's text-column width as a NUMBER and got
+141px-of-241px — the card was narrow because `DAY_COLUMN_WIDTH_PX` is a desktop
+constant at every width, not because a phone is. Wave 2's box asked for KI-046's
+44px census and got **48 of 91 controls under the floor (53%)**, on a wave whose
+link 14 had already claimed that pass. Both are fixed and both now have a spec
+that keeps counting: 215px-of-315px, and 4 of 91 (all four MapLibre's own
+required attribution). **The lesson is narrow and repeatable: a box that asks
+for a figure catches what a box that asks for a claim cannot.**
+
+**SIX TESTS IN THIS MILESTONE ASSERTED NOTHING**, every one found by CLAUDE.md
+rule 3 and none by reading the diff. Three shapes, all likely to recur: asserting
+a rendered artefact the broken code never produces either; two overlapping
+guards so neither is load-bearing; and a fixture whose default happens to match
+the assertion. The wave retros in `M26-design-parity.md` have the instances.
+
+**LINK 7 CHANGED WHAT A BLANK MAP MEANS, and that is the part worth carrying
+forward.** §3b's region-by-region loading is built on Home, Overview and the
+Notebook index (a `Skeleton` primitive, outlines only, plus a per-region
+`RegionError` that retries in place). The Map lens took the milestone's "or its
+different answer is recorded" branch instead: `TripProvider` has the whole
+`TripDetail` before the lens mounts, so there is no seam to stage over and
+faking one would be inventing a wait. What it got is the **style-load recovery
+ladder** — a rebuild at 3.5s, another at 7.5s, the offline panel at 11s.
+
+That ladder exists for a failure nothing in this repo could see. `failed` is set
+only by an `error` event, and MapLibre's worst failure emits none: `map.on(
+"load")` simply never fires, nothing throws, and the reader gets a
+paper-coloured rectangle forever. **That is why KI-49 could say the tiles "have
+never been confirmed to paint, in any environment"** — a blank canvas was
+indistinguishable from tiles-blocked, from style-never-parsed, from a container
+measured at 0×0. It now means one thing: every rung ran and the map still did
+not load. KI-49 is not closed by this; it is diagnosable, which is the honest
+claim.
+
+Five deliberate differences from the artboard are recorded in `DRIFT.md` §3b
+rather than left for the design side to find, `homePb` (a region whose build
+counterpart was deleted in M11b) among them.
+
+**LINK 4 WAS "HALF DONE" IN A WAY WORTH NAMING, because the shape recurs.**
+`sharedDayGeometry.ts` — the pure half: which points exist, which legs join
+them, no leg across a night — shipped in link 12 with a full unit test and **no
+production consumer at all.** A shared Playbook day rendered a 675-line list and
+no map. Every test passed the whole time, because **not one fixture in the repo
+had coordinates on a stop**, so the drawing code was never reached by anything.
+Mitchell found it by opening the preview (2026-09-20); no suite was ever going
+to. `SharedDayMap.tsx` is the consumer, and the fixtures now include located
+stops.
+
+The lesson is narrower than "walk the preview": **a pure module with no caller
+is not half a feature, it is zero of one**, and it reads as progress on a status
+page in a way that a missing screen does not.
+
+**THE E2E LANE HAS NOW BEEN RUN ON THIS BRANCH (2026-09-20): 143/144.** The
+one failure is `m10-map-rail`, and it is KI-49 — the cloud session's egress
+proxy blocks the tile host from the browser, so the Map lens reaches its
+`failed` state and the offline panel covers the rail. **It passes in CI**,
+where the tiles load. Running it found three real defects that the unit suite
+could not see, all from the same gap — this milestone had only ever been run
+against `vitest.unit.config.ts`:
+
+- the season cut never reached `route.int.test.ts` (integration lane);
+- `m26-phone-surfaces.spec.ts` was running in the `[desktop]` project too,
+  because its spec name went into the phone `testMatch` and not the desktop
+  `testIgnore` (the two are now one list, `PHONE_ONLY_SPECS`);
+- `responsive.spec.ts` still drove Discover's scope as `role="radio"` after
+  link 2a made it `role="tab"`.
+
+Two further failures were NOT defects, and both are worth knowing before the
+next session re-derives them.
+
+`m22-api-tokens` failed on an **empty** value for `API_TOKEN_PEPPER` in
+`.env.local`: the key was present, so every "is it set?" grep passed. This is
+an environment trap, not a known issue — it is written up in
+`docs/guidelines/cloud-agent-sessions.md`, which is where a thing you can fix
+in your own container belongs.
+
+Separately, the WAY `m10-map-rail` fails exposed a genuine product issue: the
+Map lens's offline panel leaves enabled controls underneath it. That one is
+KI-2026-09-20-c.
+
+**The phone is the only part of this that has been opened in a browser**, and it
+is green: `e2e/m26-phone-surfaces.spec.ts`, 8 tests at 411×852 against a
+production build (the `ci-like` lane). Everything Wave 1 built is still
+unwalked — its `[walk]` boxes are open and the desktop e2e lane has not been run
+on this branch. The unit suite is green at 3215 tests across 231 files, and a
+green unit suite is not a walked screen.
+
+**Two things the phone walk is worth reading for.** It found two defects in its
+own first run (specs that never navigated, so they sat at `about:blank`) — the
+product was fine, but nothing had been opened at all before that. And the lint
+wall refused three attempts to assert a phone class swap in jsdom, which is the
+rule working: *a paint claim belongs at 411px, not in a unit test.* Those three
+are now covered in the phone lane.
+
+- **Link 1** — `/account` is a route with three tabs (`?tab=`), Profile · Plan &
+  usage · API tokens. `AccountSettingsSheet` is deleted. Tokens gained trip
+  scope (DRIFT D12 — the gap was one hardcoded `null`), a lifetime of three
+  choices, and a gate that names the lapsed case. `KI-2026-09-17-a` resolved.
+- **Link 2** — Discover is re-sorted by kind of decision: scope is underlined
+  tabs, filters are chips from one `FILTER_DEFS` list, sort rides a results
+  sentence that did not exist. Season is cut as a filter (the concept stays —
+  `content:verify` still prints occupancy). §33.3's tag-focus move rides with it.
+- **Link 3** — a Playbook's days are a scope: `All days · Day 1 · Day 2`, merged
+  rather than concatenated, continuous numbering, per-day dividers, and a CTA
+  that says how many days it moves.
+- **Link 4** — geometry only. The map is NOT built; see the milestone file for
+  exactly what remains and why it needs a browser.
+- **Wave 2** — `/account` and `/plans` are tasks the phone tab bar steps aside
+  for (`taskOwnsScreen` in `PhoneTabBar.tsx`, which links 14 and 15 reuse);
+  Playbooks has one filter sheet instead of a stack of popovers; the 44px floor
+  is a design-system primitive (`PHONE_TOUCH`) rather than a string exported by
+  a wizard, and it now releases at 767px like every other phone rule rather than
+  at 640px; the Map tab has the offline state §13 designed and it had none of any
+  kind. **Link 15 still owes its `Cancel · New trip · Empty` header** — doing it
+  properly means lifting *Create empty* out of `NewTripConversation` rather than
+  duplicating it, and the milestone says which.
+
+**Two useful things it produced beyond the links themselves:** `ui/underline-tabs.tsx`
+and `ui/settings-card.tsx` are new primitives the later links consume, and the
+token wall found two already-shipped defects on its first run (`bg-canvas` on
+the shared-trip screen, `ring-primary` on the widget ring).
+
+**M26 LINK 0 — THE PREFLIGHT — IS DONE (2026-09-19).** It was the one part of
+the milestone that had to run before any screen work, and it has. What a later
+session inherits from it:
+
+- **Find a screen by looking it up, not by grepping.**
+  `.design-sync/handoff/README.md` carries a generated **route → artboard →
+  spec** table, and `SPEC.md` opens with a generated **section index**. Both
+  have tests that fail when they drift. The order of operations is
+  `docs/guidelines/building-from-the-design.md` — read it before building any
+  M26 screen.
+- **The design file has no artboards, only route gates.** A screen is an
+  `<sc-if value="{{ isAdminRoute }}">` block, reached by driving `startScreen`
+  and the nav. The table gives the line.
+- **The colour wall now fails on an undefined token NAME**, not just a raw hex
+  (`KI-2026-09-19-g`, resolved). **It found two live defects on its first run**
+  — `bg-canvas` on the shared-trip screen, which made that page's ground render
+  as nothing, and `ring-primary` on the selected-widget ring. Both fixed. The
+  hole was wider than the KI estimated: it had already shipped.
+- **`KI-2026-09-14-c` and `KI-2026-09-19-g` are both in `resolved/`.**
+  `KI-2026-09-19-f` (an accent reaching MapLibre through `getComputedStyle`) is
+  **still open** — it is link 8a, not link 0, and the gate box covering both
+  halves stays unticked.
+
+**Two things about M26 that change plans made from this page:**
+`.design-sync/handoff/DRIFT.md` is stale in the build's favour in six places —
+it lists eleven `<Preview>`-shelled surfaces and there are **six** — so do not
+plan from its counts without opening `apps/web/src/lib/preview-registry.ts`; and
+**nothing in M26 is blocked on a pending decision** — Mitchell answered both of
+the ones that gated work on 2026-09-19, so the Map rail gets its hover card and
+*"where does the phone edit"* is **sequenced last in Wave 2** rather than left
+open.
+
+**M13 — COLLABORATION — IS NEXT, NOT CURRENT.** It was current from M23's gate
+closing until M26 was placed on the same day; nothing about its scope changed.
 Scope and gate: `docs/milestones/M13-collaboration.md`. Near-real-time sync
 (the transport ADR is a **prerequisite**, not a deliverable), concurrent-edit
 conflicts as resolvable data, and **per-stop attribution** — which M19 link 3
 depends on, so if M13 ships without it that link returns to M19.
 
-**M26 WAS MINTED AND SCOPED 2026-09-19 AND IS NOT IN THAT ORDER.** A
-design-parity milestone — the first since M10's Wave-2 gate closed 2026-08-27 —
-opened by Mitchell asking that the build be brought back to the design.
-**Placement is his call; nothing downstream is blocked on it.** Scope, the two
-waves and the nine open questions: `docs/milestones/M26-design-parity.md`. Why
-it exists and what the scoping found: `docs/milestones/README.md`'s
-*2026-09-19 (later)* note. **Two things belong here rather than there, because
-they change plans made from this page:** `.design-sync/handoff/DRIFT.md` is
-stale in the build's favour in six places — it lists eleven `<Preview>`-shelled
-surfaces and there are **six** — so do not plan from its counts without opening
-`apps/web/src/lib/preview-registry.ts`; and **nothing in M26 is blocked on a
-pending decision** — Mitchell answered both of the ones that gated work on
-2026-09-19, so the Map rail gets its hover card and *"where does the phone
-edit"* is **sequenced last in Wave 2** rather than left open. Two KIs were filed
-by the scoping, `KI-2026-09-19-f` and `KI-2026-09-19-g`, both about a guard that
-cannot see its own class of defect.
-
-**Do the preflight first, and it has been dropped once already.** The
+**M13's OWN preflight is still owed, and it has been dropped once already.**
+(Not M26 link 0, which is done — this is a different preflight.) The
 activity-field descriptor refactor (`KI-20260905-o`) runs **once, before M13**:
 21 non-test files hand-enumerate activity fields and nothing goes red when one
 is missed. It is shared by M13 link 5 (`who`), M19 link 1 (cost kind) and M24.

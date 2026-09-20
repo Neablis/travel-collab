@@ -159,6 +159,24 @@ export function FirstTripStart({
             One control, never two: the page head renders it only when there
             ARE trips, which is exactly when this card is not on screen. */}
         <ImportTripButton disabled={disabled} size="sm" className={TOUCH} />
+        {/* **What a trip file IS, said where §34.2 puts it** — M26 link 9c:
+            *"Import is on Home beside New trip, and again in the empty state,
+            where the sentence about what a file is belongs."* The control was
+            in both places already and the sentence was in neither, so the
+            fourth route in was a button whose label ("Import a file") assumed
+            the reader already knew this app had files.
+
+            **"or from another account" is the load-bearing half.** A download
+            is portable — the endpoint takes any `content-bundle/v1`, from any
+            account — and without saying so this reads as a backup of your own
+            trips, which is the narrower and less useful thing.
+
+            `w-full` and its own line: it explains the control above it rather
+            than sitting in the row of alternatives as a fifth one. */}
+        <Text as="p" variant="secondary" className="w-full text-sm text-pretty">
+          A trip you downloaded from here — or from another account — comes back whole from its
+          file.
+        </Text>
       </div>
     </Card>
   );

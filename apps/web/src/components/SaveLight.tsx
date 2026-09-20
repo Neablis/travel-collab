@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { BrandMark } from "@/components/BrandMark";
 import type { SendFailure } from "@/components/trip/context/optimistic";
 
@@ -140,7 +141,11 @@ export function SaveLightMark() {
   }
 
   return (
-    <Link href="/" className="flex items-center gap-2.5 no-underline">
+    // §13.1's phone floor on a NAV ITEM, which is what this is — the wordmark
+    // is the way home from every route, and it measured 32px tall at 411px on
+    // all seven of them (M26 link 14's sweep). `PHONE_TOUCH` rather than the
+    // `Button` base, because a link is not a button.
+    <Link href="/" className={cn("flex items-center gap-2.5 no-underline", PHONE_TOUCH)}>
       {mark}
       {status}
       <span className="font-display text-md font-semibold text-ink">Caesura</span>

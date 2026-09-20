@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
+import { openAccountPage, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M17's exit gate, walked as one flow: a signed-in person sets their name and
@@ -49,12 +49,6 @@ async function createTripWithADistance(page: Page, name: string): Promise<string
   return tripId;
 }
 
-async function openAccountSettings(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("button", { name: "Your account" }).click();
-  await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
-}
-
 test("account preferences: a name, a home airport, and miles that stick", async ({ page }) => {
   // A fresh account each run, so the preferences this spec writes belong to
   // nobody else and the "unset at first" assertions below mean something.
@@ -75,7 +69,7 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   // sees before it has expressed any preference at all.
   await expect(dayTile).toContainText(/· \d+(\.\d)? km/);
 
-  await openAccountSettings(page);
+  await openAccountPage(page);
 
   const nameField = page.getByLabel("Your name");
   const airportField = page.getByLabel("Home airport");
@@ -96,10 +90,12 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await page.getByRole("radio", { name: "Miles" }).click();
   await expect(page.getByRole("radio", { name: "Miles" })).toHaveAttribute("aria-checked", "true");
 
-  // Close the Sheet so the assertion is about what the page actually shows,
-  // not about a rail sitting behind a modal overlay.
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("heading", { name: "Your account" })).toBeHidden();
+  // Leave the account page so the assertion below is about what the TRIP
+  // shows. This was `Escape` while account settings were a modal Sheet; since
+  // M26 link 1 they are a route, so leaving is a navigation — and going back is
+  // the honest way a person gets there, rather than a second `goto`.
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Account", level: 1 })).toBeHidden();
 
   // The gate's second box: switching the unit changes a distance in the app,
   // through `kmLabel`, with no per-trip unit field anywhere.
@@ -111,7 +107,7 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await page.reload();
   await expect(dayTile).toContainText(/· \d+(\.\d)? mi/);
 
-  await openAccountSettings(page);
+  await openAccountPage(page);
   await expect(page.getByLabel("Your name")).toHaveValue(DISPLAY_NAME);
   await expect(page.getByLabel("Home airport")).toHaveValue(HOME_AIRPORT);
   await expect(page.getByRole("radio", { name: "Miles" })).toHaveAttribute("aria-checked", "true");

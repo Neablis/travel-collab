@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
 import type { AccountPlanChoice, AccountPlanView } from "@/lib/accountPlan";
 import { formatDate, formatPrice } from "@/lib/planCopy";
+import { cn } from "@/lib/cn";
 import { PlanComparison, planBullets, whoItIsFor } from "./PlanComparison";
 
 // **The `plans` route: chooser, confirm, result — one route, no overlay in any
@@ -388,6 +389,30 @@ export function PlansScreen() {
   return (
     <PageContainer>
       <div className="flex flex-col gap-5" data-testid="plans-screen">
+        {/* **The way back, and it points at the tab this route was reached
+            from** (SPEC §34.4: *"its back link now returns to Account → Plan &
+            usage"*; §34.3 gives the phone the same `‹ Account`). Until M26 link
+            1 this route had no way back at all except the browser's — the only
+            thing resembling one was the result panel's "Back to your trips",
+            which is a different act (you are done, go use it) offered at a
+            different moment.
+
+            A fixed href rather than `router.back()`: every CTA that reaches
+            here comes from Account → Plan & usage (`plan-change-link`) or from
+            a gate that wants you there next (the invite gate, the token gate),
+            so the tab is the right destination whatever the history stack says
+            — and `back()` from a bookmarked `/plans` leaves the app. */}
+        <Link
+          href="/account?tab=plan"
+          // 44px on a phone: with the tab bar stepping aside for this route
+          // (`taskOwnsScreen`), this link is the only navigation on the screen,
+          // so it is the last control that should be hard to hit. `inline-flex`
+          // + `items-center` so the min-height actually centres its text.
+          className={cn("inline-flex items-center self-start text-sm text-brand no-underline hover:underline", PHONE_TOUCH)}
+          data-testid="plans-back-link"
+        >
+          &lsaquo; Account
+        </Link>
         <div className="flex flex-col gap-1">
           <Heading level={1}>Plans</Heading>
           {/* **The held plan, stated once, at the top** (§29's chooser). Held
@@ -545,10 +570,19 @@ function Chooser({
                 </li>
               ))}
             </ul>
+            {/* **44px on a phone** (§13.1 "44px targets, always", repeated by
+                §34.3 for this screen). `touch` is `min-h-11 min-w-11`, so
+                `md:min-h-7` puts the desktop back on the `sm` height the three
+                cards are drawn at rather than leaving every plan card 44px tall
+                on a wide screen.
+
+                This is the one control on this route somebody taps to spend
+                money, so it is the first to get the floor rather than waiting
+                for link 14's sweep. */}
             <Button
               variant={choice.held ? "secondary" : "primary"}
               size="sm"
-              className="mt-auto"
+              className={cn("mt-auto", PHONE_TOUCH)}
               disabled={choice.held || !canBuy}
               onClick={() => onChoose(choice.planId)}
               data-testid={`plan-choose-${choice.planId}`}
@@ -687,13 +721,16 @@ function Confirm({
             </>
           )}
 
+          {/* The confirm step's own pair, same floor and same reason: this is
+              where the money actually moves. */}
           <div className="mt-2 flex gap-2">
-            <Button variant="ghost" size="sm" onClick={onBack} disabled={busy}>
+            <Button variant="ghost" size="sm" className={PHONE_TOUCH} onClick={onBack} disabled={busy}>
               Back
             </Button>
             <Button
               variant="primary"
               size="sm"
+              className={PHONE_TOUCH}
               onClick={onConfirm}
               disabled={preview === null || busy}
               data-testid="confirm-pay"

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
+import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import { Toast } from "@/components/ui/toast";
 import { PageContainer } from "@/components/ui/page-container";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { NextTripHero } from "@/components/home/NextTripHero";
+import { NextTripHeroSkeleton, TripGridSkeleton } from "@/components/home/HomeSkeletons";
+import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
@@ -22,7 +25,9 @@ import { ImportTripButton } from "@/components/home/ImportTripButton";
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
 const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
 import { ShareButton } from "@/components/trip/ShareButton";
-import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
+import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
+import { viewerOwnsTrip } from "@/lib/tripRole";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
@@ -75,6 +80,13 @@ export default function Home() {
   // SetTripCurrency commands against the tripId CreateTrip returns, per the
   // phase doc's sequence. Everything else the design's wizard shows is
   // Preview-wrapped (see NewTripWizard.tsx and preview-registry.ts).
+  // SPEC §32.2 — the new-trip conversation owns the whole frame on a phone.
+  const isPhone = useIsPhone();
+  // Who is reading, so a card's menu can offer Delete or *Leave this trip*
+  // rather than always the first (M26 link 6b). `undefined` while the session
+  // probe is in flight, which `viewerOwnsTrip` answers as "not the owner" —
+  // see its note for why that is the safe side to be wrong on.
+  const viewer = useSessionUser();
   const [newTripOpen, setNewTripOpen] = useState(false);
   // True while the "Make this trip mine" copy this page inherited from `/demo`
   // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
@@ -112,6 +124,12 @@ export default function Home() {
   // and hooks cannot read a value declared below them.
   const visibleTrips = (trips ?? []).filter((t) => !deletingIds.has(t.tripId));
   const hasNoTrips = trips !== null && visibleTrips.length === 0;
+  // **Three states, named once.** `trips === null` used to mean both "still
+  // reading" and "the read failed" to every branch below, which is exactly why
+  // a failure rendered a title row and nothing else forever. `loadError` is
+  // what separates them, so the placeholder is drawn only while an answer is
+  // genuinely still coming.
+  const loading = trips === null && loadError === null;
 
   // **One composer, and an open sheet wins it.**
   //
@@ -284,6 +302,42 @@ export default function Home() {
     setToast({ tripId: trip.tripId, name: trip.name });
   }
 
+  /**
+   * **Leave this trip** — M26 link 6b, SPEC §27.
+   *
+   * The card goes optimistically, the same way Delete's does and for the same
+   * reason: the act is about this reader's own list, and waiting on a round
+   * trip to remove a row from it is a pause with nothing behind it.
+   *
+   * **No undo toast, where Delete has one**, and that is the difference
+   * between the two verbs rather than an omission. §27's toast exists because
+   * deleting is destructive and `RestoreTrip` can put the trip back. Leaving
+   * destroys nothing — the trip and everyone else on it are untouched — and
+   * there is no verb that puts you back on somebody else's trip. Only its
+   * owner can re-invite you, so an Undo here would be a button that cannot
+   * keep its promise.
+   */
+  async function leave(trip: TripSummary) {
+    setOpenMenuTripId(null);
+    setDeletingIds((prev) => new Set(prev).add(trip.tripId));
+    const result = await leaveTrip(trip.tripId);
+    if (!result.ok) {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.tripId);
+        return next;
+      });
+      setError(result.error.message);
+      return;
+    }
+    setTrips((prev) => (prev ?? []).filter((t) => t.tripId !== trip.tripId));
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(trip.tripId);
+      return next;
+    });
+  }
+
   async function undoDelete() {
     if (!toast) return;
     const { tripId } = toast;
@@ -450,21 +504,6 @@ export default function Home() {
           </Text>
         )}
 
-        {/* The list read failed (F-G03). Said out loud with a way back, rather
-            than left as an empty page: `trips` is still null, so the grid and
-            the first-run card both render nothing, and "we could not read your
-            trips" must not be mistaken for "you have no trips". */}
-        {loadError && (
-          <div role="alert" className="flex flex-wrap items-center gap-3">
-            <Text variant="secondary" className="text-danger-ink">
-              {loadError}
-            </Text>
-            <Button type="button" variant="secondary" onClick={() => void load()}>
-              Try again
-            </Button>
-          </div>
-        )}
-
         {/* Said out loud, because this page is about to navigate away on its
             own and an unexplained pause on somebody's very first authenticated
             screen reads as the app hanging. */}
@@ -482,12 +521,24 @@ export default function Home() {
           onOpenChange={setNewTripOpen}
           createTrip={createTripApi}
           dispatch={sendTripCommand}
-          // Always the rail. The full-screen, first-run-framed variant this
-          // used to pass was already unreachable: `open` above is gated on
-          // `!hasNoTrips`, so by the time the sheet can render, both of those
-          // ternaries have resolved to the ordinary branch. First run is the
-          // inline conversation now (SPEC §32.1), not a sheet at all.
-          size="rail"
+          // **Full screen on a phone, the rail above it** (SPEC §32.2: *"the
+          // phone gets the flow… full-screen conversation"*). A 390px-wide rail
+          // is a rail in name only — it is already the whole width — and the
+          // `max-w-measure` cap it carries buys nothing there while the
+          // rounded, inset chrome costs real room for a conversation somebody
+          // is typing into.
+          //
+          // **`useIsPhone()` is the right tool here and the wrong one for
+          // chrome.** It starts `false` on the server and the first client
+          // paint, which is why `PhoneTabBar` uses `md:hidden` instead — but
+          // this sheet only renders after somebody presses New trip, long after
+          // that first paint, and the size is a discrete class set that CSS
+          // cannot switch between.
+          //
+          // The first-run framing that used to ride on this prop is gone and
+          // not coming back: `open` is gated on `!hasNoTrips`, so it was
+          // unreachable, and first run is the inline conversation now (§32.1).
+          size={isPhone ? "full" : "rail"}
           // Only the full wizard (dates/budget applied) navigates straight to
           // the new trip, matching the phase doc's own "create... apply
           // dates and budget... then navigate" sequence. "Create empty" is
@@ -505,10 +556,47 @@ export default function Home() {
           }}
         />
 
-        {nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton tripId={nextTrip.tripId} variant="secondary" />} />}
+        {/* **The two regions Home paints before its list lands** — M26 link 7,
+            §3b, `LOAD_PLAN.home`. Before this the page drew its date line, its
+            heading and its three buttons and then NOTHING, for as long as the
+            read took, and on failure added one danger-coloured line at the top
+            whose *Try again* re-ran everything. That is the dead screen §3b
+            forbids.
 
-        <div>
-          {trips !== null && visibleTrips.length === 0 ? (
+            **They resolve together, and that is not a stagger faked.** The
+            artboard lands `homeHero` at 320ms and `homeTrips` at 680ms because
+            its prototype invents the timings; here both are the ONE
+            `/api/trips` read, so they arrive in the same frame. Painting both
+            SHAPES is "a page paints its own shape immediately"; making one
+            appear before the other would be inventing a seam that does not
+            exist, which §3b names as the thing not to do. The page's real
+            second wave is per-card — `plannedOfBudgetById` and the hero's own
+            `TripDetail` — and both of those already degrade to honest absence.
+
+            Not drawn while `loadError` is set: the region below says what
+            happened instead, and a breathing placeholder above a failure
+            notice promises an arrival that is not coming. */}
+        {loading ? (
+          <NextTripHeroSkeleton />
+        ) : (
+          nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton tripId={nextTrip.tripId} variant="secondary" />} />
+        )}
+
+        <div className="flex flex-col gap-3.5">
+          {/* The failed region, in place. The heading and the three buttons
+              above are untouched — that is the whole difference from the
+              page-level line this replaces, and `RegionError`'s second
+              sentence is what tells the reader so. */}
+          {loadError !== null && (
+            <RegionError
+              title={loadError}
+              onRetry={() => void load()}
+              data-testid="home-trips-error"
+            />
+          )}
+          {loading ? (
+            <TripGridSkeleton />
+          ) : trips !== null && visibleTrips.length === 0 ? (
             /* M15's first-run moment, rebuilt. Mitchell, 2026-09-01: *"The
                first time walkthrough to build a trip when you have no trips is
                not working, i get the empty landing screen 'Plan your first
@@ -562,7 +650,7 @@ export default function Home() {
                 }
               }}
             />
-          ) : (
+          ) : trips === null ? null : (
             <>
               {visibleTrips.length > 0 && (
                 <div className="mb-3 flex items-baseline justify-between gap-3">
@@ -588,6 +676,15 @@ export default function Home() {
                           </Button>
                         }
                       >
+                        {/* **Delete OR Leave, never both, and never the wrong
+                            one** (M26 link 6b, SPEC §27: *"a trip someone
+                            shared with you offers Leave this trip"*).
+
+                            This offered Delete unconditionally, so a guest on
+                            somebody else's trip was shown a verb the server
+                            refuses — `MINIMUM_ROLE.DeleteTrip` is `owner` —
+                            and got a silent nothing for it. The gate is a
+                            display gate only; the server still decides. */}
                         <div role="menu" className="flex flex-col">
                           <Button
                             role="menuitem"
@@ -597,14 +694,25 @@ export default function Home() {
                           >
                             Duplicate
                           </Button>
-                          <Button
-                            role="menuitem"
-                            variant="ghost"
-                            className="justify-start text-danger-ink"
-                            onClick={() => void deleteTrip(t)}
-                          >
-                            Delete
-                          </Button>
+                          {viewerOwnsTrip(t.members, viewer?.id) ? (
+                            <Button
+                              role="menuitem"
+                              variant="ghost"
+                              className="justify-start text-danger-ink"
+                              onClick={() => void deleteTrip(t)}
+                            >
+                              Delete
+                            </Button>
+                          ) : (
+                            <Button
+                              role="menuitem"
+                              variant="ghost"
+                              className="justify-start text-danger-ink"
+                              onClick={() => void leave(t)}
+                            >
+                              Leave this trip
+                            </Button>
+                          )}
                         </div>
                       </Popover>
                     }

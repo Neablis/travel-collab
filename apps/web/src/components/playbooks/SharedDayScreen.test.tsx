@@ -125,6 +125,63 @@ describe("a shared day that is a sequence", () => {
 
   // The whole point: an empty day is something somebody KEPT, not something
   // missing. Before this it rendered as nothing at all between two headings.
+  // §33.1's whole point: the tab row rescopes everything below the title.
+  it("scopes the list to one day when a day tab is taken, and back on All days", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
+    renderDay();
+    const list = await screen.findByTestId("stop-list");
+    // All days by default, and it MERGES: both days' stops in one list.
+    expect(within(list).getByText("Fushimi Inari")).toBeTruthy();
+    expect(within(list).getByText("Tram 28")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("tab", { name: "Day 3" }));
+    const scoped = screen.getByTestId("stop-list");
+    expect(within(scoped).getByText("Tram 28")).toBeTruthy();
+    expect(within(scoped).queryByText("Fushimi Inari")).toBeNull();
+    // Scoped to one day the tab already names it — repeating it underneath is
+    // project rule 4.
+    expect(within(scoped).queryByTestId("day-divider-line")).toBeNull();
+
+    await userEvent.click(screen.getByRole("tab", { name: "All days" }));
+    expect(within(screen.getByTestId("stop-list")).getByText("Fushimi Inari")).toBeTruthy();
+  });
+
+  // A single tab is a label pretending to be a control (project rule 2).
+  it("shows no tab row at all for a one-day Playbook", async () => {
+    renderDay();
+    await screen.findByTestId("stop-list");
+    expect(screen.queryByRole("tab", { name: "All days" })).toBeNull();
+    expect(screen.queryByRole("tablist", { name: /which day/i })).toBeNull();
+  });
+
+  // §33.1: `All days` merges rather than concatenating — one running number
+  // across the whole Playbook, so day 2 does not restart at 1.
+  it("numbers stops continuously across All days, and from 1 within one day", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
+    renderDay();
+    await screen.findByTestId("stop-list");
+    expect(screen.getAllByTestId("stop-number").map((n) => n.textContent)).toEqual(["1", "2"]);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Day 3" }));
+    // Tram 28 is the Playbook's second stop and this day's first. Scoped, the
+    // number answers "where am I in what I am looking at".
+    expect(screen.getAllByTestId("stop-number").map((n) => n.textContent)).toEqual(["1"]);
+  });
+
+  // §33.1: the CTA says how many days it is about to move. The count only
+  // surfaced inside the dialog before, so the button that moves three days read
+  // exactly like the one that moves one.
+  it("says how many days the button is about to add", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
+    renderDay();
+    expect(await screen.findByRole("button", { name: "Add all 3 days to a trip" })).toBeTruthy();
+  });
+
+  it("keeps the plain wording for a one-day Playbook", async () => {
+    renderDay();
+    expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
+  });
+
   it("names the empty day as a rest day instead of leaving a hole", async () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
     renderDay();
@@ -132,16 +189,32 @@ describe("a shared day that is a sequence", () => {
     expect(within(list).getByText("Nothing planned — kept as a rest day.")).toBeTruthy();
   });
 
-  // A sequence has no single clock window, so the rail must not claim one — and
-  // must not reuse the "this day has no times" copy either, which would be
-  // false on a Playbook whose every stop shows a time (ADR-048 decision 4).
-  it("says the window spans several days rather than that no times are set", async () => {
+  // **This asserted the rail's "Spans several days", and that row is gone**
+  // (M26 link 3, §33.1). A sequence has no single clock window (ADR-048
+  // decision 4), so the rail said so — and §33.1's answer is better than a
+  // disclaimer: each day's divider now carries that day's real range, which is
+  // the thing "Spans several days" was standing in for.
+  //
+  // What the claim becomes: the rail does not invent a window for a sequence,
+  // and the per-day ranges are where the times actually are.
+  it("does not claim a single window for a sequence, and puts each day's range on its divider", async () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: withRestDay(), isAuthor: false }));
     renderDay();
     const facts = await screen.findByTestId("day-facts");
-    expect(within(facts).getByText("Spans several days")).toBeTruthy();
+    expect(within(facts).queryByText("Spans several days")).toBeNull();
     expect(within(facts).queryByText("No times set")).toBeNull();
-    expect(within(facts).getByText("Days")).toBeTruthy();
+    expect(within(facts).queryByText("Window")).toBeNull();
+    // Days and Stops moved to the title block, which speaks for the whole
+    // Playbook — no number is stated twice on this screen now.
+    expect(within(facts).queryByText("Days")).toBeNull();
+    expect(within(facts).queryByText("Stops")).toBeNull();
+    expect(screen.getByTestId("playbook-meta").textContent).toContain("3 days");
+
+    const list = await screen.findByTestId("stop-list");
+    const dividers = within(list).getAllByTestId("day-divider-line");
+    expect(dividers).toHaveLength(3);
+    // The rest day says it is one rather than showing an empty range.
+    expect(dividers.map((d) => d.textContent)).toContain("Rest day");
   });
 
   // The one-day case is the ordinary one and must be untouched: no headings, no
@@ -153,6 +226,10 @@ describe("a shared day that is a sequence", () => {
     const facts = await screen.findByTestId("day-facts");
     expect(within(facts).queryByText("Days")).toBeNull();
     expect(within(facts).queryByText("Spans several days")).toBeNull();
+    // A one-day Playbook keeps its Window row: there is no tab row and no
+    // divider, so this is the only place its clock range appears. Removing it
+    // here would delete a fact rather than de-duplicate one.
+    expect(within(facts).getByText("Window")).toBeTruthy();
   });
 
   // **The positive half of the same claim.** The test above only says what is
@@ -196,17 +273,32 @@ describe("a shared day", () => {
   it("states the facts in the rail, derived from the stops", async () => {
     renderDay();
     const rail = await screen.findByTestId("day-facts");
-    expect(within(rail).getByText("2")).toBeTruthy();
+    // **The stop count left the rail for the title block** (M26 link 3, §33.1),
+    // so the bare "2" this asserted here is now there instead.
+    expect(within(rail).queryByText("Stops")).toBeNull();
+    expect(screen.getByTestId("playbook-meta").textContent).toContain("2 stops");
     expect(within(rail).getByText("$23.00")).toBeTruthy();
     expect(within(rail).getByText("Budget")).toBeTruthy();
     expect(within(rail).queryByText("Budget each")).toBeNull();
     expect(within(rail).getByText("2 trips")).toBeTruthy();
-    // Season, and the month it was bucketed from — "Kept in August 2026" became
-    // "Season: Summer · August 2026" (Mitchell, 2026-09-01). Both halves,
-    // because Discover filters on the first and the second is the fact behind
-    // it: a rail showing only the bucket makes the filter unexplainable.
-    expect(within(rail).getByText("Summer · August 2026")).toBeTruthy();
+    // **The month, without the season bucket** (M26 link 2, §33.2). This read
+    // "Season: Summer · August 2026", and the bucket was there for one stated
+    // reason: Discover filtered on it, so a rail showing only the month would
+    // have left the filter unexplainable. §33.2 cut that filter, so the bucket
+    // now classifies nothing this product acts on.
+    //
+    // The month stays, and both halves of that are asserted — Mitchell asked
+    // for it by name (2026-09-01: *"should include month the first trip it was
+    // cloned from used"*), so dropping the whole fact would have taken a thing
+    // he requested along with a thing nobody used.
+    //
+    // **It reads in the title block rather than the rail since link 3**, which
+    // is the same de-duplication as the stop count above: `keptInLine` still
+    // owns the wording, only the mount point moved.
+    expect(screen.getByTestId("playbook-meta").textContent).toContain("kept in August 2026");
+    expect(screen.getByTestId("playbook-meta").textContent).not.toMatch(/Summer/);
     expect(within(rail).queryByText("Kept in")).toBeNull();
+    expect(within(rail).queryByText("Season")).toBeNull();
     // Length, from the window the rail already shows: 07:30 to 11:30 is four
     // hours, and exactly four hours is Medium rather than Short — the boundary
     // `dayLength` documents, asserted here so the rail cannot start rounding

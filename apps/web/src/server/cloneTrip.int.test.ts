@@ -48,6 +48,38 @@ describe("duplicateTrip", () => {
     expect(source!.days[0]!.dayId).toBe(dayId);
   });
 
+  // M26 link 6c — SPEC §27: "Duplicate lands a real card named '(copy)' with
+  // dates and travellers cleared — a copy is a starting point, not a
+  // commitment."
+  it("clears the dates but keeps the days, and takes none of the source's members", async () => {
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Japan" }, actor);
+    await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, actor);
+    await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, actor);
+    await executeTripCommand(
+      { type: "SetTripDates", tripId, startDate: "2027-06-01", endDate: null, newDayIds: [] },
+      actor,
+    );
+
+    const result = await duplicateTrip(tripId, actor);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.detail.startDate).toBeNull();
+    // The SHAPE is what was worth copying: clearing the days too would make
+    // Duplicate a rename of an empty trip.
+    expect(result.detail.days).toHaveLength(2);
+    // The travellers half of §27's sentence, which needs no code —
+    // `diff.ts` does not diff `members`, so the copy has only its owner. This
+    // asserts that rather than leaving a reader to go looking for the clearing
+    // code, and it fails the day membership becomes diffable.
+    expect(result.detail.members.map((m) => m.userId)).toEqual([actor]);
+
+    // The source keeps its own dates.
+    const source = await getTripDetail(tripId);
+    expect(source!.startDate).toBe("2027-06-01");
+  });
+
   it("does not copy the source trip's pages", async () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Japan" }, actor);
@@ -177,6 +209,10 @@ describe("cloning a share link", () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Kyoto" }, actor);
     await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, actor);
+    await executeTripCommand(
+      { type: "SetTripDates", tripId, startDate: "2027-06-01", endDate: null, newDayIds: [] },
+      actor,
+    );
     const share = await createShare(tripId, actor);
     expect(share.ok).toBe(true);
     if (!share.ok) return;
@@ -192,6 +228,12 @@ describe("cloning a share link", () => {
     // One day, the old name — exactly what the link shows.
     expect(result.detail.days).toHaveLength(1);
     expect(result.detail.name).toBe("Kyoto (copy)");
+    // **And the dates are NOT cleared here.** §27's clearing rule is about
+    // Duplicate — your own trip, copied as a starting point. A share link
+    // showed a particular state and its dates are part of what the holder
+    // chose to take, so `cloneFrom`'s `clearDates` stays off for this caller
+    // and for the demo's "Make this trip mine" (M26 link 6c).
+    expect(result.detail.startDate).toBe("2027-06-01");
     expect(result.detail.forkedFrom).toEqual({ tripId, atSeq: share.value.seq, name: "Kyoto" });
   });
 

@@ -357,8 +357,9 @@ Where the work actually stands right now: `docs/STATUS.md`.
       **none** of its 1,375 locations today. Both are in the milestone file.
       This entry said "six links, nine gate boxes"; the file in fact had ten
       boxes before link 7 was added, so the count here was already one out.)*
-- [ ] **M13 Collaboration** ← **current milestone** (2026-09-19, by M23's
-      gate closing) — realtime transport ADR and concurrent-edit
+- [ ] **M13 Collaboration** — **next, not current** (it held the marker for a
+      few hours on 2026-09-19, between M23's gate closing and M26 being placed;
+      its scope is unchanged) — realtime transport ADR and concurrent-edit
       conflicts. → `docs/milestones/M13-collaboration.md`
       *(**Read the preflight before opening this**: the activity-field
       descriptor refactor `KI-20260905-o` runs ONCE, BEFORE M13, and M13's gate
@@ -747,10 +748,12 @@ Where the work actually stands right now: `docs/STATUS.md`.
       Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
       is a plain sum of stop costs with nothing to divide by.)*
 
-- [ ] **M26 The build looks like the design again** — **MINTED AND SCOPED
-      2026-09-19. NOT PLACED — placement is Mitchell's decision**, and nothing
-      downstream is blocked on it, so it can go anywhere in the order. →
-      `docs/milestones/M26-design-parity.md`
+- [ ] **M26 The build looks like the design again** ← **current milestone**
+      (2026-09-19, by Mitchell placing it — *"start the big design milestone we
+      just created"*). Scoped and placed the same day, **ahead of M13**: M13
+      adds a second actor to the surfaces this rebuilds, so the other order
+      rebuilds them twice. **Link 0 (the preflight) is done; Wave 1 link 1 is
+      next.** → `docs/milestones/M26-design-parity.md`
       *(**Opened by Mitchell**, asking that the build be brought back to the
       design and naming four things: Playbooks' shared trips looking nothing
       like the designs, account settings becoming its own page, filters and tabs
@@ -787,11 +790,20 @@ Where the work actually stands right now: `docs/STATUS.md`.
       push/bind/insert sheets — and **everything else a phone can reach is the
       desktop layout reflowed**, against KI-046's measured 191 of 211 controls
       under 44px.
-      **It opens with a preflight and the preflight is not optional**:
-      `KI-2026-09-14-c` measured that building ONE screen from this handoff cost
-      four review rounds and three wrong builds, and already named the five aids
-      it needs. This milestone builds around twenty screens from the same
-      handoff.
+      **It opened with a preflight and the preflight was not optional — it is
+      DONE, 2026-09-19.** `KI-2026-09-14-c` measured that building ONE screen
+      from this handoff cost four review rounds and three wrong builds, and
+      already named the five aids it needs; this milestone builds around twenty
+      screens from the same handoff. All five landed, plus the colour-wall
+      extension the survey added: a generated **route→artboard table** in
+      `.design-sync/handoff/README.md`, a generated **section index** at the top
+      of `SPEC.md`, `docs/guidelines/building-from-the-design.md`, and a token
+      wall that fails on an undefined `--color-*`/utility name. Each has a test.
+      `KI-2026-09-14-c` and `KI-2026-09-19-g` are both in `resolved/`;
+      `KI-2026-09-19-f` is **still open** and is link 8a's work, not link 0's.
+      **The token wall found two already-shipped defects on its first run** —
+      `bg-canvas` on the shared-trip screen and `ring-primary` on the
+      selected-widget ring — so the hole was wider than the KI had estimated.
       **No contract change and no re-skin.** Every link is UI over data that
       already exists, or a named, sized exception. Reviews, per-stop attribution
       and cost classification are routed to **M12, M13 and M19** and are out of

@@ -9,6 +9,7 @@ import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
+import { PHONE_TOUCH } from "@/components/ui/button";
 
 export type TripCardProps = {
   trip: TripSummary;
@@ -97,7 +98,14 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
       </div>
 
       <div>
-        <Link href={`/trips/${trip.tripId}`} className="hover:underline">
+        {/* §13.1's phone floor on the card's ROW ACTION — this title link is
+            the way into the trip, so it is the target (M26 link 14's sweep).
+            `inline-flex items-center` so the floor makes the link taller rather
+            than leaving the heading at the top of an empty 44px. */}
+        <Link
+          href={`/trips/${trip.tripId}`}
+          className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
+        >
           <Heading level={3}>{trip.name}</Heading>
         </Link>
         {createdLabel && (

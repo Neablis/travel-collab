@@ -3,16 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
-import { Text } from "../ui/text";
-import { Button } from "../ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "../ui/button";
+import { EmptyState } from "../ui/empty-state";
 import { useEditor } from "../trip/context/EditorHost";
 import { useDaySync, useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
+import { isFatalMapError } from "./mapBootstrap";
+import { startStyleLoadLadder } from "./mapRecovery";
+import { mapPaintColor } from "./mapColor";
+import { MapOfflineState } from "./MapOfflineState";
 import { useIsPhone } from "./useIsPhone";
 import { MapFocusCard } from "./MapFocusCard";
+import { MapHoverCard, hoverCardTop } from "./MapHoverCard";
 import { MapLegend } from "./MapLegend";
 
 // Handoff `current/…dc.html:630-668`: the muted "positron" basemap so the
@@ -36,8 +42,21 @@ const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 // so the CSP's `worker-src 'self'` already covers it (next.config.ts).
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 
+// KI-2026-09-19-f: this value reaches MapLibre's `"line-color"` (twice) and
+// `new Marker({ color })`, and MapLibre parses CSS Color 3 only — anything else
+// renders BLACK in silence, with no exception, no console warning and no failed
+// layer. `getComputedStyle` PRESERVES `oklch()` verbatim, so reading the token
+// and passing the string on is the shape `.design-sync/handoff/DRIFT.md` §6
+// build-check 2 names as the thing that looks like a fix and is not.
+//
+// This was correct only by accident: every accent token in `globals.css`
+// happens to be hex today, a policy stated in a CSS comment at :213-214 with
+// nothing enforcing it — while SPEC §28's Ledger look bumps "tint chroma and
+// the solid", which is the natural thing to write in `oklch`. `mapPaintColor`
+// converts arithmetically, so the token may now be written in either.
 function accentVar(accent: MapDay["accent"]): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`).trim();
+  const token = getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`);
+  return mapPaintColor(token);
 }
 
 // The day accent, set once on a disc's own element and inherited by its fill,
@@ -230,7 +249,14 @@ export function MapLens({
   // scrolled a little. Both were reported together on the preview
   // (Mitchell, 2026-08-30 design pass).
   const [canvasTop, setCanvasTop] = useState<number | null>(null);
+  // The same element `canvasRef` measures, kept as a plain ref so an event
+  // handler can read its box on demand. `canvasRef` is a CALLBACK ref (it
+  // installs observers and returns their cleanup), so it has no `.current` to
+  // read — and adding a second `ref` prop to the same element is not possible.
+  // Assigning here keeps one ref prop and one source of truth.
+  const canvasElRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useCallback((node: HTMLDivElement | null) => {
+    canvasElRef.current = node;
     if (node === null) return;
     const measure = () => setCanvasTop(node.getBoundingClientRect().top + window.scrollY);
     measure();
@@ -246,6 +272,29 @@ export function MapLens({
   }, []);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const [ready, setReady] = useState(false);
+  // **The map could not draw.** SPEC §13 asks the phone's Map tab for an
+  // offline state and this lens had none at all — tiles that never arrived left
+  // a paper rectangle with nothing in it and nothing said about it. `attempt`
+  // is the retry counter: bumping it re-runs the mount effect, which is the
+  // only honest way to retry a MapLibre instance whose style failed.
+  const [failed, setFailed] = useState(false);
+  // The hovered day and where its card sits, in the map wrap's coordinates.
+  // Null is "nothing hovered", which is most of the time — the card costs
+  // nothing until a reader asks a day a question (M26 link 5a).
+  const [hover, setHover] = useState<{ day: MapDay; top: number } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  // **The style-load recovery ladder** (M26 link 7 / Wave 1 gate;
+  // `mapRecovery.ts` has the reasoning and the numbers).
+  //
+  // `failed` above is only ever set by an `error` event, and the worst map
+  // failure emits none: if `map.on("load")` never fires, the marker loop below
+  // never runs, `setReady(true)` never runs, and nothing at all is said —
+  // forever. `ladderRun` is the sequence this ladder belongs to, bumped only by
+  // the reader pressing *Try again*; `attempt` is bumped by a rung too, which
+  // is why the two are separate states rather than one counter. A rung's
+  // rebuild must NOT re-arm the ladder, or the deadlines stop being absolute.
+  const [ladderRun, setLadderRun] = useState(0);
+  const disarmLadderRef = useRef<(() => void) | null>(null);
   const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
   // Keyed by MapDay.index, so the focus effect below can ghost/un-ghost a
   // day's pins the same way it dims/undims that day's route line — populated
@@ -328,6 +377,24 @@ export function MapLens({
     setFocusedDay(0);
   }, [focusedDay, days.length, setFocusedDay]);
 
+  // Armed once per mount SEQUENCE, not per instance: the deps are the retry
+  // token and whether there is anything to draw, never `attempt`. A rung that
+  // re-armed the ladder it was fired by would restart the clock on every
+  // rebuild and the map would retry until the tab closed.
+  const hasPlottedPins = plottedPins.length > 0;
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasPlottedPins) return;
+    const disarm = startStyleLoadLadder((rung) => {
+      if (rung.action === "rebuild") setAttempt((n) => n + 1);
+      else setFailed(true);
+    });
+    disarmLadderRef.current = disarm;
+    return () => {
+      disarm();
+      disarmLadderRef.current = null;
+    };
+  }, [ladderRun, hasPlottedPins]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const firstPin = plottedPins[0];
@@ -340,7 +407,25 @@ export function MapLens({
     let resizeObserver: ResizeObserver | undefined;
 
     import("maplibre-gl").then(({ Map, Marker, LngLatBounds, setWorkerUrl }) => {
-      if (cancelled || !el) return;
+      // **The container-identity guard**, and an honest note about its reach.
+      //
+      // `el` is read before an `await`, and this div sits inside two React
+      // conditionals. Building a map into a node that is no longer the one
+      // `containerRef` holds would create a live WebGL context inside a
+      // detached element — no tiles, no error, and a leak the cleanup cannot
+      // reach. M26 link 7 names the absence of this check.
+      //
+      // **Every path that reaches it today is already covered by `cancelled`.**
+      // The div's existence is tied to `plottedPins.length > 0`, which is part
+      // of `routeKey`, which is this effect's dep — so anything that replaces
+      // the node also tears the effect down and runs the cleanup first. That is
+      // true of StrictMode's double invoke too. It is kept as one comparison of
+      // defence in depth against the class DRIFT §6 build-check 5 belongs to (a
+      // container detached mid-style-load, whose load aborts silently), which
+      // has recurred three times — but it has NO test, because no render
+      // sequence this component can produce reaches it, and a test asserting
+      // an unreachable branch would be a test asserting nothing.
+      if (cancelled || containerRef.current !== el) return;
       // Before the first Map construction: maplibre reads this when it spawns
       // its worker pool, which happens inside the constructor below.
       setWorkerUrl(MAPLIBRE_WORKER_URL);
@@ -386,6 +471,17 @@ export function MapLens({
       // just renders empty, which is already the effective behavior when
       // this fires. Kept for "positron" too: no guarantee every future style
       // swap ships every referenced sprite.
+      // **The classification lives in `mapBootstrap.isFatalMapError`**, not
+      // here. This file used to carry its own copy of the rules, and the copy
+      // said "only a style or source failure counts" while actually treating
+      // every source-attributed error as fatal — so one tile 404 in a corner of
+      // the viewport blanked a map whose remaining tiles were fine (CodeRabbit,
+      // PR 196). Two copies of a judgement call is how one of them ends up
+      // contradicting its own comment; there is now one, with its own test.
+      map.on("error", (event) => {
+        if (isFatalMapError(event)) setFailed(true);
+      });
+
       map.on("styleimagemissing", (e: { id: string }) => {
         if (map?.hasImage(e.id)) return;
         map?.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
@@ -407,6 +503,12 @@ export function MapLens({
 
       map.on("load", () => {
         if (cancelled || !map) return;
+        // The map drew: every remaining rung is moot. Clearing `failed` too
+        // covers the one ordering that would otherwise strand the panel over a
+        // working map — the 11s rung fires, and the instance it gave up on
+        // loads a moment later.
+        disarmLadderRef.current?.();
+        setFailed(false);
 
         // One line source+layer per day with 2+ located stops. Sources and
         // layers must not be touched before "load" fires — the style isn't
@@ -528,8 +630,12 @@ export function MapLens({
     // matters for the same reason: the legs are consecutive pairs, so
     // reordering two stops changes which legs exist without changing any
     // coordinate (CodeRabbit, PR #98).
+    // `attempt` is in here so *Try again* actually rebuilds: the effect's
+    // cleanup removes the failed instance and the body constructs a fresh one.
+    // Nothing else re-runs this, which is why a retry could not be a state flag
+    // alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeKey, onSelectActivity, openCreate, readOnly]);
+  }, [routeKey, onSelectActivity, openCreate, readOnly, attempt]);
 
   // Focus-driven OPACITY — routes and markers. Kept separate from the creation
   // effect above so clicking a rail day never tears down and rebuilds the whole
@@ -770,7 +876,51 @@ export function MapLens({
               canvas and returns nothing. Mounted by branch rather than hidden
               by CSS because the rail runs real scroll machinery — see
               useIsPhone for why. */}
-          {isPhone ? (
+          {/* **The offline state, over the canvas and not instead of it**
+              (SPEC §13). The container stays mounted — a React conditional
+              around it detaches the node mid-style-load and the load aborts
+              with no error, which is DRIFT §6 build-check 5 on its third
+              recurrence — so this is an overlay, and the retry below rebuilds
+              the instance underneath it rather than remounting the div. */}
+          {failed && (
+            <MapOfflineState
+              onRetry={() => {
+                setFailed(false);
+                // A new sequence, so the ladder starts over from 3.5s. Without
+                // this the reader gets one rebuild and no ladder at all behind
+                // it — the silent failure the ladder exists for would be back,
+                // one press later.
+                setLadderRun((n) => n + 1);
+                setAttempt((n) => n + 1);
+              }}
+              // `?view=Plan` is the same URL `PhoneTabBar` points its Plan tab
+              // at — one spelling of "the surface that edits", not two. An
+              // href rather than a push, so this lens needs no router.
+              openPlanHref={`/trips/${detail.tripId}?view=Plan`}
+            />
+          )}
+          {/* **The chrome goes when the map has failed** (KI-2026-09-20-c).
+              `MapOfflineState` above is `absolute inset-0`, which is the whole
+              lens rather than just the canvas, so the rail, focus card and
+              legend used to sit UNDER it: mounted, visible, enabled, and
+              impossible to click. Playwright retried one rail click 170 times
+              before timing out; a person offline just sees a day list that does
+              nothing — the "control that appears to do something and does
+              nothing" this file refuses a few hundred lines up for the viewer's
+              double-click.
+
+              Hiding the chrome rather than raising its z-index, because when
+              `failed` is set the style never parsed: there are no markers and
+              no route lines, so a working rail would be steering an empty
+              canvas. Two surfaces disagreeing is worse than one saying the
+              lens is unavailable.
+
+              **Only the chrome is branched. The container div above stays
+              mounted unconditionally** — a React conditional around it detaches
+              the node mid-style-load and the load aborts with no error, which
+              is DRIFT §6 build-check 5 and has already recurred three times. */}
+          {!failed &&
+            (isPhone ? (
             <MapDayStrip
               days={days}
               focusedDay={focusedDay}
@@ -782,17 +932,67 @@ export function MapLens({
               sync={stripSync}
             />
           ) : (
-            <>
-              <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
-              <MapFocusCard day={focusedMapDay} />
-              <MapLegend />
-            </>
-          )}
+              <>
+                <MapRail
+                  days={days}
+                  focusedDay={focusedDay}
+                  onFocus={setFocusedDay}
+                  // The rail hands up the row's VIEWPORT top; the wrap is the
+                  // only thing that knows where it starts and how tall it is,
+                  // so the clamp happens here.
+                  onHover={(day, rowTop) => {
+                    // `canvasElRef` is the map wrap — the `relative` box every
+                    // overlay here positions against — so it is also the box
+                    // the card's top must be expressed in and clamped to.
+                    const wrap = canvasElRef.current;
+                    if (wrap === null) return;
+                    const box = wrap.getBoundingClientRect();
+                    setHover({ day, top: hoverCardTop(rowTop - box.top, box.height) });
+                  }}
+                  onHoverEnd={() => setHover(null)}
+                />
+                <MapFocusCard day={focusedMapDay} />
+                {/* **Not for the day that already has a focus card.** Clicking
+                    a rail row leaves the cursor on it, so both cards would sit
+                    on screen describing the same day — and for an empty day
+                    they even said the same sentence twice ("No stops yet"),
+                    which `m10-growth.spec.ts` caught as two matching elements.
+                    On-demand detail is not owed for the day whose detail is
+                    already pinned. */}
+                {hover !== null && hover.day.index !== focusedDay && (
+                  <MapHoverCard day={hover.day} top={hover.top} />
+                )}
+                <MapLegend />
+              </>
+            ))}
         </div>
       ) : (
-        <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">
-          No located activities yet — add a place to see it on the map.
-        </Text>
+        /* **Nothing to map yet** — M26 link 7, §3b's empty state, worded from
+           the artboard (`dc.html:2362-2372`). What stood here was one muted
+           line inside a dashed box: a defined state, but one that named the
+           absence and not the way out of it.
+
+           **The rail is NOT kept here, and that is the same call as
+           KI-2026-09-20-c's**, one state over. The artboard keeps its day rail
+           in both the failed and the empty canvas, and for the failed one we
+           already chose otherwise: with no map underneath, a rail row is a
+           control that highlights a day and moves nothing. With no located
+           stop there is no map instance at all — the mount effect returns on
+           `!firstPin` — so the argument is if anything stronger. Two adjacent
+           states of one lens answering this differently would be the drift.
+           Recorded in `DRIFT.md` rather than left to be re-derived. */
+        <EmptyState
+          title="Nothing to map yet"
+          body="A stop draws itself here as soon as it has a place. Add one and the day's walk appears with it."
+          action={
+            <Link
+              href={`/trips/${detail.tripId}?view=Plan`}
+              className={`${buttonVariants({ variant: "primary", size: "touch" })} no-underline`}
+            >
+              Go to Plan
+            </Link>
+          }
+        />
       )}
     </div>
   );

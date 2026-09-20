@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountMenu, AccountMenuFromSession } from "./AccountMenu";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
@@ -8,6 +8,27 @@ vi.mock("next-auth/react", () => ({
   getSession: vi.fn(),
   signOut: vi.fn(async () => {}),
 }));
+
+// **`useSessionUser` reads `/api/auth/session` directly** rather than through
+// next-auth's `getSession()`, which returns `null` for a FAILED request and a
+// confirmed signed-out session alike (CodeRabbit, PR #196). The mock above is
+// still the one place a test says who is signed in; this carries its answer
+// over the transport the hook now uses, so every `mockResolvedValueOnce` and
+// `toHaveBeenCalled` below reads exactly as it did.
+beforeEach(() => {
+  vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/api/auth/session")) {
+      const { getSession } = await import("next-auth/react");
+      const session = await vi.mocked(getSession)();
+      return new Response(JSON.stringify(session ?? {}), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`unexpected fetch in this test: ${url}`);
+  });
+});
 
 const resetDemoDataMock = vi.fn();
 const fetchPreferencesMock = vi.fn(async () => ({
@@ -45,19 +66,22 @@ describe("AccountMenu", () => {
   // for four milestones the design's own "Your account" was simply absent — it
   // never flashed "not built yet", whatever the milestone file said. It is real
   // now, and this is what says so.
-  it("opens the account settings sheet from Your account", async () => {
+  // **It opened a Sheet until M26 link 1; it is a link to `/account` now**
+  // (SPEC §34.4). Asserted as a real anchor with the right href rather than as
+  // a rendered screen: a menu item's job is to point somewhere, and the screen
+  // it points at has its own tests. A `<button>` with a `router.push` would
+  // pass a "clicking it navigates" test and still break middle-click, open in
+  // new tab, and every assistive technology that reads links as links.
+  it("links to the account route from Your account", async () => {
     render(
       <PreferencesProvider>
         <AccountMenu name="Sam K" email="sam@example.com" />
       </PreferencesProvider>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Account menu" }));
-    await userEvent.click(screen.getByRole("button", { name: "Your account" }));
 
-    expect(await screen.findByRole("heading", { name: "Your account" })).toBeTruthy();
-    // The read-only email row, which is the one thing in the sheet that comes
-    // from the session rather than from the preferences row.
-    expect(screen.getAllByText("sam@example.com").length).toBeGreaterThan(0);
+    const link = screen.getByRole("link", { name: "Your account" });
+    expect(link.getAttribute("href")).toBe("/account");
   });
 
   it("signs out", async () => {

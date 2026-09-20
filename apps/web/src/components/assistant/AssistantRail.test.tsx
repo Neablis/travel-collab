@@ -682,3 +682,249 @@ describe("AssistantRail — the thread's ceiling", () => {
     expect(screen.getByText("Three days.")).not.toBeNull();
   });
 });
+
+// SPEC §9, M26 links 10a and 10b: "One panel, three presentations, and the user
+// picks", and "Position is clamped to the viewport with a 16px pad, and
+// re-clamped on resize."
+describe("AssistantRail — the shape is the reader's, and the floating one drags", () => {
+  function setViewport(width: number, height: number) {
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: height, configurable: true, writable: true });
+  }
+
+  function positionOf(): { left: string; top: string } {
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    return { left: panel.style.left, top: panel.style.top };
+  }
+
+  /**
+   * **Give the panel a real box.** jsdom reports every element as a zero-sized
+   * rect at 0,0, and the drag starts from `getBoundingClientRect()` — which in
+   * a browser is the panel's true current position, pinned by
+   * `.assistant-float`'s `right`/`bottom`, and is the only honest place a drag
+   * can start from. Without this the delta assertions below would be measuring
+   * jsdom's missing layout rather than the drag.
+   */
+  function placePanelAt(x: number, y: number) {
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    panel.getBoundingClientRect = () =>
+      ({ left: x, top: y, width: 364, height: 476, right: x + 364, bottom: y + 476, x, y }) as DOMRect;
+  }
+
+  function dragHeaderBy(dx: number, dy: number, from = { x: 1200, y: 400 }) {
+    fireEvent.pointerDown(screen.getByTestId("assistant-header"), {
+      button: 0,
+      clientX: from.x,
+      clientY: from.y,
+    });
+    fireEvent.pointerMove(window, { clientX: from.x + dx, clientY: from.y + dy });
+    fireEvent.pointerUp(window);
+  }
+
+  it("offers one control whose name says what it will do", async () => {
+    const onShapeChange = vi.fn();
+    renderRail({ presentation: "floating", onShapeChange });
+    // The artboard draws ONE button whose title flips (dc.html:4018/:10062).
+    // A button called "Dock" that undocks would be worse than no button.
+    await userEvent.click(screen.getByRole("button", { name: "Dock to the side" }));
+    expect(onShapeChange).toHaveBeenCalledWith("docked");
+
+    cleanup();
+    const onShapeChange2 = vi.fn();
+    renderRail({ presentation: "docked", onShapeChange: onShapeChange2 });
+    await userEvent.click(screen.getByRole("button", { name: "Float it free" }));
+    expect(onShapeChange2).toHaveBeenCalledWith("floating");
+  });
+
+  // §23 gives the phone a sheet and only a sheet; a Dock button there would
+  // offer a 356px rail on a 390px screen. And a caller with nothing to switch
+  // to (the notebook — see PageScreen) withholds the handler entirely, so the
+  // rail draws no control it cannot honour.
+  it("draws no shape control in the sheet, or when the caller offers none", () => {
+    renderRail({ presentation: "sheet", onShapeChange: vi.fn() });
+    expect(screen.queryByRole("button", { name: /Dock to the side|Float it free/ })).toBeNull();
+    cleanup();
+    renderRail({ presentation: "floating" });
+    expect(screen.queryByRole("button", { name: /Dock to the side|Float it free/ })).toBeNull();
+  });
+
+  // Until a drag moves it, the panel keeps `.assistant-float`'s own
+  // `right: 16px; bottom: 16px` — which is what holds §9's planted
+  // bottom-right corner through a resize with no JavaScript running at all.
+  it("adopts no position until it is dragged", () => {
+    setViewport(1440, 900);
+    renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+    expect(positionOf()).toEqual({ left: "", top: "" });
+  });
+
+  it("moves by the pointer's delta when its header is dragged", () => {
+    setViewport(1440, 900);
+    renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+    // `.assistant-float`'s own corner on this viewport: 1440-364-16 = 1060,
+    // 900-476-16 = 408.
+    placePanelAt(1060, 408);
+
+    dragHeaderBy(-200, -100);
+    expect(positionOf()).toEqual({ left: "860px", top: "308px" });
+  });
+
+  it("clamps to §9's 16px pad rather than letting the panel leave the screen", () => {
+    setViewport(1440, 900);
+    renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+
+    dragHeaderBy(-99999, -99999);
+    expect(positionOf()).toEqual({ left: "16px", top: "16px" });
+  });
+
+  // §9: "re-clamped on resize. A narrow window no longer evicts the assistant."
+  it("re-clamps a dragged panel when the window shrinks", () => {
+    setViewport(1440, 900);
+    renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+    placePanelAt(1060, 408);
+    // A drag that does not move still adopts the position, which is what the
+    // resize below then has something to re-clamp.
+    dragHeaderBy(0, 0);
+    expect(positionOf()).toEqual({ left: "1060px", top: "408px" });
+
+    act(() => {
+      setViewport(900, 700);
+      window.dispatchEvent(new Event("resize"));
+    });
+    // 900-364-16 = 520, 700-476-16 = 208.
+    expect(positionOf()).toEqual({ left: "520px", top: "208px" });
+  });
+
+  // §9: "Docked is ... the only mode where dragging is off (cursor `default`)."
+  //
+  // **Asserted after switching to floating**, because a docked panel carries no
+  // inline position either way — the style is only applied while floating, so
+  // the obvious version of this test passed with the `isFloating` guard on the
+  // drag removed. It was watched to do exactly that (CLAUDE.md rule 3). What
+  // this holds instead is that a drag attempted while docked ADOPTED nothing:
+  // if it had, the panel would jump to that stale point the moment it floats.
+  it("does not drag while docked, and carries no stale position into floating", () => {
+    setViewport(1440, 900);
+    const { rerender } = renderRail({ presentation: "docked", onShapeChange: vi.fn() });
+    dragHeaderBy(-200, -100);
+    expect(positionOf()).toEqual({ left: "", top: "" });
+
+    rerender(
+      <AssistantRail {...baseProps} presentation="floating" onShapeChange={vi.fn()} />,
+    );
+    expect(positionOf()).toEqual({ left: "", top: "" });
+  });
+
+  // The whole header is the drag handle, so without stopping propagation a
+  // press on the Dock button starts a drag and the click that follows lands on
+  // a panel that has already moved under the pointer.
+  it("pressing the shape control does not drag the panel", () => {
+    setViewport(1440, 900);
+    const onShapeChange = vi.fn();
+    renderRail({ presentation: "floating", onShapeChange });
+
+    const control = screen.getByRole("button", { name: "Dock to the side" });
+    fireEvent.pointerDown(control, { button: 0, clientX: 1200, clientY: 400 });
+    fireEvent.pointerMove(window, { clientX: 1000, clientY: 300 });
+    fireEvent.pointerUp(window);
+
+    expect(positionOf()).toEqual({ left: "", top: "" });
+  });
+});
+
+// SPEC §29, M26 link 10c: "On `plans` the floating dock keeps its place in the
+// tree with `visibility: hidden; pointer-events: none` … unmounting it loses
+// the thread, the open/closed state and the dragged position, so coming back
+// from Plans would reset it."
+//
+// There is nothing in that route's tree to hide — `/plans` renders neither the
+// board nor the trip — so the RESULT is delivered by outliving the unmount
+// instead: the thread already did (`persistAs`), the shape does, and the
+// position does through this key. An unmount and remount is exactly what the
+// trip to Plans and back is.
+describe("AssistantRail — the dragged position survives leaving the route", () => {
+  const KEY = "assistant:position:trip:x";
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  function setViewport(width: number, height: number) {
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: height, configurable: true, writable: true });
+  }
+
+  function positionOf(): { left: string; top: string } {
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    return { left: panel.style.left, top: panel.style.top };
+  }
+
+  function dragTo(x: number, y: number) {
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    panel.getBoundingClientRect = () =>
+      ({ left: 1060, top: 408, width: 364, height: 476, right: 1424, bottom: 884, x: 1060, y: 408 }) as DOMRect;
+    fireEvent.pointerDown(screen.getByTestId("assistant-header"), { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(window, { clientX: x - 1060, clientY: y - 408 });
+    fireEvent.pointerUp(window);
+  }
+
+  it("comes back where it was left, after an unmount", () => {
+    setViewport(1440, 900);
+    const first = renderRail({
+      presentation: "floating",
+      onShapeChange: vi.fn(),
+      rememberPositionAs: KEY,
+    });
+    dragTo(400, 200);
+    expect(positionOf()).toEqual({ left: "400px", top: "200px" });
+
+    // The trip to Plans and back.
+    first.unmount();
+    renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
+    expect(positionOf()).toEqual({ left: "400px", top: "200px" });
+  });
+
+  it("forgets it when the caller asks for no memory, which is what used to happen", () => {
+    setViewport(1440, 900);
+    const first = renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+    dragTo(400, 200);
+    expect(positionOf()).toEqual({ left: "400px", top: "200px" });
+
+    first.unmount();
+    renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+    expect(positionOf()).toEqual({ left: "", top: "" });
+  });
+
+  it("keeps two surfaces' positions apart", () => {
+    setViewport(1440, 900);
+    const trip = renderRail({
+      presentation: "floating",
+      onShapeChange: vi.fn(),
+      rememberPositionAs: KEY,
+    });
+    dragTo(400, 200);
+    trip.unmount();
+
+    renderRail({
+      presentation: "floating",
+      onShapeChange: vi.fn(),
+      rememberPositionAs: "assistant:position:page:y",
+    });
+    expect(positionOf()).toEqual({ left: "", top: "" });
+  });
+
+  it("ignores stored rubbish rather than positioning the panel with it", () => {
+    setViewport(1440, 900);
+    window.localStorage.setItem(KEY, "{ not json");
+    renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
+    expect(positionOf()).toEqual({ left: "", top: "" });
+
+    // A string, a null, a missing field, and the `NaN` that survives
+    // `JSON.parse` as `null` — each would position the panel nowhere.
+    for (const bad of [{ x: "left", y: null }, { x: 10 }, { y: 10 }, { x: 10, y: Infinity }]) {
+      cleanup();
+      window.localStorage.setItem(KEY, JSON.stringify(bad));
+      renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
+      expect(positionOf(), JSON.stringify(bad)).toEqual({ left: "", top: "" });
+    }
+  });
+});

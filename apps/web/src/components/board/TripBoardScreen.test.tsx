@@ -275,16 +275,18 @@ describe("TripBoardScreen", () => {
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Map" }));
-    expect(await screen.findByText(/No located activities yet/)).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
-    // The Overview fetches its page; "loading" is the first thing it says and
-    // is enough to prove this tab mounts its own surface rather than falling
-    // through to Plan.
-    expect(await screen.findByRole("status", { name: "" })).toBeTruthy();
+    // The Overview fetches its page, so its `ovBody` placeholder is the first
+    // thing it draws. The region's own NAME is what proves this tab mounted
+    // its own surface rather than falling through to Plan — it used to look
+    // for an unnamed `role="status"`, which any lens's spinner would have
+    // satisfied (M26 link 7 gave every region a label of its own).
+    expect(await screen.findByRole("status", { name: "Loading the Overview" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Plan" }));
     expect(await screen.findByTestId("one-more-day-column")).toBeTruthy();

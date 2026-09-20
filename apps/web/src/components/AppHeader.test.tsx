@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // AppHeader renders AccountMenuFromSession (task 8b.2), which calls
 // next-auth/react's getSession() on mount — mock it so these stay plain
@@ -18,8 +18,29 @@ vi.mock("@/lib/demoDataReset", () => ({
 const { AppHeader } = await import("./AppHeader");
 const { getSession: getSessionMock } = await import("next-auth/react");
 
+// **`useSessionUser` reads `/api/auth/session` directly** rather than going
+// through next-auth's `getSession()`, because that helper returns `null` for a
+// FAILED request and for a confirmed signed-out session alike (CodeRabbit,
+// PR #196). The mock above stays the single place a test says who is signed
+// in — this just carries its answer over the transport the hook now uses, so
+// every `mockResolvedValue` and `toHaveBeenCalled` below is unchanged.
+beforeEach(() => {
+  vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/api/auth/session")) {
+      const session = await vi.mocked(getSessionMock)();
+      return new Response(JSON.stringify(session ?? {}), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(`unexpected fetch in this test: ${url}`);
+  });
+});
+
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   demoResetEnabled = false;
   vi.mocked(getSessionMock).mockResolvedValue(null);
   vi.mocked(getSessionMock).mockClear();

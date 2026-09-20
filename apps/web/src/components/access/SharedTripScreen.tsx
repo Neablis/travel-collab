@@ -83,9 +83,14 @@ export function SharedTripScreen({ token }: { token: string }) {
     };
   }, [token]);
 
+  // `bg-paper` is the page ground, same as the other two front-door screens
+  // (`LandingScreen`, `AuthScreen`). All three of these used to say `bg-canvas`,
+  // which is not a token this app defines and so painted nothing at all — the
+  // screen a non-member sees on a share link had no ground for as long as it has
+  // existed. Found by the token wall, 2026-09-19 (`KI-2026-09-19-g`).
   if (error !== null) {
     return (
-      <div className="min-h-screen bg-canvas">
+      <div className="min-h-screen bg-paper">
         <FrontDoorHeader />
         <div className="mx-auto flex w-full max-w-155 flex-col gap-4 px-7 pt-14">
           <Heading level={1}>Nothing to see here</Heading>
@@ -102,7 +107,7 @@ export function SharedTripScreen({ token }: { token: string }) {
 
   if (trip === null) {
     return (
-      <div className="min-h-screen bg-canvas">
+      <div className="min-h-screen bg-paper">
         <FrontDoorHeader />
         <div className="mx-auto w-full max-w-155 px-7 pt-14">
           <Text variant="secondary">Opening this trip…</Text>
@@ -112,7 +117,7 @@ export function SharedTripScreen({ token }: { token: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen bg-paper">
       <FrontDoorHeader
         actions={
           <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>

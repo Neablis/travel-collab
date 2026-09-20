@@ -830,7 +830,27 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           // only things that set it are a tap on `AskPill` or on the bubble.
           // Effects have run long before a user can tap, so there is no frame
           // in which `isPhone` is stale AND the rail is on screen.
+          // **This surface offers no Dock, and that is a decision rather than
+          // an omission** (M26 link 10a). §9's *"the user picks"* is built on
+          // the trip board, where both shapes work; here only one does.
+          //
+          // §9's own table says what docked costs: *"real — a flex sibling, so
+          // the plan shrinks instead of hiding"*. This screen is not a plan.
+          // It renders inside `PageContainer`, a centred measure, and a docked
+          // rail would have to become a flex sibling of the whole page and take
+          // 356px off a column whose width is the reading experience. Mitchell
+          // asked for floating here by name for that reason — *"it should be on
+          // the bottom right on desktop, floating till open, and always
+          // available in both editing and reading mode"*.
+          //
+          // Withholding `onShapeChange` is how that is said: the rail draws no
+          // control it cannot honour, so there is no Dock button here to press
+          // and no half-working rail behind it. Recorded in `DRIFT.md` so the
+          // design side can accept it or ask for the restructure.
           presentation={isPhone ? "sheet" : "floating"}
+          // §29 / M26 link 10c — see `useAssistantPosition`. Per PAGE, like
+          // this screen's own thread: each document is its own reading surface.
+          rememberPositionAs={`assistant:position:page:${pageId}`}
           // The phone's line is derived from the surface (§23); the desktop's
           // is the panel's own and is deliberately left alone — "Looking at" is
           // the floating panel's voice, "Asking about" is the sheet's, and the

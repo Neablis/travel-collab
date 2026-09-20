@@ -5,21 +5,9 @@ import { Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toast } from "@/components/ui/toast";
 import { KeepDayDialog, type KeepDayCandidate } from "@/components/trip/KeepDayDialog";
-import type { AccentFamily } from "@/lib/dayAccent";
+import { ACCENT_INK_TEXT, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 
-// "danger"/"warning"/"success"/"info" each carry a `-ink` token; "brand" does
-// not (its darkest tone is `-pressed`) — same map shape NextTripHero.tsx's
-// STAT_TILE_TONE_CLASSES uses for the same reason. Static Record, not a
-// template string: Tailwind only emits utilities it can see as literal text.
-const INK_TEXT: Record<AccentFamily, string> = {
-  brand: "text-brand-pressed",
-  info: "text-info-ink",
-  success: "text-success-ink",
-  warning: "text-warning-ink",
-  danger: "text-danger-ink",
-  neutral: "text-slate",
-};
 
 // The length of the celebration, and the `om-flag-keep` keyframe's own
 // duration in globals.css. The two have to agree: the class drives the motion,
@@ -172,7 +160,7 @@ export function KeepDayFlag({
             // so Button's own horizontal padding has nothing to do and would
             // only fight the width for it.
             "shrink-0 justify-center rounded-full border-transparent bg-surface p-0 hover:bg-surface",
-            INK_TEXT[accent],
+            ACCENT_INK_TEXT[accent],
             celebrating && "flag-celebrate",
           )}
           // eslint-disable-next-line no-restricted-syntax -- the 30px pennant circle has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern

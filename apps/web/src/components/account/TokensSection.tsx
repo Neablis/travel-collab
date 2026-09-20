@@ -11,14 +11,20 @@ import {
   type ApiToken,
   type ApiTokenCreated,
 } from "@tc/contracts";
+import type { TripSummary } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CheckboxField } from "@/components/ui/checkbox";
-import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
+import { cn } from "@/lib/cn";
+import { ToggleChip } from "@/components/ui/toggle-chip";
+import { fetchTrips } from "@/lib/apiClient";
+import type { AccountPlanState } from "@/lib/accountPlan";
 
 // **The Tokens section in Account settings** (M22 Phase 3).
 //
@@ -64,17 +70,91 @@ export function tokenState(token: ApiToken, now: Date = new Date()): "live" | "e
   return new Date(token.expiresAt).getTime() <= now.getTime() ? "expired" : "live";
 }
 
+/**
+ * **30 days / 90 days / a year**, not a number field (§34.1).
+ *
+ * The third is `API_TOKEN_MAX_LIFETIME_DAYS` rather than a literal 365, so the
+ * ceiling has exactly one definition; the copy beside the control states it
+ * rather than letting the reader discover it from a refusal.
+ */
+const LIFETIMES = [
+  { value: 30, label: "30 days" },
+  { value: 90, label: "90 days" },
+  { value: API_TOKEN_MAX_LIFETIME_DAYS, label: "A year" },
+] as const;
+type LifetimeDays = (typeof LIFETIMES)[number]["value"];
+
+/**
+ * The contract's default, snapped to the nearest offered lifetime.
+ *
+ * Reading it from the contract rather than writing `90` keeps one source for
+ * the number. Snapping rather than asserting equality means lowering
+ * `API_TOKEN_DEFAULT_LIFETIME_DAYS` to something not on this list changes which
+ * chip starts selected instead of breaking the build over a cosmetic default.
+ */
+const DEFAULT_LIFETIME: LifetimeDays = [...LIFETIMES].sort(
+  (a, b) =>
+    Math.abs(a.value - API_TOKEN_DEFAULT_LIFETIME_DAYS) -
+    Math.abs(b.value - API_TOKEN_DEFAULT_LIFETIME_DAYS),
+)[0]!.value;
+
+/** Under a week reads in `--color-warning-ink` (§34.1, obligation 1). */
+export function expiresSoon(token: ApiToken, now: Date = new Date()): boolean {
+  const left = new Date(token.expiresAt).getTime() - now.getTime();
+  return left > 0 && left < 7 * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * *"Read and change your trips · 2 trips"* — the one line of what a token may
+ * do and how far it reaches.
+ *
+ * Joined with ` · ` rather than `, ` because the two halves are different
+ * facts, not a list; and pluralised, because `1 trip(s)` is the defect class
+ * `KI-048` already records as `1 travellers`.
+ */
+export function reachLine(token: ApiToken): string {
+  const what =
+    token.scopes.length === 0
+      ? "No permissions — this token can do nothing"
+      : token.scopes.map((scope) => SCOPE_CATALOGUE[scope].title).join(", ");
+  const where =
+    token.tripIds === null
+      ? "all trips"
+      : token.tripIds.length === 1
+        ? "1 trip"
+        : `${token.tripIds.length} trips`;
+  return `${what} · ${where}`;
+}
+
 const STATE_LABEL = { live: "Active", expired: "Expired", revoked: "Revoked" } as const;
 const STATE_BADGE = { live: "success", expired: "warning", revoked: "neutral" } as const;
 
-export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
+// **This took an `onNavigate` prop until M26 link 1, and it is gone** — it
+// existed only to close the account Sheet behind a navigation to `/plans`.
+// Account is a route now (§34.4), so there is no container to close.
+export function TokensSection() {
   const [tokens, setTokens] = useState<ApiToken[] | null>(null);
   const [entitled, setEntitled] = useState<boolean | null>(null);
   const [failed, setFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
-  const [days, setDays] = useState(String(API_TOKEN_DEFAULT_LIFETIME_DAYS));
+  // **A choice of three, not a number field** (§34.1). The raw field made the
+  // reader do arithmetic to express "about a year" and then defended itself
+  // with a validator; three named lifetimes say the same thing and cannot be
+  // wrong. `API_TOKEN_DEFAULT_LIFETIME_DAYS` still picks the default, so the
+  // contract stays the source of that number rather than this list.
+  const [days, setDays] = useState<LifetimeDays>(DEFAULT_LIFETIME);
+  // **Which trips** (§34.1, DRIFT D12). `trip_ids` has been real and enforced
+  // end to end since M22 — `publicApi.ts`, `api-tokens/index.ts`, `actor.ts`
+  // and the route's own widening refusal — and this UI posted `null` regardless.
+  // Nothing on the server changes for this; the gap was one hardcoded value and
+  // a control above it.
+  const [tripScope, setTripScope] = useState<"all" | "chosen">("all");
+  const [tripIds, setTripIds] = useState<string[]>([]);
+  const [trips, setTrips] = useState<TripSummary[] | null>(null);
+  const [tripsFailed, setTripsFailed] = useState(false);
+  const [billingState, setBillingState] = useState<AccountPlanState | null>(null);
   const [scopes, setScopes] = useState<ApiScope[]>(["trips:read"]);
   const [revealed, setRevealed] = useState<ApiTokenCreated | null>(null);
   // **Keyed on the REVEAL, not a boolean and not the secret's text.** The
@@ -103,11 +183,22 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
           return;
         }
         setTokens((tokenBody as { tokens: ApiToken[] }).tokens);
-        setEntitled(
-          (planBody as { plan: { entitlements: readonly string[] } }).plan.entitlements.includes(
-            "api.tokens",
-          ),
-        );
+        const plan = (
+          planBody as { plan: { entitlements: readonly string[]; billing?: { state: AccountPlanState } } }
+        ).plan;
+        setEntitled(plan.entitlements.includes("api.tokens"));
+        // **Already on the wire and unused until now** (`accountPlan.ts`). A
+        // lapsed account is not the same as one that never subscribed, and the
+        // gate copy said the same sentence to both.
+        //
+        // **Read defensively, and that is not defensive programming for its own
+        // sake.** The first cut read `plan.billing.state` outright; a plan body
+        // without `billing` threw inside this `.then`, hit the `.catch` below,
+        // and rendered "your API tokens could not be loaded" — the entire
+        // section lost to a field that only changes one sentence of copy. The
+        // token list is the thing this screen is for; a missing nicety must not
+        // take it down.
+        setBillingState(plan.billing?.state ?? null);
       })
       .catch(() => live && setFailed(true));
     return () => {
@@ -115,23 +206,18 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
     };
   }, []);
 
-  // **One rule, read by the button and by the handler.** `disabled` alone is a
-  // claim about a button, not about the function behind it — and this screen's
-  // own copy states the ceiling, so an empty, fractional or 400-day lifetime
-  // reaching the server as a 400 would be the field wasting somebody's
-  // afternoon exactly the way the note below it promises it will not.
-  const lifetimeDays = Number(days);
-  const lifetimeOk =
-    days.trim() !== "" &&
-    Number.isInteger(lifetimeDays) &&
-    lifetimeDays >= 1 &&
-    lifetimeDays <= API_TOKEN_MAX_LIFETIME_DAYS;
+  // **The lifetime validator is gone with the field it defended.** It existed
+  // because a free-text number could be empty, fractional or 400 — and the
+  // three choices below are none of those by construction. `LIFETIMES` is
+  // asserted against the contract's ceiling at module scope, so a lowered
+  // ceiling is a build error rather than a 400 somebody meets at runtime.
+  //
+  // **Chosen trips with nothing chosen is the one state that can still be
+  // wrong**, and it is refused here rather than sent: a token scoped to no
+  // trips can do nothing at all, which nobody means to create.
+  const scopedToNothing = tripScope === "chosen" && tripIds.length === 0;
 
   async function create() {
-    if (!lifetimeOk) {
-      setError(`A token lasts between 1 and ${API_TOKEN_MAX_LIFETIME_DAYS} days.`);
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
@@ -141,8 +227,10 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
         body: JSON.stringify({
           name: name.trim(),
           scopes,
-          tripIds: null,
-          expiresInDays: lifetimeDays,
+          // Was hardcoded `null` — the whole of DRIFT D12 (§34.1: *"Which trips
+          // is the one thing the design asks the build for"*).
+          tripIds: tripScope === "all" ? null : tripIds,
+          expiresInDays: days,
         }),
       });
       if (!res.ok) {
@@ -169,11 +257,37 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
       setCreating(false);
       setName("");
       setScopes(["trips:read"]);
-      setDays(String(API_TOKEN_DEFAULT_LIFETIME_DAYS));
+      setDays(DEFAULT_LIFETIME);
+      setTripScope("all");
+      setTripIds([]);
     } catch {
       setError("That token could not be created.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * The caller's trips, fetched the first time somebody asks to scope a token
+   * to some of them.
+   *
+   * Lazy on purpose: every account that opens this tab would otherwise pay for
+   * a trip list that only the minority using Chosen trips ever sees.
+   */
+  async function loadTrips() {
+    if (trips !== null) return;
+    const result = await fetchTrips();
+    if (result.ok) {
+      // **Clear the failure before storing the trips.** `trips` stays null on a
+      // failed fetch, so the `trips !== null` guard above lets a later attempt
+      // through — but `tripsFailed` was never reset, and the failure branch in
+      // the render takes precedence over having trips. A recovered fetch would
+      // sit behind "could not be loaded" until the component remounted
+      // (CodeRabbit, PR 196).
+      setTripsFailed(false);
+      setTrips(result.value);
+    } else {
+      setTripsFailed(true);
     }
   }
 
@@ -199,12 +313,18 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
   if (tokens === null || entitled === null) return null;
 
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="tokens-heading" data-testid="tokens-section">
-      <Heading level={3} id="tokens-heading">
-        API tokens
-      </Heading>
+    // No `<Heading>API tokens</Heading>` and no `aria-labelledby`: the tab says
+    // it and the tab panel labels this (§34.4, project rule 4).
+    <section className="flex flex-col gap-3" data-testid="tokens-section">
+      {/* **All three clauses** (§34.1). The third — *"it can never do more than
+          you can"* — is the build's second gate stated in plain words, and it
+          is true of this build: `route.ts` re-checks membership on every call,
+          so removing somebody removes their tokens' access in the same instant.
+          It was the one clause missing, and it is the one that answers the
+          question a reader actually has. */}
       <Text variant="secondary" className="text-xs">
-        A token lets a program you write read and change your trips. Treat one like a password.
+        A token lets a program you write read and change your trips. Treat one like a password: it
+        is shown once, it always expires, and it can never do more than you can.
       </Text>
 
       {/* **What a free or plus account sees instead — a prompt, not a hidden
@@ -213,14 +333,26 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
           actionable answer. */}
       {!entitled ? (
         <Banner variant="info" data-testid="tokens-upgrade">
-          API tokens are on the Premium plan.{" "}
+          {/* **Both halves of the split, named here rather than discovered in a
+              support conversation** (§34.1): tokens are Premium, and taking your
+              trips with you is not. Somebody reading "not on this plan" next to
+              their own data reasonably fears the second, and the answer is one
+              clause long.
+
+              **And the lapsed variant.** `billing.state` has been on the wire
+              since M21 (`accountPlan.ts`) and nothing read it, so an account
+              whose subscription ended was told it had never had the feature.
+              "Subscribe" and "restart" are different acts and different
+              sentences. */}
+          {billingState === "lapsed"
+            ? "Your subscription has ended, so your API tokens stopped working. Restarting it turns them back on — nothing was deleted."
+            : "API tokens are on the Premium plan. Downloading a trip as a file is not — that is on every plan, from Trip settings."}{" "}
           <Link
             href="/plans"
             className={buttonVariants({ variant: "secondary", size: "sm" })}
             data-testid="tokens-upgrade-link"
-            onClick={onNavigate}
           >
-            See plans
+            {billingState === "lapsed" ? "Restart it" : "See plans"}
           </Link>
         </Banner>
       ) : null}
@@ -295,57 +427,94 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
           You have no tokens yet.
         </Text>
       ) : (
-        <ul className="flex flex-col gap-2" data-testid="tokens-list">
-          {tokens.map((token) => {
-            const state = tokenState(token);
-            return (
-              <li
-                key={token.tokenId}
-                className="flex flex-col gap-1 rounded-lg border border-hairline p-3"
-                data-testid={`token-${token.tokenId}`}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Text as="span" className="text-sm font-semibold text-ink">
-                    {token.name}
-                  </Text>
-                  <Badge variant={STATE_BADGE[state]} data-testid="token-state">
-                    {STATE_LABEL[state]}
-                  </Badge>
-                  <Text as="span" variant="secondary" className="text-xs font-mono">
-                    {token.prefix}…
-                  </Text>
-                </div>
-                <Text variant="secondary" className="text-xs" data-testid="token-expiry">
-                  {/* Obligation 1 and 2 together: time remaining while it is
-                      alive, and a dead token says WHICH kind of dead it is. */}
-                  {state === "revoked"
-                    ? "Revoked. It stopped working immediately."
-                    : state === "expired"
-                      ? `Expired ${relativeDays(token.expiresAt)}. Create a new one to replace it.`
-                      : `Expires ${relativeDays(token.expiresAt)}.`}
-                </Text>
-                <Text variant="secondary" className="text-xs">
-                  {token.scopes.length === 0
-                    ? "No permissions — this token can do nothing."
-                    : token.scopes.map((scope) => SCOPE_CATALOGUE[scope].title).join(", ")}
-                  {token.tripIds === null ? " · all trips" : ` · ${token.tripIds.length} trip(s)`}
-                </Text>
-                {state === "live" ? (
-                  <div className="mt-1">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      data-testid="token-revoke"
-                      onClick={() => void revoke(token.tokenId)}
-                    >
-                      Revoke
-                    </Button>
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        /* **A list of like things is a table** (§34.5). Every token carries the
+            same four facts and the question asked of the list is comparative —
+            which one dies first, which one is the wide one. The stack of
+            per-row hairline boxes this replaced was a hairline card on a
+            hairline card on paper, and that nesting is what made a row hard to
+            separate from the background.
+
+            One filled card with `shadow-raised` so the list reads as a single
+            object against the paper page, and `overflow-hidden` so the moss
+            header takes the card's own corners. */
+        <div
+          className="overflow-hidden rounded-lg border border-hairline bg-surface shadow-raised"
+          data-testid="tokens-list"
+        >
+          <Table>
+            <THead>
+              <TR className="bg-moss">
+                <TH className="px-3.5 py-3">Token</TH>
+                <TH className="px-3.5 py-3">What it may do</TH>
+                <TH className="px-3.5 py-3">Expires</TH>
+                {/* The column exists for every row's sake; naming it for a
+                    screen reader while leaving the header visually empty keeps
+                    the head from reading "Revoke" over rows that offer none. */}
+                <TH className="px-3.5 py-3 text-right">
+                  <span className="sr-only">Actions</span>
+                </TH>
+              </TR>
+            </THead>
+            <TBody>
+              {tokens.map((token) => {
+                const state = tokenState(token);
+                const soon = state === "live" && expiresSoon(token);
+                return (
+                  <TR key={token.tokenId} className="last:border-b-0" data-testid={`token-${token.tokenId}`}>
+                    <TD className="px-3.5 py-3 align-middle">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Text as="span" className="text-sm font-semibold text-ink">
+                          {token.name}
+                        </Text>
+                        <Badge variant={STATE_BADGE[state]} data-testid="token-state">
+                          {STATE_LABEL[state]}
+                        </Badge>
+                      </div>
+                      <Text as="span" variant="secondary" className="block font-mono text-xs">
+                        {token.prefix}…
+                      </Text>
+                    </TD>
+                    <TD className="px-3.5 py-3 align-middle">
+                      <Text as="span" variant="secondary" className="text-xs text-pretty">
+                        {reachLine(token)}
+                      </Text>
+                    </TD>
+                    <TD className="px-3.5 py-3 align-middle">
+                      {/* Obligations 1 and 2 together: time remaining while it is
+                          alive — and under a week in `--color-warning-ink`, which
+                          is the whole point of showing time remaining rather than
+                          a date — and a dead token saying WHICH kind of dead. */}
+                      <Text
+                        as="span"
+                        variant="secondary"
+                        className={cn("text-xs text-pretty", soon && "font-semibold text-warning-ink")}
+                        data-testid="token-expiry"
+                      >
+                        {state === "revoked"
+                          ? "Revoked. It stopped working immediately."
+                          : state === "expired"
+                            ? `Expired ${relativeDays(token.expiresAt)}. Create a new one to replace it.`
+                            : `Expires ${relativeDays(token.expiresAt)}.`}
+                      </Text>
+                    </TD>
+                    <TD className="px-3.5 py-3 text-right align-middle">
+                      {state === "live" ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          data-testid="token-revoke"
+                          onClick={() => void revoke(token.tokenId)}
+                        >
+                          Revoke
+                        </Button>
+                      ) : null}
+                    </TD>
+                  </TR>
+                );
+              })}
+            </TBody>
+          </Table>
+        </div>
       )}
 
       {entitled && !creating ? (
@@ -357,7 +526,7 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
       ) : null}
 
       {entitled && creating ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-hairline p-3" data-testid="token-form">
+        <div className="flex flex-col gap-4 rounded-lg border border-hairline bg-surface p-4" data-testid="token-form">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="token-name">Name</Label>
             <Input
@@ -426,21 +595,103 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
             ))}
           </fieldset>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="token-days">Expires after (days)</Label>
-            <Input
-              id="token-days"
-              type="number"
-              min={1}
-              max={API_TOKEN_MAX_LIFETIME_DAYS}
-              value={days}
-              data-testid="token-days"
-              onChange={(e) => setDays(e.currentTarget.value)}
-            />
+          {/* **Which trips** (§34.1, DRIFT D12) — a two-way control, exactly as
+              the design asks. The server side of this shipped with M22 and has
+              been enforced end to end ever since; the UI posted `null`
+              regardless, so the whole gap was this control and one value.
+
+              **A `SegmentedControl` and not `ToggleChip`s**: this is one choice
+              of two, which is a radiogroup. `ToggleChip` is `aria-pressed`
+              multi-select and would say the wrong thing to a screen reader. */}
+          <div className="flex flex-col gap-2">
+            <Text as="span" className="text-sm font-medium text-ink">
+              Which trips
+            </Text>
+            <div className="self-start">
+              <SegmentedControl<"all" | "chosen">
+                aria-label="Which trips"
+                value={tripScope}
+                options={[
+                  { value: "all", label: "All trips" },
+                  { value: "chosen", label: "Chosen trips" },
+                ]}
+                onValueChange={(next) => {
+                  setTripScope(next);
+                  if (next === "chosen") void loadTrips();
+                }}
+              />
+            </div>
+            {tripScope === "chosen" ? (
+              <div className="flex flex-col gap-2" data-testid="token-trip-picker">
+                {/* **Decision 5's rule is not something to implement — it is
+                    something to STATE**, because the server already refuses the
+                    widening a trip-scoped token would need
+                    (`public-api/route.ts` answers `POST /v1/trips` with a
+                    refusal). Saying it here is the difference between a rule
+                    somebody meets as an error and one they understood before
+                    they minted the token. */}
+                <Text variant="secondary" className="text-xs text-pretty">
+                  A token limited to trips cannot create one, and it will never see a trip added
+                  after today unless you mint a new token.
+                </Text>
+                {tripsFailed ? (
+                  <Text variant="secondary" className="text-xs" data-testid="token-trips-failed">
+                    Your trips could not be loaded just now, so this token can only be scoped to all
+                    of them.
+                  </Text>
+                ) : trips === null ? (
+                  <Text variant="secondary" className="text-xs">
+                    Loading your trips…
+                  </Text>
+                ) : trips.length === 0 ? (
+                  <Text variant="secondary" className="text-xs" data-testid="token-trips-empty">
+                    You have no trips yet, so there is nothing to choose.
+                  </Text>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {trips.map((trip) => (
+                      <ToggleChip
+                        key={trip.tripId}
+                        pressed={tripIds.includes(trip.tripId)}
+                        className="h-auto w-auto"
+                        data-testid={`token-trip-${trip.tripId}`}
+                        onClick={() =>
+                          setTripIds((current) =>
+                            current.includes(trip.tripId)
+                              ? current.filter((id) => id !== trip.tripId)
+                              : [...current, trip.tripId],
+                          )
+                        }
+                      >
+                        {trip.name}
+                      </ToggleChip>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Text as="span" className="text-sm font-medium text-ink">
+              Expires after
+            </Text>
+            {/* **Three named lifetimes, not a number field** (§34.1). The field
+                this replaces made the reader do arithmetic to say "about a
+                year" and then defended itself with a validator against the
+                inputs it had invited. */}
+            <div className="self-start">
+              <SegmentedControl<string>
+                aria-label="Expires after"
+                value={String(days)}
+                options={LIFETIMES.map((l) => ({ value: String(l.value), label: l.label }))}
+                onValueChange={(next) => setDays(Number(next) as LifetimeDays)}
+              />
+            </div>
             {/* **"Never" is not offered, and the ceiling is stated rather than
-                enforced silently.** A field that rejects 400 without having said
-                what the limit was is a field that wastes somebody's afternoon. */}
-            <Text variant="secondary" className="text-xs">
+                enforced silently.** Now it cannot be met as a refusal at all —
+                the longest choice IS the ceiling. */}
+            <Text variant="secondary" className="text-xs text-pretty">
               Every token expires — at most {API_TOKEN_MAX_LIFETIME_DAYS} days. To rotate one,
               create its replacement and then revoke this one.
             </Text>
@@ -450,7 +701,7 @@ export function TokensSection({ onNavigate }: { onNavigate?: () => void }) {
             <Button
               size="sm"
               data-testid="token-create"
-              disabled={busy || name.trim() === "" || scopes.length === 0 || !lifetimeOk}
+              disabled={busy || name.trim() === "" || scopes.length === 0 || scopedToNothing}
               onClick={() => void create()}
             >
               {busy ? "Creating…" : "Create token"}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useState } from "react";
 import type { SavedDay } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
+import { SharedDayMap } from "./SharedDayMap";
 import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { DataText } from "@/components/ui/data-text";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
+import { TabStrip } from "@/components/ui/tab-strip";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/components/lenses/formatMoney";
 import {
@@ -24,7 +26,7 @@ import {
   type ApiResult,
 } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
-import { SEASON_LABELS, seasonOfMonth, type PublicAuthor } from "@/lib/playbooks";
+import { type PublicAuthor } from "@/lib/playbooks";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockRange } from "@/lib/time";
 import { backQuery } from "./backLink";
@@ -46,25 +48,73 @@ const MONTHS = [
 ] as const;
 
 /**
- * The rail's season line: the bucket, and the month it was bucketed from.
+ * The month the day was lifted out of its source trip.
  *
- * Both halves, because Mitchell asked for both (2026-09-01: *"Kept in → Season
- * ... but also should include month the first trip it was cloned from used"*).
- * The season is what Discover filters on and the month is the fact behind it,
- * so showing only the bucket would make the filter unexplainable and showing
- * only the month would leave the two surfaces speaking different languages.
+ * **The season BUCKET is gone from this line** (M26 link 2, SPEC §33.2). It
+ * read "Fall · September 2026", and the bucket was there for one reason,
+ * written into the comment it replaces: *"the season is what Discover filters
+ * on and the month is the fact behind it, so showing only the bucket would make
+ * the filter unexplainable"*. §33.2 cut that filter, so the bucket now explains
+ * nothing — it is a classification this product no longer acts on anywhere.
  *
- * Exported and pure so the wording is asserted directly rather than through a
- * render, and so it cannot drift from `seasonOfMonth` — one lookup decides
- * which months are Fall, here and in the SQL alike.
+ * **The month stays, because it is the half Mitchell actually asked for**
+ * (2026-09-01: *"Kept in → Season ... but also should include month the first
+ * trip it was cloned from used"*). Dropping the whole fact would have taken a
+ * thing he requested along with a thing nobody used, and "Season is gone from
+ * the rail" is a statement about the word and the bucket, not about the date.
+ *
+ * Pure so the wording is asserted directly rather than through a render.
  */
-function seasonLine(createdAt: string): string {
+export function keptInLine(createdAt: string): string {
   const at = new Date(createdAt);
   if (Number.isNaN(at.getTime())) return "Not known";
-  const month = at.getUTCMonth() + 1;
-  const season = seasonOfMonth(month);
-  const monthLabel = `${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
-  return season === null ? monthLabel : `${SEASON_LABELS[season]} · ${monthLabel}`;
+  return `${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
+}
+
+/**
+ * One day of a Playbook, with what the divider above it has to say.
+ *
+ * **Walked from `dayCount`, not from the stops** — and that is the one place
+ * this build deliberately parts company with the design. The artboard derives
+ * its day list from the stops (`s.dayStart`), so an empty interior day simply
+ * does not appear: a three-day Playbook with a free middle renders "Day 1" then
+ * "Day 3" and leaves the reader to infer why. ADR-048 decision 2 says a gap
+ * **is** an empty day — a rest day somebody deliberately kept — so the build
+ * names every day, including empty interior ones and a trailing one, which no
+ * stop could ever have carried.
+ *
+ * `number` is the stop's place in the **whole Playbook**, so `All days` merges
+ * rather than concatenating: day 2 starts at 5 when day 1 held four stops
+ * (§33.1). Scoped to one day the list renumbers from 1, because the number
+ * answers "where am I in what I am looking at" and what you are looking at is
+ * one day.
+ */
+export type PlaybookDay = {
+  /** 0-based, as `SavedStop.dayIndex` is. */
+  dayIndex: number;
+  stops: readonly (SavedDay["stops"][number] & { number: number })[];
+  /** This day's own clock range, or null when nothing on it carries a time. */
+  window: { start: string; end: string } | null;
+};
+
+export function playbookDays(day: Pick<SavedDay, "stops" | "dayCount">): readonly PlaybookDay[] {
+  let running = 0;
+  return Array.from({ length: Math.max(1, day.dayCount) }, (_, dayIndex) => {
+    // A one-day Playbook's stops may carry `dayIndex: 0` or nothing meaningful;
+    // `dayCount === 1` means every stop belongs to the only day there is.
+    const own = day.dayCount > 1 ? day.stops.filter((s) => s.dayIndex === dayIndex) : [...day.stops];
+    const stops = own.map((stop) => ({ ...stop, number: ++running }));
+    return { dayIndex, stops, window: savedDayFacts(own, 1).window };
+  });
+}
+
+/** `9:45 am – 6:30 pm · 4 stops`, or what is true instead. */
+export function dayDividerLine(group: PlaybookDay): string {
+  if (group.stops.length === 0) return "Rest day";
+  const count = `${group.stops.length} stop${group.stops.length === 1 ? "" : "s"}`;
+  return group.window === null
+    ? count
+    : `${toClockRange(group.window.start, group.window.end)} · ${count}`;
 }
 
 type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor };
@@ -104,6 +154,16 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
 
   const [adding, setAdding] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
+  // §33.1: **`All days` is the default and opening any Playbook resets to it.**
+  // Keyed on `savedDayId` rather than reset in an effect: a key change
+  // re-initialises the state for free, where an effect would run after a render
+  // that had already shown the previous Playbook's Day 3.
+  const [dayScope, setDayScope] = useState<"all" | number>("all");
+  const [scopeFor, setScopeFor] = useState(savedDayId);
+  if (scopeFor !== savedDayId) {
+    setScopeFor(savedDayId);
+    setDayScope("all");
+  }
   const [busy, setBusy] = useState(false);
   // A refused publish used to clear `busy` and say nothing, so the button
   // simply did not move and the author had no way to tell a failure from a
@@ -215,6 +275,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   const { day, isAuthor, author } = feed.data;
   const facts = savedDayFacts(day.stops, day.dayCount);
   const length = dayLength(facts.window);
+  const groups = playbookDays(day);
 
   return (
     <div className="flex flex-col gap-4">
@@ -244,6 +305,19 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   leaderboard numbers. */}
               <AuthorKindBadge authorKind={day.authorKind} />
             </div>
+            {/* §33.1: **the title block always speaks for the whole Playbook**,
+                so no number below it is stated twice. This line is why the rail
+                no longer carries Days, Stops or Kept in — it owned three facts
+                the title should have. */}
+            <DataText size="xs" className="mt-1.5 block text-slate" data-testid="playbook-meta">
+              {[
+                day.dayCount > 1 ? `${day.dayCount} days` : null,
+                `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`,
+                `kept in ${keptInLine(day.createdAt)}`,
+              ]
+                .filter((part) => part !== null)
+                .join(" · ")}
+            </DataText>
             <Text variant="secondary" className="mt-1">
               Kept out of {day.sourceTripName}. Order and gaps kept, no dates — drop it into any
               trip and the times reflow around it.
@@ -291,70 +365,111 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             </Banner>
           )}
 
+          {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
+              `All days` first and default; **no tab row at all for a one-day
+              Playbook**, because a single tab is a label pretending to be a
+              control (project rule 2).
+
+              A `TabStrip` — the moss pill — and not link 2's `UnderlineTabs`.
+              The distinction is §33.2's own: an underline says "you are on a
+              different page of this thing", and these are views of ONE
+              Playbook, which is what the pill is for. The design agrees; its
+              artboard mounts `TabStrip` here. */}
+          {day.dayCount > 1 && (
+            <div className="self-start">
+              <TabStrip<string>
+                aria-label="Which day of this Playbook"
+                value={dayScope === "all" ? "all" : String(dayScope)}
+                options={[
+                  { value: "all", label: "All days" },
+                  ...groups.map((g) => ({ value: String(g.dayIndex), label: `Day ${g.dayIndex + 1}` })),
+                ]}
+                onValueChange={(value) => setDayScope(value === "all" ? "all" : Number(value))}
+              />
+            </div>
+          )}
+
+          {/* SPEC §16 — **a shared day is a map plus a list.** It was only ever
+              the list until now; `sharedDayGeometry.ts` had been written for
+              this and had no production consumer (Mitchell, preview walk,
+              2026-09-20).
+
+              It sits ABOVE the list and BELOW the day tabs on purpose: the
+              tabs scope both surfaces at once, and a reader who taps `Day 2`
+              expects the map to follow the list rather than the two to
+              disagree. `SharedDayMap` renders nothing at all when fewer than
+              two stops have coordinates — §16's degrade-to-list-only — so
+              there is no empty canvas to guard against here. */}
+          <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} />
+
           {day.stops.length === 0 ? (
             <EmptyState
               title="This day has nothing on it"
               body="Every stop has been removed since it was kept."
             />
           ) : (
-            <ol className="flex flex-col gap-2" data-testid="stop-list">
-              {/* **Walked by DAY, not by stop.** Mapping the stops and emitting a
-                  heading whenever `dayIndex` changed labelled every day that
-                  HAD one — and said nothing at all about a day that did not, so
-                  a three-day Playbook with an empty middle rendered "Day 1"
-                  then "Day 3" and left the reader to infer why. That reads as
-                  missing data, when it is the opposite: an empty day is a rest
-                  day somebody deliberately kept (ADR-048 decision 2), and this
-                  is the only surface where the concept was visible without
-                  being named. Walking `dayCount` instead names every day,
-                  including the empty ones and including a TRAILING one, which
-                  no stop could ever have carried.
-                  Numbering is the day's own index, never a running counter, so
-                  a rest day cannot renumber the days after it. */}
-              {(day.dayCount > 1
-                ? Array.from({ length: day.dayCount }, (_, i) => i)
-                : [null]
-              ).map((dayIndex) => (
-                <Fragment key={dayIndex ?? "single"}>
-                  {dayIndex !== null && (
-                    <li className="mt-2 first:mt-0">
-                      <Text as="span" className="text-xs font-semibold tracking-wide text-slate uppercase">
-                        Day {dayIndex + 1}
-                      </Text>
-                    </li>
-                  )}
-                  {dayIndex !== null && day.stops.every((s) => s.dayIndex !== dayIndex) && (
-                    <li>
-                      <Text variant="secondary" className="text-sm">
-                        Nothing planned — kept as a rest day.
-                      </Text>
-                    </li>
-                  )}
-                  {(dayIndex === null ? day.stops : day.stops.filter((s) => s.dayIndex === dayIndex)).map(
-                    (stop, index) => (
-                <Card as="li" key={index} className="flex flex-col gap-1.5 p-3">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-semibold text-ink">{stop.title}</span>
-                    {stop.timeWindow !== null && (
-                      <DataText size="xs">{toClockRange(stop.timeWindow.start, stop.timeWindow.end)}</DataText>
+            <ol className="flex flex-col gap-1" data-testid="stop-list">
+              {/* Scoped by the tab above: every day when `All days`, one day
+                  otherwise. **`All days` MERGES rather than concatenating** —
+                  one list, one running stop number — which is what the divider
+                  rows and `PlaybookDay.number` are between them for. */}
+              {(dayScope === "all" ? groups : groups.filter((g) => g.dayIndex === dayScope)).map(
+                (group) => (
+                  <Fragment key={group.dayIndex}>
+                    {/* A divider only in the rollup: scoped to one day the tab
+                        already names it, and repeating that under it is project
+                        rule 4. A one-day Playbook has neither. */}
+                    {dayScope === "all" && day.dayCount > 1 && (
+                      <li className="flex items-center gap-3 pt-3.5 pb-1 first:pt-0">
+                        <Text as="span" className="font-display font-semibold text-ink">
+                          Day {group.dayIndex + 1}
+                        </Text>
+                        <DataText size="xs" className="text-slate" data-testid="day-divider-line">
+                          {dayDividerLine(group)}
+                        </DataText>
+                        <span aria-hidden className="h-px flex-1 bg-hairline" />
+                      </li>
                     )}
-                  </div>
-                  {stop.location?.city !== undefined && (
-                    <span className="w-fit rounded-full bg-moss px-2.5 py-0.5 text-xs font-semibold text-slate">
-                      {stop.location.city}
-                    </span>
-                  )}
-                  {stop.notes !== null && stop.notes !== "" && (
-                    <Text variant="secondary">{stop.notes}</Text>
-                  )}
-                  {stop.cost !== null && (
-                    <DataText size="xs">{formatMoney(stop.cost.amountMinor, stop.cost.currency)}</DataText>
-                  )}
-                </Card>
-                    ),
-                  )}
-                </Fragment>
-              ))}
+                    {group.stops.length === 0 && (
+                      <li>
+                        <Text variant="secondary" className="text-sm">
+                          Nothing planned — kept as a rest day.
+                        </Text>
+                      </li>
+                    )}
+                    {group.stops.map((stop) => (
+                      <Card as="li" key={`${group.dayIndex}:${stop.number}`} className="flex flex-col gap-1.5 p-3">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="flex min-w-0 items-baseline gap-2">
+                            {/* §33.1's continuous numbering, and the design's
+                                own 24px pin. Scoped to one day it restarts at
+                                1 — see `playbookDays`. */}
+                            <DataText size="xs" className="text-slate" data-testid="stop-number">
+                              {dayScope === "all"
+                                ? stop.number
+                                : group.stops.indexOf(stop) + 1}
+                            </DataText>
+                            <span className="font-semibold text-ink">{stop.title}</span>
+                          </span>
+                          {stop.timeWindow !== null && (
+                            <DataText size="xs">{toClockRange(stop.timeWindow.start, stop.timeWindow.end)}</DataText>
+                          )}
+                        </div>
+                        {stop.location?.city !== undefined && (
+                          <span className="w-fit rounded-full bg-moss px-2.5 py-0.5 text-xs font-semibold text-slate">
+                            {stop.location.city}
+                          </span>
+                        )}
+                        {stop.notes !== null && stop.notes !== "" && (
+                          <Text variant="secondary" className="text-sm">
+                            {stop.notes}
+                          </Text>
+                        )}
+                      </Card>
+                    ))}
+                  </Fragment>
+                ),
+              )}
             </ol>
           )}
         </div>
@@ -362,31 +477,31 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
         {/* The sticky rail: the facts, and the one action. */}
         <aside className="lg:w-72 lg:shrink-0">
           <Card raised className="flex flex-col gap-3 p-4 lg:sticky lg:top-6" data-testid="day-facts">
-            {/* **The day count, first** (M23 link 4). This route is one of the
-                surfaces the milestone names: it has to say how many days it is
-                about to move, and it said nothing at all until a walk of the
-                preview caught it. Shown only above one day — "Days 1" on every
-                single-day Playbook is noise that teaches a reader to skip the
-                rail. */}
-            {day.dayCount > 1 && <Fact label="Days" value={String(day.dayCount)} />}
-            <Fact label="Stops" value={String(facts.stopCount)} />
-            {/* **Three states, not two.** `facts.window` is null for two
-                genuinely different reasons and this row used to render both as
-                "No times set" — which on a three-day Playbook whose every stop
-                shows a time is not merely unhelpful, it is false. A sequence
-                HAS no single clock window (ADR-048 decision 4), so it says so;
-                a one-day Playbook whose stops carry no times still says what it
-                always said. */}
-            <Fact
-              label="Window"
-              value={
-                facts.window !== null
-                  ? toClockRange(facts.window.start, facts.window.end)
-                  : day.dayCount > 1
-                    ? "Spans several days"
-                    : "No times set"
-              }
-            />
+            {/* **Days and Stops left this rail** (M26 link 3, §33.1): the
+                title block states both for the whole Playbook, and stating them
+                twice on one screen is project rule 4. M23 link 4's requirement
+                — that this route say how many days it is about to move — is
+                met by that line rather than dropped. */}
+            {/* **Window, and only on a one-day Playbook.**
+                `facts.window` is null for two genuinely different reasons and
+                this row used to render both as "No times set" — which on a
+                three-day Playbook whose every stop shows a time is not merely
+                unhelpful, it is false. A sequence HAS no single clock window
+                (ADR-048 decision 4), so it said "Spans several days".
+
+                §33.1 asks for the window to leave this rail, and for a
+                multi-day Playbook that is a clear improvement: the per-day
+                dividers now carry each day's real range, which "Spans several
+                days" never did. For a ONE-day Playbook there is no tab row and
+                no divider, so this row is the only place the range appears —
+                removing it there would delete a fact rather than de-duplicate
+                one. So it renders exactly where nothing else says it. */}
+            {day.dayCount === 1 && (
+              <Fact
+                label="Window"
+                value={facts.window !== null ? toClockRange(facts.window.start, facts.window.end) : "No times set"}
+              />
+            )}
             {/* Length, as its OWN row rather than appended to the Window value
                 (Mitchell, 2026-09-01: "also add length, with a tag short medium
                 long if the duration is <4h, 4-12h, 12h+" — said with the Window
@@ -432,12 +547,11 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   : formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)
               }
             />
-            {/* Season, over the month the day was lifted out of its source
-                trip. `stopsForDay` drops a day's calendar date on purpose
-                (ADR-029), so `created_at` is the only month a saved day
-                carries — the label no longer claims otherwise, and Discover's
-                filter buckets the same month through the same lookup. */}
-            <Fact label="Season" value={seasonLine(day.createdAt)} />
+            {/* **Kept in left this rail too** — it is the third part of the
+                title block's line (`3 days · 12 stops · kept in August 2026`).
+                `keptInLine` still owns the wording; only the mount point moved.
+                The season bucket that used to lead it went with Discover's
+                season filter (M26 link 2). */}
             <Fact label="Added to" value={`${day.adds} trip${day.adds === 1 ? "" : "s"}`} />
 
             <Button
@@ -448,7 +562,10 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 setAdding(true);
               }}
             >
-              Add to a trip
+              {/* §33.1: **`Add all N days to a trip`** — the count only
+                  surfaced inside the dialog before, so the button that moves
+                  three days said the same thing as the one that moves one. */}
+              {day.dayCount > 1 ? `Add all ${day.dayCount} days to a trip` : "Add to a trip"}
             </Button>
 
             {/* Delete, owner-only (Mitchell, 2026-09-01: "add a button to

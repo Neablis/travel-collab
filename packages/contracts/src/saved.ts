@@ -322,3 +322,18 @@ export const CreateSavedDayInput = z.object({
   dayIds: z.array(z.string().uuid()).min(1).max(366),
 });
 export type CreateSavedDayInput = z.infer<typeof CreateSavedDayInput>;
+
+/**
+ * **How many located stops a saved day needs before a map beats the list.**
+ *
+ * SPEC §16: below two, a canvas adds nothing the list does not already say —
+ * one pin is an illustration of a single address, and zero is a blank square.
+ *
+ * It lives HERE, rather than beside `worthDrawing` in `apps/web`, because two
+ * packages have to agree on it and one of them cannot import the other.
+ * `packages/fixtures` asserts that the seeded Playbook library contains a day
+ * that actually draws; with a private copy of this number that assertion went
+ * green whenever the app's copy moved out from under it, which is exactly the
+ * drift it exists to catch (CodeRabbit, PR #196).
+ */
+export const MIN_POINTS_TO_DRAW = 2;

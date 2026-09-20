@@ -81,7 +81,7 @@ describe("nothing on the export or import path asks what somebody paid", () => {
     // The download is a link to the endpoint, and the upload is this component
     // — on Home once there are trips, on the first-run card before that.
     expect(sheet).toMatch(/\/api\/v1\/trips\/\$\{tripId\}\/export/);
-    expect(sheet).toMatch(/Download as a file/);
+    expect(sheet).toMatch(/Download Trip/);
     expect(home).toMatch(/ImportTripButton/);
     expect(firstRun).toMatch(/ImportTripButton/);
   });

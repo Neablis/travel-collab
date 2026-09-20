@@ -1,8 +1,15 @@
 # M26 — The build looks like the design again
 
-**Status: SCOPED 2026-09-19. Not placed — placement is Mitchell's decision and is
-not made here.** The number M26 was assigned in this session; it had no row, no
-file and no number before today.
+**Status: IN PROGRESS. Scoped 2026-09-19, PLACED AND STARTED 2026-09-19 by
+Mitchell ("start the big design milestone we just created"), which is the
+decision this file was waiting on.** It runs **ahead of M13**, on the argument
+already written under *Prerequisites* below: M13 adds a second actor to surfaces
+this milestone is about to rebuild, and rebuilding them twice is the cost of the
+other order. M13 is unblocked by this and stays next. The number M26 was
+assigned on 2026-09-19; it had no row, no file and no number before that day.
+
+**Link 0 (the preflight) is done** — see the first box of the Wave 1 gate. Wave 1
+link 1 is the next work.
 
 **Read this file in halves.** *Wave 1* is the desktop and shared surfaces. *Wave 2*
 is **the phone as a surface** — the milestone `docs/guidelines/design-system.md`
@@ -106,6 +113,29 @@ rail). **Extend `scripts/check-color-wall.mjs` to fail on a `--color-*` /
 `bg-*` / `text-*` name that `globals.css` does not define**, before the links
 that would exercise the hole.
 
+**What link 0 actually found, 2026-09-19.** Recorded here because it changes what
+a later link can assume, not as a progress note:
+
+- **The token wall found two live defects on its first run**, in code no link had
+  reached yet: `bg-canvas` three times in `access/SharedTripScreen.tsx` — the
+  page ground of the screen a non-member sees on a share link, rendering as
+  nothing — and `ring-primary` on the selected-widget ring in
+  `pages/editor/MacroNodeView.tsx`, shadcn's default colour this app never
+  defined. Both fixed in the same change. **The hole was wider than
+  `KI-2026-09-19-g` estimated**: it costed the risk against *new* token
+  vocabulary, and these were already shipped.
+- **The design file has no artboards, only route gates.** A screen is a
+  `<sc-if value="{{ isAdminRoute }}">` block reached by driving `startScreen`
+  and the nav — so "find the artboard" is a lookup in the generated table, not a
+  heading search. Every link below should use it rather than grepping.
+- **`/demo` and `/s/[token]` have no artboard of their own on purpose** (SPEC
+  §27: read-only is a mode over the trip surface, not a separate route). The
+  build has separate screen components for both. Nobody should invent a demo
+  artboard; this is now recorded in the route table itself.
+- **`/account` is the only mapped route the build does not have.** That is link
+  1, and the route table's test asserts it is the *only* one — so a second gap
+  appearing is a failure rather than a discovery.
+
 ---
 
 # WAVE 1 — desktop and shared surfaces
@@ -201,17 +231,72 @@ late-resolving-clipboard fix the design does not have). What is missing:
 **1e. Plans' back link** points at `/account?tab=plan`. It has none today —
 `PlansScreen.tsx:437` says *"Back to your trips"*.
 
-**Two things to settle before writing code, not after.**
+**Two things to settle before writing code, not after. BOTH ARE NOW SETTLED —
+2026-09-19, when link 1 opened.**
 
-- **Sign out.** SPEC §12 put it only in the popover on rule-4 grounds; §34.4
-  says *"Sign out sits below [the tabs]"*. But the design's **desktop**
-  `/account` has no sign-out — only the **phone** screen does. Pick one and
-  record it.
-- **An account-level currency.** `KI-2026-09-17-a`'s fix sketch proposes a
-  *Preferences* tab including currency; §34.4's three tabs do not have one, and
-  currency is per-trip today (`SetTripCurrency`). The design is newer and wins on
-  the tab list, but it never answered the currency question. **Answer it or
-  record it as unanswered** — do not carry it in silently.
+- **Sign out — DECIDED: the popover only on desktop; the phone account screen
+  carries its own.** So **`/account` has no Sign out**, and this is not an
+  omission. Three things agree and the fourth was a misreading: SPEC §12 put it
+  in the popover alone *"on rule-4 grounds"*; the design's **desktop** `/account`
+  artboard has no sign-out anywhere in it (checked — `isAccountRoute`, no match);
+  and §34.4's *"Sign out sits below [the tabs]"* sits in a paragraph whose
+  subject is **the phone account screen**, which needs one because §34.3 makes
+  it a task screen the tab bar steps aside for, with no avatar popover to hold
+  it. Putting it in both is project rule 4 twice on one account. Wave 2 link 11
+  builds the phone half; it is the only place this decision adds a control.
+- **An account-level currency — DECIDED: no, and not deferred.** Currency stays
+  **per trip** (`SetTripCurrency`, and `TripMoneySettings` is where it is set).
+  `KI-2026-09-17-a`'s sketch proposed a *Preferences* tab holding it; §34.4's
+  three tabs, which are newer, do not have one. The tab list is not the real
+  argument though — this is: **every other Profile field is a property of the
+  reader and has no per-trip counterpart.** Distance units, home airport and
+  the name are true of you wherever you are. A currency is a property of *where
+  the trip happens*, and a trip already carries one. An account-level default
+  would therefore not replace the per-trip value, it would sit above it and owe
+  a precedence rule — "use the trip's, unless" — which nothing in the product
+  has asked for and which no artboard draws. **If it is ever wanted, it is a
+  new field with an override rule, not a move of the existing one.**
+  `KI-2026-09-17-a` is closed by this link on its account-settings complaint;
+  the currency line in its fix sketch is answered here rather than inherited.
+
+**And what link 1 does NOT build, written down before the code (the guideline's
+step 3).** The Profile artboard draws a second Display row — **Home time on
+hover** — and this link does not build it. It is not a styling gap: it needs a
+timezone for the home airport and a `trip.tz` to compare against, and the app
+has neither. That box was amended out of **M17's** exit gate on 2026-09-01 for
+exactly this reason. It stays where it is — a placed item blocked on data, not
+an M26 omission — and the tab ships with the one Display row the build can
+honestly render. The design is ahead here, not the build behind.
+
+**Link 1 landed 2026-09-19.** What it changed beyond the obvious, for whoever
+opens link 2:
+
+- **The underline tab primitive exists** — `ui/underline-tabs.tsx`, built here
+  and meant to be *consumed* by link 2 rather than rebuilt. It is §33.2's
+  treatment exactly: 2px `--color-brand` edge, `--color-ink` active against
+  `--color-slate` idle, on a `--color-hairline` base line. It takes
+  `value`/`onValueChange` and knows nothing about routers, because Account puts
+  the tab in `?tab=` and Discover will put it somewhere of its own. It also
+  carries arrow-key movement and a roving tabindex, which `TabStrip` does not —
+  that is a gap in `TabStrip`, not a precedent to copy.
+- **`ui/settings-card.tsx` is §34.5's card and row**, and §34.5 says the same
+  rules govern whatever Account grows next, so it is a primitive rather than
+  markup. **Widths are spacing multiples** — `w-42.5` is 170px, `max-w-145` is
+  580px — because the artboard's own `grid-cols-[170px_minmax(0,1fr)]` is an
+  arbitrary Tailwind value the colour wall rejects. Expect the same friction
+  anywhere an artboard hands you a pixel value.
+- **A real bug was found and fixed on the way**: `TokensSection` read
+  `plan.billing.state` unguarded, so a plan body without `billing` threw, hit
+  the catch, and rendered "your API tokens could not be loaded" — the whole
+  section lost to a field that decides one sentence of gate copy. Its own test
+  fixture had been omitting `billing` while every real response carries it,
+  which is why no test could have caught it. **Check what a fixture leaves out,
+  not only what it sets.**
+- **Two decisions were settled and written down** (sign out, account currency)
+  and one scope line was written down *before* the code: Home time on hover is
+  not built, because it needs a timezone and a `trip.tz` the app does not have.
+
+---
 
 ## Link 2 — Discover is re-sorted by kind of decision (§33.2)
 
@@ -312,6 +397,42 @@ previous day's line on screen.
 Reuse `MapLens.tsx`'s mount discipline, and transcribe these four constraints
 into the code as comments. Each is cheaper to read than to rediscover.
 
+**Link 4 is PART DONE as of 2026-09-19, and the half that is done is the half
+that can be decided without a browser.**
+
+**Done: `sharedDayGeometry.ts`, with 18 tests.** It owns the three rules that
+have historically been got wrong, and each is now impossible rather than merely
+avoided:
+
+- **`All days` merges by concatenating per-day results**, never by one pass over
+  all the stops. That is what makes "no leg across a night" structural: a single
+  pass joins the last located stop of day 1 to the first of day 2, and the
+  resulting line looks exactly like every other leg. Proven by writing that
+  defect and watching four tests go red.
+- **The cache key includes the scope.** Without it, switching from `All days` to
+  `Day 2` leaves the previous line on screen — the points are a subset, so
+  nothing looks changed.
+- **`worthDrawing` is the degrade rule** — below two located stops the surface is
+  list-only rather than an empty canvas (§16).
+
+Two decisions inside it worth knowing before building the rendering: pin numbers
+follow the **list**, so an unlocated stop leaves a gap in the pin numbers rather
+than shifting them (a pin 4 beside a list row 5 is worse than a missing 4); and
+a leg that steps over an unlocated stop is marked `contiguous: false`, because
+it is a guess about a route that skipped something rather than a leg somebody
+took.
+
+**Not done: the rendering, and it cannot be finished to this gate's standard
+without a browser.** What remains is the `SharedDayMap` component itself —
+transcribing `MapLens.tsx`'s mount discipline (the four constraints above are
+each a bug already hit) and the 3.5s / 7.5s / 11s per-instance recovery ladder,
+which **does not exist anywhere in the build yet**: no `3500`/`7500`/`11000`
+appears in `apps/web/src`, so it is new work rather than a copy. The gate asks
+for that ladder to be **proven by forcing it**, which is a browser walk, so this
+link stays open on purpose rather than being marked done from inspection.
+
+---
+
 ## Link 5 — The Map lens's day rail
 
 **5a. The hover-to-detail card, and the decision it needs first.**
@@ -356,21 +477,77 @@ the longest hop). It is roughly 60% reusable.
 **5b. The rail row itself.** Text in the day's accent ink, not `text-ink` and
 `text-slate` (`:341`, `:359`); label and date at `baseline gap-8` rather than
 pushed to opposite ends of 268px (`:339`); **the month only at the first day and
-at month boundaries** — `DayChips` already implements `monthEdge`, so the two
-rails currently disagree **inside the build**; bars one per **leg** rather than
+at month boundaries** — ~~`DayChips` already implements `monthEdge`, so the two
+rails currently disagree **inside the build**~~; bars one per **leg** rather than
 one per stop, with the phantom first bar removed.
 
-**5c. Two derivations, one of them blocked.** `longest` — the longest leg and
-its endpoints — is pure derivation from coordinates and titles already on
-`MapStop`, and it feeds the hover note, the rail flag and the shared-day map.
-**`N min moving` and the walk-vs-ride split are blocked** on per-leg transport
-mode, which is `map-legend-modes` → `unplaced` in `preview-registry.ts`.
-`routeLegs()` splits on `kind === "transit"` as a coarser proxy that exists
-today; **ask before using it**, because shipping "on foot" over a proxy is a
-claim the data does not make.
+> **Correction, 2026-09-20, on building it.** *"`DayChips` already implements
+> `monthEdge`"* is **false**, and the disagreement it describes never existed.
+> `DayChips` renders `dow` and `dateNum` — a weekday and a day-of-month number —
+> and prints **no month at all**, on any row; `grep -rn monthEdge` over the whole
+> tree returns nothing. Two surfaces cannot disagree about a month only one of
+> them has ever shown.
+>
+> So this was a fresh implementation rather than a reuse: `monthEdges()` in
+> `mapRailData.ts`, deciding from each row's ISO `YYYY-MM` prefix — never a
+> parsed `Date`, which can drift a day across a timezone — with non-boundary
+> rows taking a new `formatTripDateNoMonth`. Recorded here rather than fixed
+> silently, because left standing this line sends the next reader looking for a
+> function that does not exist, and the danger then is that they find something
+> plausible and reuse the wrong thing.
+
+**5c. Two derivations, and the second is NOT blocked — the design answers it.**
+`longest` — the longest leg and its endpoints — is pure derivation from
+coordinates and titles already on `MapStop`, and it feeds the hover note, the
+rail flag and the shared-day map.
+
+**`N min moving` and the walk-vs-ride split were recorded here as blocked on
+per-leg transport mode, with an instruction to ASK before using
+`routeLegs()`'s `kind === "transit"` proxy. That question is closed, and it was
+closed all along.** The design file derives the same split without any such
+field (`Trip Planner Redesign.dc.html:7497`):
+
+```js
+const ride = km > 1.6 || pts[j].transit || pts[j + 1].transit;
+```
+
+**Distance is the primary discriminator and the transit flag is a modifier.**
+Over 1.6 km between two stops is a ride; under it is a walk. So "on foot" is
+not a claim over a proxy for a field that does not exist — it is a claim about
+DISTANCE, which the coordinates already state, and the design makes it in
+exactly those terms. `map-legend-modes` stays `unplaced` because the LEGEND
+names modes per leg; the walk-vs-ride *split* needs no such thing.
+
+**This was carried as "waiting on Mitchell" through the whole milestone and
+should not have been.** The answer was in the file the milestone is built from,
+at a line the route→artboard index points straight at. Found 2026-09-20 by
+finally doing that walk. The lesson is the cheap one: a question about what the
+design wants is answerable by reading the design, and parking it on a person is
+only correct once you have looked.
 
 **5d. Clicking a rail day scrolls the rail** the way `railTo` does — 14% from
 the top, under a 700ms lock. Today `onClick` only sets focus.
+
+**5e. The map PANEL is the unbuilt half of link 4, and it is mostly text.**
+Found 2026-09-20 by the route→artboard walk. `dc.html:2677` (`isDay`) draws a
+title (`day.mapTitle`), up to three fact rows (`day.mapFacts`), a shape note
+(`day.mapNote`) and a per-gap label between stops in the LIST
+(`gaps[idx].label`). `SharedDayMap` builds the canvas and nothing else, so even
+with coordinates the page shows a map and no prose — which is what *"the
+Playbooks look the same"* was actually about.
+
+The derivations are `dc.html:7495-7527` and the thresholds there are decisions,
+not arithmetic: `km > 1.6` → ride, `wander < 1.5 / < 2.6` → which note,
+`transitShare > 0.8 && rideMins > 90` → the transit note.
+
+**Reuse, as a constraint (Mitchell, 2026-09-20):** `lib/geo.ts`'s
+`haversineKm`, `lib/units.ts`'s `kmLabel` (already unit-aware; copy
+`MapHoverCard`/`MapDayStrip`'s idiom), `mapRailData.ts`'s `longestLeg` and
+`routeLegs` — the trip Map lens derives these already — and
+`SharedDayScreen`'s existing page and rail. The panel is a block inside that
+page, not a new page. `sharedDayGeometry.ts` is the one honest gap: it has
+points, legs and `contiguous`, and no distances. Full brief in `docs/STATUS.md`
+under **NEXT SESSION**.
 
 ## Link 6 — Trip lifecycle, and one verb with two homes
 
@@ -389,10 +566,78 @@ with you offers *Leave this trip* instead. Needs a `LeaveTrip` verb and `myRole`
 on the trip-list projection. **This fixes 6a's mis-gate on the way past, so land
 them together.**
 
+**6a AND 6b ARE DONE, 2026-09-20, and the verb is not an event.** The milestone
+said "a `LeaveTrip` verb"; the verb is real and the event is not, because
+membership is not in the planning log. Access is CRUD (ADR-003, AGENTS.md
+invariant 1) — `trip_memberships` rows are the Access module's, `TripCreated` is
+the only thing that mints an owner, and inventing a planning event to carry a
+membership change is the boundary smell. So no contract type moved, no reducer
+case was added and `MINIMUM_ROLE` is untouched: `DELETE /api/trips/{id}/membership`
+calls the `removeMember` that KI-65 already built, whose owner rule already
+existed. `members.ts` had even written down what was missing — *"an owner-only
+endpoint cannot express it, and self-removal for a guest is a product surface,
+not a permission tweak"* — and this is that product surface.
+
+**A route of its own rather than widening `DELETE .../members/[userId]`.** That
+endpoint asks "are you this trip's owner"; this one asks "is the person you are
+removing you". One handler answering both decides per request which rule
+applies, which is how the looser rule eventually leaks onto the stricter path.
+And it cannot share the response: the sibling answers with the trip's
+`TripAccess`, which would hand a non-member the member list one request after
+taking their access away.
+
+**`myRole` on the trip-list projection was not needed.** `TripSummary` already
+carries `members` and `TripMember` carries `role`, so the answer was on the
+wire; `viewerOwnsTrip` (`lib/tripRole.ts`) is the UI's own comparison, because
+the lint wall bars importing `server/accessPolicy`'s `memberRole`. It answers
+`false` while the session probe is in flight — the milder verb is the safe side
+to be wrong on.
+
+**Leaving raises no undo toast, where Delete does.** That is the difference
+between the verbs. §27's toast exists because deleting is destructive and
+`RestoreTrip` puts the trip back; leaving destroys nothing, and no verb puts you
+back on somebody else's trip — only its owner can re-invite you. An Undo there
+could not keep its promise.
+
+**6a took the confirm dialog with the buttons**, and it was arguing against
+itself: *"You can undo this from the toast that follows"* is a modal explaining
+that the action it guards is reversible, which is §27's own reason for having
+no modal. `TripHeader`'s delete toast and `undoDelete` went too — Home's toast,
+one level up, has always been there and is now the only one. A15-fix's
+`applyOutcome` reconciliation is not lost, only out of reach: nothing on that
+screen can delete the trip any more, so no window opens for `trip.status` to go
+stale.
+
+Four tests asserting the opposite were REPLACED rather than deleted, in both
+files: "Delete is gone" is a claim worth holding, or a later tidy-up restores it
+for one role and nothing says so. `m11-clone.spec.ts` now duplicates from Home's
+card menu, which is where the verb lives.
+
 **6c. Duplicate clears dates and travellers** (§27 — *"a copy is a starting
 point, not a commitment"*). `cloneTrip.ts:83` carries every field but the name.
 **Check with Mitchell first**: `cloneSharedTrip` and `cloneDemoTrip` share
 `cloneFrom`, and clearing dates may not be wanted for *"Make this trip mine"*.
+
+**6c is DONE, 2026-09-20, and the check answered itself.** The worry was
+right, so `cloneFrom` takes `clearDates` and only `duplicateTrip` passes it.
+*"Make this trip mine"* from `/demo` is somebody's FIRST trip and a demo
+stripped of its dates on the way in is a worse example than one that keeps
+them; *"Make this my trip"* from a share link is a copy of a particular state
+its holder chose to take, and the dates are part of what they saw. §27's
+sentence is about Duplicate, and only Duplicate.
+
+**Travellers needed no code, and that is asserted rather than assumed.**
+`diff.ts` does not diff `members` (*"tripId and members never differ between
+two states of one trip"*), so a copy's membership is whatever `CreateTrip`
+gave it — the cloner, as owner. The test asserts it anyway, so the day
+membership becomes diffable this half of §27 fails loudly instead of
+silently regressing.
+
+**The days stay and only their anchor goes.** The shape of the trip is what
+was worth copying, and an undated day is an ordinary state here (`startDate`
+is what gives days their dates). Seen to fail three ways: `clearDates: false`
+on Duplicate, the default flipped to `true` (which clears the share clone's
+dates), and clearing `days` alongside `startDate` — four red.
 
 **6d. Download gets its section and its second sentence** — a *Take it with you*
 heading and *history does not travel*. The fact is in a code comment and has
@@ -495,6 +740,26 @@ What is left here is four things.
   The paid half — a live composer continuing in the trip's context — is **M9's**
   and stays shelled. Today the build has only `phase: "asking" | "made"` and no
   entitlement read, and its closing turn is honest about it.
+
+  **DONE 2026-09-20.** Three things a later reader should not re-derive:
+  **The fork moved to after the fifth ANSWER**, where the shell rendered on the
+  fifth QUESTION — §30.3 says *"After the fifth answer the flow splits"*, and
+  the old placement put a claim about the trip on screen before there was one.
+  **`null` takes the PAID branch.** `useAiEntitled` returns `null` both while
+  unknown and on a failed read, and its own note requires every caller to treat
+  that as entitled: flashing a paywall at a subscriber is a worse failure than
+  one optimistic frame, and here that frame is a `Preview`, which promises
+  nothing. The dock needed no change at all — it already renders only while
+  `phase === "asking"`, so §31.3's *"no teaser, no disabled input"* was already
+  true and is now asserted.
+  **It surfaced a real defect in `useAiEntitled`.** Mounting the hook on a
+  second screen produced FIVE unhandled rejections in a run that still reported
+  every test passing: `body.plan.entitlements` on a 200 whose body was anything
+  else threw inside the caller's `.then`, breaking the no-helper-ever-rejects
+  invariant the file claims in its own header. Fixed at the source, with the
+  hook's first test file — five 200s a real deployment can serve (an auth
+  redirect to HTML, an envelope with no key, a null plan) each resolving to
+  `null` instead of rejecting.
 - **D13's remaining half, and a dialog that argues against itself.** Home is
   already right — the two-verb popover, the optimistic delete, the single-action
   undo toast and `RestoreTrip` are all built and quote §27 in place. The
@@ -509,6 +774,17 @@ What is left here is four things.
   the empty state never says **what a trip file is**, which §34.2 puts precisely
   there, and the refusal renders as a `Text role="alert"` rather than the
   design's `Banner`.
+
+  **Both DONE 2026-09-20.** The sentence is the artboard's own
+  (`dc.html:1530`), and *"or from another account"* is its load-bearing half:
+  a download is portable, and without saying so the control reads as a backup
+  of your own trips, which is the narrower and less useful thing.
+  The `Banner` keeps `role="alert"`, overriding the primitive's default
+  `role="status"` — a refusal that lands after the reader has chosen a file and
+  looked away from the button is worth interrupting for, and that override is
+  behaviour rather than decoration, so a test holds it. The banner's LOOK is
+  not asserted: class assertions live in `components/ui/**` by the lint wall's
+  rule and the colour wall owns the rest.
 - **D6 / KI-034 — the next-trip hero**, and the survey narrowed it usefully.
   `TripSummary` carries no start date, so `nextTrip` is `visibleTrips[0]` and
   **the selection can surface the wrong trip**. But `NextTripHero` already
@@ -516,6 +792,29 @@ What is left here is four things.
   blocked — only the choice of trip is.** In scope here only if Mitchell wants
   the contract field; otherwise the countdown ships and KI-034 keeps the
   selection.
+
+  **The countdown SHIPPED 2026-09-20; KI-034 keeps the selection**, which is
+  the "otherwise" branch and needed no decision. `relativeCalendarDays` is the
+  artboard's `relDays` kept to its five cases and its exact words, and the two
+  backward ones are the point rather than completeness: with nothing to sort
+  by the hero can land on a trip that has already gone, so it says *"12 days
+  ago"* as readily as *"in 47 days"*. A countdown that only counted down would
+  print nothing, or a negative, in exactly the case D6 warns about.
+  **One overclaim corrected in passing.** The first version of its note said
+  UTC arithmetic was needed because a local-time subtraction "rounds to the
+  wrong day roughly twice a year" across DST. That is false — `Math.round`
+  absorbs an hour over a span of days, and the DST test was watched to PASS
+  against a deliberately local-time implementation. The note now says what UTC
+  actually buys: an exact subtraction rather than one rescued by the rounding.
+
+**D11 is closed and DRIFT has not caught up. RESYNCED 2026-09-20** — `DRIFT.md`
+§3 now lists the registry's real SIX entries (it said 11), D11 is marked closed
+with the opposite resolution to the one it asked for (Mitchell placed the
+shells rather than dropping them), *Suggested order* items 1 and 3 are struck,
+and D6 is half-closed with the countdown built and the selection left to
+KI-034. The line §3 used to end on — that `wizard-longer-chip` was "the only
+entry here that is purely unbuilt UI" — is gone, because that shell shipped;
+all six remaining entries are blocked on a missing contract field or on M9.
 
 **D11 is closed and DRIFT has not caught up.** Its two *"honestly orphaned"*
 wizard shells were resolved by decisions D-A and D-B on 2026-09-16:
@@ -546,86 +845,421 @@ route there is nothing in the tree to hide — **and it stops being sound the
 moment this link gives the assistant a position worth losing.** Build the hide
 in the same change, or the rule becomes a landmine with a note on it.
 
+**LINK 10 IS DONE, 2026-09-20, and it landed all three parts together.** What a
+later reader should not have to re-derive:
+
+**The choice is per surface and per device**, in `localStorage`. Not the account
+preferences API: a 27" monitor has room to dock where a laptop does not, and an
+account-wide setting would have to be changed back on every machine. Not one
+global key either — that would make docking the board silently change the
+notebook.
+
+**Only the board offers it.** §9's own table says docked costs *"real — a flex
+sibling, so the plan shrinks instead of hiding"*, and `PageScreen` is a centred
+measure inside `PageContainer`: docking there takes 356px off the column that IS
+the reading experience, which is why Mitchell asked for floating there by name.
+`PageScreen` withholds `onShapeChange` so the rail draws no control it cannot
+honour. Recorded in `DRIFT.md` for the design side to accept or push back on.
+
+**§29 was delivered by outliving the unmount, not by hiding the element** —
+there is nothing in `/plans`'s tree to hide. The thread already survived
+(`persistAs`), the shape survives, the position now survives. **The open/closed
+state deliberately does NOT**, and that is the one shortfall, traded openly:
+`TripBoardScreen` documents that `useState(false)` with no restore is exactly
+what makes the `useIsPhone` presentation swap safe at first paint, and restoring
+it would flash a 356px docked rail on a phone to save one click.
+
+**Two clamp details worth keeping.** The upper bound is itself clamped, because
+on a viewport narrower than the panel plus two pads `width - panel - pad` falls
+below `pad` and a naive clamp pins the panel off the LEFT edge, header and Hide
+button gone. And no position is adopted until a drag gives one — until then
+`.assistant-float`'s `right`/`bottom` hold §9's planted corner through a resize
+with no JavaScript running at all.
+
+**Three tests were caught asserting nothing** and replaced, each found by rule 3
+rather than by review: the docked-drag test asserted a style a docked panel
+never carries; the two-surfaces test rerendered a hook whose state was already
+right in memory; and a `typeof`/`Number.isFinite` pair meant deleting either
+guard left the suite green. The redundant guard is gone.
+
 ---
+
+## The walk (2026-09-20)
+
+Every `[walk]` box below now says what was driven rather than that nothing was.
+The method, so nobody re-derives it: the PR's own Vercel preview, in headless
+Chromium, signed in as a dev user, with `VERCEL_AUTOMATION_BYPASS_SECRET` sent
+as `x-vercel-protection-bypass` on **preview-origin requests only**.
+`docs/guidelines/cloud-agent-sessions.md` is the whole recipe and
+`apps/web/scripts/walk-preview.mjs` is its executable half — the SPKI-pinned
+gateway CAs and the `--ssl-version-max=tls1.2` cap are both load-bearing and
+neither is a TLS relaxation. Viewports: 1440x1000–1100 for desktop, 411x852 for
+the phone, which is the census's.
+
+**Three boxes were failed by looking**, and all three were invisible to every
+green test in this milestone:
+
+1. **No shared day drew a map at all** — and the component was right. The
+   seeded library carried no coordinates, anywhere. `KI-2026-09-20-d`.
+2. **Discover's results sentence had no `·`** — the one character that makes
+   `10 shared days · Most added ▾` a sentence instead of two controls.
+3. **The phone Account clipped the email** — §34.5's 170px label column is a
+   desktop rule and was applied at every width.
+
+**Two boxes turned out not to be walkable at all on this data**, which is worth
+as much as a pass: the *Chosen trips* token box needs a `premium` account and
+every account here resolves to less, and the free-account fork needs an account
+without `ai.ask` and every account here has it — by grant or by trial. Each box
+carries the evidence.
 
 ## Wave 1 exit gate
 
 Per link 0's sixth aid, boxes a person can fail **by looking at the screen** are
 marked **[walk]** and are not satisfiable by a green test.
 
-- [ ] Link 0 shipped: the guideline, the route→artboard index, the generated
+- [x] Link 0 shipped: the guideline, the route→artboard index, the generated
       `SPEC.md` section index with a test that it matches the headings, the
       design-ids-are-not-domain-ids line, and the extended colour wall.
-      **`KI-2026-09-14-c` moves to `resolved/` in the same PR.**
-- [ ] **[walk]** `/account` is a route with three tabs; each tab is a URL a
+      **`KI-2026-09-14-c` moves to `resolved/` in the same PR.** Done
+      2026-09-19 — `docs/guidelines/building-from-the-design.md`,
+      `scripts/route-artboard-index.mjs`, `scripts/spec-section-index.mjs` and
+      the token wall inside `scripts/check-color-wall.mjs`, each with a test.
+      Both KIs moved to `resolved/` (`KI-2026-09-14-c`, `KI-2026-09-19-g`).
+      **Two of the five aids were built generated-plus-tested rather than
+      hand-written**, because a hand-written route table is stale the next time
+      the design side rewrites its README in place, which it does every pass.
+- [x] **[walk]** `/account` is a route with three tabs; each tab is a URL a
       browser back button walks; `PlanSection` and `TokensSection` render inside
       it unchanged; no `PLAN` or `API TOKENS` rule is repeated under the tab
       that already says it. `KI-2026-09-17-a` moves to `resolved/`.
-- [ ] **All seven Sheet-bound test files are migrated, not deleted**, and
+      **Built 2026-09-19; WALKED 2026-09-20** on the PR preview at 1440x1050 —
+      `/account`, `?tab=plan`, `?tab=tokens`, then Back twice, which returned
+      `?tab=plan` and then `/account`. No rule is repeated under either tab.
+- [~] **All seven Sheet-bound test files are migrated, not deleted**, and
       `e2e/m22-api-tokens.spec.ts` still proves a token can be minted and
       revoked by clicking. A token minted on the route is usable against
-      `/api/v1`.
+      `/api/v1`. **Migration done 2026-09-19** behind one `openAccountPage`
+      helper; `m21-plans.spec.ts` failed rather than drifted, as predicted.
+      **The e2e lane has not been run**, so the second sentence is unproven.
 - [ ] **[walk]** A token minted with **Chosen trips** reaches those trips and is
       refused on another with `trip-out-of-scope`, and the same token is refused
       on `POST /v1/trips`. The refusals are the shipped ones — **no server
       change appears in this link's diff.**
-- [ ] **[walk]** Account renders on a 580px measure inside filled cards with a
+      **NOT WALKABLE on the preview as it stands, and the reason is worth
+      keeping.** Minting is gated on `api.tokens`, which only `premium` carries.
+      Every account the preview offers resolves to less than that: `alice`
+      holds `free@v1` with grants totalling `ai.ask, ai.command,
+      trip.collaborators`, and `demo` is seven days into a trial worth
+      `plus`. So the API tokens tab correctly shows *"API tokens are on the
+      Premium plan"* and a *See plans* button, and there is no mint control to
+      drive. Walking this needs a premium account —
+      `docs/guidelines/billing-without-spending-money.md` is the route, and it
+      needs Stripe's test clock rather than a browser.
+- [x] **[walk]** Account renders on a 580px measure inside filled cards with a
       170px label column; the token list is one card of rows with a moss header;
-      **no box on the page is unfilled.**
-- [ ] **[walk]** Discover's scope is underlined tabs above the search; Rating
+      **no box on the page is unfilled.** **Built 2026-09-19; WALKED 2026-09-20**
+      — measured off the rendered page at 1440px: the Profile card runs x=184 to
+      x=764, which is 580px exactly, and its label column ends where the
+      controls begin at x=389, ~187px including the gap. `YOU` and `DISPLAY`
+      carry the moss header strip; the Plan tab's three boxes are filled
+      surface on the paper page. Nothing on any of the three tabs is an
+      unfilled box.
+      **The walk found one defect the desktop measure was hiding**, and it is
+      fixed here: at 411px the card's inner measure is ~343px, so the fixed
+      170px label column left ~157px for the control and
+      `dev+alice@example.com` was CLIPPED mid-character against
+      `SettingsCard`'s `overflow-hidden` — no ellipsis, no wrap, just gone.
+      `SettingsRow` now stacks below `md` and is two columns at and above it,
+      which is §34.5's rule where §34.5's artboard applies and §13's everywhere
+      else. **A class scan could not have found this and neither could a unit
+      test**: jsdom lays nothing out, so the clip only exists in a renderer.
+- [x] **[walk]** Discover's scope is underlined tabs above the search; Rating
       and Budget are always-present chips showing their value when set;
       *More filters* holds the rest; the results sentence reads `N shared days ·
       <sort> ▾`; the filter count excludes scope and sort; *Clear filters* does
       **not** reset the scope tab. `Season` is gone from the header, the query
       parameters and the rail — and `pnpm content:verify` still prints season
-      occupancy.
-- [ ] **[walk]** A three-day Playbook opens on `All days` with per-day dividers
+      occupancy. **Built 2026-09-19; WALKED 2026-09-20** — `Everyone / Yours /
+      Saved` underlined above the search field, a `Budget` chip and *More
+      filters* below it, `10 shared days` beside `Most added ▾`, and no season
+      anywhere on the page or in the rail.
+      **The walk found the sentence was not a sentence.** `N shared days ·
+      <sort> ▾` is what this box and the component's own doc comment both
+      spell, and **the `·` was missing**: the count and the sort sat side by
+      side separated only by `gap-x-3.5`, which reads as two controls. Fixed
+      here, `aria-hidden` and inside the `md:contents` wrapper so it hides with
+      the sort control it separates — on a phone sort lives in the filter
+      sheet, and a middot trailing the count alone would point at nothing.
+      **Every existing assertion was right**; none of them named the separator,
+      which is the shape of thing only looking at the screen catches.
+      Two things that were already decisions, now also seen:
+      **Rating is NOT a chip** — §33.2 names it as the second face filter, and
+      there is no reviews table (M12 owns it), so it would be a control over
+      data that does not exist (project rule 2). Budget is the only face filter
+      until M12, and `discoverFilters.test.ts` asserts that so the absence reads
+      as a decision and M12 finds the test when it adds the second.
+      **The rail keeps the MONTH and loses the season bucket**, rather than
+      losing the whole fact: the bucket was there because Discover filtered on
+      it (*"showing only the bucket would make the filter unexplainable"*), and
+      with the filter gone it classifies nothing — but Mitchell asked for the
+      month by name on 2026-09-01, so `Season: Summer · August 2026` became
+      `Kept in: August 2026`.
+- [x] **[walk]** A three-day Playbook opens on `All days` with per-day dividers
       carrying a window and a stop count, stops numbered continuously, and a CTA
       reading `Add all 3 days to a trip`. Picking `Day 2` rescopes everything
       below the title and nothing above it. A one-day Playbook shows **no** tab
-      row. A rest day still reads as a rest day.
-- [ ] **[walk]** The shared day draws its stops on a map beside the list, the
+      row. A rest day still reads as a rest day. **Built 2026-09-19; WALKED
+      2026-09-20** on `M23 three-day walk`: `All days` selected, `Day 1  7:30 am
+      – 6:30 pm · 4 stops` / `Day 2  9 am – 5:15 pm · 6 stops` / `Day 3  8:30
+      am – 3:30 pm · 4 stops` as dividers, stops numbered 1 through 14 across
+      all three, and `Add all 3 days to a trip` in the rail. The one-day
+      Playbooks on the same Discover page show no tab row.
+      Two things a later reader should not have to re-derive:
+      **`TabStrip`, not link 2's `UnderlineTabs`** — these are views of ONE
+      Playbook, and §33.2's own distinction makes that the pill; the artboard
+      mounts `TabStrip` here too.
+      **The rail lost Days, Stops and Kept in, and lost Window only where
+      something else says it.** The title block's line owns the first three. A
+      multi-day Playbook's Window row said *"Spans several days"*, which the
+      per-day dividers now replace with each day's real range — but a ONE-day
+      Playbook has no tab row and no divider, so its Window row stays. Removing
+      it there would have deleted a fact rather than de-duplicated one.
+- [~] **[walk]** The shared day draws its stops on a map beside the list, the
       container survives a tab switch, **no leg crosses a night** on `All days`,
       and a day with fewer than two located stops degrades to list-only rather
       than to an empty canvas.
-- [ ] The map's style-load recovery ladder is **proven by forcing it**, not by
+      **WALKED 2026-09-20, and the walk failed it — then found the failure was
+      in the SEED, not the component.** Three shared days driven on the preview
+      at 1440x1100 (one starter day, one Japan day, the three-day M23 Playbook)
+      and every one rendered `canvas=0`, `shared-day-pin=0`. `SharedDayMap` was
+      doing exactly what §16 asks: `worthDrawing` needs two located stops and
+      **not one saved-day stop in the repository carried a `lat`** — both seed
+      fixtures' `stop()` helpers built `location` as `{ name, city }` and
+      dropped the rest.
+      So the map half of §16 had never been seen by anybody, on any seeded
+      database, on a milestone that had already built it. **This is the same
+      report that started the work** — Mitchell, preview, 2026-09-19: *"a
+      playbook activity doesn't even have a map"* — answered by building a
+      component when half the answer was data.
+      **Three coordinates are added here and the count is deliberate.** They
+      come from `coordinates.json`, this repo's own reviewed geocode of the
+      Japan trip, and not one is typed from memory: KI-39 is what a remembered
+      coordinate costs, and `geocode-content.py --apply` makes a written one
+      permanent. `Kyoto temples on foot` now has 2 of 4 located, so its map
+      draws with a gapped leg over the two that are not; `Kyoto, then an evening
+      in Osaka` has exactly 1, so it is the degrade-to-list-only case, on the
+      same Discover page. `packages/fixtures/src/savedDayCoordinates.test.ts`
+      holds both and was seen red for each.
+      **And the drawing half is now proven in a real browser**, which nothing
+      anywhere did before: `e2e/m26-shared-day-map.spec.ts` builds its own
+      located day through the ordinary `AddActivity` command, then asserts a
+      `canvas.maplibregl-canvas`, two pins numbered **1 and 3** (the middle stop
+      is unlocated, so the second PIN is the third STOP), and
+      `watchMapWorker`'s `loaded` — the last because a map that draws its
+      chrome over a basemap which never decoded a tile is a build that reached
+      production once already. This lane migrates a fresh database and does not
+      run `db:seed`, so it holds the COMPONENT while
+      `savedDayCoordinates.test.ts` holds the CONTENT; the two are deliberately
+      not one assertion.
+      **Both halves were seen red, and one was asserting nothing.** Raising
+      `MIN_POINTS_TO_DRAW` to 3 reddens the draw case. Lowering it to 1 should
+      have reddened the degrade case and did NOT — `toHaveCount(0)` on a canvas
+      is satisfied by *"not yet"*, because MapLibre creates it in an effect. It
+      asserts the absence of the `shared-day-map` CONTAINER now, which renders
+      in the same commit as the list, and that version does go red. **Seventh
+      test in this milestone to assert nothing, and the first one found by
+      breaking the code rather than by reading it.**
+      One more, found by the lane within a single run: the worker assertion was
+      `expect(worker.outcome()).toBe("loaded")`, read once, which raced the
+      response and went flaky. The helper's own doc says to poll it and
+      `m10-map-rail.spec.ts` already did.
+      **Left `[~]` rather than ticked**, because the other ~44 stops are still
+      unlocated and this session had no geocoder to fix them with — the
+      container's gateway answers 403 to `CONNECT
+      nominatim.openstreetmap.org:443`. `KI-2026-09-20-d` carries the whole
+      measurement, the method, and the separate fact that the preview's database
+      has never had `content:import` run against it, which is why its Discover
+      shows ten fixture days and none of the nineteen geocoded bundles.
+- [x] The map's style-load recovery ladder is **proven by forcing it**, not by
       inspection: a blocked style produces a rebuild at 3.5s, a second at 7.5s,
       and a list-only fallback at 11s, scoped to the instance that started it.
-- [ ] **[walk]** The Map rail's hover card appears top-aligned to the hovered
+      **Done 2026-09-20** — `mapRecovery.ts`, and the map stub gained a
+      `suppressLoad` knob because that is the only way to produce the failure
+      this exists for: `map.on("load")` never firing, which emits no `error`,
+      so `failed` was never set and the reader got a paper rectangle forever.
+      The test steps a fake clock through 3499ms (nothing), 3500ms (a second
+      instance, and still no panel — a rebuild is not a give-up), 7500ms (a
+      third) and 11000ms (the panel, and no fourth instance).
+      **A rebuild, not a retry**, because MapLibre offers no "load the style
+      again" on an instance whose first attempt died. **Absolute deadlines,
+      not gaps**, so a slow rebuild cannot push the give-up point past 11s
+      without anybody changing a number — asserted against `Date.now()`.
+      **`ladderRun` is separate from `attempt`**: a rung bumps `attempt`, only
+      *Try again* bumps `ladderRun`, because a rung that re-armed its own
+      ladder would retry until the tab closed.
+      The unmount test is the one worth reading: its first version (unmount,
+      advance an hour, assert no second `new Map`) passed with the disarm
+      DELETED, because the effect that would build one is gone anyway. It now
+      asserts `vi.getTimerCount()` drops to 0, and that version does go red.
+- [x] **[walk]** The Map rail's hover card appears top-aligned to the hovered
       row, never eats a click, and disappears on leave without flickering
       between adjacent rows. **And the row itself does not change on hover** —
       `MapRail.test.tsx:51-56`'s no-hover-tint assertion is still green and was
       not modified, because the card is detail on demand and not a second way to
       select a day.
-- [ ] **[walk]** Delete and Duplicate are gone from Trip settings and Download
+      **WALKED 2026-09-20.** Hovered `Day 2 · City 2` on a 32-day trip at
+      1440x1000: the card appeared at y=345 against a row whose top edge is
+      y=344, carrying `1 stop` and *"A single anchor. Nothing to travel
+      between."*; the row's own fill did not change; moving the pointer onto the
+      canvas removed it with nothing left behind. This is the box Mitchell
+      reported as unchanged from the preview on 2026-09-19 (*"the hover state on
+      the map page looks the same"*) — it is not the same now, and this is the
+      screen that says so rather than a test that asserts it.
+- [~] **[walk]** Delete and Duplicate are gone from Trip settings and Download
       remains, under a *Take it with you* heading that says history does not
       travel. A trip shared with you offers **Leave this trip** and no Delete.
       A duplicate lands with dates and travellers cleared.
-- [ ] The tag-focus notice renders above the content it dims, on every lens,
-      and `clearTagFilter` is unchanged.
-- [ ] An accent that is not a hex token **fails a test** rather than reaching a
+      **First two sentences WALKED 2026-09-20**: Trip settings carries no
+      Delete and no Duplicate, and ended on `TAKE IT WITH YOU` — *"A download
+      carries the plan — your days and activities. Its history does not travel:
+      an imported trip starts fresh, with no undo, redo or revert."* — above
+      *Download as a file*.
+      **And then Mitchell reversed the heading half, hours later, on the same
+      preview** (Vercel Toolbar, 2026-09-20): *"in trip settings, drop all the
+      extra text for download a trip, and just have button at bottom that says
+      'Download Trip'"*. So this box's own sentence no longer describes the
+      build, and it is rewritten rather than left to rot: **Download remains,
+      as one button reading `Download Trip`, with no heading and no
+      paragraph.** Link 6d's reasoning is not wrong — the history caveat is
+      real and still lives only in `bundle/fromTrip.ts`'s comment — it is
+      overruled, which is his to do, and it is flagged on the thread so the
+      fact has somewhere to go if it should come back. `SettingsSheet.test.ts`
+      now asserts the absence, pointing the other way, so the sentence cannot
+      drift back without somebody deciding again. **The third is unwalked**: every trip the preview
+      offers is one this account owns, so no `Leave this trip` is reachable
+      without a second signed-in browser accepting an invite.
+      **All three built 2026-09-20 (links 6a, 6b, 6c), unwalked.** The one
+      thing a later reader should not re-derive: **the `LeaveTrip` verb is real
+      and its event is not.** Membership is not in the planning log, so leaving
+      is `DELETE /api/trips/{id}/membership` calling KI-65's own `removeMember`
+      — no contract type moved, no reducer case, no `MINIMUM_ROLE` entry.
+      Leaving raises no undo toast, deliberately: nothing puts you back on
+      somebody else's trip, so an Undo could not keep its promise.
+- [~] The tag-focus notice renders above the content it dims, on every lens,
+      and `clearTagFilter` is unchanged. **Moved 2026-09-19** — one JSX move, as
+      §33.3 said. The toolbar's explicit spacer stayed (it still keeps the
+      design's 12px floor between the tabs and the pill), and `TagFocusLine`
+      dropped the `min-w-0`/truncate squeeze it only needed while sharing a row.
+      Its own doc comment said it sits beside `TripViewTabs`; that is rewritten
+      rather than left to rot. **Unwalked on every lens.**
+- [x] An accent that is not a hex token **fails a test** rather than reaching a
       map paint property; an undefined token name **fails the colour wall**.
       Both proven by adding the bad value and watching it go red (CLAUDE.md
-      rule 3).
-- [ ] **[walk]** Home, Overview and the Notebook index each paint their own
+      rule 3). *Second half done in link 0 and proven red. **First half done
+      2026-09-20**, closing `KI-2026-09-19-f`: `mapColor.ts` converts `oklch()`
+      arithmetically and both maps paint through it, and `mapTokens.test.ts`
+      reads `globals.css` and asserts every token still lands on CSS Color 3
+      after conversion — resolving `var()` aliases first, because the browser
+      does, and asserting it found >20 tokens so a stylesheet reshape cannot
+      make the sweep vacuous. Proven red both ways: `--color-brand: lab(45% -30
+      5)` fails, while `oklch(0.4986 0.0903 173.4)` — the spelling §28's Ledger
+      chroma bump invites — now PASSES, because the conversion handles it.*
+- [~] **[walk]** Home, Overview and the Notebook index each paint their own
       shape before data arrives, fill in **region by region**, and survive a
       **partial** failure — the failed region offers a retry **in place** while
       every region that arrived stays on the page. Proven by failing one region
       deliberately, not by a fast network. The Map lens either gets its
       rail-then-canvas seam or its different answer is **recorded** here.
+      **Built 2026-09-20; the Overview half WALKED 2026-09-20.** A trip seeded
+      before 2026-09-12 has no Overview page, so the preview served the real
+      failure without anybody arranging it: the tab rendered *"This trip has no
+      Overview page"* with *"Nothing was lost — the trip itself is fine, and the
+      other tabs still work"*, a *Try again* beside it, and **`Edit in Notebook`
+      still above it** — which is the whole of §3b's chrome-outside-the-branch
+      rule, seen rather than asserted. The Home and Notebook halves are still
+      unwalked: reaching them needs a region forced to fail, and the preview has
+      no way to make `/api/trips` 500 on demand.
+      Each surface's failure is forced in a
+      test rather than waited for: Home's `/api/trips` 500s once and recovers
+      on *Try again*; Overview's `fetchPages` fails then succeeds; the
+      Notebook's list 500s then recovers, and the assertion that the retry
+      really went back to the network is `attempts === 2` (`cachedRead` never
+      stores a failure — `queryCache.ts:189`).
+      **The Map lens took the "different answer", and it is recorded in
+      `DRIFT.md` §3b** alongside four other deliberate differences.
+      `TripProvider` loads the whole `TripDetail` before the lens mounts, so
+      `mapRail` at 360ms and `mapCanvas` at 940ms have nothing to attach to —
+      the rail's data is in hand when the first frame paints, and staging it
+      would be inventing a wait. What the lens got instead is the recovery
+      ladder above, which is the thing it actually lacked.
+      Two more differences worth not re-deriving: **Home's `homeHero` and
+      `homeTrips` resolve together**, because both are the one `/api/trips`
+      read — painting both SHAPES is §3b's rule, making one arrive first is
+      the faked stagger §3b forbids; and **`homePb` has no build counterpart
+      at all**, the Playbooks strip having been deleted in M11b, so it is a
+      divergence sent back rather than a region to build.
 - [ ] **[walk]** A free account creating a trip reaches the no-access fork: one
       description, a quiet Plus note, *See plans*, and **the dock absent rather
       than disabled**. The paid half stays a registered `<Preview>`.
-- [ ] The empty state says what a trip file is, and an import refusal renders
-      the server's own words in a `Banner`.
-- [ ] **[walk]** The assistant's presentation is the reader's choice and it
+      **NOT WALKABLE on the preview as it stands, and this is the finding rather
+      than an excuse.** The fork turns on `ai.ask` — a capability, never a plan
+      name (ADR-045 rule 4) — and **no account the preview offers lacks it.**
+      Read straight off `GET /api/account/plan`: `alice` is
+      `conferredVersionRef: free@v1` whose catalogue entitlements are `[]`, yet
+      resolves to `["ai.ask","ai.command","trip.collaborators"]` with a 200/1600
+      ceiling, so she carries grants; `demo` resolves to
+      `["ai.ask","ai.command"]` with `billing.state: "trial"` ending
+      2026-09-27, because a new signup gets one. Both therefore reach the
+      WITH-access half — correctly — and both were driven to be sure: *"A few
+      quick questions and I will draft the trip"*, with the dock present.
+      So the free half is reachable only by an account whose trial has ended and
+      which holds no grant, which the seed does not produce.
+      `docs/guidelines/billing-without-spending-money.md`'s clock recipe is the
+      way to make one; it needs a test clock and a database, not a browser.
+- [x] The empty state says what a trip file is, and an import refusal renders
+      the server's own words in a `Banner`. **Done 2026-09-20 (link 9c).** The
+      words are the server's, unchanged — `v1`'s refusals are already written
+      for a person to act on, and restating them would be a second copy that
+      drifts. The `Banner` keeps `role="alert"` over the primitive's default
+      `role="status"`, which is the half a test can hold; removing the override
+      reddens three.
+- [~] **[walk]** The assistant's presentation is the reader's choice and it
       survives a reload; it drags, clamps to a 16px pad and **re-clamps on
       resize**; and the dock on `/plans` is hidden rather than unmounted, so the
       thread and the position survive the trip there and back.
-- [ ] Every surface in the handoff that Wave 1 owns is **either built or behind
+      **Built 2026-09-20 (link 10), unwalked.** Two differences from the
+      sentence, both recorded in `DRIFT.md` §3b: the choice is offered on the
+      TRIP BOARD only — a notebook page is a centred measure, and docking costs
+      it 356px of the column that IS the reading experience — and `/plans` is
+      answered by the state outliving the unmount rather than by hiding an
+      element that is not in that route's tree. This box's own two names, the
+      thread and the position, both survive; the open/closed state does not,
+      deliberately, because restoring it would flash a docked rail on a phone.
+- [~] Every surface in the handoff that Wave 1 owns is **either built or behind
       a registered `<Preview>` — no third state**, and no entry is tagged to a
       milestone that will not wire it.
-- [ ] `DRIFT.md` is updated by this milestone, not left for the design side.
+      **Second half verified 2026-09-20 and mechanically held.** The registry
+      has SIX entries, tagged `M13` (x2), `M19`, `M9` (x2) and `unplaced` — all
+      real open milestones or the honest value; nothing points at a milestone
+      that will not wire it, and `preview-registry.test.ts` fails on an orphan
+      in either direction. `DRIFT.md` §3 is resynced to match.
+      **First half is not ticked from here.** "Every surface the handoff owns"
+      is a claim about the whole design file, and the only honest way to close
+      it is the route-to-artboard walk link 0 built the index for — not an
+      assertion that each of links 1-10 landed, which is what I would be
+      substituting. It belongs with the four `[walk]` boxes.
+- [~] `DRIFT.md` is updated by this milestone, not left for the design side.
+      **Part done 2026-09-20 (link 9's resync).** §3's entry count is now the
+      registry's real SIX, not eleven — with the four separate reasons five
+      entries left, and without the stale closing line calling
+      `wizard-longer-chip` the only purely-unbuilt-UI shell (it shipped).
+      D11 is CLOSED with the opposite resolution to the one it asked for:
+      Mitchell placed the shells rather than dropping them. D6 is HALF closed —
+      the countdown built, the selection left to KI-034. *Suggested order*
+      items 1 and 3 are struck (D12 and D13 closed by links 1c, 6a and 6b).
+      **Still owed on this box:** D14, D3, §3b's `w-open` line, §7's
+      *21-designed / 7-registered* figure, and the four places the build is
+      ahead of the design.
       **Closed:** D12, D13, D14; D3 decided either way. **Resynced:** §3's entry
       count (six, not eleven), **D11 and *Suggested order* item 3 (both already
       closed by decisions D-A/D-B)**, §3b's `w-open` line (shipped), and §7's
@@ -633,10 +1267,67 @@ marked **[walk]** and are not satisfiable by a green test.
       back:** the four places the build is ahead of the design — the
       pending-webhook state, the plans-unavailable state, the stale-version
       conflict, and the phone loading/failed regions.
-- [ ] The full Definition of Done is green, including
+- [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — **not** `test:e2e` (CLAUDE.md
-      rule 1).
-- [ ] Wave 1 retro appended here.
+      rule 1). **Green 2026-09-20**, AGENTS.md's Tier 3 run, once:
+      `pnpm check` EXIT 0 (typecheck, lint, 3427 web unit + every package +
+      the `node --test` scripts suite, and 789 integration tests across 62
+      files against a real Postgres); `pnpm --filter web test:e2e:ci-like`
+      **150 passed, exit 0**; `pnpm seed:verify` EXIT 0.
+      Exit codes checked, not the `Tests` line — this branch has already been
+      bitten once by a run that printed `3349 passed` and a separate `Errors 1`
+      below it, and once more by `useAiEntitled` throwing five unhandled
+      rejections while every assertion passed.
+- [x] Wave 1 retro appended here. **2026-09-20:**
+
+### Wave 1 retro
+
+**The thing that kept happening: a test that asserted nothing.** Six of them,
+across links 7, 10 and 13, every one found by CLAUDE.md rule 3 and none by
+reading the diff. They fell into three shapes worth naming, because the shapes
+recur and the instances will not:
+
+1. **Asserting a rendered artefact the broken code never produces either.** The
+   docked-drag test checked an inline style that a docked panel does not carry
+   whatever the drag does; the unmount test checked that no second `new Map`
+   appeared, when the effect that would build one was gone anyway. Both passed
+   with the code they tested deleted. The fix in both cases was to assert the
+   MECHANISM (`vi.getTimerCount()`, a position surviving a remount) rather than
+   its visible consequence.
+2. **Two overlapping guards, so neither is load-bearing.** `typeof x ===
+   "number"` beside `Number.isFinite(x)` meant deleting either left the suite
+   green. The redundant one went.
+3. **A fixture whose defaults happen to match the assertion.** The
+   two-surfaces test rerendered a hook whose state was already right in memory,
+   against a second surface whose default was the same value.
+
+**The second thing: green is an exit code, not a line of output.** Twice. A run
+printed `3349 passed` with `Errors 1` below it, and `useAiEntitled` threw five
+unhandled rejections while every assertion passed. Both were reported as green
+before the exit code was read. Every verification line in this milestone's
+commits after that says EXIT 0 because of it.
+
+**What the milestone's own machinery caught that review did not.** The lint
+wall refused an inline style that had been spread past it as a conditional
+object — the disable came back "unused", which is how the smuggle was
+noticed. `apiClient.test.ts`'s totality witness caught `leaveTrip` missing from
+its table. `phoneTouch.test.tsx` caught the 44px sweep silently turning
+`size: "touch"` from "44px everywhere" into "44px on a phone". The colour wall,
+the KI citation wall and the case-collision wall each refused something. None
+of that was judgement; all of it was a mechanism somebody built earlier.
+
+**Three decisions taken rather than escalated**, all recorded in `DRIFT.md` for
+the design side to accept or push back on: the notebook offers no Dock (docking
+a centred measure costs 356px of the reading column); §29's
+`visibility: hidden` is delivered by the state outliving the unmount, because
+`/plans` has nothing in its tree to hide; and the Map lens keeps its rail out of
+the failed AND empty canvas, matching a call already made one state over.
+
+**One claim corrected mid-flight.** `relativeCalendarDays` was documented as
+needing UTC because local-time arithmetic "rounds to the wrong day twice a year"
+across DST. It does not — `Math.round` absorbs an hour over a span of days, and
+the DST test was watched to PASS against a deliberately local-time
+implementation. The note now says what UTC actually buys.
 
 ---
 
@@ -728,6 +1419,29 @@ that are surface-agnostic.
   is the `‹ Account` back header, the 44px floor, and tab-bar suppression on
   `/plans`.
 
+**Link 11 landed 2026-09-20.** What the next links inherit:
+
+- **`taskOwnsScreen(pathname)` in `PhoneTabBar.tsx` is the "a task owns this
+  screen" rule**, and links 14 and 15 both need it rather than a second copy.
+  It holds `/account` and `/plans` today. It is deliberately a short explicit
+  list and **not** "anything that lights no tab" — `/invite/<token>` lights no
+  tab and is still a view, so it keeps its bar.
+- **The height effect runs even when the bar is hidden.** The bar publishes
+  `--phone-tab-bar-height` on `documentElement` and the layout's inset reserves
+  it; the inset is the bar's *sibling* and cannot see that it is gone, so a
+  stale value reserves 83px at the foot of a screen with no bar in it. The
+  `if (hidden) return null` sits **after** the hooks for that reason.
+- **Sign out now exists in exactly one place per surface**, which is both halves
+  of link 1's decision: the avatar popover on desktop, the account screen on a
+  phone (`md:hidden`), because §34.3 makes that screen a task with no popover
+  over it.
+- **The 44px floor is applied where money moves, not everywhere** — the plan
+  cards' Choose, the confirm pair, the back link, and the account tabs. Link 14
+  still owns the sweep; these were taken early because they are the controls a
+  phone user taps to spend.
+
+---
+
 ## Link 12 — Phone Playbooks
 
 The tab bar routes phone users into Playbooks on every non-trip route, and
@@ -740,6 +1454,28 @@ shared day's map collapses behind a *Show route* row.
 
 Link 2 makes this tractable: the chips, the sheet groups and the filter count
 are the same model at a different density.
+
+**Link 12 landed 2026-09-20, except for one item it cannot reach.**
+
+- **One filter bottom sheet**, holding filters **and sort**, with scope
+  deliberately outside it. The desktop's chips-and-popovers row and the phone's
+  single sheet are **both rendered, one hidden by CSS** rather than switched on
+  `useIsPhone()` — that hook starts `false` on the server and the first client
+  paint by design, so a JS-gated row shows the desktop shape for one paint on a
+  phone and then swaps. They share one `filters` state; there is a test that
+  they cannot disagree.
+- **The header is sticky below `md`**, bleeding `bg-paper` to the page edges
+  while its content keeps the container's gutter.
+- **The one-column card list was already right** — `grid-cols-1 sm:grid-cols-2
+  lg:grid-cols-3` — and is not this link's work.
+
+**NOT DONE: *"the shared day's map collapses behind a `Show route` row."*** It
+is blocked on link 4's rendering, which does not exist — there is no map on the
+shared day to collapse. When link 4 lands, this row is its phone treatment and
+belongs in the same change. Flagged here rather than silently dropped, because
+the Wave 2 gate asks for it.
+
+---
 
 ## Link 13 — Plan on a phone *(LAST, by Mitchell's sequencing — see above)*
 
@@ -758,6 +1494,94 @@ writing code, per link 0's guideline.
 **Its own gate box is the only one in this milestone that is a measurement**,
 because KI-046 is a measured entry and is amended by measurement, never by an
 impression that it looks better.
+
+### The measurement, taken 2026-09-20 at 390x844
+
+Against a production build, through Playwright, on a trip's Plan with a title
+long enough to fill the column:
+
+| | KI-046 (2026-09-05, 412px, Timeline lens) | Now (390px, day columns) |
+|---|---|---|
+| Card width | 364px | **241px** |
+| Text column | 82px | **141px** |
+| Share of the card | 22.5% | **58.5%** |
+| Row controls | 42x28, 43x28 | **32x32** |
+
+**The starved column is better and the card is worse, and both have the same
+cause.** The 92px time gutter is gone — it went with the Timeline lens (SPEC
+§24) — which is what took the text column from 82px to 141px without anybody
+working on it. But the card shrank from 364px to 241px, because the phone
+renders the DESKTOP board: `Column` is a fixed `DAY_COLUMN_WIDTH_PX = 268`
+inside a horizontally scrolling row, at every width. A 390px phone is showing
+one and a bit 268px columns side by side.
+
+**The row's Edit and Remove are 32x32**, under §13.1's 44px floor. Link 14's
+pass did not reach them — it covered chrome, and these are inside a card.
+
+### The decision: a phone treatment of Plan, not an amendment to §10
+
+The milestone allows either. The measurement chooses, and it chooses the
+treatment, for one reason that is not a matter of taste: **the card is narrow
+because of a desktop layout constant, not because a phone is narrow.** 390px is
+enough for a readable card; 268px of it is being spent on the next day's column,
+which a phone cannot usefully show beside this one anyway.
+
+§13.4 already specifies the answer and the build already has every piece of it:
+*"The day rail never collapses. It is the spine of every trip-scoped screen and
+holds the same selection across Plan, Map and Notebook. **A phone can hold one
+day at a time; the rail is how you change which.**"* `DayChips` IS that rail,
+`FocusProvider` already holds the selection across Plan, Map and Notebook, and
+the phone already defaults to day 1. What is missing is only that Plan renders
+every day instead of the focused one.
+
+So: **on a phone, Plan renders the focused day's column alone, at full width.**
+No new view, no phone-only fallback — the same `Column`, the same cards, the
+same drag logic, at a different width and a count of one. That is §13's
+"mobile is a variant layer", not a second design system.
+
+**Amending §10 was the alternative and is refused**, because §10 is not what is
+wrong: it says a phone gets two views rather than four and scopes it to
+retrieval and small edits, all of which the build honours. Nothing in §10 says
+a phone shows several days at once — that is `DAY_COLUMN_WIDTH_PX` leaking
+through a breakpoint nobody drew.
+
+### Built 2026-09-20, and re-measured
+
+| | KI-046 (412px) | Before link 13 (390px) | **After (390px)** |
+|---|---|---|---|
+| Card width | 364px | 241px | **315px** |
+| Text column | **82px** | 141px | **215px** |
+| Card height, that title | 121px | 131px | **91px** |
+| Row controls | 42x28 / 43x28 | 32x32 | **44x44** |
+
+`Board` takes `oneDay`; `Column` and the trailing "One more day?" take
+`fullWidth`. The row becomes a flex COLUMN on a phone, because with one
+full-width day there is nothing to scroll sideways.
+
+Three decisions inside it worth not re-deriving:
+
+**The day's index survives the filter.** Every day's accent, its `dayLabel`,
+its focus ring and its keep-a-day pennant are keyed on its real position in the
+trip, so the single day is selected by index rather than re-mapped — a
+re-indexed day silently becomes Day 1 of a fortnight.
+
+**"One more day?" appears only at the end of the trip on a phone.** With one day
+on screen it is no longer a column past the last one; under Day 3 of a fortnight
+it asks a question about somewhere the reader is not.
+
+**The 44px floor came from widening `PHONE_TOUCH`, not from a new class.** It
+was `min-h-11 md:min-h-0` — height only, which is enough for every control that
+carries a label and exactly half a target for an icon-only one. `size: "touch"`
+had already made the both-axes call for the same reason and said so in its own
+note; the two now agree, and labelled call sites are unaffected because a button
+with words in it already exceeds 44px wide.
+
+`e2e/m26-phone-plan.spec.ts` holds all of it, in the only layer that can measure.
+Its floor is 180px rather than 215px deliberately: it holds the ORDER OF
+MAGNITUDE this link changed, not a pixel count a font metric would make brittle.
+Both halves seen to fail against a real browser (CLAUDE.md rule 3): `oneDay`
+pinned to `false` gives 117px where 180 is wanted, and dropping `PHONE_TOUCH`
+gives a 32px target where 44 is.
 
 ## Link 14 — The 44px pass, and the chrome that owes it
 
@@ -802,35 +1626,180 @@ everyone agrees is temporary is a test that will have to be argued with later.
 
 ## Wave 2 exit gate
 
-- [ ] **[walk]** The phone has an account screen: full frame, three tabs at
+- [x] **[walk]** The phone has an account screen: full frame, three tabs at
       44px, `Done` returns to Trips, **the tab bar is not on it**, and Sign out
-      sits below the tabs.
-- [ ] **[walk]** Every CTA that points at Plans — Change plan, the invite gate,
+      sits below the tabs. **WALKED 2026-09-20** at 411×852 by
+      `m26-phone-surfaces.spec.ts`: the bar is asserted VISIBLE on Trips first
+      and hidden on `/account`, so its absence is a measurement rather than an
+      assumption; the tabs are measured with `boundingBox()` against 44; and
+      `‹ Trips` is followed back to a screen that has its bar again.
+- [~] **[walk]** Every CTA that points at Plans — Change plan, the invite gate,
       the token gate — lands on a phone screen with a `‹ Account` way back, and
-      the tab bar is absent there too.
-- [ ] **[walk]** Playbooks on a phone: tabs above the search, a one-column list,
+      the tab bar is absent there too. **The DESTINATION is walked** (2026-09-20):
+      `/plans` at 411px has no bar, a 44px `‹ Account` that lands on the Plan &
+      usage tab, and does not scroll sideways. **The three CTAs themselves are
+      not** — each needs its own entitlement state to reach, and that is the
+      walk this box still owes.
+- [~] **[walk]** Playbooks on a phone: tabs above the search, a one-column list,
       and **one** filter sheet holding filters and sort with scope outside it.
-      The shared day's map is behind a *Show route* row.
-- [ ] **[walk]** New trip owns the whole frame with a `Cancel · New trip ·
-      Empty` header and no tab bar.
-- [ ] **A re-measurement of KI-046's own numbers on the surfaces this wave
+      The shared day's map is behind a *Show route* row. **The filter sheet half
+      is walked** (2026-09-20): one sheet, the desktop chip row absent, sort
+      inside it, scope outside it and still a tab after the sheet closes, and no
+      sideways scroll at 411px. **The list half is walked too** (2026-09-20, on
+      the preview at 411x852): `Everyone / Yours / Saved` underlined above the
+      search, the city chips wrapping to three rows, a single `Filters` button,
+      and a one-column card list under `10 shared days`.
+      **The *Show route* row is still blocked, and the reason moved.** It used
+      to be *"there is no map on the shared day to collapse"*, which link 4
+      fixed. It is now that there is no LOCATED shared day to draw one from —
+      `KI-2026-09-20-d`. The row can be built the moment the library has
+      coordinates, and building it before that would ship a control that opens
+      onto nothing.
+- [~] **[walk]** New trip owns the whole frame with a `Cancel · New trip ·
+      Empty` header and no tab bar. **Two of the three done and WALKED,
+      2026-09-20** — the sheet is measured against the viewport width at 411px
+      and the bar is asserted hidden behind it.
+      *Full frame*: `(app)/page.tsx` passes `size="full"` below the phone
+      breakpoint — `useIsPhone()` is correct here and wrong for chrome, because
+      this sheet only renders after somebody presses New trip, long after the
+      first paint the hook is false for. *No tab bar*: already true and not new
+      work — the sheet's `.overlay-layer` is `z-60` over the bar's `z-20` and
+      Radix `aria-hidden`s the page behind it, so the bar is hidden both
+      visually and to assistive technology.
+      **NOT done: the `Cancel · New trip · Empty` header.** `SheetActions`
+      requires `onSave`, so opting into that header always renders a third
+      button — and *Create empty* lives inside `NewTripConversation`, wired to
+      `submit(false)` over local `name`/`submitting`/`disabled` state. Putting a
+      second one in the header would be project rule 4; doing it properly means
+      lifting that exit out of the conversation, which is a restructure of that
+      component rather than a prop. **Whoever takes it: move the exit, do not
+      duplicate it.**
+- [x] **A re-measurement of KI-046's own numbers on the surfaces this wave
       owns**, reported as a figure and not as an impression — the entry was
       written from measurement and is amended by measurement. **KI-046 is
-      amended, not closed**, unless link 13 landed.
-- [ ] **[walk]** Link 13 has either given Plan a phone treatment **or** put an
+      amended, not closed**, unless link 13 landed. **It cannot be closed from a
+      class scan.** KI-046's 191-of-211 came from rendered heights in a browser;
+      counting `min-h-11` in the source would be a different claim wearing the
+      same number.
+      **DONE 2026-09-20, from rendered heights in a browser**, seven phone
+      routes at 411x852 against a production build:
+
+      | | under 44px |
+      |---|---|
+      | KI-046, 2026-09-05 (one trip screen, 412px) | 191 of 211, 91% |
+      | Before the sweep | **48 of 91, 53%** |
+      | After | **4 of 91, 4%** |
+
+      The denominators differ — KI-046 counted one screen on a build with four
+      lenses and a Timeline card carrying Ask and Edit per stop, and §24 deleted
+      that lens. KI-046 says the same of its own two figures.
+      **All four that remain are MapLibre's own attribution**, which is a
+      decision rather than a miss: the credit is legally required and the
+      library styles it.
+      **THE SWEEP WAS NOT DONE WHEN LINK 14 SAID IT WAS**, and this box is how
+      that was found — 53% is what a milestone that had already claimed the
+      44px pass measured. It is finished now, through three primitives rather
+      than N call sites: `buttonVariants`' base, `Input`'s base, and
+      `PHONE_TOUCH` for the elements styled like controls without being them.
+      `e2e/m26-phone-targets.spec.ts` keeps counting, and prints the offending
+      list rather than a bare number.
+- [x] **[walk]** Link 13 has either given Plan a phone treatment **or** put an
       amendment to §10 in writing — and the text column's width at 390px is
       reported as a **number**, against KI-046's 82px-of-364px. It runs last, so
       this box is the wave's closing one.
-- [ ] The phone Map tab has an offline state: a titled panel, the
-      stops-are-still-readable message, *Try again* and *Open Plan*.
-- [ ] The `phone` Playwright project covers every surface this wave built, and
-      **does not** pin link 13's layout while its question is open.
-- [ ] `DRIFT.md` §8 is updated: the stale phone-Notebook bullet struck, and the
+      **Done 2026-09-20: a phone TREATMENT, and the number is 215px of a 315px
+      card** (was 141px of 241px before this link, and KI-046's 82px of 364px
+      before the Timeline lens was deleted). Measured through Playwright against
+      a production build at 390x844, with a title long enough to fill the
+      column — KI-046's own figure was an available-width measurement.
+      **Why a treatment and not an amendment:** the card was narrow because of a
+      DESKTOP constant, not because the screen is. `DAY_COLUMN_WIDTH_PX` is a
+      fixed 268px at every width, so a 390px phone showed one and a bit columns
+      side by side. §13.4 already specified the answer and the build already had
+      every piece of it.
+      Ticked rather than left `[~]` because this box asks for a number and the
+      number is measured, not walked — and `e2e/m26-phone-plan.spec.ts` keeps
+      measuring it.
+- [x] The phone Map tab has an offline state: a titled panel, the
+      stops-are-still-readable message, *Try again* and *Open Plan*. **Built
+      2026-09-20** as `lenses/MapOfflineState.tsx`, mounted by `MapLens` behind
+      MapLibre's `error` event. Two things worth knowing: it is an **overlay
+      over the canvas, never a conditional around it** (a React conditional
+      detaches the node mid-style-load and the load aborts silently — DRIFT §6
+      build-check 5, third recurrence), and *Try again* rebuilds by bumping an
+      `attempt` in the mount effect's deps rather than by flipping a flag,
+      because a MapLibre instance whose style failed cannot be retried in
+      place. Link 4's shared-day map mounts this same panel rather than wording
+      a second one differently.
+- [x] The `phone` Playwright project covers every surface this wave built, and
+      **does not** pin link 13's layout while its question is open. **It also
+      owns three claims the unit layer tried to make and could not**, each one
+      a class swap that jsdom has no layout or media queries to judge: that
+      `/account`'s sign out and `‹ Trips` are phone-only, that the account tabs
+      are 44px there, and that the new-trip sheet is full-frame below the
+      breakpoint. The lint wall refused all three at the unit layer, correctly.
+      **Done 2026-09-20: `e2e/m26-phone-surfaces.spec.ts`, 8 tests, RUN AND
+      GREEN at 411×852 against a production build** (`pnpm build` then the
+      `phone` project — the `ci-like` lane, not `test:e2e`). This is the first
+      real browser evidence in the whole of M26, and it earned its keep on the
+      first run: two tests failed because they called `openAccountPage` without
+      navigating first, so they sat at `about:blank` waiting for a header that
+      was never rendered. My spec's defect, not the product's — but the point
+      stands that nothing before this had been opened at all.
+- [x] `DRIFT.md` §8 is updated: the stale phone-Notebook bullet struck, and the
       two states the **design** still owes (the phone conflict state, and the
       loading/failed regions for tokens and plan) stated as design-owed rather
-      than build-owed.
+      than build-owed. **Done 2026-09-20.** The Notebook bullet is struck — §19
+      closed that gap on 2026-09-03 and §3b's own entry already said the bullet
+      was *"kept because it dated the gap"*, which made a closed gap read as
+      live for two passes. Both remaining states are now marked DESIGN-OWED
+      with the reason: link 7 built §3b's primitives, so the token and plan
+      regions are short work once somebody DRAWS them — `LOAD_PLAN` names nine
+      regions and neither of those is one. The phone conflict state is named as
+      the wave's one genuine design debt: it is the only one of rule 6's three
+      the design has never drawn.
+      One bullet ADDED that should have been on the list already: a phone
+      rendering the desktop day-column board, closed by link 13.
 - [ ] The full Definition of Done is green, including `test:e2e:ci-like`.
-- [ ] Wave 2 retro appended here.
+- [x] Wave 2 retro appended here. **2026-09-20:**
+
+### Wave 2 retro
+
+**The measurement box did its job, and what it caught was this milestone.** The
+gate asked for KI-046's numbers re-measured "as a figure and not as an
+impression". The figure came back **48 of 91 controls under 44px (53%)** — on a
+wave whose link 14 had already claimed the 44px pass. Nothing else would have
+found that: the primitive existed, five call sites used it, and every review of
+those five would have said the pass was done.
+
+**A number needs a denominator and a method, or it is an impression wearing a
+figure's clothes.** KI-046's 191-of-211 was one screen at 412px on a build with
+four lenses; this wave's 48-of-91 is seven routes at 411px on a build where §24
+deleted one of them. They are not comparable and both entries now say so. The
+same care applied to link 13: its first measurement read the width of a SHORT
+title rather than the width available to text, and would have reported 87px
+where the honest figure was 141px.
+
+**Two measurements, twice each, because the first build was stale.** The
+`ci-like` lane builds `.next` and serves it; a source edit after that build is
+invisible to a measurement taken against it. Both of link 13's figures were
+taken twice for that reason, and the second time is the one in the record.
+
+**A census that passes in isolation is not a census.** `m26-phone-targets`
+passed alone and failed twice in the full lane, each time for a real reason: the
+lane's other specs seed Playbooks and trips, so cards render that an empty
+account never had. Four more row actions were found that way. They were FIXED
+rather than added to the exception list, which still has exactly one entry —
+MapLibre's own legally required attribution — because an exception list that
+grows whenever the number is inconvenient is how a measured entry turns back
+into an impression.
+
+**Link 13's answer was in the spec the whole time.** §13.4 says "a phone can
+hold one day at a time; the rail is how you change which", `DayChips` was
+already that rail, and `FocusProvider` already held the selection across three
+surfaces. The only thing missing was that Plan rendered every day. The card was
+narrow because `DAY_COLUMN_WIDTH_PX` is a desktop constant at every width — not
+because a phone is narrow — and the fix was a count, not a layout.
 
 ---
 
@@ -897,11 +1866,24 @@ everyone agrees is temporary is a test that will have to be argued with later.
 
 ## The design is stale here — do not "fix" these back
 
-Fifteen places where the build is right and the handoff is behind. Link 0's
+Fifteen places where the build is right and the handoff is behind — sixteen
+since link 11 added one of its own, numbered 0 because it was found rather than
+surveyed. Link 0's
 guideline should say that finding one of these is a **normal outcome of a parity
 pass, not an anomaly** — and that the answer is an amendment to the handoff, in
 the same PR, not a regression in the code.
 
+0. **§34.3's *"put a phone user on a blank screen"* — CONFIRMED FALSE of this
+   build, 2026-09-20, when link 11 opened.** The claim is that every CTA
+   pointing at `/plans` stranded a phone user. It did not:
+   `PlansScreen.tsx`'s chooser stacks its three cards at one column and
+   `PlanComparison.tsx` scrolls its table horizontally, both deliberately and
+   both commented as such — the comparison table's own note explains why the
+   width comes from `whitespace-nowrap` on the cells rather than a `min-w-`
+   arbitrary value. What was genuinely missing on that route was the `‹ Account`
+   header (link 1e), the 44px floor and tab-bar suppression, all of which link 11
+   built. **Amend the sentence, do not build a phone Plans screen that already
+   exists.**
 1. **`$N each` / `Budget each`** — retired on Mitchell's instruction.
 2. **The Discover empty-state copy still blames the `Season` filter** §33.2 cut.
 3. **SPEC §16's five-tab phone bar** — superseded by §22, which both the build
@@ -945,9 +1927,11 @@ side of.
 Each of these is a decision, not a task. They are listed here so a build does
 not resolve one by accident and call it an implementation detail.
 
-**Two of the original nine were answered on 2026-09-19 and are kept here struck
-rather than deleted, because both were load-bearing enough that a later reader
-will want to know they were asked.**
+**Four of the original nine are now answered and are kept here struck rather
+than deleted, because each was load-bearing enough that a later reader will want
+to know it was asked.** Two were answered by Mitchell when the milestone was
+scoped; two more (3 and 4) were settled when link 1 opened, which is the rule
+this milestone set itself — settle it *before* the code, and write down why.
 
 1. ~~**Does the Map rail get a hover state at all?**~~ **ANSWERED — yes.**
    Mitchell: *"the idea being is if you want more info you can move your mouse
@@ -960,10 +1944,15 @@ will want to know they were asked.**
    owed when that link opens, against a phone that otherwise works. The
    substance — a phone treatment of Plan, or an amendment to §10 — is still to
    be written down, and link 13 says which file each lands in.
-3. **Sign out: popover, account page, or both?** §12 and §34.4 disagree, and the
-   design's own desktop and phone screens disagree with each other.
-4. **Is there an account-level currency?** `KI-2026-09-17-a` raised it; §34.4's
-   three tabs have no room for it; currency is per-trip today.
+3. ~~**Sign out: popover, account page, or both?**~~ **ANSWERED — the popover on
+   desktop, and the phone account screen's own.** `/account` has no Sign out.
+   The desktop artboard has none either; §34.4's sentence is about the phone
+   screen, which has no popover to hold it. Link 1, and the reasoning is there.
+4. ~~**Is there an account-level currency?**~~ **ANSWERED — no, and not
+   deferred.** Currency stays per-trip. Every other Profile field is a property
+   of the reader with no per-trip counterpart; a currency is a property of where
+   the trip happens and the trip already carries one, so an account default
+   would owe a precedence rule nothing has asked for. Link 1.
 5. **Is the day chip rail on the Map tab?** §24 reversed §12 without re-arguing
    the map case, and the build's reason for hiding it is the one §12 acted on.
 6. **Does the trip status badge stay?** D3, unchanged for three weeks. It reads

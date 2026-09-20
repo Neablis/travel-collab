@@ -73,9 +73,9 @@ Read this before §1; it is why §1 is short now.
 | # | Thing | Code | Design | Call |
 |---|---|---|---|---|
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins, or design adds it back. **Not re-verified this pass** — carried forward as stated, flag if it has since changed. |
-| **D6** | "Next trip" | `TripSummary` still carries only `createdAt`; `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown | **= KI-34, still open and unchanged.** The only survivor of the original list. With nothing to sort by the hero can surface the *wrong trip*. KI-34 names the fix path: add a start date to `TripSummary`, then date-sort. |
+| **D6** | "Next trip" | **HALF CLOSED 2026-09-20 (M26 link 9d).** The countdown is built: the hero already fetched the whole `TripDetail` for its sparkline, so the date it counts to was always real. `TripSummary` still carries only `createdAt`, so `nextTrip` is still `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown | **= KI-34, and now precisely scoped.** D6 was two things and only the SELECTION was ever blocked. The countdown says *"12 days ago"* and *"yesterday"* as readily as *"in 47 days"*, deliberately — with nothing to sort by the hero can surface a trip that has already gone, and a countdown that only counted down would print nothing in exactly that case. KI-34's fix path is unchanged: add a start date to `TripSummary`, then date-sort. |
 | **D10** | Billing | **Changed shape.** No `plan`, `plan_versions`, `entitlement_grants`, `is_admin`, `subscriptions` or `ai_usage` table — but the **port now exists**: `server/assistant/entitlements.ts` defines `ResolvedEntitlements` (a `has()` set, never a rank), `EntitlementCeilings` and `planVersionRef`; `EVERYONE_IS_ENTITLED` was widened to `permitEverything`, and a `TurnLedger` is already shaped as M20 link 9's `ai_usage` row with model identity and cost as variable inputs | Four surfaces: pricing, operator console, collaboration gate, plan + usage (§2c) | Design is still ahead and still blocked on M20/M21 **tables**, but no longer on the *seam*. The gate the design shows (AI, 402 `ai-not-entitled`) has a real resolver behind it now. Not a defect on either side. |
-| **D11** | First-run "roughly when?" | **New.** A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`** — no milestone will wire them), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | First-run screen offers date-range chips, pace and tags | **Supersedes the old D4.** The contract question moved: it is no longer "add a field to `CreateTrip`" but "does any milestone own the wizard's chips at all". Two of the four shells are honestly orphaned. Design should either drop the destination chips and the longer-chip, or Mitchell places them. |
+| **D11** | First-run "roughly when?" | **CLOSED 2026-09-20.** The wizard's four Preview shells are down to one: `wizard-destination-chips` and `wizard-longer-chip` are **built** (decisions D-A / D-B, 2026-09-16 — `Longer: 21` is a real day count), `wizard-pace-tags` is gone, and `wizard-assistant-draft` is M9's remaining half (§30.3's with-access draft; the fork around it shipped in M26 link 9a) | First-run screen offers date-range chips, pace and tags | **Resolved, and the resolution is the opposite of the old note's.** That note said "two of the four shells are honestly orphaned" and asked the design side to drop them or Mitchell to place them; he placed them, they were built, and this row plus §3 and *Suggested order* item 3 all went two passes stale saying otherwise. Nothing is owed on either side. |
 
 | **D12** | Trip-scoped tokens | `api_tokens.trip_ids` is real and `route()` checks a token's set against `[tripId]`, but `TokensSection.tsx` posts `tripIds: null` **always** — the UI can only mint account-wide tokens | The token form offers **All trips / Chosen trips**, with the build's own rule stated where it applies: a trip-scoped token cannot create a trip, because that is a widening (Decision 5) | Design is ahead by one control over a field that already exists. Cheap, and the alternative is a capability nobody can reach. |
 | **D13** | Where a trip's lifecycle lives | `SettingsSheet.tsx` carries **Download, Duplicate and Delete** together at the foot of the sheet | Download is in Trip settings; **duplicate and delete stay on the trip card's popover** on Home (SPEC §27) | **Duplication, and the design's call stands** (project rule 4): a trip you are inside is not where you delete it, and two homes for one verb is how they drift. Build should drop the two from the sheet, or say why. |
@@ -118,23 +118,41 @@ stay clickable — the same trap exists in any real implementation.
 
 ## 3. Designed, shelled in code behind `<Preview>`
 
-**11 entries, down from 18.** Seven were removed by M11 links 3/4/6 and M11b — *deleted
-rather than re-pointed*, because the features are real now.
+**RESYNCED 2026-09-20 (M26 link 9). This section said 11; the registry holds SIX**, and the
+difference is not drift in one direction — it is four separate decisions, each recorded in
+`preview-registry.ts` beside the entry it removed.
 
-**Blocked on a missing contract field:**
+**All six are blocked on something outside the UI**, which is the opposite of what this
+section used to say. Its closing line named `wizard-longer-chip` as "the only entry here
+that is purely unbuilt UI — no field blocks it, so any milestone could take it"; that shell
+is gone because the feature **shipped** (decision D-B, 2026-09-16, and `Longer: 21` is a
+real day count). There is no purely-unbuilt-UI shell left.
+
+**Blocked on a missing contract field — four:**
 - `rack-provenance` → **M13** (who parked a stop, which day it came from)
 - `add-stop-who` → **M13** (per-stop attribution — the same absence from the other side)
-- `cost-estimate-state`, `budget-breakdown` → **M19** (minted 2026-08-31 for exactly these)
+- `budget-breakdown` → **M19** (no field classifies a cost)
 - `map-legend-modes` → **`unplaced`** (transport mode per leg; in TODO.md's candidate ideas)
-- `wizard-destination-chips` → **`unplaced`** (no destination field on `TripSummary`/`TripDetail`)
 
-**Blocked on a feature, not a field:**
-- `timeline-ghost` → M9, and **narrower than it was**: propose→review→approve shipped in
-  PR #88 (`ProposalCard`, `POST /ask/apply`). What is unbuilt is rendering an approved-or-
-  pending proposal *inline in the timeline*, not the approval mechanism.
-- `add-stop-suggestions`, `wizard-pace-tags`, `wizard-assistant-draft` → M9
-- `wizard-longer-chip` → `unplaced`, and the only entry here that is **purely unbuilt UI** —
-  no field blocks it, so any milestone could take it.
+**Blocked on a feature, not a field — two, both M9's:**
+- `add-stop-suggestions` → grounded place search; nothing generates matches yet.
+- `wizard-assistant-draft` → **narrower than it was.** M26 link 9a built §30.3's fork, so
+  this is no longer "the entitlement fork and the draft it generates — neither exists". The
+  fork is real and splits on `ai.ask`; a free account gets a finished answer, not this
+  shell. What remains shelled is the assistant's own draft, mid-task, for an account that
+  holds the capability.
+
+**The five that left this list since it was written, and why:**
+- `timeline-ghost` and `cost-estimate-state` — **the surface was deleted.** SPEC §24 removes
+  the Timeline lens rather than hiding it, and it was the only host either shell had.
+  Removed rather than re-pointed at Plan, on the registry's own rule that a tag is a claim:
+  nothing in the design places a proposal ghost or an estimate flag on a day card, and
+  moving a shell to a screen the design has not drawn it on invents the placement. M9 and
+  M19 keep the work; they lose the shells.
+- `wizard-destination-chips` and `wizard-longer-chip` — **built** (decisions D-A and D-B,
+  2026-09-16). This section and **D11 both still describe them as "honestly orphaned"**,
+  which is now two passes stale.
+- `wizard-pace-tags` — gone with them.
 
 **Gone from this list entirely** (built, or deleted as unwanted): `trip-invites`,
 `share-button`, `keep-day-flag`, `keep-day-dialog`, `add-saved-day`, `playbooks-route`,
@@ -173,6 +191,85 @@ a failed region is a retry **in place** while every region that did arrive stays
 page (partial failure, not a dead screen); and an account with nothing in it gets one
 empty state per surface, not one per section. `dataState` on the design component
 (`live` / `loading` / `empty` / `failed`) drives all four for review.
+
+**BUILT 2026-09-20 (M26 link 7), with five differences that are decisions rather than
+omissions.** Everything above is now real on Home, Overview and the Notebook index: a
+`Skeleton` primitive (hairline outline, no fill, one 1.8s breathe, `data-sk` stagger),
+`SkeletonRegion` (`role="status"` with the region's own name), and `RegionError`
+(`role="alert"`, a retry in place, and the sentence saying the rest of the page is still
+current). The five places the build does not match the artboard, each with its reason:
+
+1. **`homePb` has no build counterpart at all.** The Playbooks strip the region stands for
+   was deleted in M11b. This is a divergence to record, not a region to build — the design
+   side should drop `homePb` from `LOAD_PLAN.home` or say what it is now for.
+2. **`homeHero` and `homeTrips` resolve TOGETHER**, where the artboard lands them at 320ms
+   and 680ms. Both are the one `/api/trips` read here, so they arrive in the same frame.
+   Painting both *shapes* is what "a page paints its own shape immediately" asks for;
+   making one appear before the other would invent a seam that does not exist, which §3b
+   itself names as the thing not to do. Home's real second wave is per-card (each trip's
+   `TripDetail`, for the budget line and the hero's sparkline) and already degrades to
+   honest absence.
+3. **The Map lens gets no rail-then-canvas seam, and this is the "different answer" M26
+   link 7 allowed for.** `TripProvider` loads the whole `TripDetail` before the lens
+   mounts, so `mapRail` at 360ms and `mapCanvas` at 940ms have nothing to attach to — the
+   rail's data is already in hand when the first frame paints. Faking the stagger would be
+   inventing a wait. What the lens got instead is the thing it actually lacked: a
+   **style-load recovery ladder** (`mapRecovery.ts`) — a rebuild at 3.5s, a second at
+   7.5s, the offline panel at 11s — because MapLibre's worst failure emits no `error` at
+   all, `map.on("load")` simply never fires, and the reader got a paper rectangle forever
+   with nothing said about it.
+4. **The Map lens does NOT keep its day rail in the failed or the empty canvas.** The
+   artboard keeps it in both, and its failed panel says so out loud ("Your days are still
+   listed on the left"). The build hides it, because with no map underneath, a rail row
+   highlights a day and moves nothing — a control that appears to do something and does
+   not. That call was made for the failed state as `KI-2026-09-20-c` (where the panel was
+   also physically covering the rail, leaving Playwright to retry one click 170 times) and
+   is now matched in the empty state so the two do not disagree. **Design should either
+   accept it or say what a rail over a dead canvas is meant to do.**
+5. **Overview's *Edit in Notebook* points at the Notebook INDEX until the page id is
+   known.** The artboard's action is `openTripHomeDoc`, resolved when clicked rather than
+   when drawn, which is what lets it exist from the first frame; spelled in hrefs that is
+   the index first and the page itself after. One click further away and never wrong.
+
+Two things the build got right by accident and has now made deliberate: the templates
+gallery on the Notebook index is a module constant, so it is real from the first frame and
+survives a failed read — which is why `nbTpl` needs no counterpart, and a test now holds it
+outside the branch. And `nbTpl`'s own exemption from the empty state ("an account with
+nothing in it still has them") applies here for the same reason.
+
+**§9's "the user picks" and §29's "hidden, not unmounted" — BUILT 2026-09-20 (M26 link
+10), with two differences the design side should accept or push back on.**
+
+All three geometries existed and nobody could choose between them; the trip board hardcoded
+`docked` and the notebook hardcoded `floating`. There is now one control whose name flips
+(`Dock to the side` / `Float it free`, as the artboard draws it), the floating panel drags
+by its header, and the position is clamped to §9's 16px pad and re-clamped on resize.
+
+1. **Only the trip board offers the choice.** §9's own table says docked costs *"real — a
+   flex sibling, so the plan shrinks instead of hiding"*. A notebook page is not a plan: it
+   renders inside a centred measure, and docking there would take 356px off the column that
+   IS the reading experience. Mitchell asked for floating there by name (*"it should be on
+   the bottom right on desktop, floating till open, and always available in both editing and
+   reading mode"*). `PageScreen` therefore offers no Dock at all rather than a half-working
+   one. **Design should either accept that the notebook is float-only, or say what a docked
+   rail does to a document's measure.**
+2. **§29's `visibility: hidden` is delivered by outliving the unmount, not by hiding the
+   element.** *"On `plans` the floating dock keeps its place in the tree… unmounting it
+   loses the thread, the open/closed state and the dragged position, so coming back from
+   Plans would reset it."* There is nothing in that route's tree to hide — `/plans` is an
+   account-scope route that renders neither the board nor the trip, so the subtree is
+   genuinely gone. The RESULT is delivered instead: the thread already survived
+   (`useAskThread`'s `persistAs`), the shape survives, and the position now survives.
+
+   **The open/closed state deliberately does not, and that is the one shortfall.**
+   `TripBoardScreen`'s own note is the reason: the presentation is chosen with
+   `useIsPhone()`, which is `false` on the server and the first client paint, and the flash
+   that would cause is unreachable only because the open flag is *"`useState(false)`, with
+   no restore from storage, no URL parameter and no server prop, so `assistant.open` is
+   false on EVERY first paint."* Restoring it would paint a 356px docked rail on a phone for
+   a frame — reintroducing a defect that file guards by construction, to save a reader one
+   click. **Traded openly rather than quietly: if the open state matters more than the
+   flash, the fix is a layout-level mount, which is a bigger change than §29 implies.**
 
 ## 3c. Designed 2026-09-19 — the three new features, and the mobile remainder they exposed
 
@@ -349,14 +446,23 @@ missing `tags` field are all resolved. Four items this document argued for, all 
   the confirm step. The console is still deliberately never on the phone. What remains
   undesigned is rule 6's two phone states **for the plan section itself** (offline, and a
   failed read of the plan).
-- **The phone's token surface has no loading or failed region.** The desktop sections got
-  the 2026-09-12 region-by-region treatment; this one was written live-only and owes the
-  same two states.
-- **The phone Notebook has one hardwired widget** — its stop repeater follows the focused
-  day rather than carrying a binding. Deliberate: per-widget rebinding on 390px needs its
-  own pass.
-- **The phone has no conflict state.** Offline/sync-fail landed; conflict is still missing
-  and rule 6 requires all three.
+- **The phone's token surface has no loading or failed region — DESIGN-OWED, not
+  build-owed.** The desktop sections got the 2026-09-12 region-by-region treatment and M26
+  link 7 BUILT it (`Skeleton`, `SkeletonRegion`, `RegionError`, all three rules of §3b).
+  The primitives are there and a token section can mount them in an afternoon. What is
+  missing is the design: §3b's `LOAD_PLAN` names nine regions across five surfaces and none
+  of them is the phone's tokens or its plan. **Draw them and the build is short.**
+- ~~**The phone Notebook has one hardwired widget.**~~ **Struck 2026-09-20 — this bullet
+  was dated by its own §19.** §19 (2026-09-03) gave the phone Notebook the full widget
+  model, and DRIFT §3b's own entry on it already says *"this bullet is kept because it
+  dated the gap"*. Keeping it on "still open" made a closed gap look live for two passes.
+  The real remainder is narrower and is stated where it belongs: per-widget REBINDING at
+  390px, which is a design question nobody has drawn.
+- **The phone has no conflict state — DESIGN-OWED.** Offline/sync-fail landed (M26 link 7
+  gave the map a recovery ladder and every desktop region a retry in place); conflict is
+  the last of rule 6 and the only one of the three the design has never drawn. The desktop
+  reuses `ConflictBanner`; the phone equivalent is undecided, and §13's own "still open"
+  list says so. **This is the wave's one genuine design debt.**
 - **No tablet design at all** — KI-046. New on this list.
 - **The landing page needs no empty / offline / conflict state.** Rule 6 satisfied
   trivially; noted so it is not re-raised.
@@ -370,18 +476,30 @@ missing `tags` field are all resolved. Four items this document argued for, all 
   the scroll work in `requestAnimationFrame` — in a throttled or hidden frame the callback
   never runs and the "already scheduled" guard latches forever, silently killing the effect.
 - **Day 6's phone Plan cards** still carry pre-seed times and one wrong estimate treatment.
+- ~~**A phone renders the desktop day-column board.**~~ **Closed 2026-09-20 (M26 link
+  13).** Never on this list by name, and it should have been: `DAY_COLUMN_WIDTH_PX` was a
+  fixed 268px at every width, so a 390px phone showed one and a bit day columns side by
+  side and a stop card measured 241px with 141px of text in it. Plan now holds one day at
+  a time at full width, which is what §13.4 said all along — the text column measures
+  **215px of a 315px card**, against KI-046's 82px-of-364px. The design owes nothing here;
+  the build was not reading its own §13.
 - **Whether a day column sorts by start time** the way the design does. Still unanswered.
 
 ## Suggested order
 
-1. **Settle D12 and D13** — one control the build already has the field for, and one
-   duplicated verb. Both are small and both get worse once somebody builds around them.
+1. ~~**Settle D12 and D13**~~ — **both closed by M26** (link 1c gave the token form its
+   All trips / Chosen trips control; links 6a and 6b moved Delete and Duplicate to the trip
+   card's popover and gave a shared trip *Leave this trip*).
 2. **Answer the quota-window question** with Mitchell before M20 opens — the plan-and-usage
    screen is where a wrong answer reaches a customer (§2c).
-3. **Resolve D11**: drop the two `unplaced` wizard shells from the design, or get them
-   placed. Two orphaned shells is the honest signal that the design asked for something
-   nobody owns.
-4. **Land KI-034** so the home hero can be honest. Unchanged, and now the oldest.
+3. ~~**Resolve D11**~~ — **resolved 2026-09-16 and this line went stale for two passes.**
+   Mitchell placed the two shells rather than dropping them; both are built. See D11.
+4. **Land KI-034** so the home hero can pick the right trip. Unchanged, and now the oldest —
+   **but narrower than it was.** D6 is two things, and M26 link 9d shipped the half that was
+   never blocked: the hero already fetches the whole `TripDetail`, so the *"in 47 days"*
+   countdown is real now (and says *"12 days ago"* just as readily, which the selection bug
+   makes likely rather than theoretical). What KI-034 still blocks is WHICH trip the hero
+   picks — `nextTrip` is `visibleTrips[0]`, with nothing to sort by.
 5. Design the phone **conflict** state — the last of rule 6.
 6. ~~Look at KI-046 / tablet~~ — **out of scope, Mitchell 2026-09-12.** No tablet design.
 

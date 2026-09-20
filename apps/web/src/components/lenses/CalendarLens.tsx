@@ -7,7 +7,7 @@ import { DataText } from "../ui/data-text";
 import { Button } from "../ui/button";
 import { chipModel } from "../trip/DayChips";
 import { useDaySync, useFocus, useFollowFocusedDay } from "../trip/context/FocusProvider";
-import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { ACCENT_INK_TEXT, dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { CALENDAR_DIM_OPACITY } from "@/components/board/activityTags";
 import { calendarCityCards, type CityCard } from "./calendarCityCards";
 import { formatMoney } from "./formatMoney";
@@ -32,17 +32,6 @@ const TINT_BG: Record<AccentFamily, string> = {
   neutral: "bg-moss",
 };
 
-// dc.html:673's grip dots and :674's city name both render in the day's
-// accent ink — same map as TimelineLens.tsx/KeepDayFlag.tsx's own INK_TEXT
-// ("brand"'s darkest tone is `-pressed`, not a `-ink` token).
-const INK_TEXT: Record<AccentFamily, string> = {
-  brand: "text-brand-pressed",
-  info: "text-info-ink",
-  success: "text-success-ink",
-  warning: "text-warning-ink",
-  danger: "text-danger-ink",
-  neutral: "text-slate",
-};
 
 // Same family→ink mapping as INK_TEXT, as a background for the grip's dots
 // (dc.html:670-672: `background: {{ c.ink }}`) rather than a text color.
@@ -336,7 +325,7 @@ export function CalendarLens({
           <DataText size="xs">{ordinalDayOfMonth(Number(cell.date.slice(-2)))}</DataText>
           <span
             data-testid="calendar-day-label"
-            className={cn("font-semibold", INK_TEXT[accent.ink])}
+            className={cn("font-semibold", ACCENT_INK_TEXT[accent.ink])}
             // eslint-disable-next-line no-restricted-syntax -- dc.html:668's 10px "Day N" label has no token equivalent
             style={DAY_LABEL_SIZE}
           >
@@ -389,7 +378,7 @@ export function CalendarLens({
                       the same lie as falling back to a venue name. */}
                   {card.city !== null && (
                     <span
-                      className={cn("min-w-0 flex-1 truncate font-semibold", INK_TEXT[accent.ink])}
+                      className={cn("min-w-0 flex-1 truncate font-semibold", ACCENT_INK_TEXT[accent.ink])}
                       // eslint-disable-next-line no-restricted-syntax -- dc.html:682's 11px city name has no token equivalent
                       style={CITY_SIZE}
                     >

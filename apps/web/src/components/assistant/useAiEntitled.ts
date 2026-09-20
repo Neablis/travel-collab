@@ -28,8 +28,25 @@ async function readAccountPlan(): Promise<ApiResult<AccountPlanView>> {
   if (!res.ok) {
     return { ok: false, error: { status: res.status, message: "could not read the plan" } };
   }
-  const body = (await res.json()) as { plan: AccountPlanView };
-  return { ok: true, value: body.plan };
+  // **A 200 is not a promise about the body**, and this used to assume it was:
+  // `body.plan.entitlements` on a response whose shape was anything else threw
+  // inside the caller's `.then`, rejecting instead of resolving — the exact
+  // invariant the comment above claims and `apiClient.ts` states at the top of
+  // the file ("no helper ever rejects"). It surfaced the moment M26 link 9a
+  // mounted this hook on a second screen: five unhandled rejections in a suite
+  // that still reported every test passing, which is the shape CLAUDE.md
+  // warns about and an exit code catches.
+  //
+  // Hand-checked rather than parsed with a schema because `AccountPlanView` is
+  // a plain interface with no zod counterpart, and this hook reads exactly one
+  // field of it. A caller that needs more should widen the check with its own
+  // need, not inherit a guess made here.
+  const body: unknown = await res.json().catch(() => null);
+  const plan = (body as { plan?: unknown } | null)?.plan;
+  if (plan === null || typeof plan !== "object" || !Array.isArray((plan as AccountPlanView).entitlements)) {
+    return { ok: false, error: { status: 0, message: "the plan response was not a plan" } };
+  }
+  return { ok: true, value: plan as AccountPlanView };
 }
 
 /**

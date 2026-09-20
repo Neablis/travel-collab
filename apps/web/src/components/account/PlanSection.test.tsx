@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { PlanSection } from "./PlanSection";
@@ -140,19 +140,22 @@ describe("what you hold", () => {
     expect(screen.queryByTestId("plan-catalogue")).toBeNull();
   });
 
-  // **The sheet is a modal dialog, so navigating out of it has to close it.**
-  // Reported on the preview, 2026-09-15: *"Clicking change plan should navigate
-  // to the plans, but also close the sidebar"*. Without this the route changed
-  // underneath a dialog that stayed open over the page it had just reached.
+  // **This asserted an `onNavigate` callback until M26 link 1.** The callback
+  // existed to close the account Sheet behind this navigation — a modal dialog
+  // otherwise stayed open over the page it had just reached (preview,
+  // 2026-09-15: *"Clicking change plan should navigate to the plans, but also
+  // close the sidebar"*). Account is a route now (§34.4), so there is no dialog
+  // and no host to tell.
   //
-  // Asserted as the callback firing rather than as the sheet closing: this
-  // component does not own the sheet and must not decide that it closes —
-  // `AccountSettingsSheet` passes `() => onOpenChange(false)`.
-  it("tells its host to close when Change plan is taken", async () => {
-    const onNavigate = vi.fn();
-    render(<PlanSection onNavigate={onNavigate} />);
-    fireEvent.click(await screen.findByTestId("plan-change-link"));
-    expect(onNavigate).toHaveBeenCalledOnce();
+  // What survives is the half that is still true and still worth holding: this
+  // is a real anchor to `/plans`, not a button that fakes one. Keeping it means
+  // the CTA cannot silently regress to a `<button>` with a handler, which is
+  // what it was before the `buttonVariants`-on-a-`Link` pattern landed.
+  it("offers Change plan as a real link to the plans route", async () => {
+    render(<PlanSection />);
+    const link = await screen.findByTestId("plan-change-link");
+    expect(link.tagName).toBe("A");
+    expect(link.getAttribute("href")).toBe("/plans");
   });
 
   // §29: *"do not offer a CTA that opens a checkout that cannot succeed"*. A

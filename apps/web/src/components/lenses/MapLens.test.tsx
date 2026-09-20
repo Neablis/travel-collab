@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityKind, ActivityTag, Location, TripDetail } from "@tc/contracts";
@@ -53,8 +53,14 @@ vi.mock("@/components/trip/context/EditorHost", async (importOriginal) => {
   };
 });
 
-const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, mapHandlers, setPaintPropertyMock, markerInstances } = vi.hoisted(
+const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, mapHandlers, setPaintPropertyMock, markerInstances, mapStub } = vi.hoisted(
   () => ({
+    // **The one knob that makes the recovery ladder testable.** The ladder
+    // exists for the failure that emits NO error — `load` simply never fires —
+    // and the only way to force that is to make the stub withhold it. Reset in
+    // `beforeEach` below, so a test that forgets to put it back cannot leak a
+    // dead map into the next one.
+    mapStub: { suppressLoad: false },
     addLayerMock: vi.fn(),
     addSourceMock: vi.fn(),
     fitBoundsMock: vi.fn(),
@@ -136,7 +142,7 @@ vi.mock("maplibre-gl", () => {
       // Real maplibre fires "load" async, after style/tiles resolve — a
       // microtask keeps that ordering (and satisfies the `await waitFor`
       // callers below) without an unawaited real network/GL round-trip.
-      if (event === "load") {
+      if (event === "load" && !mapStub.suppressLoad) {
         Promise.resolve().then(() => {
           mapOnLoad();
           cb();
@@ -424,6 +430,13 @@ function renderMap(
   );
 }
 
+// The stub fires `load` for every test but the ladder's own, and a leaked
+// `true` here would silently turn every other test in this file into a test of
+// the offline panel.
+beforeEach(() => {
+  mapStub.suppressLoad = false;
+});
+
 describe("MapLens", () => {
   it("shows no located-activities list; only a day-attached unlocated activity gets the compact affordance", () => {
     // detailFixture()'s unlocated2 is backlog-only (no day) — scoped out per
@@ -553,7 +566,12 @@ describe("MapLens", () => {
     const callsBefore = mapConstructorMock.mock.calls.length;
     const { container } = renderMap(detailWithBacklogPinOnly());
 
-    expect(screen.getByText(/no located activities yet/i)).toBeTruthy();
+    // The artboard's own empty state (dc.html:2362): a title, the sentence
+    // that says what would make a stop appear, and a way to the surface that
+    // adds one. It replaced a single muted line that named the absence and not
+    // the way out of it.
+    expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go to Plan" })).toBeTruthy();
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector(".map-lens-canvas")).toBeNull();
     expect(mapConstructorMock.mock.calls.length).toBe(callsBefore);
@@ -1386,5 +1404,195 @@ describe("MapLens on a phone", () => {
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("map-day-strip")).toBeTruthy());
     expect(screen.getByTestId("map-day-strip-detail").textContent).toMatch(/2 stops/);
+  });
+});
+
+// KI-2026-09-20-c. `MapOfflineState` is `absolute inset-0` — the whole lens,
+// not just the canvas — so the rail, focus card and legend used to render
+// UNDERNEATH it, mounted and enabled and impossible to click. Playwright
+// retried one rail click 170 times before timing out (m10-map-rail, cloud
+// session, 2026-09-20); a person offline would see a day list that does
+// nothing at all.
+//
+// The assertion is deliberately "the rail is GONE", not "the panel is on
+// top". A z-index assertion would pass while the dead control was still
+// there, which is the bug.
+// M26 link 5a. Clicking a rail row leaves the pointer on it, so without this
+// the hover card and the focus card both sit on screen describing one day —
+// and for an empty day they said the same sentence twice, which
+// `m10-growth.spec.ts` caught as a strict-mode violation on "No stops yet".
+describe("MapLens — the hover card and the focus card never describe one day at once", () => {
+  it("shows a hover card for an unfocused day", async () => {
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+
+    fireEvent.mouseEnter(screen.getAllByRole("button", { name: /Day 2/i })[0]!);
+    // `getBy*` for presence: it throws naming the missing testid, where
+    // `expected null not to be null` would say nothing useful.
+    expect(screen.getByTestId("map-hover-card")).toBeDefined();
+  });
+
+  it("suppresses it for the day whose detail is already pinned", async () => {
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+
+    fireEvent.mouseEnter(screen.getAllByRole("button", { name: /Day 1/i })[0]!);
+    expect(screen.queryByTestId("map-hover-card")).toBeNull();
+  });
+});
+
+describe("MapLens — when the map has failed", () => {
+  it("takes the day rail away rather than leaving it dead under the panel", async () => {
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+
+    // The rail is there while the map is healthy — without this the test
+    // could pass against a lens that never renders a rail at all.
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    // A style failure, shaped the way maplibre delivers one: no `sourceId`,
+    // and a message naming the style. `isFatalMapError` treats this as fatal.
+    act(() => {
+      mapHandlers.get("error")!({ error: { message: "Failed to parse style" } });
+    });
+
+    expect(screen.getByTestId("map-offline")).toBeTruthy();
+    expect(screen.queryByLabelText("Days")).toBeNull();
+  });
+
+  // The container div is the one thing that must NOT be branched: a React
+  // conditional around it detaches the node mid-style-load and the load
+  // aborts with no error (DRIFT §6 build-check 5, three recurrences). The
+  // retry rebuilds the instance underneath the panel, so the node has to
+  // still be there to rebuild into.
+  it("keeps the maplibre container mounted so retry has something to rebuild into", async () => {
+    const { container } = renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+
+    act(() => {
+      mapHandlers.get("error")!({ error: { message: "Failed to parse style" } });
+    });
+
+    // **That comma used to be a selector LIST, not a descendant combinator.**
+    // `.map-lens-canvas` is always mounted, so the assertion read
+    // `expect(alwaysPresent).not.toBeNull()` and could not fail for the reason
+    // the line above it claims (CodeRabbit, PR #196). The inner MapLibre
+    // container is the recovery target and the only thing worth asserting.
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- the container div is deliberately unlabelled chrome; there is no role or testid to query it by, and its PRESENCE is the whole assertion.
+    expect(container.querySelector(".map-lens-canvas > .h-full.w-full")).not.toBeNull();
+  });
+});
+
+// **The style-load recovery ladder, forced rather than inspected** — M26 link
+// 7 and its own Wave 1 gate box, which says so in as many words.
+//
+// This is the failure mode nothing else in this file can see. `failed` is set
+// by an `error` event; the worst map failure emits none — `map.on("load")`
+// simply never fires, so the marker loop never runs, `setReady(true)` never
+// runs, and the reader gets a paper rectangle with nothing said about it,
+// forever. `mapStub.suppressLoad` is the only way to produce that state, and
+// `mapConstructorMock` counts instances, which is what a "rebuild" IS: MapLibre
+// has no "load the style again" on an instance whose first attempt died.
+describe("MapLens — a style that never loads", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // The dynamic `import("maplibre-gl")` and its `.then` are microtasks, so the
+  // first instance does not exist until they have run. `waitFor` is the usual
+  // tool and is the wrong one here: under fake timers it advances the very
+  // clock these tests are measuring, which would step the ladder while waiting
+  // for the map the ladder is about to give up on.
+  async function flushMapImport() {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  it("rebuilds at 3.5s, again at 7.5s, and offers Plan at 11s", async () => {
+    vi.useFakeTimers();
+    mapStub.suppressLoad = true;
+    mapConstructorMock.mockClear();
+
+    renderMap(detailFixture());
+    await flushMapImport();
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+
+    // Nothing at all before the first rung — a map that is merely slow must
+    // not be thrown away.
+    await act(async () => {
+      vi.advanceTimersByTime(3499);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(2);
+    // A rebuild is not a give-up: the reader is still being told to wait, and
+    // the panel would be a lie while another instance is trying.
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(4000);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(3);
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+    // 11s: stop trying, and say what is still readable. No fourth instance —
+    // the last rung gives up rather than rebuilding.
+    expect(screen.getByTestId("map-offline")).toBeTruthy();
+    expect(screen.getByTestId("map-offline-open-plan")).toBeTruthy();
+    expect(mapConstructorMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("disarms the whole ladder the moment the style loads", async () => {
+    vi.useFakeTimers();
+    mapConstructorMock.mockClear();
+
+    renderMap(detailFixture());
+    await flushMapImport();
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+
+    // Well past the last rung. A map that loaded must never be rebuilt under
+    // the reader, and must never be covered by a panel.
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+  });
+
+  // "Scoped to the instance that started it", from the gate box. A timer that
+  // outlives its lens fires into a component that is gone — harmless today,
+  // because React drops a setState on an unmounted tree, and a blanked map the
+  // first time anything in this ladder gains a side effect that is not a
+  // setState.
+  //
+  // **The assertion is the pending-timer COUNT, not the constructor count.**
+  // The obvious version of this test — unmount, advance an hour, assert no
+  // second `new Map` — passes with the disarm deleted, because the effect that
+  // would build one is gone anyway. It was written that way first and proved
+  // exactly nothing (CLAUDE.md rule 3 is what caught it). `getTimerCount`
+  // observes the thing the cleanup is actually for.
+  it("leaves nothing armed when the lens unmounts mid-ladder", async () => {
+    vi.useFakeTimers();
+    mapStub.suppressLoad = true;
+
+    const { unmount } = renderMap(detailFixture());
+    await flushMapImport();
+    // Three rungs, armed together.
+    expect(vi.getTimerCount()).toBeGreaterThanOrEqual(3);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

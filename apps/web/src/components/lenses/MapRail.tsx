@@ -1,11 +1,17 @@
 import { useEffect, useRef } from "react";
-import type { AccentFamily } from "@/lib/dayAccent";
+import { ACCENT_INK_TEXT, type AccentFamily } from "@/lib/dayAccent";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
-import { formatTripDate } from "@/lib/formatDate";
+import { formatTripDate, formatTripDateNoMonth } from "@/lib/formatDate";
 import { kmLabel } from "@/lib/units";
 import { cn } from "@/lib/cn";
-import type { MapDay } from "./mapRailData";
-import { gearedTravel, pickFocusedDay, railScrollGeometry, type RailItem } from "./mapRailFocus";
+import { monthEdges, type MapDay } from "./mapRailData";
+import {
+  gearedTravel,
+  pickFocusedDay,
+  railScrollGeometry,
+  railScrollTopFor,
+  type RailItem,
+} from "./mapRailFocus";
 import { onMapRailTuningChange, readMapRailTuning } from "./mapRailTuning";
 
 // Exported so MapLens can size the left clearance it reserves in its
@@ -14,6 +20,14 @@ import { onMapRailTuningChange, readMapRailTuning } from "./mapRailTuning";
 // geometry tells the camera a pin under these first 284px is actually hidden.
 export const MAP_RAIL_WIDTH_PX = 268;
 export const MAP_RAIL_INSET_PX = 16;
+
+// M26 link 5d, from the design's `railTo`: a clicked day lands 14% down the
+// rail, and a 700ms lock keeps the scroll-driven focus from overriding the
+// click while the smooth scroll is still animating. Without the lock the
+// intermediate positions of that animation emit their own focus, so the day
+// you clicked is not the day you end on.
+const RAIL_CLICK_REVEAL = 0.14;
+const RAIL_CLICK_LOCK_MS = 700;
 
 // Tailwind's JIT can't see a template-interpolated `bg-${accent}-tint` —
 // same static-Record pattern as DayChips.tsx's CHIP_BG.
@@ -43,6 +57,8 @@ export function MapRail({
   days,
   focusedDay,
   onFocus,
+  onHover,
+  onHoverEnd,
 }: {
   days: MapDay[];
   focusedDay: number | null;
@@ -50,14 +66,36 @@ export function MapRail({
   // the focus. The rail itself only ever emits a real index — its focus is
   // scroll-driven, and a clear here would be undone by the next scroll event.
   onFocus: (index: number | null) => void;
+  /**
+   * A day the pointer has entered, with that row's viewport-relative top.
+   *
+   * **Hovering is not selecting** (M26 link 5a). This is deliberately a
+   * different callback from `onFocus`, and the rail changes nothing about
+   * itself when it fires: the row's appearance stays a function of focus alone,
+   * which is what `MapRail.test.tsx`'s no-hover-tint assertion has always said
+   * and what this link left standing rather than replaced.
+   *
+   * Optional, so every existing caller and test keeps working untouched.
+   */
+  onHover?: (day: MapDay, rowTop: number) => void;
+  onHoverEnd?: () => void;
 }) {
   const unit = useDistanceUnit();
+  // Which rows print the month (M26 link 5b). Computed over the whole ordered
+  // list, because a month boundary is a fact about a row's NEIGHBOUR — no row
+  // can decide it alone.
+  const monthEdge = monthEdges(days);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonsRef = useRef<Map<number, HTMLButtonElement>>(new Map());
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
   const lastEmittedRef = useRef(focusedDay);
   lastEmittedRef.current = focusedDay;
+
+  // Set by the effect, which owns the measured geometry; called by the click
+  // handler, which does not. Null whenever the effect is not mounted.
+  const scrollToDayRef = useRef<((index: number) => void) | null>(null);
+  const lockUntilRef = useRef(0);
 
   const clipRef = useRef<HTMLDivElement>(null);
   const spacerRef = useRef<HTMLDivElement>(null);
@@ -132,6 +170,10 @@ export function MapRail({
     };
 
     const evaluate = () => {
+      // The click lock (link 5d). A programmatic smooth scroll passes over
+      // every day between here and the target, and each of those positions
+      // would otherwise emit a focus of its own.
+      if (Date.now() < lockUntilRef.current) return;
       const tuning = readMapRailTuning();
       const { offset, progress } = currentScroll(tuning.scrollPxPerDay);
       const next = pickFocusedDay({ ...geometry, offset, progress }, tuning);
@@ -187,6 +229,35 @@ export function MapRail({
     resizeObserver.observe(container);
     resizeObserver.observe(track);
     measure();
+
+    // M26 link 5d. Installed here because this is where the measured geometry
+    // lives; the click handler in the render has no access to it. Cleared on
+    // teardown, so a click cannot reach a stale container.
+    scrollToDayRef.current = (index: number) => {
+      const item = geometry.items.find((candidate) => candidate.index === index);
+      if (item === undefined) return;
+      const top = railScrollTopFor({
+        // 14% down the viewport, so the clicked day lands near the top with a
+        // little of the previous day still visible for context.
+        targetOffset: item.offsetTop - geometry.viewportHeight * RAIL_CLICK_REVEAL,
+        viewportHeight: geometry.viewportHeight,
+        contentHeight: geometry.contentHeight,
+        gearedTravel: travelFor(readMapRailTuning().scrollPxPerDay),
+      });
+      lockUntilRef.current = Date.now() + RAIL_CLICK_LOCK_MS;
+      // **`scrollTo` is not universal.** jsdom does not implement it at all, so
+      // calling it unguarded threw on every rail click in the unit suite — as
+      // an UNHANDLED ERROR, which is worse than a failure: vitest still printed
+      // "3349 passed" and only the `Errors 1` line below it and a non-zero exit
+      // said otherwise. (Same shape as the `CSS.escape` trap this repo already
+      // hit: an uncaught error is not a failed assertion.)
+      //
+      // The fallback is a real one, not a test accommodation: assigning
+      // `scrollTop` is the universally supported way to land at a position,
+      // and it is what an engine without smooth-scroll support would do anyway.
+      if (typeof container.scrollTo === "function") container.scrollTo({ top, behavior: "smooth" });
+      else container.scrollTop = top;
+    };
 
     const unsubscribeTuning = onMapRailTuningChange(measure);
     container.addEventListener("scroll", handleScroll, { passive: true });
@@ -255,6 +326,7 @@ export function MapRail({
     container.addEventListener("focusin", handleFocusIn);
 
     return () => {
+      scrollToDayRef.current = null;
       resizeObserver.disconnect();
       unsubscribeTuning();
       container.removeEventListener("scroll", handleScroll);
@@ -311,7 +383,7 @@ export function MapRail({
         <div ref={clipRef} className="sticky top-0 overflow-clip" style={{ height: "auto" }}>
           {/* eslint-disable-next-line no-restricted-syntax -- transform is the geared scroll offset, not a themeable value */}
           <div ref={trackRef} data-rail-track style={{ willChange: "transform" }}>
-            {days.map((day) => {
+            {days.map((day, position) => {
               const active = day.index === focusedDay;
               return (
                 // eslint-disable-next-line no-restricted-syntax -- a rich custom list-item control, not a Button-variant action; Button's base classes always carry `disabled:opacity-50` in the string regardless of state, which would defeat the "inactive days don't grey out" contract this element's className is asserted against
@@ -324,7 +396,29 @@ export function MapRail({
                   data-day-index={day.index}
                   type="button"
                   aria-current={active ? "true" : undefined}
-                  onClick={() => onFocus(day.index)}
+                  onClick={() => {
+                    onFocus(day.index);
+                    // Link 5d: and bring it into view, the way `railTo` does.
+                    // Focus first, so the lock the scroll sets cannot suppress
+                    // the very focus this click is making.
+                    scrollToDayRef.current?.(day.index);
+                  }}
+                  // M26 link 5a. The rail REPORTS the hover and renders nothing
+                  // for it: the card is a sibling of this rail in the map wrap,
+                  // so it positions against the map rather than against this
+                  // element's geared-scroll transform — which would drag the
+                  // card along as the track moves.
+                  //
+                  // The row's viewport-relative top is what travels, not a
+                  // number computed here: only the caller knows where the map
+                  // wrap starts, and only it can clamp against the wrap's
+                  // height. `mouseenter`/`mouseleave` rather than `mouseover`,
+                  // so moving between two children of the same row does not
+                  // retrigger.
+                  onMouseEnter={(event) =>
+                    onHover?.(day, event.currentTarget.getBoundingClientRect().top)
+                  }
+                  onMouseLeave={() => onHoverEnd?.()}
                   className={cn(
                     // No hover tint: the rail already signals the current day via
                     // aria-current's tint (below), and scrolling — not hovering —
@@ -336,9 +430,14 @@ export function MapRail({
                   // eslint-disable-next-line no-restricted-syntax -- 3px left spine has no Tailwind border-width step (0/2/4/8), matching TimelineLens's computed-geometry pattern
                   style={{ borderLeftWidth: "3px", borderLeftColor: `var(--color-${day.accent})` }}
                 >
-                  <div className="flex items-baseline justify-between gap-2">
+                  {/* M26 link 5b. `gap-8` at the baseline, NOT `justify-between`:
+                      across a 268px rail the old layout pushed the label and
+                      the date to opposite ends, so the eye had to travel to
+                      pair two halves of one fact. They now sit together and the
+                      row's right side is simply empty. */}
+                  <div className="flex items-baseline gap-8">
                     <span
-                      className="font-bold uppercase text-ink"
+                      className={cn("font-bold uppercase", ACCENT_INK_TEXT[day.accent])}
                       // eslint-disable-next-line no-restricted-syntax -- 11px day label has no token equivalent (between text-xs/12px and nothing smaller)
                       style={{ fontSize: "11px", letterSpacing: "0.05em" }}
                     >
@@ -346,11 +445,16 @@ export function MapRail({
                     </span>
                     {day.date !== null && (
                       <span
-                        className="font-mono text-slate"
+                        className={cn("font-mono", ACCENT_INK_TEXT[day.accent])}
                         // eslint-disable-next-line no-restricted-syntax -- 11px date has no token equivalent
                         style={{ fontSize: "11px" }}
                       >
-                        {formatTripDate(day.date)}
+                        {/* The month only where it changes — see `monthEdges`.
+                            "Sep" repeated down every row of a September trip is
+                            noise; the boundary is the only place it informs. */}
+                        {monthEdge[position] === true
+                          ? formatTripDate(day.date)
+                          : formatTripDateNoMonth(day.date)}
                       </span>
                     )}
                   </div>

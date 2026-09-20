@@ -205,6 +205,42 @@ what may exist on a page — read `RULES.md` first.
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 | `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
 
+<!-- ROUTE-ARTBOARD-INDEX:START -->
+
+### Route → artboard → spec
+
+**Generated — do not edit by hand.** Run `node scripts/route-artboard-index.mjs --write`;
+`pnpm test` fails when a gate below has been renamed out of the design file, when a line
+number has drifted, or when the app grows a route nobody has decided an artboard for.
+
+The design file is one document, not a folder of artboards: a screen is the
+`<sc-if value="{{ … }}">` block named below, reached by driving `startScreen` and the nav.
+Open the line, then read the `SPEC.md` sections beside it — **in that order**, and diff both
+against the milestone link that owns the screen before writing code
+(`docs/guidelines/building-from-the-design.md`).
+
+| Route | Where it is drawn | Spec | Notes |
+|---|---|---|---|
+| `/` | `isHome` · line 1442 | §28, §32 | Trips, the new-trip fork and the import entry |
+| `/trips/[tripId]` | `isTrip` · line 1740 | §24, §25 | The four tabs; Overview is a notebook page |
+| `/trips/[tripId]/pages` | `isNotebook` · line 3577 | §7, §18, §19 | Notebook index |
+| `/trips/[tripId]/pages/[pageId]` | `isDoc` · line 3672 | §18, §21, §26 | One page, and the widget framework |
+| `/playbooks` | `isPlaybooks` · line 2436 | §15, §33 | Discover — §33 re-sorts the header by kind of decision |
+| `/playbooks/day/[savedDayId]` | `isDay` · line 2677 | §15, §16, §33 | The shared day; §16 gives it a map, §33 gives it day scope |
+| `/playbooks/board` | `isBoard` · line 3477 | §15 | Leaderboard |
+| `/playbooks/profile/[userId]` | `isProfile` · line 3511 | §15 | Public profile |
+| `/plans` | `isPlansRoute` · line 3184 | §29, §34 | §34.3 adds the phone treatment |
+| `/account` | `isAccountRoute` · line 2928 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
+| `/admin` | `isAdminRoute` · line 3316 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
+| `/welcome` | `isDeskLanding` · line 4608 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
+| `/signin` | `isSignin` · line 5021 | §14, §28 | Inside the `isAuth` block |
+| `/signup` | `isSignup` · line 5018 | §14, §28 | Inside the `isAuth` block |
+| `/demo` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
+| `/s/[token]` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
+| `/invite/[token]` | _not drawn_ | §17 | Undrawn. The gate it leads to is §17.3, in Trip settings |
+
+<!-- ROUTE-ARTBOARD-INDEX:END -->
+
 ## How to read the design file
 
 It is a **design reference written in HTML**, not production code. Do not copy its markup.

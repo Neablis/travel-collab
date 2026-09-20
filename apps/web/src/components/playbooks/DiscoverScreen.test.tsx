@@ -136,11 +136,15 @@ describe("Discover", () => {
     expect(matchLine({ cities: ["Kyoto"], matchedCities: ["Kyoto"] })).toBe("Kyoto matched");
   });
 
-  it("sends the scope segment, and it is a filter on this page rather than a link", async () => {
+  // **A TAB since M26 link 2** (SPEC §33.2), not a `SegmentedControl` pill —
+  // scope is a PLACE, and a pill is what a filter looks like on this page. It
+  // is still not a second route, which is the half of this claim that survives
+  // the change of control.
+  it("sends the scope as a tab, and it is still a place on this page rather than a link", async () => {
     render(<DiscoverScreen />);
     await waitFor(() => expect(searchPlaybooksMock).toHaveBeenCalled());
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
-      screen.getByRole("radio", { name: "Yours" }),
+      screen.getByRole("tab", { name: "Yours" }),
     );
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "yours" })),
@@ -150,21 +154,28 @@ describe("Discover", () => {
     expect(screen.queryByRole("link", { name: /yours/i })).toBeNull();
   });
 
-  // Two sorts, three filters — §15 asks for four of each, and the two missing
-  // sorts plus the rating floor need review data M12 owns. This is the
-  // assertion that stops somebody helpfully "fixing" them back.
-  it("offers exactly two sorts and no rating floor", async () => {
+  // Two sorts — §15 asks for four, and the two missing ones need review data
+  // M12 owns. **And no rating filter**, for the same reason: §33.2 names Rating
+  // as the second face chip, and building it over a reviews table that does not
+  // exist would be a control that does nothing (project rule 2). This is the
+  // assertion that stops somebody helpfully "fixing" either back.
+  it("offers exactly two sorts and no rating filter", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    const sort = screen.getByLabelText("Sort");
-    expect(within(sort).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "Most added",
-      "Newest",
-    ]);
-    expect(screen.queryByLabelText(/rating/i)).toBeNull();
-    expect(screen.getByLabelText("Budget")).toBeTruthy();
-    expect(screen.getByLabelText("Season")).toBeTruthy();
+
+    // Sort rides the results sentence now, not the filter row.
+    await user.click(screen.getByTestId("discover-sort"));
+    expect(screen.getByTestId("discover-sort-most-added").textContent).toBe("Most added");
+    expect(screen.getByTestId("discover-sort-newest").textContent).toBe("Newest");
+    expect(screen.queryByTestId("discover-sort-highest-rated")).toBeNull();
+
+    expect(screen.queryByTestId("filter-chip-rating")).toBeNull();
+    expect(screen.getByTestId("filter-chip-budget")).toBeTruthy();
+    // Season is cut entirely (§33.2) — header, query and rail.
+    expect(screen.queryByTestId("filter-chip-season")).toBeNull();
+    expect(screen.queryByLabelText(/season/i)).toBeNull();
   });
 
   // Four bands over three edges (Mitchell, Vercel toolbar comment on
@@ -178,39 +189,81 @@ describe("Discover", () => {
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    const budget = screen.getByLabelText("Budget");
-    expect(within(budget).getAllByRole("option").map((o) => o.textContent)).toEqual([
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
+      screen.getByTestId("filter-chip-budget"),
+    );
+    for (const label of [
       "Any budget",
       "Under $200.00",
       "$200.00 – $500.00",
       "$500.00 – $1,000.00",
       "Over $1,000.00",
-    ]);
+    ]) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
   });
 
-  // The month dropdown this replaced had twelve options over a library of a few
-  // dozen days, so most of them returned nothing. Four buckets, and the value
-  // that reaches the endpoint is the SEASON — the month-to-season lookup lives
-  // on the server side of the query, not in a widened set of month parameters.
-  it("filters by season, and sends the season rather than a month", async () => {
+  // §33.2: a face chip shows **its value** when set, not its own label. A chip
+  // still reading "Budget" once a budget is chosen makes the reader open it to
+  // find out what they asked for — the thing the chip was meant to save them.
+  it("a set chip reads its value, and an unset one reads its name", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    const season = screen.getByLabelText("Season");
-    expect(within(season).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "Any season",
-      "Spring",
-      "Summer",
-      "Fall",
-      "Winter",
-    ]);
+    expect(screen.getByTestId("filter-chip-budget").textContent).toBe("Budget");
 
-    await userEvent
-      .setup({ advanceTimers: vi.advanceTimersByTime })
-      .selectOptions(season, "fall");
+    await user.click(screen.getByTestId("filter-chip-budget"));
+    await user.click(screen.getByTestId("filter-budget-under200"));
     await waitFor(() =>
-      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ season: "fall" })),
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ budget: "under200" }),
+      ),
     );
+    expect(screen.getByTestId("filter-chip-budget").textContent).toBe("Under $200.00");
+  });
+
+  // §33.2: everything that is not a face filter appears in the row only once it
+  // carries a value, and lives in *More filters* until then.
+  it("keeps Length out of the row until it is asked, then shows it as a chip", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    expect(screen.queryByTestId("filter-chip-length")).toBeNull();
+
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-length-two-three"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ length: "two-three" }),
+      ),
+    );
+    expect(screen.getByTestId("filter-chip-length").textContent).toBe("2-3 days");
+  });
+
+  // **The season filter is cut** (§33.2 — it filtered on the month a day was
+  // run and nobody used it). This test used to drive it; it now holds the cut,
+  // because a filter removed with nothing asserting its absence is one that
+  // quietly comes back.
+  //
+  // **The concept is not cut.** `seasonOfMonth` and `SEASON_MONTHS` stay —
+  // `pnpm content:verify` prints season occupancy and is a separate consumer.
+  it("no longer filters by season, and never sends one", async () => {
+    render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+
+    expect(screen.queryByLabelText(/season/i)).toBeNull();
+    expect(screen.queryByText(/any season/i)).toBeNull();
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
+      screen.getByTestId("filter-more"),
+    );
+    expect(screen.queryByText(/season/i)).toBeNull();
+
+    for (const call of searchPlaybooksMock.mock.calls) {
+      expect(call[0]).not.toHaveProperty("season");
+    }
   });
 
   // The budget bands compare minor units, so they only mean something inside
@@ -221,7 +274,7 @@ describe("Discover", () => {
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    expect(screen.queryByLabelText("Budget")).toBeNull();
+    expect(screen.queryByTestId("filter-chip-budget")).toBeNull();
   });
 
   // ONE way out of the empty state, not two. "Drop the filters" and "Search
@@ -236,16 +289,111 @@ describe("Discover", () => {
     expect(screen.queryByRole("button", { name: "Drop the filters" })).toBeNull();
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.selectOptions(screen.getByLabelText("Season"), "winter");
-    await waitFor(() =>
-      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ season: "winter" })),
-    );
-    await user.click(screen.getByRole("button", { name: "Search everywhere" }));
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-length-four-six"));
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ season: null, cities: [], budget: "any", scope: "everyone" }),
+        expect.objectContaining({ length: "four-six" }),
       ),
     );
+    await user.click(screen.getByTestId("discover-search-everywhere"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cities: [], budget: "any", length: "any" }),
+      ),
+    );
+  });
+
+  // **A place is never reset by a control about questions** (§33.2). *Search
+  // everywhere* used to spread `NO_FILTERS`, which put `scope` back to
+  // `everyone` — so somebody looking at *Saved*, finding nothing and asking to
+  // widen the search was moved to a different place without asking.
+  it("keeps the scope when Search everywhere drops the questions", async () => {
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Saved" })).toBeTruthy());
+
+    await user.click(screen.getByRole("tab", { name: "Saved" }));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "saved" })),
+    );
+
+    await user.click(screen.getByTestId("discover-search-everywhere"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "saved", cities: [] }),
+      ),
+    );
+  });
+
+  // §33.2: the count excludes scope and sort. The phone badge used to count
+  // "sorted by newest" as a filter, which it is not.
+  it("counts only the questions, never the place or the ordering", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    // Nothing asked yet: no Clear filters at all.
+    expect(screen.queryByTestId("discover-clear-filters")).toBeNull();
+
+    // A place and an ordering are not questions.
+    await user.click(screen.getByRole("tab", { name: "Yours" }));
+    await user.click(screen.getByTestId("discover-sort"));
+    await user.click(screen.getByTestId("discover-sort-newest"));
+    expect(screen.queryByTestId("discover-clear-filters")).toBeNull();
+
+    // A question is.
+    await user.click(screen.getByTestId("filter-chip-budget"));
+    await user.click(screen.getByTestId("filter-budget-over1000"));
+    expect(screen.getByTestId("discover-clear-filters").textContent).toContain("(1)");
+
+    // And clearing them leaves the place and the ordering where they were.
+    await user.click(screen.getByTestId("discover-clear-filters"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: "yours", sort: "newest", budget: "any" }),
+      ),
+    );
+  });
+
+  // §33.2: the sentence states the COUNT only. It used to end ", most added
+  // first" — beside a live Sort control that both duplicated it and could
+  // contradict it.
+  it("states the count and nothing about the ordering", async () => {
+    searchPlaybooksMock.mockResolvedValue(
+      ok(response({ days: [day(), day({ savedDayId: "aa000000-0000-4000-8000-000000000002" })] })),
+    );
+    render(<DiscoverScreen />);
+    const line = await screen.findByTestId("discover-results-line");
+    expect(line.textContent).toBe("2 shared days");
+    expect(line.textContent).not.toMatch(/most added|newest|first/i);
+  });
+
+  // §33.2 spells the sentence `N shared days · <sort> ▾`, and the `·` was
+  // missing: the count and the sort sat side by side with only a `gap-x-3.5`
+  // between them, which reads as two controls rather than one sentence. Found
+  // by looking at the preview, 2026-09-20 — no assertion in this file was
+  // wrong, because none of them named the separator.
+  //
+  // It is asserted as a SIBLING of the count rather than inside it: the sort
+  // control is hidden on a phone (it lives in the filter sheet there) and the
+  // separator is hidden with it, so folding the `·` into
+  // `discover-results-line` would leave a middot trailing the count alone.
+  it("separates the count from the sort with a middot", async () => {
+    render(<DiscoverScreen />);
+    const sep = await screen.findByTestId("discover-results-sep");
+    expect(sep.textContent).toBe("·");
+    // Decorative punctuation between two elements — a screen reader that read
+    // "middot" here would be reading the layout out loud.
+    expect(sep.getAttribute("aria-hidden")).toBe("true");
+    expect((await screen.findByTestId("discover-results-line")).textContent).not.toContain("·");
+  });
+
+  it("says one shared day rather than 1 shared days", async () => {
+    render(<DiscoverScreen />);
+    expect((await screen.findByTestId("discover-results-line")).textContent).toBe("1 shared day");
   });
 
   // "Who shares the most" over a library nobody has shared into ranks an empty
@@ -317,7 +465,7 @@ describe("Discover", () => {
       error: { status: 0, message: "Network error" },
     });
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
-      screen.getByRole("radio", { name: "Yours" }),
+      screen.getByRole("tab", { name: "Yours" }),
     );
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("library-sync-failure")).toBeTruthy());
@@ -357,7 +505,7 @@ describe("Discover", () => {
       ok(response({ days: [day({ savedDayId: "aa000000-0000-4000-8000-000000000009", adds: 9 })] })),
     );
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
-      screen.getByRole("radio", { name: "Yours" }),
+      screen.getByRole("tab", { name: "Yours" }),
     );
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "yours" })),
@@ -395,7 +543,9 @@ describe("Discover, for a Playbook that is more than one day", () => {
     render(<DiscoverScreen />);
     await screen.findByText(/4 stops/);
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.selectOptions(screen.getByLabelText("Length"), "two-three");
+    // Length lives in *More filters* now (§33.2) — it is not a face chip.
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-length-two-three"));
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ length: "two-three" })),
     );
@@ -475,5 +625,87 @@ describe("Discover city search", () => {
     for (const select of container.querySelectorAll("select")) {
       expect([...select.options].map((o) => o.textContent)).not.toContain("Kyoto");
     }
+  });
+});
+
+// M26 Wave 2, link 12 — §16 asks for full phone parity, and project rule 3
+// forbids the desktop's shape outright: a popover opening from a row of
+// popovers, on a screen where each one covers the list it is filtering.
+describe("the phone's one filter sheet", () => {
+  const openSheet = async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    await user.click(screen.getByTestId("discover-phone-filters"));
+    await screen.findByTestId("discover-filter-sheet");
+    return user;
+  };
+
+  it("holds every filter in one place", async () => {
+    await openSheet();
+    const sheet = screen.getByTestId("discover-filter-sheet");
+    expect(within(sheet).getByTestId("sheet-budget-under200")).toBeTruthy();
+    expect(within(sheet).getByTestId("sheet-length-two-three")).toBeTruthy();
+  });
+
+  // Sort is a property of the list, and with only one place to put the
+  // questions it belongs with them — but it is still not one of them.
+  it("holds sort as well, and still does not count it as a filter", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-sort-newest"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "newest" })),
+    );
+    // The badge on the button counts questions only. The phone badge used to
+    // count "sorted by newest" as a filter, which is the defect §33.2 names.
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters");
+  });
+
+  it("counts the questions on the button once they are asked", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-budget-under200"));
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters (1)");
+    await user.click(screen.getByTestId("sheet-length-one"));
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters (2)");
+  });
+
+  // **Scope is deliberately outside the sheet.** A place is not a sheet
+  // setting: it stays as the tabs above the search, where it is visible without
+  // opening anything.
+  it("keeps scope out of the sheet entirely", async () => {
+    const user = await openSheet();
+    const sheet = screen.getByTestId("discover-filter-sheet");
+    for (const label of ["Everyone", "Yours", "Saved"]) {
+      expect(within(sheet).queryByText(label)).toBeNull();
+    }
+
+    // And scope is still a tab once the sheet is out of the way. It has to be
+    // checked AFTER closing: the sheet is a real modal, so Radix `aria-hidden`s
+    // the page behind it and nothing back there is reachable by role while it
+    // is open — which is itself the right behaviour for a bottom sheet.
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("discover-filter-sheet")).toBeNull());
+    expect(screen.getByRole("tab", { name: "Saved" })).toBeTruthy();
+  });
+
+  it("clears the questions from inside the sheet, leaving the ordering alone", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-sort-newest"));
+    await user.click(screen.getByTestId("sheet-budget-over1000"));
+    await user.click(screen.getByTestId("sheet-clear-filters"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ budget: "any", sort: "newest" }),
+      ),
+    );
+  });
+
+  // Both shapes render and CSS hides one, so they must not disagree: the sheet
+  // and the desktop chips are two sets of controls over ONE state.
+  it("shares its state with the desktop chips rather than keeping a second copy", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-budget-under200"));
+    expect(screen.getByTestId("filter-chip-budget").textContent).toBe("Under $200.00");
   });
 });
