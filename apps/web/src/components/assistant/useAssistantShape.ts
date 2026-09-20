@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import type { Point } from "./assistantPosition";
+
 /**
  * **Which shape the assistant takes, and it is the reader's to choose** —
  * SPEC §9, M26 link 10a: *"The assistant is not a fixed rail. One panel, three
@@ -94,4 +96,98 @@ export function useAssistantShape(surface: AssistantSurface): [AssistantShape, (
   );
 
   return [shape, choose];
+}
+
+/**
+ * **Where the floating panel was left, across a navigation** — SPEC §29, M26
+ * link 10c.
+ *
+ * §29 asks for something this build's shape cannot give literally: *"On `plans`
+ * the floating dock keeps its place in the tree with `visibility: hidden;
+ * pointer-events: none` … unmounting it loses the thread, the open/closed state
+ * and the dragged position, so coming back from Plans would reset it."*
+ *
+ * **There is nothing in that route's tree to hide.** The assistant is mounted
+ * by `TripBoardScreen`; `/plans` is an account-scope route that renders neither
+ * the board nor the trip, so the subtree is gone on navigation rather than
+ * hidden. The build's existing note said that made §29 inapplicable, and M26
+ * link 10 says why that stopped being true: *"it stops being sound the moment
+ * this link gives the assistant a position worth losing."*
+ *
+ * So the RESULT §29 protects is delivered a different way — the state outlives
+ * the unmount instead of the element outliving the route:
+ *
+ * - **The thread already survived**, and always did (`useAskThread`'s
+ *   `persistAs`), which is the piece §29 names first.
+ * - **The shape survives** (`useAssistantShape`, link 10a).
+ * - **The position survives**, which is this.
+ *
+ * **The open/closed state deliberately does NOT**, and that is the one place
+ * this falls short of §29's sentence. `TripBoardScreen`'s own note is the
+ * reason, at length: the assistant's presentation is chosen with
+ * `useIsPhone()`, which returns `false` on the server and the first client
+ * paint, and the flash that would cause is unreachable *"and the reason is
+ * `useAssistantVisibility` … `useState(false)`, with no restore from storage,
+ * no URL parameter and no server prop, so `assistant.open` is false on EVERY
+ * first paint."* Restoring it would paint a 356px docked rail on a phone for a
+ * frame — reintroducing a defect that file guards by construction, to save a
+ * reader one click. Recorded in `DRIFT.md` rather than traded quietly.
+ */
+export function useAssistantPosition(
+  key: string,
+): [Point | null, (next: Point | null | ((current: Point | null) => Point | null)) => void] {
+  const [position, setPosition] = useState<Point | null>(null);
+
+  // Read in an effect, not during render: `localStorage` does not exist on the
+  // server. The panel keeps `.assistant-float`'s own corner until this lands,
+  // which is the same thing it does before any drag at all.
+  useEffect(() => {
+    // **An empty key means "do not remember", and it has to be checked rather
+    // than assumed inert.** `localStorage` accepts `""` as a perfectly good
+    // key, so a caller that asked for no memory was getting memory — shared
+    // with every other caller that also asked for none. Caught by the test
+    // that asserts the panel forgets (CLAUDE.md rule 3).
+    if (key === "") return;
+    try {
+      const stored = window.localStorage.getItem(key);
+      if (stored === null) return;
+      const parsed: unknown = JSON.parse(stored);
+      const point = parsed as { x?: unknown; y?: unknown } | null;
+      // **`Number.isFinite` and nothing else.** A first version also checked
+      // `typeof === "number"` on both fields, which is strictly implied — and
+      // the redundancy showed up as a test that stayed green with one of the
+      // two guards deleted. This is the one that carries: it rejects a string,
+      // a null, a missing field, and the `NaN`/`Infinity` that a `typeof`
+      // check waves through and that would position the panel nowhere.
+      if (point === null || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+      setPosition({ x: point.x as number, y: point.y as number });
+    } catch {
+      // Unreadable or unparseable storage is the same as none: the corner.
+    }
+  }, [key]);
+
+  // **Takes an updater as well as a value**, exactly as `useState` does, because
+  // the re-clamp on resize has to read the CURRENT position without making it a
+  // dependency — a listener re-registered on every frame of a drag is a cost
+  // nobody asked for. The write happens inside the updater so the value written
+  // is the one React committed, not one computed from a stale closure.
+  const remember = useCallback(
+    (next: Point | null | ((current: Point | null) => Point | null)) => {
+      setPosition((current) => {
+        const resolved = typeof next === "function" ? next(current) : next;
+        if (key === "") return resolved;
+        try {
+          if (resolved === null) window.localStorage.removeItem(key);
+          else window.localStorage.setItem(key, JSON.stringify(resolved));
+        } catch {
+          // Same as the shape: a position that cannot be remembered still
+          // applies now.
+        }
+        return resolved;
+      });
+    },
+    [key],
+  );
+
+  return [position, remember];
 }

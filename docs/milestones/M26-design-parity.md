@@ -804,6 +804,43 @@ route there is nothing in the tree to hide — **and it stops being sound the
 moment this link gives the assistant a position worth losing.** Build the hide
 in the same change, or the rule becomes a landmine with a note on it.
 
+**LINK 10 IS DONE, 2026-09-20, and it landed all three parts together.** What a
+later reader should not have to re-derive:
+
+**The choice is per surface and per device**, in `localStorage`. Not the account
+preferences API: a 27" monitor has room to dock where a laptop does not, and an
+account-wide setting would have to be changed back on every machine. Not one
+global key either — that would make docking the board silently change the
+notebook.
+
+**Only the board offers it.** §9's own table says docked costs *"real — a flex
+sibling, so the plan shrinks instead of hiding"*, and `PageScreen` is a centred
+measure inside `PageContainer`: docking there takes 356px off the column that IS
+the reading experience, which is why Mitchell asked for floating there by name.
+`PageScreen` withholds `onShapeChange` so the rail draws no control it cannot
+honour. Recorded in `DRIFT.md` for the design side to accept or push back on.
+
+**§29 was delivered by outliving the unmount, not by hiding the element** —
+there is nothing in `/plans`'s tree to hide. The thread already survived
+(`persistAs`), the shape survives, the position now survives. **The open/closed
+state deliberately does NOT**, and that is the one shortfall, traded openly:
+`TripBoardScreen` documents that `useState(false)` with no restore is exactly
+what makes the `useIsPhone` presentation swap safe at first paint, and restoring
+it would flash a 356px docked rail on a phone to save one click.
+
+**Two clamp details worth keeping.** The upper bound is itself clamped, because
+on a viewport narrower than the panel plus two pads `width - panel - pad` falls
+below `pad` and a naive clamp pins the panel off the LEFT edge, header and Hide
+button gone. And no position is adopted until a drag gives one — until then
+`.assistant-float`'s `right`/`bottom` hold §9's planted corner through a resize
+with no JavaScript running at all.
+
+**Three tests were caught asserting nothing** and replaced, each found by rule 3
+rather than by review: the docked-drag test asserted a style a docked panel
+never carries; the two-surfaces test rerendered a hook whose state was already
+right in memory; and a `typeof`/`Number.isFinite` pair meant deleting either
+guard left the suite green. The redundant guard is gone.
+
 ---
 
 ## Wave 1 exit gate
@@ -975,10 +1012,18 @@ marked **[walk]** and are not satisfiable by a green test.
       drifts. The `Banner` keeps `role="alert"` over the primitive's default
       `role="status"`, which is the half a test can hold; removing the override
       reddens three.
-- [ ] **[walk]** The assistant's presentation is the reader's choice and it
+- [~] **[walk]** The assistant's presentation is the reader's choice and it
       survives a reload; it drags, clamps to a 16px pad and **re-clamps on
       resize**; and the dock on `/plans` is hidden rather than unmounted, so the
       thread and the position survive the trip there and back.
+      **Built 2026-09-20 (link 10), unwalked.** Two differences from the
+      sentence, both recorded in `DRIFT.md` §3b: the choice is offered on the
+      TRIP BOARD only — a notebook page is a centred measure, and docking costs
+      it 356px of the column that IS the reading experience — and `/plans` is
+      answered by the state outliving the unmount rather than by hiding an
+      element that is not in that route's tree. This box's own two names, the
+      thread and the position, both survive; the open/closed state does not,
+      deliberately, because restoring it would flash a docked rail on a phone.
 - [ ] Every surface in the handoff that Wave 1 owns is **either built or behind
       a registered `<Preview>` — no third state**, and no entry is tagged to a
       milestone that will not wire it.

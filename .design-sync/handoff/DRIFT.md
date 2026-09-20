@@ -237,6 +237,40 @@ survives a failed read — which is why `nbTpl` needs no counterpart, and a test
 outside the branch. And `nbTpl`'s own exemption from the empty state ("an account with
 nothing in it still has them") applies here for the same reason.
 
+**§9's "the user picks" and §29's "hidden, not unmounted" — BUILT 2026-09-20 (M26 link
+10), with two differences the design side should accept or push back on.**
+
+All three geometries existed and nobody could choose between them; the trip board hardcoded
+`docked` and the notebook hardcoded `floating`. There is now one control whose name flips
+(`Dock to the side` / `Float it free`, as the artboard draws it), the floating panel drags
+by its header, and the position is clamped to §9's 16px pad and re-clamped on resize.
+
+1. **Only the trip board offers the choice.** §9's own table says docked costs *"real — a
+   flex sibling, so the plan shrinks instead of hiding"*. A notebook page is not a plan: it
+   renders inside a centred measure, and docking there would take 356px off the column that
+   IS the reading experience. Mitchell asked for floating there by name (*"it should be on
+   the bottom right on desktop, floating till open, and always available in both editing and
+   reading mode"*). `PageScreen` therefore offers no Dock at all rather than a half-working
+   one. **Design should either accept that the notebook is float-only, or say what a docked
+   rail does to a document's measure.**
+2. **§29's `visibility: hidden` is delivered by outliving the unmount, not by hiding the
+   element.** *"On `plans` the floating dock keeps its place in the tree… unmounting it
+   loses the thread, the open/closed state and the dragged position, so coming back from
+   Plans would reset it."* There is nothing in that route's tree to hide — `/plans` is an
+   account-scope route that renders neither the board nor the trip, so the subtree is
+   genuinely gone. The RESULT is delivered instead: the thread already survived
+   (`useAskThread`'s `persistAs`), the shape survives, and the position now survives.
+
+   **The open/closed state deliberately does not, and that is the one shortfall.**
+   `TripBoardScreen`'s own note is the reason: the presentation is chosen with
+   `useIsPhone()`, which is `false` on the server and the first client paint, and the flash
+   that would cause is unreachable only because the open flag is *"`useState(false)`, with
+   no restore from storage, no URL parameter and no server prop, so `assistant.open` is
+   false on EVERY first paint."* Restoring it would paint a 356px docked rail on a phone for
+   a frame — reintroducing a defect that file guards by construction, to save a reader one
+   click. **Traded openly rather than quietly: if the open state matters more than the
+   flash, the fix is a layout-level mount, which is a bigger change than §29 implies.**
+
 ## 3c. Designed 2026-09-19 — the three new features, and the mobile remainder they exposed
 
 **API tokens (M22).** In **Account settings**, not a route and not anywhere trip-scoped:

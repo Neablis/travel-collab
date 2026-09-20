@@ -1094,6 +1094,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // no control it cannot honour.
             presentation={isPhone ? "sheet" : assistantShape}
             {...(isPhone ? {} : { onShapeChange: chooseAssistantShape })}
+            // **§29's "hidden, not unmounted", delivered the only way this
+            // tree allows** (M26 link 10c). `/plans` is an account-scope route
+            // that renders neither this screen nor the trip, so there is
+            // nothing here to hide — the subtree is genuinely gone. What §29
+            // is protecting is that coming back does not reset the panel, and
+            // that is now true of all three things it names but one: the
+            // thread already survived (`persistAs` above), the shape survives
+            // (`useAssistantShape`), and the position survives through this
+            // key. The open/closed state does not, deliberately —
+            // `useAssistantVisibility`'s note above is the reason, and
+            // `useAssistantPosition` states the trade in full.
+            //
+            // Per TRIP, like the thread: a panel parked clear of one trip's
+            // unscheduled rack has no business deciding where another's opens.
+            rememberPositionAs={`assistant:position:trip:${tripId}`}
             contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
             scope={askScope}
             turns={thread}

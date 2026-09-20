@@ -830,3 +830,101 @@ describe("AssistantRail — the shape is the reader's, and the floating one drag
     expect(positionOf()).toEqual({ left: "", top: "" });
   });
 });
+
+// SPEC §29, M26 link 10c: "On `plans` the floating dock keeps its place in the
+// tree with `visibility: hidden; pointer-events: none` … unmounting it loses
+// the thread, the open/closed state and the dragged position, so coming back
+// from Plans would reset it."
+//
+// There is nothing in that route's tree to hide — `/plans` renders neither the
+// board nor the trip — so the RESULT is delivered by outliving the unmount
+// instead: the thread already did (`persistAs`), the shape does, and the
+// position does through this key. An unmount and remount is exactly what the
+// trip to Plans and back is.
+describe("AssistantRail — the dragged position survives leaving the route", () => {
+  const KEY = "assistant:position:trip:x";
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  function setViewport(width: number, height: number) {
+    Object.defineProperty(window, "innerWidth", { value: width, configurable: true, writable: true });
+    Object.defineProperty(window, "innerHeight", { value: height, configurable: true, writable: true });
+  }
+
+  function positionOf(): { left: string; top: string } {
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    return { left: panel.style.left, top: panel.style.top };
+  }
+
+  function dragTo(x: number, y: number) {
+    const panel = screen.getByRole("complementary", { name: "Assistant" });
+    panel.getBoundingClientRect = () =>
+      ({ left: 1060, top: 408, width: 364, height: 476, right: 1424, bottom: 884, x: 1060, y: 408 }) as DOMRect;
+    fireEvent.pointerDown(screen.getByTestId("assistant-header"), { button: 0, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(window, { clientX: x - 1060, clientY: y - 408 });
+    fireEvent.pointerUp(window);
+  }
+
+  it("comes back where it was left, after an unmount", () => {
+    setViewport(1440, 900);
+    const first = renderRail({
+      presentation: "floating",
+      onShapeChange: vi.fn(),
+      rememberPositionAs: KEY,
+    });
+    dragTo(400, 200);
+    expect(positionOf()).toEqual({ left: "400px", top: "200px" });
+
+    // The trip to Plans and back.
+    first.unmount();
+    renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
+    expect(positionOf()).toEqual({ left: "400px", top: "200px" });
+  });
+
+  it("forgets it when the caller asks for no memory, which is what used to happen", () => {
+    setViewport(1440, 900);
+    const first = renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+    dragTo(400, 200);
+    expect(positionOf()).toEqual({ left: "400px", top: "200px" });
+
+    first.unmount();
+    renderRail({ presentation: "floating", onShapeChange: vi.fn() });
+    expect(positionOf()).toEqual({ left: "", top: "" });
+  });
+
+  it("keeps two surfaces' positions apart", () => {
+    setViewport(1440, 900);
+    const trip = renderRail({
+      presentation: "floating",
+      onShapeChange: vi.fn(),
+      rememberPositionAs: KEY,
+    });
+    dragTo(400, 200);
+    trip.unmount();
+
+    renderRail({
+      presentation: "floating",
+      onShapeChange: vi.fn(),
+      rememberPositionAs: "assistant:position:page:y",
+    });
+    expect(positionOf()).toEqual({ left: "", top: "" });
+  });
+
+  it("ignores stored rubbish rather than positioning the panel with it", () => {
+    setViewport(1440, 900);
+    window.localStorage.setItem(KEY, "{ not json");
+    renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
+    expect(positionOf()).toEqual({ left: "", top: "" });
+
+    // A string, a null, a missing field, and the `NaN` that survives
+    // `JSON.parse` as `null` — each would position the panel nowhere.
+    for (const bad of [{ x: "left", y: null }, { x: 10 }, { y: 10 }, { x: 10, y: Infinity }]) {
+      cleanup();
+      window.localStorage.setItem(KEY, JSON.stringify(bad));
+      renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
+      expect(positionOf(), JSON.stringify(bad)).toEqual({ left: "", top: "" });
+    }
+  });
+});

@@ -17,8 +17,8 @@ import {
   clampToViewport,
   floatHome,
   isMeasuredViewport,
-  type Point,
 } from "./assistantPosition";
+import { useAssistantPosition } from "./useAssistantShape";
 import { usePinToBottom } from "./usePinToBottom";
 import { useAiEntitled } from "./useAiEntitled";
 
@@ -155,6 +155,7 @@ export function AssistantRail({
   simulated = false,
   presentation = "docked",
   onShapeChange,
+  rememberPositionAs,
   onHide,
 }: {
   contextLine: string;
@@ -325,6 +326,15 @@ export function AssistantRail({
    * sheet, and a Dock button there would offer a 356px rail on a 390px screen.
    */
   onShapeChange?: (next: "docked" | "floating") => void;
+  /**
+   * **Remember the dragged position under this key** — SPEC §29, M26 link 10c.
+   *
+   * Absent means the panel forgets where it was put the moment it unmounts,
+   * which is what `/plans` used to do to it. See `useAssistantPosition` for
+   * why §29's literal `visibility: hidden` is not available at this seam and
+   * what is delivered instead.
+   */
+  rememberPositionAs?: string;
   onHide: () => void;
 }) {
   const [ask, setAsk] = useState("");
@@ -341,7 +351,10 @@ export function AssistantRail({
    * and a CSS-pinned corner keeps that true through a resize with no JavaScript
    * running at all. A position is adopted only once a drag gives it one.
    */
-  const [position, setPosition] = useState<Point | null>(null);
+  // `""` when the caller asks for no memory: the hook still runs (hooks cannot
+  // be skipped), reads nothing under an empty key and writes nothing anybody
+  // reads back. One code path either way, rather than a second position state.
+  const [position, setPosition] = useAssistantPosition(rememberPositionAs ?? "");
   const dragFrom = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
 
@@ -366,7 +379,10 @@ export function AssistantRail({
     };
     window.addEventListener("resize", reclamp);
     return () => window.removeEventListener("resize", reclamp);
-  }, [isFloating]);
+    // `setPosition` is `useCallback`-stable per key, so including it would
+    // re-register the listener only when the caller changes trips — harmless,
+    // and no more correct than this. Named rather than silenced blindly.
+  }, [isFloating, setPosition]);
 
   /**
    * **Dragged by its header** (§9's floating row), and by pointer events rather

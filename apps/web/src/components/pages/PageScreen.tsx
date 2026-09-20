@@ -848,6 +848,9 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           // and no half-working rail behind it. Recorded in `DRIFT.md` so the
           // design side can accept it or ask for the restructure.
           presentation={isPhone ? "sheet" : "floating"}
+          // §29 / M26 link 10c — see `useAssistantPosition`. Per PAGE, like
+          // this screen's own thread: each document is its own reading surface.
+          rememberPositionAs={`assistant:position:page:${pageId}`}
           // The phone's line is derived from the surface (§23); the desktop's
           // is the panel's own and is deliberately left alone — "Looking at" is
           // the floating panel's voice, "Asking about" is the sheet's, and the
