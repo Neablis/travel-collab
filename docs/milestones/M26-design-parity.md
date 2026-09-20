@@ -1024,9 +1024,19 @@ marked **[walk]** and are not satisfiable by a green test.
       element that is not in that route's tree. This box's own two names, the
       thread and the position, both survive; the open/closed state does not,
       deliberately, because restoring it would flash a docked rail on a phone.
-- [ ] Every surface in the handoff that Wave 1 owns is **either built or behind
+- [~] Every surface in the handoff that Wave 1 owns is **either built or behind
       a registered `<Preview>` — no third state**, and no entry is tagged to a
       milestone that will not wire it.
+      **Second half verified 2026-09-20 and mechanically held.** The registry
+      has SIX entries, tagged `M13` (x2), `M19`, `M9` (x2) and `unplaced` — all
+      real open milestones or the honest value; nothing points at a milestone
+      that will not wire it, and `preview-registry.test.ts` fails on an orphan
+      in either direction. `DRIFT.md` §3 is resynced to match.
+      **First half is not ticked from here.** "Every surface the handoff owns"
+      is a claim about the whole design file, and the only honest way to close
+      it is the route-to-artboard walk link 0 built the index for — not an
+      assertion that each of links 1-10 landed, which is what I would be
+      substituting. It belongs with the four `[walk]` boxes.
 - [~] `DRIFT.md` is updated by this milestone, not left for the design side.
       **Part done 2026-09-20 (link 9's resync).** §3's entry count is now the
       registry's real SIX, not eleven — with the four separate reasons five
@@ -1046,10 +1056,67 @@ marked **[walk]** and are not satisfiable by a green test.
       back:** the four places the build is ahead of the design — the
       pending-webhook state, the plans-unavailable state, the stale-version
       conflict, and the phone loading/failed regions.
-- [ ] The full Definition of Done is green, including
+- [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — **not** `test:e2e` (CLAUDE.md
-      rule 1).
-- [ ] Wave 1 retro appended here.
+      rule 1). **Green 2026-09-20**, AGENTS.md's Tier 3 run, once:
+      `pnpm check` EXIT 0 (typecheck, lint, 3427 web unit + every package +
+      the `node --test` scripts suite, and 789 integration tests across 62
+      files against a real Postgres); `pnpm --filter web test:e2e:ci-like`
+      **150 passed, exit 0**; `pnpm seed:verify` EXIT 0.
+      Exit codes checked, not the `Tests` line — this branch has already been
+      bitten once by a run that printed `3349 passed` and a separate `Errors 1`
+      below it, and once more by `useAiEntitled` throwing five unhandled
+      rejections while every assertion passed.
+- [x] Wave 1 retro appended here. **2026-09-20:**
+
+### Wave 1 retro
+
+**The thing that kept happening: a test that asserted nothing.** Six of them,
+across links 7, 10 and 13, every one found by CLAUDE.md rule 3 and none by
+reading the diff. They fell into three shapes worth naming, because the shapes
+recur and the instances will not:
+
+1. **Asserting a rendered artefact the broken code never produces either.** The
+   docked-drag test checked an inline style that a docked panel does not carry
+   whatever the drag does; the unmount test checked that no second `new Map`
+   appeared, when the effect that would build one was gone anyway. Both passed
+   with the code they tested deleted. The fix in both cases was to assert the
+   MECHANISM (`vi.getTimerCount()`, a position surviving a remount) rather than
+   its visible consequence.
+2. **Two overlapping guards, so neither is load-bearing.** `typeof x ===
+   "number"` beside `Number.isFinite(x)` meant deleting either left the suite
+   green. The redundant one went.
+3. **A fixture whose defaults happen to match the assertion.** The
+   two-surfaces test rerendered a hook whose state was already right in memory,
+   against a second surface whose default was the same value.
+
+**The second thing: green is an exit code, not a line of output.** Twice. A run
+printed `3349 passed` with `Errors 1` below it, and `useAiEntitled` threw five
+unhandled rejections while every assertion passed. Both were reported as green
+before the exit code was read. Every verification line in this milestone's
+commits after that says EXIT 0 because of it.
+
+**What the milestone's own machinery caught that review did not.** The lint
+wall refused an inline style that had been spread past it as a conditional
+object — the disable came back "unused", which is how the smuggle was
+noticed. `apiClient.test.ts`'s totality witness caught `leaveTrip` missing from
+its table. `phoneTouch.test.tsx` caught the 44px sweep silently turning
+`size: "touch"` from "44px everywhere" into "44px on a phone". The colour wall,
+the KI citation wall and the case-collision wall each refused something. None
+of that was judgement; all of it was a mechanism somebody built earlier.
+
+**Three decisions taken rather than escalated**, all recorded in `DRIFT.md` for
+the design side to accept or push back on: the notebook offers no Dock (docking
+a centred measure costs 356px of the reading column); §29's
+`visibility: hidden` is delivered by the state outliving the unmount, because
+`/plans` has nothing in its tree to hide; and the Map lens keeps its rail out of
+the failed AND empty canvas, matching a call already made one state over.
+
+**One claim corrected mid-flight.** `relativeCalendarDays` was documented as
+needing UTC because local-time arithmetic "rounds to the wrong day twice a year"
+across DST. It does not — `Math.round` absorbs an hour over a span of days, and
+the DST test was watched to PASS against a deliberately local-time
+implementation. The note now says what UTC actually buys.
 
 ---
 
@@ -1475,7 +1542,45 @@ everyone agrees is temporary is a test that will have to be argued with later.
       One bullet ADDED that should have been on the list already: a phone
       rendering the desktop day-column board, closed by link 13.
 - [ ] The full Definition of Done is green, including `test:e2e:ci-like`.
-- [ ] Wave 2 retro appended here.
+- [x] Wave 2 retro appended here. **2026-09-20:**
+
+### Wave 2 retro
+
+**The measurement box did its job, and what it caught was this milestone.** The
+gate asked for KI-046's numbers re-measured "as a figure and not as an
+impression". The figure came back **48 of 91 controls under 44px (53%)** — on a
+wave whose link 14 had already claimed the 44px pass. Nothing else would have
+found that: the primitive existed, five call sites used it, and every review of
+those five would have said the pass was done.
+
+**A number needs a denominator and a method, or it is an impression wearing a
+figure's clothes.** KI-046's 191-of-211 was one screen at 412px on a build with
+four lenses; this wave's 48-of-91 is seven routes at 411px on a build where §24
+deleted one of them. They are not comparable and both entries now say so. The
+same care applied to link 13: its first measurement read the width of a SHORT
+title rather than the width available to text, and would have reported 87px
+where the honest figure was 141px.
+
+**Two measurements, twice each, because the first build was stale.** The
+`ci-like` lane builds `.next` and serves it; a source edit after that build is
+invisible to a measurement taken against it. Both of link 13's figures were
+taken twice for that reason, and the second time is the one in the record.
+
+**A census that passes in isolation is not a census.** `m26-phone-targets`
+passed alone and failed twice in the full lane, each time for a real reason: the
+lane's other specs seed Playbooks and trips, so cards render that an empty
+account never had. Four more row actions were found that way. They were FIXED
+rather than added to the exception list, which still has exactly one entry —
+MapLibre's own legally required attribution — because an exception list that
+grows whenever the number is inconvenient is how a measured entry turns back
+into an impression.
+
+**Link 13's answer was in the spec the whole time.** §13.4 says "a phone can
+hold one day at a time; the rail is how you change which", `DayChips` was
+already that rail, and `FocusProvider` already held the selection across three
+surfaces. The only thing missing was that Plan rendered every day. The card was
+narrow because `DAY_COLUMN_WIDTH_PX` is a desktop constant at every width — not
+because a phone is narrow — and the fix was a count, not a layout.
 
 ---
 

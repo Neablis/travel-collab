@@ -40,10 +40,37 @@ Scope, the two waves and the seven still-open questions:
 in that file and is not a preference:** M13 adds a second actor to the surfaces
 M26 is about to rebuild, so the other order rebuilds them twice.
 
-**M26 PROGRESS AS OF 2026-09-20.** Wave 1: links 0, 1, 2, 3 done; **link 4's
-shared-day map now draws** (see below); 5 and 6 part done; **link 7 done**;
-link 8 done; 9 and 10 not started. **Wave 2: links 11, 12, 14 and 16 done; 15
-is two-thirds done; 13 is last by Mitchell's sequencing and not started.**
+**M26 PROGRESS AS OF 2026-09-20 — every link in both waves is built.** Wave 1:
+0-10. Wave 2: 11-16. The one piece of link 5 still open is **5c's `N min
+moving`**, which needs Mitchell's answer on whether `routeLegs()`'s
+`kind === "transit"` proxy may stand in for per-leg transport mode; link 15's
+`Cancel · New trip · Empty` header is recorded as not done, with the reason (it
+needs the exit lifted out of `NewTripConversation`, not duplicated).
+
+**M26 IS BUILT END TO END AS OF 2026-09-20 — every link in both waves.** What
+is left is what a green suite cannot give: **five `[walk]` boxes**, which link 0
+defines as failable by looking at the screen and therefore not satisfiable by a
+test. Somebody has to open a preview. Everything else in both gates is ticked,
+and the Definition of Done ran once at Tier 3: `pnpm check` EXIT 0 (typecheck,
+lint, 3427 web unit plus every package and the scripts suite, 789 integration
+tests against a real Postgres), `test:e2e:ci-like` **150 passed exit 0**,
+`seed:verify` EXIT 0.
+
+**TWO GATE BOXES FOUND WORK THAT REVIEW DID NOT, and both were measurements.**
+Link 13's box asked for the phone's text-column width as a NUMBER and got
+141px-of-241px — the card was narrow because `DAY_COLUMN_WIDTH_PX` is a desktop
+constant at every width, not because a phone is. Wave 2's box asked for KI-046's
+44px census and got **48 of 91 controls under the floor (53%)**, on a wave whose
+link 14 had already claimed that pass. Both are fixed and both now have a spec
+that keeps counting: 215px-of-315px, and 4 of 91 (all four MapLibre's own
+required attribution). **The lesson is narrow and repeatable: a box that asks
+for a figure catches what a box that asks for a claim cannot.**
+
+**SIX TESTS IN THIS MILESTONE ASSERTED NOTHING**, every one found by CLAUDE.md
+rule 3 and none by reading the diff. Three shapes, all likely to recur: asserting
+a rendered artefact the broken code never produces either; two overlapping
+guards so neither is load-bearing; and a fixture whose default happens to match
+the assertion. The wave retros in `M26-design-parity.md` have the instances.
 
 **LINK 7 CHANGED WHAT A BLANK MAP MEANS, and that is the part worth carrying
 forward.** §3b's region-by-region loading is built on Home, Overview and the
