@@ -149,15 +149,25 @@ async function openSeededPage(page: Page): Promise<void> {
   // product's own way back to nothing-selected, and it is what makes the rail
   // reliably on screen for whatever the walk does next.
   await page.locator(".tc-page-editor h2").first().click();
-  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeVisible();
 }
 
-// The widget list is a portalled Popover now, not an `<aside>` beside the
-// document — Mitchell, walking the preview: *"The widgets should be more of a
-// popover side bar so they dont interrupt the document flow when open"*. It
-// closes behind each insert, because the insert puts the caret back in the
-// document, so every insert is the same three beats: put the caret where the
-// widget should land, open the list, click a row.
+// The rail's list of widget rows. Scoped to the `<ul>` the picker renders, so
+// "the rows" never accidentally means the four kind filters above it — the same
+// trap `WidgetPicker.test.tsx` names, where `getAllByRole("button")` silently
+// became "every widget plus four".
+const railList = (page: Page): Locator => page.getByRole("complementary").getByRole("list");
+
+// **The widget list is the right column itself, open for as long as Editing
+// is** (SPEC §26; Mitchell, 2026-09-20: *"The rail should be open in edit mode,
+// and the preview shrinks"*). It was a portalled Popover behind an "Insert a
+// widget" button, on his earlier note about not interrupting the document flow
+// — §26 supersedes that, and the column being always-there is the difference
+// this helper now encodes: an insert is TWO beats, not three. Put the caret
+// where the widget should land, click a row. There is nothing to open.
+//
+// `railList` rather than `getByRole("dialog")`: a rail is not a dialog, and the
+// only dialog left on this surface is the phone's sheet.
 //
 // The caret goes first for the reason it always did: `insertContent` inserts at
 // the selection, and opening the list moves focus out of the editor. TipTap
@@ -185,14 +195,17 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("widget-settings")).toHaveCount(0);
-  await page.getByRole("button", { name: "Insert a widget" }).click();
-  const list = page.getByRole("dialog");
+  const list = railList(page);
   await expect(list).toBeVisible();
   if (search !== undefined) {
-    await list.getByRole("searchbox", { name: "Search widgets" }).fill(search);
+    await page.getByRole("searchbox", { name: "Search widgets" }).fill(search);
   }
   await waitForPageSaved(page, () => list.getByRole("button", { name }).click());
-  await expect(list).toBeHidden();
+  // **The rail does NOT close behind the insert** — it has nothing to close.
+  // What changes is the column's state: inserting selects what it inserted
+  // (§26), so the settings take the column and the rail is out of view until
+  // the caret leaves the widget.
+  await expect(page.getByTestId("widget-settings")).toBeVisible();
 }
 
 test("insert a widget from the widget list, narrow it to a day, and reload to find it there", async ({ page }) => {
@@ -360,7 +373,7 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   await insertFromList(page, /The trip's name/);
 
   await page.getByRole("button", { name: "Done editing" }).click();
-  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeHidden();
+  await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeHidden();
   await expect(page.getByRole("combobox")).toHaveCount(0);
   // **The assistant is NOT one of the controls Reading takes away**, and that
   // is a reversal: it used to be hidden here on the argument that what it
@@ -395,7 +408,7 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   // product's own way back to nothing-selected, and it is what makes the rail
   // reliably on screen for whatever the walk does next.
   await page.locator(".tc-page-editor h2").first().click();
-  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeVisible();
 });
 
 test("a repeater renders one line per day", async ({ page }) => {
@@ -705,11 +718,9 @@ test("the bindings of the last widget in a page are reachable, not clipped by th
   await page.locator(".tc-page-editor").click();
   await page.keyboard.press("Control+End");
   await page.keyboard.press("Enter");
-  await page.getByRole("button", { name: "Insert a widget" }).click();
-  const list = page.getByRole("dialog");
+  const list = railList(page);
   await expect(list).toBeVisible();
   await waitForPageSaved(page, () => list.getByRole("button", { name: /The days, in detail/ }).click());
-  await expect(list).toBeHidden();
 
   // Inserting selects what it inserted (§26), so the panel is already showing
   // the widget that just landed at the end of the document.
@@ -875,7 +886,7 @@ test("a widget's settings follow the selection, and leave with it", async ({ pag
   // previous version of this assertion first read as "stuck".
   await page.locator(".tc-page-editor h2").last().click();
   await expect(panel).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Insert a widget" })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeVisible();
 });
 
 test("a repeat widget's rows are striped, and its values are text rather than chips", async ({ page }) => {
@@ -969,12 +980,10 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
     await expect(page.getByTestId("widget-settings")).toHaveCount(0);
   };
   const insertDatesHere = async () => {
-    await page.getByRole("button", { name: "Insert a widget" }).click();
-    const list = page.getByRole("dialog");
+    const list = railList(page);
     await expect(list).toBeVisible();
-    await list.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
+    await page.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
     await waitForPageSaved(page, () => list.getByRole("button", { name: /The dates/ }).click());
-    await expect(list).toBeHidden();
   };
 
   // **The walk makes its own empty paragraph, because the seeded page has none

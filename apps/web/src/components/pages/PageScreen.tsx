@@ -28,8 +28,8 @@ import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import { AskPill } from "@/components/assistant/AskPill";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 import { Sheet } from "@/components/ui/sheet";
-import { Text } from "@/components/ui/text";
 import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import type { ApiError } from "@/lib/apiClient";
@@ -766,14 +766,35 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
           className="sticky top-29 w-80 shrink-0"
           aria-label={selectedWidget === null ? "Insert a widget" : "Widget settings"}
         >
-          <Card raised className="p-4">
+          {/* **`tc-widget-rail` bounds the rail's height so its LIST scrolls,
+              not the page.** The design gives the column
+              `max-height: calc(100vh - 120px)` (`Trip Planner Redesign.dc.html:3956`)
+              — 120px being what `AppHeader` and the editing toolbar already
+              occupy, the same two bars `top-29` clears. `calc()` of a viewport
+              unit is an arbitrary Tailwind value the colour wall refuses and no
+              token names a viewport-relative height, so it is a named utility in
+              `globals.css` beside `.hero-grid`, which exists for exactly this.
+
+              Only the rail state gets it. `WidgetSettings` is a short form that
+              should size to its content — bounding it would strand a lone select
+              at the top of a 700px box. */}
+          <Card
+            raised
+            className={cn("p-4", selectedWidget === null && "tc-widget-rail flex flex-col")}
+          >
             {selectedWidget === null ? (
-              <div className="flex flex-col gap-3">
-                <Text variant="muted">Pick a widget to add, or select one on the page to change it.</Text>
+              <>
+                {/* The rail's own heading (`:3958`), and it replaces
+                    "Pick a widget to add, or select one on the page to change
+                    it." That line was doing the job of a trigger button's
+                    absence — explaining a list that was not on screen. The list
+                    IS on screen now, and its count line says what to do with it,
+                    so the sentence is two explanations of one thing. */}
+                <Heading level={4} className="mb-3 shrink-0">Widgets</Heading>
                 {editor !== null ? (
                   <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
                 ) : null}
-              </div>
+              </>
             ) : (
               <WidgetSettings selection={selectedWidget} detail={trip} globals={globals} />
             )}

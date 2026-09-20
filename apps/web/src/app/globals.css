@@ -510,6 +510,29 @@ html[data-look="ledger"] .shadow-raised {
     user-select: none;
   }
 
+  /* **The widget rail's height, so its LIST scrolls and the page does not.**
+
+     SPEC §26 puts the insert rail in the desktop right column, and the design
+     (`Trip Planner Redesign.dc.html:3956`) bounds it at
+     `max-height: calc(100vh - 120px)`. 120px is what the two already-pinned
+     bars occupy — `AppHeader` (`sticky top-0 h-14`, 56px) and the editing
+     toolbar (12 + 36 + 12 = 60px) — which is the same pair `top-29` clears,
+     with 4px of breathing room at the bottom.
+
+     A named utility rather than `max-h-[calc(100vh-7.5rem)]` for the reason
+     `.hero-grid` right below gives: `check-color-wall.mjs` rejects arbitrary
+     Tailwind values outright, and no token names a viewport-relative height.
+
+     `min-height: 0` is the half that does the work. The rail is a flex column
+     and its list is `flex-1 overflow-y-auto`; without this, a flex item refuses
+     to shrink below its content, the list never gets a bounded height, and the
+     whole column grows past the viewport with the header scrolling away at the
+     top of the page instead. */
+  .tc-widget-rail {
+    max-height: calc(100vh - 120px);
+    min-height: 0;
+  }
+
   /* NextTripHero's two-column split (README §1: 1.15fr/1fr) has no scale
      equivalent, so a Tailwind arbitrary bracket value (`lg:grid-cols-[1.15fr_1fr]`)
      would trip the color-wall's "no arbitrary values" check with no inline-style

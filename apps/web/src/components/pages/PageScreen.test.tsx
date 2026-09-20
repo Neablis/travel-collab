@@ -292,7 +292,7 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
 // the builder half a person can actually click. Insert a widget from the
 // sidebar, point it at a day from its chrome row, and watch it save.
 describe("PageScreen: inserting and pointing a widget (item G)", () => {
-  async function openPage(options: { reachInsert?: boolean } = {}) {
+  async function openPage() {
     const dayId = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
     const trip = tripDetailFixture({
       days: [
@@ -336,13 +336,13 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // depended on it is how the previous default came to be defended by a test
     // instead of by a reason.
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
-    if (options.reachInsert === false) return { onUpdate };
-    // The widget list lives in a popover now rather than in an `<aside>` beside
-    // the document (Mitchell: *"they should be more of a popover side bar so
-    // they dont interrupt the document flow"*), so reaching a widget is two
-    // clicks and the popover closes behind each insert — the caret goes back
-    // to the document, which is where the author was.
-    await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
+    // **Nothing to open.** The widget list was behind a popover trigger and is
+    // now the right column's own content: SPEC §26's rail, open for as long as
+    // Editing is (Mitchell, 2026-09-20: *"The rail should be open in edit mode,
+    // and the preview shrinks"*). So Edit is the only click between a reader and
+    // the catalogue, and `reachInsert` — which existed to skip the second one —
+    // went with it. The phone still has the trigger and its tests still press
+    // it; that divergence is §19's, not an oversight.
     return { onUpdate };
   }
 
@@ -359,7 +359,9 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await screen.findByText("Notes");
 
-    expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
+    // The rail IS the authoring surface now, so its search box is what must be
+    // absent — there is no trigger button left to look for on a desktop.
+    expect(screen.queryByRole("searchbox", { name: "Search widgets" })).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
     // **The assistant is NOT one of them, and that is a reversal.** It used to
     // be hidden here on the argument that what it inserts is autosaved, so a
@@ -372,7 +374,9 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     expect(screen.getByTestId("assistant-launcher")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
-    expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
+    // §26's other half: entering Editing OPENS the column. The measure changes
+    // once and the rail is there without being asked for.
+    expect(screen.getByRole("searchbox", { name: "Search widgets" })).toBeTruthy();
     // The notebook's AI surface is the assistant panel, not a prompt box —
     // Mitchell: *"This should be the same style AI Assistant as on the trip
     // page, not the top of the UI input box"*.
@@ -558,7 +562,8 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // Away, into the prose — what a person does next.
     await userEvent.click(screen.getByText("Notes"));
     await vi.waitFor(() => expect(screen.queryByTestId("widget-settings")).toBeNull());
-    expect(screen.getByRole("button", { name: "Insert a widget" })).toBeTruthy();
+    // The column's two states, and this is the swap back: settings out, rail in.
+    expect(screen.getByRole("searchbox", { name: "Search widgets" })).toBeTruthy();
   });
 
   it("lets two widgets on one page point at different days", async () => {
@@ -617,8 +622,9 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByText("Notes"));
     await userEvent.keyboard("{Escape}");
-    await userEvent.click(await screen.findByRole("button", { name: "Insert a widget" }));
-    await userEvent.click(screen.getByRole("button", { name: /The days, in detail/ }));
+    // No reopening step: leaving the widget put the column back on the rail, so
+    // the catalogue is already there.
+    await userEvent.click(await screen.findByRole("button", { name: /The days, in detail/ }));
     await bindSelectedTo(/The days in detail: dates/, /Day 2/);
     await vi.waitFor(() =>
       expect(
@@ -744,7 +750,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // two indexes in that list asks the question a user would.
     it("puts Ask last in the top row, after the mode toggle, in both modes", async () => {
       setPhone(true);
-      await openPage({ reachInsert: false });
+      await openPage();
 
       const readingOrder = (control: HTMLElement) => screen.getAllByRole("button").indexOf(control);
 
@@ -774,7 +780,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // button was one of the three different entry points it collapses.
     it("opens the assistant from the page header, since nothing floats over data here", async () => {
       setPhone(true);
-      await openPage({ reachInsert: false });
+      await openPage();
 
       await userEvent.click(askPill());
       expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
@@ -822,7 +828,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // §23 exists to prevent.
     it("opens as a sheet with a scrim over the tab bar, not as a full-screen takeover", async () => {
       setPhone(true);
-      await openPage({ reachInsert: false });
+      await openPage();
 
       await userEvent.click(askPill());
 
@@ -842,7 +848,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // going is what makes it "no longer a phone sheet" rather than "unchanged".
     it("re-dresses the sheet as the desktop panel when the viewport widens, rather than stranding it", async () => {
       setPhone(true);
-      await openPage({ reachInsert: false });
+      await openPage();
       await userEvent.click(askPill());
       expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
 
@@ -864,7 +870,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // user cannot otherwise see.
     it("names the open page in the sheet, in the sheet's own words", async () => {
       setPhone(true);
-      await openPage({ reachInsert: false });
+      await openPage();
 
       await userEvent.click(askPill());
 
@@ -889,7 +895,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // Browse, then point it at — not a sheet over a sheet (project rule 3).
     it("inserts through a sheet with a bind step, and lands the widget already pointed", async () => {
       setPhone(true);
-      const { onUpdate } = await openPage({ reachInsert: false });
+      const { onUpdate } = await openPage();
       await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
 
       // Step 1: browse. The same registry, the same order, the same copy.
@@ -940,7 +946,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // which taps the widget in a real browser.
     it("leaves no widget control in the document, and no sheet open, after a phone insert", async () => {
       setPhone(true);
-      await openPage({ reachInsert: false });
+      await openPage();
       await userEvent.click(screen.getByRole("button", { name: "Insert a widget" }));
       await userEvent.click(
         within(await screen.findByRole("dialog")).getByRole("button", { name: /What it costs/ }),

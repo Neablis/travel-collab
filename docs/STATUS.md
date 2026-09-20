@@ -173,15 +173,24 @@ count line, which the build had on neither surface. Held by a red-first test in
 `WidgetPicker.test.tsx` — the count asserted against `rows().length` and again
 after a search, seen failing at `2 widgets` expected against `22` rendered.
 
-**THE NEXT PERSON ON THE RAIL HAS A DECISION TO MAKE BEFORE ANY GEOMETRY.**
-The desktop insert surface is a Radix Popover because Mitchell asked for one on
-2026-09-04; **SPEC §26 is eight days later and supersedes it** — the right
-column *is* the rail, with two states. `WidgetInsert.tsx`'s own header comment
-still states the popover as a requirement. Until somebody says which stands, the
-panel's outer box cannot be finished. **The row treatment is the item to do next
-and does not wait on it:** the rows are `Button variant="secondary"` stacked at
-`gap-1` where the design draws bordered cards with a `∷` handle and a mono
-shape chip — twenty-two secondary buttons read as a toolbar. `-h` has the rest.
+**THE RAIL IS BUILT, AND THE DECISION BEHIND IT IS SETTLED.** The desktop
+insert surface was a Radix Popover on Mitchell's 2026-09-04 instruction, and
+SPEC §26 — eight days later — said the right column *is* the rail. He settled it
+on 2026-09-20: *"The rail should be open in edit mode, and the preview shrinks,
+that's not breaking the rule of 'what you see is what you get' in the preview,
+it's just shrinking the container a little bit."* That is §26's own sentence.
+**The popover instruction is superseded; do not restore it from git history.**
+The trigger, the `open` state and the portal are gone on desktop; the phone
+keeps its sheet (§19). `PageScreen`'s `aside.sticky.top-29.w-80` already had
+§26's two states and now fills the rail one with the catalogue.
+
+With it: the four-up **icon kind control** (radiogroup, All / Inline / Block /
+List, the plain-English sentences moved into `title`), the **rows as cards**
+(`∷` handle, mono moss shape chip, mono brand-pressed "takes" line, preview),
+and `.tc-widget-rail` bounding the column at `calc(100vh - 120px)` so the list
+scrolls rather than the page. `KI-2026-09-20-h` has the four cosmetic items
+left; none is structural and one of them (`cost` declaring six filter
+dimensions, so its "takes" line wraps) is a product call rather than a bug.
 
 **Also done 2026-09-20, on the block card** (`-g`, the wrong-turn find):
 `ItineraryDayBlock` was the one live container still a padded box — `p-3`, rows

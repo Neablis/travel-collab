@@ -53,33 +53,66 @@
   that decision; importing its words would reintroduce a lie the build fixed
   once already.
 
-- **What is left, and the first item is a decision, not a ticket:**
+- **BUILT 2026-09-20 — the rail is a rail.** Mitchell settled the decision that
+  used to be item 1 here, and settled it for §26:
 
-  1. **Popover or rail — SPEC §26 and the build disagree, and the build is
-     acting on the older instruction.** It is a Radix Popover because Mitchell
-     asked for one on 2026-09-04: *"The widgets should be more of a popover side
-     bar so they dont interrupt the document flow when open."* **SPEC §26 is
-     eight days later and supersedes it**: the right column *is* the rail, and
-     it has two states — the rail when nothing is selected, the selected
-     widget's settings when something is — with the measure changing once on
-     entering edit mode, a tradeoff §26 says was chosen deliberately over an
-     empty 320px gutter. `WidgetInsert.tsx`'s own header comment still states
-     the popover as a requirement. **Somebody has to say which stands**; until
-     then the panel's outer geometry cannot be finished, because the two answers
-     want different boxes. Everything below is true either way.
-  2. **The rows are `Button variant="secondary"`, not cards.** The design's row
-     is a bordered card with a `∷` handle, a mono moss shape chip and a mono
-     brand-pressed "takes" line; the build stacks secondary buttons at `gap-1`.
-     A button reads as a control, and twenty-two of them read as a toolbar.
-     **This is the most visible item left** and is the one to do next.
-  3. **The kind filter is four pill buttons, not the design's 4-up icon
-     radiogroup**, and its labels differ on purpose — "In a sentence / A section
-     / A line each" against the design's "Inline / Block / List". **Keep the
-     build's words.** Mitchell, 2026-09-04: *"thats not how people think of
-     these widgets, they should have better names so people understand when they
-     are used."* The icons are worth taking; the vocabulary is not.
-  4. **The panel is not sticky and has no `max-height: calc(100vh - 120px)`** —
-     both fall out of item 1.
+  > The rail should be open in edit mode, and the preview shrinks — that's not
+  > breaking the rule of "what you see is what you get" in the preview, it's
+  > just shrinking the container a little bit and having it render in a smaller
+  > container.
+
+  Which is §26's own sentence: *"The column is not reserved while reading: the
+  page runs full width until edit mode opens it."* The popover was solving a
+  problem §26 solves better — it held the measure still by hiding the list
+  behind a click, and paid for it by making the widgets a thing you open rather
+  than a thing you have. **The 2026-09-04 popover instruction is superseded and
+  should not be restored from `WidgetInsert.tsx`'s git history.**
+
+  What landed:
+
+  - **`WidgetInsert`'s desktop branch is the rail's content.** No trigger, no
+    popover, no `open` state; `PageScreen`'s existing
+    `aside.sticky.top-29.w-80` already had §26's two states and now fills the
+    rail one with the catalogue instead of a button. No `autoFocus` — the rail
+    opens with Edit mode, and taking the caret out of the document then is the
+    opposite of what the author asked for. The phone keeps its sheet and its
+    trigger (§19).
+  - **`.tc-widget-rail`** (`globals.css`) bounds the column at
+    `calc(100vh - 120px)` with `min-height: 0`, so the LIST scrolls and the page
+    does not. Only the rail state gets it; `WidgetSettings` is a short form and
+    should size to its content.
+  - **The four-up icon kind control**, `role="radiogroup"` over four
+    `role="radio"` buttons, replacing four wrapping pills. Labels are the
+    design's short ones (All / Inline / Block / List) and the plain-English
+    sentence Mitchell asked for on 2026-09-04 moved into each one's `title`
+    ("A value that sits inside your sentence"). The glyphs are inline geometry
+    with token classes for every fill — the split `MacroView` already makes.
+  - **The rows are cards**: `∷` handle, title, a mono `--color-moss` shape chip
+    reading `inline` / `a block` / `a list`, a mono `--color-brand-pressed`
+    "takes" line, and the preview sentence.
+  - **The header is pinned** and carries the design's count line.
+
+- **What is left, and both are cosmetic:**
+
+  1. **The "takes" line uses this repo's input labels, not the design's.** The
+     design carries a second vocabulary keyed by input TYPE (`a stretch of
+     days`, `someone on the trip`); `filters.ts`'s `LABEL_OF` is where this repo
+     says what a dimension is called and is what every bind control already
+     shows. So a row reads `takes day + tags` where the design reads `takes a
+     day + tags`. **Two maps would be two surfaces disagreeing about one
+     dimension, which is what `LABEL_OF`'s own comment exists to prevent** — so
+     the fix, if one is wanted, is richer labels in `LABEL_OF`, never a map in
+     the component.
+  2. **`cost` declares six filter dimensions**, so its line reads `takes day +
+     city + tags + kind + who + dates` and wraps in a 320px column. Pre-existing
+     (the old `narrow it by:` line had the same problem) but more visible now
+     that the line has a colour. A cap with `+N more` is the obvious fix and is
+     a product call about what a person scans for.
+  3. **The shape chip is a `Badge`, so it is a pill**; the design draws a 4px
+     rounded rect. `design-system.md` says render through the primitives, so
+     this stays until somebody decides the primitive is wrong.
+  4. **The panel's radius is the Card's**, and the 8px-vs-10px question is
+     `KI-2026-09-20-g`'s item 2 — same scale gap, same answer needed once.
 
 - **Do not read `KI-2026-09-20-g` as this entry.** That one is the widget *block*
   card — the box a rendered widget draws itself in on the page. Different

@@ -4,8 +4,8 @@ import { presetCatalog } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import type { WidgetShape } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/cn";
 
 // Choosing WHICH widget — search, the kind filter, and the list of cards.
 //
@@ -29,36 +29,112 @@ import { Input } from "@/components/ui/input";
 // document that skips validation"). This component's whole job is to say which
 // name.
 
-// **Named for WHEN you reach for one, not for what it is internally.**
+// **The chip on a row says the SHAPE, in the design's words**
+// (`Trip Planner Redesign.dc.html:7348`, `SHAPES`).
 //
-// The catalogue's vocabulary table says "one value", "a block", "repeats", and
-// the design shows the same. Mitchell, walking the preview (2026-09-04): *"thats
-// not how people think of these widgets, they should have better names so people
-// understand when they are used"*. He is right — "a block" describes the node,
-// which is the author's problem, not the reader's.
-//
-// So each label answers "where does this land in my page?":
-//   single → it reads as a word inside a sentence you wrote
-//   block  → it stands on its own, as a table or a list
-//   repeat → it becomes one line per day, city or stop
-//
-// The filter row below uses these same words, so the badge on a row and the
-// filter that selects it cannot describe the same thing differently.
+// This used to read "in a sentence" / "a section" / "a line each", from
+// Mitchell's 2026-09-04 note that the catalogue's vocabulary table was written
+// for the author rather than the reader. The design answers that complaint a
+// different way and it is the better one: the chip stays short, the ICON in the
+// filter above carries the shape visually, and the plain-English sentence moved
+// into that control's `title` ("A value that sits inside your sentence"). So
+// the words are still there for anyone who needs them, and a row is no longer
+// three long phrases deep before it gets to what the widget does.
 const SHAPE_LABEL: Record<WidgetShape, string> = {
-  single: "in a sentence",
-  block: "a section",
-  repeat: "a line each",
+  single: "inline",
+  block: "a block",
+  repeat: "a list",
 };
 
 // `null` is "everything", which is a real choice rather than the absence of one
 // — so it gets a name in the row like the others.
 type ShapeFilter = WidgetShape | null;
-const FILTERS: readonly { value: ShapeFilter; label: string }[] = [
-  { value: null, label: "All" },
-  { value: "single", label: "In a sentence" },
-  { value: "block", label: "A section" },
-  { value: "repeat", label: "A line each" },
+
+// **A cell of a kind glyph.** `"fade"` is the muted half of a shape, a number is
+// a solid cell with that flex grow, and `"dot"` is the fixed 3px lead a list row
+// carries. Straight out of the design's `G` table (`:3657`).
+type GlyphCell = "fade" | "dot" | number;
+type GlyphRow = { h: number; cells: readonly GlyphCell[] };
+
+// **The four-up kind control** (`Trip Planner Redesign.dc.html:3961-3976`), and
+// the icons are the point rather than decoration: the question "how does this
+// land in my page" has a shape for an answer, and a 26x18 picture of that shape
+// answers it faster than any label fits in a 320px column split four ways.
+//
+// - All    two rows of two — a bit of everything
+// - Inline one short row, solid in the middle, faded either side: a value inside
+//          a sentence
+// - Block  one filled panel
+// - List   three thin rows, each with a lead dot: one row per thing
+const FILTERS: readonly {
+  value: ShapeFilter;
+  label: string;
+  hint: string;
+  glyph: readonly GlyphRow[];
+}[] = [
+  {
+    value: null,
+    label: "All",
+    hint: "Every widget",
+    glyph: [{ h: 7, cells: [1, 1] }, { h: 7, cells: [1, 1] }],
+  },
+  {
+    value: "single",
+    label: "Inline",
+    hint: "A value that sits inside your sentence",
+    glyph: [{ h: 5, cells: ["fade", 1.6, "fade"] }],
+  },
+  {
+    value: "block",
+    label: "Block",
+    hint: "A panel that fills the width",
+    glyph: [{ h: 16, cells: [1] }],
+  },
+  {
+    value: "repeat",
+    label: "List",
+    hint: "One row for every one of something",
+    glyph: [
+      { h: 3, cells: ["dot", "fade"] },
+      { h: 3, cells: ["dot", "fade"] },
+      { h: 3, cells: ["dot", "fade"] },
+    ],
+  },
 ];
+
+/**
+ * One kind glyph, drawn from its row table.
+ *
+ * **The geometry is inline and the colour is not**, which is the split the
+ * walls want: `check-color-wall.mjs` refuses arbitrary Tailwind values, and
+ * 26x18 with 3px dots is a literal no token names — while every fill here is a
+ * token class the wall can still see and check. The same division `MacroView`
+ * makes for its column template.
+ */
+function KindGlyph({ rows, on }: { rows: readonly GlyphRow[]; on: boolean }) {
+  return (
+    // eslint-disable-next-line no-restricted-syntax -- a 26x18 pictogram is a design literal; no token names it, and the colour half below stays in classes where the wall can read it
+    <span aria-hidden className="flex flex-col justify-center gap-0.5" style={{ width: 26, height: 18 }}>
+      {rows.map((row, i) => (
+        // eslint-disable-next-line no-restricted-syntax -- as above: the row heights ARE the picture
+        <span key={i} className="flex items-center gap-0.5" style={{ height: row.h }}>
+          {row.cells.map((cell, c) => (
+            <span
+              key={c}
+              className={cn(
+                "h-full",
+                row.h > 8 ? "rounded-xs" : "rounded-full",
+                cell === "fade" ? (on ? "bg-brand-tint" : "bg-hairline") : on ? "bg-brand" : "bg-slate",
+              )}
+              // eslint-disable-next-line no-restricted-syntax -- a cell's share of the row is the shape it is drawing
+              style={cell === "dot" ? { flex: "0 0 3px" } : { flex: cell === "fade" ? 1 : cell }}
+            />
+          ))}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 // The gate's "a mono line naming what it takes", said BEFORE the click rather
 // than discovered after it.
@@ -70,8 +146,15 @@ const FILTERS: readonly { value: ShapeFilter; label: string }[] = [
 // with. The old wording was correct about `cost.day`, which really was unbound
 // until you pointed it at a day, and is a lie about `cost`.
 function takesLine(inputs: readonly WidgetInput[]): string {
-  if (inputs.length === 0) return "ready as soon as it lands";
-  return `narrow it by: ${inputs.map((i) => i.label.toLowerCase()).join(", ")}`;
+  if (inputs.length === 0) return "takes nothing \u2014 goes straight in";
+  // **The registry's own labels, not the design's `INPUT_WORDS`.** The design
+  // carries a second vocabulary keyed by input TYPE (`a stretch of days`,
+  // `someone on the trip`); `filters.ts`'s `LABEL_OF` is where this repo says
+  // what a dimension is called, and it is what every bind control already
+  // shows. Two maps would be two surfaces disagreeing about one dimension,
+  // which is the thing `LABEL_OF`'s own comment exists to prevent \u2014 so this
+  // reads "takes day + tags" where the design reads "takes a day + tags".
+  return `takes ${inputs.map((i) => i.label.toLowerCase()).join(" + ")}`;
 }
 
 /**
@@ -155,7 +238,7 @@ export function WidgetPicker({
     // to content height, the inner `overflow-y-auto` never engages, and the
     // sheet keeps its own single scroll — which is what §13 rule 3 wants on a
     // phone anyway. One structure, correct in both, no `isPhone` branch.
-    <div className="flex min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-hairline pb-3">
         {/* The gate's "search over a flat list". It lists presets now, and the
             list is what grows every time someone names a combination worth
@@ -171,24 +254,45 @@ export function WidgetPicker({
           onChange={(e) => setQuery(e.target.value)}
           className="mb-3 min-h-11 text-sm"
         />
-        {/* The filter row (M14's gate: "search + how it reads over a flat list").
-            Chips with `aria-pressed`, the same control `ActivityEditor` uses for
-            tags — a pattern this app already has, rather than a fifth way to say
-            "one of these is on". A segmented control would have been the tidier
-            primitive and does not fit: four labels in a 320px column. */}
-        <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-1">
-          {FILTERS.map((f) => (
-            <Button
-              key={f.label}
-              variant={shape === f.value ? "primary" : "secondary"}
-              size="sm"
-              aria-pressed={shape === f.value}
-              className="rounded-full px-2.5 py-0.5 text-xs"
-              onClick={() => setShape(f.value)}
-            >
-              {f.label}
-            </Button>
-          ))}
+        {/* **The design's four-up kind control** (`:3961`), and it replaces four
+            wrapping pills. The old row was `Button variant="primary"/"secondary"`
+            chips, which is a pattern this app does have — but four labels of
+            "In a sentence" / "A section" / "A line each" in a 320px column wrap
+            to three lines and still say nothing a picture of the shape would not
+            say instantly. A fixed 4-column grid cannot wrap, so the header's
+            height is the same whatever is selected.
+
+            `role="radiogroup"` with `role="radio"`, not `aria-pressed` toggles:
+            exactly one of these is on at a time, and a radio is the role that
+            says so. The plain-English sentence the labels used to carry lives in
+            `title` now, which is where the design puts it.
+
+            A raw `<button>`, not the `Button` primitive: every variant it has
+            draws a control with its own ground and border, and this needs to be
+            a transparent target that becomes a brand tint when chosen. Same
+            reason `MapRail` reaches for one. */}
+        <div role="radiogroup" aria-label="How it reads" className="grid grid-cols-4 gap-1">
+          {FILTERS.map((f) => {
+            const on = shape === f.value;
+            return (
+              // eslint-disable-next-line no-restricted-syntax -- a radio drawn as an icon over a label; every Button variant brings its own ground and border, and this target has to be transparent until chosen
+              <button
+                key={f.label}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                title={f.hint}
+                className={cn(
+                  "flex cursor-pointer flex-col items-center gap-1.5 rounded-md px-1 pt-2 pb-1.5 transition-colors",
+                  on ? "bg-brand-tint text-brand-pressed" : "text-slate ring-1 ring-hairline ring-inset hover:bg-paper",
+                )}
+                onClick={() => setShape(f.value)}
+              >
+                <KindGlyph rows={f.glyph} on={on} />
+                <span className="text-2xs leading-none font-semibold">{f.label}</span>
+              </button>
+            );
+          })}
         </div>
         {/* The design's count line (`:3977`), and it is the header's last row
             rather than a caption on the list, because it counts what the two
@@ -213,16 +317,29 @@ export function WidgetPicker({
           {query.trim() === "" ? "No widget of that kind." : `No widget matches “${query.trim()}”.`}
         </p>
       ) : (
-        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pt-3">
+        <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pt-3">
           {shown.map((w) => (
             <li key={w.name}>
-              <Button
-                variant="secondary"
-                className={
-                  draggable
-                    ? "h-auto w-full cursor-grab flex-col items-start gap-0.5 px-2 py-1.5 text-left active:cursor-grabbing"
-                    : "h-auto w-full flex-col items-start gap-0.5 px-2 py-1.5 text-left"
-                }
+              {/* **A bordered card, not a secondary Button** (`:3980`). The rows
+                  were `Button variant="secondary"` stacked at `gap-1`, and
+                  twenty-two of those in a 320px column read as a toolbar —
+                  every row shouting "press me" with equal weight, so nothing in
+                  the list has a hierarchy. The design draws a card: a quiet edge
+                  that takes the brand only on hover, and three lines inside it
+                  that each answer a different question (what it is, what it
+                  needs, what it will look like).
+
+                  Still a real `<button>`, so the list stays keyboard-reachable
+                  and `getAllByRole("button")` still means "the rows". The
+                  `Button` primitive is what goes, not the semantics. */}
+              {/* eslint-disable-next-line no-restricted-syntax -- a three-line card that is also the control; Button&apos;s variants draw an action, and twenty-two actions in a 320px column is the toolbar this change exists to stop */}
+              <button
+                type="button"
+                className={cn(
+                  "flex w-full flex-col gap-1.5 rounded-md border border-hairline bg-surface p-2.5 text-left transition-colors",
+                  "hover:border-brand hover:bg-paper",
+                  draggable && "cursor-grab active:cursor-grabbing",
+                )}
                 // Drag is the SAME insert, at a position the pointer chooses
                 // rather than one the caret chose (Mitchell: "i cant drag and
                 // drop a widget onto page"). The row carries only the widget's
@@ -239,10 +356,25 @@ export function WidgetPicker({
                 }
                 onClick={() => onPick(w.name)}
               >
-                <span className="flex w-full items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-ink">{w.title}</span>
-                  <Badge variant="neutral" className="font-normal">{SHAPE_LABEL[w.shape]}</Badge>
+                <span className="flex flex-wrap items-center gap-2">
+                  {/* The design's grab affordance (`:3982`). `aria-hidden`
+                      because it is a picture of "draggable", and the row
+                      already announces itself as the control. It shows on the
+                      phone too, where nothing drags — deliberately not: a
+                      handle that cannot be dragged is a promise the surface
+                      cannot keep, so it is bound to `draggable` like the
+                      cursor is. */}
+                  {draggable ? <span aria-hidden className="text-2xs text-slate">&#8759;</span> : null}
+                  <span className="text-sm font-semibold text-ink">{w.title}</span>
+                  <Badge variant="neutral" className="font-mono text-2xs font-normal">
+                    {SHAPE_LABEL[w.shape]}
+                  </Badge>
                 </span>
+                {/* `text-brand-pressed`, which is the one colour on the card
+                    that is not ink or slate — the design uses it to mark the
+                    line that says what you still get to choose, so the eye
+                    lands on it when scanning for a widget that takes a day. */}
+                <span className="font-mono text-2xs font-normal text-brand-pressed">{takesLine(w.inputs)}</span>
                 {/* A FIXED sample, never a computed value (ADR-037 decision 5):
                     a preview asserting numbers the live widget computes makes
                     the picker and the page contradict each other in one
@@ -251,13 +383,7 @@ export function WidgetPicker({
                     the accepted decision, so this follows the ADR. Recorded in
                     the milestone file rather than settled silently here. */}
                 <span className="text-xs font-normal text-slate">{w.preview}</span>
-                {/* `text-xs`, not an arbitrary `text-[11px]`: the design-system
-                    wall is tokens-only and `check-color-wall.mjs` rejects
-                    arbitrary Tailwind values outright. Caught by CI on PR 139,
-                    not by `pnpm --filter web lint` — the wall is its own script
-                    under `pnpm check`, so a scoped lint run cannot see it. */}
-                <span className="font-mono text-xs font-normal text-slate">{takesLine(w.inputs)}</span>
-              </Button>
+              </button>
             </li>
           ))}
         </ul>

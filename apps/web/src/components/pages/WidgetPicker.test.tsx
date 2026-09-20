@@ -108,34 +108,44 @@ describe("WidgetPicker", () => {
   it("says what a widget can be narrowed by before it is inserted", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
     const needsPointing = screen.getByRole("button", { name: new RegExp(withInputs.title) });
-    expect(within(needsPointing).getByText(/narrow it by:/)).toBeTruthy();
+    expect(within(needsPointing).getByText(/^takes /)).toBeTruthy();
 
     const standsAlone = screen.getByRole("button", { name: new RegExp(withoutInputs.title) });
-    expect(within(standsAlone).getByText("ready as soon as it lands")).toBeTruthy();
+    expect(within(standsAlone).getByText("takes nothing \u2014 goes straight in")).toBeTruthy();
   });
 
   // Named for WHEN you reach for one. "a block" describes the node, which is
   // the author's problem; "a section" describes where it lands, which is the
   // reader's (Mitchell, 2026-09-04).
-  it("tags each row by where it lands in the page, not by its node type", () => {
+  // **The chip still says the SHAPE, in the design's shorter words.** It read
+  // "a section" / "in a sentence" / "a line each" — Mitchell's 2026-09-04
+  // answer to a vocabulary written for the author. The design answers it with
+  // the ICON in the filter above plus a `title` carrying the full sentence, so
+  // the chip goes back to one or two words and the row gets its width back.
+  // What this test holds is unchanged: three shapes, three distinct chips, and
+  // none of them the node type.
+  it("tags each row by the shape it lands as, not by its node type", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
-    expect(within(screen.getByRole("button", { name: /The days, in detail/ })).getByText("a section")).toBeTruthy();
-    expect(within(screen.getByRole("button", { name: /The trip's name/ })).getByText("in a sentence")).toBeTruthy();
-    expect(within(screen.getByRole("button", { name: /A line for every day/ })).getByText("a line each")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /The days, in detail/ })).getByText("a block")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /The trip's name/ })).getByText("inline")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /A line for every day/ })).getByText("a list")).toBeTruthy();
   });
 
   describe("filtering by kind", () => {
-    const filters = () => screen.getByRole("group", { name: "Filter by kind" });
+    // **A radiogroup now, not a pressed-button group.** Exactly one kind is on
+    // at a time, and the design's four-up icon control says so with the role
+    // rather than with `aria-pressed` on four independent toggles.
+    const filters = () => screen.getByRole("radiogroup", { name: "How it reads" });
 
     it("starts on All, with every widget shown", () => {
       render(<WidgetPicker onPick={vi.fn()} />);
-      expect(within(filters()).getByRole("button", { name: "All", pressed: true })).toBeTruthy();
+      expect(within(filters()).getByRole("radio", { name: "All", checked: true })).toBeTruthy();
       expect(rows()).toHaveLength(catalogue.length);
     });
 
     it("narrows to one kind, and every surviving row is of that kind", async () => {
       render(<WidgetPicker onPick={vi.fn()} />);
-      await userEvent.click(within(filters()).getByRole("button", { name: "A line each" }));
+      await userEvent.click(within(filters()).getByRole("radio", { name: "List" }));
       const shown = rows();
       expect(shown.length).toBeGreaterThan(0);
       expect(shown.length).toBeLessThan(catalogue.length);
@@ -151,7 +161,7 @@ describe("WidgetPicker", () => {
     it("combines with the search box rather than replacing it", async () => {
       render(<WidgetPicker onPick={vi.fn()} />);
       await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "day");
-      await userEvent.click(within(filters()).getByRole("button", { name: "In a sentence" }));
+      await userEvent.click(within(filters()).getByRole("radio", { name: "Inline" }));
       const shown = rows();
       // The witness. A `for` over an empty list asserts nothing, so a
       // regression that made the two filters INTERSECT to nothing — which is
@@ -160,14 +170,14 @@ describe("WidgetPicker", () => {
       expect(shown.length).toBeGreaterThan(0);
       expect(shown.length).toBeLessThan(catalogue.length);
       for (const row of shown) {
-        expect(row.textContent).toMatch(/in a sentence/);
+        expect(row.textContent).toMatch(/inline/);
       }
     });
 
     it("says the list is empty because of the kind, not because of a search", async () => {
       render(<WidgetPicker onPick={vi.fn()} />);
       await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "budget");
-      await userEvent.click(within(filters()).getByRole("button", { name: "A line each" }));
+      await userEvent.click(within(filters()).getByRole("radio", { name: "List" }));
       expect(screen.getByText(/No widget matches/)).toBeTruthy();
     });
   });
