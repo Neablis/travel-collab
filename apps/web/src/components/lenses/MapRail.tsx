@@ -245,7 +245,18 @@ export function MapRail({
         gearedTravel: travelFor(readMapRailTuning().scrollPxPerDay),
       });
       lockUntilRef.current = Date.now() + RAIL_CLICK_LOCK_MS;
-      container.scrollTo({ top, behavior: "smooth" });
+      // **`scrollTo` is not universal.** jsdom does not implement it at all, so
+      // calling it unguarded threw on every rail click in the unit suite — as
+      // an UNHANDLED ERROR, which is worse than a failure: vitest still printed
+      // "3349 passed" and only the `Errors 1` line below it and a non-zero exit
+      // said otherwise. (Same shape as the `CSS.escape` trap this repo already
+      // hit: an uncaught error is not a failed assertion.)
+      //
+      // The fallback is a real one, not a test accommodation: assigning
+      // `scrollTop` is the universally supported way to land at a position,
+      // and it is what an engine without smooth-scroll support would do anyway.
+      if (typeof container.scrollTo === "function") container.scrollTo({ top, behavior: "smooth" });
+      else container.scrollTop = top;
     };
 
     const unsubscribeTuning = onMapRailTuningChange(measure);

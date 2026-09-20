@@ -93,6 +93,47 @@ describe("MapRail", () => {
     expect(onHoverEnd).toHaveBeenCalledTimes(1);
   });
 
+  // M26 link 5d. Clicking a day also SCROLLS it into view, and that path had no
+  // test at all — which is how it shipped calling `container.scrollTo`, a method
+  // jsdom does not implement. It threw on every rail click as an UNHANDLED
+  // ERROR, so vitest still reported every test passing and only its `Errors 1`
+  // line and a non-zero exit disagreed. A test that merely renders the rail
+  // could never have caught it; this one drives the click.
+  it("scrolls the clicked day into view", () => {
+    // jsdom has no `scrollTo` on any element, so it is installed here as a spy.
+    // **This is the assertion, and `.not.toThrow()` was not**: a first attempt
+    // wrapped the click in `expect(...).not.toThrow()`, and with the guard
+    // removed it STILL reported 19 passed — React dispatches the handler
+    // outside the assertion's call stack, so only vitest's `Errors` line saw
+    // the throw. Observing the call is what makes this fail when the click
+    // cannot reach the scroll.
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      value: scrollTo,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      render(
+        <MapRail
+          days={[day(), day({ index: 1, dayId: "d2", label: "Day 2" })]}
+          focusedDay={0}
+          onFocus={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getAllByRole("button")[1]!);
+
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo.mock.calls[0]![0]).toMatchObject({ behavior: "smooth" });
+      // The POSITION is not asserted: jsdom gives every element a zero-sized
+      // box, so it is 0 whatever the gearing computes. That maths is covered
+      // by `railScrollTopFor`'s round-trip test, where it can be reasoned
+      // about without a layout engine.
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
+    }
+  });
+
   // Hovering is not selecting. If this ever fires, the card has become a second
   // way to choose a day and the rule the no-hover-tint test protects is gone.
   it("does not change the focused day on hover", () => {
