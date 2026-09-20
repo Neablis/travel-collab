@@ -766,12 +766,18 @@ marked **[walk]** and are not satisfiable by a green test.
       dropped the `min-w-0`/truncate squeeze it only needed while sharing a row.
       Its own doc comment said it sits beside `TripViewTabs`; that is rewritten
       rather than left to rot. **Unwalked on every lens.**
-- [ ] An accent that is not a hex token **fails a test** rather than reaching a
+- [x] An accent that is not a hex token **fails a test** rather than reaching a
       map paint property; an undefined token name **fails the colour wall**.
       Both proven by adding the bad value and watching it go red (CLAUDE.md
-      rule 3). *Second half done in link 0 and proven red; the accent/MapLibre
-      half is `KI-2026-09-19-f` and is still link 8a's work, so this box stays
-      open.*
+      rule 3). *Second half done in link 0 and proven red. **First half done
+      2026-09-20**, closing `KI-2026-09-19-f`: `mapColor.ts` converts `oklch()`
+      arithmetically and both maps paint through it, and `mapTokens.test.ts`
+      reads `globals.css` and asserts every token still lands on CSS Color 3
+      after conversion — resolving `var()` aliases first, because the browser
+      does, and asserting it found >20 tokens so a stylesheet reshape cannot
+      make the sweep vacuous. Proven red both ways: `--color-brand: lab(45% -30
+      5)` fails, while `oklch(0.4986 0.0903 173.4)` — the spelling §28's Ledger
+      chroma bump invites — now PASSES, because the conversion handles it.*
 - [ ] **[walk]** Home, Overview and the Notebook index each paint their own
       shape before data arrives, fill in **region by region**, and survive a
       **partial** failure — the failed region offers a retry **in place** while

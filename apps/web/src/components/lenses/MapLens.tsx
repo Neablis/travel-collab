@@ -16,6 +16,7 @@ import { mapPaintColor } from "./mapColor";
 import { MapOfflineState } from "./MapOfflineState";
 import { useIsPhone } from "./useIsPhone";
 import { MapFocusCard } from "./MapFocusCard";
+import { MapHoverCard, hoverCardTop } from "./MapHoverCard";
 import { MapLegend } from "./MapLegend";
 
 // Handoff `current/…dc.html:630-668`: the muted "positron" basemap so the
@@ -246,7 +247,14 @@ export function MapLens({
   // scrolled a little. Both were reported together on the preview
   // (Mitchell, 2026-08-30 design pass).
   const [canvasTop, setCanvasTop] = useState<number | null>(null);
+  // The same element `canvasRef` measures, kept as a plain ref so an event
+  // handler can read its box on demand. `canvasRef` is a CALLBACK ref (it
+  // installs observers and returns their cleanup), so it has no `.current` to
+  // read — and adding a second `ref` prop to the same element is not possible.
+  // Assigning here keeps one ref prop and one source of truth.
+  const canvasElRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useCallback((node: HTMLDivElement | null) => {
+    canvasElRef.current = node;
     if (node === null) return;
     const measure = () => setCanvasTop(node.getBoundingClientRect().top + window.scrollY);
     measure();
@@ -268,6 +276,10 @@ export function MapLens({
   // is the retry counter: bumping it re-runs the mount effect, which is the
   // only honest way to retry a MapLibre instance whose style failed.
   const [failed, setFailed] = useState(false);
+  // The hovered day and where its card sits, in the map wrap's coordinates.
+  // Null is "nothing hovered", which is most of the time — the card costs
+  // nothing until a reader asks a day a question (M26 link 5a).
+  const [hover, setHover] = useState<{ day: MapDay; top: number } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
   // Keyed by MapDay.index, so the focus effect below can ghost/un-ghost a
@@ -860,8 +872,26 @@ export function MapLens({
             />
           ) : (
               <>
-                <MapRail days={days} focusedDay={focusedDay} onFocus={setFocusedDay} />
+                <MapRail
+                  days={days}
+                  focusedDay={focusedDay}
+                  onFocus={setFocusedDay}
+                  // The rail hands up the row's VIEWPORT top; the wrap is the
+                  // only thing that knows where it starts and how tall it is,
+                  // so the clamp happens here.
+                  onHover={(day, rowTop) => {
+                    // `canvasElRef` is the map wrap — the `relative` box every
+                    // overlay here positions against — so it is also the box
+                    // the card's top must be expressed in and clamped to.
+                    const wrap = canvasElRef.current;
+                    if (wrap === null) return;
+                    const box = wrap.getBoundingClientRect();
+                    setHover({ day, top: hoverCardTop(rowTop - box.top, box.height) });
+                  }}
+                  onHoverEnd={() => setHover(null)}
+                />
                 <MapFocusCard day={focusedMapDay} />
+                {hover !== null && <MapHoverCard day={hover.day} top={hover.top} />}
                 <MapLegend />
               </>
             ))}

@@ -46,6 +46,12 @@ export type MapDay = {
   // An empty day sets `isEmpty` instead and leaves this null; the two are
   // mutually exclusive by construction (no stops means nothing unlocated).
   flagText: string | null;
+  /**
+   * The day's longest hop, or null when there is nothing to travel between
+   * (fewer than two located stops). Feeds the hover card's third note — the one
+   * fact about a day's shape that "5 stops · 40 km" cannot carry.
+   */
+  longest: LongestLeg | null;
 };
 
 function locatedStops(day: TripDetail["days"][number], activities: TripDetail["activities"]): MapStop[] {
@@ -76,6 +82,38 @@ function legKms(stops: MapStop[]): number[] {
     kms.push(haversineKm(stops[i - 1]!, stops[i]!));
   }
   return kms;
+}
+
+/** The longest single hop of a day, and the two stops it runs between. */
+export type LongestLeg = { km: number; from: string; to: string };
+
+/**
+ * The longest leg of a day, or `null` when there is nothing to travel between.
+ *
+ * M26 link 5c: *"`longest` — the longest leg and its endpoints — is pure
+ * derivation from coordinates and titles already on `MapStop`"*. It is the
+ * hover card's third note, and it is the one fact about a day's shape that the
+ * rail's own row cannot show: a day of five close stops and a day with one
+ * two-hour hop read identically as "5 stops · 40 km".
+ *
+ * **Ties go to the EARLIEST leg**, not the last. `>` rather than `>=` keeps the
+ * note stable as a reader hovers back and forth over the same day — two legs of
+ * equal length would otherwise pick whichever the loop saw last, which is an
+ * implementation detail leaking into copy.
+ *
+ * Fewer than two located stops is `null`, which is the caller's cue for the
+ * *"A single anchor. Nothing to travel between."* note rather than an error.
+ */
+export function longestLeg(stops: readonly MapStop[]): LongestLeg | null {
+  if (stops.length < 2) return null;
+  let best: LongestLeg | null = null;
+  for (let i = 1; i < stops.length; i++) {
+    const km = haversineKm(stops[i - 1]!, stops[i]!);
+    if (best === null || km > best.km) {
+      best = { km, from: stops[i - 1]!.title, to: stops[i]!.title };
+    }
+  }
+  return best;
 }
 
 export function mapDays(detail: TripDetail): MapDay[] {
@@ -124,6 +162,7 @@ export function mapDays(detail: TripDetail): MapDay[] {
       bars,
       isEmpty: day.activityIds.length === 0,
       flagText,
+      longest: longestLeg(stops),
     };
   });
 }

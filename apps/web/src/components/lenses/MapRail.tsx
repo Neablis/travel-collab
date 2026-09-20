@@ -43,6 +43,8 @@ export function MapRail({
   days,
   focusedDay,
   onFocus,
+  onHover,
+  onHoverEnd,
 }: {
   days: MapDay[];
   focusedDay: number | null;
@@ -50,6 +52,19 @@ export function MapRail({
   // the focus. The rail itself only ever emits a real index — its focus is
   // scroll-driven, and a clear here would be undone by the next scroll event.
   onFocus: (index: number | null) => void;
+  /**
+   * A day the pointer has entered, with that row's viewport-relative top.
+   *
+   * **Hovering is not selecting** (M26 link 5a). This is deliberately a
+   * different callback from `onFocus`, and the rail changes nothing about
+   * itself when it fires: the row's appearance stays a function of focus alone,
+   * which is what `MapRail.test.tsx`'s no-hover-tint assertion has always said
+   * and what this link left standing rather than replaced.
+   *
+   * Optional, so every existing caller and test keeps working untouched.
+   */
+  onHover?: (day: MapDay, rowTop: number) => void;
+  onHoverEnd?: () => void;
 }) {
   const unit = useDistanceUnit();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -325,6 +340,22 @@ export function MapRail({
                   type="button"
                   aria-current={active ? "true" : undefined}
                   onClick={() => onFocus(day.index)}
+                  // M26 link 5a. The rail REPORTS the hover and renders nothing
+                  // for it: the card is a sibling of this rail in the map wrap,
+                  // so it positions against the map rather than against this
+                  // element's geared-scroll transform — which would drag the
+                  // card along as the track moves.
+                  //
+                  // The row's viewport-relative top is what travels, not a
+                  // number computed here: only the caller knows where the map
+                  // wrap starts, and only it can clamp against the wrap's
+                  // height. `mouseenter`/`mouseleave` rather than `mouseover`,
+                  // so moving between two children of the same row does not
+                  // retrigger.
+                  onMouseEnter={(event) =>
+                    onHover?.(day, event.currentTarget.getBoundingClientRect().top)
+                  }
+                  onMouseLeave={() => onHoverEnd?.()}
                   className={cn(
                     // No hover tint: the rail already signals the current day via
                     // aria-current's tint (below), and scrolling — not hovering —

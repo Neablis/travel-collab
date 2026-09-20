@@ -1094,6 +1094,36 @@ html[data-look="ledger"] .shadow-raised {
     gap: 34px;
   }
 
+  /* The Map rail's hover card (M26 link 5a, handoff `riseIn 140ms`). A named
+     class for the same reason as everything else in this block:
+     `animate-[om-rise-in_140ms...]` would trip the colour wall's any-bracket
+     ban.
+
+     Under prefers-reduced-motion the card simply APPEARS rather than being
+     dropped — unlike the pulse below, the animation here is not the content.
+     The card is detail on demand, and a reader who has asked for less motion
+     still asked the question. */
+  @keyframes om-rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .map-hover-card {
+    animation: om-rise-in 140ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .map-hover-card {
+      animation: none;
+    }
+  }
+
   /* SyncIndicator (Task 8b.3, dc.html:18/3109): the saving state's two
      expanding-ring haloes. `animate-[om-save-pulse_1.4s...]` would trip the
      color wall's any-bracket ban, so this is a named class, same pattern as

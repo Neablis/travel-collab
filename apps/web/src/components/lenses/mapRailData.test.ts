@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
-import { mapDays, markerGroups, routeLegs } from "./mapRailData";
+import { longestLeg, mapDays, markerGroups, routeLegs } from "./mapRailData";
+import type { MapStop } from "./mapRailData";
 
 function detailWith(days: { dayId: string; date: string | null; activityIds: string[] }[], activities: Record<string, unknown>): TripDetail {
   return {
@@ -221,5 +222,44 @@ describe("markerGroups", () => {
       c2: atPrecision("c2", 43.2, -77.51, "city"),
     });
     expect(markerGroups(day)).toHaveLength(2);
+  });
+});
+
+// M26 link 5c. `longestLeg` is the hover card's third note, and the one fact
+// about a day's shape that the rail row cannot carry: "5 stops · 40 km" reads
+// identically for five close stops and for one long hop with four neighbours.
+describe("longestLeg", () => {
+  const at = (title: string, lat: number, lng: number): MapStop => ({
+    activityId: title,
+    title,
+    lat,
+    lng,
+    kind: "planned" as ActivityKind,
+    precision: undefined,
+  });
+
+  it("is null when there is nothing to travel between", () => {
+    expect(longestLeg([])).toBeNull();
+    expect(longestLeg([at("Only stop", 35, 135)])).toBeNull();
+  });
+
+  it("picks the longest hop and names both of its ends", () => {
+    // Three stops, and the LONG hop is in the middle of the list rather than at
+    // either end — a scan that only compared the first or last pair would pass
+    // a two-stop test and fail here.
+    const result = longestLeg([at("Near A", 35.0, 135.0), at("Near B", 35.01, 135.0), at("Far", 36.5, 135.0)]);
+    expect(result).not.toBeNull();
+    expect(result!.from).toBe("Near B");
+    expect(result!.to).toBe("Far");
+    expect(result!.km).toBeGreaterThan(100);
+  });
+
+  // **Ties go to the EARLIEST leg.** Two legs of equal length would otherwise
+  // resolve to whichever the loop saw last, so the note would change as a
+  // reader hovered back and forth over one unchanged day.
+  it("keeps the earliest leg on a tie, so the note does not move", () => {
+    const result = longestLeg([at("First", 35.0, 135.0), at("Second", 36.0, 135.0), at("Third", 37.0, 135.0)]);
+    expect(result!.from).toBe("First");
+    expect(result!.to).toBe("Second");
   });
 });
