@@ -371,6 +371,26 @@ describe("Discover", () => {
     expect(line.textContent).not.toMatch(/most added|newest|first/i);
   });
 
+  // §33.2 spells the sentence `N shared days · <sort> ▾`, and the `·` was
+  // missing: the count and the sort sat side by side with only a `gap-x-3.5`
+  // between them, which reads as two controls rather than one sentence. Found
+  // by looking at the preview, 2026-09-20 — no assertion in this file was
+  // wrong, because none of them named the separator.
+  //
+  // It is asserted as a SIBLING of the count rather than inside it: the sort
+  // control is hidden on a phone (it lives in the filter sheet there) and the
+  // separator is hidden with it, so folding the `·` into
+  // `discover-results-line` would leave a middot trailing the count alone.
+  it("separates the count from the sort with a middot", async () => {
+    render(<DiscoverScreen />);
+    const sep = await screen.findByTestId("discover-results-sep");
+    expect(sep.textContent).toBe("·");
+    // Decorative punctuation between two elements — a screen reader that read
+    // "middot" here would be reading the layout out loud.
+    expect(sep.getAttribute("aria-hidden")).toBe("true");
+    expect((await screen.findByTestId("discover-results-line")).textContent).not.toContain("·");
+  });
+
   it("says one shared day rather than 1 shared days", async () => {
     render(<DiscoverScreen />);
     expect((await screen.findByTestId("discover-results-line")).textContent).toBe("1 shared day");

@@ -47,14 +47,43 @@ moving`**, which needs Mitchell's answer on whether `routeLegs()`'s
 `Cancel · New trip · Empty` header is recorded as not done, with the reason (it
 needs the exit lifted out of `NewTripConversation`, not duplicated).
 
-**M26 IS BUILT END TO END AS OF 2026-09-20 — every link in both waves.** What
-is left is what a green suite cannot give: **five `[walk]` boxes**, which link 0
-defines as failable by looking at the screen and therefore not satisfiable by a
-test. Somebody has to open a preview. Everything else in both gates is ticked,
-and the Definition of Done ran once at Tier 3: `pnpm check` EXIT 0 (typecheck,
-lint, 3427 web unit plus every package and the scripts suite, 789 integration
-tests against a real Postgres), `test:e2e:ci-like` **150 passed exit 0**,
+**M26 IS BUILT END TO END AS OF 2026-09-20 — every link in both waves**, and
+**the preview has now been walked.** The Definition of Done ran at Tier 3 again
+after the walk's fixes: `pnpm check` EXIT 0 (typecheck, lint, walls, every
+package's unit tests and the scripts suite, 789 integration tests across 62
+files against a real Postgres), `test:e2e:ci-like` **150 passed exit 0**,
 `seed:verify` EXIT 0.
+
+**THE WALK FOUND THREE DEFECTS AND TWO UNWALKABLE BOXES, AND THE BIG ONE WAS
+IN THE SEED.** `docs/milestones/M26-design-parity.md` opens with the record;
+the two things a later session should not re-derive:
+
+1. **A feature can be built, tested, reviewed and still invisible, because the
+   demo data cannot reach it.** §16's shared-day map rendered `canvas=0` on
+   every shared day on the preview — `SharedDayMap` was right, and **not one
+   saved-day stop in the repository carried a `lat`.** Both seed fixtures'
+   `stop()` helpers built `location` as `{ name, city }` and dropped the rest,
+   so `worthDrawing`'s two-point floor was unreachable by construction. This is
+   the same thing Mitchell reported from the preview on 2026-09-19 (*"a playbook
+   activity doesn't even have a map"*), answered the first time by building a
+   component when half the answer was data. Three reviewed coordinates from
+   `coordinates.json` now make one day draw and one degrade;
+   `KI-2026-09-20-d` carries the other ~44 and why they were not typed from
+   memory. **The test that would have caught it is about CONTENT, not code**,
+   and lives in `packages/fixtures` — every unit test of the component passed,
+   because each supplies its own located fixture.
+2. **"Not walkable" is a finding, not a blank.** Two boxes turned out to need
+   account state the seed does not produce — a `premium` account for the
+   *Chosen trips* token scope, and an account WITHOUT `ai.ask` for the
+   new-trip free fork, where every account here holds it by grant (`alice`) or
+   by trial (`demo`). Read off `GET /api/account/plan` rather than guessed,
+   and recorded on each box with the evidence, so the next attempt starts from
+   what is missing instead of from the same dead end.
+
+The two smaller defects were the kind only a renderer shows: Discover's results
+sentence was missing its `·`, and the phone Account **clipped** the signed-in
+email mid-character, because §34.5's 170px label column is a desktop rule that
+was being applied at 411px.
 
 **TWO GATE BOXES FOUND WORK THAT REVIEW DID NOT, and both were measurements.**
 Link 13's box asked for the phone's text-column width as a NUMBER and got

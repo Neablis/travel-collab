@@ -63,15 +63,27 @@ export function SettingsRow({
     // draws the separator between rows and not under the final one, and a row
     // owning its own separator survives being reordered or conditionally
     // rendered, which a positional rule does not.
+    // **The two columns are a DESKTOP rule and now say so.** §34.5's 170px
+    // label column comes off a desktop artboard, and it was applied at every
+    // width: on a 411px phone the card's inner measure is ~343px, so the
+    // control column got ~157px and `dev+alice@example.com` was CLIPPED —
+    // mid-character, against `SettingsCard`'s `overflow-hidden`, with no
+    // ellipsis to say anything had been cut. Seen on the preview at 411x852,
+    // 2026-09-20; no unit test could have found it, because the clip is a
+    // rendered width.
+    //
+    // Stacked below `md`, the artboard's two columns at and above it. That is
+    // the same breakpoint every other phone treatment in M26 uses, and it is
+    // 768px, never 640.
     <div
-      className="flex items-center gap-4 border-b border-hairline py-3.5 last:border-b-0"
+      className="flex flex-col items-start gap-1 border-b border-hairline py-3.5 last:border-b-0 md:flex-row md:items-center md:gap-4"
       data-testid="settings-row"
     >
       {/* A testid because the label COLUMN has no accessible identity of its
           own — it is structure, which is exactly what `docs/guidelines/testing.md`
           says a testid names. Without it the only way to assert the column is a
           parent-node walk, which the lint wall refuses. */}
-      <div className="w-42.5 shrink-0" data-testid="settings-row-label">
+      <div className="w-full shrink-0 md:w-42.5" data-testid="settings-row-label">
         {htmlFor === undefined ? (
           <Text as="span" className="block text-sm font-semibold text-ink">
             {label}
@@ -87,7 +99,12 @@ export function SettingsRow({
           </Text>
         )}
       </div>
-      <div className="min-w-0 flex-1">{children}</div>
+      {/* `break-words` so a value with no space in it — an email address, a
+          token prefix — wraps rather than running under the card's
+          `overflow-hidden`. The two-column layout hid this for as long as the
+          column was 170px wide on a 580px measure; stacking is what makes the
+          long value reach the edge at all, so the wrap ships with it. */}
+      <div className="w-full min-w-0 break-words md:flex-1">{children}</div>
     </div>
   );
 }

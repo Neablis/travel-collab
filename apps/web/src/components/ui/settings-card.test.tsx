@@ -113,6 +113,34 @@ describe("SettingsRow", () => {
       expect(row.className).toContain("last:border-b-0");
     }
   });
+
+  // **§34.5's two columns are a desktop rule**, and applying it at every width
+  // clipped a real value on a real phone: at 411px the card's inner measure is
+  // ~343px, the 170px label column left ~157px for the control, and
+  // `dev+alice@example.com` ran under `SettingsCard`'s `overflow-hidden` — cut
+  // mid-character, with no ellipsis to say anything had been lost. Seen on the
+  // preview at 411x852, 2026-09-20.
+  //
+  // A class assertion rather than a measured width, deliberately: jsdom lays
+  // nothing out, so a width here would be a number this environment invented.
+  // What a unit test can hold is that the row asks to stack below `md` and to
+  // be two columns at and above it — and `md` is 768px, never 640. The
+  // rendered width is `e2e/m26-phone-targets.spec.ts`'s lane.
+  it("stacks its two columns below md and restores them at md", () => {
+    render(
+      <SettingsCard heading="You">
+        <SettingsRow label="Signed in as">dev+alice@example.com</SettingsRow>
+      </SettingsCard>,
+    );
+    const row = screen.getByTestId("settings-row");
+    expect(row.className).toContain("flex-col");
+    expect(row.className).toContain("md:flex-row");
+    // The label column is full width while stacked and 170px once beside the
+    // control. Without the `md:` half the artboard's column is simply gone.
+    const label = screen.getByTestId("settings-row-label");
+    expect(label.className).toContain("w-full");
+    expect(label.className).toContain("md:w-42.5");
+  });
 });
 
 describe("SETTINGS_MEASURE", () => {

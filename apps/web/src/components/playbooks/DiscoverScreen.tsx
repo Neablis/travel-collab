@@ -506,6 +506,22 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           </Text>
         )}
         <div className="hidden md:contents">
+        {/* The `·` of `10 shared days · Most added ▾`. It was missing: the
+            count and the sort sat side by side separated only by `gap-x-3.5`,
+            which reads as two controls rather than as the one sentence §33.2
+            asks for. Found by walking the preview, 2026-09-20 — a gap is not a
+            separator, and nothing but looking at it says so.
+
+            Inside the `md:contents` wrapper, so it is hidden with the sort
+            control it separates: on a phone sort lives in the filter sheet and
+            a middot trailing the count alone would point at nothing.
+            `aria-hidden` because it is punctuation between two elements, not a
+            word anybody needs read out. */}
+        {feed.data !== null && (
+          <span aria-hidden className="text-sm text-slate" data-testid="discover-results-sep">
+            ·
+          </span>
+        )}
         <Popover
           open={openMenu === "sort"}
           onOpenChange={(open) => setOpenMenu(open ? "sort" : null)}

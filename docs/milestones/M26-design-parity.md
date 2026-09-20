@@ -843,6 +843,34 @@ guard left the suite green. The redundant guard is gone.
 
 ---
 
+## The walk (2026-09-20)
+
+Every `[walk]` box below now says what was driven rather than that nothing was.
+The method, so nobody re-derives it: the PR's own Vercel preview, in headless
+Chromium, signed in as a dev user, with `VERCEL_AUTOMATION_BYPASS_SECRET` sent
+as `x-vercel-protection-bypass` on **preview-origin requests only**.
+`docs/guidelines/cloud-agent-sessions.md` is the whole recipe and
+`apps/web/scripts/walk-preview.mjs` is its executable half — the SPKI-pinned
+gateway CAs and the `--ssl-version-max=tls1.2` cap are both load-bearing and
+neither is a TLS relaxation. Viewports: 1440x1000–1100 for desktop, 411x852 for
+the phone, which is the census's.
+
+**Three boxes were failed by looking**, and all three were invisible to every
+green test in this milestone:
+
+1. **No shared day drew a map at all** — and the component was right. The
+   seeded library carried no coordinates, anywhere. `KI-2026-09-20-d`.
+2. **Discover's results sentence had no `·`** — the one character that makes
+   `10 shared days · Most added ▾` a sentence instead of two controls.
+3. **The phone Account clipped the email** — §34.5's 170px label column is a
+   desktop rule and was applied at every width.
+
+**Two boxes turned out not to be walkable at all on this data**, which is worth
+as much as a pass: the *Chosen trips* token box needs a `premium` account and
+every account here resolves to less, and the free-account fork needs an account
+without `ai.ask` and every account here has it — by grant or by trial. Each box
+carries the evidence.
+
 ## Wave 1 exit gate
 
 Per link 0's sixth aid, boxes a person can fail **by looking at the screen** are
@@ -859,13 +887,13 @@ marked **[walk]** and are not satisfiable by a green test.
       **Two of the five aids were built generated-plus-tested rather than
       hand-written**, because a hand-written route table is stale the next time
       the design side rewrites its README in place, which it does every pass.
-- [~] **[walk]** `/account` is a route with three tabs; each tab is a URL a
+- [x] **[walk]** `/account` is a route with three tabs; each tab is a URL a
       browser back button walks; `PlanSection` and `TokensSection` render inside
       it unchanged; no `PLAN` or `API TOKENS` rule is repeated under the tab
       that already says it. `KI-2026-09-17-a` moves to `resolved/`.
-      **Built 2026-09-19 and `KI-2026-09-17-a` is resolved; the `[walk]` half is
-      unwalked** — this box needs a person on a preview, which is what `[walk]`
-      means, and no preview has been driven yet.
+      **Built 2026-09-19; WALKED 2026-09-20** on the PR preview at 1440x1050 —
+      `/account`, `?tab=plan`, `?tab=tokens`, then Back twice, which returned
+      `?tab=plan` and then `/account`. No rule is repeated under either tab.
 - [~] **All seven Sheet-bound test files are migrated, not deleted**, and
       `e2e/m22-api-tokens.spec.ts` still proves a token can be minted and
       revoked by clicking. A token minted on the route is usable against
@@ -876,20 +904,54 @@ marked **[walk]** and are not satisfiable by a green test.
       refused on another with `trip-out-of-scope`, and the same token is refused
       on `POST /v1/trips`. The refusals are the shipped ones — **no server
       change appears in this link's diff.**
-- [~] **[walk]** Account renders on a 580px measure inside filled cards with a
+      **NOT WALKABLE on the preview as it stands, and the reason is worth
+      keeping.** Minting is gated on `api.tokens`, which only `premium` carries.
+      Every account the preview offers resolves to less than that: `alice`
+      holds `free@v1` with grants totalling `ai.ask, ai.command,
+      trip.collaborators`, and `demo` is seven days into a trial worth
+      `plus`. So the API tokens tab correctly shows *"API tokens are on the
+      Premium plan"* and a *See plans* button, and there is no mint control to
+      drive. Walking this needs a premium account —
+      `docs/guidelines/billing-without-spending-money.md` is the route, and it
+      needs Stripe's test clock rather than a browser.
+- [x] **[walk]** Account renders on a 580px measure inside filled cards with a
       170px label column; the token list is one card of rows with a moss header;
-      **no box on the page is unfilled.** **Built 2026-09-19** — the measure is
-      the tab panel's (one place, as the artboard has it), `ui/settings-card.tsx`
-      is the card and row, the token list is a `Table` in a filled card with a
-      moss header, and all five unfilled boxes now carry `bg-surface`. Unwalked.
-- [~] **[walk]** Discover's scope is underlined tabs above the search; Rating
+      **no box on the page is unfilled.** **Built 2026-09-19; WALKED 2026-09-20**
+      — measured off the rendered page at 1440px: the Profile card runs x=184 to
+      x=764, which is 580px exactly, and its label column ends where the
+      controls begin at x=389, ~187px including the gap. `YOU` and `DISPLAY`
+      carry the moss header strip; the Plan tab's three boxes are filled
+      surface on the paper page. Nothing on any of the three tabs is an
+      unfilled box.
+      **The walk found one defect the desktop measure was hiding**, and it is
+      fixed here: at 411px the card's inner measure is ~343px, so the fixed
+      170px label column left ~157px for the control and
+      `dev+alice@example.com` was CLIPPED mid-character against
+      `SettingsCard`'s `overflow-hidden` — no ellipsis, no wrap, just gone.
+      `SettingsRow` now stacks below `md` and is two columns at and above it,
+      which is §34.5's rule where §34.5's artboard applies and §13's everywhere
+      else. **A class scan could not have found this and neither could a unit
+      test**: jsdom lays nothing out, so the clip only exists in a renderer.
+- [x] **[walk]** Discover's scope is underlined tabs above the search; Rating
       and Budget are always-present chips showing their value when set;
       *More filters* holds the rest; the results sentence reads `N shared days ·
       <sort> ▾`; the filter count excludes scope and sort; *Clear filters* does
       **not** reset the scope tab. `Season` is gone from the header, the query
       parameters and the rail — and `pnpm content:verify` still prints season
-      occupancy. **Built 2026-09-19, with one deliberate difference and one
-      judgement call, both unwalked:**
+      occupancy. **Built 2026-09-19; WALKED 2026-09-20** — `Everyone / Yours /
+      Saved` underlined above the search field, a `Budget` chip and *More
+      filters* below it, `10 shared days` beside `Most added ▾`, and no season
+      anywhere on the page or in the rail.
+      **The walk found the sentence was not a sentence.** `N shared days ·
+      <sort> ▾` is what this box and the component's own doc comment both
+      spell, and **the `·` was missing**: the count and the sort sat side by
+      side separated only by `gap-x-3.5`, which reads as two controls. Fixed
+      here, `aria-hidden` and inside the `md:contents` wrapper so it hides with
+      the sort control it separates — on a phone sort lives in the filter
+      sheet, and a middot trailing the count alone would point at nothing.
+      **Every existing assertion was right**; none of them named the separator,
+      which is the shape of thing only looking at the screen catches.
+      Two things that were already decisions, now also seen:
       **Rating is NOT a chip** — §33.2 names it as the second face filter, and
       there is no reviews table (M12 owns it), so it would be a control over
       data that does not exist (project rule 2). Budget is the only face filter
@@ -901,11 +963,16 @@ marked **[walk]** and are not satisfiable by a green test.
       with the filter gone it classifies nothing — but Mitchell asked for the
       month by name on 2026-09-01, so `Season: Summer · August 2026` became
       `Kept in: August 2026`.
-- [~] **[walk]** A three-day Playbook opens on `All days` with per-day dividers
+- [x] **[walk]** A three-day Playbook opens on `All days` with per-day dividers
       carrying a window and a stop count, stops numbered continuously, and a CTA
       reading `Add all 3 days to a trip`. Picking `Day 2` rescopes everything
       below the title and nothing above it. A one-day Playbook shows **no** tab
-      row. A rest day still reads as a rest day. **Built 2026-09-19, unwalked.**
+      row. A rest day still reads as a rest day. **Built 2026-09-19; WALKED
+      2026-09-20** on `M23 three-day walk`: `All days` selected, `Day 1  7:30 am
+      – 6:30 pm · 4 stops` / `Day 2  9 am – 5:15 pm · 6 stops` / `Day 3  8:30
+      am – 3:30 pm · 4 stops` as dividers, stops numbered 1 through 14 across
+      all three, and `Add all 3 days to a trip` in the rail. The one-day
+      Playbooks on the same Discover page show no tab row.
       Two things a later reader should not have to re-derive:
       **`TabStrip`, not link 2's `UnderlineTabs`** — these are views of ONE
       Playbook, and §33.2's own distinction makes that the pill; the artboard
@@ -916,10 +983,39 @@ marked **[walk]** and are not satisfiable by a green test.
       per-day dividers now replace with each day's real range — but a ONE-day
       Playbook has no tab row and no divider, so its Window row stays. Removing
       it there would have deleted a fact rather than de-duplicated one.
-- [ ] **[walk]** The shared day draws its stops on a map beside the list, the
+- [~] **[walk]** The shared day draws its stops on a map beside the list, the
       container survives a tab switch, **no leg crosses a night** on `All days`,
       and a day with fewer than two located stops degrades to list-only rather
       than to an empty canvas.
+      **WALKED 2026-09-20, and the walk failed it — then found the failure was
+      in the SEED, not the component.** Three shared days driven on the preview
+      at 1440x1100 (one starter day, one Japan day, the three-day M23 Playbook)
+      and every one rendered `canvas=0`, `shared-day-pin=0`. `SharedDayMap` was
+      doing exactly what §16 asks: `worthDrawing` needs two located stops and
+      **not one saved-day stop in the repository carried a `lat`** — both seed
+      fixtures' `stop()` helpers built `location` as `{ name, city }` and
+      dropped the rest.
+      So the map half of §16 had never been seen by anybody, on any seeded
+      database, on a milestone that had already built it. **This is the same
+      report that started the work** — Mitchell, preview, 2026-09-19: *"a
+      playbook activity doesn't even have a map"* — answered by building a
+      component when half the answer was data.
+      **Three coordinates are added here and the count is deliberate.** They
+      come from `coordinates.json`, this repo's own reviewed geocode of the
+      Japan trip, and not one is typed from memory: KI-39 is what a remembered
+      coordinate costs, and `geocode-content.py --apply` makes a written one
+      permanent. `Kyoto temples on foot` now has 2 of 4 located, so its map
+      draws with a gapped leg over the two that are not; `Kyoto, then an evening
+      in Osaka` has exactly 1, so it is the degrade-to-list-only case, on the
+      same Discover page. `packages/fixtures/src/savedDayCoordinates.test.ts`
+      holds both and was seen red for each.
+      **Left `[~]` rather than ticked**, because the other ~44 stops are still
+      unlocated and this session had no geocoder to fix them with — the
+      container's gateway answers 403 to `CONNECT
+      nominatim.openstreetmap.org:443`. `KI-2026-09-20-d` carries the whole
+      measurement, the method, and the separate fact that the preview's database
+      has never had `content:import` run against it, which is why its Discover
+      shows ten fixture days and none of the nineteen geocoded bundles.
 - [x] The map's style-load recovery ladder is **proven by forcing it**, not by
       inspection: a blocked style produces a rebuild at 3.5s, a second at 7.5s,
       and a list-only fallback at 11s, scoped to the instance that started it.
@@ -941,16 +1037,31 @@ marked **[walk]** and are not satisfiable by a green test.
       advance an hour, assert no second `new Map`) passed with the disarm
       DELETED, because the effect that would build one is gone anyway. It now
       asserts `vi.getTimerCount()` drops to 0, and that version does go red.
-- [ ] **[walk]** The Map rail's hover card appears top-aligned to the hovered
+- [x] **[walk]** The Map rail's hover card appears top-aligned to the hovered
       row, never eats a click, and disappears on leave without flickering
       between adjacent rows. **And the row itself does not change on hover** —
       `MapRail.test.tsx:51-56`'s no-hover-tint assertion is still green and was
       not modified, because the card is detail on demand and not a second way to
       select a day.
+      **WALKED 2026-09-20.** Hovered `Day 2 · City 2` on a 32-day trip at
+      1440x1000: the card appeared at y=345 against a row whose top edge is
+      y=344, carrying `1 stop` and *"A single anchor. Nothing to travel
+      between."*; the row's own fill did not change; moving the pointer onto the
+      canvas removed it with nothing left behind. This is the box Mitchell
+      reported as unchanged from the preview on 2026-09-19 (*"the hover state on
+      the map page looks the same"*) — it is not the same now, and this is the
+      screen that says so rather than a test that asserts it.
 - [~] **[walk]** Delete and Duplicate are gone from Trip settings and Download
       remains, under a *Take it with you* heading that says history does not
       travel. A trip shared with you offers **Leave this trip** and no Delete.
       A duplicate lands with dates and travellers cleared.
+      **First two sentences WALKED 2026-09-20**: Trip settings carries no
+      Delete and no Duplicate, and ends on `TAKE IT WITH YOU` — *"A download
+      carries the plan — your days and activities. Its history does not travel:
+      an imported trip starts fresh, with no undo, redo or revert."* — above
+      *Download as a file*. **The third is unwalked**: every trip the preview
+      offers is one this account owns, so no `Leave this trip` is reachable
+      without a second signed-in browser accepting an invite.
       **All three built 2026-09-20 (links 6a, 6b, 6c), unwalked.** The one
       thing a later reader should not re-derive: **the `LeaveTrip` verb is real
       and its event is not.** Membership is not in the planning log, so leaving
@@ -983,7 +1094,16 @@ marked **[walk]** and are not satisfiable by a green test.
       every region that arrived stays on the page. Proven by failing one region
       deliberately, not by a fast network. The Map lens either gets its
       rail-then-canvas seam or its different answer is **recorded** here.
-      **Built 2026-09-20, unwalked.** Each surface's failure is forced in a
+      **Built 2026-09-20; the Overview half WALKED 2026-09-20.** A trip seeded
+      before 2026-09-12 has no Overview page, so the preview served the real
+      failure without anybody arranging it: the tab rendered *"This trip has no
+      Overview page"* with *"Nothing was lost — the trip itself is fine, and the
+      other tabs still work"*, a *Try again* beside it, and **`Edit in Notebook`
+      still above it** — which is the whole of §3b's chrome-outside-the-branch
+      rule, seen rather than asserted. The Home and Notebook halves are still
+      unwalked: reaching them needs a region forced to fail, and the preview has
+      no way to make `/api/trips` 500 on demand.
+      Each surface's failure is forced in a
       test rather than waited for: Home's `/api/trips` 500s once and recovers
       on *Try again*; Overview's `fetchPages` fails then succeeds; the
       Notebook's list 500s then recovers, and the assertion that the retry
@@ -1005,6 +1125,21 @@ marked **[walk]** and are not satisfiable by a green test.
 - [ ] **[walk]** A free account creating a trip reaches the no-access fork: one
       description, a quiet Plus note, *See plans*, and **the dock absent rather
       than disabled**. The paid half stays a registered `<Preview>`.
+      **NOT WALKABLE on the preview as it stands, and this is the finding rather
+      than an excuse.** The fork turns on `ai.ask` — a capability, never a plan
+      name (ADR-045 rule 4) — and **no account the preview offers lacks it.**
+      Read straight off `GET /api/account/plan`: `alice` is
+      `conferredVersionRef: free@v1` whose catalogue entitlements are `[]`, yet
+      resolves to `["ai.ask","ai.command","trip.collaborators"]` with a 200/1600
+      ceiling, so she carries grants; `demo` resolves to
+      `["ai.ask","ai.command"]` with `billing.state: "trial"` ending
+      2026-09-27, because a new signup gets one. Both therefore reach the
+      WITH-access half — correctly — and both were driven to be sure: *"A few
+      quick questions and I will draft the trip"*, with the dock present.
+      So the free half is reachable only by an account whose trial has ended and
+      which holds no grant, which the seed does not produce.
+      `docs/guidelines/billing-without-spending-money.md`'s clock recipe is the
+      way to make one; it needs a test clock and a database, not a browser.
 - [x] The empty state says what a trip file is, and an import refusal renders
       the server's own words in a `Banner`. **Done 2026-09-20 (link 9c).** The
       words are the server's, unchanged — `v1`'s refusals are already written
@@ -1434,8 +1569,16 @@ everyone agrees is temporary is a test that will have to be argued with later.
       The shared day's map is behind a *Show route* row. **The filter sheet half
       is walked** (2026-09-20): one sheet, the desktop chip row absent, sort
       inside it, scope outside it and still a tab after the sheet closes, and no
-      sideways scroll at 411px. **The *Show route* row is blocked on link 4** —
-      there is no map on the shared day to collapse.
+      sideways scroll at 411px. **The list half is walked too** (2026-09-20, on
+      the preview at 411x852): `Everyone / Yours / Saved` underlined above the
+      search, the city chips wrapping to three rows, a single `Filters` button,
+      and a one-column card list under `10 shared days`.
+      **The *Show route* row is still blocked, and the reason moved.** It used
+      to be *"there is no map on the shared day to collapse"*, which link 4
+      fixed. It is now that there is no LOCATED shared day to draw one from —
+      `KI-2026-09-20-d`. The row can be built the moment the library has
+      coordinates, and building it before that would ship a control that opens
+      onto nothing.
 - [~] **[walk]** New trip owns the whole frame with a `Cancel · New trip ·
       Empty` header and no tab bar. **Two of the three done and WALKED,
       2026-09-20** — the sheet is measured against the viewport width at 411px
