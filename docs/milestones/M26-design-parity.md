@@ -530,6 +530,27 @@ point, not a commitment"*). `cloneTrip.ts:83` carries every field but the name.
 **Check with Mitchell first**: `cloneSharedTrip` and `cloneDemoTrip` share
 `cloneFrom`, and clearing dates may not be wanted for *"Make this trip mine"*.
 
+**6c is DONE, 2026-09-20, and the check answered itself.** The worry was
+right, so `cloneFrom` takes `clearDates` and only `duplicateTrip` passes it.
+*"Make this trip mine"* from `/demo` is somebody's FIRST trip and a demo
+stripped of its dates on the way in is a worse example than one that keeps
+them; *"Make this my trip"* from a share link is a copy of a particular state
+its holder chose to take, and the dates are part of what they saw. §27's
+sentence is about Duplicate, and only Duplicate.
+
+**Travellers needed no code, and that is asserted rather than assumed.**
+`diff.ts` does not diff `members` (*"tripId and members never differ between
+two states of one trip"*), so a copy's membership is whatever `CreateTrip`
+gave it — the cloner, as owner. The test asserts it anyway, so the day
+membership becomes diffable this half of §27 fails loudly instead of
+silently regressing.
+
+**The days stay and only their anchor goes.** The shape of the trip is what
+was worth copying, and an undated day is an ordinary state here (`startDate`
+is what gives days their dates). Seen to fail three ways: `clearDates: false`
+on Duplicate, the default flipped to `true` (which clears the share clone's
+dates), and clearing `days` alongside `startDate` — four red.
+
 **6d. Download gets its section and its second sentence** — a *Take it with you*
 heading and *history does not travel*. The fact is in a code comment and has
 never been shown to a person.
