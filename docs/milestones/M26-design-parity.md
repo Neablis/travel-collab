@@ -699,6 +699,26 @@ What is left here is four things.
   The paid half — a live composer continuing in the trip's context — is **M9's**
   and stays shelled. Today the build has only `phase: "asking" | "made"` and no
   entitlement read, and its closing turn is honest about it.
+
+  **DONE 2026-09-20.** Three things a later reader should not re-derive:
+  **The fork moved to after the fifth ANSWER**, where the shell rendered on the
+  fifth QUESTION — §30.3 says *"After the fifth answer the flow splits"*, and
+  the old placement put a claim about the trip on screen before there was one.
+  **`null` takes the PAID branch.** `useAiEntitled` returns `null` both while
+  unknown and on a failed read, and its own note requires every caller to treat
+  that as entitled: flashing a paywall at a subscriber is a worse failure than
+  one optimistic frame, and here that frame is a `Preview`, which promises
+  nothing. The dock needed no change at all — it already renders only while
+  `phase === "asking"`, so §31.3's *"no teaser, no disabled input"* was already
+  true and is now asserted.
+  **It surfaced a real defect in `useAiEntitled`.** Mounting the hook on a
+  second screen produced FIVE unhandled rejections in a run that still reported
+  every test passing: `body.plan.entitlements` on a 200 whose body was anything
+  else threw inside the caller's `.then`, breaking the no-helper-ever-rejects
+  invariant the file claims in its own header. Fixed at the source, with the
+  hook's first test file — five 200s a real deployment can serve (an auth
+  redirect to HTML, an envelope with no key, a null plan) each resolving to
+  `null` instead of rejecting.
 - **D13's remaining half, and a dialog that argues against itself.** Home is
   already right — the two-verb popover, the optimistic delete, the single-action
   undo toast and `RestoreTrip` are all built and quote §27 in place. The
