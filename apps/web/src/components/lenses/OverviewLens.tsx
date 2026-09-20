@@ -10,7 +10,7 @@ import { DEDUPE, cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { inspectStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 
@@ -70,6 +70,12 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
   // trip's documents, read far more often than written, and every local write
   // to the trip invalidates them by prefix (`tripKeys.all`) — so the window
   // can only ever hide a REMOTE edit, and only for as long as it lasts.
+  // M26 link 7, §3b: **a failed region retries in place.** This nonce is the
+  // whole mechanism — bumping it re-runs the effect below, which is the same
+  // read the first attempt made. Deliberately not a second code path: a retry
+  // that does not repeat the original read is a retry of something else.
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let live = true;
     void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
@@ -117,7 +123,7 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
     return () => {
       live = false;
     };
-  }, [tripId]);
+  }, [tripId, attempt]);
 
   if (state.status === "loading") {
     return (
@@ -129,8 +135,25 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
 
   if (state.status === "error") {
     return (
-      <div className="py-10">
+      // §3b forbids a dead end: this had the message and NO control at all, so
+      // a reader whose Overview failed to load could only leave the tab. The
+      // retry re-runs the read in place.
+      //
+      // `role="alert"`, where loading is `role="status"`: a failure that
+      // arrives after the reader has moved on is worth interrupting for; a
+      // "still loading" is not.
+      <div className="flex flex-col items-start gap-3 py-10" role="alert">
         <Text variant="muted">{state.message}</Text>
+        <Button
+          size="touch"
+          onClick={() => {
+            setState({ status: "loading" });
+            setAttempt((n) => n + 1);
+          }}
+          data-testid="overview-retry"
+        >
+          Try again
+        </Button>
       </div>
     );
   }
