@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { presetCatalog } from "@tc/pages";
-import { WidgetPicker } from "./WidgetPicker";
+import { KIND_CELL_ON_GROUND, WidgetPicker, glyphCellFill } from "./WidgetPicker";
 
 // The picker reads the LIVE preset list, so these assertions are written
 // against `presetCatalog()` rather than against a list of names copied into
@@ -17,6 +17,44 @@ const catalogue = presetCatalog();
 const rows = () => within(screen.getByRole("list")).getAllByRole("button");
 const withInputs = catalogue.find((w) => w.inputs.length > 0)!;
 const withoutInputs = catalogue.find((w) => w.inputs.length === 0)!;
+
+// **The one thing about this surface no rendered assertion can hold.** The kind
+// icons are a picture drawn out of two fills — solid for the shape, faded for
+// what is around it — sitting on a cell that changes ground when chosen. Get the
+// faded fill wrong and the picture half-disappears, which is a paint, and the
+// test-quality wall rejects `toHaveClass` outside `src/components/ui`.
+//
+// So the RULE is a function and the function is what gets asserted. No DOM, no
+// classes on an element, just: these two may never be the same token.
+//
+// It shipped broken on 2026-09-20 — `fade` resolved to `bg-brand-tint` on a
+// `bg-brand-tint` ground, so a selected Inline showed one pill and a selected
+// List showed a vertical `⋮` that reads as a kebab menu. A browser walk of the
+// preview caught it by reading computed `background-color`; nothing in this
+// repo could.
+describe("the kind icons stay legible in the state they exist to confirm", () => {
+  it("never fills a faded glyph cell with the ground its own cell is painting", () => {
+    expect(glyphCellFill("fade", true)).not.toBe(KIND_CELL_ON_GROUND);
+  });
+
+  // The other half, and not redundant: a fix that made every cell solid would
+  // satisfy the rule above while destroying the distinction the picture is made
+  // of. Faded and solid have to stay different from each other too, in BOTH
+  // states — an unselected cell has its own (transparent) ground and the same
+  // two-tier reading.
+  it("keeps faded and solid distinct in both states", () => {
+    expect(glyphCellFill("fade", true)).not.toBe(glyphCellFill(1, true));
+    expect(glyphCellFill("fade", false)).not.toBe(glyphCellFill(1, false));
+  });
+
+  // A `dot` is a solid cell with a fixed width, so it follows the solid fill —
+  // if it ever stopped doing so, a List row's lead dot would part company with
+  // the bars beside it.
+  it("draws a lead dot as solid, like the shape it leads", () => {
+    expect(glyphCellFill("dot", true)).toBe(glyphCellFill(1, true));
+    expect(glyphCellFill("dot", false)).toBe(glyphCellFill(1, false));
+  });
+});
 
 describe("WidgetPicker", () => {
   it("lists every preset, by the name a person calls it", () => {

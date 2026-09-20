@@ -102,7 +102,37 @@
     sheet is dismissed rather than swapped, and one reopened from scratch should
     look it.
 
-- **What is left, and both are cosmetic:**
+- **THE BROWSER WALK FOUND ONE REAL DEFECT, AND IT IS FIXED** (2026-09-20,
+  walked on the PR #198 preview at 1280x900). Worth recording in full because
+  of where it came from: the selected kind cell paints `bg-brand-tint`, and the
+  glyph's faded cells painted `bg-brand-tint` too — same token, so the muted
+  half of each picture vanished into the ground behind it. Measured computed
+  values: ground `#e9e7dd`, fade cells `#e9e7dd`. **Selected, Inline showed one
+  pill and List showed a vertical `⋮` that reads as a kebab menu.** Both were
+  legible unselected, and illegible in the one state they exist to confirm.
+
+  **The design has the same collision.** `Trip Planner Redesign.dc.html:9665-9667`
+  sets the glyph's `fade` and the button's `bg` to `var(--color-brand-tint)`
+  together, so its own gallery renders it this way; this was a faithful
+  transcription, not a slip. The build deviates on purpose:
+  `--color-border-strong` is the neutral that reads against a tint ground in
+  every theme, and is the step up from `--color-hairline` the unselected state
+  already implies.
+
+  **Held by a test that is not a class assertion.** The rule is now a pure
+  function, `glyphCellFill`, asserted against `KIND_CELL_ON_GROUND` — so the
+  invariant ("a selected cell's ground and its faded cells are never the same
+  token") lives somewhere the test-quality wall permits. Seen red by restoring
+  the shipped value: `expected 'bg-brand-tint' not to be 'bg-brand-tint'`.
+
+  **The general lesson, which is the reason this paragraph is long:** every
+  other layer passed. Unit tests, lint, typecheck, both walls, the e2e walk and
+  CI were all green while two of four icons were unreadable. A paint is only
+  visible in a browser, and `toHaveClass` is banned outside
+  `src/components/ui` — so on this surface, **a walk is not a formality, it is
+  the only instrument.**
+
+- **What is left, and all of it is cosmetic:**
 
   1. **The "takes" line uses this repo's input labels, not the design's.** The
      design carries a second vocabulary keyed by input TYPE (`a stretch of
@@ -123,6 +153,23 @@
      this stays until somebody decides the primitive is wrong.
   4. **The panel's radius is the Card's**, and the 8px-vs-10px question is
      `KI-2026-09-20-g`'s item 2 — same scale gap, same answer needed once.
+  5. **The count line wraps with an orphan.** `21 widgets · click to drop one at
+     the cursor, or drag it in.` breaks in the 320px column leaving `in.` alone
+     on line 2. The copy is the design's; shortening it is a wording call.
+  6. **`ItineraryDayBlock`'s caption padding is `px-3` (12px) where
+     `NotebookBlock.dc.html:19` says 13px.** One pixel, and 13 is not on the
+     spacing scale.
+  7. **The takes-line may not be distinct enough.** It is
+     `--color-brand-pressed`, which under the default `ledger` look computes to
+     `#1a2720` — a near-black dark green that at 11px reads as ink rather than
+     as a highlighted line. The design intends it to stand out. A product call.
+
+- **What the walk did NOT cover**, so nobody reads it as broader than it was:
+  the phone surface (only 1280px and 1100px were walked), drag-and-drop
+  insertion (rows were clicked, never dragged), the search box and its empty
+  state, reload persistence after an insert, and **filter persistence across the
+  rail↔settings swap** — that landed after the walked commit and has unit
+  coverage only.
 
 - **Do not read `KI-2026-09-20-g` as this entry.** That one is the widget *block*
   card — the box a rendered widget draws itself in on the page. Different

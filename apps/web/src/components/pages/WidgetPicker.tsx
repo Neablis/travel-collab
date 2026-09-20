@@ -124,6 +124,40 @@ const FILTERS: readonly {
 ];
 
 /**
+ * The ground a kind cell paints when it is the chosen one.
+ *
+ * Exported so `glyphCellFill` can be held against it by a test — see there.
+ */
+export const KIND_CELL_ON_GROUND = "bg-brand-tint";
+
+/**
+ * The fill one glyph cell takes, given whether its kind is the chosen one.
+ *
+ * **A separate function because it carries an invariant a test can hold and the
+ * browser cannot be trusted to reveal.** A selected cell paints
+ * `KIND_CELL_ON_GROUND`; its faded cells must never paint the same token, or
+ * the muted half of the picture disappears into the ground behind it.
+ *
+ * This shipped broken, on 2026-09-20, with `fade` resolving to `bg-brand-tint`
+ * on a `bg-brand-tint` ground. Selected, **Inline collapsed to a single pill
+ * and List to a vertical `⋮` that reads as a kebab menu** — so the two icons
+ * were legible in every state except the one they exist to confirm. Found by a
+ * browser walk of the PR preview reading computed `background-color`, because
+ * nothing below the browser could see it.
+ *
+ * **The design has the same collision** (`Trip Planner Redesign.dc.html:9665-9667`
+ * sets `fade` and the button's `bg` to `var(--color-brand-tint)` together), so
+ * this is not a transcription slip and the gallery would show it too. Deviating
+ * on purpose: `--color-border-strong` is the neutral that is visibly stronger
+ * than `--color-hairline` in every theme, which is the step the unselected
+ * state already implies.
+ */
+export function glyphCellFill(cell: GlyphCell, on: boolean): string {
+  if (cell === "fade") return on ? "bg-border-strong" : "bg-hairline";
+  return on ? "bg-brand" : "bg-slate";
+}
+
+/**
  * One kind glyph, drawn from its row table.
  *
  * **The geometry is inline and the colour is not**, which is the split the
@@ -145,7 +179,7 @@ function KindGlyph({ rows, on }: { rows: readonly GlyphRow[]; on: boolean }) {
               className={cn(
                 "h-full",
                 row.h > 8 ? "rounded-xs" : "rounded-full",
-                cell === "fade" ? (on ? "bg-brand-tint" : "bg-hairline") : on ? "bg-brand" : "bg-slate",
+                glyphCellFill(cell, on),
               )}
               // eslint-disable-next-line no-restricted-syntax -- a cell's share of the row is the shape it is drawing
               style={cell === "dot" ? { flex: "0 0 3px" } : { flex: cell === "fade" ? 1 : cell }}
@@ -322,7 +356,9 @@ export function WidgetPicker({
                 title={f.hint}
                 className={cn(
                   "flex cursor-pointer flex-col items-center gap-1.5 rounded-md px-1 pt-2 pb-1.5 transition-colors",
-                  on ? "bg-brand-tint text-brand-pressed" : "text-slate ring-1 ring-hairline ring-inset hover:bg-paper",
+                  on
+                    ? `${KIND_CELL_ON_GROUND} text-brand-pressed`
+                    : "text-slate ring-1 ring-hairline ring-inset hover:bg-paper",
                 )}
                 onClick={() => setShape(f.value)}
               >
