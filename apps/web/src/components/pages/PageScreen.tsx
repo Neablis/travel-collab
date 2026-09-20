@@ -15,6 +15,7 @@ import { PageEditor } from "@/components/pages/editor/PageEditor";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
+import { NO_WIDGET_FILTER, type WidgetFilter } from "@/components/pages/WidgetPicker";
 import { Button } from "@/components/ui/button";
 import type { Editor } from "@tiptap/react";
 import { ReadOnlyPageDoc } from "@/components/pages/editor/ReadOnlyPageDoc";
@@ -113,6 +114,19 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // fix, since a test that walks authoring should say so, rather than the
   // default silently being whatever an old spec assumed.
   const [editing, setEditing] = useState(false);
+  // **The rail's filter lives here because the rail does not.** §26 gives the
+  // right column two states, and selecting a widget swaps the insert rail out
+  // for that widget's settings — unmounting the picker. Owned inside it, the
+  // kind filter reset to All on every return, so working through one kind meant
+  // re-picking it after each insert (Mitchell, 2026-09-20). This component
+  // spans both column states, so it is the nearest thing that survives the
+  // swap.
+  //
+  // It deliberately does NOT reset when Editing closes: coming back to a page
+  // you were part-way through narrowing should find it as you left it, and the
+  // filter is fully visible in the control, so nothing is hidden by remembering
+  // it.
+  const [widgetFilter, setWidgetFilter] = useState<WidgetFilter>(NO_WIDGET_FILTER);
   // The live editor, handed up by `PageEditor` so the sidebar — which sits
   // beside the editor, not inside it — can insert at the cursor.
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -792,7 +806,13 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
                     so the sentence is two explanations of one thing. */}
                 <Heading level={4} className="mb-3 shrink-0">Widgets</Heading>
                 {editor !== null ? (
-                  <WidgetInsert detail={trip} globals={globals} onInsert={insertAtCursor} />
+                  <WidgetInsert
+                    detail={trip}
+                    globals={globals}
+                    onInsert={insertAtCursor}
+                    filter={widgetFilter}
+                    onFilterChange={setWidgetFilter}
+                  />
                 ) : null}
               </>
             ) : (

@@ -91,6 +91,16 @@
     reading `inline` / `a block` / `a list`, a mono `--color-brand-pressed`
     "takes" line, and the preview sentence.
   - **The header is pinned** and carries the design's count line.
+  - **The filter survives the column's own state swap.** §26 unmounts the
+    picker when a widget is selected, so a filter owned inside it came back as
+    All after every insert — working through one kind meant re-picking that
+    kind each time (Mitchell, 2026-09-20: *"make sure it remembers the last tab
+    in the widget filter was open when you are actively editing"*). The query
+    and kind are now a `WidgetFilter` held by `PageScreen`, which spans both
+    column states. The picker is controlled only when both props are supplied;
+    the phone sheet passes neither and keeps its own, which is right there — a
+    sheet is dismissed rather than swapped, and one reopened from scratch should
+    look it.
 
 - **What is left, and both are cosmetic:**
 

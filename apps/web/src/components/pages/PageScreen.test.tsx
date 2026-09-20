@@ -566,6 +566,47 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     expect(screen.getByRole("searchbox", { name: "Search widgets" })).toBeTruthy();
   });
 
+  // **The rail's filter has to survive the column's own state swap.** Mitchell,
+  // 2026-09-20, describing the exact round trip: *"Drag widget to page, click
+  // widget to edit settings, finish and the widget container opens back up.
+  // Expectation: The same."*
+  //
+  // §26 swaps the insert rail out for the selected widget's settings, which
+  // UNMOUNTS the picker — so a filter owned inside it came back as All every
+  // time, and working through one kind meant re-picking that kind after every
+  // insert. The fix moves the filter up to `PageScreen`, which spans both
+  // states; this is the test that says so.
+  //
+  // Asserted through the RADIO'S CHECKED STATE and the list it produces, not
+  // through a class: "List is still selected" and "the rows are still only
+  // lists" are the two halves, and a filter that merely LOOKS selected while
+  // showing everything would pass on the first alone.
+  it("comes back from a widget's settings with the kind filter still on", async () => {
+    await openPage();
+    const kinds = () => screen.getByRole("radiogroup", { name: "How it reads" });
+
+    await userEvent.click(within(kinds()).getByRole("radio", { name: "List" }));
+    const listedUnderFilter = within(screen.getByRole("list")).getAllByRole("button").length;
+    expect(listedUnderFilter).toBeGreaterThan(0);
+
+    // Insert one, which selects it and swaps the column to its settings.
+    await userEvent.click(screen.getByRole("button", { name: /A line for every day/ }));
+    expect(await screen.findByTestId("widget-settings")).toBeTruthy();
+    // The rail really is gone while the settings are up — otherwise this test
+    // would pass without the filter ever having survived an unmount.
+    expect(screen.queryByRole("radiogroup", { name: "How it reads" })).toBeNull();
+
+    // Back to the prose, which returns the column to the rail. Escape first,
+    // then the click — the same two beats the sibling tests use: Escape drops
+    // the node selection and the click puts the caret back in the document.
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByText("Notes"));
+    await vi.waitFor(() => expect(screen.queryByTestId("widget-settings")).toBeNull());
+
+    expect(within(kinds()).getByRole("radio", { name: "List", checked: true })).toBeTruthy();
+    expect(within(screen.getByRole("list")).getAllByRole("button")).toHaveLength(listedUnderFilter);
+  });
+
   it("lets two widgets on one page point at different days", async () => {
     // ADR-037 open question 1, settled by Mitchell: "i should be able to have a
     // notebook that shows day 1, day 3 and day 9". Each widget carries its own

@@ -6,7 +6,7 @@ import { useIsPhone } from "@/components/lenses/useIsPhone";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
-import { WidgetPicker } from "@/components/pages/WidgetPicker";
+import { WidgetPicker, type WidgetFilter } from "@/components/pages/WidgetPicker";
 import {
   WidgetBindControls,
   bindSummary,
@@ -53,10 +53,17 @@ export function WidgetInsert({
   detail,
   globals,
   onInsert,
+  filter,
+  onFilterChange,
 }: {
   detail: TripDetail;
   globals: TripGlobals | null;
   onInsert: (node: MacroNode) => void;
+  // The rail's filter, owned by `PageScreen` because this component unmounts
+  // whenever a widget is selected — see `WidgetFilter`. The phone sheet passes
+  // neither and the picker keeps its own.
+  filter?: WidgetFilter;
+  onFilterChange?: (next: WidgetFilter) => void;
 }) {
   const isPhone = useIsPhone();
   const [open, setOpen] = useState(false);
@@ -113,6 +120,8 @@ export function WidgetInsert({
     return (
       <WidgetPicker
         draggable
+        filter={filter}
+        onFilterChange={onFilterChange}
         // **Not `autoFocus`.** In a popover that was right — it opened on a
         // click and the search was the reason you clicked. The rail opens with
         // EDIT MODE, and stealing the caret out of the document the moment

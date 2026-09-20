@@ -50,6 +50,27 @@ const SHAPE_LABEL: Record<WidgetShape, string> = {
 // — so it gets a name in the row like the others.
 type ShapeFilter = WidgetShape | null;
 
+/**
+ * What the picker's two controls are narrowed to: the typed query and the kind.
+ *
+ * **Exported because it outlives the picker.** In the desktop rail the column
+ * has two states (SPEC §26) and choosing a widget swaps it to that widget's
+ * settings — which UNMOUNTS the picker. Held internally, the filter therefore
+ * reset to All on the way back, so a person working through the List widgets
+ * had to re-pick List after every single insert. Mitchell, 2026-09-20: *"make
+ * sure it remembers the last tab in the widget filter was open when you are
+ * actively editing"*.
+ *
+ * So the rail's owner holds it and hands it back. The phone sheet passes
+ * nothing and keeps the internal state, which is right there: its sheet is
+ * dismissed rather than swapped, and a sheet reopened from scratch should look
+ * like a sheet opened from scratch.
+ */
+export type WidgetFilter = { query: string; shape: ShapeFilter };
+
+/** The filter a rail starts on: everything, nothing typed. */
+export const NO_WIDGET_FILTER: WidgetFilter = { query: "", shape: null };
+
 // **A cell of a kind glyph.** `"fade"` is the muted half of a shape, a number is
 // a solid cell with that flex grow, and `"dot"` is the fixed 3px lead a list row
 // carries. Straight out of the design's `G` table (`:3657`).
@@ -206,6 +227,8 @@ export function WidgetPicker({
   onPick,
   draggable = false,
   autoFocus = false,
+  filter,
+  onFilterChange,
 }: {
   // The PRESET's id, not a widget name: the row a person clicked is
   // `(primitive, params)`, and only `insertPreset` knows which. Callers hand it
@@ -217,9 +240,24 @@ export function WidgetPicker({
   // sheet it lives in.
   draggable?: boolean;
   autoFocus?: boolean;
+  // **Controlled only when BOTH are supplied**, which is the desktop rail —
+  // see `WidgetFilter`. Omit them and the picker owns its own filter, which is
+  // what the phone sheet wants. Deliberately one object rather than four props:
+  // the query and the kind are read together on every render and written
+  // together by the owner, and splitting them invites a caller to persist one
+  // and drop the other.
+  filter?: WidgetFilter;
+  onFilterChange?: (next: WidgetFilter) => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [shape, setShape] = useState<ShapeFilter>(null);
+  // The uncontrolled half. It is still declared when a caller controls the
+  // picker — hooks cannot be conditional — and simply goes unread, which costs
+  // one unused `useState` and keeps the two modes one component.
+  const [ownFilter, setOwnFilter] = useState<WidgetFilter>(NO_WIDGET_FILTER);
+  const controlled = filter !== undefined && onFilterChange !== undefined;
+  const { query, shape } = controlled ? filter : ownFilter;
+  const setFilter = controlled ? onFilterChange : setOwnFilter;
+  const setQuery = (next: string) => setFilter({ query: next, shape });
+  const setShape = (next: ShapeFilter) => setFilter({ query, shape: next });
   const widgets = useMemo(() => presetCatalog(), []);
   const shown = widgets.filter((w) => widgetMatches(w, query) && (shape === null || w.shape === shape));
 
