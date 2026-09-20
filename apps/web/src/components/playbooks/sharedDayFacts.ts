@@ -59,6 +59,7 @@ export type MapPanel = {
   gaps: ReadonlyMap<number, string>;
 };
 
+/** A ride's minutes, at a pace that rises with its length. */
 function rideMinutes(km: number): number {
   const perMin = km > LONG_RIDE_KM ? RIDE_KM_PER_MIN_LONG : km > MID_RIDE_KM ? RIDE_KM_PER_MIN_MID : RIDE_KM_PER_MIN_SHORT;
   return Math.max(MIN_RIDE_MINS, Math.round(km / perMin));
@@ -81,6 +82,20 @@ export function mapPanel(geometry: readonly DayGeometry[], unit: DistanceUnit): 
 
   for (const day of geometry) {
     for (const leg of day.legs) {
+      // **A non-contiguous leg is not a journey.** `sharedDayGeometry` marks a
+      // leg `contiguous: false` when one or more stops WITHOUT a location sit
+      // between its two ends, so its straight line skips everything the
+      // traveller actually did in between. Its distance understates the real
+      // one and its minutes are derived from that understatement, so totalling
+      // it would put a figure nobody walked or rode into `On foot` and `By
+      // train or taxi`, and shorten `wander` — which reads `total / span`.
+      //
+      // No gap label either, for the same reason: `12 min walk · 0.9 km`
+      // printed between stop 1 and stop 3 describes a walk that skipped stop 2.
+      // Saying nothing there claims nothing. (CodeRabbit, PR #197, which asked
+      // for the aggregates; the label follows from the same argument.)
+      if (!leg.contiguous) continue;
+
       const km = haversineKm(leg.from, leg.to);
       const ride = km > RIDE_ABOVE_KM;
       const mins = ride ? rideMinutes(km) : Math.max(MIN_WALK_MINS, Math.round(km / WALK_KM_PER_MIN));

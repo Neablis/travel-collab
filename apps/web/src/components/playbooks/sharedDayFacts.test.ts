@@ -5,10 +5,12 @@ import type { DayGeometry, MapPoint } from "./sharedDayGeometry";
 // Kyoto, roughly. Latitudes near 35 keep a degree of longitude ~91km, so the
 // distances below are chosen to land either side of the 1.6km ride threshold
 // rather than to be pretty.
+/** A located stop at a given number and position. */
 const p = (number: number, lat: number, lng: number): MapPoint => ({ number, title: `stop ${number}`, lat, lng, dayIndex: 0 });
 
-function day(points: MapPoint[]): DayGeometry {
-  const legs = points.slice(0, -1).map((from, i) => ({ from, to: points[i + 1]!, contiguous: true }));
+/** A day whose legs are all real. `skip` marks a leg as spanning an unlocated stop. */
+function day(points: MapPoint[], skip: readonly number[] = []): DayGeometry {
+  const legs = points.slice(0, -1).map((from, i) => ({ from, to: points[i + 1]!, contiguous: !skip.includes(i) }));
   return { dayIndex: 0, points, legs };
 }
 
@@ -78,5 +80,37 @@ describe("mapTitle", () => {
     expect(mapTitle(["Kyoto", "Kyoto", "Osaka"])).toBe("Kyoto → Osaka");
     expect(mapTitle(["Kyoto"])).toBe("Kyoto");
     expect(mapTitle(["", ""])).toBe("");
+  });
+});
+
+describe("mapPanel and the legs it refuses to count", () => {
+  // `contiguous: false` means one or more stops with NO location sit between
+  // these two, so the straight line skips whatever happened in between. Its
+  // distance understates the real one and its minutes come from that
+  // understatement (CodeRabbit, PR #197).
+  it("leaves a non-contiguous leg out of the totals and out of the gaps", () => {
+    const points = [p(1, 35.0, 135.0), p(2, 35.0, 135.01), p(3, 35.0, 135.02)];
+    const whole = mapPanel([day(points)], "km");
+    const skipped = mapPanel([day(points, [1])], "km");
+
+    const onFoot = (panel: ReturnType<typeof mapPanel>) => panel.facts.find((f) => f.key === "On foot")?.value;
+    expect(onFoot(whole)).toBeDefined();
+    // Two legs counted vs one: the walked distance must actually drop.
+    expect(onFoot(skipped)).not.toBe(onFoot(whole));
+
+    // Stop 1's leg is real and still labelled; stop 2's spans the gap and is not.
+    expect(skipped.gaps.get(1)).toBeDefined();
+    expect(skipped.gaps.get(2)).toBeUndefined();
+    expect(whole.gaps.get(2)).toBeDefined();
+  });
+
+  // The floor is 90 minutes and it is a `>`, so 90 itself is NOT mostly
+  // transit. The above-threshold case alone could not show where the line is.
+  it("does not call a long ride mostly transit below the minutes floor", () => {
+    // One ~91km leg: 41 min at the long-ride pace, well under the floor, with
+    // a transit share of 1.0 — so only the minutes keep it out.
+    const panel = mapPanel([day([p(1, 35.0, 135.0), p(2, 35.0, 136.0)])], "km");
+    expect(panel.facts.map((f) => f.key)).toContain("By train or taxi");
+    expect(panel.note).not.toMatch(/^Mostly transit/);
   });
 });
