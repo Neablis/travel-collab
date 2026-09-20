@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
+import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
@@ -571,6 +572,11 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
   // widget to edit settings, finish and the widget container opens back up.
   // Expectation: The same."*
   //
+  // **"Expectation: the inline tab should still be open, not all"** — his
+  // words, and the reason both radios are asserted below rather than just the
+  // one: "Inline is still on" and "All did not take over" are the two halves of
+  // what he described, and the bug shows up as the second.
+  //
   // §26 swaps the insert rail out for the selected widget's settings, which
   // UNMOUNTS the picker — so a filter owned inside it came back as All every
   // time, and working through one kind meant re-picking that kind after every
@@ -585,12 +591,16 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     await openPage();
     const kinds = () => screen.getByRole("radiogroup", { name: "How it reads" });
 
-    await userEvent.click(within(kinds()).getByRole("radio", { name: "List" }));
+    await userEvent.click(within(kinds()).getByRole("radio", { name: "Inline" }));
     const listedUnderFilter = within(screen.getByRole("list")).getAllByRole("button").length;
     expect(listedUnderFilter).toBeGreaterThan(0);
+    expect(listedUnderFilter).toBeLessThan(presetCatalog().length);
 
     // Insert one, which selects it and swaps the column to its settings.
-    await userEvent.click(screen.getByRole("button", { name: /A line for every day/ }));
+    // An INLINE widget, so it is one the filter actually left on screen — the
+    // round trip has to start from a list this filter produced, not from a row
+    // that happened to survive.
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
     expect(await screen.findByTestId("widget-settings")).toBeTruthy();
     // The rail really is gone while the settings are up — otherwise this test
     // would pass without the filter ever having survived an unmount.
@@ -603,7 +613,8 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     await userEvent.click(screen.getByText("Notes"));
     await vi.waitFor(() => expect(screen.queryByTestId("widget-settings")).toBeNull());
 
-    expect(within(kinds()).getByRole("radio", { name: "List", checked: true })).toBeTruthy();
+    expect(within(kinds()).getByRole("radio", { name: "Inline", checked: true })).toBeTruthy();
+    expect(within(kinds()).getByRole("radio", { name: "All", checked: false })).toBeTruthy();
     expect(within(screen.getByRole("list")).getAllByRole("button")).toHaveLength(listedUnderFilter);
   });
 
