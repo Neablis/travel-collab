@@ -12,6 +12,13 @@ import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
+import {
+  ASSISTANT_FLOAT_SIZE,
+  clampToViewport,
+  floatHome,
+  isMeasuredViewport,
+  type Point,
+} from "./assistantPosition";
 import { usePinToBottom } from "./usePinToBottom";
 import { useAiEntitled } from "./useAiEntitled";
 
@@ -147,6 +154,7 @@ export function AssistantRail({
   aiEntitled: aiEntitledProp,
   simulated = false,
   presentation = "docked",
+  onShapeChange,
   onHide,
 }: {
   contextLine: string;
@@ -309,10 +317,103 @@ export function AssistantRail({
    * is handed is the one it renders, at every width.
    */
   presentation?: "docked" | "floating" | "sheet";
+  /**
+   * **Switch shape** — SPEC §9's *"and the user picks"*, M26 link 10a.
+   *
+   * Absent means this caller has no other shape to offer, and the control is
+   * not drawn. The phone passes nothing: §23 gives it a sheet and only a
+   * sheet, and a Dock button there would offer a 356px rail on a 390px screen.
+   */
+  onShapeChange?: (next: "docked" | "floating") => void;
   onHide: () => void;
 }) {
   const [ask, setAsk] = useState("");
   const isSheet = presentation === "sheet";
+  const isFloating = presentation === "floating";
+
+  /**
+   * **Where a dragged floating panel sits** — SPEC §9, M26 link 10b.
+   *
+   * `null` means nobody has moved it, and the panel keeps `.assistant-float`'s
+   * own `right: 16px; bottom: 16px`. That is not laziness about a default: §9
+   * says *"expanding and collapsing keep the bottom-right corner planted, so
+   * the panel grows out of the bubble rather than jumping across the screen"*,
+   * and a CSS-pinned corner keeps that true through a resize with no JavaScript
+   * running at all. A position is adopted only once a drag gives it one.
+   */
+  const [position, setPosition] = useState<Point | null>(null);
+  const dragFrom = useRef<{ pointerX: number; pointerY: number; x: number; y: number } | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  /**
+   * §9: *"re-clamped on resize. A narrow window no longer evicts the
+   * assistant."* Only once a position exists — before that the CSS corner is
+   * already doing it, and clamping a `null` would invent a position out of a
+   * resize nobody asked for.
+   */
+  useEffect(() => {
+    if (!isFloating) return;
+    const reclamp = () => {
+      setPosition((current) => {
+        if (current === null) return null;
+        const viewport = { width: window.innerWidth, height: window.innerHeight };
+        // The artboard's own guard (`dc.html:8784`): a viewport that has not
+        // laid out would clamp the panel into the top-left pad and leave it
+        // there, because every later re-clamp finds an already-clamped point.
+        if (!isMeasuredViewport(viewport)) return current;
+        return clampToViewport(current, ASSISTANT_FLOAT_SIZE, viewport);
+      });
+    };
+    window.addEventListener("resize", reclamp);
+    return () => window.removeEventListener("resize", reclamp);
+  }, [isFloating]);
+
+  /**
+   * **Dragged by its header** (§9's floating row), and by pointer events rather
+   * than mouse ones so a trackpad, a pen and a touch screen all work from one
+   * path.
+   *
+   * Listeners go on `window`, not the header: a drag that outruns the element
+   * — which every fast drag does — stops receiving events the moment the
+   * pointer leaves it, and the panel sticks half way. `setPointerCapture` would
+   * also work and is worse here, because the capture is lost if React
+   * re-renders the header for any other reason mid-drag.
+   */
+  const startDrag = (event: React.PointerEvent<HTMLElement>) => {
+    // §9: "Docked is ... the only mode where dragging is off (cursor
+    // `default`)." A sheet is pinned to an edge and has nothing to drag to.
+    if (!isFloating || event.button !== 0) return;
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    if (!isMeasuredViewport(viewport)) return;
+    const box = panelRef.current?.getBoundingClientRect();
+    const start = position ?? (box === undefined ? floatHome(viewport) : { x: box.left, y: box.top });
+    dragFrom.current = { pointerX: event.clientX, pointerY: event.clientY, x: start.x, y: start.y };
+
+    const move = (moveEvent: PointerEvent) => {
+      const from = dragFrom.current;
+      if (from === null) return;
+      setPosition(
+        clampToViewport(
+          {
+            x: from.x + (moveEvent.clientX - from.pointerX),
+            y: from.y + (moveEvent.clientY - from.pointerY),
+          },
+          ASSISTANT_FLOAT_SIZE,
+          { width: window.innerWidth, height: window.innerHeight },
+        ),
+      );
+    };
+    const up = () => {
+      dragFrom.current = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    // Stops the drag from selecting the header's text on the way past, which
+    // is what an ordinary drag over a heading does.
+    event.preventDefault();
+  };
 
   // The hook runs unconditionally — a hook cannot be skipped because a prop was
   // supplied — and the prop wins when it is given. Its read is cached and
@@ -441,7 +542,30 @@ export function AssistantRail({
         <div aria-hidden data-testid="assistant-scrim" className="assistant-sheet-scrim" onClick={onHide} />
       )}
       <aside
+        ref={panelRef}
         aria-label="Assistant"
+        // **The dragged position, and only once there is one.** Until a drag
+        // gives the panel a point it keeps `.assistant-float`'s own
+        // `right`/`bottom`, which is what holds §9's planted bottom-right
+        // corner through a resize with no JavaScript running.
+        //
+        // `right: auto` is not optional: the CSS pins the RIGHT edge, so
+        // setting `left` alone would stretch the card between the two rather
+        // than move it. Same for `bottom`.
+        //
+        // Written as a literal `style` attribute so the lint wall SEES it and
+        // this exception is a reviewed one. The first version spread a
+        // conditional object — `{...(cond ? { style } : {})}` — which slipped
+        // past the rule entirely and reported the disable below as unused.
+        // That is the wall working, and smuggling an inline style past it
+        // because the check is syntactic would be the wrong lesson.
+        //
+        // eslint-disable-next-line no-restricted-syntax -- a dragged position is a pixel pair computed at runtime from a pointer; no token, scale step or class can express it, and `.assistant-float` owns every part of this element's geometry that IS expressible.
+        style={
+          isFloating && position !== null
+            ? { left: position.x, top: position.y, right: "auto", bottom: "auto" }
+            : undefined
+        }
         // `.assistant-rail` (globals.css) carries ALL of this element's
         // position/width/height, docked and full-screen alike — see that
         // class's own comment (KI-84 mobile fix) for why `top-14`/`sticky`
@@ -487,7 +611,17 @@ export function AssistantRail({
             flex column shares the shortfall out across all three boxes and
             the header and composer get squeezed instead of the transcript
             scrolling. Harmless in the other two, which never run short. */}
-        <div className="shrink-0 border-b border-hairline px-4 py-3">
+        <div
+          className={cn(
+            "shrink-0 border-b border-hairline px-4 py-3",
+            // §9: "Docked is ... the only mode where dragging is off (cursor
+            // `default`)." The cursor IS the affordance — it is the only thing
+            // that says this row can be grabbed before somebody tries.
+            isFloating && "cursor-grab select-none",
+          )}
+          {...(isFloating ? { onPointerDown: startDrag } : {})}
+          data-testid="assistant-header"
+        >
           <div className="flex items-center gap-2">
             <BrandMark size={24} />
             {/* The same heading in all three presentations; in the sheet it
@@ -506,6 +640,32 @@ export function AssistantRail({
               </Heading>
             )}
             <div className="flex-1" />
+            {/* **Dock / Float** — SPEC §9's *"and the user picks"*, the four
+                words this build was missing (M26 link 10a). The artboard draws
+                one button whose title flips (`dc.html:4018`/`:10062`), so this
+                is one control, not two, and its accessible NAME flips with it
+                — a button called "Dock" that undocks is worse than no button.
+
+                Not rendered in the sheet, and not rendered when the caller
+                offers no handler: §23 gives the phone a sheet and only a
+                sheet, and a Dock button there would offer a 356px rail on a
+                390px screen.
+
+                **`onPointerDown` stops here.** The whole header is the drag
+                handle in floating mode, so without this a press on this button
+                starts a drag and the click that follows lands on a panel that
+                has already moved under the pointer. */}
+            {!isSheet && onShapeChange !== undefined && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={isFloating ? "Dock to the side" : "Float it free"}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => onShapeChange(isFloating ? "docked" : "floating")}
+              >
+                {isFloating ? "Dock" : "Float"}
+              </Button>
+            )}
             {turns.length > 0 && (
               <Button
                 variant="ghost"

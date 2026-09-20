@@ -29,6 +29,7 @@ import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/component
 import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
+import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
@@ -129,6 +130,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // which-button-did-you-press flag would not: rotating a 411x852 phone into
   // landscape crosses 768px with the panel already open.
   const isPhone = useIsPhone();
+  // SPEC §9's "and the user picks" (M26 link 10a). Per surface and per
+  // device — see `useAssistantShape` for why neither is one global setting.
+  const [assistantShape, chooseAssistantShape] = useAssistantShape("board");
 
   /**
    * Arriving at the phone's plan with nothing selected picks the first day.
@@ -1083,7 +1087,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             "tabs are not tappable behind an open sheet" e2e test. */}
         {!isDemo && assistant.open && (
           <AssistantRail
-            presentation={isPhone ? "sheet" : "docked"}
+            // **The reader's own choice above 768px** (SPEC §9, M26 link 10a):
+            // this hardcoded `docked`, which is now only the DEFAULT. The phone
+            // is not offered the choice — §23 gives it a sheet and only a
+            // sheet, and `onShapeChange` is withheld there so the rail draws
+            // no control it cannot honour.
+            presentation={isPhone ? "sheet" : assistantShape}
+            {...(isPhone ? {} : { onShapeChange: chooseAssistantShape })}
             contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
             scope={askScope}
             turns={thread}
