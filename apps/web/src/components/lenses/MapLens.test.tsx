@@ -1399,6 +1399,32 @@ describe("MapLens on a phone", () => {
 // The assertion is deliberately "the rail is GONE", not "the panel is on
 // top". A z-index assertion would pass while the dead control was still
 // there, which is the bug.
+// M26 link 5a. Clicking a rail row leaves the pointer on it, so without this
+// the hover card and the focus card both sit on screen describing one day —
+// and for an empty day they said the same sentence twice, which
+// `m10-growth.spec.ts` caught as a strict-mode violation on "No stops yet".
+describe("MapLens — the hover card and the focus card never describe one day at once", () => {
+  it("shows a hover card for an unfocused day", async () => {
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+
+    fireEvent.mouseEnter(screen.getAllByRole("button", { name: /Day 2/i })[0]!);
+    // `getBy*` for presence: it throws naming the missing testid, where
+    // `expected null not to be null` would say nothing useful.
+    expect(screen.getByTestId("map-hover-card")).toBeDefined();
+  });
+
+  it("suppresses it for the day whose detail is already pinned", async () => {
+    renderMap(detailWithTwoDays(), { focusedDay: 0 });
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
+
+    fireEvent.mouseEnter(screen.getAllByRole("button", { name: /Day 1/i })[0]!);
+    expect(screen.queryByTestId("map-hover-card")).toBeNull();
+  });
+});
+
 describe("MapLens — when the map has failed", () => {
   it("takes the day rail away rather than leaving it dead under the panel", async () => {
     renderMap(detailWithTwoDays(), { focusedDay: 0 });

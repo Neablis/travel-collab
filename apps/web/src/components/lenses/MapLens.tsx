@@ -891,7 +891,16 @@ export function MapLens({
                   onHoverEnd={() => setHover(null)}
                 />
                 <MapFocusCard day={focusedMapDay} />
-                {hover !== null && <MapHoverCard day={hover.day} top={hover.top} />}
+                {/* **Not for the day that already has a focus card.** Clicking
+                    a rail row leaves the cursor on it, so both cards would sit
+                    on screen describing the same day — and for an empty day
+                    they even said the same sentence twice ("No stops yet"),
+                    which `m10-growth.spec.ts` caught as two matching elements.
+                    On-demand detail is not owed for the day whose detail is
+                    already pinned. */}
+                {hover !== null && hover.day.index !== focusedDay && (
+                  <MapHoverCard day={hover.day} top={hover.top} />
+                )}
                 <MapLegend />
               </>
             ))}
