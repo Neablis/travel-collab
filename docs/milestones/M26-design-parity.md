@@ -929,6 +929,28 @@ shared day's map collapses behind a *Show route* row.
 Link 2 makes this tractable: the chips, the sheet groups and the filter count
 are the same model at a different density.
 
+**Link 12 landed 2026-09-20, except for one item it cannot reach.**
+
+- **One filter bottom sheet**, holding filters **and sort**, with scope
+  deliberately outside it. The desktop's chips-and-popovers row and the phone's
+  single sheet are **both rendered, one hidden by CSS** rather than switched on
+  `useIsPhone()` — that hook starts `false` on the server and the first client
+  paint by design, so a JS-gated row shows the desktop shape for one paint on a
+  phone and then swaps. They share one `filters` state; there is a test that
+  they cannot disagree.
+- **The header is sticky below `md`**, bleeding `bg-paper` to the page edges
+  while its content keeps the container's gutter.
+- **The one-column card list was already right** — `grid-cols-1 sm:grid-cols-2
+  lg:grid-cols-3` — and is not this link's work.
+
+**NOT DONE: *"the shared day's map collapses behind a `Show route` row."*** It
+is blocked on link 4's rendering, which does not exist — there is no map on the
+shared day to collapse. When link 4 lands, this row is its phone treatment and
+belongs in the same change. Flagged here rather than silently dropped, because
+the Wave 2 gate asks for it.
+
+---
+
 ## Link 13 — Plan on a phone *(LAST, by Mitchell's sequencing — see above)*
 
 Carries KI-046's surviving symptom: **82px of text column inside a 364px card**,

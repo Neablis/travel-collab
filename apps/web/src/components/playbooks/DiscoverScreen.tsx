@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
+import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
@@ -135,6 +136,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, cities: [...initialCities] });
   const { cities, scope, sort, budget, length } = filters;
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
   const read = useCallback(
     () => searchPlaybooks({ cities, scope, sort, budget, length }),
@@ -198,7 +200,16 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
       {/* §33.2: **a place is a tab, above the search.** It was a
           `SegmentedControl` below it — a pill, which is what a FILTER looks
           like on this page, so the one control that changes which set you are
-          looking at wore the clothes of the ones that narrow it. */}
+          looking at wore the clothes of the ones that narrow it.
+
+          **Sticky on a phone** (§16): the tabs and the search card are how you
+          change what the list is, and a one-column list of cards is long enough
+          that scrolling into it otherwise strands you with no way to change the
+          query but to scroll back. `bg-paper` so the list does not show through
+          it, and `-mx-6 px-6` to bleed the background to the page edges while
+          the content keeps `PageContainer`'s gutter. Not sticky from `md` up,
+          where the whole header is on screen at once. */}
+      <div className="sticky top-0 z-10 -mx-6 flex flex-col gap-5 bg-paper px-6 pt-1 pb-1 md:static md:mx-0 md:px-0 md:pt-0 md:pb-0">
       <UnderlineTabs
         value={scope}
         onValueChange={(value) => set("scope", value)}
@@ -212,11 +223,23 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
         onAdd={(city) => set("cities", cities.includes(city) ? cities : [...cities, city])}
         onRemove={(city) => set("cities", cities.filter((c) => c !== city))}
       />
+      </div>
 
       {/* §33.2: **the filter row is chips, and one *More filters* menu.** The
           three `NativeSelect`s that stood here read as three of a kind while
           being three different kinds of decision. */}
-      <div className="flex flex-wrap items-center gap-2" data-testid="discover-filters">
+      {/* **The desktop row: chips and a *More filters* popover.** Hidden below
+          `md`, where project rule 3 forbids this shape outright — a popover
+          opening from a row of popovers, on a screen where each one covers the
+          list it is filtering. The phone gets ONE sheet instead, below.
+
+          Both are rendered and one is hidden by CSS rather than switched on
+          `useIsPhone()`: that hook starts `false` on the server and on the
+          first client paint by design, so a JS-gated filter row would show the
+          desktop shape for one paint on a phone and then swap. They share one
+          `filters` state, so there is no second source of truth — only a second
+          set of controls over the same one. */}
+      <div className="hidden flex-wrap items-center gap-2 md:flex" data-testid="discover-filters">
         {rowFilters(questions).map((def) => {
           const options = offerable(def);
           if (options === null) return null;
@@ -350,12 +373,110 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           **The sentence states the count only.** It used to end ", most added
           first" — beside a live Sort control that both duplicated it and could
           contradict it. */}
+      {/* **The phone's whole filter surface: one button, one sheet** (§16,
+          project rule 3). It carries filters AND sort — sort is a property of
+          the list and belongs with the questions when there is only one place
+          to put them — and **deliberately not scope**, which stays as the tabs
+          above the search. A place is not a sheet setting.
+
+          The count on the button is `activeFilterCount`, which excludes scope
+          and sort: the phone badge used to count "sorted by newest" as a
+          filter, which is the defect §33.2 names. */}
+      <div className="md:hidden">
+        <Button
+          type="button"
+          variant="secondary"
+          size="touch"
+          data-testid="discover-phone-filters"
+          onClick={() => setPhoneFiltersOpen(true)}
+        >
+          Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+        </Button>
+      </div>
+
+      <Sheet
+        open={phoneFiltersOpen}
+        onOpenChange={setPhoneFiltersOpen}
+        title="Filters"
+        size="bottom"
+      >
+        <div className="flex flex-col gap-5 pb-2" data-testid="discover-filter-sheet">
+          {FILTER_DEFS.map((def) => {
+            const options = offerable(def);
+            if (options === null) return null;
+            return (
+              <div key={def.id} className="flex flex-col gap-2">
+                <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+                  {def.label}
+                </Text>
+                <div className="flex flex-wrap gap-2">
+                  {options.map((option) => {
+                    const on = def.value(questions) === option.value;
+                    return (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant="secondary"
+                        size="touch"
+                        aria-pressed={on}
+                        data-testid={`sheet-${def.id}-${option.value}`}
+                        className={cn("rounded-full", on && "border-brand bg-brand-tint text-brand")}
+                        onClick={() => setQuestion(def, option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Sort, in the sheet with the filters and NOT counted as one. */}
+          <div className="flex flex-col gap-2">
+            <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
+              Sort
+            </Text>
+            <div className="flex flex-wrap gap-2">
+              {SORTS.map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant="secondary"
+                  size="touch"
+                  aria-pressed={sort === option.value}
+                  data-testid={`sheet-sort-${option.value}`}
+                  className={cn("rounded-full", sort === option.value && "border-brand bg-brand-tint text-brand")}
+                  onClick={() => set("sort", option.value)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {activeCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="touch"
+              data-testid="sheet-clear-filters"
+              className="self-start text-brand"
+              onClick={() => setFilters((prev) => ({ ...prev, ...clearedFilters(prev) }))}
+            >
+              Clear filters ({activeCount})
+            </Button>
+          )}
+        </div>
+      </Sheet>
+
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-2 border-t border-hairline pt-2">
         {feed.data !== null && (
           <Text as="span" className="text-sm text-ink" data-testid="discover-results-line">
             {feed.data.days.length} shared {feed.data.days.length === 1 ? "day" : "days"}
           </Text>
         )}
+        <div className="hidden md:contents">
         <Popover
           open={openMenu === "sort"}
           onOpenChange={(open) => setOpenMenu(open ? "sort" : null)}
@@ -413,6 +534,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
             Clear filters ({activeCount})
           </Button>
         )}
+        </div>
       </div>
 
       {feed.data?.truncated === true && (

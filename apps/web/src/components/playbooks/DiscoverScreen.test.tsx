@@ -607,3 +607,85 @@ describe("Discover city search", () => {
     }
   });
 });
+
+// M26 Wave 2, link 12 — §16 asks for full phone parity, and project rule 3
+// forbids the desktop's shape outright: a popover opening from a row of
+// popovers, on a screen where each one covers the list it is filtering.
+describe("the phone's one filter sheet", () => {
+  const openSheet = async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    await user.click(screen.getByTestId("discover-phone-filters"));
+    await screen.findByTestId("discover-filter-sheet");
+    return user;
+  };
+
+  it("holds every filter in one place", async () => {
+    await openSheet();
+    const sheet = screen.getByTestId("discover-filter-sheet");
+    expect(within(sheet).getByTestId("sheet-budget-under200")).toBeTruthy();
+    expect(within(sheet).getByTestId("sheet-length-two-three")).toBeTruthy();
+  });
+
+  // Sort is a property of the list, and with only one place to put the
+  // questions it belongs with them — but it is still not one of them.
+  it("holds sort as well, and still does not count it as a filter", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-sort-newest"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "newest" })),
+    );
+    // The badge on the button counts questions only. The phone badge used to
+    // count "sorted by newest" as a filter, which is the defect §33.2 names.
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters");
+  });
+
+  it("counts the questions on the button once they are asked", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-budget-under200"));
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters (1)");
+    await user.click(screen.getByTestId("sheet-length-one"));
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters (2)");
+  });
+
+  // **Scope is deliberately outside the sheet.** A place is not a sheet
+  // setting: it stays as the tabs above the search, where it is visible without
+  // opening anything.
+  it("keeps scope out of the sheet entirely", async () => {
+    const user = await openSheet();
+    const sheet = screen.getByTestId("discover-filter-sheet");
+    for (const label of ["Everyone", "Yours", "Saved"]) {
+      expect(within(sheet).queryByText(label)).toBeNull();
+    }
+
+    // And scope is still a tab once the sheet is out of the way. It has to be
+    // checked AFTER closing: the sheet is a real modal, so Radix `aria-hidden`s
+    // the page behind it and nothing back there is reachable by role while it
+    // is open — which is itself the right behaviour for a bottom sheet.
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByTestId("discover-filter-sheet")).toBeNull());
+    expect(screen.getByRole("tab", { name: "Saved" })).toBeTruthy();
+  });
+
+  it("clears the questions from inside the sheet, leaving the ordering alone", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-sort-newest"));
+    await user.click(screen.getByTestId("sheet-budget-over1000"));
+    await user.click(screen.getByTestId("sheet-clear-filters"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ budget: "any", sort: "newest" }),
+      ),
+    );
+  });
+
+  // Both shapes render and CSS hides one, so they must not disagree: the sheet
+  // and the desktop chips are two sets of controls over ONE state.
+  it("shares its state with the desktop chips rather than keeping a second copy", async () => {
+    const user = await openSheet();
+    await user.click(screen.getByTestId("sheet-budget-under200"));
+    expect(screen.getByTestId("filter-chip-budget").textContent).toBe("Under $200.00");
+  });
+});
