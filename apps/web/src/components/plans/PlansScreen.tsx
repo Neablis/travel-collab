@@ -403,7 +403,11 @@ export function PlansScreen() {
             — and `back()` from a bookmarked `/plans` leaves the app. */}
         <Link
           href="/account?tab=plan"
-          className="self-start text-sm text-brand no-underline hover:underline"
+          // 44px on a phone: with the tab bar stepping aside for this route
+          // (`taskOwnsScreen`), this link is the only navigation on the screen,
+          // so it is the last control that should be hard to hit. `inline-flex`
+          // + `items-center` so the min-height actually centres its text.
+          className="inline-flex min-h-11 items-center self-start text-sm text-brand no-underline hover:underline md:min-h-0"
           data-testid="plans-back-link"
         >
           &lsaquo; Account
@@ -565,10 +569,19 @@ function Chooser({
                 </li>
               ))}
             </ul>
+            {/* **44px on a phone** (§13.1 "44px targets, always", repeated by
+                §34.3 for this screen). `touch` is `min-h-11 min-w-11`, so
+                `md:min-h-7` puts the desktop back on the `sm` height the three
+                cards are drawn at rather than leaving every plan card 44px tall
+                on a wide screen.
+
+                This is the one control on this route somebody taps to spend
+                money, so it is the first to get the floor rather than waiting
+                for link 14's sweep. */}
             <Button
               variant={choice.held ? "secondary" : "primary"}
-              size="sm"
-              className="mt-auto"
+              size="touch"
+              className="mt-auto md:min-h-7 md:min-w-0"
               disabled={choice.held || !canBuy}
               onClick={() => onChoose(choice.planId)}
               data-testid={`plan-choose-${choice.planId}`}
@@ -707,13 +720,16 @@ function Confirm({
             </>
           )}
 
+          {/* The confirm step's own pair, same floor and same reason: this is
+              where the money actually moves. */}
           <div className="mt-2 flex gap-2">
-            <Button variant="ghost" size="sm" onClick={onBack} disabled={busy}>
+            <Button variant="ghost" size="touch" className="md:min-h-7 md:min-w-0" onClick={onBack} disabled={busy}>
               Back
             </Button>
             <Button
               variant="primary"
-              size="sm"
+              size="touch"
+              className="md:min-h-7 md:min-w-0"
               onClick={onConfirm}
               disabled={preview === null || busy}
               data-testid="confirm-pay"

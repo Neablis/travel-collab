@@ -893,6 +893,29 @@ that are surface-agnostic.
   is the `‹ Account` back header, the 44px floor, and tab-bar suppression on
   `/plans`.
 
+**Link 11 landed 2026-09-20.** What the next links inherit:
+
+- **`taskOwnsScreen(pathname)` in `PhoneTabBar.tsx` is the "a task owns this
+  screen" rule**, and links 14 and 15 both need it rather than a second copy.
+  It holds `/account` and `/plans` today. It is deliberately a short explicit
+  list and **not** "anything that lights no tab" — `/invite/<token>` lights no
+  tab and is still a view, so it keeps its bar.
+- **The height effect runs even when the bar is hidden.** The bar publishes
+  `--phone-tab-bar-height` on `documentElement` and the layout's inset reserves
+  it; the inset is the bar's *sibling* and cannot see that it is gone, so a
+  stale value reserves 83px at the foot of a screen with no bar in it. The
+  `if (hidden) return null` sits **after** the hooks for that reason.
+- **Sign out now exists in exactly one place per surface**, which is both halves
+  of link 1's decision: the avatar popover on desktop, the account screen on a
+  phone (`md:hidden`), because §34.3 makes that screen a task with no popover
+  over it.
+- **The 44px floor is applied where money moves, not everywhere** — the plan
+  cards' Choose, the confirm pair, the back link, and the account tabs. Link 14
+  still owns the sweep; these were taken early because they are the controls a
+  phone user taps to spend.
+
+---
+
 ## Link 12 — Phone Playbooks
 
 The tab bar routes phone users into Playbooks on every non-trip route, and
@@ -1062,11 +1085,24 @@ everyone agrees is temporary is a test that will have to be argued with later.
 
 ## The design is stale here — do not "fix" these back
 
-Fifteen places where the build is right and the handoff is behind. Link 0's
+Fifteen places where the build is right and the handoff is behind — sixteen
+since link 11 added one of its own, numbered 0 because it was found rather than
+surveyed. Link 0's
 guideline should say that finding one of these is a **normal outcome of a parity
 pass, not an anomaly** — and that the answer is an amendment to the handoff, in
 the same PR, not a regression in the code.
 
+0. **§34.3's *"put a phone user on a blank screen"* — CONFIRMED FALSE of this
+   build, 2026-09-20, when link 11 opened.** The claim is that every CTA
+   pointing at `/plans` stranded a phone user. It did not:
+   `PlansScreen.tsx`'s chooser stacks its three cards at one column and
+   `PlanComparison.tsx` scrolls its table horizontally, both deliberately and
+   both commented as such — the comparison table's own note explains why the
+   width comes from `whitespace-nowrap` on the cells rather than a `min-w-`
+   arbitrary value. What was genuinely missing on that route was the `‹ Account`
+   header (link 1e), the 44px floor and tab-bar suppression, all of which link 11
+   built. **Amend the sentence, do not build a phone Plans screen that already
+   exists.**
 1. **`$N each` / `Budget each`** — retired on Mitchell's instruction.
 2. **The Discover empty-state copy still blames the `Season` filter** §33.2 cut.
 3. **SPEC §16's five-tab phone bar** — superseded by §22, which both the build

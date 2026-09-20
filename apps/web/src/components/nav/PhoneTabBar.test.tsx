@@ -156,6 +156,38 @@ describe("PhoneTabBar", () => {
   // other test here renders `PhoneTabBar`, so `PhoneTabBarFallback` could go
   // back to returning `null` and they would all stay green — which is exactly
   // how the regression got in. (Copilot, PR #143.)
+  // **A task owns the whole screen, so the bar steps aside** (SPEC §34.3:
+  // *"because it is a task rather than a view the tab bar steps aside for it…
+  // Done returns you to Trips"*). M26 Wave 2, link 11.
+  describe("when a task owns the screen", () => {
+    it.each(["/account", "/plans"])("renders no bar at all on %s", (route) => {
+      renderAt(route);
+      expect(tabs()).toEqual([]);
+      expect(screen.queryByRole("navigation", { name: "Phone navigation" })).toBeNull();
+    });
+
+    // **Not the same thing as lighting no tab**, which is the ordinary case for
+    // anything the bar does not own. An invite is a view of a thing; an account
+    // is a job you finish and leave.
+    it("still renders a bar on a route that merely lights no tab", () => {
+      renderAt("/invite/abc123");
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Trips", "Playbooks"]);
+      expect(currentTab()).toBeNull();
+    });
+
+    // The bar publishes its height on `documentElement` and the layout's inset
+    // reserves that much space. A stale value would reserve 83px at the foot of
+    // a screen with no bar in it — the inset is the bar's SIBLING and cannot see
+    // that it is gone. This is why the height effect runs on a task route too
+    // rather than being skipped with the render.
+    it("unpublishes the height it reserved when it steps aside", () => {
+      const { unmount } = renderAt("/");
+      unmount();
+      renderAt("/account");
+      expect(document.documentElement.style.getPropertyValue("--phone-tab-bar-height")).toBe("");
+    });
+  });
+
   describe("PhoneTabBarFallback (what the server renders)", () => {
     it("renders the same scoped set and current tab, from the pathname alone", () => {
       url = "/trips/t1";

@@ -114,7 +114,13 @@ export function UnderlineTabs<T extends string>({
               // 40px min-height and 14px text are the artboard's, not a guess:
               // this repo's `--text-base` IS 14px, so `text-sm` (13px here)
               // would be a notch small.
-              "-mb-px min-h-10 cursor-pointer border-b-2 px-px text-base transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+              // **44px on a phone, the artboard's 40px from `md` up.** SPEC
+              // §13.1 is "44px targets, always" and §34.3 repeats it for these
+              // screens; the desktop artboard draws 40px. `min-h-`, not `h-`,
+              // so a wrapped label pushes the row taller rather than
+              // overflowing it (the same reason `button.tsx`'s `touch` size is
+              // a min).
+              "-mb-px min-h-11 cursor-pointer border-b-2 px-px text-base transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:min-h-10",
               selected
                 ? "border-brand font-semibold text-ink"
                 : "border-transparent font-medium text-slate hover:text-ink",

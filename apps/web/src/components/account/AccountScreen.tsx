@@ -1,9 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
+import { cn } from "@/lib/cn";
 import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { SETTINGS_MEASURE } from "@/components/ui/settings-card";
 import { useSessionUser } from "./useSessionUser";
@@ -58,6 +62,26 @@ export function AccountScreen() {
   return (
     <PageContainer width="content">
       <div className="flex flex-col gap-5 pt-1 pb-20">
+        {/* **The phone's way out** (SPEC §34.3: *"Done returns you to Trips"*).
+            Account is a TASK on a phone — the tab bar steps aside for it
+            (`taskOwnsScreen`) — so without this the only way back is the
+            browser's own gesture, on the one surface that has just removed the
+            app's navigation. `md:hidden`, because a desktop still has the
+            header above it.
+
+            A `Link`, not a `router.back()`: §34.3 names the destination, and
+            "back" from a bookmarked `/account` leaves the app. */}
+        <Link
+          href="/"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "touch" }),
+            "-ml-3.5 self-start no-underline md:hidden",
+          )}
+          data-testid="account-done"
+        >
+          &lsaquo; Trips
+        </Link>
+
         <div className="flex flex-col gap-1.5">
           <Heading level={1}>Account</Heading>
           <Text variant="secondary" className="max-w-155 text-pretty">
@@ -98,6 +122,30 @@ export function AccountScreen() {
           {tab === "profile" && <ProfileSection email={user?.email ?? ""} />}
           {tab === "plan" && <PlanSection />}
           {tab === "tokens" && <TokensSection />}
+        </div>
+
+        {/* **Sign out, on the phone only, below the tabs** — and this is the
+            half of link 1's decision that lands here. §34.4's *"Sign out sits
+            below [the tabs]"* is about THIS screen: a phone has no avatar
+            popover to hold it, because §34.3 makes this a task the tab bar
+            steps aside for. A desktop does have one, and putting it in both
+            would be project rule 4 twice on one account — so `md:hidden`, and
+            the desktop `/account` artboard has no sign-out either.
+
+            `/welcome`, not `/` — the same race `AccountMenu` documents:
+            `signOut` sets `window.location.href` after POSTing, and pointed at
+            `/` the navigation can outrun the Set-Cookie that clears the
+            session. `/welcome` is public, so it is correct whether the cookie
+            has landed or not. */}
+        <div className="border-t border-hairline pt-4 md:hidden">
+          <Button
+            variant="secondary"
+            size="touch"
+            data-testid="account-sign-out"
+            onClick={() => void signOut({ callbackUrl: "/welcome" })}
+          >
+            Sign out
+          </Button>
         </div>
       </div>
     </PageContainer>

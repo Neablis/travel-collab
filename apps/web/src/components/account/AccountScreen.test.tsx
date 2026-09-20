@@ -15,6 +15,9 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("./useSessionUser", () => ({ useSessionUser: () => ({ email: "sam@example.com" }) }));
 
+const signOutMock = vi.fn();
+vi.mock("next-auth/react", () => ({ signOut: (...args: unknown[]) => signOutMock(...args) }));
+
 // The three panels self-fetch and have their own suites; stubbing them keeps
 // this file about the tabs. Each renders a marker so "which panel is mounted"
 // is observable.
@@ -111,12 +114,43 @@ describe("AccountScreen", () => {
     expect(tab.getAttribute("aria-controls")).toBe(panel.id);
   });
 
-  // Sign out is the popover's, on desktop — M26 link 1's recorded decision, and
-  // the design's own `/account` artboard has none either. Putting it in both
-  // would be project rule 4 twice on one account.
-  it("has no sign out", () => {
+  // **This asserted no sign out at all, and Wave 2's link 11 added one — for
+  // the phone only.** Link 1's decision has two halves and this file now holds
+  // both: the desktop's sign out stays in the avatar popover (the artboard has
+  // none on `/account`), and the phone screen carries its own because §34.3
+  // makes it a task the tab bar steps aside for, leaving no popover to hold it.
+  //
+  // Asserted as `md:hidden` rather than by resizing: jsdom has no layout and no
+  // media queries, so the breakpoint is the only honest thing to check here.
+  // The `phone` Playwright project is where a real 411px walk belongs (link 16).
+  it("carries sign out for the phone only, never for both surfaces", () => {
     mount();
-    expect(screen.queryByRole("button", { name: /sign out/i })).toBeNull();
-    expect(screen.queryByRole("link", { name: /sign out/i })).toBeNull();
+    const signOut = screen.getByTestId("account-sign-out");
+    expect(signOut.textContent).toBe("Sign out");
+    expect(signOut.parentElement?.className).toContain("md:hidden");
+    // And there is exactly one — a second, always-visible one would be the
+    // rule-4 duplication the decision exists to avoid.
+    expect(screen.getAllByRole("button", { name: /sign out/i })).toHaveLength(1);
+  });
+
+  it("signs out to /welcome, not /", () => {
+    mount();
+    fireEvent.click(screen.getByTestId("account-sign-out"));
+    // `/` depends on the proxy bouncing a signed-out visitor onward, and the
+    // navigation can outrun the Set-Cookie that clears the session —
+    // `AccountMenu` measured that on Next 16. `/welcome` is public either way.
+    expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/welcome" });
+  });
+
+  // §34.3: *"Done returns you to Trips."* The tab bar steps aside for this
+  // screen, so without a way out the only one left is the browser's own
+  // gesture — on the surface that has just removed the app's navigation.
+  it("gives the phone a way back to Trips, and the desktop none", () => {
+    mount();
+    const done = screen.getByTestId("account-done");
+    expect(done.getAttribute("href")).toBe("/");
+    expect(done.className).toContain("md:hidden");
+    // 44px, per §13.1 — the reason it is a `touch`-sized control.
+    expect(done.className).toContain("min-h-11");
   });
 });
