@@ -1388,15 +1388,35 @@ everyone agrees is temporary is a test that will have to be argued with later.
       lifting that exit out of the conversation, which is a restructure of that
       component rather than a prop. **Whoever takes it: move the exit, do not
       duplicate it.**
-- [ ] **A re-measurement of KI-046's own numbers on the surfaces this wave
+- [x] **A re-measurement of KI-046's own numbers on the surfaces this wave
       owns**, reported as a figure and not as an impression — the entry was
       written from measurement and is amended by measurement. **KI-046 is
-      amended, not closed**, unless link 13 landed. **Still open, and it cannot
-      be closed from a class scan.** KI-046's 191-of-211 came from rendered
-      heights in a browser; counting `min-h-11` in the source would be a
-      different claim wearing the same number, which is exactly the
-      "impression, not a figure" this box refuses. It needs the same 411px walk
-      the `[walk]` boxes do.
+      amended, not closed**, unless link 13 landed. **It cannot be closed from a
+      class scan.** KI-046's 191-of-211 came from rendered heights in a browser;
+      counting `min-h-11` in the source would be a different claim wearing the
+      same number.
+      **DONE 2026-09-20, from rendered heights in a browser**, seven phone
+      routes at 411x852 against a production build:
+
+      | | under 44px |
+      |---|---|
+      | KI-046, 2026-09-05 (one trip screen, 412px) | 191 of 211, 91% |
+      | Before the sweep | **48 of 91, 53%** |
+      | After | **4 of 91, 4%** |
+
+      The denominators differ — KI-046 counted one screen on a build with four
+      lenses and a Timeline card carrying Ask and Edit per stop, and §24 deleted
+      that lens. KI-046 says the same of its own two figures.
+      **All four that remain are MapLibre's own attribution**, which is a
+      decision rather than a miss: the credit is legally required and the
+      library styles it.
+      **THE SWEEP WAS NOT DONE WHEN LINK 14 SAID IT WAS**, and this box is how
+      that was found — 53% is what a milestone that had already claimed the
+      44px pass measured. It is finished now, through three primitives rather
+      than N call sites: `buttonVariants`' base, `Input`'s base, and
+      `PHONE_TOUCH` for the elements styled like controls without being them.
+      `e2e/m26-phone-targets.spec.ts` keeps counting, and prints the offending
+      list rather than a bare number.
 - [x] **[walk]** Link 13 has either given Plan a phone treatment **or** put an
       amendment to §10 in writing — and the text column's width at 390px is
       reported as a **number**, against KI-046's 82px-of-364px. It runs last, so
@@ -1440,10 +1460,20 @@ everyone agrees is temporary is a test that will have to be argued with later.
       navigating first, so they sat at `about:blank` waiting for a header that
       was never rendered. My spec's defect, not the product's — but the point
       stands that nothing before this had been opened at all.
-- [ ] `DRIFT.md` §8 is updated: the stale phone-Notebook bullet struck, and the
+- [x] `DRIFT.md` §8 is updated: the stale phone-Notebook bullet struck, and the
       two states the **design** still owes (the phone conflict state, and the
       loading/failed regions for tokens and plan) stated as design-owed rather
-      than build-owed.
+      than build-owed. **Done 2026-09-20.** The Notebook bullet is struck — §19
+      closed that gap on 2026-09-03 and §3b's own entry already said the bullet
+      was *"kept because it dated the gap"*, which made a closed gap read as
+      live for two passes. Both remaining states are now marked DESIGN-OWED
+      with the reason: link 7 built §3b's primitives, so the token and plan
+      regions are short work once somebody DRAWS them — `LOAD_PLAN` names nine
+      regions and neither of those is one. The phone conflict state is named as
+      the wave's one genuine design debt: it is the only one of rule 6's three
+      the design has never drawn.
+      One bullet ADDED that should have been on the list already: a phone
+      rendering the desktop day-column board, closed by link 13.
 - [ ] The full Definition of Done is green, including `test:e2e:ci-like`.
 - [ ] Wave 2 retro appended here.
 

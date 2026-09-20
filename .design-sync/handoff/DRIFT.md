@@ -446,14 +446,23 @@ missing `tags` field are all resolved. Four items this document argued for, all 
   the confirm step. The console is still deliberately never on the phone. What remains
   undesigned is rule 6's two phone states **for the plan section itself** (offline, and a
   failed read of the plan).
-- **The phone's token surface has no loading or failed region.** The desktop sections got
-  the 2026-09-12 region-by-region treatment; this one was written live-only and owes the
-  same two states.
-- **The phone Notebook has one hardwired widget** — its stop repeater follows the focused
-  day rather than carrying a binding. Deliberate: per-widget rebinding on 390px needs its
-  own pass.
-- **The phone has no conflict state.** Offline/sync-fail landed; conflict is still missing
-  and rule 6 requires all three.
+- **The phone's token surface has no loading or failed region — DESIGN-OWED, not
+  build-owed.** The desktop sections got the 2026-09-12 region-by-region treatment and M26
+  link 7 BUILT it (`Skeleton`, `SkeletonRegion`, `RegionError`, all three rules of §3b).
+  The primitives are there and a token section can mount them in an afternoon. What is
+  missing is the design: §3b's `LOAD_PLAN` names nine regions across five surfaces and none
+  of them is the phone's tokens or its plan. **Draw them and the build is short.**
+- ~~**The phone Notebook has one hardwired widget.**~~ **Struck 2026-09-20 — this bullet
+  was dated by its own §19.** §19 (2026-09-03) gave the phone Notebook the full widget
+  model, and DRIFT §3b's own entry on it already says *"this bullet is kept because it
+  dated the gap"*. Keeping it on "still open" made a closed gap look live for two passes.
+  The real remainder is narrower and is stated where it belongs: per-widget REBINDING at
+  390px, which is a design question nobody has drawn.
+- **The phone has no conflict state — DESIGN-OWED.** Offline/sync-fail landed (M26 link 7
+  gave the map a recovery ladder and every desktop region a retry in place); conflict is
+  the last of rule 6 and the only one of the three the design has never drawn. The desktop
+  reuses `ConflictBanner`; the phone equivalent is undecided, and §13's own "still open"
+  list says so. **This is the wave's one genuine design debt.**
 - **No tablet design at all** — KI-046. New on this list.
 - **The landing page needs no empty / offline / conflict state.** Rule 6 satisfied
   trivially; noted so it is not re-raised.
@@ -467,6 +476,13 @@ missing `tags` field are all resolved. Four items this document argued for, all 
   the scroll work in `requestAnimationFrame` — in a throttled or hidden frame the callback
   never runs and the "already scheduled" guard latches forever, silently killing the effect.
 - **Day 6's phone Plan cards** still carry pre-seed times and one wrong estimate treatment.
+- ~~**A phone renders the desktop day-column board.**~~ **Closed 2026-09-20 (M26 link
+  13).** Never on this list by name, and it should have been: `DAY_COLUMN_WIDTH_PX` was a
+  fixed 268px at every width, so a 390px phone showed one and a bit day columns side by
+  side and a stop card measured 241px with 141px of text in it. Plan now holds one day at
+  a time at full width, which is what §13.4 said all along — the text column measures
+  **215px of a 315px card**, against KI-046's 82px-of-364px. The design owes nothing here;
+  the build was not reading its own §13.
 - **Whether a day column sorts by start time** the way the design does. Still unanswered.
 
 ## Suggested order

@@ -1,5 +1,6 @@
 "use client";
 import { cn } from "../../lib/cn";
+import { PHONE_TOUCH } from "./button";
 
 export function SegmentedControl<T extends string>({
   value,
@@ -31,6 +32,13 @@ export function SegmentedControl<T extends string>({
           aria-checked={value === o.value}
           onClick={() => onValueChange(o.value)}
           className={cn(
+            // §13.1's phone floor, M26 link 14's sweep. These are `<button>`
+            // rather than `Button` — a segmented option is not a
+            // `buttonVariants` action, the same escape hatch a tag chip takes —
+            // so the base's own floor does not reach them, and the unit toggle
+            // measured 28px tall at 411px. `PHONE_TOUCH` is the primitive for
+            // exactly this: an element styled like a control without being one.
+            PHONE_TOUCH,
             "cursor-pointer text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand",
             variant === "pill"
               ? cn(

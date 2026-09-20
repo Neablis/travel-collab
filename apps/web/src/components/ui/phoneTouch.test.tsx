@@ -34,10 +34,27 @@ describe("PHONE_TOUCH", () => {
   // The other size still exists and still means something different: `touch` is
   // 44px everywhere, for controls the design draws at 44px on both surfaces —
   // the sheet header, the Ask pill, the front door.
-  it("is not the same thing as size=touch, which is 44px at every width", () => {
+  //
+  // **This test caught the sweep breaking it.** M26 link 14 put §13.1's phone
+  // floor on the BASE, with `md:min-h-0` releasing it above 768px — which
+  // applied to `touch` too, quietly turning "44px at every width" into
+  // "44px on a phone". The size now re-asserts `md:min-h-11`, and what this
+  // holds is that re-assertion rather than the absence of the release.
+  it("is not the same thing as the base's phone floor: touch is 44px at every width", () => {
     const always = buttonVariants({ size: "touch" });
     expect(always).toContain("min-h-11");
-    expect(always).not.toContain("md:min-h-0");
+    expect(always).toContain("md:min-h-11");
+    expect(always).toContain("md:min-w-11");
+  });
+
+  // The base's own floor, which is what makes §13.1 true by construction rather
+  // than by 48 people remembering it.
+  it("is inherited by every button on a phone, and released above 768px", () => {
+    const plain = buttonVariants({ size: "sm" });
+    expect(plain).toContain("min-h-11");
+    expect(plain).toContain("md:min-h-0");
+    // Released at 768, like every other phone rule in this app — never at 640.
+    expect(plain).not.toContain("sm:min-h-0");
   });
 
   it("applies to a real button without fighting its variant", () => {

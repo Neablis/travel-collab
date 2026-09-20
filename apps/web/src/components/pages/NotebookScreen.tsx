@@ -7,6 +7,8 @@ import { newPageDoc } from "@tc/contracts";
 import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { PHONE_TOUCH } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { fetchTripDetail, type ApiError } from "@/lib/apiClient";
 import { DEDUPE, cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -431,7 +433,16 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                     it does the actual edit/rename"*. The notebook's own `h1`
                     is the rename surface now (`PageTitle`), which is also the
                     only place the new name is visible while you type it. */}
-                <Link href={`/trips/${tripId}/pages/${page.id}`} className="flex-1">
+                {/* §13.1's phone floor on a ROW ACTION — the link into the
+                    page is what this row is for, and it measured 40px at 411px
+                    (M26 link 14's sweep). `PHONE_TOUCH` rather than the Button
+                    base, because a link is not a button.
+                    `flex items-center` so the floor makes the row taller
+                    rather than leaving the text at the top of an empty 44px. */}
+                <Link
+                  href={`/trips/${tripId}/pages/${page.id}`}
+                  className={cn("flex flex-1 flex-col justify-center", PHONE_TOUCH)}
+                >
                   <span className="flex items-center gap-2">
                     <Text as="span" className="font-medium text-ink">
                       {page.title}
