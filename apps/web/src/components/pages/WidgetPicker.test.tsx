@@ -45,6 +45,27 @@ describe("WidgetPicker", () => {
     expect(screen.getByText(/No widget matches/)).toBeTruthy();
   });
 
+  // **The count is the header's whole reason to exist, so it is asserted
+  // against the list rather than against a number.** `22 widgets` typed into
+  // this file is the copied-catalogue mistake the header comment already warns
+  // about — it would pass while counting the wrong thing, and go stale on the
+  // next preset. Asserting `rows().length` makes the claim "the line agrees
+  // with what is on screen", which is the claim.
+  //
+  // The second half is what makes it worth writing at all: the line has to
+  // follow the filters. A count that is right on first paint and stale after a
+  // search is worse than no count — a person reads "22 widgets" over a list of
+  // three and trusts the wrong one.
+  it("counts what is actually listed, and keeps counting as the search narrows it", async () => {
+    render(<WidgetPicker onPick={vi.fn()} />);
+    expect(screen.getByText(new RegExp(`^${rows().length} widgets \u00b7`))).toBeTruthy();
+
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "budget");
+    const narrowed = rows().length;
+    expect(narrowed).toBeLessThan(catalogue.length);
+    expect(screen.getByText(new RegExp(`^${narrowed} widgets? \u00b7`))).toBeTruthy();
+  });
+
   // Someone who has read a document's JSON, or the assistant's tool surface,
   // knows a widget as `cost.day`. A search that could not find it would be
   // hiding the app's own vocabulary from the person using it — and `cost.day`

@@ -32,8 +32,16 @@
   14px` and a full-bleed `border-bottom`. The phone Notebook (`:699`) is the
   same container at 12px.
 
-- **How it was found:** Mitchell, 2026-09-20: *"we already did most of the
-  design pass, but the Widget container restyling was missed."*
+- **How it was found:** a wrong turn worth recording, because the words are
+  genuinely ambiguous and the next reader will take the same one. Mitchell,
+  2026-09-20: *"the Widget container restyling was missed"* — and he meant the
+  **insert rail**, the 320px Widgets panel (`KI-2026-09-20-h`), not the card a
+  rendered widget sits in. This entry is what the wrong reading turned up on the
+  way. It is real, and it is nobody's, so it is filed rather than dropped — but
+  it is **not** what was asked for, and it was not the priority.
+
+  **"The widget container" means the rail.** If an entry, a milestone line or a
+  gate box says it without saying which, that is the one it means.
 
 - **THIS IS NOT M14'S, AND THAT IS THE POINT OF FILING IT.**
   `docs/milestones/M26-design-parity.md`'s *Deliberately not here* parks the

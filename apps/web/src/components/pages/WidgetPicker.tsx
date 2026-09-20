@@ -141,46 +141,79 @@ export function WidgetPicker({
   const shown = widgets.filter((w) => widgetMatches(w, query) && (shape === null || w.shape === shape));
 
   return (
-    <>
-      {/* The gate's "search over a flat list". It lists presets now, and the
-          list is what grows every time someone names a combination worth
-          naming — which is a row of data, not code (ADR-039 decision 4).
-          `min-h-11` is §13 rule 1 — the phone sheet uses this same field, and
-          §16 records getting that sizing wrong once already. */}
-      <Input
-        type="search"
-        aria-label="Search widgets"
-        placeholder="Search widgets"
-        value={query}
-        autoFocus={autoFocus}
-        onChange={(e) => setQuery(e.target.value)}
-        className="mb-3 min-h-11 text-sm"
-      />
-      {/* The filter row (M14's gate: "search + how it reads over a flat list").
-          Chips with `aria-pressed`, the same control `ActivityEditor` uses for
-          tags — a pattern this app already has, rather than a fifth way to say
-          "one of these is on". A segmented control would have been the tidier
-          primitive and does not fit: four labels in a 320px column. */}
-      <div role="group" aria-label="Filter by kind" className="mb-3 flex flex-wrap gap-1">
-        {FILTERS.map((f) => (
-          <Button
-            key={f.label}
-            variant={shape === f.value ? "primary" : "secondary"}
-            size="sm"
-            aria-pressed={shape === f.value}
-            className="rounded-full px-2.5 py-0.5 text-xs"
-            onClick={() => setShape(f.value)}
-          >
-            {f.label}
-          </Button>
-        ))}
+    // **The rail is a header and a scrolling body, not one long column**
+    // (`Trip Planner Redesign.dc.html:3956-3978`). The design gives the header
+    // `flex: 0 0 auto` and the list `flex: 1; min-height: 0; overflow-y: auto`,
+    // and the reason is not decoration: with one scroll over the whole panel,
+    // the search field and the filter chips scroll away the moment you look
+    // past the sixth widget — so narrowing a list you are already reading
+    // means scrolling back up to the control that narrows it.
+    //
+    // This resolves only where a container gives it a bounded height, which is
+    // the desktop popover (`WidgetInsert` makes it a `max-h-96` flex column).
+    // Inside the phone Sheet the height is indefinite, so `flex-1` falls back
+    // to content height, the inner `overflow-y-auto` never engages, and the
+    // sheet keeps its own single scroll — which is what §13 rule 3 wants on a
+    // phone anyway. One structure, correct in both, no `isPhone` branch.
+    <div className="flex min-h-0 flex-col">
+      <div className="shrink-0 border-b border-hairline pb-3">
+        {/* The gate's "search over a flat list". It lists presets now, and the
+            list is what grows every time someone names a combination worth
+            naming — which is a row of data, not code (ADR-039 decision 4).
+            `min-h-11` is §13 rule 1 — the phone sheet uses this same field, and
+            §16 records getting that sizing wrong once already. */}
+        <Input
+          type="search"
+          aria-label="Search widgets"
+          placeholder="Search widgets"
+          value={query}
+          autoFocus={autoFocus}
+          onChange={(e) => setQuery(e.target.value)}
+          className="mb-3 min-h-11 text-sm"
+        />
+        {/* The filter row (M14's gate: "search + how it reads over a flat list").
+            Chips with `aria-pressed`, the same control `ActivityEditor` uses for
+            tags — a pattern this app already has, rather than a fifth way to say
+            "one of these is on". A segmented control would have been the tidier
+            primitive and does not fit: four labels in a 320px column. */}
+        <div role="group" aria-label="Filter by kind" className="flex flex-wrap gap-1">
+          {FILTERS.map((f) => (
+            <Button
+              key={f.label}
+              variant={shape === f.value ? "primary" : "secondary"}
+              size="sm"
+              aria-pressed={shape === f.value}
+              className="rounded-full px-2.5 py-0.5 text-xs"
+              onClick={() => setShape(f.value)}
+            >
+              {f.label}
+            </Button>
+          ))}
+        </div>
+        {/* The design's count line (`:3977`), and it is the header's last row
+            rather than a caption on the list, because it counts what the two
+            controls above it just did — type "day" and the number answers.
+            `WidgetInsert`'s popover carried a fixed hint with no count and the
+            phone sheet carried nothing; this is one line, on both.
+
+            **The design's own sentence ends "It lands not set up." and that
+            clause is deliberately dropped.** Under ADR-039 decision 2 a widget
+            with nothing bound is not waiting for anything — it shows
+            everything, the widest true answer — which is the same correction
+            `takesLine` already carries below ("ready as soon as it lands"). The
+            design predates that decision; importing the words would reintroduce
+            the lie the build has already fixed once. */}
+        <p aria-live="polite" className="mt-3 text-xs text-slate">
+          {`${shown.length} ${shown.length === 1 ? "widget" : "widgets"} · `}
+          {draggable ? "click to drop one at the cursor, or drag it in." : "tap one to drop it into the page."}
+        </p>
       </div>
       {shown.length === 0 ? (
-        <p className="text-xs text-slate">
+        <p className="pt-3 text-xs text-slate">
           {query.trim() === "" ? "No widget of that kind." : `No widget matches “${query.trim()}”.`}
         </p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pt-3">
           {shown.map((w) => (
             <li key={w.name}>
               <Button
@@ -229,6 +262,6 @@ export function WidgetPicker({
           ))}
         </ul>
       )}
-    </>
+    </div>
   );
 }

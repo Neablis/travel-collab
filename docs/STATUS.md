@@ -151,15 +151,39 @@ and no dividers — which is what "the Playbooks look the same" actually was.
 `packages/fixtures/src/savedDayCoordinates.test.ts` is the pattern for holding
 a claim about CONTENT rather than code.
 
-**THE WIDGET CONTAINER WAS MISSED BY THE DESIGN PASS — and it is not M14's.**
-Mitchell, 2026-09-20. M26's *Deliberately not here* parks the widget FRAMEWORK
-in M14 (the ghost, the four states, declared columns, the repeat's dashed rail)
-and that is still right. **The box those render inside is a different thing, it
-is already built four times over, and none of the four matches the design or
-each other.** Measured, with what is left and what a person has to rule on:
-`KI-2026-09-20-g`.
+**THE WIDGET CONTAINER WAS MISSED BY THE DESIGN PASS — and "the widget
+container" means THE INSERT RAIL.** Mitchell, 2026-09-20, pointing at the
+design's 320px Widgets panel: *"Are we talking about same thing? Its this
+container i want styled."* He had to say it twice, because the first reading of
+those words went to the widget *block* card instead. **Two different boxes, both
+open, and the rail is the one that was asked for:**
 
-**One of the four is fixed, 2026-09-20, and deliberately only one.**
+* **The insert rail — `KI-2026-09-20-h`.** The Widgets panel: title, search,
+  kind filters, count line, and one card per widget.
+* **The block card — `KI-2026-09-20-g`.** The box a rendered widget draws
+  itself in on a page. Found on the way to the rail, real, unowned, filed.
+
+**Done 2026-09-20, on the rail:** its header is a header. The whole panel was
+under one `max-h-96 overflow-y-auto`, so **the search field and the four filter
+chips scrolled away with the list** — narrowing a list you were already reading
+meant scrolling back up to the control that narrows it. It is now the design's
+two-part column (`Trip Planner Redesign.dc.html:3956`): a `shrink-0` header with
+a hairline under it, the list as the only scrolling region, and the design's
+count line, which the build had on neither surface. Held by a red-first test in
+`WidgetPicker.test.tsx` — the count asserted against `rows().length` and again
+after a search, seen failing at `2 widgets` expected against `22` rendered.
+
+**THE NEXT PERSON ON THE RAIL HAS A DECISION TO MAKE BEFORE ANY GEOMETRY.**
+The desktop insert surface is a Radix Popover because Mitchell asked for one on
+2026-09-04; **SPEC §26 is eight days later and supersedes it** — the right
+column *is* the rail, with two states. `WidgetInsert.tsx`'s own header comment
+still states the popover as a requirement. Until somebody says which stands, the
+panel's outer box cannot be finished. **The row treatment is the item to do next
+and does not wait on it:** the rows are `Button variant="secondary"` stacked at
+`gap-1` where the design draws bordered cards with a `∷` handle and a mono
+shape chip — twenty-two secondary buttons read as a toolbar. `-h` has the rest.
+
+**Also done 2026-09-20, on the block card** (`-g`, the wrong-turn find):
 `ItineraryDayBlock` was the one live container still a padded box — `p-3`, rows
 inset 12px, so its separators were stubs that stopped short of both edges and
 its header was text with a stub rule under it rather than the design's caption
@@ -167,9 +191,7 @@ band. It is now `overflow-hidden` with full-bleed rows and a `bg-paper` header
 strip, the same furniture its two siblings already had. **No test covers it and
 none can at this layer**: the test-quality wall rejects `toHaveClass` outside
 `src/components/ui` (`scripts/check-lint-wall.mjs:460`) and a paint is what
-changed. Verified by the narrowed subset instead — `web` typecheck, `web` lint,
-the colour + token walls, the 139 unit tests under `src/components/pages` — and
-it is owed a look on the preview.
+changed. Both changes are owed a look on the preview.
 
 ---
 

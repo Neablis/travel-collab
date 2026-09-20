@@ -99,12 +99,23 @@ export function WidgetInsert({
         // Taller than the default popover because this one is a list that
         // grows with the registry; `max-h-` + scroll rather than a fixed height
         // so a filter narrowing it to two rows does not leave a tall empty box.
-        contentClassName="max-h-96 overflow-y-auto"
+        //
+        // **The scroll moved OFF this element and onto the picker's list**, and
+        // the flex column is what makes that resolve. The design's rail
+        // (`Trip Planner Redesign.dc.html:3956`) is a bounded column whose
+        // header is `flex: 0 0 auto` and whose body is the only thing that
+        // scrolls; `overflow-y-auto` here scrolled the header away with it.
+        // `overflow-hidden` so the rounded corners still clip the list, and
+        // `min-h-0` on the child is the half that makes a flex item shorter
+        // than its content at all.
+        contentClassName="flex max-h-96 flex-col overflow-hidden"
       >
-        <Heading level={4} className="mb-1">Widgets</Heading>
-        <p className="mb-2 text-xs text-slate">
-          Click one to drop it where your cursor is, or drag it onto the page.
-        </p>
+        {/* `shrink-0`: the title is the one row that is neither the pinned
+            header nor the scrolling body, and without it a long list squeezes
+            it. The hint that used to sit here is gone — it was desktop-only and
+            carried no count, and the picker's own header now says it on both
+            surfaces, in the design's words. */}
+        <Heading level={4} className="mb-2 shrink-0">Widgets</Heading>
         <WidgetPicker
           draggable
           autoFocus
