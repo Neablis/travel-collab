@@ -10,6 +10,7 @@ import { displayNameFor } from "@/lib/displayName";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { toClockRange } from "@/lib/time";
 import { cn } from "@/lib/cn";
+import { PHONE_TOUCH } from "@/components/ui/button";
 import { backQuery, type BackOrigin } from "./backLink";
 
 // One day in the public library, as Discover and a public profile both render
@@ -52,7 +53,16 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <Heading level={4} className="leading-snug">
-          <Link href={`/playbooks/day/${day.savedDayId}${back}`} className="hover:underline">
+          {/* §13.1's phone floor on the card's ROW ACTION — this title link is
+              the only way into the day, so it is the target (M26 link 14's
+              sweep, found by the census in the full e2e lane where seeded
+              Playbooks render and an isolated run had none). `inline-flex
+              items-center` so the floor makes the link taller rather than
+              leaving the text at the top of an empty 44px. */}
+          <Link
+            href={`/playbooks/day/${day.savedDayId}${back}`}
+            className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
+          >
             {day.name}
           </Link>
         </Heading>
@@ -123,7 +133,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
         {/* The M17 seam, and the only place this card names a person. */}
         <Link
           href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
-          className="text-xs text-slate hover:underline"
+          className={cn("inline-flex items-center text-xs text-slate hover:underline", PHONE_TOUCH)}
         >
           {displayNameFor({ userId: day.ownerId })}
         </Link>

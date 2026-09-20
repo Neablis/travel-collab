@@ -11,6 +11,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
+import { PHONE_TOUCH } from "@/components/ui/button";
 import { searchPlaybooks } from "@/lib/apiClient";
 import type {
   BudgetBand,
@@ -633,7 +634,10 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           arrives a beat late. */}
       {(feed.data?.sharedDayCount ?? 0) > 0 && (
         <div className="border-t border-hairline pt-4">
-          <Link href="/playbooks/board" className="text-sm font-semibold text-brand hover:underline">
+          <Link
+            href="/playbooks/board"
+            className={cn("inline-flex items-center text-sm font-semibold text-brand hover:underline", PHONE_TOUCH)}
+          >
             Who shares the most →
           </Link>
         </div>
