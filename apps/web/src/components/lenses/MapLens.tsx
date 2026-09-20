@@ -12,6 +12,7 @@ import { mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
 import { isFatalMapError } from "./mapBootstrap";
+import { startStyleLoadLadder } from "./mapRecovery";
 import { mapPaintColor } from "./mapColor";
 import { MapOfflineState } from "./MapOfflineState";
 import { useIsPhone } from "./useIsPhone";
@@ -281,6 +282,18 @@ export function MapLens({
   // nothing until a reader asks a day a question (M26 link 5a).
   const [hover, setHover] = useState<{ day: MapDay; top: number } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // **The style-load recovery ladder** (M26 link 7 / Wave 1 gate;
+  // `mapRecovery.ts` has the reasoning and the numbers).
+  //
+  // `failed` above is only ever set by an `error` event, and the worst map
+  // failure emits none: if `map.on("load")` never fires, the marker loop below
+  // never runs, `setReady(true)` never runs, and nothing at all is said —
+  // forever. `ladderRun` is the sequence this ladder belongs to, bumped only by
+  // the reader pressing *Try again*; `attempt` is bumped by a rung too, which
+  // is why the two are separate states rather than one counter. A rung's
+  // rebuild must NOT re-arm the ladder, or the deadlines stop being absolute.
+  const [ladderRun, setLadderRun] = useState(0);
+  const disarmLadderRef = useRef<(() => void) | null>(null);
   const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
   // Keyed by MapDay.index, so the focus effect below can ghost/un-ghost a
   // day's pins the same way it dims/undims that day's route line — populated
@@ -362,6 +375,24 @@ export function MapLens({
     defaultedDay.current = true;
     setFocusedDay(0);
   }, [focusedDay, days.length, setFocusedDay]);
+
+  // Armed once per mount SEQUENCE, not per instance: the deps are the retry
+  // token and whether there is anything to draw, never `attempt`. A rung that
+  // re-armed the ladder it was fired by would restart the clock on every
+  // rebuild and the map would retry until the tab closed.
+  const hasPlottedPins = plottedPins.length > 0;
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasPlottedPins) return;
+    const disarm = startStyleLoadLadder((rung) => {
+      if (rung.action === "rebuild") setAttempt((n) => n + 1);
+      else setFailed(true);
+    });
+    disarmLadderRef.current = disarm;
+    return () => {
+      disarm();
+      disarmLadderRef.current = null;
+    };
+  }, [ladderRun, hasPlottedPins]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -453,6 +484,12 @@ export function MapLens({
 
       map.on("load", () => {
         if (cancelled || !map) return;
+        // The map drew: every remaining rung is moot. Clearing `failed` too
+        // covers the one ordering that would otherwise strand the panel over a
+        // working map — the 11s rung fires, and the instance it gave up on
+        // loads a moment later.
+        disarmLadderRef.current?.();
+        setFailed(false);
 
         // One line source+layer per day with 2+ located stops. Sources and
         // layers must not be touched before "load" fires — the style isn't
@@ -830,6 +867,11 @@ export function MapLens({
             <MapOfflineState
               onRetry={() => {
                 setFailed(false);
+                // A new sequence, so the ladder starts over from 3.5s. Without
+                // this the reader gets one rebuild and no ladder at all behind
+                // it — the silent failure the ladder exists for would be back,
+                // one press later.
+                setLadderRun((n) => n + 1);
                 setAttempt((n) => n + 1);
               }}
               // `?view=Plan` is the same URL `PhoneTabBar` points its Plan tab

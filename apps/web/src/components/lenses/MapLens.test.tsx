@@ -53,8 +53,14 @@ vi.mock("@/components/trip/context/EditorHost", async (importOriginal) => {
   };
 });
 
-const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, mapHandlers, setPaintPropertyMock, markerInstances } = vi.hoisted(
+const { addLayerMock, addSourceMock, fitBoundsMock, mapConstructorMock, mapOnLoad, mapHandlers, setPaintPropertyMock, markerInstances, mapStub } = vi.hoisted(
   () => ({
+    // **The one knob that makes the recovery ladder testable.** The ladder
+    // exists for the failure that emits NO error — `load` simply never fires —
+    // and the only way to force that is to make the stub withhold it. Reset in
+    // `beforeEach` below, so a test that forgets to put it back cannot leak a
+    // dead map into the next one.
+    mapStub: { suppressLoad: false },
     addLayerMock: vi.fn(),
     addSourceMock: vi.fn(),
     fitBoundsMock: vi.fn(),
@@ -136,7 +142,7 @@ vi.mock("maplibre-gl", () => {
       // Real maplibre fires "load" async, after style/tiles resolve — a
       // microtask keeps that ordering (and satisfies the `await waitFor`
       // callers below) without an unawaited real network/GL round-trip.
-      if (event === "load") {
+      if (event === "load" && !mapStub.suppressLoad) {
         Promise.resolve().then(() => {
           mapOnLoad();
           cb();
@@ -423,6 +429,13 @@ function renderMap(
     </EditorHost>,
   );
 }
+
+// The stub fires `load` for every test but the ladder's own, and a leaked
+// `true` here would silently turn every other test in this file into a test of
+// the offline panel.
+beforeEach(() => {
+  mapStub.suppressLoad = false;
+});
 
 describe("MapLens", () => {
   it("shows no located-activities list; only a day-attached unlocated activity gets the compact affordance", () => {
@@ -1464,3 +1477,112 @@ describe("MapLens — when the map has failed", () => {
   });
 });
 
+// **The style-load recovery ladder, forced rather than inspected** — M26 link
+// 7 and its own Wave 1 gate box, which says so in as many words.
+//
+// This is the failure mode nothing else in this file can see. `failed` is set
+// by an `error` event; the worst map failure emits none — `map.on("load")`
+// simply never fires, so the marker loop never runs, `setReady(true)` never
+// runs, and the reader gets a paper rectangle with nothing said about it,
+// forever. `mapStub.suppressLoad` is the only way to produce that state, and
+// `mapConstructorMock` counts instances, which is what a "rebuild" IS: MapLibre
+// has no "load the style again" on an instance whose first attempt died.
+describe("MapLens — a style that never loads", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // The dynamic `import("maplibre-gl")` and its `.then` are microtasks, so the
+  // first instance does not exist until they have run. `waitFor` is the usual
+  // tool and is the wrong one here: under fake timers it advances the very
+  // clock these tests are measuring, which would step the ladder while waiting
+  // for the map the ladder is about to give up on.
+  async function flushMapImport() {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  it("rebuilds at 3.5s, again at 7.5s, and offers Plan at 11s", async () => {
+    vi.useFakeTimers();
+    mapStub.suppressLoad = true;
+    mapConstructorMock.mockClear();
+
+    renderMap(detailFixture());
+    await flushMapImport();
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+
+    // Nothing at all before the first rung — a map that is merely slow must
+    // not be thrown away.
+    await act(async () => {
+      vi.advanceTimersByTime(3499);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(2);
+    // A rebuild is not a give-up: the reader is still being told to wait, and
+    // the panel would be a lie while another instance is trying.
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(4000);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(3);
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+    });
+    // 11s: stop trying, and say what is still readable. No fourth instance —
+    // the last rung gives up rather than rebuilding.
+    expect(screen.getByTestId("map-offline")).toBeTruthy();
+    expect(screen.getByTestId("map-offline-open-plan")).toBeTruthy();
+    expect(mapConstructorMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("disarms the whole ladder the moment the style loads", async () => {
+    vi.useFakeTimers();
+    mapConstructorMock.mockClear();
+
+    renderMap(detailFixture());
+    await flushMapImport();
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+
+    // Well past the last rung. A map that loaded must never be rebuilt under
+    // the reader, and must never be covered by a panel.
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(mapConstructorMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+  });
+
+  // "Scoped to the instance that started it", from the gate box. A timer that
+  // outlives its lens fires into a component that is gone — harmless today,
+  // because React drops a setState on an unmounted tree, and a blanked map the
+  // first time anything in this ladder gains a side effect that is not a
+  // setState.
+  //
+  // **The assertion is the pending-timer COUNT, not the constructor count.**
+  // The obvious version of this test — unmount, advance an hour, assert no
+  // second `new Map` — passes with the disarm deleted, because the effect that
+  // would build one is gone anyway. It was written that way first and proved
+  // exactly nothing (CLAUDE.md rule 3 is what caught it). `getTimerCount`
+  // observes the thing the cleanup is actually for.
+  it("leaves nothing armed when the lens unmounts mid-ladder", async () => {
+    vi.useFakeTimers();
+    mapStub.suppressLoad = true;
+
+    const { unmount } = renderMap(detailFixture());
+    await flushMapImport();
+    // Three rungs, armed together.
+    expect(vi.getTimerCount()).toBeGreaterThanOrEqual(3);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
