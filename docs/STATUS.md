@@ -151,6 +151,26 @@ and no dividers — which is what "the Playbooks look the same" actually was.
 `packages/fixtures/src/savedDayCoordinates.test.ts` is the pattern for holding
 a claim about CONTENT rather than code.
 
+**THE WIDGET CONTAINER WAS MISSED BY THE DESIGN PASS — and it is not M14's.**
+Mitchell, 2026-09-20. M26's *Deliberately not here* parks the widget FRAMEWORK
+in M14 (the ghost, the four states, declared columns, the repeat's dashed rail)
+and that is still right. **The box those render inside is a different thing, it
+is already built four times over, and none of the four matches the design or
+each other.** Measured, with what is left and what a person has to rule on:
+`KI-2026-09-20-g`.
+
+**One of the four is fixed, 2026-09-20, and deliberately only one.**
+`ItineraryDayBlock` was the one live container still a padded box — `p-3`, rows
+inset 12px, so its separators were stubs that stopped short of both edges and
+its header was text with a stub rule under it rather than the design's caption
+band. It is now `overflow-hidden` with full-bleed rows and a `bg-paper` header
+strip, the same furniture its two siblings already had. **No test covers it and
+none can at this layer**: the test-quality wall rejects `toHaveClass` outside
+`src/components/ui` (`scripts/check-lint-wall.mjs:460`) and a paint is what
+changed. Verified by the narrowed subset instead — `web` typecheck, `web` lint,
+the colour + token walls, the 139 unit tests under `src/components/pages` — and
+it is owed a look on the preview.
+
 ---
 
 **LINK 5c IS CLOSED, AND IT WAS NEVER ACTUALLY BLOCKED.** It was carried all
