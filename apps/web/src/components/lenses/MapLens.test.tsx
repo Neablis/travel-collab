@@ -566,7 +566,12 @@ describe("MapLens", () => {
     const callsBefore = mapConstructorMock.mock.calls.length;
     const { container } = renderMap(detailWithBacklogPinOnly());
 
-    expect(screen.getByText(/no located activities yet/i)).toBeTruthy();
+    // The artboard's own empty state (dc.html:2362): a title, the sentence
+    // that says what would make a stop appear, and a way to the surface that
+    // adds one. It replaced a single muted line that named the absence and not
+    // the way out of it.
+    expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Go to Plan" })).toBeTruthy();
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(container.querySelector(".map-lens-canvas")).toBeNull();
     expect(mapConstructorMock.mock.calls.length).toBe(callsBefore);

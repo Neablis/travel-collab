@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
-import { Text } from "../ui/text";
-import { Button } from "../ui/button";
+import Link from "next/link";
+import { Button, buttonVariants } from "../ui/button";
+import { EmptyState } from "../ui/empty-state";
 import { useEditor } from "../trip/context/EditorHost";
 import { useDaySync, useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
@@ -406,7 +407,25 @@ export function MapLens({
     let resizeObserver: ResizeObserver | undefined;
 
     import("maplibre-gl").then(({ Map, Marker, LngLatBounds, setWorkerUrl }) => {
-      if (cancelled || !el) return;
+      // **The container-identity guard**, and an honest note about its reach.
+      //
+      // `el` is read before an `await`, and this div sits inside two React
+      // conditionals. Building a map into a node that is no longer the one
+      // `containerRef` holds would create a live WebGL context inside a
+      // detached element — no tiles, no error, and a leak the cleanup cannot
+      // reach. M26 link 7 names the absence of this check.
+      //
+      // **Every path that reaches it today is already covered by `cancelled`.**
+      // The div's existence is tied to `plottedPins.length > 0`, which is part
+      // of `routeKey`, which is this effect's dep — so anything that replaces
+      // the node also tears the effect down and runs the cleanup first. That is
+      // true of StrictMode's double invoke too. It is kept as one comparison of
+      // defence in depth against the class DRIFT §6 build-check 5 belongs to (a
+      // container detached mid-style-load, whose load aborts silently), which
+      // has recurred three times — but it has NO test, because no render
+      // sequence this component can produce reaches it, and a test asserting
+      // an unreachable branch would be a test asserting nothing.
+      if (cancelled || containerRef.current !== el) return;
       // Before the first Map construction: maplibre reads this when it spawns
       // its worker pool, which happens inside the constructor below.
       setWorkerUrl(MAPLIBRE_WORKER_URL);
@@ -948,9 +967,32 @@ export function MapLens({
             ))}
         </div>
       ) : (
-        <Text variant="secondary" className="map-lens-empty rounded-lg border border-dashed border-border-strong px-4 py-6 text-center">
-          No located activities yet — add a place to see it on the map.
-        </Text>
+        /* **Nothing to map yet** — M26 link 7, §3b's empty state, worded from
+           the artboard (`dc.html:2362-2372`). What stood here was one muted
+           line inside a dashed box: a defined state, but one that named the
+           absence and not the way out of it.
+
+           **The rail is NOT kept here, and that is the same call as
+           KI-2026-09-20-c's**, one state over. The artboard keeps its day rail
+           in both the failed and the empty canvas, and for the failed one we
+           already chose otherwise: with no map underneath, a rail row is a
+           control that highlights a day and moves nothing. With no located
+           stop there is no map instance at all — the mount effect returns on
+           `!firstPin` — so the argument is if anything stronger. Two adjacent
+           states of one lens answering this differently would be the drift.
+           Recorded in `DRIFT.md` rather than left to be re-derived. */
+        <EmptyState
+          title="Nothing to map yet"
+          body="A stop draws itself here as soon as it has a place. Add one and the day's walk appears with it."
+          action={
+            <Link
+              href={`/trips/${detail.tripId}?view=Plan`}
+              className={`${buttonVariants({ variant: "primary", size: "touch" })} no-underline`}
+            >
+              Go to Plan
+            </Link>
+          }
+        />
       )}
     </div>
   );
