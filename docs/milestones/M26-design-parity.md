@@ -477,9 +477,24 @@ the longest hop). It is roughly 60% reusable.
 **5b. The rail row itself.** Text in the day's accent ink, not `text-ink` and
 `text-slate` (`:341`, `:359`); label and date at `baseline gap-8` rather than
 pushed to opposite ends of 268px (`:339`); **the month only at the first day and
-at month boundaries** — `DayChips` already implements `monthEdge`, so the two
-rails currently disagree **inside the build**; bars one per **leg** rather than
+at month boundaries** — ~~`DayChips` already implements `monthEdge`, so the two
+rails currently disagree **inside the build**~~; bars one per **leg** rather than
 one per stop, with the phantom first bar removed.
+
+> **Correction, 2026-09-20, on building it.** *"`DayChips` already implements
+> `monthEdge`"* is **false**, and the disagreement it describes never existed.
+> `DayChips` renders `dow` and `dateNum` — a weekday and a day-of-month number —
+> and prints **no month at all**, on any row; `grep -rn monthEdge` over the whole
+> tree returns nothing. Two surfaces cannot disagree about a month only one of
+> them has ever shown.
+>
+> So this was a fresh implementation rather than a reuse: `monthEdges()` in
+> `mapRailData.ts`, deciding from each row's ISO `YYYY-MM` prefix — never a
+> parsed `Date`, which can drift a day across a timezone — with non-boundary
+> rows taking a new `formatTripDateNoMonth`. Recorded here rather than fixed
+> silently, because left standing this line sends the next reader looking for a
+> function that does not exist, and the danger then is that they find something
+> plausible and reuse the wrong thing.
 
 **5c. Two derivations, one of them blocked.** `longest` — the longest leg and
 its endpoints — is pure derivation from coordinates and titles already on

@@ -71,3 +71,31 @@ export function dayAccents(cities: (string | null)[]): DayAccent[] {
     return { tint: family, ink: family, solid: family };
   });
 }
+
+/**
+ * An accent family's INK — the text colour that reads on that family's tint.
+ *
+ * **One copy, because there were five about to be.** This map was written out
+ * identically in `CalendarLens`, `DayChips`, `KeepDayFlag` and `cityAccents`,
+ * and `DayChips`'s copy carried a comment naming one of its own duplicates.
+ * M26 link 5b needed it in the Map rail as well, and a fifth copy of a table
+ * whose whole content is a promise about which tokens exist is how the copies
+ * start disagreeing.
+ *
+ * **`brand` maps to `text-brand-pressed`, and that is not an oversight.** There
+ * is no `--color-brand-ink` — `pages/cityAccents.ts` says so in as many words,
+ * and the colour wall would reject the utility if one were written. Brand's
+ * darkest tone is `-pressed`. Every other family has a real `-ink` token, and
+ * `neutral` has none of either, so it takes `slate`.
+ *
+ * A static Record, never a template string: Tailwind only emits utilities it
+ * can see as literal text in the source.
+ */
+export const ACCENT_INK_TEXT: Record<AccentFamily, string> = {
+  brand: "text-brand-pressed",
+  info: "text-info-ink",
+  success: "text-success-ink",
+  warning: "text-warning-ink",
+  danger: "text-danger-ink",
+  neutral: "text-slate",
+};

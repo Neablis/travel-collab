@@ -84,6 +84,37 @@ function legKms(stops: MapStop[]): number[] {
   return kms;
 }
 
+/**
+ * Which rows should print the month alongside the date (M26 link 5b).
+ *
+ * The rail repeats "Sep" down every row of a September trip, which is noise:
+ * the month only carries information where it CHANGES. So it prints on the
+ * first dated row and at each month boundary, and nowhere else.
+ *
+ * **The milestone said to reuse `DayChips`'s `monthEdge`. There is no such
+ * thing** — checked 2026-09-20: `DayChips` renders `dow` and `dateNum` (a
+ * weekday and a day number) and shows no month at all, so the two surfaces were
+ * never in the disagreement the milestone describes. This is a fresh
+ * implementation, and the milestone has been corrected rather than left to send
+ * the next reader looking for a function that does not exist.
+ *
+ * Undated days are skipped rather than breaking the run: a null date is not a
+ * month boundary, and the next dated row still compares against the last month
+ * actually seen.
+ */
+export function monthEdges(days: readonly { date: string | null }[]): boolean[] {
+  let lastMonth: string | null = null;
+  return days.map((day) => {
+    if (day.date === null) return false;
+    // The ISO date's own `YYYY-MM` prefix, so this never constructs a `Date`
+    // and cannot drift across a timezone the way a parsed local date can.
+    const month = day.date.slice(0, 7);
+    const edge = month !== lastMonth;
+    lastMonth = month;
+    return edge;
+  });
+}
+
 /** The longest single hop of a day, and the two stops it runs between. */
 export type LongestLeg = { km: number; from: string; to: string };
 
@@ -130,17 +161,24 @@ export function mapDays(detail: TripDetail): MapDay[] {
     const totalKm = stops.length >= 2 ? legs.reduce((sum, km) => sum + km, 0) : null;
     const accent = accents[index]?.solid ?? "neutral";
 
-    // One bar per located stop: legs share proportionally by distance when we
-    // have a real total, else split evenly (a single located stop, or a day
-    // whose stops happen to share one coordinate, still renders a bar row).
+    // **One bar per LEG, not per stop** (M26 link 5b). The bar row is a picture
+    // of the day's travel, and travel happens between stops — so N stops make
+    // N-1 bars. It used to make N, giving the first stop a bar of its own with
+    // no leg under it: a phantom that took `1 / stops.length` of the width and
+    // made every day's shape read a little wrong, worst on a two-stop day where
+    // a single real leg was drawn as two bars of 50% each.
+    //
+    // A day with fewer than two located stops now renders NO bars, which is
+    // correct: nothing was travelled. The even split remains only for the real
+    // degenerate case — legs that exist but sum to zero, i.e. stops sharing one
+    // coordinate — where proportion is undefined but the legs are real.
     const bars =
-      stops.length === 0
+      legs.length === 0
         ? []
-        : stops.map((_, i) => {
-            const grow =
-              totalKm !== null && totalKm > 0 && i > 0 ? legs[i - 1]! / totalKm : 1 / stops.length;
-            return { grow, color: accent };
-          });
+        : legs.map((km) => ({
+            grow: totalKm !== null && totalKm > 0 ? km / totalKm : 1 / legs.length,
+            color: accent,
+          }));
 
     const flagText =
       unlocatedCount > 0

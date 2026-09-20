@@ -7,6 +7,17 @@ function parse(iso: string): Date {
 export function formatTripDate(iso: string): string {
   return parse(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
+/**
+ * "Tue 5" — weekday and day-of-month, no month.
+ *
+ * The Map rail's non-boundary rows (M26 link 5b). `formatTripDate` prints the
+ * month on every row, which repeats "Sep" down a September trip and says
+ * nothing; `monthEdges` decides which rows earn the longer form and those use
+ * `formatTripDate` instead.
+ */
+export function formatTripDateNoMonth(iso: string): string {
+  return parse(iso).toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+}
 export function formatTripDateLong(iso: string): string {
   return parse(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
