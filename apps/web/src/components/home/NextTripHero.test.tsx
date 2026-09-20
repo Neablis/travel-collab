@@ -85,8 +85,8 @@ describe("NextTripHero", () => {
     const tiles = screen.getAllByTestId("stat-tile");
     expect(tiles.length).toBe(3);
 
-    // "Open plan" control, linking to the trip route.
-    const openLink = screen.getByRole("link", { name: /open plan/i });
+    // "Open trip" control, linking to the trip route.
+    const openLink = screen.getByRole("link", { name: /open trip/i });
     expect(openLink.getAttribute("href")).toBe(`/trips/${trip.tripId}`);
 
     expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId);
@@ -420,11 +420,11 @@ describe("NextTripHero", () => {
     expect(screen.queryByText("travelers")).toBeNull();
   });
 
-  it("does not render an Open plan link to any other trip", async () => {
+  it("does not render an Open trip link to any other trip", async () => {
     const trip = tripSummaryFixture({ tripId: "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a", name: "Rome" });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
-    const openLink = screen.getByRole("link", { name: /open plan/i });
+    const openLink = screen.getByRole("link", { name: /open trip/i });
     expect(openLink.getAttribute("href")).toBe("/trips/9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a");
     await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId));
   });

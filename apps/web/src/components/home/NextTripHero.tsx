@@ -63,7 +63,7 @@ type SparklineFetchState =
 
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
 // brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
-// primary Open plan + secondary Share (via shareSlot). Right: --color-moss
+// primary Open trip + secondary Share (via shareSlot). Right: --color-moss
 /**
  * Displays a trip overview with key statistics, budget information, and a trip-shape sparkline.
  *
@@ -286,8 +286,15 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
           </div>
 
           <div className="mt-0.5 flex items-center gap-2">
+            {/* **`Open trip`, and it was `Open plan`** — Mitchell, Vercel
+                Toolbar comment on the PR #196 preview, 2026-09-20, with this
+                link selected: *"'Open trip' not open plan"*. The href goes to
+                the trip, not to its Plan lens, so the old label named a
+                destination the link does not have: it lands on whichever lens
+                the trip was last left on. `Open trip` is what it actually
+                does. */}
             <Link href={`/trips/${trip.tripId}`} className={cn(buttonVariants({ variant: "primary", size: "md" }))}>
-              Open plan
+              Open trip
             </Link>
             {shareSlot}
           </div>
