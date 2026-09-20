@@ -18,7 +18,6 @@ import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
-import { useSlowLoad } from "@/components/ui/useSlowLoad";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
@@ -315,31 +314,27 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   }, []);
   useEffect(() => () => rackObserverRef.current?.disconnect(), []);
 
-  // Up here with the other hooks for the reason `pendingRef` and `scopedDay`
-  // give above: everything past the `status` early returns runs conditionally,
-  // so a hook there is an order violation.
-  const slowLoad = useSlowLoad(status === "loading");
-
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
   // its own horizontal padding via PageContainer wrappers below, so these
   // early-return states need their own too.
-  // **Nothing at all for the first 200ms** — see `useSlowLoad`. This branch
-  // used to render `Loading…` unconditionally, and on the common path (Home's
-  // hero has already cached this `TripDetail`) it painted for about a frame:
-  // a flicker in the top-left that Mitchell could see and could not click.
-  // The container stays mounted either way so the swap costs no layout jump.
+  // **No loading state at all**: the board is not there until its data is.
   //
-  // The words are still a bare string rather than the board's own shape, which
-  // is what link 7 asks for and what `skeleton.tsx` exists to supply. That is
-  // the surface link 7's survey missed, and it is KI-2026-09-20-e rather than
-  // more of this PR.
-  if (status === "loading")
-    return (
-      <PageContainer width="full">
-        {slowLoad ? "Loading…" : null}
-      </PageContainer>
-    );
+  // It used to render `Loading…`, and on the common path — Home's hero has
+  // usually already cached this `TripDetail` (`TripProvider.tsx:109`) — that
+  // painted for about one frame. Mitchell, 2026-09-20: *"just never do the
+  // 'Loading', gate the preview behind a network request to get the data not
+  // having returned, dont even have the loading state. KEep it simple."*
+  //
+  // Both fancier answers were considered and cost more than they return. A
+  // timed gate on the word is a second piece of timing state to own, for a
+  // word. A skeleton of the board's shape is what link 7 actually asks for,
+  // and that is real work rather than a line in a branch — KI-2026-09-20-e.
+  //
+  // `null` and not an empty container: `trips/[tripId]/page.tsx` already owns
+  // the <main> landmark and its padding, so the chrome around this stays
+  // exactly where it was and nothing collapses.
+  if (status === "loading") return null;
   if (status === "unauthenticated") {
     // I3 (final review): this used to be `<Heading level={1}>Caesura</Heading>`
     // plus a bare link to Auth.js's default `/api/auth/signin` — exactly the

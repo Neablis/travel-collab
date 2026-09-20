@@ -18,14 +18,23 @@
   see a flicker of 'Loading' text in top left when i click a trip to open it. It
   happens too quickly to leave a ui comment."*
 
-- **The flicker itself is FIXED; the bare string is what remains.** The flash had
-  a second cause, and it was the one worth fixing first: `TripProvider` starts at
-  `status: "loading"` and reads through `cachedRead`, and Home's hero has usually
-  already fetched the same `TripDetail` for its stats (`TripProvider.tsx:109`),
-  so the promise settles in about a frame. `ui/useSlowLoad.ts` now gates the
-  branch behind 200ms, so the common path renders **nothing at all** rather than
-  a nicer placeholder that would flash exactly as hard — `[data-sk]` starts at
-  `opacity: 1`, so a skeleton alone would not have helped.
+- **The trip board's string is GONE; the other three remain.** Why it flashed:
+  `TripProvider` starts at `status: "loading"` and reads through `cachedRead`,
+  and Home's hero has usually already fetched the same `TripDetail` for its
+  stats (`TripProvider.tsx:109`), so the promise settles in about a frame. The
+  branch now returns `null` — the board is not there until its data is.
+
+  **Two more elaborate fixes were tried or considered and both were worse.** A
+  200ms gate on the word (`useSlowLoad`, since deleted) shipped first and was
+  reverted on Mitchell's call: *"dont even have the loading state. KEep it
+  simple."* It was a second piece of timing state to own, for a word. And a
+  skeleton alone would not have fixed anything — `[data-sk]` starts at
+  `opacity: 1`, so a placeholder flashes exactly as hard as text does.
+
+  Note what that leaves: on a genuinely slow network the trip board now shows
+  nothing at all until the data lands. That is deliberate and it is the right
+  trade at one frame; it is the *wrong* trade at three seconds, and the fix for
+  the three-second case is the skeleton below, not the word coming back.
 
 - **Why link 7 did not cover it.** Link 7's survey enumerated four surfaces —
   Home, Overview, the Notebook index and the Map lens — and all four were built.
