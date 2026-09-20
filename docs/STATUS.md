@@ -40,13 +40,24 @@ Scope, the two waves and the seven still-open questions:
 in that file and is not a preference:** M13 adds a second actor to the surfaces
 M26 is about to rebuild, so the other order rebuilds them twice.
 
-**M26 PROGRESS AS OF 2026-09-19: links 0, 1, 2 and 3 are done; link 4 is half
-done.** Wave 1 has ten links and six remain (4's rendering, then 5–10); Wave 2
-has not started. **Nothing in what has landed has been walked in a browser** —
-every `[walk]` box in the gate is still open, and the e2e and integration lanes
-have not been run on this branch. That is the honest state: the unit suite is
-green at 3193 tests across 229 files, and a green unit suite is not a walked
-screen.
+**M26 PROGRESS AS OF 2026-09-20.** Wave 1: links 0, 1, 2, 3 done; link 4 half
+done (geometry only, no map); links 5–10 not started. **Wave 2: links 11, 12, 14
+and 16 done; 15 is two-thirds done; 13 is last by Mitchell's sequencing and not
+started.**
+
+**The phone is the only part of this that has been opened in a browser**, and it
+is green: `e2e/m26-phone-surfaces.spec.ts`, 8 tests at 411×852 against a
+production build (the `ci-like` lane). Everything Wave 1 built is still
+unwalked — its `[walk]` boxes are open and the desktop e2e lane has not been run
+on this branch. The unit suite is green at 3215 tests across 231 files, and a
+green unit suite is not a walked screen.
+
+**Two things the phone walk is worth reading for.** It found two defects in its
+own first run (specs that never navigated, so they sat at `about:blank`) — the
+product was fine, but nothing had been opened at all before that. And the lint
+wall refused three attempts to assert a phone class swap in jsdom, which is the
+rule working: *a paint claim belongs at 411px, not in a unit test.* Those three
+are now covered in the phone lane.
 
 - **Link 1** — `/account` is a route with three tabs (`?tab=`), Profile · Plan &
   usage · API tokens. `AccountSettingsSheet` is deleted. Tokens gained trip
@@ -61,6 +72,15 @@ screen.
   that says how many days it moves.
 - **Link 4** — geometry only. The map is NOT built; see the milestone file for
   exactly what remains and why it needs a browser.
+- **Wave 2** — `/account` and `/plans` are tasks the phone tab bar steps aside
+  for (`taskOwnsScreen` in `PhoneTabBar.tsx`, which links 14 and 15 reuse);
+  Playbooks has one filter sheet instead of a stack of popovers; the 44px floor
+  is a design-system primitive (`PHONE_TOUCH`) rather than a string exported by
+  a wizard, and it now releases at 767px like every other phone rule rather than
+  at 640px; the Map tab has the offline state §13 designed and it had none of any
+  kind. **Link 15 still owes its `Cancel · New trip · Empty` header** — doing it
+  properly means lifting *Create empty* out of `NewTripConversation` rather than
+  duplicating it, and the milestone says which.
 
 **Two useful things it produced beyond the links themselves:** `ui/underline-tabs.tsx`
 and `ui/settings-card.tsx` are new primitives the later links consume, and the
