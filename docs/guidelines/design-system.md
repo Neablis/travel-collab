@@ -327,6 +327,25 @@ design describes only by size and colour is almost always a design-system
 component used plainly. Check `.design-sync/docs-stubs/<Name>.md` for the prop
 shape before concluding a component is missing.
 
+## Where this build deviates from the handoff on purpose
+
+**Horizontal scrollers use flex with `shrink-0` per child, not a `min-content`
+grid.** SPEC §16 asks for `grid-auto-flow: column; grid-auto-columns:
+min-content` and says so *"because it was got wrong once"* — the failure it is
+guarding against is children that shrink to fit instead of overflowing, which
+turns a scroller into a squashed row.
+
+**Same guarantee, different mechanism.** `flex` + `shrink-0` on each child
+refuses the shrink just as absolutely; the design's wording names one way of
+achieving it rather than the property that matters. Recorded here rather than
+churned, on M26 link 14, so the next parity pass recognises it as a decision
+instead of a miss — and so a reviewer comparing the two files has the answer
+without reading both.
+
+**If you are adding a new scroller:** either mechanism is fine, but the child
+must refuse to shrink. A flex child without `shrink-0` is the actual bug §16 is
+about, and neither spelling protects you from it.
+
 ## Enforcement
 
 Same spirit as the domain purity wall (`docs/guidelines/quality-enforcement.md`):

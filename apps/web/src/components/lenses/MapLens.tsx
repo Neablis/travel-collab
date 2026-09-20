@@ -11,6 +11,7 @@ import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
+import { MapOfflineState } from "./MapOfflineState";
 import { useIsPhone } from "./useIsPhone";
 import { MapFocusCard } from "./MapFocusCard";
 import { MapLegend } from "./MapLegend";
@@ -246,6 +247,13 @@ export function MapLens({
   }, []);
   const mapRef = useRef<import("maplibre-gl").Map | null>(null);
   const [ready, setReady] = useState(false);
+  // **The map could not draw.** SPEC §13 asks the phone's Map tab for an
+  // offline state and this lens had none at all — tiles that never arrived left
+  // a paper rectangle with nothing in it and nothing said about it. `attempt`
+  // is the retry counter: bumping it re-runs the mount effect, which is the
+  // only honest way to retry a MapLibre instance whose style failed.
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const LngLatBoundsRef = useRef<typeof import("maplibre-gl").LngLatBounds | null>(null);
   // Keyed by MapDay.index, so the focus effect below can ghost/un-ghost a
   // day's pins the same way it dims/undims that day's route line — populated
@@ -386,6 +394,19 @@ export function MapLens({
       // just renders empty, which is already the effective behavior when
       // this fires. Kept for "positron" too: no guarantee every future style
       // swap ships every referenced sprite.
+      // **Only a style or source failure counts.** MapLibre's `error` fires for
+      // plenty that is survivable — a single tile 404 in a corner of the
+      // viewport, a missing sprite (handled just below) — and swapping the
+      // whole canvas for a panel because one tile was slow would be its own
+      // defect. A style that never parsed means nothing will ever draw.
+      map.on("error", (event) => {
+        const { error, sourceId } = event as unknown as { error?: { message?: string }; sourceId?: string };
+        const message = error?.message ?? "";
+        if (/sprite|image/i.test(message)) return;
+        if (sourceId === undefined && !/style/i.test(message)) return;
+        setFailed(true);
+      });
+
       map.on("styleimagemissing", (e: { id: string }) => {
         if (map?.hasImage(e.id)) return;
         map?.addImage(e.id, { width: 1, height: 1, data: new Uint8Array(4) });
@@ -528,8 +549,12 @@ export function MapLens({
     // matters for the same reason: the legs are consecutive pairs, so
     // reordering two stops changes which legs exist without changing any
     // coordinate (CodeRabbit, PR #98).
+    // `attempt` is in here so *Try again* actually rebuilds: the effect's
+    // cleanup removes the failed instance and the body constructs a fresh one.
+    // Nothing else re-runs this, which is why a retry could not be a state flag
+    // alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeKey, onSelectActivity, openCreate, readOnly]);
+  }, [routeKey, onSelectActivity, openCreate, readOnly, attempt]);
 
   // Focus-driven OPACITY — routes and markers. Kept separate from the creation
   // effect above so clicking a rail day never tears down and rebuilds the whole
@@ -770,6 +795,24 @@ export function MapLens({
               canvas and returns nothing. Mounted by branch rather than hidden
               by CSS because the rail runs real scroll machinery — see
               useIsPhone for why. */}
+          {/* **The offline state, over the canvas and not instead of it**
+              (SPEC §13). The container stays mounted — a React conditional
+              around it detaches the node mid-style-load and the load aborts
+              with no error, which is DRIFT §6 build-check 5 on its third
+              recurrence — so this is an overlay, and the retry below rebuilds
+              the instance underneath it rather than remounting the div. */}
+          {failed && (
+            <MapOfflineState
+              onRetry={() => {
+                setFailed(false);
+                setAttempt((n) => n + 1);
+              }}
+              // `?view=Plan` is the same URL `PhoneTabBar` points its Plan tab
+              // at — one spelling of "the surface that edits", not two. An
+              // href rather than a push, so this lens needs no router.
+              openPlanHref={`/trips/${detail.tripId}?view=Plan`}
+            />
+          )}
           {isPhone ? (
             <MapDayStrip
               days={days}

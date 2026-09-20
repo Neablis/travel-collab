@@ -1026,13 +1026,27 @@ everyone agrees is temporary is a test that will have to be argued with later.
 - [ ] **A re-measurement of KI-046's own numbers on the surfaces this wave
       owns**, reported as a figure and not as an impression — the entry was
       written from measurement and is amended by measurement. **KI-046 is
-      amended, not closed**, unless link 13 landed.
+      amended, not closed**, unless link 13 landed. **Still open, and it cannot
+      be closed from a class scan.** KI-046's 191-of-211 came from rendered
+      heights in a browser; counting `min-h-11` in the source would be a
+      different claim wearing the same number, which is exactly the
+      "impression, not a figure" this box refuses. It needs the same 411px walk
+      the `[walk]` boxes do.
 - [ ] **[walk]** Link 13 has either given Plan a phone treatment **or** put an
       amendment to §10 in writing — and the text column's width at 390px is
       reported as a **number**, against KI-046's 82px-of-364px. It runs last, so
       this box is the wave's closing one.
-- [ ] The phone Map tab has an offline state: a titled panel, the
-      stops-are-still-readable message, *Try again* and *Open Plan*.
+- [x] The phone Map tab has an offline state: a titled panel, the
+      stops-are-still-readable message, *Try again* and *Open Plan*. **Built
+      2026-09-20** as `lenses/MapOfflineState.tsx`, mounted by `MapLens` behind
+      MapLibre's `error` event. Two things worth knowing: it is an **overlay
+      over the canvas, never a conditional around it** (a React conditional
+      detaches the node mid-style-load and the load aborts silently — DRIFT §6
+      build-check 5, third recurrence), and *Try again* rebuilds by bumping an
+      `attempt` in the mount effect's deps rather than by flipping a flag,
+      because a MapLibre instance whose style failed cannot be retried in
+      place. Link 4's shared-day map mounts this same panel rather than wording
+      a second one differently.
 - [ ] The `phone` Playwright project covers every surface this wave built, and
       **does not** pin link 13's layout while its question is open.
 - [ ] `DRIFT.md` §8 is updated: the stale phone-Notebook bullet struck, and the

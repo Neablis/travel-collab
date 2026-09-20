@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -74,7 +74,8 @@ export function AccountScreen() {
         <Link
           href="/"
           className={cn(
-            buttonVariants({ variant: "ghost", size: "touch" }),
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            PHONE_TOUCH,
             "-ml-3.5 self-start no-underline md:hidden",
           )}
           data-testid="account-done"

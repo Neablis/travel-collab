@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { Sheet, type SheetSize } from "@/components/ui/sheet";
 import { DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Preview } from "@/components/ui/preview";
@@ -53,7 +53,14 @@ import {
  * The 40px chip is deliberately not built: it would be a sixth control height
  * in a scale that has four, to sit 4px under a floor §13.1 says is absolute.
  */
-export const TOUCH = "min-h-11 sm:min-h-0";
+/**
+ * **Moved into the design system** as `PHONE_TOUCH` (M26 link 14) and re-exported
+ * here so existing importers keep working. It was defined in this wizard and
+ * imported by anything that needed a phone floor, which is the wrong owner for
+ * a rule from SPEC §13.1 — and it released at `sm`, leaving 640–767px without a
+ * floor while every other phone rule in this app draws the line at 767.
+ */
+export const TOUCH = PHONE_TOUCH;
 
 export type NewTripWizardProps = {
   open: boolean;

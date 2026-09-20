@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
 import type { AccountPlanChoice, AccountPlanView } from "@/lib/accountPlan";
 import { formatDate, formatPrice } from "@/lib/planCopy";
+import { cn } from "@/lib/cn";
 import { PlanComparison, planBullets, whoItIsFor } from "./PlanComparison";
 
 // **The `plans` route: chooser, confirm, result — one route, no overlay in any
@@ -407,7 +408,7 @@ export function PlansScreen() {
           // (`taskOwnsScreen`), this link is the only navigation on the screen,
           // so it is the last control that should be hard to hit. `inline-flex`
           // + `items-center` so the min-height actually centres its text.
-          className="inline-flex min-h-11 items-center self-start text-sm text-brand no-underline hover:underline md:min-h-0"
+          className={cn("inline-flex items-center self-start text-sm text-brand no-underline hover:underline", PHONE_TOUCH)}
           data-testid="plans-back-link"
         >
           &lsaquo; Account
@@ -580,8 +581,8 @@ function Chooser({
                 for link 14's sweep. */}
             <Button
               variant={choice.held ? "secondary" : "primary"}
-              size="touch"
-              className="mt-auto md:min-h-7 md:min-w-0"
+              size="sm"
+              className={cn("mt-auto", PHONE_TOUCH)}
               disabled={choice.held || !canBuy}
               onClick={() => onChoose(choice.planId)}
               data-testid={`plan-choose-${choice.planId}`}
@@ -723,13 +724,13 @@ function Confirm({
           {/* The confirm step's own pair, same floor and same reason: this is
               where the money actually moves. */}
           <div className="mt-2 flex gap-2">
-            <Button variant="ghost" size="touch" className="md:min-h-7 md:min-w-0" onClick={onBack} disabled={busy}>
+            <Button variant="ghost" size="sm" className={PHONE_TOUCH} onClick={onBack} disabled={busy}>
               Back
             </Button>
             <Button
               variant="primary"
-              size="touch"
-              className="md:min-h-7 md:min-w-0"
+              size="sm"
+              className={PHONE_TOUCH}
               onClick={onConfirm}
               disabled={preview === null || busy}
               data-testid="confirm-pay"
