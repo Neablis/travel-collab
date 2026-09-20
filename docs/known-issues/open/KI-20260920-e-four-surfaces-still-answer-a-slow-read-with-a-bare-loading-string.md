@@ -43,7 +43,17 @@
   plainly because the milestone's gate boxes are ticked and a reader would
   otherwise conclude §3b is finished everywhere.
 
-- **What it would take:** the pieces already exist — `Skeleton`, `SkeletonRegion`
+- **READ `KI-2026-09-20-f` BEFORE BUILDING ANY OF THIS.** That entry measures the
+  cause one level down: 14 of the app's 16 route pages fetch their own data
+  client-side, which is *why* every surface has a window to fill in the first
+  place. If a route's first read moves to the server component that already
+  exists, the window closes and there is nothing left for a skeleton to cover —
+  App Router holds the previous page on screen instead. A skeleton is a good
+  answer to a question this app may not have to ask. Decide between them once,
+  rather than building four placeholders and then deleting them.
+
+- **What it would take** (if the skeleton is still the answer after reading
+  `-f`): the pieces already exist — `Skeleton`, `SkeletonRegion`
   and `RegionError` in `ui/skeleton.tsx`, and `HomeSkeletons.tsx` as the worked
   example. The trip board is the one that earns it first, being the most-opened
   surface in the app; its shape is the header, the view tabs, the day chips and
