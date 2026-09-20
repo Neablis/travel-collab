@@ -71,7 +71,15 @@ the two things a later session should not re-derive:
    `KI-2026-09-20-d` carries the other ~44 and why they were not typed from
    memory. **The test that would have caught it is about CONTENT, not code**,
    and lives in `packages/fixtures` — every unit test of the component passed,
-   because each supplies its own located fixture.
+   because each supplies its own located fixture. The COMPONENT half is now
+   held separately, in a real browser: `e2e/m26-shared-day-map.spec.ts` asserts
+   a `canvas.maplibregl-canvas`, pins numbered as the list numbers them, and
+   `watchMapWorker`'s `loaded`. Two assertions, deliberately not one — the e2e
+   lane migrates a fresh database and never runs `db:seed`, so neither can
+   cover for the other. **Its degrade half was the seventh test in this
+   milestone to assert nothing**, and the first found by breaking the code
+   rather than by reading it: `toHaveCount(0)` on a canvas is satisfied by
+   "not yet", because MapLibre creates it in an effect.
 2. **"Not walkable" is a finding, not a blank.** Two boxes turned out to need
    account state the seed does not produce — a `premium` account for the
    *Chosen trips* token scope, and an account WITHOUT `ai.ask` for the

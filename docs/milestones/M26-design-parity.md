@@ -1009,6 +1009,29 @@ marked **[walk]** and are not satisfiable by a green test.
       in Osaka` has exactly 1, so it is the degrade-to-list-only case, on the
       same Discover page. `packages/fixtures/src/savedDayCoordinates.test.ts`
       holds both and was seen red for each.
+      **And the drawing half is now proven in a real browser**, which nothing
+      anywhere did before: `e2e/m26-shared-day-map.spec.ts` builds its own
+      located day through the ordinary `AddActivity` command, then asserts a
+      `canvas.maplibregl-canvas`, two pins numbered **1 and 3** (the middle stop
+      is unlocated, so the second PIN is the third STOP), and
+      `watchMapWorker`'s `loaded` — the last because a map that draws its
+      chrome over a basemap which never decoded a tile is a build that reached
+      production once already. This lane migrates a fresh database and does not
+      run `db:seed`, so it holds the COMPONENT while
+      `savedDayCoordinates.test.ts` holds the CONTENT; the two are deliberately
+      not one assertion.
+      **Both halves were seen red, and one was asserting nothing.** Raising
+      `MIN_POINTS_TO_DRAW` to 3 reddens the draw case. Lowering it to 1 should
+      have reddened the degrade case and did NOT — `toHaveCount(0)` on a canvas
+      is satisfied by *"not yet"*, because MapLibre creates it in an effect. It
+      asserts the absence of the `shared-day-map` CONTAINER now, which renders
+      in the same commit as the list, and that version does go red. **Seventh
+      test in this milestone to assert nothing, and the first one found by
+      breaking the code rather than by reading it.**
+      One more, found by the lane within a single run: the worker assertion was
+      `expect(worker.outcome()).toBe("loaded")`, read once, which raced the
+      response and went flaky. The helper's own doc says to poll it and
+      `m10-map-rail.spec.ts` already did.
       **Left `[~]` rather than ticked**, because the other ~44 stops are still
       unlocated and this session had no geocoder to fix them with — the
       container's gateway answers 403 to `CONNECT
