@@ -22,6 +22,28 @@ const pending = new Set(JSON.parse(readFileSync("scripts/design-wall-pending.jso
 // shrinks either (KI-51 records the distinction). Keep this list to files
 // that are wizard/codegen output, never a convenient place to park a raw
 // color someone didn't want to fix.
+// The colour-space conversion and its test, where a literal is the SUBJECT
+// rather than a design decision. `mapColor.ts` converts `oklch()` into
+// `#rrggbb` because MapLibre parses CSS Color 3 only and renders anything else
+// black in silence (KI-2026-09-19-f); its test anchors on the three published
+// sRGB primaries, which are the only values that make it more than a tautology.
+//
+// A FOURTH list, kept apart from `pending` (which only shrinks) and
+// `generatedNonProduct` (which never does) for the reason KI-51 records: lists
+// with different rules that get merged stop meaning anything. This one is
+// closed — the wall's point is that no OTHER file gets to decide a colour, and
+// a module that exists to produce colour strings is not an exception to that,
+// it is the mechanism by which tokens reach a surface that cannot read them.
+const colorMath = new Set([
+  "apps/web/src/components/lenses/mapColor.ts",
+  "apps/web/src/components/lenses/mapColor.test.ts",
+  // Asserts that every token in `globals.css` still lands on CSS Color 3 after
+  // conversion, which means naming the ACCEPTED SHAPES in a regex — and a
+  // character class spelling `#[0-9a-f]{3,8}` reads to this wall exactly like
+  // the hex literal it is built to reject.
+  "apps/web/src/components/lenses/mapTokens.test.ts",
+]);
+
 const generatedNonProduct = new Set([
   // Sentry's `npx @sentry/wizard` scaffold — a throwaway route for verifying
   // error capture, not a page a user ever sees. Its `<style jsx>` block ships
@@ -46,7 +68,13 @@ const files = [
   ),
 ]
   .sort()
-  .filter((f) => f !== "apps/web/src/app/globals.css" && !pending.has(f) && !generatedNonProduct.has(f));
+  .filter(
+    (f) =>
+      f !== "apps/web/src/app/globals.css" &&
+      !pending.has(f) &&
+      !generatedNonProduct.has(f) &&
+      !colorMath.has(f),
+  );
 
 // A `#` followed by 3-8 hex digits is only unambiguously a color when at least
 // one of those digits is a letter (`#0c6b58`, `#FFF`) — that case is always a
@@ -283,7 +311,7 @@ for (const file of files) {
 }
 if (failed) process.exit(1);
 console.log(
-  `color wall OK (${files.length} files scanned, ${pending.size} pending re-skin, ${generatedNonProduct.size} generated non-product excluded)`,
+  `color wall OK (${files.length} files scanned, ${pending.size} pending re-skin, ${generatedNonProduct.size} generated non-product, ${colorMath.size} color-math excluded)`,
 );
 console.log(
   `token wall OK (${colorTokens.size} color tokens, ${textSizeTokens.size} text sizes, ${Object.keys(nonColorUtility).length} namespaces checked)`,

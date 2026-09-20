@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useState } from "react";
 import type { SavedDay } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
+import { SharedDayMap } from "./SharedDayMap";
 import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -387,6 +388,19 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               />
             </div>
           )}
+
+          {/* SPEC §16 — **a shared day is a map plus a list.** It was only ever
+              the list until now; `sharedDayGeometry.ts` had been written for
+              this and had no production consumer (Mitchell, preview walk,
+              2026-09-20).
+
+              It sits ABOVE the list and BELOW the day tabs on purpose: the
+              tabs scope both surfaces at once, and a reader who taps `Day 2`
+              expects the map to follow the list rather than the two to
+              disagree. `SharedDayMap` renders nothing at all when fewer than
+              two stops have coordinates — §16's degrade-to-list-only — so
+              there is no empty canvas to guard against here. */}
+          <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} />
 
           {day.stops.length === 0 ? (
             <EmptyState

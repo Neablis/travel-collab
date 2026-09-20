@@ -40,10 +40,24 @@ Scope, the two waves and the seven still-open questions:
 in that file and is not a preference:** M13 adds a second actor to the surfaces
 M26 is about to rebuild, so the other order rebuilds them twice.
 
-**M26 PROGRESS AS OF 2026-09-20.** Wave 1: links 0, 1, 2, 3 done; link 4 half
-done (geometry only, no map); links 5–10 not started. **Wave 2: links 11, 12, 14
-and 16 done; 15 is two-thirds done; 13 is last by Mitchell's sequencing and not
-started.**
+**M26 PROGRESS AS OF 2026-09-20.** Wave 1: links 0, 1, 2, 3 done; **link 4's
+shared-day map now draws** (see below); links 5–10 not started. **Wave 2: links
+11, 12, 14 and 16 done; 15 is two-thirds done; 13 is last by Mitchell's
+sequencing and not started.**
+
+**LINK 4 WAS "HALF DONE" IN A WAY WORTH NAMING, because the shape recurs.**
+`sharedDayGeometry.ts` — the pure half: which points exist, which legs join
+them, no leg across a night — shipped in link 12 with a full unit test and **no
+production consumer at all.** A shared Playbook day rendered a 675-line list and
+no map. Every test passed the whole time, because **not one fixture in the repo
+had coordinates on a stop**, so the drawing code was never reached by anything.
+Mitchell found it by opening the preview (2026-09-20); no suite was ever going
+to. `SharedDayMap.tsx` is the consumer, and the fixtures now include located
+stops.
+
+The lesson is narrower than "walk the preview": **a pure module with no caller
+is not half a feature, it is zero of one**, and it reads as progress on a status
+page in a way that a missing screen does not.
 
 **The phone is the only part of this that has been opened in a browser**, and it
 is green: `e2e/m26-phone-surfaces.spec.ts`, 8 tests at 411×852 against a

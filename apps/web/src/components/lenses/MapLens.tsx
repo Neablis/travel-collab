@@ -11,6 +11,7 @@ import { activityPins, unlocatedActivities } from "./mapData";
 import { mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
+import { mapPaintColor } from "./mapColor";
 import { MapOfflineState } from "./MapOfflineState";
 import { useIsPhone } from "./useIsPhone";
 import { MapFocusCard } from "./MapFocusCard";
@@ -37,8 +38,21 @@ const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 // so the CSP's `worker-src 'self'` already covers it (next.config.ts).
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 
+// KI-2026-09-19-f: this value reaches MapLibre's `"line-color"` (twice) and
+// `new Marker({ color })`, and MapLibre parses CSS Color 3 only — anything else
+// renders BLACK in silence, with no exception, no console warning and no failed
+// layer. `getComputedStyle` PRESERVES `oklch()` verbatim, so reading the token
+// and passing the string on is the shape `.design-sync/handoff/DRIFT.md` §6
+// build-check 2 names as the thing that looks like a fix and is not.
+//
+// This was correct only by accident: every accent token in `globals.css`
+// happens to be hex today, a policy stated in a CSS comment at :213-214 with
+// nothing enforcing it — while SPEC §28's Ledger look bumps "tint chroma and
+// the solid", which is the natural thing to write in `oklch`. `mapPaintColor`
+// converts arithmetically, so the token may now be written in either.
 function accentVar(accent: MapDay["accent"]): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`).trim();
+  const token = getComputedStyle(document.documentElement).getPropertyValue(`--color-${accent}`);
+  return mapPaintColor(token);
 }
 
 // The day accent, set once on a disc's own element and inherited by its fill,
