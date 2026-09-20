@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { presetCatalog } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import type { WidgetShape } from "@tc/contracts";
@@ -292,6 +292,12 @@ export function WidgetPicker({
   const setFilter = controlled ? onFilterChange : setOwnFilter;
   const setQuery = (next: string) => setFilter({ query: next, shape });
   const setShape = (next: ShapeFilter) => setFilter({ query, shape: next });
+  // One slot per kind cell, so an arrow press can move focus to the cell it
+  // just selected. A ref rather than a query, because the group is this
+  // component's own markup and `document.querySelector` would reach across any
+  // second picker mounted at the same time (desktop rail + phone sheet during
+  // a resize).
+  const kindRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const widgets = useMemo(() => presetCatalog(), []);
   const shown = widgets.filter((w) => widgetMatches(w, query) && (shape === null || w.shape === shape));
 
@@ -343,16 +349,58 @@ export function WidgetPicker({
             draws a control with its own ground and border, and this needs to be
             a transparent target that becomes a brand tint when chosen. Same
             reason `MapRail` reaches for one. */}
+        {/* **A radiogroup owes arrow keys and ONE tab stop, and this owed both.**
+            CodeRabbit on PR 198. `role="radio"` is a promise about behaviour,
+            not a label: WAI-ARIA says a radio group is a single stop in the tab
+            order, moved through with the arrows, and four plain `<button>`s
+            gave four stops and no arrows — so a keyboard user tabbed through
+            every kind to reach the list, and a screen-reader user was told
+            "radio" by a control that did not act like one.
+
+            Roving `tabIndex` is the standard answer: the chosen cell is the
+            group's tab stop, the rest are reachable only by arrow. Native
+            `<input type="radio">` would carry all of this for free and is what
+            the ARIA practices suggest first — it is not usable here because the
+            control is a 26x18 pictogram over a label, and an input cannot be
+            the box that paints it without the appearance reset and label
+            plumbing costing more than the handler below. */}
         <div role="radiogroup" aria-label="How it reads" className="grid grid-cols-4 gap-1">
-          {FILTERS.map((f) => {
+          {FILTERS.map((f, i) => {
             const on = shape === f.value;
+            // Arrows wrap, which is what a radio group does: `+ length` before
+            // the modulo because JavaScript's `%` keeps the sign of its left
+            // operand, so a plain `(i - 1) % 4` at the first cell gives -1
+            // rather than the last.
+            const moveTo = (next: number) => {
+              const target = FILTERS[(next + FILTERS.length) % FILTERS.length]!;
+              setShape(target.value);
+              // Selection follows focus here, so focus has to follow with it or
+              // the next arrow press would start from the cell left behind.
+              kindRefs.current[(next + FILTERS.length) % FILTERS.length]?.focus();
+            };
             return (
               // eslint-disable-next-line no-restricted-syntax -- a radio drawn as an icon over a label; every Button variant brings its own ground and border, and this target has to be transparent until chosen
               <button
                 key={f.label}
+                ref={(el) => {
+                  kindRefs.current[i] = el;
+                }}
                 type="button"
                 role="radio"
                 aria-checked={on}
+                // The roving half: exactly one cell is in the tab order.
+                tabIndex={on ? 0 : -1}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowRight" || e.key === "ArrowDown") moveTo(i + 1);
+                  else if (e.key === "ArrowLeft" || e.key === "ArrowUp") moveTo(i - 1);
+                  else if (e.key === "Home") moveTo(0);
+                  else if (e.key === "End") moveTo(FILTERS.length - 1);
+                  else return;
+                  // Only for the keys actually handled — a blanket
+                  // `preventDefault` here would eat the page's own scrolling
+                  // and the editor's shortcuts.
+                  e.preventDefault();
+                }}
                 title={f.hint}
                 className={cn(
                   "flex cursor-pointer flex-col items-center gap-1.5 rounded-md px-1 pt-2 pb-1.5 transition-colors",

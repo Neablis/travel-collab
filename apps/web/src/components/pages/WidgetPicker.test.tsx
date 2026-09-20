@@ -212,6 +212,58 @@ describe("WidgetPicker", () => {
       }
     });
 
+    // **A radiogroup is one tab stop moved through with the arrows** (WAI-ARIA),
+    // and this was four tab stops with no arrows — `role="radio"` promising a
+    // behaviour the control did not have. CodeRabbit, PR 198.
+    //
+    // Asserted through what a keyboard actually does, not through `tabIndex`
+    // attributes: press the key, see the selection and the list move. The
+    // roving half is asserted separately below, because "only one is tabbable"
+    // is the part a key press cannot show.
+    it("moves between kinds with the arrow keys, and wraps at both ends", async () => {
+      render(<WidgetPicker onPick={vi.fn()} />);
+      const group = within(filters());
+      group.getByRole("radio", { name: "All" }).focus();
+
+      await userEvent.keyboard("{ArrowRight}");
+      expect(group.getByRole("radio", { name: "Inline", checked: true })).toBeTruthy();
+      // The list follows the selection — otherwise the arrows would move a
+      // highlight around without filtering anything.
+      expect(rows().length).toBeLessThan(catalogue.length);
+
+      await userEvent.keyboard("{End}");
+      expect(group.getByRole("radio", { name: "List", checked: true })).toBeTruthy();
+
+      // Wrapping, in the direction that used to give `-1 % 4 === -1`.
+      await userEvent.keyboard("{ArrowRight}");
+      expect(group.getByRole("radio", { name: "All", checked: true })).toBeTruthy();
+      await userEvent.keyboard("{ArrowLeft}");
+      expect(group.getByRole("radio", { name: "List", checked: true })).toBeTruthy();
+
+      await userEvent.keyboard("{Home}");
+      expect(group.getByRole("radio", { name: "All", checked: true })).toBeTruthy();
+      expect(rows()).toHaveLength(catalogue.length);
+    });
+
+    // The other half of the ARIA contract: the group is ONE stop in the tab
+    // order, so tabbing past it must not walk through four controls. Asserted
+    // as "one tabbable radio, and it is the chosen one" — the property the
+    // roving index exists to keep, rather than the attribute that implements it.
+    it("is a single tab stop, on whichever kind is chosen", async () => {
+      render(<WidgetPicker onPick={vi.fn()} />);
+      const tabbable = () =>
+        within(filters())
+          .getAllByRole("radio")
+          .filter((r) => r.tabIndex === 0);
+
+      expect(tabbable()).toHaveLength(1);
+      expect(tabbable()[0]!.textContent).toContain("All");
+
+      await userEvent.click(within(filters()).getByRole("radio", { name: "Block" }));
+      expect(tabbable()).toHaveLength(1);
+      expect(tabbable()[0]!.textContent).toContain("Block");
+    });
+
     it("says the list is empty because of the kind, not because of a search", async () => {
       render(<WidgetPicker onPick={vi.fn()} />);
       await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "budget");

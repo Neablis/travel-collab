@@ -208,6 +208,115 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   await expect(page.getByTestId("widget-settings")).toBeVisible();
 }
 
+// **The rail is a flex sibling now, so it TAKES 320px the popover never did.**
+// CodeRabbit on PR 198, asking for cover at 768 / 852 / 1024: the popover was
+// portalled and cost the document nothing, and a column that shrinks the
+// measure is a different bet at a width where the measure is already tight.
+//
+// The widths are picked as the argument rather than as round numbers, and the
+// first draft of this test got them wrong in a way worth recording: it read
+// `useIsPhone`'s docstring ("`true` below 768px") instead of its constant, and
+// asserted the phone path at 768. **`PHONE_MAX_WIDTH_PX` is 767**, so the query
+// is `max-width: 767px` and 768 is already a desktop — the test failed against
+// a real build asserting a trigger that correctly was not there. Measured, not
+// reasoned: `matchMedia("(max-width: 768px)")` is true at 768, which is what
+// made the docstring's wording so easy to trust.
+//
+// So: **768** is the first width that gets a rail and therefore the worst case
+// in the whole range — the narrowest document this layout can produce — and it
+// is also one of the three widths CodeRabbit named. 852 and 1024 are the other
+// two; 1280 is the default the rest of this file runs at.
+//
+// **The phone side of the line is deliberately NOT here.** A first draft walked
+// 767 too, to prove the sheet still owns it, and it failed in
+// `openNotebookIndex` — at phone width the notebook is reached differently, so
+// the test spent its time re-deriving a navigation that
+// `m14-mobile-notebook.spec.ts` already walks properly in the phone project.
+// Widening a rail test until it re-covers the phone surface is how a spec stops
+// being about anything; the phone path has an owner and this is not it.
+//
+// KI-046 already records that below 1100px the desktop layout does not hold and
+// that no design covers the tablet gap. This test does NOT claim that gap is
+// closed. It claims the narrower thing that is this PR's to own: the rail does
+// not push the page into a horizontal scroll, and it does not sit on top of the
+// document.
+// **WHAT THIS TEST CATCHES, MEASURED RATHER THAN HOPED.** Four breaks were
+// tried against a real build before it was called done, and the result is
+// uneven enough to be worth writing down:
+//
+// | break | result |
+// |---|---|
+// | rail `w-80` -> `w-96` | **FAILS** — "rail width at 768px / Expected: 320 / Received: 384" |
+// | drop `shrink-0` from the rail | passes |
+// | drop `min-w-0` from the document Card | passes |
+// | drop `min-w-0` AND `overflow-hidden` from it | passes |
+//
+// So the geometry assertions are real and wired to the DOM, and the OVERFLOW
+// and OVERLAP assertions are guards nobody has seen fail. They are kept because
+// they are the claim CodeRabbit asked for and they cost nothing to evaluate —
+// but do not read a green run here as proof that the document column's
+// `min-w-0` or `overflow-hidden` still matter. They are load-bearing somewhere
+// this test cannot see, and the three passes above say so plainly.
+test("the rail takes its 320px without overflowing the page, at every width that has one", async ({ page }) => {
+  await tripWithTwoDays(page);
+
+  // **Navigate once, wide, then resize.** Two earlier drafts navigated at each
+  // width and both died in `openNotebookIndex` — at 768 the app's own chrome
+  // has already collapsed and the "Notebooks" button is not clickable, which is
+  // `KI-046`'s tablet gap ("below 1100px the desktop layout does not hold") and
+  // is emphatically not this PR's to fix or to assert.
+  //
+  // The subject here is LAYOUT, not navigation: does a 320px flex sibling break
+  // the page at a narrow width. Resizing an already-open editor measures
+  // exactly that and nothing else. It also matches how a person meets this —
+  // they do not load a notebook at 768, they drag a window narrower.
+  await openSeededPage(page);
+
+  for (const width of [768, 852, 1024, 1280] as const) {
+    await page.setViewportSize({ width, height: 900 });
+
+    const rail = page.getByRole("complementary");
+    // `poll`, not a bare read: a resize settles over a frame, and the whole
+    // point of this test is the number AFTER it settles.
+    await expect
+      .poll(() => rail.evaluate((el) => el.getBoundingClientRect().width), {
+        message: `rail width at ${width}px`,
+      })
+      .toBe(320);
+
+    // **No horizontal scrollbar.** The one thing a 320px column can do to a
+    // narrow page that a portalled popover could not.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          ),
+        { message: `horizontal overflow at ${width}px` },
+      )
+      .toBeLessThanOrEqual(0);
+
+    // **And no overlap.** `flex` should make this impossible, but "impossible"
+    // is what a `min-w-0` missing from one child quietly changes, and the
+    // failure mode is the rail sitting ON the prose rather than beside it.
+    const [docBox, railBox] = await Promise.all([
+      page.locator(".tc-page-editor").boundingBox(),
+      rail.boundingBox(),
+    ]);
+    expect(docBox, `document at ${width}px`).not.toBeNull();
+    expect(railBox, `rail at ${width}px`).not.toBeNull();
+    expect(docBox!.x + docBox!.width, `document overlaps the rail at ${width}px`).toBeLessThanOrEqual(
+      railBox!.x,
+    );
+
+    // The editor is still usable, which is the other half of what CodeRabbit
+    // asked: the rail's own search box is on screen and the prose is not
+    // squeezed to nothing.
+    await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeVisible();
+    expect(docBox!.width, `document width at ${width}px`).toBeGreaterThan(200);
+  }
+});
+
 test("insert a widget from the widget list, narrow it to a day, and reload to find it there", async ({ page }) => {
   await tripWithTwoDays(page);
   await openSeededPage(page);
