@@ -4,6 +4,22 @@ import { DATABASE_URL } from "./src/server/config";
 import { E2E_SUPER_CODE } from "./e2e/admission";
 import { E2E_ADMIN_USER_ID } from "./e2e/adminBootstrap";
 
+// **The phone-only specs, named once.**
+//
+// These run in the "phone" project and nowhere else. Keeping the two halves of
+// that as separate hand-written lists — a `testMatch` here and a `testIgnore`
+// on "desktop" — is a standing trap, and the config used to say so in a
+// comment: *"That is what happened the first time `m14-mobile-notebook`
+// landed: it passed in 'phone' and failed twice in 'desktop', looking for a
+// bind sheet a desktop correctly does not have."*
+//
+// It then happened AGAIN, identically, when `m26-phone-surfaces` landed
+// (2026-09-20, PR 196): added to the phone `testMatch`, not to the desktop
+// `testIgnore`, six failures in "desktop" looking for phone chrome. A comment
+// warning you to keep two lists in step is not a mechanism. This is.
+const PHONE_ONLY_SPECS = ["m16-mobile-assistant", "m14-mobile-notebook", "m26-phone-surfaces"] as const;
+const PHONE_ONLY = new RegExp(`(${PHONE_ONLY_SPECS.join("|")})\\.spec\\.ts`);
+
 export default defineConfig({
   testDir: "./e2e",
   // `line` in both lanes; locally a second reporter appends the lane warning
@@ -89,12 +105,11 @@ export default defineConfig({
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 }, storageState: ".auth/alice.json" },
       dependencies: ["setup"],
-      // Every breakpoint-specific spec, or the desktop project runs it too — at
-      // 1280px, where the phone branch it is about does not exist. That is what
-      // happened the first time `m14-mobile-notebook` landed: it passed in
-      // "phone" and failed twice in "desktop", looking for a bind sheet a
-      // desktop correctly does not have. The two lists have to be kept in step.
-      testIgnore: [/responsive\.spec\.ts/, /m16-mobile-assistant\.spec\.ts/, /m14-mobile-notebook\.spec\.ts/],
+      // Breakpoint-specific specs are excluded here, or the desktop project
+      // runs them too — at 1280px, where the phone branch they are about does
+      // not exist. **Both sides come from `PHONE_ONLY_SPECS` above**, so the
+      // two lists cannot fall out of step; they are one list.
+      testIgnore: [/responsive\.spec\.ts/, PHONE_ONLY],
     },
     {
       name: "narrow",
@@ -119,7 +134,7 @@ export default defineConfig({
       // That spec deliberately does not touch Plan. Link 13's surface question
       // is open, and a test written over a state everyone agrees is temporary is
       // one that has to be argued with later.
-      testMatch: /(m16-mobile-assistant|m14-mobile-notebook|m26-phone-surfaces)\.spec\.ts/,
+      testMatch: PHONE_ONLY,
     },
   ],
   webServer: {

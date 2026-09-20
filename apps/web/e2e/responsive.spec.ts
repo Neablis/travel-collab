@@ -172,7 +172,12 @@ test.describe("responsive (narrow viewport)", () => {
     expect(kept.ok()).toBe(true);
 
     await page.goto("/playbooks");
-    await page.getByRole("radio", { name: "Yours" }).click();
+    // `role="tab"`, not `role="radio"`: M26 link 2a turned Discover's scope
+    // into `UnderlineTabs` (§33.2 — an underline says "a different page of
+    // this thing"). This line was the only e2e lookup that change broke; the
+    // remaining `getByRole("radio")` calls are account preferences, which are
+    // still a real radio group.
+    await page.getByRole("tab", { name: "Yours" }).click();
     await expect(page.getByTestId("discover-results")).toBeVisible();
 
     const columns = () =>
