@@ -11,6 +11,15 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
 }));
 
+// Who is reading, which is what decides whether a card's menu offers Delete or
+// *Leave this trip* (M26 link 6b). `getSessionMock` is reset per test to the
+// owner, so every existing test keeps the menu it was written against.
+const getSessionMock = vi.fn();
+vi.mock("next-auth/react", () => ({
+  getSession: () => getSessionMock(),
+  signOut: vi.fn(async () => {}),
+}));
+
 import Home from "./page";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
@@ -22,7 +31,7 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
     tripId,
     name: "Japan",
     status: "active",
-    members: [{ userId: "dev-alice", role: "owner" }],
+    members: [{ userId: OWNER_ID, role: "owner" }],
     createdAt: "2026-07-08T12:00:00.000Z",
     ...overrides,
   };
@@ -42,9 +51,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const OWNER_ID = "dev-alice";
+
 beforeEach(() => {
   pushMock.mockReset();
   replaceMock.mockReset();
+  getSessionMock.mockReset();
+  getSessionMock.mockResolvedValue({ user: { id: OWNER_ID } });
 });
 
 describe("Home trip actions", () => {
@@ -1075,5 +1088,104 @@ describe("Home — the states between asked and answered", () => {
 
     expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
     expect(screen.queryByTestId("home-trips-error")).toBeNull();
+  });
+});
+
+// M26 link 6b, SPEC §27: "a trip someone shared with you offers Leave this
+// trip". Before this the menu offered Delete unconditionally, so a guest was
+// shown a verb `MINIMUM_ROLE.DeleteTrip` refuses — a control that appears to do
+// something and gives a silent nothing.
+describe("Home — Delete or Leave, never the wrong one", () => {
+  const GUEST_ID = "dev-bob";
+  const shared = () =>
+    tripSummaryFixture({
+      name: "Kyoto",
+      members: [
+        { userId: OWNER_ID, role: "owner" },
+        { userId: GUEST_ID, role: "editor" },
+      ],
+    });
+
+  function stubTrips(trip: TripSummary, onLeave?: (url: string, init?: RequestInit) => Response) {
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/membership") && onLeave) return onLeave(url, init);
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [trip] });
+      if (url.includes(`/api/trips/${tripId}`)) {
+        return jsonResponse({ detail: tripDetailFixture({ tripId, name: trip.name }), history: historyFixture(tripId) });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  }
+
+  it("offers Delete on a trip you own", async () => {
+    stubTrips(tripSummaryFixture());
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: /leave this trip/i })).toBeNull();
+  });
+
+  it("offers Leave this trip, and no Delete, on a trip shared with you", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared());
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    expect(screen.getByRole("menuitem", { name: /leave this trip/i })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).toBeNull();
+  });
+
+  it("leaving drops the card and calls the membership endpoint, not a command", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared(), () => jsonResponse({ ok: true }));
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
+
+    await waitFor(() => expect(screen.queryByRole("link", { name: /kyoto/i })).toBeNull());
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(`/api/trips/${tripId}/membership`),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    // Leaving is not a planning command — no event, nothing in the trip's
+    // history, nothing for the optimistic queue to predict (ADR-003).
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/commands"),
+      expect.anything(),
+    );
+  });
+
+  // The difference between the two verbs, not an omission: §27's toast exists
+  // because Delete is destructive and `RestoreTrip` can undo it. Leaving
+  // destroys nothing, and no verb puts you back on somebody else's trip — only
+  // its owner can re-invite you. An Undo here could not keep its promise.
+  it("offers no undo toast for leaving", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared(), () => jsonResponse({ ok: true }));
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
+
+    await waitFor(() => expect(screen.queryByRole("link", { name: /kyoto/i })).toBeNull());
+    expect(screen.queryByRole("button", { name: /undo/i })).toBeNull();
+  });
+
+  it("puts the card back and says why when the server refuses", async () => {
+    getSessionMock.mockResolvedValue({ user: { id: GUEST_ID } });
+    stubTrips(shared(), () => jsonResponse({ error: "You are not a member of this trip." }, 404));
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for kyoto/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /leave this trip/i }));
+
+    expect(await screen.findByText("You are not a member of this trip.")).toBeTruthy();
+    // The optimistic removal is undone — a card that vanished on a failed
+    // request is a trip the reader now believes they are off.
+    expect(screen.getByRole("link", { name: /kyoto/i })).toBeTruthy();
   });
 });

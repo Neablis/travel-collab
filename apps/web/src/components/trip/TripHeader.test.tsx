@@ -138,92 +138,34 @@ describe("TripHeader trip settings entry point", () => {
   });
 });
 
-describe("TripHeader delete/undo (A15)", () => {
-  async function deleteViaSettings() {
+// **M26 link 6a: there is no delete on this screen, so there is no toast.**
+//
+// A15 built this level's undo toast because `SettingsSheet`'s own subtree
+// unmounts on a successful delete and could not host one. With Delete moved to
+// the trip card's popover on Home (SPEC §34.2, §27, DRIFT D13), Home's own
+// toast — which has always been there, one level up — is the only one, and the
+// four tests that stood here went with the feature.
+//
+// They are replaced by the claim worth holding rather than simply deleted: a
+// reader who puts Delete back in the settings sheet would otherwise get a
+// silently toastless screen, which is the A15 defect in reverse.
+//
+// The A15-fix reconciliation those tests also covered (applying the delete's
+// own `CommandOutcome` so `trip.status` does not stay "active" against deleted
+// server state) is not lost, only out of reach: nothing on this screen can
+// delete this trip any more, so there is no window for the staleness to open.
+describe("TripHeader — deleting is not done from here (M26 link 6a)", () => {
+  it("offers no Delete inside Trip settings, and raises no delete toast", async () => {
+    await renderHeader();
     await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^delete trip$/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-  }
 
-  it("raises an undo toast after a confirmed delete", async () => {
-    await renderHeader();
-    await deleteViaSettings();
-
-    await waitFor(() =>
-      expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "DeleteTrip", tripId: "x" }),
-    );
-    const toast = await screen.findByTestId("toast");
-    expect(toast.textContent).toMatch(/deleted "japan"/i);
-  });
-
-  it("undo dispatches RestoreTrip and dismisses the toast", async () => {
-    await renderHeader();
-    await deleteViaSettings();
-
-    const toast = await screen.findByTestId("toast");
-    // Scoped to the toast: TripHeader's own UndoRedoControls also has a
-    // button named "Undo" for history undo, unrelated to this toast's action.
-    await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
-
-    await waitFor(() =>
-      expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "RestoreTrip", tripId: "x" }),
-    );
-    await waitFor(() => expect(screen.queryByTestId("toast")).toBeNull());
-    expect(pushMock).not.toHaveBeenCalled();
-  });
-
-  it("dismissing without undo navigates back to the trip list", async () => {
-    await renderHeader();
-    await deleteViaSettings();
-
-    const toast = await screen.findByTestId("toast");
-    await userEvent.click(within(toast).getByRole("button", { name: /dismiss/i }));
-
-    expect(pushMock).toHaveBeenCalledWith("/");
-  });
-
-  // A15-fix: SettingsSheet.handleDelete() only forwarded {tripId, name} to
-  // onDeleted, never the DeleteTrip CommandOutcome — TripHeader never called
-  // applyOutcome for the delete itself (only for RestoreTrip/undo above), so
-  // TripProvider's trip.status stayed "active" in local state for the whole
-  // toast window even though the trip was already deleted server-side, and
-  // the board (rename, undo/redo, day/activity edits, Settings) stayed fully
-  // interactive against that stale state. Confirming this reconciles
-  // immediately — not deferred until the toast closes — is the point of this
-  // test.
-  it("reconciles trip.status to \"deleted\" immediately after a confirmed delete, before the toast closes", async () => {
-    sendTripCommandMock.mockImplementation((command: { type: string }) => {
-      if (command.type === "DeleteTrip") {
-        return Promise.resolve({
-          ok: true,
-          value: {
-            detail: tripDetailFixture({ tripId: "x", name: "Japan", status: "deleted" }),
-            history: historyFixture("x"),
-          },
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        value: {
-          detail: tripDetailFixture({ tripId: "x", name: "Japan 2027" }),
-          history: historyFixture("x"),
-        },
-      });
-    });
-
-    await renderHeader();
+    expect(screen.queryByRole("button", { name: /^delete trip$/i })).toBeNull();
+    expect(screen.queryByTestId("toast")).toBeNull();
+    // The trip is still active, and nothing asked the server otherwise.
     expect(screen.getByTestId("tripStatus").textContent).toBe("active");
-
-    await deleteViaSettings();
-
-    await waitFor(() =>
-      expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "DeleteTrip", tripId: "x" }),
+    expect(sendTripCommandMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "DeleteTrip" }),
     );
-    // The undo toast is still up (its 8s auto-dismiss hasn't fired, and this
-    // test never advances any timers) — but trip.status already reflects the
-    // delete, proving the reconciliation isn't waiting on the toast to close.
-    expect(await screen.findByTestId("toast")).toBeTruthy();
-    await waitFor(() => expect(screen.getByTestId("tripStatus").textContent).toBe("deleted"));
   });
 });
 

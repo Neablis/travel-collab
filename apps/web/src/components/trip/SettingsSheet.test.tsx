@@ -62,7 +62,6 @@ const defaultSpend: TripSpend = {
 // with an optional onCommand override so the Dates-row wiring tests can
 // capture what the sheet forwards, without inventing a second render helper.
 function renderSheet(
-  onDeleted = vi.fn(),
   overrides: {
     spend?: TripSpend;
     forkedFrom?: TripDetail["forkedFrom"];
@@ -97,10 +96,9 @@ function renderSheet(
       createdAt={overrides.createdAt ?? "2026-08-31T14:20:00.000Z"}
       {...{ myRole: "myRole" in overrides ? overrides.myRole! : "owner" }}
       onCommand={onCommand}
-      onDeleted={onDeleted}
     />,
   );
-  return { onDeleted, onCommand };
+  return { onCommand };
 }
 
 // New helper for the redesign's own coverage (brief's Step 1 snippets) — a
@@ -115,7 +113,7 @@ function renderSettings(
     remaining,
     over: remaining !== null && remaining < 0,
   };
-  renderSheet(vi.fn(), { spend });
+  renderSheet({ spend });
 }
 
 // Renaming lives here now: PR #55's preview feedback removed the header's
@@ -124,7 +122,7 @@ function renderSettings(
 describe("SettingsSheet rename", () => {
   it("dispatches SetTripName on blur", async () => {
     const onCommand = vi.fn();
-    renderSheet(vi.fn(), { onCommand });
+    renderSheet({ onCommand });
 
     const field = screen.getByLabelText("Trip name");
     await userEvent.clear(field);
@@ -141,7 +139,7 @@ describe("SettingsSheet rename", () => {
   // renamed.
   it("shows the saved name, not the raw text, when the input had surrounding whitespace", async () => {
     const onCommand = vi.fn();
-    renderSheet(vi.fn(), { onCommand });
+    renderSheet({ onCommand });
 
     const field = screen.getByLabelText("Trip name");
     await userEvent.clear(field);
@@ -160,7 +158,7 @@ describe("SettingsSheet rename", () => {
     ["whitespace only", "   "],
   ])("sends nothing and restores the field when the name is %s", async (_label, typed) => {
     const onCommand = vi.fn();
-    renderSheet(vi.fn(), { onCommand });
+    renderSheet({ onCommand });
 
     const field = screen.getByLabelText("Trip name");
     await userEvent.clear(field);
@@ -208,7 +206,7 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
       remaining: null,
       over: false,
     };
-    renderSheet(vi.fn(), { spend: noBudgetSpend });
+    renderSheet({ spend: noBudgetSpend });
     expect(screen.queryByTestId("budget-meter-fill")).toBeNull();
     expect(screen.getByText("No budget set")).toBeTruthy();
   });
@@ -242,7 +240,7 @@ describe("SettingsSheet Dates row (restored, M10 Phase 4)", () => {
   // and the commit closes the Dates popover itself (same onCommand wrapper
   // the Clear-date X used before this change).
   it("forwards a committed date change to the sheet's own onCommand as SetTripStartDate", async () => {
-    const { onCommand } = renderSheet(vi.fn(), { onCommand: vi.fn() });
+    const { onCommand } = renderSheet({ onCommand: vi.fn() });
 
     await userEvent.click(screen.getByRole("button", { name: "Dates" }));
     await userEvent.type(await screen.findByLabelText("Trip start date"), "2027-01-05");
@@ -253,47 +251,31 @@ describe("SettingsSheet Dates row (restored, M10 Phase 4)", () => {
   });
 });
 
-describe("SettingsSheet delete/duplicate (A15)", () => {
-  it("confirms before deleting, then reports success (with the outcome) via onDeleted", async () => {
-    const outcome = { detail: { status: "deleted" }, history: {} };
-    sendTripCommandMock.mockResolvedValue({ ok: true, value: outcome });
-    const { onDeleted } = renderSheet();
-
-    await userEvent.click(screen.getByRole("button", { name: /^delete trip$/i }));
-    // Confirmation gate: the command isn't sent until the dialog is confirmed.
-    expect(sendTripCommandMock).not.toHaveBeenCalled();
-
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-
-    await waitFor(() =>
-      expect(sendTripCommandMock).toHaveBeenCalledWith({ type: "DeleteTrip", tripId }),
-    );
-    // A15-fix: the outcome is forwarded alongside the summary so the caller
-    // (TripHeader) can feed it into applyOutcome and reconcile trip.status
-    // immediately, rather than only after the toast closes.
-    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith({ tripId, name: "Japan" }, outcome));
-  });
-
-  it("does not report success when the delete command fails", async () => {
-    sendTripCommandMock.mockResolvedValue({ ok: false, error: { status: 400, message: "nope" } });
-    const { onDeleted } = renderSheet();
-
-    await userEvent.click(screen.getByRole("button", { name: /^delete trip$/i }));
-    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
-
-    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalled());
-    expect(onDeleted).not.toHaveBeenCalled();
-  });
-
-  it("duplicates the trip and navigates to the copy", async () => {
-    const newTripId = "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a";
-    duplicateTripMock.mockResolvedValue({ ok: true, value: { tripId: newTripId } });
+// M26 link 6a, DRIFT D13, SPEC §34.2 and §27: lifecycle lives on the trip
+// card's popover on Home, not inside the trip. What stood here were three A15
+// tests asserting the opposite; they are replaced rather than deleted, because
+// "Delete is gone" is a claim worth holding — a future tidy-up that puts a
+// Delete back here would otherwise pass silently.
+describe("SettingsSheet — lifecycle is not here (M26 link 6a)", () => {
+  it("offers neither Delete nor Duplicate", () => {
     renderSheet();
+    expect(screen.queryByRole("button", { name: /^delete trip$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /duplicate trip/i })).toBeNull();
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: /duplicate trip/i }));
+  // The confirm dialog went with them, and it was arguing against itself:
+  // "You can undo this from the toast that follows" is a modal explaining that
+  // the action it guards is reversible — §27's own reason for having no modal.
+  it("has no confirm dialog left to argue with itself", () => {
+    renderSheet();
+    expect(screen.queryByText(/undo this from the toast/i)).toBeNull();
+  });
 
-    await waitFor(() => expect(duplicateTripMock).toHaveBeenCalledWith(tripId));
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${newTripId}`));
+  // Download is the one thing that stays, under its own heading (link 6d).
+  it("keeps Download under Take it with you", () => {
+    renderSheet();
+    expect(screen.getByRole("link", { name: /download as a file/i })).toBeTruthy();
+    expect(screen.getByText(/take it with you/i)).toBeTruthy();
   });
 });
 
@@ -310,7 +292,7 @@ describe("SettingsSheet lineage", () => {
   // outside this codebase knows what change 14 was (Mitchell, 2026-09-01).
   // `atSeq` is still carried on `forkedFrom`; it is simply not rendered.
   it("names the ancestor and the day it was copied", () => {
-    renderSheet(vi.fn(), {
+    renderSheet({
       forkedFrom: { tripId, atSeq: 14, name: "Kyoto in spring" },
       // Midday UTC so the rendered local date is the 31st in every zone the
       // suite might run in — a midnight instant would be the 30th west of
@@ -337,26 +319,30 @@ describe("SettingsSheet lineage", () => {
 // Delete, confirm, and get silence — the server refused it and `handleDelete`
 // only acts `if (result.ok)`.
 describe("SettingsSheet role gating", () => {
-  it("offers Delete to an owner", () => {
-    renderSheet();
-    expect(screen.getByRole("button", { name: "Delete trip" })).toBeTruthy();
-  });
-
-  // Gated on `owner`, the rank accessPolicy.ts actually enforces for
-  // DeleteTrip — an editor clicking it got the same silent nothing.
-  it("does not offer Delete to an editor or a viewer", () => {
-    for (const myRole of ["editor", "viewer"] as const) {
+  // **No Delete for ANY role** — M26 link 6a moved it to Home's per-card menu,
+  // where §27 and §34.2 put it. What stood here were two role-gating tests
+  // (owner sees it, editor and viewer do not), and the role gate they asserted
+  // is still enforced — on Home, by `viewerOwnsTrip`, and by the server in
+  // both places. This asserts the absence across all three roles so a future
+  // reader cannot restore it for one of them without noticing.
+  it("offers Delete to nobody, whatever their role", () => {
+    for (const myRole of ["owner", "editor", "viewer"] as const) {
       cleanup();
-      renderSheet(vi.fn(), { myRole });
+      renderSheet({ myRole });
       expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
     }
   });
 
-  // A viewer may still clone: a copy takes nothing from the source and grants
-  // nothing on it (ADR-028).
-  it("still offers Duplicate to a viewer", () => {
-    renderSheet(vi.fn(), { myRole: "viewer" });
-    expect(screen.getByRole("button", { name: "Duplicate trip" })).toBeTruthy();
+  // Duplicate went the same way, and for a viewer specifically: they could
+  // clone from here (ADR-028 — a copy takes nothing from the source and grants
+  // nothing on it) and still can, from Home's menu, which offers Duplicate to
+  // every role.
+  it("offers Duplicate to nobody either", () => {
+    for (const myRole of ["owner", "editor", "viewer"] as const) {
+      cleanup();
+      renderSheet({ myRole });
+      expect(screen.queryByRole("button", { name: "Duplicate trip" })).toBeNull();
+    }
   });
 
   // **M25 link 2.** The download is a link to the same `v1` endpoint an API
@@ -365,7 +351,7 @@ describe("SettingsSheet role gating", () => {
   it("offers the download to every role, pointed at the v1 export endpoint", () => {
     for (const myRole of ["owner", "editor", "viewer"] as const) {
       cleanup();
-      renderSheet(vi.fn(), { myRole });
+      renderSheet({ myRole });
       const link = screen.getByRole("link", { name: "Download as a file" });
       expect(link.getAttribute("href")).toBe(`/api/v1/trips/${tripId}/export`);
       expect(link.hasAttribute("download")).toBe(true);
@@ -380,17 +366,17 @@ describe("SettingsSheet role gating", () => {
   // Asserted as a claim about undo rather than on the exact sentence, so a
   // copy edit does not fail this while a silent deletion does.
   it("tells the reader that a downloaded trip loses its history", () => {
-    renderSheet(vi.fn(), { myRole: "owner" });
+    renderSheet({ myRole: "owner" });
     expect(screen.getByText("Take it with you")).toBeTruthy();
     expect(screen.getByText(/history does not travel/i)).toBeTruthy();
     expect(screen.getByText(/no undo, redo or revert/i)).toBeTruthy();
   });
 
   it("disables the rename field for a viewer, and leaves it live for an editor", () => {
-    renderSheet(vi.fn(), { myRole: "viewer" });
+    renderSheet({ myRole: "viewer" });
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
     cleanup();
-    renderSheet(vi.fn(), { myRole: "editor" });
+    renderSheet({ myRole: "editor" });
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
 
@@ -401,7 +387,7 @@ describe("SettingsSheet role gating", () => {
   // is covered too.
   it("offers a viewer no live mutating control at all", async () => {
     const onCommand = vi.fn();
-    renderSheet(vi.fn(), { myRole: "viewer", onCommand });
+    renderSheet({ myRole: "viewer", onCommand });
 
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(true);
@@ -422,7 +408,7 @@ describe("SettingsSheet role gating", () => {
 
   it("leaves every one of those live for an editor", async () => {
     const onCommand = vi.fn();
-    renderSheet(vi.fn(), { myRole: "editor", onCommand });
+    renderSheet({ myRole: "editor", onCommand });
 
     expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
@@ -444,7 +430,7 @@ describe("SettingsSheet role gating", () => {
 
   it("offers a viewer with a budget no way to clear or change it", async () => {
     const onCommand = vi.fn();
-    renderSheet(vi.fn(), { myRole: "viewer", budget: withBudget, onCommand });
+    renderSheet({ myRole: "viewer", budget: withBudget, onCommand });
 
     // Not merely disabled — not rendered. A disabled clear-X beside a figure
     // still reads as an offer.
@@ -466,7 +452,7 @@ describe("SettingsSheet role gating", () => {
   // and not about a control that never worked for anyone.
   it("lets an editor clear and re-currency that same budget", async () => {
     const onCommand = vi.fn();
-    renderSheet(vi.fn(), { myRole: "editor", budget: withBudget, onCommand });
+    renderSheet({ myRole: "editor", budget: withBudget, onCommand });
 
     await userEvent.selectOptions(screen.getByLabelText("Currency"), "EUR");
     expect(onCommand).toHaveBeenCalledWith({ type: "SetTripCurrency", tripId, currency: "EUR" });
@@ -479,7 +465,7 @@ describe("SettingsSheet role gating", () => {
   // the security boundary, so an unknown role must not lock the board — but it
   // must not offer a destructive action it cannot vouch for either.
   it("withholds Delete while the role is unknown", () => {
-    renderSheet(vi.fn(), { myRole: null });
+    renderSheet({ myRole: null });
     expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
@@ -503,7 +489,7 @@ describe("SettingsSheet trip overview (the hidden meta pill's counts)", () => {
   it.each(["owner", "viewer"] as const)(
     "states the day, stop and city counts the header pill states, to a %s",
     (myRole) => {
-      renderSheet(vi.fn(), { myRole, counts: { days: 5, stops: 14, cities: 3 } });
+      renderSheet({ myRole, counts: { days: 5, stops: 14, cities: 3 } });
 
       expect(screen.getByText("5 days")).toBeTruthy();
       expect(screen.getByText("14 stops")).toBeTruthy();
@@ -563,12 +549,12 @@ describe("SettingsSheet share", () => {
   // server-side (ADR-031, server/access/trip-access.ts), so they lose Share in
   // the sheet — which is now the only place it could have been lost from.
   it("withholds Share from a viewer and offers it to an editor and an owner", () => {
-    renderSheet(vi.fn(), { myRole: "viewer" });
+    renderSheet({ myRole: "viewer" });
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
 
     for (const myRole of ["editor", "owner"] as const) {
       cleanup();
-      renderSheet(vi.fn(), { myRole });
+      renderSheet({ myRole });
       expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
     }
   });

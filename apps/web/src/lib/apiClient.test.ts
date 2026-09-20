@@ -13,6 +13,7 @@ import {
   createTripShare,
   deleteSavedDay,
   duplicateTrip,
+  leaveTrip,
   fetchInvitePreview,
   fetchIsAdmin,
   fetchPreferences,
@@ -190,6 +191,9 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   sendTripCommandBatch: () =>
     sendTripCommandBatch(TRIP_ID, [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }]),
   duplicateTrip: () => duplicateTrip(TRIP_ID),
+  // M26 link 6b. Not `sendTripCommand` — leaving is Access CRUD, not a
+  // planning command — so it needs its own row in this table.
+  leaveTrip: () => leaveTrip(TRIP_ID),
   resetDemoData: () => resetDemoData(),
   fetchTripAccess: () => fetchTripAccess(TRIP_ID),
   createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),

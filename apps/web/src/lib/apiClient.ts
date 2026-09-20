@@ -244,6 +244,31 @@ export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId:
   }
 }
 
+/**
+ * **Leave a trip somebody shared with you** — M26 link 6b, SPEC §27.
+ *
+ * `DELETE /api/trips/{id}/membership`, which takes the CALLER off the trip and
+ * answers `{ ok: true }` rather than the trip's member list: whoever just left
+ * is no longer entitled to read it.
+ *
+ * Deliberately not `sendTripCommand`. Leaving is not a planning command — no
+ * event is appended, nothing enters the trip's history, and the optimistic
+ * queue has nothing to predict (ADR-003: access is CRUD). Routing it through
+ * the command pipeline would have been the shorter diff and the wrong one.
+ */
+export async function leaveTrip(tripId: string): Promise<ApiResult<{ ok: true }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/membership`), { method: "DELETE" });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    return { ok: true, value: { ok: true } };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
 // AccountMenu's "Reset to demo data" item (preview only — see
 // src/lib/demoDataReset.ts). Clears the signed-in user's own trips and
 // reseeds the Japan demo trip; POST, no body, 200 with the new trip's id.

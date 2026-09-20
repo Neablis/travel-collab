@@ -525,6 +525,53 @@ with you offers *Leave this trip* instead. Needs a `LeaveTrip` verb and `myRole`
 on the trip-list projection. **This fixes 6a's mis-gate on the way past, so land
 them together.**
 
+**6a AND 6b ARE DONE, 2026-09-20, and the verb is not an event.** The milestone
+said "a `LeaveTrip` verb"; the verb is real and the event is not, because
+membership is not in the planning log. Access is CRUD (ADR-003, AGENTS.md
+invariant 1) — `trip_memberships` rows are the Access module's, `TripCreated` is
+the only thing that mints an owner, and inventing a planning event to carry a
+membership change is the boundary smell. So no contract type moved, no reducer
+case was added and `MINIMUM_ROLE` is untouched: `DELETE /api/trips/{id}/membership`
+calls the `removeMember` that KI-65 already built, whose owner rule already
+existed. `members.ts` had even written down what was missing — *"an owner-only
+endpoint cannot express it, and self-removal for a guest is a product surface,
+not a permission tweak"* — and this is that product surface.
+
+**A route of its own rather than widening `DELETE .../members/[userId]`.** That
+endpoint asks "are you this trip's owner"; this one asks "is the person you are
+removing you". One handler answering both decides per request which rule
+applies, which is how the looser rule eventually leaks onto the stricter path.
+And it cannot share the response: the sibling answers with the trip's
+`TripAccess`, which would hand a non-member the member list one request after
+taking their access away.
+
+**`myRole` on the trip-list projection was not needed.** `TripSummary` already
+carries `members` and `TripMember` carries `role`, so the answer was on the
+wire; `viewerOwnsTrip` (`lib/tripRole.ts`) is the UI's own comparison, because
+the lint wall bars importing `server/accessPolicy`'s `memberRole`. It answers
+`false` while the session probe is in flight — the milder verb is the safe side
+to be wrong on.
+
+**Leaving raises no undo toast, where Delete does.** That is the difference
+between the verbs. §27's toast exists because deleting is destructive and
+`RestoreTrip` puts the trip back; leaving destroys nothing, and no verb puts you
+back on somebody else's trip — only its owner can re-invite you. An Undo there
+could not keep its promise.
+
+**6a took the confirm dialog with the buttons**, and it was arguing against
+itself: *"You can undo this from the toast that follows"* is a modal explaining
+that the action it guards is reversible, which is §27's own reason for having
+no modal. `TripHeader`'s delete toast and `undoDelete` went too — Home's toast,
+one level up, has always been there and is now the only one. A15-fix's
+`applyOutcome` reconciliation is not lost, only out of reach: nothing on that
+screen can delete the trip any more, so no window opens for `trip.status` to go
+stale.
+
+Four tests asserting the opposite were REPLACED rather than deleted, in both
+files: "Delete is gone" is a claim worth holding, or a later tidy-up restores it
+for one role and nothing says so. `m11-clone.spec.ts` now duplicates from Home's
+card menu, which is where the verb lives.
+
 **6c. Duplicate clears dates and travellers** (§27 — *"a copy is a starting
 point, not a commitment"*). `cloneTrip.ts:83` carries every field but the name.
 **Check with Mitchell first**: `cloneSharedTrip` and `cloneDemoTrip` share
@@ -809,10 +856,17 @@ marked **[walk]** and are not satisfiable by a green test.
       `MapRail.test.tsx:51-56`'s no-hover-tint assertion is still green and was
       not modified, because the card is detail on demand and not a second way to
       select a day.
-- [ ] **[walk]** Delete and Duplicate are gone from Trip settings and Download
+- [~] **[walk]** Delete and Duplicate are gone from Trip settings and Download
       remains, under a *Take it with you* heading that says history does not
       travel. A trip shared with you offers **Leave this trip** and no Delete.
       A duplicate lands with dates and travellers cleared.
+      **All three built 2026-09-20 (links 6a, 6b, 6c), unwalked.** The one
+      thing a later reader should not re-derive: **the `LeaveTrip` verb is real
+      and its event is not.** Membership is not in the planning log, so leaving
+      is `DELETE /api/trips/{id}/membership` calling KI-65's own `removeMember`
+      — no contract type moved, no reducer case, no `MINIMUM_ROLE` entry.
+      Leaving raises no undo toast, deliberately: nothing puts you back on
+      somebody else's trip, so an Undo could not keep its promise.
 - [~] The tag-focus notice renders above the content it dims, on every lens,
       and `clearTagFilter` is unchanged. **Moved 2026-09-19** — one JSX move, as
       §33.3 said. The toolbar's explicit spacer stayed (it still keeps the

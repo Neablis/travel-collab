@@ -25,7 +25,9 @@ import { ImportTripButton } from "@/components/home/ImportTripButton";
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
 const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
 import { ShareButton } from "@/components/trip/ShareButton";
-import { duplicateTrip, createTrip as createTripApi, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
+import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
+import { viewerOwnsTrip } from "@/lib/tripRole";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
@@ -80,6 +82,11 @@ export default function Home() {
   // Preview-wrapped (see NewTripWizard.tsx and preview-registry.ts).
   // SPEC §32.2 — the new-trip conversation owns the whole frame on a phone.
   const isPhone = useIsPhone();
+  // Who is reading, so a card's menu can offer Delete or *Leave this trip*
+  // rather than always the first (M26 link 6b). `undefined` while the session
+  // probe is in flight, which `viewerOwnsTrip` answers as "not the owner" —
+  // see its note for why that is the safe side to be wrong on.
+  const viewer = useSessionUser();
   const [newTripOpen, setNewTripOpen] = useState(false);
   // True while the "Make this trip mine" copy this page inherited from `/demo`
   // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
@@ -293,6 +300,42 @@ export default function Home() {
       return next;
     });
     setToast({ tripId: trip.tripId, name: trip.name });
+  }
+
+  /**
+   * **Leave this trip** — M26 link 6b, SPEC §27.
+   *
+   * The card goes optimistically, the same way Delete's does and for the same
+   * reason: the act is about this reader's own list, and waiting on a round
+   * trip to remove a row from it is a pause with nothing behind it.
+   *
+   * **No undo toast, where Delete has one**, and that is the difference
+   * between the two verbs rather than an omission. §27's toast exists because
+   * deleting is destructive and `RestoreTrip` can put the trip back. Leaving
+   * destroys nothing — the trip and everyone else on it are untouched — and
+   * there is no verb that puts you back on somebody else's trip. Only its
+   * owner can re-invite you, so an Undo here would be a button that cannot
+   * keep its promise.
+   */
+  async function leave(trip: TripSummary) {
+    setOpenMenuTripId(null);
+    setDeletingIds((prev) => new Set(prev).add(trip.tripId));
+    const result = await leaveTrip(trip.tripId);
+    if (!result.ok) {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(trip.tripId);
+        return next;
+      });
+      setError(result.error.message);
+      return;
+    }
+    setTrips((prev) => (prev ?? []).filter((t) => t.tripId !== trip.tripId));
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(trip.tripId);
+      return next;
+    });
   }
 
   async function undoDelete() {
@@ -633,6 +676,15 @@ export default function Home() {
                           </Button>
                         }
                       >
+                        {/* **Delete OR Leave, never both, and never the wrong
+                            one** (M26 link 6b, SPEC §27: *"a trip someone
+                            shared with you offers Leave this trip"*).
+
+                            This offered Delete unconditionally, so a guest on
+                            somebody else's trip was shown a verb the server
+                            refuses — `MINIMUM_ROLE.DeleteTrip` is `owner` —
+                            and got a silent nothing for it. The gate is a
+                            display gate only; the server still decides. */}
                         <div role="menu" className="flex flex-col">
                           <Button
                             role="menuitem"
@@ -642,14 +694,25 @@ export default function Home() {
                           >
                             Duplicate
                           </Button>
-                          <Button
-                            role="menuitem"
-                            variant="ghost"
-                            className="justify-start text-danger-ink"
-                            onClick={() => void deleteTrip(t)}
-                          >
-                            Delete
-                          </Button>
+                          {viewerOwnsTrip(t.members, viewer?.id) ? (
+                            <Button
+                              role="menuitem"
+                              variant="ghost"
+                              className="justify-start text-danger-ink"
+                              onClick={() => void deleteTrip(t)}
+                            >
+                              Delete
+                            </Button>
+                          ) : (
+                            <Button
+                              role="menuitem"
+                              variant="ghost"
+                              className="justify-start text-danger-ink"
+                              onClick={() => void leave(t)}
+                            >
+                              Leave this trip
+                            </Button>
+                          )}
                         </div>
                       </Popover>
                     }
