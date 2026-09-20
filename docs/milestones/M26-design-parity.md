@@ -1217,6 +1217,94 @@ writing code, per link 0's guideline.
 because KI-046 is a measured entry and is amended by measurement, never by an
 impression that it looks better.
 
+### The measurement, taken 2026-09-20 at 390x844
+
+Against a production build, through Playwright, on a trip's Plan with a title
+long enough to fill the column:
+
+| | KI-046 (2026-09-05, 412px, Timeline lens) | Now (390px, day columns) |
+|---|---|---|
+| Card width | 364px | **241px** |
+| Text column | 82px | **141px** |
+| Share of the card | 22.5% | **58.5%** |
+| Row controls | 42x28, 43x28 | **32x32** |
+
+**The starved column is better and the card is worse, and both have the same
+cause.** The 92px time gutter is gone — it went with the Timeline lens (SPEC
+§24) — which is what took the text column from 82px to 141px without anybody
+working on it. But the card shrank from 364px to 241px, because the phone
+renders the DESKTOP board: `Column` is a fixed `DAY_COLUMN_WIDTH_PX = 268`
+inside a horizontally scrolling row, at every width. A 390px phone is showing
+one and a bit 268px columns side by side.
+
+**The row's Edit and Remove are 32x32**, under §13.1's 44px floor. Link 14's
+pass did not reach them — it covered chrome, and these are inside a card.
+
+### The decision: a phone treatment of Plan, not an amendment to §10
+
+The milestone allows either. The measurement chooses, and it chooses the
+treatment, for one reason that is not a matter of taste: **the card is narrow
+because of a desktop layout constant, not because a phone is narrow.** 390px is
+enough for a readable card; 268px of it is being spent on the next day's column,
+which a phone cannot usefully show beside this one anyway.
+
+§13.4 already specifies the answer and the build already has every piece of it:
+*"The day rail never collapses. It is the spine of every trip-scoped screen and
+holds the same selection across Plan, Map and Notebook. **A phone can hold one
+day at a time; the rail is how you change which.**"* `DayChips` IS that rail,
+`FocusProvider` already holds the selection across Plan, Map and Notebook, and
+the phone already defaults to day 1. What is missing is only that Plan renders
+every day instead of the focused one.
+
+So: **on a phone, Plan renders the focused day's column alone, at full width.**
+No new view, no phone-only fallback — the same `Column`, the same cards, the
+same drag logic, at a different width and a count of one. That is §13's
+"mobile is a variant layer", not a second design system.
+
+**Amending §10 was the alternative and is refused**, because §10 is not what is
+wrong: it says a phone gets two views rather than four and scopes it to
+retrieval and small edits, all of which the build honours. Nothing in §10 says
+a phone shows several days at once — that is `DAY_COLUMN_WIDTH_PX` leaking
+through a breakpoint nobody drew.
+
+### Built 2026-09-20, and re-measured
+
+| | KI-046 (412px) | Before link 13 (390px) | **After (390px)** |
+|---|---|---|---|
+| Card width | 364px | 241px | **315px** |
+| Text column | **82px** | 141px | **215px** |
+| Card height, that title | 121px | 131px | **91px** |
+| Row controls | 42x28 / 43x28 | 32x32 | **44x44** |
+
+`Board` takes `oneDay`; `Column` and the trailing "One more day?" take
+`fullWidth`. The row becomes a flex COLUMN on a phone, because with one
+full-width day there is nothing to scroll sideways.
+
+Three decisions inside it worth not re-deriving:
+
+**The day's index survives the filter.** Every day's accent, its `dayLabel`,
+its focus ring and its keep-a-day pennant are keyed on its real position in the
+trip, so the single day is selected by index rather than re-mapped — a
+re-indexed day silently becomes Day 1 of a fortnight.
+
+**"One more day?" appears only at the end of the trip on a phone.** With one day
+on screen it is no longer a column past the last one; under Day 3 of a fortnight
+it asks a question about somewhere the reader is not.
+
+**The 44px floor came from widening `PHONE_TOUCH`, not from a new class.** It
+was `min-h-11 md:min-h-0` — height only, which is enough for every control that
+carries a label and exactly half a target for an icon-only one. `size: "touch"`
+had already made the both-axes call for the same reason and said so in its own
+note; the two now agree, and labelled call sites are unaffected because a button
+with words in it already exceeds 44px wide.
+
+`e2e/m26-phone-plan.spec.ts` holds all of it, in the only layer that can measure.
+Its floor is 180px rather than 215px deliberately: it holds the ORDER OF
+MAGNITUDE this link changed, not a pixel count a font metric would make brittle.
+Both halves seen to fail against a real browser (CLAUDE.md rule 3): `oneDay`
+pinned to `false` gives 117px where 180 is wanted, and dropping `PHONE_TOUCH`
+gives a 32px target where 44 is.
+
 ## Link 14 — The 44px pass, and the chrome that owes it
 
 `button.tsx:32` defines `touch` correctly, cites §13.1 verbatim, and has **five
@@ -1309,10 +1397,23 @@ everyone agrees is temporary is a test that will have to be argued with later.
       different claim wearing the same number, which is exactly the
       "impression, not a figure" this box refuses. It needs the same 411px walk
       the `[walk]` boxes do.
-- [ ] **[walk]** Link 13 has either given Plan a phone treatment **or** put an
+- [x] **[walk]** Link 13 has either given Plan a phone treatment **or** put an
       amendment to §10 in writing — and the text column's width at 390px is
       reported as a **number**, against KI-046's 82px-of-364px. It runs last, so
       this box is the wave's closing one.
+      **Done 2026-09-20: a phone TREATMENT, and the number is 215px of a 315px
+      card** (was 141px of 241px before this link, and KI-046's 82px of 364px
+      before the Timeline lens was deleted). Measured through Playwright against
+      a production build at 390x844, with a title long enough to fill the
+      column — KI-046's own figure was an available-width measurement.
+      **Why a treatment and not an amendment:** the card was narrow because of a
+      DESKTOP constant, not because the screen is. `DAY_COLUMN_WIDTH_PX` is a
+      fixed 268px at every width, so a 390px phone showed one and a bit columns
+      side by side. §13.4 already specified the answer and the build already had
+      every piece of it.
+      Ticked rather than left `[~]` because this box asks for a number and the
+      number is measured, not walked — and `e2e/m26-phone-plan.spec.ts` keeps
+      measuring it.
 - [x] The phone Map tab has an offline state: a titled panel, the
       stops-are-still-readable message, *Try again* and *Open Plan*. **Built
       2026-09-20** as `lenses/MapOfflineState.tsx`, mounted by `MapLens` behind

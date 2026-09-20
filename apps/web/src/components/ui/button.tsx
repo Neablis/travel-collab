@@ -23,8 +23,20 @@ import { cn } from "../../lib/cn";
  * `min-h`, not `h`: a wrapped label on a 390px screen must push the control
  * taller rather than spill out of it, and `min-height` beats the variants'
  * fixed `h-*` without having to restate it.
+ *
+ * **Both axes, since M26 link 13.** It was height-only, which is enough for
+ * every control that carries a label — those are already wider than 44px — and
+ * is exactly half a target for an ICON-only one. A stop card's Edit and Remove
+ * measured 32x32 on a 390px phone with this class applied to nothing; the card
+ * is where link 14's chrome pass did not reach. `size: "touch"` had already
+ * made this call for the same reason, in its own note: *"Both axes, so an
+ * icon-only control gets a real 44px target from this same size and there is
+ * no fifth one to keep in sync."* The two now agree.
+ *
+ * Costs the labelled call sites nothing: a button with words in it already
+ * exceeds 44px wide, so `min-w-11` never binds there.
  */
-export const PHONE_TOUCH = "min-h-11 md:min-h-0";
+export const PHONE_TOUCH = "min-h-11 min-w-11 md:min-h-0 md:min-w-0";
 
 export const buttonVariants = cva(
   "inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50",

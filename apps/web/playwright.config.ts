@@ -18,6 +18,10 @@ import { E2E_ADMIN_USER_ID } from "./e2e/adminBootstrap";
 // `testIgnore`, six failures in "desktop" looking for phone chrome. A comment
 // warning you to keep two lists in step is not a mechanism. This is.
 const PHONE_ONLY_SPECS = ["m16-mobile-assistant", "m14-mobile-notebook", "m26-phone-surfaces"] as const;
+// `m26-phone-plan` is deliberately NOT in that list: its last case is a DESKTOP
+// assertion (every day side by side), and each case sets its own viewport, so it
+// belongs in the project that has both widths to compare rather than the one
+// pinned to 411px.
 const PHONE_ONLY = new RegExp(`(${PHONE_ONLY_SPECS.join("|")})\\.spec\\.ts`);
 
 export default defineConfig({

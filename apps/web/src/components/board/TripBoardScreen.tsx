@@ -946,6 +946,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   <Board
                     trip={activeTrip}
                     focusedDay={focusedDay}
+                    // **One day at a time on a phone** — M26 link 13, SPEC
+                    // §13.4. `useIsPhone` is the right tool here for the same
+                    // reason it is on `NewTripWizard`'s sheet and the wrong one
+                    // for chrome: this is a discrete layout swap CSS cannot make
+                    // (a count of columns, not a width), and it starts `false`
+                    // so a phone paints the desktop row for one frame before
+                    // the effect corrects. That frame is a scrolling row of
+                    // 268px columns rather than a wrong control, and it is the
+                    // same first-frame cost `DayChips` already pays one row up.
+                    oneDay={isPhone}
                     // A viewer's board, and the demo's, show the plan and offer
                     // nothing that changes it (ADR-031). `readOnly` comes from
                     // the provider's own gate — the same flag that already
