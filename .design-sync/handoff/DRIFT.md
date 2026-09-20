@@ -73,9 +73,9 @@ Read this before §1; it is why §1 is short now.
 | # | Thing | Code | Design | Call |
 |---|---|---|---|---|
 | **D3** | Trip status badge | `TripHeader` renders a status `Badge` | No badge | Code wins, or design adds it back. **Not re-verified this pass** — carried forward as stated, flag if it has since changed. |
-| **D6** | "Next trip" | `TripSummary` still carries only `createdAt`; `nextTrip` is `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown | **= KI-34, still open and unchanged.** The only survivor of the original list. With nothing to sort by the hero can surface the *wrong trip*. KI-34 names the fix path: add a start date to `TripSummary`, then date-sort. |
+| **D6** | "Next trip" | **HALF CLOSED 2026-09-20 (M26 link 9d).** The countdown is built: the hero already fetched the whole `TripDetail` for its sparkline, so the date it counts to was always real. `TripSummary` still carries only `createdAt`, so `nextTrip` is still `visibleTrips[0]` | Upcoming-by-date hero + "in 47 days" countdown | **= KI-34, and now precisely scoped.** D6 was two things and only the SELECTION was ever blocked. The countdown says *"12 days ago"* and *"yesterday"* as readily as *"in 47 days"*, deliberately — with nothing to sort by the hero can surface a trip that has already gone, and a countdown that only counted down would print nothing in exactly that case. KI-34's fix path is unchanged: add a start date to `TripSummary`, then date-sort. |
 | **D10** | Billing | **Changed shape.** No `plan`, `plan_versions`, `entitlement_grants`, `is_admin`, `subscriptions` or `ai_usage` table — but the **port now exists**: `server/assistant/entitlements.ts` defines `ResolvedEntitlements` (a `has()` set, never a rank), `EntitlementCeilings` and `planVersionRef`; `EVERYONE_IS_ENTITLED` was widened to `permitEverything`, and a `TurnLedger` is already shaped as M20 link 9's `ai_usage` row with model identity and cost as variable inputs | Four surfaces: pricing, operator console, collaboration gate, plan + usage (§2c) | Design is still ahead and still blocked on M20/M21 **tables**, but no longer on the *seam*. The gate the design shows (AI, 402 `ai-not-entitled`) has a real resolver behind it now. Not a defect on either side. |
-| **D11** | First-run "roughly when?" | **New.** A `NewTripWizard` exists, with four Preview shells: `wizard-destination-chips` and `wizard-longer-chip` (both tagged **`unplaced`** — no milestone will wire them), `wizard-pace-tags` and `wizard-assistant-draft` (M9) | First-run screen offers date-range chips, pace and tags | **Supersedes the old D4.** The contract question moved: it is no longer "add a field to `CreateTrip`" but "does any milestone own the wizard's chips at all". Two of the four shells are honestly orphaned. Design should either drop the destination chips and the longer-chip, or Mitchell places them. |
+| **D11** | First-run "roughly when?" | **CLOSED 2026-09-20.** The wizard's four Preview shells are down to one: `wizard-destination-chips` and `wizard-longer-chip` are **built** (decisions D-A / D-B, 2026-09-16 — `Longer: 21` is a real day count), `wizard-pace-tags` is gone, and `wizard-assistant-draft` is M9's remaining half (§30.3's with-access draft; the fork around it shipped in M26 link 9a) | First-run screen offers date-range chips, pace and tags | **Resolved, and the resolution is the opposite of the old note's.** That note said "two of the four shells are honestly orphaned" and asked the design side to drop them or Mitchell to place them; he placed them, they were built, and this row plus §3 and *Suggested order* item 3 all went two passes stale saying otherwise. Nothing is owed on either side. |
 
 | **D12** | Trip-scoped tokens | `api_tokens.trip_ids` is real and `route()` checks a token's set against `[tripId]`, but `TokensSection.tsx` posts `tripIds: null` **always** — the UI can only mint account-wide tokens | The token form offers **All trips / Chosen trips**, with the build's own rule stated where it applies: a trip-scoped token cannot create a trip, because that is a widening (Decision 5) | Design is ahead by one control over a field that already exists. Cheap, and the alternative is a capability nobody can reach. |
 | **D13** | Where a trip's lifecycle lives | `SettingsSheet.tsx` carries **Download, Duplicate and Delete** together at the foot of the sheet | Download is in Trip settings; **duplicate and delete stay on the trip card's popover** on Home (SPEC §27) | **Duplication, and the design's call stands** (project rule 4): a trip you are inside is not where you delete it, and two homes for one verb is how they drift. Build should drop the two from the sheet, or say why. |
@@ -118,23 +118,41 @@ stay clickable — the same trap exists in any real implementation.
 
 ## 3. Designed, shelled in code behind `<Preview>`
 
-**11 entries, down from 18.** Seven were removed by M11 links 3/4/6 and M11b — *deleted
-rather than re-pointed*, because the features are real now.
+**RESYNCED 2026-09-20 (M26 link 9). This section said 11; the registry holds SIX**, and the
+difference is not drift in one direction — it is four separate decisions, each recorded in
+`preview-registry.ts` beside the entry it removed.
 
-**Blocked on a missing contract field:**
+**All six are blocked on something outside the UI**, which is the opposite of what this
+section used to say. Its closing line named `wizard-longer-chip` as "the only entry here
+that is purely unbuilt UI — no field blocks it, so any milestone could take it"; that shell
+is gone because the feature **shipped** (decision D-B, 2026-09-16, and `Longer: 21` is a
+real day count). There is no purely-unbuilt-UI shell left.
+
+**Blocked on a missing contract field — four:**
 - `rack-provenance` → **M13** (who parked a stop, which day it came from)
 - `add-stop-who` → **M13** (per-stop attribution — the same absence from the other side)
-- `cost-estimate-state`, `budget-breakdown` → **M19** (minted 2026-08-31 for exactly these)
+- `budget-breakdown` → **M19** (no field classifies a cost)
 - `map-legend-modes` → **`unplaced`** (transport mode per leg; in TODO.md's candidate ideas)
-- `wizard-destination-chips` → **`unplaced`** (no destination field on `TripSummary`/`TripDetail`)
 
-**Blocked on a feature, not a field:**
-- `timeline-ghost` → M9, and **narrower than it was**: propose→review→approve shipped in
-  PR #88 (`ProposalCard`, `POST /ask/apply`). What is unbuilt is rendering an approved-or-
-  pending proposal *inline in the timeline*, not the approval mechanism.
-- `add-stop-suggestions`, `wizard-pace-tags`, `wizard-assistant-draft` → M9
-- `wizard-longer-chip` → `unplaced`, and the only entry here that is **purely unbuilt UI** —
-  no field blocks it, so any milestone could take it.
+**Blocked on a feature, not a field — two, both M9's:**
+- `add-stop-suggestions` → grounded place search; nothing generates matches yet.
+- `wizard-assistant-draft` → **narrower than it was.** M26 link 9a built §30.3's fork, so
+  this is no longer "the entitlement fork and the draft it generates — neither exists". The
+  fork is real and splits on `ai.ask`; a free account gets a finished answer, not this
+  shell. What remains shelled is the assistant's own draft, mid-task, for an account that
+  holds the capability.
+
+**The five that left this list since it was written, and why:**
+- `timeline-ghost` and `cost-estimate-state` — **the surface was deleted.** SPEC §24 removes
+  the Timeline lens rather than hiding it, and it was the only host either shell had.
+  Removed rather than re-pointed at Plan, on the registry's own rule that a tag is a claim:
+  nothing in the design places a proposal ghost or an estimate flag on a day card, and
+  moving a shell to a screen the design has not drawn it on invents the placement. M9 and
+  M19 keep the work; they lose the shells.
+- `wizard-destination-chips` and `wizard-longer-chip` — **built** (decisions D-A and D-B,
+  2026-09-16). This section and **D11 both still describe them as "honestly orphaned"**,
+  which is now two passes stale.
+- `wizard-pace-tags` — gone with them.
 
 **Gone from this list entirely** (built, or deleted as unwanted): `trip-invites`,
 `share-button`, `keep-day-flag`, `keep-day-dialog`, `add-saved-day`, `playbooks-route`,
@@ -419,14 +437,19 @@ missing `tags` field are all resolved. Four items this document argued for, all 
 
 ## Suggested order
 
-1. **Settle D12 and D13** — one control the build already has the field for, and one
-   duplicated verb. Both are small and both get worse once somebody builds around them.
+1. ~~**Settle D12 and D13**~~ — **both closed by M26** (link 1c gave the token form its
+   All trips / Chosen trips control; links 6a and 6b moved Delete and Duplicate to the trip
+   card's popover and gave a shared trip *Leave this trip*).
 2. **Answer the quota-window question** with Mitchell before M20 opens — the plan-and-usage
    screen is where a wrong answer reaches a customer (§2c).
-3. **Resolve D11**: drop the two `unplaced` wizard shells from the design, or get them
-   placed. Two orphaned shells is the honest signal that the design asked for something
-   nobody owns.
-4. **Land KI-034** so the home hero can be honest. Unchanged, and now the oldest.
+3. ~~**Resolve D11**~~ — **resolved 2026-09-16 and this line went stale for two passes.**
+   Mitchell placed the two shells rather than dropping them; both are built. See D11.
+4. **Land KI-034** so the home hero can pick the right trip. Unchanged, and now the oldest —
+   **but narrower than it was.** D6 is two things, and M26 link 9d shipped the half that was
+   never blocked: the hero already fetches the whole `TripDetail`, so the *"in 47 days"*
+   countdown is real now (and says *"12 days ago"* just as readily, which the selection bug
+   makes likely rather than theoretical). What KI-034 still blocks is WHICH trip the hero
+   picks — `nextTrip` is `visibleTrips[0]`, with nothing to sort by.
 5. Design the phone **conflict** state — the last of rule 6.
 6. ~~Look at KI-046 / tablet~~ — **out of scope, Mitchell 2026-09-12.** No tablet design.
 

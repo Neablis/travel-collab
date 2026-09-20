@@ -752,6 +752,29 @@ What is left here is four things.
   the contract field; otherwise the countdown ships and KI-034 keeps the
   selection.
 
+  **The countdown SHIPPED 2026-09-20; KI-034 keeps the selection**, which is
+  the "otherwise" branch and needed no decision. `relativeCalendarDays` is the
+  artboard's `relDays` kept to its five cases and its exact words, and the two
+  backward ones are the point rather than completeness: with nothing to sort
+  by the hero can land on a trip that has already gone, so it says *"12 days
+  ago"* as readily as *"in 47 days"*. A countdown that only counted down would
+  print nothing, or a negative, in exactly the case D6 warns about.
+  **One overclaim corrected in passing.** The first version of its note said
+  UTC arithmetic was needed because a local-time subtraction "rounds to the
+  wrong day roughly twice a year" across DST. That is false — `Math.round`
+  absorbs an hour over a span of days, and the DST test was watched to PASS
+  against a deliberately local-time implementation. The note now says what UTC
+  actually buys: an exact subtraction rather than one rescued by the rounding.
+
+**D11 is closed and DRIFT has not caught up. RESYNCED 2026-09-20** — `DRIFT.md`
+§3 now lists the registry's real SIX entries (it said 11), D11 is marked closed
+with the opposite resolution to the one it asked for (Mitchell placed the
+shells rather than dropping them), *Suggested order* items 1 and 3 are struck,
+and D6 is half-closed with the countdown built and the selection left to
+KI-034. The line §3 used to end on — that `wizard-longer-chip` was "the only
+entry here that is purely unbuilt UI" — is gone, because that shell shipped;
+all six remaining entries are blocked on a missing contract field or on M9.
+
 **D11 is closed and DRIFT has not caught up.** Its two *"honestly orphaned"*
 wizard shells were resolved by decisions D-A and D-B on 2026-09-16:
 `wizard-destination-chips` and `wizard-longer-chip` are **built**, not orphaned,
@@ -959,7 +982,18 @@ marked **[walk]** and are not satisfiable by a green test.
 - [ ] Every surface in the handoff that Wave 1 owns is **either built or behind
       a registered `<Preview>` — no third state**, and no entry is tagged to a
       milestone that will not wire it.
-- [ ] `DRIFT.md` is updated by this milestone, not left for the design side.
+- [~] `DRIFT.md` is updated by this milestone, not left for the design side.
+      **Part done 2026-09-20 (link 9's resync).** §3's entry count is now the
+      registry's real SIX, not eleven — with the four separate reasons five
+      entries left, and without the stale closing line calling
+      `wizard-longer-chip` the only purely-unbuilt-UI shell (it shipped).
+      D11 is CLOSED with the opposite resolution to the one it asked for:
+      Mitchell placed the shells rather than dropping them. D6 is HALF closed —
+      the countdown built, the selection left to KI-034. *Suggested order*
+      items 1 and 3 are struck (D12 and D13 closed by links 1c, 6a and 6b).
+      **Still owed on this box:** D14, D3, §3b's `w-open` line, §7's
+      *21-designed / 7-registered* figure, and the four places the build is
+      ahead of the design.
       **Closed:** D12, D13, D14; D3 decided either way. **Resynced:** §3's entry
       count (six, not eleven), **D11 and *Suggested order* item 3 (both already
       closed by decisions D-A/D-B)**, §3b's `w-open` line (shipped), and §7's

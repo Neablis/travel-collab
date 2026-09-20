@@ -122,3 +122,55 @@ export function formatRelativeInstant(iso: string, now: Date = new Date()): stri
   // Below the smallest unit above.
   return "just now";
 }
+
+/**
+ * **How far off a calendar date is, in the reader's own words** — the next-trip
+ * countdown (DRIFT D6, `dc.html:9486`/`:8973`, M26 link 9d).
+ *
+ * `relDays` in the artboard, kept to its five cases and its exact wording:
+ * `today`, `tomorrow`, `yesterday`, `in N days`, `N days ago`. Two days out in
+ * either direction is where the word form stops carrying and the number starts.
+ *
+ * **Calendar days, counted in UTC, from two calendar dates.** Both sides are
+ * reduced to a UTC midnight, so the difference is an exact multiple of 86.4M ms
+ * whatever the reader's zone.
+ *
+ * **To be precise about what that buys**, because the obvious claim is wrong:
+ * a LOCAL-time subtraction across a DST transition is 23 or 25 hours rather
+ * than 24, and `Math.round` absorbs that — an hour of error over a span of days
+ * never changes the answer. Local arithmetic would in fact pass every test in
+ * `relativeCalendarDays.test.ts`, DST cases included. The point of UTC here is
+ * that the subtraction is exact instead of merely being rescued by the
+ * rounding, so a later change to the rounding cannot quietly introduce a
+ * twice-a-year off-by-one.
+ *
+ * The rest of this file parses in LOCAL time on purpose, because those
+ * functions render a date; this one measures a distance between two.
+ *
+ * Returns `null` for an unparseable input rather than a wrong number: an
+ * invented countdown beside a real date is worse than no countdown.
+ */
+export function relativeCalendarDays(iso: string, todayIso: string): string | null {
+  const utcDay = (value: string): number | null => {
+    const parts = value.split("-").map(Number);
+    if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+    const [y, m, d] = parts as [number, number, number];
+    const at = Date.UTC(y, m - 1, d);
+    // `Date.UTC` happily rolls 2026-13-40 over into a real date; re-deriving
+    // the parts is what tells a typo from a date.
+    const round = new Date(at);
+    if (round.getUTCFullYear() !== y || round.getUTCMonth() !== m - 1 || round.getUTCDate() !== d) {
+      return null;
+    }
+    return at;
+  };
+  const from = utcDay(todayIso);
+  const to = utcDay(iso);
+  if (from === null || to === null) return null;
+  const days = Math.round((to - from) / 86_400_000);
+  if (days <= -2) return `${Math.abs(days)} days ago`;
+  if (days === -1) return "yesterday";
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  return `in ${days} days`;
+}
