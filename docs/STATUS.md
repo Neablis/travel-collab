@@ -151,56 +151,39 @@ and no dividers — which is what "the Playbooks look the same" actually was.
 `packages/fixtures/src/savedDayCoordinates.test.ts` is the pattern for holding
 a claim about CONTENT rather than code.
 
-**THE WIDGET CONTAINER WAS MISSED BY THE DESIGN PASS — and "the widget
-container" means THE INSERT RAIL.** Mitchell, 2026-09-20, pointing at the
-design's 320px Widgets panel: *"Are we talking about same thing? Its this
-container i want styled."* He had to say it twice, because the first reading of
-those words went to the widget *block* card instead. **Two different boxes, both
-open, and the rail is the one that was asked for:**
+**THE WIDGET CONTAINER — DONE, WALKED AND ACCEPTED, 2026-09-20.** PR #198,
+green on every check on `8bece7e`. Mitchell after walking the preview: *"I
+walked, and it looks good."*
 
-* **The insert rail — `KI-2026-09-20-h`.** The Widgets panel: title, search,
-  kind filters, count line, and one card per widget.
+**"The widget container" means the INSERT RAIL**, and it is worth one line here
+because the first reading of those words went somewhere else and cost a commit:
+he had to say it twice. The two boxes are separate and both are filed:
+
+* **The insert rail — `KI-2026-09-20-h`.** Now §26's right column, open for as
+  long as Editing is, with the four-up icon kind control, rows as cards, a
+  pinned header and a count line. **The popover is superseded — do not restore
+  it from git history**; the entry records why, in his words.
 * **The block card — `KI-2026-09-20-g`.** The box a rendered widget draws
-  itself in on a page. Found on the way to the rail, real, unowned, filed.
+  itself in. Found on the way to the rail, real, unowned; one of four fixed.
 
-**Done 2026-09-20, on the rail:** its header is a header. The whole panel was
-under one `max-h-96 overflow-y-auto`, so **the search field and the four filter
-chips scrolled away with the list** — narrowing a list you were already reading
-meant scrolling back up to the control that narrows it. It is now the design's
-two-part column (`Trip Planner Redesign.dc.html:3956`): a `shrink-0` header with
-a hairline under it, the list as the only scrolling region, and the design's
-count line, which the build had on neither surface. Held by a red-first test in
-`WidgetPicker.test.tsx` — the count asserted against `rows().length` and again
-after a search, seen failing at `2 widgets` expected against `22` rendered.
+**The two things that made this milestone-shaped rather than a styling errand,
+both in `-h`:**
 
-**THE RAIL IS BUILT, AND THE DECISION BEHIND IT IS SETTLED.** The desktop
-insert surface was a Radix Popover on Mitchell's 2026-09-04 instruction, and
-SPEC §26 — eight days later — said the right column *is* the rail. He settled it
-on 2026-09-20: *"The rail should be open in edit mode, and the preview shrinks,
-that's not breaking the rule of 'what you see is what you get' in the preview,
-it's just shrinking the container a little bit."* That is §26's own sentence.
-**The popover instruction is superseded; do not restore it from git history.**
-The trigger, the `open` state and the portal are gone on desktop; the phone
-keeps its sheet (§19). `PageScreen`'s `aside.sticky.top-29.w-80` already had
-§26's two states and now fills the rail one with the catalogue.
+1. **A browser walk found a defect every other layer passed.** The selected kind
+   icons painted their faded cells in the same token as their own ground, so
+   Inline and List were unreadable in the one state they exist to confirm —
+   while unit tests, lint, typecheck, both walls, e2e and CI were all green.
+   The design has the same collision. **On a surface whose changes are paint, a
+   walk is the instrument, not a formality.**
+2. **CodeRabbit's two findings were both real** — a `role="radio"` group with no
+   arrow keys and four tab stops, and no coverage at the widths where the rail
+   newly costs the document 320px. Both fixed, both threads resolved by it.
 
-With it: the four-up **icon kind control** (radiogroup, All / Inline / Block /
-List, the plain-English sentences moved into `title`), the **rows as cards**
-(`∷` handle, mono moss shape chip, mono brand-pressed "takes" line, preview),
-and `.tc-widget-rail` bounding the column at `calc(100vh - 120px)` so the list
-scrolls rather than the page. `KI-2026-09-20-h` has the four cosmetic items
-left; none is structural and one of them (`cost` declaring six filter
-dimensions, so its "takes" line wraps) is a product call rather than a bug.
-
-**Also done 2026-09-20, on the block card** (`-g`, the wrong-turn find):
-`ItineraryDayBlock` was the one live container still a padded box — `p-3`, rows
-inset 12px, so its separators were stubs that stopped short of both edges and
-its header was text with a stub rule under it rather than the design's caption
-band. It is now `overflow-hidden` with full-bleed rows and a `bg-paper` header
-strip, the same furniture its two siblings already had. **No test covers it and
-none can at this layer**: the test-quality wall rejects `toHaveClass` outside
-`src/components/ui` (`scripts/check-lint-wall.mjs:460`) and a paint is what
-changed. Both changes are owed a look on the preview.
+**What is left is recorded, not pending:** `-h` carries four cosmetic items and
+one product call (`--color-brand-pressed` at 11px for the takes-line), `-g`
+carries the other three containers and the 8px-vs-10px radius question,
+`KI-2026-09-20-i` carries the docstring gate, and `KI-2026-09-20-j` carries a
+unit test that failed once and has not reproduced.
 
 ---
 

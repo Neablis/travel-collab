@@ -164,12 +164,24 @@
      `#1a2720` — a near-black dark green that at 11px reads as ink rather than
      as a highlighted line. The design intends it to stand out. A product call.
 
-- **What the walk did NOT cover**, so nobody reads it as broader than it was:
-  the phone surface (only 1280px and 1100px were walked), drag-and-drop
+- **WALKED AND ACCEPTED BY MITCHELL, 2026-09-20**, on the final build
+  (`8bece7e`), after the agent walk above and the two fixes it prompted: *"I
+  walked, and it looks good."* That closes the surface. Everything left below is
+  recorded because it was consciously left, not because it is suspected.
+
+- **What the AGENT walk did not cover**, kept so nobody reads its report as
+  broader than it was: the phone surface (only 1280px and 1100px), drag-and-drop
   insertion (rows were clicked, never dragged), the search box and its empty
-  state, reload persistence after an insert, and **filter persistence across the
-  rail↔settings swap** — that landed after the walked commit and has unit
-  coverage only.
+  state, and reload persistence after an insert. **Filter persistence across the
+  rail↔settings swap** landed after the commit that walk ran against — it has
+  unit coverage (`PageScreen.test.tsx`, seen red) and is inside what Mitchell
+  walked afterwards.
+
+- **The agent walk left a row in the database.** It created a dev user
+  `dev-widgetwalk` on the preview and deleted its two scratch trips, but the
+  user row remains. `KI-2026-09-06-h` is why that matters rather than being
+  housekeeping: preview dev-login writes have landed in the production database.
+  One row, named here so it is findable if that KI is ever swept.
 
 - **Do not read `KI-2026-09-20-g` as this entry.** That one is the widget *block*
   card — the box a rendered widget draws itself in on the page. Different
