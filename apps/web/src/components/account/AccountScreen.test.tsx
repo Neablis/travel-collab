@@ -120,16 +120,19 @@ describe("AccountScreen", () => {
   // none on `/account`), and the phone screen carries its own because §34.3
   // makes it a task the tab bar steps aside for, leaving no popover to hold it.
   //
-  // Asserted as `md:hidden` rather than by resizing: jsdom has no layout and no
-  // media queries, so the breakpoint is the only honest thing to check here.
-  // The `phone` Playwright project is where a real 411px walk belongs (link 16).
-  it("carries sign out for the phone only, never for both surfaces", () => {
+  // **Which surface it renders on is NOT asserted here, and that is the lint
+  // wall being right.** `md:hidden` is a class, jsdom has no media queries, and
+  // this file is not a `components/ui/**` primitive — so "phone only" is a
+  // claim this layer cannot honestly make. It belongs to the `phone` Playwright
+  // project at 411px, which is link 16's work.
+  //
+  // What IS testable here is the half that would break the decision: that the
+  // screen grows exactly one sign out. A second, always-visible one would be
+  // the rule-4 duplication link 1 decided against, and it would be a real
+  // regression a unit test can see.
+  it("grows exactly one sign out, never a second alongside the popover's", () => {
     mount();
-    const signOut = screen.getByTestId("account-sign-out");
-    expect(signOut.textContent).toBe("Sign out");
-    expect(signOut.parentElement?.className).toContain("md:hidden");
-    // And there is exactly one — a second, always-visible one would be the
-    // rule-4 duplication the decision exists to avoid.
+    expect(screen.getByTestId("account-sign-out").textContent).toBe("Sign out");
     expect(screen.getAllByRole("button", { name: /sign out/i })).toHaveLength(1);
   });
 
@@ -145,12 +148,14 @@ describe("AccountScreen", () => {
   // §34.3: *"Done returns you to Trips."* The tab bar steps aside for this
   // screen, so without a way out the only one left is the browser's own
   // gesture — on the surface that has just removed the app's navigation.
-  it("gives the phone a way back to Trips, and the desktop none", () => {
+  // §34.3: *"Done returns you to Trips."* The tab bar steps aside for this
+  // screen, so without a way out the only one left is the browser's own
+  // gesture — on the surface that has just removed the app's navigation.
+  //
+  // The destination is the testable half. That it is phone-only and 44px are
+  // both class claims this layer cannot hold; link 16 walks them at 411px.
+  it("gives the screen a way back to Trips", () => {
     mount();
-    const done = screen.getByTestId("account-done");
-    expect(done.getAttribute("href")).toBe("/");
-    expect(done.className).toContain("md:hidden");
-    // 44px, per §13.1 — the reason it is a `touch`-sized control.
-    expect(done.className).toContain("min-h-11");
+    expect(screen.getByTestId("account-done").getAttribute("href")).toBe("/");
   });
 });
