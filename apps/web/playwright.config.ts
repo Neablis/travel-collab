@@ -109,7 +109,17 @@ export default defineConfig({
       // Both phone specs, not one: M14 gave the Notebook a phone treatment
       // of its own (SPEC §19), and it is a different breakpoint behaviour
       // rather than a restyle — the chrome row becomes a sheet.
-      testMatch: /(m16-mobile-assistant|m14-mobile-notebook)\.spec\.ts/,
+      //
+      // **`m26-phone-surfaces` joined them in M26 Wave 2 (link 16).** Until
+      // then these two were the whole phone lane: the trips list, Playbooks,
+      // Plans, account, the shared day and trip settings had no phone coverage
+      // at all, and the `narrow` project sits at 1100px — *above* KI-046's band
+      // by construction — so the band this wave is about was untested.
+      //
+      // That spec deliberately does not touch Plan. Link 13's surface question
+      // is open, and a test written over a state everyone agrees is temporary is
+      // one that has to be argued with later.
+      testMatch: /(m16-mobile-assistant|m14-mobile-notebook|m26-phone-surfaces)\.spec\.ts/,
     },
   ],
   webServer: {

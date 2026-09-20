@@ -1012,17 +1012,31 @@ everyone agrees is temporary is a test that will have to be argued with later.
 
 ## Wave 2 exit gate
 
-- [ ] **[walk]** The phone has an account screen: full frame, three tabs at
+- [x] **[walk]** The phone has an account screen: full frame, three tabs at
       44px, `Done` returns to Trips, **the tab bar is not on it**, and Sign out
-      sits below the tabs.
-- [ ] **[walk]** Every CTA that points at Plans — Change plan, the invite gate,
+      sits below the tabs. **WALKED 2026-09-20** at 411×852 by
+      `m26-phone-surfaces.spec.ts`: the bar is asserted VISIBLE on Trips first
+      and hidden on `/account`, so its absence is a measurement rather than an
+      assumption; the tabs are measured with `boundingBox()` against 44; and
+      `‹ Trips` is followed back to a screen that has its bar again.
+- [~] **[walk]** Every CTA that points at Plans — Change plan, the invite gate,
       the token gate — lands on a phone screen with a `‹ Account` way back, and
-      the tab bar is absent there too.
-- [ ] **[walk]** Playbooks on a phone: tabs above the search, a one-column list,
+      the tab bar is absent there too. **The DESTINATION is walked** (2026-09-20):
+      `/plans` at 411px has no bar, a 44px `‹ Account` that lands on the Plan &
+      usage tab, and does not scroll sideways. **The three CTAs themselves are
+      not** — each needs its own entitlement state to reach, and that is the
+      walk this box still owes.
+- [~] **[walk]** Playbooks on a phone: tabs above the search, a one-column list,
       and **one** filter sheet holding filters and sort with scope outside it.
-      The shared day's map is behind a *Show route* row.
+      The shared day's map is behind a *Show route* row. **The filter sheet half
+      is walked** (2026-09-20): one sheet, the desktop chip row absent, sort
+      inside it, scope outside it and still a tab after the sheet closes, and no
+      sideways scroll at 411px. **The *Show route* row is blocked on link 4** —
+      there is no map on the shared day to collapse.
 - [~] **[walk]** New trip owns the whole frame with a `Cancel · New trip ·
-      Empty` header and no tab bar. **Two of the three done, 2026-09-20.**
+      Empty` header and no tab bar. **Two of the three done and WALKED,
+      2026-09-20** — the sheet is measured against the viewport width at 411px
+      and the bar is asserted hidden behind it.
       *Full frame*: `(app)/page.tsx` passes `size="full"` below the phone
       breakpoint — `useIsPhone()` is correct here and wrong for chrome, because
       this sheet only renders after somebody presses New trip, long after the
@@ -1062,14 +1076,21 @@ everyone agrees is temporary is a test that will have to be argued with later.
       because a MapLibre instance whose style failed cannot be retried in
       place. Link 4's shared-day map mounts this same panel rather than wording
       a second one differently.
-- [ ] The `phone` Playwright project covers every surface this wave built, and
+- [x] The `phone` Playwright project covers every surface this wave built, and
       **does not** pin link 13's layout while its question is open. **It also
       owns three claims the unit layer tried to make and could not**, each one
       a class swap that jsdom has no layout or media queries to judge: that
       `/account`'s sign out and `‹ Trips` are phone-only, that the account tabs
       are 44px there, and that the new-trip sheet is full-frame below the
       breakpoint. The lint wall refused all three at the unit layer, correctly.
-      They are listed here so they are covered rather than lost.
+      **Done 2026-09-20: `e2e/m26-phone-surfaces.spec.ts`, 8 tests, RUN AND
+      GREEN at 411×852 against a production build** (`pnpm build` then the
+      `phone` project — the `ci-like` lane, not `test:e2e`). This is the first
+      real browser evidence in the whole of M26, and it earned its keep on the
+      first run: two tests failed because they called `openAccountPage` without
+      navigating first, so they sat at `about:blank` waiting for a header that
+      was never rendered. My spec's defect, not the product's — but the point
+      stands that nothing before this had been opened at all.
 - [ ] `DRIFT.md` §8 is updated: the stale phone-Notebook bullet struck, and the
       two states the **design** still owes (the phone conflict state, and the
       loading/failed regions for tokens and plan) stated as design-owed rather
