@@ -18,6 +18,7 @@ import { TripViewTabs } from "@/components/trip/TripViewTabs";
 import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
+import { useSlowLoad } from "@/components/ui/useSlowLoad";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
@@ -314,14 +315,29 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   }, []);
   useEffect(() => () => rackObserverRef.current?.disconnect(), []);
 
+  // Up here with the other hooks for the reason `pendingRef` and `scopedDay`
+  // give above: everything past the `status` early returns runs conditionally,
+  // so a hook there is an order violation.
+  const slowLoad = useSlowLoad(status === "loading");
+
   // The page shell (trips/[tripId]/page.tsx) now owns the <main> landmark via
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
   // its own horizontal padding via PageContainer wrappers below, so these
   // early-return states need their own too.
+  // **Nothing at all for the first 200ms** — see `useSlowLoad`. This branch
+  // used to render `Loading…` unconditionally, and on the common path (Home's
+  // hero has already cached this `TripDetail`) it painted for about a frame:
+  // a flicker in the top-left that Mitchell could see and could not click.
+  // The container stays mounted either way so the swap costs no layout jump.
+  //
+  // The words are still a bare string rather than the board's own shape, which
+  // is what link 7 asks for and what `skeleton.tsx` exists to supply. That is
+  // the surface link 7's survey missed, and it is KI-2026-09-20-e rather than
+  // more of this PR.
   if (status === "loading")
     return (
       <PageContainer width="full">
-        Loading…
+        {slowLoad ? "Loading…" : null}
       </PageContainer>
     );
   if (status === "unauthenticated") {
