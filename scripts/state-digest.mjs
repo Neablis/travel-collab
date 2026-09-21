@@ -3,6 +3,25 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
+// The roadmap readers live in ONE place so this digest and the commands that
+// write these files cannot disagree about what they say. See the header of
+// scripts/lib/roadmap-read.mjs — a tool built to report drift must not be able
+// to drift from itself.
+//
+// This digest is ADVISORY: it degrades on a missing anchor rather than
+// throwing, because a digest that can fail a session start is worth less than
+// the session. Writing callers use assertAnchors() instead.
+import {
+  plain,
+  truncate,
+  milestoneId,
+  readCurrentMilestone,
+  readMilestoneGate,
+  readTodo,
+  readStatus,
+  findDrift,
+} from "./lib/roadmap-read.mjs";
+
 // THE STATE DIGEST: "where are we", answered deterministically, printed by the
 // SessionStart hook so nobody has to ask.
 //
@@ -87,138 +106,7 @@ function readLines(path) {
   }
 }
 
-/** Strips the markdown a heading or list item carries so a title reads as text. */
-function plain(text) {
-  return text
-    .replace(/`/g, "")
-    .replace(/\*\*/g, "")
-    .replace(/~~/g, "")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function truncate(text, max) {
-  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
-}
-
-/** Milestone ids are M<n> with an optional letter suffix: M9, M17, M11a, M18b. */
-function milestoneId(text) {
-  const match = /\bM(\d+[a-z]?)\b/.exec(text ?? "");
-  return match ? `M${match[1]}` : null;
-}
-
 // --- extraction -------------------------------------------------------------
-
-/**
- * The "Current milestone" line at the bottom of docs/milestones/README.md.
- * AGENTS.md designates that line the single source of truth for the number,
- * and the gate-close checklist's step 4 is what bumps it.
- */
-function readCurrentMilestone(root) {
-  const rel = "docs/milestones/README.md";
-  const lines = readLines(join(root, rel));
-  if (!lines) return { rel, missing: true };
-  for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const match = /^Current milestone:\s*(.+?)\s*$/.exec(lines[i]);
-    if (!match) continue;
-    const label = plain(match[1]);
-    return { rel, line: i + 1, label, id: milestoneId(label) };
-  }
-  return { rel, missing: true };
-}
-
-/** The current milestone's own file, and how much of its exit gate is ticked. */
-function readMilestoneGate(root, id) {
-  if (!id) return null;
-  const dir = join(root, "docs/milestones");
-  let name;
-  try {
-    name = readdirSync(dir).find((f) => f.startsWith(`${id}-`) && f.endsWith(".md"));
-  } catch {
-    return null;
-  }
-  if (!name) return null;
-  const rel = `docs/milestones/${name}`;
-  const lines = readLines(join(dir, name));
-  if (!lines) return { rel };
-
-  const start = lines.findIndex((l) => /^##\s+Exit gate/i.test(l));
-  if (start === -1) return { rel };
-  let ticked = 0;
-  let open = 0;
-  let descoped = 0;
-  for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^##\s/.test(lines[i])) break;
-    const box = /^\s*[-*]\s+\[( |x|X)\]\s*(.*)$/.exec(lines[i]);
-    if (!box) continue;
-    // A `- [ ] ~~…~~` box is scope struck out of the gate, not work outstanding.
-    if (/^~~/.test(box[2])) descoped += 1;
-    else if (box[1] === " ") open += 1;
-    else ticked += 1;
-  }
-  return { rel, line: start + 1, ticked, open, descoped };
-}
-
-/**
- * TODO.md carries two claims about the current work and they are allowed to
- * disagree: the first unchecked item (the file's own stated rule) and the
- * explicit `← current milestone` marker (which the file says records a
- * Mitchell decision that overrides position). Read both; report both.
- */
-function readTodo(root) {
-  const rel = "TODO.md";
-  const lines = readLines(join(root, rel));
-  if (!lines) return { rel, missing: true };
-  let first = null;
-  let marker = null;
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
-    if (!/^\s*[-*]\s+\[/.test(line)) continue;
-    if (!first && /^\s*[-*]\s+\[ \]/.test(line)) {
-      // Cut at the `←` marker: what follows it is commentary on the decision,
-      // and the marker itself is reported on its own line below.
-      const text = plain(line.replace(/^\s*[-*]\s+\[ \]\s*/, "")).split("←")[0];
-      first = { line: i + 1, text: truncate(text.trim(), 72) };
-      first.id = milestoneId(first.text);
-    }
-    if (!marker && /←\s*\**current milestone/i.test(line)) {
-      marker = { line: i + 1, id: milestoneId(plain(line)) };
-    }
-  }
-  return { rel, first, marker };
-}
-
-/**
- * STATUS.md's leading "where the work is" block only — the first few lines of
- * it, not the section. The file is 46KB and this is the part that answers
- * "what is in flight"; everything else it says is a pointer to somewhere else.
- */
-function readStatus(root) {
-  const rel = "docs/STATUS.md";
-  const lines = readLines(join(root, rel));
-  if (!lines) return { rel, missing: true };
-  const start = lines.findIndex((l) => /^##\s+Where the work is/i.test(l));
-  if (start === -1) return { rel, missing: true };
-  const said = [];
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length && said.length < STATUS_LINES; i += 1) {
-    if (/^##\s/.test(lines[i])) {
-      end = i;
-      break;
-    }
-    const text = plain(lines[i]);
-    // Tables and rules carry no sentence; the PR table in particular is
-    // already covered, and better, by the live `gh pr list` below. A line
-    // ending in a colon is a lead-in to content this digest is not going to
-    // print, and "Two things a fresh session must not miss:" with neither
-    // thing under it is worse than not printing it at all.
-    if (!text || text.startsWith("|") || /^-{3,}$/.test(text) || text.endsWith(":")) continue;
-    said.push(truncate(text, STATUS_LINE_MAX));
-  }
-  const body = lines.slice(start, end).join(" ");
-  return { rel, line: start + 1, said, mentions: body };
-}
 
 /** KI titles, never KI bodies. The list is the index; the files are the detail. */
 function readKnownIssues(root) {
@@ -307,43 +195,6 @@ function readPullRequests(root, { skip }) {
 }
 
 // --- drift ------------------------------------------------------------------
-
-/**
- * Mechanically detectable disagreement only. This never says which source is
- * right — AGENTS.md's gate-close checklist requires four flags to flip in one
- * commit, so a mismatch means one of them was missed, and deciding *which*
- * needs a turn's judgement. That turn is /roadmap's.
- */
-function findDrift({ milestone, todo, gate, status }) {
-  const drift = [];
-  const current = milestone.id;
-
-  if (current && todo.marker?.id && todo.marker.id !== current) {
-    drift.push(
-      `TODO.md's "← current milestone" marker says ${todo.marker.id}, ` +
-        `milestones/README.md says ${current}  [${todo.rel}:${todo.marker.line} vs ${milestone.rel}:${milestone.line}]`,
-    );
-  }
-  if (current && todo.first?.id && todo.first.id !== current) {
-    drift.push(
-      `TODO.md's first unchecked item is ${todo.first.id}, not ${current} ` +
-        `(fine if the marker names a decision — check it)  [${todo.rel}:${todo.first.line}]`,
-    );
-  }
-  if (current && status.mentions && !new RegExp(`\\b${current}\\b`).test(status.mentions)) {
-    drift.push(
-      `STATUS.md's "Where the work is right now" never mentions ${current} — ` +
-        `gate-close step 5  [${status.rel}:${status.line}]`,
-    );
-  }
-  if (gate && gate.open === 0 && gate.ticked > 0 && todo.first?.id === current) {
-    drift.push(
-      `every ${current} exit-gate box is ticked but TODO.md still has it unchecked ` +
-        `[${gate.rel}:${gate.line} vs ${todo.rel}:${todo.first.line}]`,
-    );
-  }
-  return drift;
-}
 
 // --- rendering --------------------------------------------------------------
 
