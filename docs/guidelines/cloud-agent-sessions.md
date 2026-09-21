@@ -302,6 +302,45 @@ explicitly rather than letting a blank canvas read as a pass.
 `LOCATIONIQ_API_KEY` and `AI_GATEWAY_API_KEY` belong in Vercel's env scopes.
 Only non-secret gates (`SEED_DEMO_DATA=true`) are appropriate there.
 
+## Waiting on a PR: subscribe, do not watch
+
+`AGENTS.md`'s *Waiting on PR checks* section owns the rule; this is the
+container-specific half of it.
+
+A cloud session can be **woken by external events**, which a laptop session
+cannot:
+
+```
+subscribe_pr_activity(owner, repo, pullNumber)   # then end the turn
+```
+
+CI completions, review comments and merge-state changes arrive as
+`<wake reason="external-event">` envelopes. **Ending the turn is how you wait.**
+A blocking `gh pr checks --watch` here spends a median 6.6 minutes of session
+doing nothing, and still misses the review comment that lands afterwards.
+
+Two things that follow:
+
+- **Never run a blocking watch in a subscribed session.** It spends exactly the
+  wait the subscription removes.
+- **Do not poll as a substitute.** If no event has arrived, nothing has
+  happened. Repeated `gh pr checks` was measured as a reliable time sink before
+  the wake mechanism was documented at all.
+
+## What this container can verify — run the probe
+
+`pnpm lanes` prints which verification lanes exist here: `pnpm --filter`
+usable, node_modules present, the jsdom unit lane, the integration database,
+Playwright's browsers, and (with `--net`) egress to the map tile host. The
+`SessionStart` hook prints it beside the state digest, so it has usually
+already run.
+
+Read it before promising a verification. Four open entries are each a session
+discovering a broken lane mid-task and reading it as a code failure:
+`KI-2026-09-08-b`, `KI-2026-09-12-b`, `KI-2026-09-02-a`, `KI-49`. A blocked
+lane is a fine outcome recorded on the PR's *"Not run, and why"* line; a lane
+you assumed and never had is not.
+
 ## The container is ephemeral
 
 Anything worth keeping is committed and pushed. A hand-fix applied to the image
@@ -311,6 +350,18 @@ future agent's memory.
 
 Writable disk is a fixed allowance, so `df` misleads: "Avail" at 0 with low
 "Used" means the allowance is spent. Deletes still succeed while writes fail.
+
+**The session transcript is ephemeral too, and that has a measurement cost.**
+`~/.claude/projects/<dir>/*.jsonl` goes with the container. The 2026-09-02
+tooling review's corpus was 35 *macOS* directories — local sessions only — so
+every figure in it (F1's 1.9M tokens of orientation re-reads, the 51.3x
+cache-read multiplier, F3's 814k for subagents) describes the local slice of a
+window that partly predates the shift to cloud-primary work. Re-running that
+analysis on a laptop today samples a shrinking minority while looking like a
+baseline. `pnpm session-metrics --self <transcript>` emits this session's
+aggregate — counts and token sums only, never prompt text or file contents —
+which is the piece that has to be captured *before* the container is
+reclaimed. See `docs/reviews/2026-09-21-development-loop-review.md`.
 
 ## The rule that matters
 

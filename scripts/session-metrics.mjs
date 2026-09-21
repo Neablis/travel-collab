@@ -534,6 +534,55 @@ function report(r, opts) {
 }
 
 // ---------------------------------------------------------------------------
+// The self-report: one session's aggregate, for the durable sink.
+//
+// THIS IS THE ONLY THING THAT LEAVES THE CONTAINER, so its contents are a
+// privacy boundary, not merely a size choice. Transcripts contain every
+// prompt, every file read and every tool argument. A record carries COUNTS
+// AND TOKEN SUMS ONLY — no prompt text, no file contents, no tool arguments,
+// no branch-identifying free text beyond the branch name itself.
+//
+// If a future field would need an example value from the transcript to be
+// useful, it does not belong here.
+export function selfReport(session, { sessionId, branch } = {}) {
+  const f = computeFindings([session]);
+  const bySource = {};
+  for (const [name, e] of f.f1.bySource) {
+    bySource[name] = { calls: e.calls, tok: estTokens(e.chars) };
+  }
+  return {
+    schema: 1,
+    sessionId: sessionId ?? session.id,
+    branch: branch ?? null,
+    isAgent: session.isAgent,
+    firstTs: session.firstTs,
+    lastTs: session.lastTs,
+    toolUses: f.corpus.toolUses,
+    requests: f.corpus.requests,
+    nonBrowserTok: estTokens(f.corpus.nonBrowserChars),
+    cacheCreation: f.cache.cacheCreation,
+    cacheRead: f.cache.cacheRead,
+    multiplier: Number(f.cache.multiplier.toFixed(2)),
+    // F1 and F2, the two findings the surface-growth argument rests on.
+    orientationCalls: f.f1.calls,
+    orientationTok: estTokens(f.f1.chars),
+    orientationBySource: bySource,
+    bootstrapTok: estTokens(f.f2.total),
+    // F3a / F4, so subagent reach stays measurable.
+    agentDispatches: f.f3a.dispatches,
+    agentTypes: Object.fromEntries(f.f4),
+    briefsNamingDocs: Object.fromEntries(f.f3a.mentioning),
+    // F7, per skill.
+    skills: f.f7.map((s) => ({
+      skill: s.skill,
+      skillSessions: s.skillSessions,
+      manualSessions: s.manualSessions,
+      manualCalls: s.manualCalls,
+    })),
+    browserCalls: f.browser.calls,
+  };
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const get = (flag) => {
@@ -544,6 +593,19 @@ function main() {
   const sinceRaw = get("--since");
   const since = sinceRaw ? new Date(sinceRaw) : undefined;
   const asJson = argv.includes("--json");
+
+  // --self <transcript.jsonl>: aggregate ONE transcript (the current session),
+  // for the Stop/SessionEnd hook. Kept in this file rather than the hook so
+  // the aggregation has exactly one implementation and one set of tests.
+  const self = get("--self");
+  if (self) {
+    console.log(
+      JSON.stringify(
+        selfReport(parseSession(self), { sessionId: get("--session-id"), branch: get("--branch") })
+      )
+    );
+    return;
+  }
 
   const files = findTranscripts(root, since);
   if (files.length === 0) {

@@ -408,9 +408,27 @@ point: they describe the change, not the ceremony around it.
   skip is not. A tier stated plainly ("Tier 1, prose only, nothing run") is a
   complete answer, not an admission.
 
-### Waiting on PR checks — do not hand-poll
+### Waiting on PR checks — subscribe in a cloud session, watch locally
 
-One blocking command covers every check that runs automatically:
+**In a Claude Code cloud session, do not wait at all — subscribe.** The harness
+delivers CI completions, review comments and merge-state changes into the
+conversation as `<wake reason="external-event">` envelopes:
+
+```
+subscribe_pr_activity(owner, repo, pullNumber)   # then END THE TURN
+```
+
+Ending the turn *is* how you wait. The session is woken when something
+actually happens, so the median 6.6-minute run costs no turns instead of one
+long blocked one — and a review comment arriving forty minutes later wakes you
+too, which no `--watch` ever does. `unsubscribe_pr_activity` when the PR merges
+or closes.
+
+**Never combine the two.** A blocking `--watch` inside a subscribed session
+spends the wait it exists to avoid.
+
+**Locally, where there is no wake mechanism**, one blocking command still
+covers every check that runs automatically:
 
 ```
 gh pr checks <n> --watch --fail-fast
@@ -418,6 +436,17 @@ gh pr checks <n> --watch --fail-fast
 
 Hand-polling with repeated `gh pr checks` is a reliable time sink; that is why
 this is written down rather than left to each session to rediscover.
+
+**Why this section changed (2026-09-21).** It prescribed only the blocking
+command, from a period when sessions ran on a laptop.
+`docs/guidelines/cloud-agent-sessions.md` has recorded since 2026-09-08 that
+*most agent work on this repo now happens in a Claude Code remote session*, and
+`subscribe_pr_activity`, `external-event` and `wake reason` appeared **nowhere**
+in `AGENTS.md`, `CLAUDE.md`, `docs/guidelines/` or `.claude/` — so the one
+mechanism that answers "stop polling github" was undocumented while the
+complaint it answers was live. Measured context:
+`docs/reviews/2026-09-21-development-loop-review.md` (A4), against 100 CI runs
+across 15 branches at a median 6.6 minutes each.
 
 ### CodeRabbit is Mitchell's step, not an automated one
 
