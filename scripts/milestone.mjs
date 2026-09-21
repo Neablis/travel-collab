@@ -27,6 +27,9 @@
 //   the anchor contract in scripts/lib/roadmap-read.mjs. Writing four files
 //   off a silent miss is how you corrupt four files.
 // - Apply anything without --confirm. It prints a unified diff and stops.
+// - Guess which milestone becomes current. `--next <id>` is required, because
+//   nothing in this repo states the execution order in a form a script can
+//   read — see the comment at that check, and KI-2026-09-21-a.
 //
 // WHAT IT DOES THAT NO CHECKLIST STEP SAYS
 //
@@ -237,32 +240,55 @@ function close(id, { confirm, nextId }) {
   // seven arrow-lines in README.md are prose and six of them are historical,
   // so parsing one would be a guess and this script does not guess. Filed as
   // KI-2026-09-21-a.
-  const order = idx.items.filter((m) => m.ticked === false && m.id !== id);
-  let next = order[0];
-  if (nextId) {
-    const chosen = idx.items.find((m) => m.id === nextId);
-    if (!chosen) {
-      console.error(`milestone close: --next ${nextId} is not a milestone in TODO.md. Nothing written.`);
-      process.exit(1);
-    }
-    if (chosen.ticked) {
-      console.error(`milestone close: --next ${nextId} is already ticked, so it cannot become current. Nothing written.`);
-      process.exit(1);
-    }
-    if (chosen.id === id) {
-      console.error(`milestone close: --next ${nextId} is the milestone being closed. Nothing written.`);
-      process.exit(1);
-    }
-    next = chosen;
-  }
-  if (!next) {
-    console.error(`milestone close: no unticked milestone left to become current.`);
+  const rowOrderGuess = idx.items.filter((m) => m.ticked === false && m.id !== id)[0];
+
+  // **`--next` is REQUIRED, and the row-order candidate above is printed only
+  // to be distrusted.** The first version of this shipped `--next` as an
+  // optional override and left the row-order derivation as the default, which
+  // CodeRabbit correctly called out on PR #200: a default that the file's own
+  // comment, a regression test and a known-issue entry all say is wrong is
+  // still what runs when nobody passes the flag. Documenting a trap and then
+  // leaving it armed is the `.gitignore` mistake from earlier on this same
+  // branch — a guard that covers most of a case reads as covering the case.
+  //
+  // Refusing is this script's idiom, not a new posture: it already refuses an
+  // open gate, a parse that found nothing, and a write without `--confirm`.
+  // One more refusal is cheaper than one wrong four-file write, and this
+  // command runs about once per milestone.
+  if (!nextId) {
+    console.error(
+      `milestone close: --next <id> is required. Nothing written.\n` +
+        `  Which milestone becomes current is NOT derivable from this repo: TODO.md's\n` +
+        `  header says "read the marker, not the position", so a row order carries no\n` +
+        `  information about what comes next, and the arrow-lines in\n` +
+        `  docs/milestones/README.md are prose (six of the seven are historical).\n` +
+        (rowOrderGuess
+          ? `  For reference only, the next unticked ROW is ${rowOrderGuess.id} — that is a\n` +
+            `  guess with no authority, and on M26 it was wrong. Check the live order line\n` +
+            `  near "Current milestone" before choosing.\n`
+          : ``) +
+        `  See KI-2026-09-21-a.`,
+    );
     process.exit(1);
   }
-  if (nextId && order[0] && order[0].id !== next.id) {
+
+  const next = idx.items.find((m) => m.id === nextId);
+  if (!next) {
+    console.error(`milestone close: --next ${nextId} is not a milestone in TODO.md. Nothing written.`);
+    process.exit(1);
+  }
+  if (next.ticked) {
+    console.error(`milestone close: --next ${nextId} is already ticked, so it cannot become current. Nothing written.`);
+    process.exit(1);
+  }
+  if (next.id === id) {
+    console.error(`milestone close: --next ${nextId} is the milestone being closed. Nothing written.`);
+    process.exit(1);
+  }
+  if (rowOrderGuess && rowOrderGuess.id !== next.id) {
     console.log(
-      `NOTE: --next ${next.id} overrides the row-order default (${order[0].id}). ` +
-        `TODO.md's rows are deliberately unordered; see the comment at this check.`,
+      `NOTE: --next ${next.id} differs from the first unticked ROW (${rowOrderGuess.id}). ` +
+        `That is expected whenever the roadmap has been reordered; see KI-2026-09-21-a.`,
     );
   }
 
@@ -331,7 +357,7 @@ function close(id, { confirm, nextId }) {
 function main() {
   const [cmd, id, ...rest] = process.argv.slice(2);
   if (cmd !== "close" || !id) {
-    console.error("usage: pnpm milestone close <id> [--next <id>] [--confirm]");
+    console.error("usage: pnpm milestone close <id> --next <id> [--confirm]");
     console.error("  Runs the gate-close checklist across TODO.md, milestones/README.md");
     console.error("  and candidates.md. Prints a diff and stops unless --confirm.");
     process.exit(1);

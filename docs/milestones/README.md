@@ -15,11 +15,21 @@ A milestone's gate passing is the single trigger for flipping **every** status
 flag, in **one commit** — never a trailing manual step (that is how M2 stayed
 unticked). When the deployed gate demo passes:
 
-> **`pnpm milestone close <id>` performs steps 1, 4 and 6 and refuses to do
+> **`pnpm milestone close <id> --next <id>` performs steps 1, 4 and 6 and refuses to do
 > them wrong.** It will not close a milestone with open exit-gate boxes, will
-> not proceed on a parse that found nothing, and will not write anything
-> without `--confirm` — it prints a diff first. Steps 3 and 5 are prose and
-> stay yours; it lists them rather than inventing them.
+> not proceed on a parse that found nothing, will not write anything
+> without `--confirm` — it prints a diff first — and **will not guess which
+> milestone becomes current**: `--next <id>` is required. Steps 3 and 5 are
+> prose and stay yours; it lists them rather than inventing them.
+>
+> **Why `--next` is not optional.** It briefly was, on 2026-09-21, with the
+> first unticked `TODO.md` row as the fallback — and that fallback is wrong by
+> this file's own rules, because `TODO.md`'s header says to read the marker and
+> not the position. Closing M26 it proposed **M12**, when the recorded order is
+> `M26 → M13 → M12`. Only the `--confirm`-less diff caught it. A default that a
+> comment, a test and a known-issue entry all call wrong is still what runs when
+> nobody passes the flag, so it refuses instead. `KI-2026-09-21-a` carries the
+> real fix: a machine-readable order this could read.
 >
 > This is automated because the list is what kept failing. Step 5 was *added*
 > to this checklist after M11a's and M11b's gate-close commits both missed it,
