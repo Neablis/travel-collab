@@ -166,6 +166,8 @@ not one more thing to invoke: `docs/reviews/2026-09-02-session-tooling-review.md
 | `/next-prompt` | Generates a self-contained handoff prompt from real state, separating what is proven from what is assumed |
 | `/ki-sweep` | Clears independent known issues via parallel `ki-fixer` agents in isolated worktrees, respecting milestone and contracts constraints |
 | `/cleanup-orphans` | Finds orphaned PRs, branches, worktrees and stale sessions. Reports first; deletes nothing without per-category approval |
+| `pnpm milestones` / `pnpm candidates` | The milestone table and the unscheduled ideas, extracted — 4% and 10% of the files they replace |
+| `pnpm milestone close <id>` | The gate-close checklist, executed across four files; refuses an open gate, a bad parse, or no `--confirm` |
 | `/dispatch` | Sets up a subagent protocol run — splits the work, writes the manifest the enforcement hooks read, emits one brief per unit, and drives the promotion gate at teardown |
 
 **Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
@@ -186,6 +188,20 @@ Needs no server and no database; it is `import-content.ts --dry-run`, the same
 code path as the import with the writes off. The same lint runs inside
 `pnpm test` via `packages/fixtures/src/bundle/content.test.ts`. See ADR-041 and
 `docs/guidelines/content-bundles.md`.
+
+**Surface report and wall** (`pnpm surface`, `pnpm surface --check` inside
+`pnpm lint`): how big the files every session reads first actually are, with a
+per-file byte budget. It exists because the surface **doubled in nineteen
+days** — 315,687 B at the 2026-09-02 tooling review to 635,502 B on
+2026-09-21 — while nobody was watching, because no number was being kept. At
+the 51.3x cache re-read multiplier that review measured, this is the one place
+a byte saved is not saved once. `--since <ref>` prints the before/after
+against any commit. Each budget is ~1.25x the file's size when it was set, so
+the wall fires on growth rather than on the next legitimate paragraph; raising
+one is a decision to record in the commit that raises it.
+**What it proves and does not:** byte counts prove the *surface* shrank, not
+that sessions got cheaper. The outcome measure is F1/F2 in
+`pnpm session-metrics`. `docs/reviews/2026-09-21-development-loop-review.md`.
 
 **Fixture check** (`pnpm seed:verify`): folds the canonical Japan demo trip
 through the real domain and reports counts, kind/tag coverage, coordinates,
