@@ -49,9 +49,10 @@ import { execFileSync } from "node:child_process";
 const BUDGETS = {
   "TODO.md": 55_000, // 40,451 at set
   "docs/milestones/README.md": 85_000, // 69,444 at set
-  "docs/STATUS.md": 80_000, // 63,557 at set — and already past its OWN stated
-  // "~300 lines is the signal" rule at 969 lines, so this budget is a ceiling
-  // on further growth, not an endorsement of the current size.
+  "docs/STATUS.md": 30_000, // 21,915 at set. Lowered from 80,000 the same day
+  // it was trimmed: 63,557 B / 969 lines went to 21,915 B / 336 lines against
+  // the file's OWN stated "~300 lines is the signal" rule, so the ceiling that
+  // merely capped further growth is now an actual budget.
   "AGENTS.md": 47_000, // 37,515 at set
   "CLAUDE.md": 10_000, // 3,639 at set
   "docs/known-issues/open/": null,
