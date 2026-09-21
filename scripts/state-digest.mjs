@@ -317,6 +317,15 @@ function render(d) {
   out.push("");
 
   out.push(`NEXT READ: ${d.nextRead}`);
+  // Name the extraction commands HERE rather than leaving them to be
+  // discovered. docs/reviews/2026-09-02-session-tooling-review.md (F8)
+  // measured the alternative: /roadmap was invoked in 9 sessions against 109
+  // that read the same files by hand. A line in the thing that already fires
+  // is the only delivery mechanism with a record in this repo.
+  out.push(
+    "INSTEAD OF READING: `pnpm milestones` (the table + disagreements) · " +
+      "`pnpm candidates` (unscheduled ideas) · `pnpm lanes` (what this box can verify)",
+  );
   out.push(
     "VERIFY: dispatch phase-verifier — it drives the PR's Vercel preview, so the browser walk needs no local infra.",
   );

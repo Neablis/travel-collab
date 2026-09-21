@@ -286,6 +286,151 @@ export function findDrift({ milestone, todo, gate, status }) {
   return drift;
 }
 
+
+// --- candidates -------------------------------------------------------------
+
+/**
+ * docs/candidates.md, one record per `- **…` entry.
+ *
+ * The `state` field is the lifecycle `docs/milestones/README.md` states as a
+ * rule: an entry absorbed into a milestone is "annotated in place and deleted
+ * at those gates". Three states, and the distinction is what lets
+ * `milestone close` prune safely:
+ *
+ *   unplaced  — nobody has committed to it
+ *   placed    — absorbed into <milestone>, and that milestone's gate DELETES it
+ *   scoped    — absorbed into <milestone>, but the entry does not ask to be
+ *               deleted; it says so ("kept here only for…"), so leave it
+ *
+ * Only `placed` is ever auto-deleted. Reading "scoped" as "placed" would throw
+ * away an entry whose author explicitly asked for it to survive.
+ */
+export function readCandidates(root, rel = "docs/candidates.md") {
+  const lines = readLines(join(root, rel));
+  if (!lines) return { rel, missing: true, anchorMissing: true, items: [] };
+
+  const items = [];
+  let cur = null;
+  const push = () => {
+    if (!cur) return;
+    // Whitespace is normalised before matching because these phrases WRAP:
+    // "M23's gate deletes this\n  entry at close" is one sentence in a
+    // hard-wrapped file, and a line-wise match silently finds nothing. That
+    // exact miss happened on 2026-09-21 and found zero of two real entries.
+    const flat = cur.lines.join(" ").replace(/\s+/g, " ");
+    const deletes = /\b(M\d+[a-z]?)[\u2019']s gate deletes this entry/.exec(flat);
+    const scoped = /\bnow scoped into (M\d+[a-z]?)\b/.exec(flat);
+    const placedHeading = /^\s*-\s*\*\*PLACED[^*]*\bthis is (M\d+[a-z]?)\b/.exec(cur.lines[0]);
+    cur.state = deletes ? "placed" : scoped ? "scoped" : "unplaced";
+    cur.milestone = deletes?.[1] ?? scoped?.[1] ?? placedHeading?.[1] ?? null;
+    // A PLACED heading with no "deletes this entry" sentence is still placed
+    // work, but nothing asked for its deletion — treat it as scoped.
+    if (cur.state === "unplaced" && placedHeading) cur.state = "scoped";
+    cur.date = /\b(20\d\d-\d\d-\d\d)\b/.exec(flat)?.[1] ?? null;
+    cur.title = truncate(plain(cur.lines[0].replace(/^\s*-\s*/, "")).replace(/\.$/, ""), 96);
+    cur.bytes = cur.lines.reduce((n, l) => n + l.length + 1, 0);
+    items.push(cur);
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^-\s+\*\*/.test(lines[i])) {
+      push();
+      cur = { line: i + 1, lines: [lines[i]] };
+    } else if (cur) {
+      cur.lines.push(lines[i]);
+    }
+  }
+  push();
+
+  // An empty candidates file is legitimate (everything got placed); a file
+  // whose entry syntax changed is not, and the two must not look alike.
+  const anchorMissing = items.length === 0 && /^-\s/m.test(lines.join("\n"));
+  return { rel, items, anchorMissing };
+}
+
+// --- the milestone index ----------------------------------------------------
+
+/**
+ * Every milestone: its id, title, file, gate tally and TODO tick state, joined
+ * on the id. This is the table `docs/milestones/README.md` carries in prose
+ * and `TODO.md` carries as checkboxes — read from both so a disagreement is
+ * visible rather than picked.
+ */
+export function readMilestoneIndex(root) {
+  const dir = join(root, "docs/milestones");
+  let names;
+  try {
+    names = readdirSync(dir).filter((f) => /^M\d+[a-z]?-.*\.md$/.test(f));
+  } catch {
+    return { rel: "docs/milestones", anchorMissing: true, items: [] };
+  }
+
+  const todo = readTodo(root);
+  const todoText = readLines(join(root, "TODO.md"))?.join("\n") ?? "";
+  // An id can appear on more than one checkbox row, and taking the first is
+  // WRONG. TODO.md has both `- [x] **M9 Phase 0 — the assistant kernel**`
+  // (a completed sub-part, listed earlier) and `- [ ] **M9 The assistant
+  // cites what it plans**` (the milestone, PAUSED). First-match reported M9
+  // as ticked with 10 open gate boxes — a disagreement that did not exist,
+  // which is the way a drift report gets trained away.
+  //
+  // The milestone's own row is the one that CITES its milestone file. That is
+  // the convention every Phase-3 row follows, and a sub-part row does not.
+  // An id can appear on more than one checkbox row. TODO.md has both
+  // `- [x] **M9 Phase 0 — the assistant kernel**` (a completed sub-part) and
+  // `- [ ] **M9 The assistant cites what it plans**` (the milestone, PAUSED).
+  //
+  // Two heuristics were tried and BOTH failed on the real data: first-match
+  // picks the sub-part, and "prefer the row citing the milestone's own file"
+  // does not discriminate because the sub-part's 21-line entry mentions that
+  // file too. Either one reported M9 as ticked with 10 open gate boxes — a
+  // disagreement that does not exist, and a drift report that cries wolf is
+  // how a real one gets ignored.
+  //
+  // So this does not pick. When rows for one id disagree, the tick state is
+  // UNKNOWN and the ambiguity is reported. "TODO.md says M9 twice and they
+  // disagree" is a more useful output than either guess, and it is the same
+  // facts-not-verdicts posture the drift report already takes.
+  const ticks = new Map();
+  const ambiguous = [];
+  const rows = new Map();
+  const todoLines = todoText.split("\n");
+  for (let k = 0; k < todoLines.length; k += 1) {
+    const m = /^\s*[-*]\s*\[( |x|X)\]\s*\*\*(M\d+[a-z]?)\b/.exec(todoLines[k]);
+    if (!m) continue;
+    const entry = { ticked: m[1] !== " ", line: k + 1, text: truncate(plain(todoLines[k]), 70) };
+    rows.set(m[2], [...(rows.get(m[2]) ?? []), entry]);
+  }
+  for (const [id, found] of rows) {
+    const states = new Set(found.map((r) => r.ticked));
+    if (states.size === 1) ticks.set(id, found[0].ticked);
+    else ambiguous.push({ id, rows: found });
+  }
+
+  const current = readCurrentMilestone(root);
+  const items = names
+    .map((name) => {
+      const id = /^(M\d+[a-z]?)-/.exec(name)[1];
+      const lines = readLines(join(dir, name)) ?? [];
+      const h1 = lines.find((l) => /^#\s+\S/.test(l));
+      const gate = readMilestoneGate(root, id);
+      return {
+        id,
+        rel: `docs/milestones/${name}`,
+        title: truncate(plain((h1 ?? id).replace(/^#\s+/, "")), 60),
+        ticked: ticks.get(id),
+        gate,
+        isCurrent: current.id === id,
+      };
+    })
+    .sort((a, b) => {
+      const n = (x) => Number(/\d+/.exec(x.id)[0]);
+      return n(a) - n(b) || a.id.localeCompare(b.id);
+    });
+
+  return { rel: "docs/milestones", items, current, todo, ambiguous, anchorMissing: items.length === 0 };
+}
+
 // --- the writing caller's gate ----------------------------------------------
 
 export class AnchorError extends Error {

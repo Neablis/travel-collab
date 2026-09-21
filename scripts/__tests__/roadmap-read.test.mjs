@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  readCandidates,
+  readMilestoneIndex,
   readCurrentMilestone,
   readMilestoneGate,
   readTodo,
@@ -221,4 +223,99 @@ test("milestoneId reads the suffixed ids this repo uses", () => {
   assert.equal(milestoneId("M11a An invite gate"), "M11a");
   assert.equal(milestoneId("**M18b** tag focus"), "M18b");
   assert.equal(milestoneId("no milestone here"), null);
+});
+
+// --- candidates -------------------------------------------------------------
+
+test("a WRAPPED 'gate deletes this entry' sentence is still matched", () => {
+  // The phrase spans a line break in the real hard-wrapped file:
+  //   "… M23's gate deletes this\n  entry at close …"
+  // A line-wise match found zero of two real entries on 2026-09-21. The
+  // consequence is not a crash — it is a prune that silently does nothing.
+  const root = repo({
+    "docs/candidates.md": [
+      "# Candidates", "",
+      "- **PLACED — this is M23 link 3.**", "  Scheduled into the milestone file.",
+      "  M23\u2019s gate deletes this", "  entry at close; it stays until then.", "",
+      "- **Something nobody has placed (2026-09-16).**", "  Just an idea.", "",
+    ].join("\n"),
+  });
+  const res = readCandidates(root, "docs/candidates.md");
+  assert.equal(res.items.length, 2);
+  assert.equal(res.items[0].state, "placed");
+  assert.equal(res.items[0].milestone, "M23");
+  assert.equal(res.items[1].state, "unplaced");
+});
+
+test("both the curly and the straight apostrophe match", () => {
+  for (const apos of ["\u2019", "'"]) {
+    const root = repo({
+      "docs/candidates.md": `# C\n\n- **x.**\n  M24${apos}s gate deletes this entry at close.\n`,
+    });
+    assert.equal(readCandidates(root, "docs/candidates.md").items[0].state, "placed", apos);
+  }
+});
+
+test("'scoped into' is NOT 'placed' — only placed entries are auto-deleted", () => {
+  // An entry that says "now scoped into M9 … kept here only for" has asked to
+  // survive. Reading it as placed would delete what its author preserved.
+  const root = repo({
+    "docs/candidates.md": "# C\n\n- **AI preview before apply — now scoped into M9.**\n  Kept here only for the reasoning.\n",
+  });
+  const item = readCandidates(root, "docs/candidates.md").items[0];
+  assert.equal(item.state, "scoped");
+  assert.equal(item.milestone, "M9");
+});
+
+test("a candidates file whose entry syntax changed reports anchorMissing", () => {
+  const root = repo({ "docs/candidates.md": "# C\n\n- plain bullet, no bold title\n" });
+  assert.equal(readCandidates(root, "docs/candidates.md").anchorMissing, true);
+});
+
+// --- the milestone index ----------------------------------------------------
+
+test("an id on two checkbox rows with different ticks is UNKNOWN, not guessed", () => {
+  // TODO.md carries `- [x] **M9 Phase 0 …**` and `- [ ] **M9 The assistant
+  // cites what it plans**`. Guessing either way produced a disagreement that
+  // did not exist ("M9 ticked but 10 gate boxes open"), and a drift report
+  // that cries wolf is how a real one gets ignored.
+  const root = repo({
+    "TODO.md": [
+      "# TODO",
+      "- [x] **M9 Phase 0 — the assistant kernel** — complete",
+      "- [ ] **M9 The assistant cites what it plans** — PAUSED",
+      "",
+    ].join("\n"),
+    "docs/milestones/README.md": "Current milestone: M9 — assistant\n",
+    "docs/milestones/M9-ai.md": "# M9 — assistant\n\n## Exit gate\n- [ ] a\n",
+  });
+  const idx = readMilestoneIndex(root);
+  assert.equal(idx.items.find((m) => m.id === "M9").ticked, undefined, "must not guess");
+  assert.equal(idx.ambiguous.length, 1);
+  assert.deepEqual(idx.ambiguous[0].rows.map((r) => r.ticked), [true, false]);
+});
+
+test("rows that AGREE resolve to a tick state, ambiguity empty", () => {
+  const root = repo({
+    "TODO.md": "# TODO\n- [x] **M1 core**\n- [x] **M1 core, mentioned again**\n",
+    "docs/milestones/README.md": "Current milestone: M1 — core\n",
+    "docs/milestones/M1-core.md": "# M1 — core\n\n## Exit gate\n- [x] a\n",
+  });
+  const idx = readMilestoneIndex(root);
+  assert.equal(idx.items[0].ticked, true);
+  assert.deepEqual(idx.ambiguous, []);
+});
+
+test("the index joins gate tally and current marker onto each milestone", () => {
+  const root = repo({
+    "TODO.md": "# TODO\n- [ ] **M26 design**\n",
+    "docs/milestones/README.md": "Current milestone: M26 — Design parity\n",
+    "docs/milestones/M26-design.md": "# M26 — Design parity\n\n## Wave 1 exit gate\n- [x] a\n\n## Wave 2 exit gate\n- [ ] b\n",
+  });
+  const idx = readMilestoneIndex(root);
+  const m = idx.items[0];
+  assert.equal(m.isCurrent, true);
+  assert.equal(m.gate.ticked, 1);
+  assert.equal(m.gate.open, 1);
+  assert.equal(m.ticked, false);
 });
