@@ -25,6 +25,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  DOC_SOURCES,
+  median,
   classifyDocSource,
   firstArg,
   parseSession,
@@ -98,6 +100,33 @@ test("firstArg reaches the key each tool actually carries", () => {
   assert.equal(firstArg(null), "");
   // Newlines would break the one-call-per-line shape the aggregation assumes.
   assert.equal(firstArg({ command: "a\nb" }), "a b");
+});
+
+test("a brief using ordinary English does NOT count as naming a doc source", () => {
+  // CodeRabbit, PR #199: the mention regex was built from the row NAME, so
+  // "prepare implementation plans" counted as naming docs/plans, and
+  // "architecture" / "guidelines" in prose counted too — inflating the exact
+  // number R3 is argued from.
+  const prose = "Prepare implementation plans, follow the guidelines, respect the architecture, and review the specs.";
+  const hits = DOC_SOURCES.filter(([, , mention]) => mention.test(prose)).map(([n]) => n);
+  assert.deepEqual(hits, [], `prose matched: ${hits.join(", ")}`);
+});
+
+test("a brief naming sources the way people actually write them DOES count", () => {
+  // Reusing the path pattern for briefs would under-count instead: the
+  // 2026-09-02 review's own F3a counted 66 briefs saying "known-issues", not
+  // "docs/known-issues".
+  const brief = "Read AGENTS.md, grep known-issues, then check docs/plans and ADR-041.";
+  const hits = DOC_SOURCES.filter(([, , mention]) => mention.test(brief)).map(([n]) => n).sort();
+  assert.deepEqual(hits, ["AGENTS.md", "architecture", "known-issues", "plans"]);
+});
+
+test("median is the LOWER of two middles, matching the repo's own definition", () => {
+  // revenue.ts:146 — "The middle value, or the lower of the two middles."
+  // F2 and F3a call their figure a median, so it must be the same median.
+  assert.equal(median([1, 2, 3, 4]), 2, "upper middle would be 3");
+  assert.equal(median([1, 2, 3]), 2);
+  assert.equal(median([]), 0);
 });
 
 // --- 2. the requestId dedupe ----------------------------------------------

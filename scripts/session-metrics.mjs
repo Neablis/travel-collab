@@ -40,6 +40,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, basename } from "node:path";
 import { homedir } from "node:os";
+import { pathToFileURL } from "node:url";
 
 // ---------------------------------------------------------------------------
 // The nine doc sources of F1. Order matters: a path is attributed to the FIRST
@@ -48,16 +49,34 @@ import { homedir } from "node:os";
 // measured at ~1.9M tokens; they are deliberately NOT "every markdown file",
 // because F1's claim is about ORIENTATION reading specifically.
 // ---------------------------------------------------------------------------
+// Each row is [name, pathPattern, mentionPattern].
+//
+// `pathPattern` classifies a tool call's ARGUMENT — a real path, so
+// `docs/plans` is exactly right there.
+//
+// `mentionPattern` is different, and conflating the two was a bug CodeRabbit
+// caught on PR #199. F3a asks whether a subagent BRIEF names a doc source, and
+// the first draft built that regex from the row's NAME — so a brief saying
+// "prepare implementation plans" counted as naming `docs/plans`, and
+// "architecture" or "guidelines" in ordinary prose counted too. That inflates
+// the one number R3 is argued from.
+//
+// The suggested fix was to reuse `pathPattern` for briefs. That trades an
+// over-count for an under-count: the 2026-09-02 review's own F3a counted 66
+// briefs saying "known-issues", which is how people write it — not
+// "docs/known-issues". So each source gets an explicit mention pattern:
+// distinctive enough not to fire on English, loose enough to match how a brief
+// actually refers to the thing.
 export const DOC_SOURCES = [
-  ["known-issues", /docs\/known-issues/],
-  ["plans", /docs\/plans/],
-  ["milestones", /docs\/milestones/],
-  ["AGENTS.md", /AGENTS\.md/],
-  ["STATUS.md", /STATUS\.md/],
-  ["TODO.md", /TODO\.md/],
-  ["architecture", /docs\/architecture/],
-  ["specs", /docs\/specs/],
-  ["guidelines", /docs\/guidelines/],
+  ["known-issues", /docs\/known-issues/, /\bknown[- ]issues\b|\bKI-\d/],
+  ["plans", /docs\/plans/, /\bdocs\/plans\b/],
+  ["milestones", /docs\/milestones/, /\bdocs\/milestones\b|\bmilestone file\b/],
+  ["AGENTS.md", /AGENTS\.md/, /\bAGENTS\.md\b/],
+  ["STATUS.md", /STATUS\.md/, /\bSTATUS\.md\b/],
+  ["TODO.md", /TODO\.md/, /\bTODO\.md\b/],
+  ["architecture", /docs\/architecture/, /\bdocs\/architecture\b|\bADR-\d/],
+  ["specs", /docs\/specs/, /\bdocs\/specs\b/],
+  ["guidelines", /docs\/guidelines/, /\bdocs\/guidelines\b/],
 ];
 
 // F2's bootstrap regex, verbatim from the review's method column. It is wider
@@ -314,8 +333,8 @@ export function computeFindings(sessions) {
       if (t.name !== "Agent") continue;
       f3a.dispatches += 1;
       f3a.briefChars.push(t.prompt.length);
-      for (const [name] of DOC_SOURCES) {
-        if (new RegExp(name.replace(".", "\\.")).test(t.prompt)) {
+      for (const [name, , mention] of DOC_SOURCES) {
+        if (mention.test(t.prompt)) {
           f3a.mentioning.set(name, (f3a.mentioning.get(name) ?? 0) + 1);
         }
       }
@@ -419,8 +438,13 @@ function pct(part, whole) {
   return whole > 0 ? ((part / whole) * 100).toFixed(1) + "%" : "n/a";
 }
 
-function median(sorted) {
-  return sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+// "The middle value, or the LOWER of the two middles" — the definition
+// apps/web/src/server/billing/revenue.ts:146 already uses for every median in
+// this repo. The first draft took the upper middle, so F2 and F3a could report
+// a median above the repo's own convention while calling it the same word.
+// CodeRabbit, PR #199 (and PR #177, where that convention was set).
+export function median(sorted) {
+  return sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : 0;
 }
 
 function report(r, opts) {
@@ -629,4 +653,14 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+// pathToFileURL, not string interpolation: on Windows, or when the path holds
+// a space or a URL-reserved character, `file://${argv[1]}` never equals
+// import.meta.url, main() is skipped and the script exits 0 having done
+// NOTHING. For surface-size that means `pnpm surface --check` — a lint wall —
+// passing silently, which is the exact silent-success class this branch spent
+// its time hunting. CodeRabbit, PR #199.
+// The argv[1] guard is not decoration: pathToFileURL(undefined) THROWS, so
+// without it merely IMPORTING this module (as the tests do, and as
+// `node -e "import(...)"` does) crashes before any export is reachable.
+// Found by running it immediately after applying the fix above.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

@@ -101,6 +101,56 @@ test("refuses when an anchor is missing, naming the file, writing nothing", () =
   rmSync(root, { recursive: true, force: true });
 });
 
+test("a TODO with NO row for the id aborts before any file is touched", () => {
+  // CodeRabbit, PR #199: the first draft returned a note and carried on, so
+  // the marker moved, Current milestone bumped and candidates were pruned
+  // while the milestone stayed unticked — the half-applied state this
+  // command's own header calls worse than no automation.
+  const root = repo({
+    "TODO.md": "# TODO\n\n- [ ] **M21 An account can pay for itself**\n",
+  });
+  const before = readFileSync(join(root, "docs/candidates.md"), "utf8");
+  const out = run(root, ["close", "M20", "--confirm"], { expectFail: true });
+  assert.match(out, /has no row for M20 at all/);
+  assert.match(out, /refusing before any write/);
+  assert.equal(readFileSync(join(root, "docs/candidates.md"), "utf8"), before, "pruned anyway");
+  assert.match(
+    readFileSync(join(root, "docs/milestones/README.md"), "utf8"),
+    /Current milestone: M20/,
+    "Current milestone bumped anyway",
+  );
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("an ALREADY-TICKED milestone is not fatal — a half-finished close can resume", () => {
+  const root = repo({
+    "TODO.md": [
+      "# TODO", "",
+      "- [x] **M20 An account knows what it may do**",
+      "      `docs/milestones/M20-tiers.md`",
+      "- [ ] **M21 An account can pay for itself**",
+      "      `docs/milestones/M21-billing.md`", "",
+    ].join("\n"),
+  });
+  const out = run(root, ["close", "M20", "--confirm"]);
+  assert.match(out, /already ticked/);
+  assert.match(readFileSync(join(root, "docs/milestones/README.md"), "utf8"), /Current milestone: M21/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("a missing docs/candidates.md is refused, not an ENOENT stack trace", () => {
+  // The shared readers gate TODO.md and the milestones README; candidates has
+  // no such gate and readCandidates runs later, so the raw read reached it
+  // first. CodeRabbit, PR #199.
+  const root = repo();
+  rmSync(join(root, "docs/candidates.md"));
+  const out = run(root, ["close", "M20"], { expectFail: true });
+  assert.match(out, /docs\/candidates\.md not found or unreadable/);
+  assert.match(out, /Nothing was written/);
+  assert.doesNotMatch(out, /ENOENT/, "a stack trace is not an error message");
+  rmSync(root, { recursive: true, force: true });
+});
+
 // --- the dry run ------------------------------------------------------------
 
 test("without --confirm it prints a diff and writes NOTHING", () => {

@@ -47,6 +47,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const OK = "OK";
@@ -228,4 +229,14 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+// pathToFileURL, not string interpolation: on Windows, or when the path holds
+// a space or a URL-reserved character, `file://${argv[1]}` never equals
+// import.meta.url, main() is skipped and the script exits 0 having done
+// NOTHING. For surface-size that means `pnpm surface --check` — a lint wall —
+// passing silently, which is the exact silent-success class this branch spent
+// its time hunting. CodeRabbit, PR #199.
+// The argv[1] guard is not decoration: pathToFileURL(undefined) THROWS, so
+// without it merely IMPORTING this module (as the tests do, and as
+// `node -e "import(...)"` does) crashes before any export is reachable.
+// Found by running it immediately after applying the fix above.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

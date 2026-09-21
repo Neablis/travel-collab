@@ -54,7 +54,18 @@ import {
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 
 function read(rel) {
-  return readFileSync(join(root, rel), "utf8");
+  try {
+    return readFileSync(join(root, rel), "utf8");
+  } catch {
+    // The shared readers already refuse a missing TODO.md or milestones
+    // README before this point, but docs/candidates.md has no such gate —
+    // readCandidates tolerates its absence and runs LATER. Without this, a
+    // repo with no candidates file dies here on an unhandled ENOENT, after
+    // the refusals have passed and with nothing said about why.
+    // CodeRabbit, PR #199.
+    console.error(`milestone close: ${rel} not found or unreadable. Nothing was written.`);
+    process.exit(1);
+  }
 }
 
 /** A minimal unified-diff view: only the lines that change, with context. */
@@ -92,19 +103,38 @@ function diffPreview(rel, before, after) {
 
 // --- the five steps ---------------------------------------------------------
 
-/** Step 1 — tick the milestone in TODO.md. */
+/**
+ * Step 1 — tick the milestone in TODO.md.
+ *
+ * Returns `{ fatal }` when there is NO row for the id at all. The first draft
+ * returned a note and let close() carry on, which produced exactly the
+ * half-applied state this file's header calls worse than no automation: the
+ * milestone left unticked in TODO.md while the marker moved, Current milestone
+ * bumped and candidates were pruned around it. The note also could not tell
+ * "already ticked" from "row absent" — two states with opposite correct
+ * responses. CodeRabbit, PR #199.
+ *
+ * Already-ticked is NOT fatal: re-running a close that half-finished (say the
+ * push failed) must be able to complete the remaining steps.
+ */
 function stepTickTodo(text, id) {
   const lines = text.split("\n");
   let hit = null;
+  let anyRow = false;
   for (let i = 0; i < lines.length; i += 1) {
+    const row = /^\s*[-*]\s*\[( |x|X)\]\s*\*\*(M\d+[a-z]?)\b/.exec(lines[i]);
+    if (row && row[2] === id) anyRow = true;
     const m = /^(\s*[-*]\s*)\[ \](\s*\*\*)(M\d+[a-z]?)\b/.exec(lines[i]);
     if (!m || m[3] !== id) continue;
-    // The milestone's own row is the one carrying the current marker, or the
-    // last unticked one for this id. Ambiguity here is fatal, not guessed:
-    // readMilestoneIndex reports it and close() refuses before reaching this.
+    // The milestone's own row is the last unticked one for this id. Ambiguity
+    // here is fatal, not guessed: readMilestoneIndex reports it and close()
+    // refuses before reaching this.
     hit = i;
   }
-  if (hit === null) return { text, note: `TODO.md: no unticked row for ${id} (already ticked?)` };
+  if (hit === null && !anyRow) {
+    return { text, fatal: `TODO.md has no row for ${id} at all — refusing before any write` };
+  }
+  if (hit === null) return { text, note: `TODO.md: ${id} already ticked` };
   lines[hit] = lines[hit].replace(/\[ \]/, "[x]");
   // The `← current milestone` marker moves off a closed milestone; step 4
   // puts it on the next one.
@@ -203,6 +233,13 @@ function close(id, { confirm }) {
   const notes = [];
 
   let r = stepTickTodo(files["TODO.md"], id);
+  if (r.fatal) {
+    // Before the write phase, and before any other step has run. A close that
+    // applies three of its four edits is the failure this whole command
+    // exists to prevent.
+    console.error(`milestone close: ${r.fatal}.`);
+    process.exit(1);
+  }
   files["TODO.md"] = r.text;
   notes.push(r.note);
 
