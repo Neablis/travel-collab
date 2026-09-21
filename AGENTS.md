@@ -166,6 +166,9 @@ not one more thing to invoke: `docs/reviews/2026-09-02-session-tooling-review.md
 | `/next-prompt` | Generates a self-contained handoff prompt from real state, separating what is proven from what is assumed |
 | `/ki-sweep` | Clears independent known issues via parallel `ki-fixer` agents in isolated worktrees, respecting milestone and contracts constraints |
 | `/cleanup-orphans` | Finds orphaned PRs, branches, worktrees and stale sessions. Reports first; deletes nothing without per-category approval |
+| `pnpm milestones` / `pnpm candidates` | The milestone table and the unscheduled ideas, extracted — 4% and 10% of the files they replace |
+| `pnpm milestone close <id>` | The gate-close checklist, executed across four files; refuses an open gate, a bad parse, or no `--confirm` |
+| `/candidates` / `/milestones` | Thin wrappers over `pnpm candidates` / `pnpm milestones`, for when you want to type one. The digest names the commands anyway — F7 says a command nobody invokes helps nobody, so these are convenience, not the delivery mechanism |
 | `/dispatch` | Sets up a subagent protocol run — splits the work, writes the manifest the enforcement hooks read, emits one brief per unit, and drives the promotion gate at teardown |
 
 **Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
@@ -187,10 +190,43 @@ code path as the import with the writes off. The same lint runs inside
 `pnpm test` via `packages/fixtures/src/bundle/content.test.ts`. See ADR-041 and
 `docs/guidelines/content-bundles.md`.
 
+**Surface report and wall** (`pnpm surface`, `pnpm surface --check` inside
+`pnpm lint`): how big the files every session reads first actually are, with a
+per-file byte budget. It exists because the surface **doubled in nineteen
+days** — 315,687 B at the 2026-09-02 tooling review to 635,502 B on
+2026-09-21 — while nobody was watching, because no number was being kept. At
+the 51.3x cache re-read multiplier that review measured, this is the one place
+a byte saved is not saved once. `--since <ref>` prints the before/after
+against any commit. Each budget is ~1.25x the file's size when it was set, so
+the wall fires on growth rather than on the next legitimate paragraph; raising
+one is a decision to record in the commit that raises it.
+**What it proves and does not:** byte counts prove the *surface* shrank, not
+that sessions got cheaper. The outcome measure is F1/F2 in
+`pnpm session-metrics`. `docs/reviews/2026-09-21-development-loop-review.md`.
+
 **Fixture check** (`pnpm seed:verify`): folds the canonical Japan demo trip
 through the real domain and reports counts, kind/tag coverage, coordinates,
 rollups and conflicts against a recorded baseline. Runs inside `pnpm check`
 too; the standalone command is for the readable table. See ADR-030.
+
+**Draft-PR guard** (`scripts/hooks/draft-pr-guard.mjs`, `PreToolUse` on
+`gh *`): asks before `gh pr create` without `--draft`, and before
+`gh pr ready` when no **Tier-3 stamp** covers HEAD. The rule it enforces was
+already in this file and was followed on **4 of 15 branches** over
+2026-09-15..20; PR #196, opened ready, spent **41 CI runs and 8 failures
+across 15 hours**, its first run failing three seconds in on `test:int` — a
+lane that runs locally in ~70s. It **asks**, never denies: a prose fix, a
+revert or a PR wanted right now are legitimate, and a guard that cannot be
+overridden gets worked around.
+
+**The Tier-3 stamp** (`pnpm check` records it; `pnpm tier3 verify` reads it):
+`.git/tc-tier3.json`, holding the commit checked, whether the tree was dirty,
+and **which lanes were live at the time**. That last part is the cloud-shaped
+half: `pnpm check` ends in `test:int:if-db`, which skips silently with no
+database and says so itself — *"A green `pnpm check` here is NOT a green
+CI."* A stamp that said only "passed" would assert the thing that was not
+verified, so the guard names the uncovered lanes and lets you record them on
+the PR's *"Not run, and why"* line.
 
 **Hooks** (`scripts/hooks/`): a `PostToolUse` typecheck of the touched package
 on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
@@ -408,9 +444,27 @@ point: they describe the change, not the ceremony around it.
   skip is not. A tier stated plainly ("Tier 1, prose only, nothing run") is a
   complete answer, not an admission.
 
-### Waiting on PR checks — do not hand-poll
+### Waiting on PR checks — subscribe in a cloud session, watch locally
 
-One blocking command covers every check that runs automatically:
+**In a Claude Code cloud session, do not wait at all — subscribe.** The harness
+delivers CI completions, review comments and merge-state changes into the
+conversation as `<wake reason="external-event">` envelopes:
+
+```
+subscribe_pr_activity(owner, repo, pullNumber)   # then END THE TURN
+```
+
+Ending the turn *is* how you wait. The session is woken when something
+actually happens, so the median 6.6-minute run costs no turns instead of one
+long blocked one — and a review comment arriving forty minutes later wakes you
+too, which no `--watch` ever does. `unsubscribe_pr_activity` when the PR merges
+or closes.
+
+**Never combine the two.** A blocking `--watch` inside a subscribed session
+spends the wait it exists to avoid.
+
+**Locally, where there is no wake mechanism**, one blocking command still
+covers every check that runs automatically:
 
 ```
 gh pr checks <n> --watch --fail-fast
@@ -418,6 +472,17 @@ gh pr checks <n> --watch --fail-fast
 
 Hand-polling with repeated `gh pr checks` is a reliable time sink; that is why
 this is written down rather than left to each session to rediscover.
+
+**Why this section changed (2026-09-21).** It prescribed only the blocking
+command, from a period when sessions ran on a laptop.
+`docs/guidelines/cloud-agent-sessions.md` has recorded since 2026-09-08 that
+*most agent work on this repo now happens in a Claude Code remote session*, and
+`subscribe_pr_activity`, `external-event` and `wake reason` appeared **nowhere**
+in `AGENTS.md`, `CLAUDE.md`, `docs/guidelines/` or `.claude/` — so the one
+mechanism that answers "stop polling github" was undocumented while the
+complaint it answers was live. Measured context:
+`docs/reviews/2026-09-21-development-loop-review.md` (A4), against 100 CI runs
+across 15 branches at a median 6.6 minutes each.
 
 ### CodeRabbit is Mitchell's step, not an automated one
 

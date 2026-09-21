@@ -304,12 +304,39 @@ print_state_digest() {
   node scripts/state-digest.mjs || echo "session-start: state digest unavailable (run 'pnpm state')." >&2
 }
 
+# The lane probe: "what can THIS container actually verify", printed next to
+# the digest because the two answer different questions and both are needed
+# before any work is promised. The digest says where the work is; this says
+# which of AGENTS.md's verification tiers are available to prove it.
+#
+# It is separate from the digest on purpose. The digest has a line budget
+# AGENTS.md calls non-negotiable, and this is worth re-running MID-session when
+# a lane starts misbehaving, which a start-only digest cannot serve.
+#
+# Why it exists at all: four open known issues are each a session discovering a
+# broken lane mid-task and misreading it as a code failure —
+# KI-2026-09-08-b (pnpm --filter aborts on a pnpm-major skew),
+# KI-2026-09-12-b (an agent worktree with no node_modules),
+# KI-2026-09-02-a (Node 26 breaks the jsdom unit lane),
+# KI-49 (the egress proxy blocks the map tile host).
+# CLAUDE.md rule 2 exists because "environmental" is the most expensive wrong
+# answer available; this front-loads the right one.
+#
+# Advisory, like the digest: scripts/lane-probe.mjs never exits non-zero for a
+# blocked lane (a blocked lane is information, not an error) and this wrapper
+# swallows everything else. It does NOT pass --net, so nothing here waits on
+# the network.
+print_lane_probe() {
+  node scripts/lane-probe.mjs || echo "session-start: lane probe unavailable (run 'pnpm lanes')." >&2
+}
+
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
   pnpm install
   pnpm run setup
   start_postgres
   link_playwright_shell
   print_state_digest
+  print_lane_probe
   exit 0
 fi
 
@@ -360,3 +387,4 @@ else
 fi
 
 print_state_digest
+print_lane_probe

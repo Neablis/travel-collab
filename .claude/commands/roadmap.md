@@ -34,9 +34,16 @@ orientation reads across 220 sessions, ~1.9M tokens).
 
 Read further only where this turn actually needs more than a fact:
 
-- **`docs/milestones/README.md`'s table** — Step 4 reports every milestone with
-  its status, and the digest deliberately prints only the current one. You need
-  the table; you do not need the file's prose.
+- **`pnpm milestones`, NOT `docs/milestones/README.md`'s table** — Step 4
+  reports every milestone with its status, and the digest deliberately prints
+  only the current one. `pnpm milestones` extracts the whole table — id, title,
+  tick state, gate tally, the current marker — joined against `TODO.md`, plus
+  any disagreement between the two. It reads ~2KB where the file is ~68KB, and
+  it reports an ambiguous tick state rather than guessing one. Open the file
+  only for prose the table does not carry.
+- **`pnpm candidates` for unscheduled ideas** — they moved to
+  `docs/candidates.md` on 2026-09-21. The command prints one line per entry
+  with its placement state; Step 4 rarely needs more.
 - **The current milestone's own file, at the exit-gate line the digest cited** —
   Step 4's "Open gate conditions" needs the box *text*, not just the tally.
 - **Anything the digest flagged as drift** — open those two files at those two
