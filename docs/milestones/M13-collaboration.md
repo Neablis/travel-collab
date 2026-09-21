@@ -123,7 +123,7 @@ Five links. Link 1 is an ADR and gates the rest.
 - [ ] A stop records who it is for, set through the UI and read back off the
       API; `add-stop-who` and `rack-provenance` are wired up or deleted, and no
       M13-tagged entry remains in `preview-registry.ts`.
-- [ ] **`KI-20260905-o` is resolved before link 5 adds its field** — the
+- [x] **`KI-20260905-o` is resolved before link 5 adds its field** — the
       activity-field descriptor refactor has landed, the entry is moved to
       `resolved/` with its proof line, and adding an activity field now fails
       the typecheck at every site that must move rather than compiling green.
@@ -131,6 +131,18 @@ Five links. Link 1 is an ADR and gates the rest.
       M19 link 1 and was already scheduled once, on 2026-08-29, without being
       done. If Mitchell decides it runs as its own piece of work instead, this
       box is satisfied by that landing — not by this milestone doing it twice.)*
+      **DONE 2026-09-21, as its own piece of work** — the second half of that
+      parenthesis, which is why this box is ticked before the milestone opens.
+      Mitchell asked for it directly, ahead of M13 and alongside M26's gate
+      close. `ActivitySnapshot` in contracts, `ActivityState` inferred from it,
+      `FIELD_EQUAL` in `equality.ts`; proven by adding a ninth field and
+      reading the errors at `decide`/`diff`/`equality`/`evolve`/`hydrate`,
+      `detail.ts`'s parity assertion, factories, mocks and ~27 test files.
+      **One thing link 5 must know:** the read model `ActivityView` is
+      deliberately NOT derived, so `who` has to be added to it by hand — the
+      key-parity assertion in `detail.ts` will fail the build until you do,
+      which is the point, but it forces the KEY and not the TYPE. The resolved
+      entry says why the derivation was backed out.
 - [ ] **The attribution migration is written, applied locally, and its
       production dispatch is called out in the PR body.**
 - [ ] The full Definition of Done is green, including

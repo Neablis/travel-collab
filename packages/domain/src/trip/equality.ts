@@ -1,4 +1,4 @@
-import type { ActivityTag, Anchor, Money, PostalAddress } from "@tc/contracts";
+import type { ActivityTag, Anchor, Location, Money, PostalAddress, TimeWindow } from "@tc/contracts";
 import type { ActivityState, DayState, TripState } from "./state";
 
 export function moneyEqual(a: Money | null, b: Money | null): boolean {
@@ -49,41 +49,64 @@ function sameAddress(a: PostalAddress | undefined, b: PostalAddress | undefined)
   );
 }
 
-export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean {
+function sameTimeWindow(a: TimeWindow | null, b: TimeWindow | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.start === b.start && a.end === b.end;
+}
+
+// Location is compared FIELD BY FIELD, not deep-equal, so every field the
+// contract grows has to be added here or diff() silently treats a change to it
+// as a no-op and revert/undo quietly keeps the old value. `area` was added for
+// exactly that reason (KI-35) — and `city` and `countryCode` were found missing
+// in the same breath (KI-54, CodeRabbit on #72). This list is now every
+// persisted field of Location; if you add one to the contract, add it here in
+// the same commit. `precision` is the latest, and it is the one where
+// forgetting would be least visible: two locations identical but for their
+// granularity would compare equal, so re-geocoding a stop from a city centroid
+// up to a real venue fix would be rejected as a no-op — the exact shape of
+// KI-54, one field later. `address` (compared by `sameAddress`) is the one
+// after that, and it is nested rather than scalar — correcting a street number
+// changes nothing else about the stop, not even its coordinates, so no other
+// comparison here can stand in for it.
+function sameLocation(a: Location | null, b: Location | null): boolean {
+  if (a === null || b === null) return a === b;
   return (
-    a.title === b.title &&
-    a.notes === b.notes &&
-    (a.timeWindow === null) === (b.timeWindow === null) &&
-    (a.timeWindow === null || (a.timeWindow.start === b.timeWindow!.start && a.timeWindow.end === b.timeWindow!.end)) &&
-    (a.location === null) === (b.location === null) &&
-    // Location is compared field by field, so every field the contract grows
-    // has to be added here or diff() silently treats a change to it as a
-    // no-op and revert/undo quietly keeps the old value. `area` was added for
-    // exactly that reason (KI-35) — and `city` and `countryCode` were found
-    // missing in the same breath (KI-54, CodeRabbit on #72). This list is now
-    // every persisted field of Location; if you add one to the contract, add
-    // it here in the same commit. `precision` is the latest, and it is the one
-    // where forgetting would be least visible: two locations identical but for
-    // their granularity would compare equal, so re-geocoding a stop from a city
-    // centroid up to a real venue fix would be rejected as a no-op — the exact
-    // shape of KI-54, one field later. `address` (compared by `sameAddress`) is
-    // the one after that, and it is nested rather than scalar — correcting a
-    // street number changes nothing else about the stop, not even its
-    // coordinates, so no other comparison here can stand in for it.
-    (a.location === null ||
-      (a.location.name === b.location!.name &&
-        a.location.lat === b.location!.lat &&
-        a.location.lng === b.location!.lng &&
-        a.location.city === b.location!.city &&
-        a.location.countryCode === b.location!.countryCode &&
-        a.location.area === b.location!.area &&
-        a.location.precision === b.location!.precision &&
-        sameAddress(a.location.address, b.location!.address))) &&
-    sameAnchors(a.anchors, b.anchors) &&
-    a.kind === b.kind &&
-    sameTags(a.tags, b.tags) &&
-    moneyEqual(a.cost, b.cost)
+    a.name === b.name &&
+    a.lat === b.lat &&
+    a.lng === b.lng &&
+    a.city === b.city &&
+    a.countryCode === b.countryCode &&
+    a.area === b.area &&
+    a.precision === b.precision &&
+    sameAddress(a.address, b.address)
   );
+}
+
+// One comparator per field of the contract's `ActivitySnapshot`, keyed by the
+// mapped type rather than written as a boolean chain. What that buys: a field
+// added to the contract is a MISSING-KEY COMPILE ERROR here, instead of an edit
+// this function silently reports as a no-op. It is load-bearing structure, not
+// a style choice — KI-2026-09-05-o, filed after the same hole shipped three
+// times (KI-1, KI-54, and M18's editor sheet dropping `kind`/`tags`).
+const FIELD_EQUAL: { [K in keyof ActivityState]: (a: ActivityState[K], b: ActivityState[K]) => boolean } = {
+  title: (a, b) => a === b,
+  timeWindow: sameTimeWindow,
+  location: sameLocation,
+  notes: (a, b) => a === b,
+  anchors: sameAnchors,
+  kind: (a, b) => a === b,
+  tags: sameTags,
+  cost: moneyEqual,
+};
+
+const ACTIVITY_FIELDS = Object.keys(FIELD_EQUAL) as (keyof ActivityState)[];
+
+function fieldEqual<K extends keyof ActivityState>(field: K, a: ActivityState, b: ActivityState): boolean {
+  return FIELD_EQUAL[field](a[field], b[field]);
+}
+
+export function activityStatesEqual(a: ActivityState, b: ActivityState): boolean {
+  return ACTIVITY_FIELDS.every((field) => fieldEqual(field, a, b));
 }
 
 function daysEqual(a: readonly DayState[], b: readonly DayState[]): boolean {

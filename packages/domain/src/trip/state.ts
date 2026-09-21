@@ -1,15 +1,11 @@
-import type { ActivityKind, ActivityTag, Anchor, Location, Money, TimeWindow, TripLineage, TripMember, TripStatus } from "@tc/contracts";
+import type { ActivitySnapshot, Money, TripLineage, TripMember, TripStatus } from "@tc/contracts";
 
-export type ActivityState = {
-  title: string;
-  timeWindow: TimeWindow | null;
-  location: Location | null;
-  notes: string | null;
-  anchors: Anchor[];
-  kind: ActivityKind;   // never null — "planned" is the zero value
-  tags: ActivityTag[];  // never null — [] is the zero value
-  cost: Money | null;
-};
+// The canonical stored field set, not a second copy of it (KI-2026-09-05-o).
+// `z.infer` is the OUTPUT type, so the contract's `.default()`s resolve to
+// non-optional here: `kind` is an ActivityKind and never null, `tags` an
+// array and never null — the two facts the hand-written version used to carry
+// as trailing comments, now enforced by the schema they were describing.
+export type ActivityState = ActivitySnapshot;
 
 export type DayState = {
   dayId: string;
