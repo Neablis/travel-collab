@@ -157,6 +157,27 @@ describe("impossible-geography rule", () => {
       ).toEqual([]);
     });
 
+    // COVERAGE NOTE, 2026-09-21. The test directly above used to be what
+    // exercised `transitExcusesDistance`'s `>= lo` boundary (rather than
+    // `> lo`): `t` was a pair member, so the pair formed and was excused by a
+    // transit start EQUAL to the interval's low end. Since a transit stop is
+    // no longer a pair member at all, that test now passes because no pair
+    // forms, and the boundary lost its only witness. This is that witness,
+    // rebuilt out of stops the exclusion does not touch: the non-transit `a`
+    // starts at 10:00 and so does the transit stop, so `>= lo` excuses the
+    // a<->b pair and `> lo` would not.
+    it("excuses a pair whose earlier stop starts at the same time as the travel", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "10:00", end: "11:00" } },
+            { id: "t", point: ROME, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
     it("still flags when the transit stop is OUTSIDE the interval", () => {
       // Travel at 20:00 cannot explain being in Rome at 08:00 and NYC at 10:00.
       const conflicts = geo(
@@ -221,6 +242,73 @@ describe("impossible-geography rule", () => {
         ]),
       );
       expect(conflicts.map((c) => c.kind)).toEqual(["time-overlap"]);
+    });
+  });
+
+  // Mitchell, 2026-09-21, on a real Portugal trip. A transit stop's coordinate
+  // is where the journey STARTS, so its distance to anything else on the day
+  // says nothing about whether the day is possible — it is never a member of a
+  // pair at all.
+  //
+  // Sibling of the KI-60 block above, not a replacement for it: that rule
+  // excuses a pair of NON-transit stops that travel sits between in time, and
+  // it needs BOTH of them timed to do it. Every case here is one it could not
+  // reach for exactly that reason.
+  describe("a transit stop is never a member of a distance pair", () => {
+    const geo = (state: TripState) =>
+      detectConflicts(state).filter((c) => c.kind === "impossible-geography");
+
+    const SANTA_APOLONIA = { name: "Lisboa Santa Apolónia", lat: 38.7139, lng: -9.1223 };
+    const RIBEIRA = { name: "Ribeira", lat: 41.1408, lng: -8.6132 };
+
+    it("haversine sanity: Santa Apolónia–Ribeira is the ~273 km Mitchell reported", () => {
+      const km = haversineKm(SANTA_APOLONIA, RIBEIRA);
+      expect(km).toBeGreaterThan(270);
+      expect(km).toBeLessThan(276);
+    });
+
+    it("does not flag 'Train: Lisbon to Porto' against a Porto stop", () => {
+      // The exact shape that was firing: the train carries no time window and
+      // the other stop does, so transitExcusesDistance — which returns false
+      // unless both have a `start` — could never excuse the pair.
+      expect(
+        geo(
+          boardState([
+            { id: "train", title: "Train: Lisbon to Porto", point: SANTA_APOLONIA, kind: "transit" },
+            {
+              id: "ribeira",
+              title: "Ribeira and the Dom Luís I bridge",
+              point: RIBEIRA,
+              window: { start: "15:00", end: "18:00" },
+            },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("excuses the pair when NEITHER stop is timed", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "train", point: SANTA_APOLONIA, kind: "transit" },
+            { id: "ribeira", point: RIBEIRA },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("is transit-only — the same untimed pair still flags for every other kind", () => {
+      for (const kind of ["planned", "booked", "hold", "idea"] as const) {
+        expect(
+          geo(
+            boardState([
+              { id: "train", point: SANTA_APOLONIA, kind },
+              { id: "ribeira", point: RIBEIRA },
+            ]),
+          ),
+          `kind ${kind} must still be subject to the distance check`,
+        ).toHaveLength(1);
+      }
     });
   });
 });
