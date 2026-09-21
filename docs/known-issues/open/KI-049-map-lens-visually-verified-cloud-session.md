@@ -53,5 +53,17 @@
   (transport verified, pixels blank) is a SEPARATE problem that this does not
   explain or fix. Two causes were being read as one.
 
+- **MEASURED AGAIN 2026-09-21, AND THE TITLE IS NOW FALSE AS WELL AS MISDIAGNOSED: the Map lens WAS visually verified in a cloud session.** A PR #200 preview walk rendered a real basemap — Portugal's coastline with Coimbra, Salamanca, Badajoz and Setúbal labelled, two markers (Lisbon, Porto), the dashed *by train or taxi* leg between them, and the `MapLibre | OpenFreeMap © OpenMapTiles` attribution. Confirmed by opening the screenshot, not by taking the walker's word for it. Both halves this entry separates — transport AND pixels — were readable for the first time.
+
+  **Why it worked, and it is already in this repo:** the walk launched Chromium with `apps/web/scripts/walk-preview.mjs`'s recipe, whose header documents both container facts and fixes them — the gateway CAs pinned by **SPKI hash** (`--ignore-certificate-errors-spki-list`, computed from the certificates the environment itself installed, so it trusts exactly those five and is **not** `--ignore-certificate-errors`), plus `--ssl-version-max=tls1.2`, because `*.vercel.app` is tunnelled rather than inspected and the tunnel cannot carry Chromium's TLS 1.3 ClientHello once the post-quantum key share is in it.
+
+  So the 2026-09-20 `certutil` fix is not the only route, and the one that worked needs no `apt-get`, no permission decision and no TLS weakening. **The working practice this entry has prescribed since 2026-08-26 — "verify map work on the Vercel preview, and a local *looks fine* is not evidence" — is now satisfiable from a container.**
+
+- **CONSEQUENCE FOR THE E2E LANE, which is the actionable half and is NOT yet done.** `apps/web/playwright.config.ts` has **no `launchOptions` at all**, so the e2e lane's Chromium gets none of the above. That is why `e2e/m10-map-rail.spec.ts:52` and `e2e/m26-shared-day-map.spec.ts:73` both fail here with *"The map could not load"*, and it is why M26's Definition-of-Done gate box is ticked at 153 passed / 2 failed rather than green.
+
+  **`KI-2026-09-20-c`'s line that `m10-map-rail` is "red in every cloud session regardless of how this entry is fixed, because the tiles still will not load" is therefore wrong**, and this is the evidence that retires it.
+
+  **The fix is NOT simply copying the args into `playwright.config.ts`**, which is why this is written down rather than applied: the TLS 1.2 cap is a container workaround, and applying it unconditionally would silently stop CI exercising TLS 1.3 — the walk script says of itself that it "is not evidence about anything TLS-version-dependent". It needs to be conditional on the container, and *how* to detect that is a decision rather than a repair. Proposed, awaiting Mitchell.
+
 - **Not yet investigated:** whether the tile host can be allowed through the proxy for cloud sessions; whether a locally-served offline tile fixture would be worth it for e2e; and, new as of the above, whether a screenshot pipeline that captures WebGL (`preserveDrawingBuffer`, or a headless Chromium screenshot taken outside this browser tooling) would close the pixels half from a laptop. None has been attempted; this entry exists so the choice is made deliberately rather than rediscovered by the next agent to touch the map.
 - **First noted:** 2026-08-26 (design-sync UI audit; recorded after the audit shipped, PR #55 retrospective).
