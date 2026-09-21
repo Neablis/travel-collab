@@ -966,11 +966,19 @@ marked **[walk]** and are not satisfiable by a green test.
       `/api/v1`. **Migration done 2026-09-19** behind one `openAccountPage`
       helper; `m21-plans.spec.ts` failed rather than drifted, as predicted.
       **The e2e lane has not been run**, so the second sentence is unproven.
-- [ ] **[walk]** A token minted with **Chosen trips** reaches those trips and is
+- [x] **[walk]** A token minted with **Chosen trips** reaches those trips and is
       refused on another with `trip-out-of-scope`, and the same token is refused
       on `POST /v1/trips`. The refusals are the shipped ones — **no server
       change appears in this link's diff.**
-      **NOT WALKABLE on the preview as it stands, and the reason is worth
+      **WALKED AND CLOSED 2026-09-21 on Mitchell's attestation** (*"iv done the
+      walk and its totally complete"*), not on agent-recorded evidence — the
+      same basis M21's and M22's gates closed on, and named here for the same
+      reason: a box closed by attestation and a box closed by a recorded walk
+      are different evidence and the file should not blur them. The paragraph
+      below is why no agent could have closed it, and it is kept rather than
+      deleted, because the gap it describes is still there for the next session
+      that tries.
+      **NOT WALKABLE ON THE PREVIEW as it stood, and the reason is worth
       keeping.** Minting is gated on `api.tokens`, which only `premium` carries.
       Every account the preview offers resolves to less than that: `alice`
       holds `free@v1` with grants totalling `ai.ask, ai.command,
@@ -1223,10 +1231,15 @@ marked **[walk]** and are not satisfiable by a green test.
       the faked stagger §3b forbids; and **`homePb` has no build counterpart
       at all**, the Playbooks strip having been deleted in M11b, so it is a
       divergence sent back rather than a region to build.
-- [ ] **[walk]** A free account creating a trip reaches the no-access fork: one
+- [x] **[walk]** A free account creating a trip reaches the no-access fork: one
       description, a quiet Plus note, *See plans*, and **the dock absent rather
       than disabled**. The paid half stays a registered `<Preview>`.
-      **NOT WALKABLE on the preview as it stands, and this is the finding rather
+      **WALKED AND CLOSED 2026-09-21 on Mitchell's attestation**, on the same
+      basis and with the same caveat as Wave 1's token-scope box above. The
+      paragraph below is kept for the same reason: it records why the preview
+      cannot produce the account this box needs, which is a fact about the seed
+      and not about this wave.
+      **NOT WALKABLE ON THE PREVIEW as it stood, and this is the finding rather
       than an excuse.** The fork turns on `ai.ask` — a capability, never a plan
       name (ADR-045 rule 4) — and **no account the preview offers lacks it.**
       Read straight off `GET /api/account/plan`: `alice` is
