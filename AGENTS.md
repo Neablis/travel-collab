@@ -168,6 +168,7 @@ not one more thing to invoke: `docs/reviews/2026-09-02-session-tooling-review.md
 | `/cleanup-orphans` | Finds orphaned PRs, branches, worktrees and stale sessions. Reports first; deletes nothing without per-category approval |
 | `pnpm milestones` / `pnpm candidates` | The milestone table and the unscheduled ideas, extracted — 4% and 10% of the files they replace |
 | `pnpm milestone close <id>` | The gate-close checklist, executed across four files; refuses an open gate, a bad parse, or no `--confirm` |
+| `/candidates` / `/milestones` | Thin wrappers over `pnpm candidates` / `pnpm milestones`, for when you want to type one. The digest names the commands anyway — F7 says a command nobody invokes helps nobody, so these are convenience, not the delivery mechanism |
 | `/dispatch` | Sets up a subagent protocol run — splits the work, writes the manifest the enforcement hooks read, emits one brief per unit, and drives the promotion gate at teardown |
 
 **Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
