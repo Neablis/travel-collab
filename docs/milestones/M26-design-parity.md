@@ -1822,6 +1822,17 @@ everyone agrees is temporary is a test that will have to be argued with later.
       `m10-map-rail` as red in every cloud session regardless of branch.**
       Neither spec touches this milestone's diff or the two changes landed
       alongside this close; CI, where the tiles load, is the verdict on them.
+      **CI RETURNED THAT VERDICT: green.** Run 35665010770 on `d0e07e0`,
+      job `integration-e2e` — `pnpm --filter web test:e2e` **success** and
+      `test:int` **success**, the whole lane, both map specs included. So the
+      two local failures are established as environmental rather than argued
+      to be, and this box now rests on evidence instead of an expectation.
+      **KI-49 is amended by the same walk that closed this gate**: the Map
+      lens CAN be verified from a container after all — `walk-preview.mjs`
+      pins the gateway CAs by SPKI hash and caps TLS at 1.2, and
+      `playwright.config.ts` has no `launchOptions` at all, which is the whole
+      difference. That is the fix for these two specs and it is a decision
+      rather than a repair, so it is proposed there, not taken here.
       The one-line CA fix KI-49 names was offered and **deliberately not
       taken** (Mitchell, 2026-09-21) — so KI-49 stays open, with this as a
       third supporting case.
