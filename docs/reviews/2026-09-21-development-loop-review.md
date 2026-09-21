@@ -116,29 +116,109 @@ of the parent review's most interesting category: **documented and ignored.**
 
 ## What could not be measured here, and why
 
-**F1, F2, F3/F3a and F7 could not be re-run in this session.** Claude Code
-writes session transcripts to `~/.claude/projects/<mangled-cwd>/*.jsonl` on the
-machine that ran the session. This was a Claude Code on the web session: the
-container is cloned fresh and holds **exactly one transcript — its own**
-(verified: 1 file, 1.1 MB, 0 `agent-*` files). The corpus the parent review
-mined — 426 files, 274 MB, 35 project directories including 33 worktrees —
-lives on Mitchell's Mac under `~/.claude/projects/-Users-…-travel-collab*`.
+**F1, F2, F3/F3a and F7 could not be re-run in this session** — and the reason
+is worse than "wrong machine", which is how the first version of this section
+framed it.
 
-Rather than report a baseline computed from a corpus of one, the extraction is
-now committed as **`scripts/session-metrics.mjs`** (`pnpm session-metrics`), so
-the baseline is one command on the machine that has the data — and repeatable
-afterwards, which every recommendation below depends on. It reproduces the
-parent review's method, prints the 2026-09-02 figure beside each finding, and
-**refuses to be mistaken for a baseline** when it finds fewer than five
-transcripts.
+Claude Code writes session transcripts to `~/.claude/projects/<mangled-cwd>/*.jsonl`
+**on the machine that ran the session**. This was a Claude Code on the web
+session: the container is cloned fresh and holds **exactly one transcript — its
+own** (verified: 1 file, 1.1 MB, 0 `agent-*` files), and
+`docs/guidelines/cloud-agent-sessions.md` records that the container is
+reclaimed after inactivity.
 
-Run this first, on the Mac:
+**Corrected 2026-09-21, after Mitchell said he does much of his work in cloud
+containers.** Two consequences the first draft of this review got wrong:
+
+- **The parent review measured LOCAL SESSIONS ONLY.** Its corpus was 35
+  directories named `-Users-…-travel-collab` plus 33 `--claude-worktrees-*` —
+  all macOS paths. Its headline figures (F1's 1.9M tokens, the 51.3×
+  multiplier, F3's 814k, F7's zero overlap) therefore describe the local slice,
+  in a window that partly predates the shift. `cloud-agent-sessions.md` — added
+  **2026-09-08, six days after that review** — opens with *"Most agent work on
+  this repo now happens in a Claude Code remote session."*
+- **So "run it on the Mac" is not the fix, and this review originally said it
+  was.** For the majority of recent sessions the transcript was destroyed with
+  its container; there is no corpus on disk to run anything against. Running
+  `pnpm session-metrics` on the Mac yields a shrinking minority slice, and
+  calling that a baseline would repeat the parent review's sampling bias while
+  believing it had been corrected.
+
+**What actually closes it: capture inside the container, before it dies.** A
+`Stop` hook (the repo already has one — `run-teardown-reminder.mjs`) runs the
+aggregation over the session's own transcript and appends one record to a
+durable sink. Constraints worth stating before it is built:
+
+- **Aggregates only, never content.** Transcripts contain everything. The
+  record carries counts and token sums — no prompt text, no file contents, no
+  arguments. `computeFindings()` is already shaped this way.
+- **One file per session id**, so concurrent sessions cannot conflict.
+- **An orphan `session-metrics` branch** is the cheapest durable sink that adds
+  no service and never pollutes a PR diff.
+- **Fail open.** A metrics hook that can fail a session start is worse than no
+  metrics, which is the standing rule for every hook in `scripts/hooks/`.
+
+Until that exists, `pnpm session-metrics` on the Mac is still worth running —
+as **the local slice, labelled as such**, not as the baseline.
 
 ```
-pnpm session-metrics                      # full corpus
+pnpm session-metrics                      # local corpus only
 pnpm session-metrics --since 2026-09-02   # only since the parent review
 pnpm session-metrics --json               # for diffing runs
 ```
+
+The script reproduces the parent review's method, prints the 2026-09-02 figure
+beside each finding, and **refuses to be mistaken for a baseline** when it
+finds fewer than five transcripts.
+
+### What this correction does NOT change
+
+Separated deliberately, because it is most of this review. Everything measured
+from the **GitHub Actions API** (runs per branch, run duration, PR #196's 41
+runs, draft adherence) and everything measured from **the repository itself**
+(the doubled doc surface, the public-repo finding, the armed required-check
+trap) is container-independent and stands as written.
+
+### What it re-weights
+
+- **A2 and B1 get MORE important.** A cloud container starts cold every time —
+  no warm context, no resumed session, no accumulated knowledge of the code.
+  Every session pays full bootstrap, and a 51.3× multiplier measured where
+  sessions can resume probably *understates* the cloud cost. B1 is precisely
+  the artifact that substitutes for what an ephemeral container throws away.
+- **A1's stamp must record WHICH SUBSET RAN, not merely that it ran.** In a
+  cloud container the local lane is conditionally available, and four open
+  entries say so: `KI-2026-09-08-b` (`pnpm --filter` aborts on a pnpm-major
+  skew), `KI-2026-09-12-b` (agent worktrees get no `node_modules`),
+  `KI-2026-09-02-a` (Node 26 breaks the unit lane), `KI-49` (the egress proxy
+  blocks the map tile host, so that e2e cannot be walked here at all). A stamp
+  recording only success would go green on a session whose lane aborted.
+- **C2 is elevated.** Some e2e genuinely cannot run in-container (KI-49), which
+  makes `phase-verifier` driving the PR's Vercel preview the cloud-native
+  verification path — and its 0 dispatches in 356 a larger problem than scored.
+
+### Two items this correction ADDS
+
+- **A4 — event-driven PR waking, replacing the blocking watch.** `AGENTS.md:411`
+  prescribes `gh pr checks <n> --watch --fail-fast`, which blocks the session
+  for a median 6.6 minutes. In a cloud session the harness can subscribe to PR
+  activity and **wake** the session when CI finishes or a review lands.
+  `subscribe_pr_activity`, `external-event` and `wake reason` appear **nowhere**
+  in `AGENTS.md`, `CLAUDE.md`, `docs/guidelines/` or `.claude/`. This is a
+  direct answer to the "polling github" half of the original ask, it is
+  available today, and it pairs with A3 rather than replacing it: subscribe for
+  the wake, one command for the inbox.
+  **Reliability HIGH** (strictly fewer missed events than polling);
+  **efficiency HIGH** (removes the blocking wait entirely);
+  **measurability HIGH** (count blocking `gh pr checks` calls per PR).
+- **A5 — a SessionStart lane probe.** `pnpm state` already runs every session.
+  It should also print, in one line, which verification lanes *this* container
+  has: `pnpm --filter` usable, DB answering, Playwright linked, egress
+  reachable. Today a session discovers a broken lane mid-task and, per the four
+  KIs above, sometimes misdiagnoses it as a code failure. It is cheap, and it
+  is what makes A1's stamp trustworthy.
+  **Reliability HIGH**, **efficiency MEDIUM**, **measurability MEDIUM**
+  (count sessions that hand-roll an environment fix after start).
 
 **One honest datapoint from the corpus of one.** This analysis session spent
 **18,674 tokens** on orientation inside its first 20 tool calls, against the
@@ -314,12 +394,20 @@ files.
 
 ## Sequencing
 
-1. **`pnpm session-metrics` on the Mac.** Everything above is an argument until
-   this runs; B1 in particular is unfalsifiable without it.
-2. **A1 and A2** — independent, cheap (two hooks; one wall plus an archiving
-   pass), and both measurable within two weeks.
-3. **B3 (R3 first)**, riding on the digest that already exists.
-4. **B1**, after its baseline exists — the biggest build and the least proven.
+**Revised 2026-09-21 for cloud-primary work.**
+
+1. **A4 and A5 first.** Both are small, both are cloud-native, and A4 answers
+   half the original complaint ("polling github") on its own.
+2. **The durable metrics sink** — the `Stop`-hook capture described above.
+   Under cloud-primary work this is the ONLY way a baseline ever exists; it is
+   no longer a one-off command on a laptop. Run `pnpm session-metrics` on the
+   Mac meanwhile for the local slice, labelled as the local slice.
+3. **A1 and A2** — independent and cheap (two hooks; one wall plus an archiving
+   pass), both measurable within two weeks from the Actions API, which needs no
+   transcripts at all.
+4. **B3 (R3 first)**, riding on the digest that already exists.
+5. **B1**, once the sink has produced a baseline — the biggest build, the least
+   proven, and the one that most needs a before-number.
 
 ---
 
