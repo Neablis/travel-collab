@@ -38,6 +38,22 @@
   **Leaving it as-is is the one answer with an ongoing cost**: every PR from now
   on carries a red pre-merge row that means nothing.
 
+- **Second occurrence, 2026-09-21, on a much larger sample — PR #199.**
+  **51.39% against the same 80.00% threshold, "72 functions across 17 files"**,
+  against #198's 9 functions across 7. The branch adds eight `scripts/*.mjs`
+  tools whose reasoning runs to paragraphs — why the wave-gate regex matches
+  what it does, why `resolve` and not `join`, why a blocked lane never
+  withholds a PR — all in `//` above the symbol, which is the convention those
+  files were written to. Converting them for the percentage would move prose
+  that is already there into a shape a counter prefers.
+
+  It was again **not chased**, for the reason above, and is recorded here
+  instead. What has changed is the evidence: the warning is now reproducible
+  on any PR that adds tooling, which is what makes answer 3 (*"only on
+  exported API"*) look like the cheapest defensible line rather than a
+  compromise. **Still Mitchell's decision; still costing a red row on every PR
+  until it is made.**
+
 - **What it would take:** a decision, then either a `.coderabbit.yaml` edit
   (minutes) or a convention documented in `docs/guidelines/` and applied as
   files are touched (no big-bang rewrite).
