@@ -209,6 +209,25 @@ through the real domain and reports counts, kind/tag coverage, coordinates,
 rollups and conflicts against a recorded baseline. Runs inside `pnpm check`
 too; the standalone command is for the readable table. See ADR-030.
 
+**Draft-PR guard** (`scripts/hooks/draft-pr-guard.mjs`, `PreToolUse` on
+`gh *`): asks before `gh pr create` without `--draft`, and before
+`gh pr ready` when no **Tier-3 stamp** covers HEAD. The rule it enforces was
+already in this file and was followed on **4 of 15 branches** over
+2026-09-15..20; PR #196, opened ready, spent **41 CI runs and 8 failures
+across 15 hours**, its first run failing three seconds in on `test:int` — a
+lane that runs locally in ~70s. It **asks**, never denies: a prose fix, a
+revert or a PR wanted right now are legitimate, and a guard that cannot be
+overridden gets worked around.
+
+**The Tier-3 stamp** (`pnpm check` records it; `pnpm tier3 verify` reads it):
+`.git/tc-tier3.json`, holding the commit checked, whether the tree was dirty,
+and **which lanes were live at the time**. That last part is the cloud-shaped
+half: `pnpm check` ends in `test:int:if-db`, which skips silently with no
+database and says so itself — *"A green `pnpm check` here is NOT a green
+CI."* A stamp that said only "passed" would assert the thing that was not
+verified, so the guard names the uncovered lanes and lets you record them on
+the PR's *"Not run, and why"* line.
+
 **Hooks** (`scripts/hooks/`): a `PostToolUse` typecheck of the touched package
 on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
 commands while multiple worktrees exist.
