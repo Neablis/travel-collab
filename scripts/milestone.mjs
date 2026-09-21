@@ -183,7 +183,7 @@ function stepPruneCandidates(text, id, cands) {
 
 // --- driver -----------------------------------------------------------------
 
-function close(id, { confirm }) {
+function close(id, { confirm, nextId }) {
   const readers = {
     "current milestone": readCurrentMilestone(root),
     "TODO.md": readTodo(root),
@@ -217,12 +217,53 @@ function close(id, { confirm }) {
     process.exit(1);
   }
 
-  // The next milestone is the first unticked one after this in the index.
+  // The next milestone is the first unticked one after this in the index —
+  // that is, TODO.md's ROW ORDER.
+  //
+  // **That default is wrong whenever the roadmap has been reordered, and
+  // TODO.md's own header says so:** "read the marker, not the position. The
+  // list is deliberately out of order: Mitchell reorders it, and a reorder
+  // moves the marker without moving the rows." So position tells you nothing
+  // about what comes next, and this derivation is reading it as if it did.
+  //
+  // Caught 2026-09-21 closing M26: the recorded order is
+  // `… → M26 → M13 → M12 → …` (README's order line, and STATUS's), but M13
+  // sits BELOW M12 in TODO.md, so this would have quietly made **M12**
+  // current — four files written to the wrong milestone, which is the exact
+  // class of corruption assertAnchors() exists to prevent one door along.
+  //
+  // `--next <id>` is the escape hatch, not the fix. The fix is a
+  // machine-readable order this could read instead of a row position; the
+  // seven arrow-lines in README.md are prose and six of them are historical,
+  // so parsing one would be a guess and this script does not guess. Filed as
+  // KI-2026-09-21-a.
   const order = idx.items.filter((m) => m.ticked === false && m.id !== id);
-  const next = order[0];
+  let next = order[0];
+  if (nextId) {
+    const chosen = idx.items.find((m) => m.id === nextId);
+    if (!chosen) {
+      console.error(`milestone close: --next ${nextId} is not a milestone in TODO.md. Nothing written.`);
+      process.exit(1);
+    }
+    if (chosen.ticked) {
+      console.error(`milestone close: --next ${nextId} is already ticked, so it cannot become current. Nothing written.`);
+      process.exit(1);
+    }
+    if (chosen.id === id) {
+      console.error(`milestone close: --next ${nextId} is the milestone being closed. Nothing written.`);
+      process.exit(1);
+    }
+    next = chosen;
+  }
   if (!next) {
     console.error(`milestone close: no unticked milestone left to become current.`);
     process.exit(1);
+  }
+  if (nextId && order[0] && order[0].id !== next.id) {
+    console.log(
+      `NOTE: --next ${next.id} overrides the row-order default (${order[0].id}). ` +
+        `TODO.md's rows are deliberately unordered; see the comment at this check.`,
+    );
   }
 
   const files = {
@@ -290,12 +331,25 @@ function close(id, { confirm }) {
 function main() {
   const [cmd, id, ...rest] = process.argv.slice(2);
   if (cmd !== "close" || !id) {
-    console.error("usage: pnpm milestone close <id> [--confirm]");
+    console.error("usage: pnpm milestone close <id> [--next <id>] [--confirm]");
     console.error("  Runs the gate-close checklist across TODO.md, milestones/README.md");
     console.error("  and candidates.md. Prints a diff and stops unless --confirm.");
     process.exit(1);
   }
-  close(id, { confirm: rest.includes("--confirm") });
+  const nextFlag = rest.indexOf("--next");
+  // A value that is absent OR is itself a flag means the id was forgotten.
+  // Without the second half, `--next --confirm` silently eats `--confirm` as
+  // the id and reports "--confirm is not a milestone", which sends the reader
+  // looking for a typo in the wrong word — and, worse, drops the confirm.
+  const nextValue = nextFlag === -1 ? null : rest[nextFlag + 1];
+  if (nextFlag !== -1 && (!nextValue || nextValue.startsWith("--"))) {
+    console.error("milestone close: --next needs a milestone id. Nothing written.");
+    process.exit(1);
+  }
+  close(id, {
+    confirm: rest.includes("--confirm"),
+    nextId: nextValue,
+  });
 }
 
 main();

@@ -1,7 +1,7 @@
 ### KI-2026-09-05-o — activity fields are hand-enumerated in ~21 files; nothing went red when one was missed — RESOLVED
 
 - **Severity (as filed):** correctness (a recurrence class that had already bitten three times, each time as a silently dropped field)
-- **Area:** `packages/contracts/src/activity.ts`, `packages/contracts/src/detail.ts`, `packages/domain/src/trip/state.ts`, `packages/domain/src/trip/equality.ts`.
+- **Area:** `packages/contracts/src/activity.ts` (`ActivitySnapshot`), `packages/contracts/src/detail.ts` (`ActivityView`, `ActivityViewCoversSnapshot`), `packages/domain/src/trip/state.ts` (`ActivityState`), `packages/domain/src/trip/equality.ts` (`FIELD_EQUAL`, `activityStatesEqual`, `sameLocation`). As filed it also named `hydrate.ts`, `detail.ts`, `evolve.ts`, `diff.ts` and `decide.ts` as sites that hand-enumerate; those were not edited and did not need to be — they are typed against the derived shape and now fail the build on a missing field.
 - **Symptom (as filed):** every new activity field had to be added by hand at ~21 sites and **nothing went red when it was not**. The class had shipped three times with the same shape: KI-1 (day order), KI-54 (`city`/`countryCode` invisible to equality, so city-only edits were rejected as a no-op), and M18's editor sheet dropping `kind`/`tags`. Scheduled on 2026-08-28 as "one overnight batch", never built, and filed only on 2026-09-05 because it was in neither the register nor `TODO.md`.
 
 - **Fix (2026-09-21):** the entry's own proposed fix, in two halves.

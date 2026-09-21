@@ -30,20 +30,31 @@ general setup.
 
 ## Where the work is right now
 
-**M26 — DESIGN PARITY — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
-**Mitchell placing it** ("start the big design milestone we just created"),
-which is the other way this line moves and the reason it does not read M13.
-Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 → M13 → M12 → M24 → M14 → M19`.
-Scope, the two waves and the seven still-open questions:
-`docs/milestones/M26-design-parity.md`. **The argument for this order is written
-in that file and is not a preference:** M13 adds a second actor to the surfaces
-M26 is about to rebuild, so the other order rebuilds them twice.
+**M13 — COLLABORATION — IS THE CURRENT MILESTONE AS OF 2026-09-21**, by
+**M26's gate closing at 22 of 22** — the first time in five moves that this
+line has moved by a gate rather than by Mitchell placing a milestone. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
+Scope and the five links: `docs/milestones/M13-collaboration.md`.
 
-**M26 PROGRESS AS OF 2026-09-20 — every link in both waves is built.** Wave 1:
-0-10. Wave 2: 11-16. Link 15's `Cancel · New trip · Empty` header is recorded
-as not done, with the reason (it needs the exit lifted out of
-`NewTripConversation`, not duplicated).
+**M13's preflight is DONE and it is not a risk to carry into the milestone.**
+`KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
+its own piece of work at Mitchell's request — `ActivitySnapshot` declares the
+eight activity fields once, `ActivityState` is inferred from it, and
+`FIELD_EQUAL` makes a ninth field a compile error rather than a silent no-op.
+M13's gate box for it is ticked; M19 link 1 and M24 are unblocked by the same
+landing. **One thing link 5 must know before it adds `who`:** the read model
+`ActivityView` is deliberately NOT derived — the build will fail until `who` is
+added to it by hand, but the guard forces the KEY, not the TYPE. The resolved
+entry says why the derivation was backed out.
+
+**What M26's close does and does not assert.** Every link in both waves is
+built (Wave 1: 0-10, Wave 2: 11-16); link 15's `Cancel · New trip · Empty`
+header is recorded as not done with its reason. **Two boxes closed on
+Mitchell's attestation rather than agent-recorded evidence**, and **the
+Definition-of-Done box is ticked at 153 passed / 2 failed, not at green** —
+both failures are map specs and both are KI-49 (Chromium does not trust the
+agent proxy's CA, so MapLibre never draws). CI, where the tiles load, is the
+verdict on those two. `pnpm check` itself was green and stamped clean.
 
 ## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 
@@ -194,21 +205,38 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M13 is the current milestone** (M23's gate closed 2026-09-19). Read
+**M13 is the current milestone** (M26's gate closed 2026-09-21, 22 of 22). Read
 `docs/milestones/M13-collaboration.md` before planning anything. M21's and
-M22's gates also closed 2026-09-19, on Mitchell's attestation — nothing of
-either is owed.
+M22's gates closed 2026-09-19 on Mitchell's attestation — nothing of either is
+owed.
 
-**One piece of non-milestone work runs before M13's own links, and it is
-a prerequisite rather than a deliverable**: the activity-field descriptor
-refactor, `KI-20260905-o`. Three milestones each add a field to an activity
-(M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link 1's cost kind), and
-**21 non-test files hand-enumerate activity fields with nothing going red when
-one is missed**. It was already scheduled once, on 2026-08-29, and did not
-happen — which is why M13's gate now carries a box for it instead of this file
-carrying a second promise. **M25 changed the arithmetic slightly in its
-favour**: `toBundleStop` is a 22nd site, and the only one with a test that
-fails in the diff that misses it.
+**The prerequisite that used to stand here is DONE — 2026-09-21.** The
+activity-field descriptor refactor, `KI-20260905-o`, ran as its own piece of
+work at Mitchell's request rather than inside M13. Three milestones each add a
+field to an activity (M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link
+1's cost kind), and ~21 non-test files hand-enumerated those fields with
+nothing going red when one was missed. Now `ActivitySnapshot` declares the set
+once, `ActivityState` is inferred from it, and `FIELD_EQUAL` in `equality.ts`
+turns a ninth field into a compile error at every site — proven by adding one
+and reading the errors. The entry is in `resolved/`; M13's gate box is ticked.
+
+**Read this before writing link 5.** The read model `ActivityView` is
+**deliberately not derived** from the snapshot. Deriving it carried write-path
+length bounds onto a model that parses `trip_details.doc` straight off jsonb,
+where a violating stored value would 500 the board rather than fail a write —
+the #71 shape one field later. A key-parity assertion in `contracts/detail.ts`
+keeps the compile-forcing instead, and it is weaker in exactly one way: it
+forces the KEY to exist, not that its type matches. So adding `who` will break
+the build until you add it to `ActivityView` too, and nothing will check that
+you gave it the right type there.
+
+**A second thing landed with it, and it is a behaviour change worth knowing
+about**: a stop whose `kind` is `transit` is no longer a member of an
+`impossible-geography` pair. Mitchell's case was a Lisbon→Porto train flagged
+against its own destination at ~273 km. This is KI-60's explicitly rejected
+weaker variant, added *alongside* the rule that replaced it rather than instead
+of it; KI-60's entry now records that. The cost: a mistyped coordinate on a
+transit stop is no longer caught by any rule.
 
 **M22's last gate box closed 2026-09-19 on Mitchell's attestation**, but the
 problem that blocked an agent from walking it is still open, and the next

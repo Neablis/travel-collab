@@ -223,15 +223,22 @@ reorder and the one place a reorder updates.
       **none** of its 1,375 locations today. Both are in the milestone file.
       This entry said "six links, nine gate boxes"; the file in fact had ten
       boxes before link 7 was added, so the count here was already one out.)*
-- [ ] **M13 Collaboration** — **next, not current** (it held the marker for a
-      few hours on 2026-09-19, between M23's gate closing and M26 being placed;
-      its scope is unchanged) — realtime transport ADR and concurrent-edit
+- [ ] **M13 Collaboration** ← **current milestone** (2026-09-21, **by M26's
+      gate closing** — this marker moving by a gate rather than by Mitchell
+      placing it is the first time in five moves). It held the line for a few
+      hours on 2026-09-19 too, between M23's gate closing and M26 being placed;
+      its scope is unchanged — realtime transport ADR and concurrent-edit
       conflicts. → `docs/milestones/M13-collaboration.md`
-      *(**Read the preflight before opening this**: the activity-field
-      descriptor refactor `KI-20260905-o` runs ONCE, BEFORE M13, and M13's gate
-      carries a box for it. It is not M13's deliverable and it is not M24's —
-      it is shared by M13 link 5 (`who`) and M19 link 1 (cost kind), and it was
-      scheduled once before, on 2026-08-29, and did not happen.)*
+      *(**The preflight is DONE — 2026-09-21.** The activity-field descriptor
+      refactor `KI-20260905-o` ran ONCE, BEFORE this milestone, as its own
+      piece of work at Mitchell's request; the entry is in `resolved/` and
+      M13's gate box for it is ticked. It was never M13's deliverable and never
+      M24's — it is shared by M13 link 5 (`who`) and M19 link 1 (cost kind),
+      and it had been scheduled once before, on 2026-08-29, without happening.
+      **One thing link 5 must know:** the read model `ActivityView` is
+      deliberately NOT derived from the new `ActivitySnapshot`, so `who` has to
+      be added to it by hand — the build will fail until you do, but it forces
+      the KEY, not the TYPE. The resolved entry says why.)*
       *(**Narrowed 2026-08-27**: invites, roles and revocation moved into M11,
       because they are the same `AccessPolicy` change as share links and opening
       that boundary twice costs twice. **Scoped 2026-09-01** — five links, and
@@ -363,7 +370,7 @@ reorder and the one place a reorder updates.
       Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
       is a plain sum of stop costs with nothing to divide by.)*
 
-- [ ] **M26 The build looks like the design again** ← **current milestone**
+- [x] **M26 The build looks like the design again**
       (2026-09-19, by Mitchell placing it — *"start the big design milestone we
       just created"*). Scoped and placed the same day, **ahead of M13**: M13
       adds a second actor to the surfaces this rebuilds, so the other order

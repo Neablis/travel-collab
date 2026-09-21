@@ -203,3 +203,84 @@ test("it lists steps 3 and 5 as still manual rather than inventing prose", () =>
   assert.match(out, /STATUS\.md/);
   rmSync(root, { recursive: true, force: true });
 });
+
+// --- --next: the row-order trap, and the escape hatch -----------------------
+//
+// KI-2026-09-21-a. `next` defaults to the first unticked TODO row, i.e. row
+// ORDER — which TODO.md's own header says carries no information ("read the
+// marker, not the position ... a reorder moves the marker without moving the
+// rows"). These tests pin the trap as well as the escape hatch, so the day
+// somebody makes the default smarter, the test that must change says why.
+
+/** A repo whose ROW order and whose intended order disagree, as the real one did. */
+function reorderedRepo() {
+  return repo({
+    "TODO.md": [
+      "# TODO", "",
+      "- [ ] **M20 An account knows what it may do** ← **current milestone**",
+      "      `docs/milestones/M20-tiers.md`",
+      "- [ ] **M21 An account can pay for itself**",
+      "      `docs/milestones/M21-billing.md`",
+      "- [ ] **M22 A later one, reordered ahead of M21**",
+      "      `docs/milestones/M22-api.md`",
+      "",
+    ].join("\n"),
+    "docs/milestones/M22-api.md": "# M22 — A later one, reordered ahead of M21\n\n## Exit gate\n- [ ] a\n",
+  });
+}
+
+test("without --next it takes the first unticked ROW, which is the trap", () => {
+  const root = reorderedRepo();
+  const out = run(root, ["close", "M20"]);
+  assert.match(out, /next: M21/, "row order wins by default — this is the documented defect");
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--next overrides the row-order default and says that it did", () => {
+  const root = reorderedRepo();
+  const out = run(root, ["close", "M20", "--next", "M22", "--confirm"]);
+  assert.match(out, /NOTE: --next M22 overrides the row-order default \(M21\)/);
+  const todo = readFileSync(join(root, "TODO.md"), "utf8");
+  const readme = readFileSync(join(root, "docs/milestones/README.md"), "utf8");
+  assert.match(todo, /- \[ \] \*\*M22[^\n]*← \*\*current milestone\*\*/, "marker went to M22");
+  assert.doesNotMatch(todo, /- \[ \] \*\*M21[^\n]*← \*\*current milestone\*\*/, "and not to M21");
+  assert.match(readme, /^Current milestone: M22 — A later one, reordered ahead of M21$/m);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--next refuses an unknown id, an already-ticked one, the id being closed, and a bare flag", () => {
+  // Each refusal must leave the files untouched: a close that half-applies is
+  // worse than no automation, which is this file's whole premise.
+  for (const [args, pattern] of [
+    [["close", "M20", "--next", "M99", "--confirm"], /--next M99 is not a milestone in TODO\.md/],
+    [["close", "M20", "--next", "M20", "--confirm"], /--next M20 is the milestone being closed/],
+    [["close", "M20", "--next", "--confirm"], /--next needs a milestone id/],
+  ]) {
+    const root = reorderedRepo();
+    const out = run(root, args, { expectFail: true });
+    assert.match(out, pattern);
+    assert.match(out, /Nothing written/);
+    assert.match(readFileSync(join(root, "TODO.md"), "utf8"), /- \[ \] \*\*M20[^\n]*← \*\*current milestone\*\*/,
+      `files must be untouched after: ${args.join(" ")}`);
+    rmSync(root, { recursive: true, force: true });
+  }
+
+  // Already-ticked needs a repo where something IS ticked.
+  const root = repo({
+    "TODO.md": [
+      "# TODO", "",
+      "- [x] **M19 A done one**",
+      "      `docs/milestones/M19-done.md`",
+      "- [ ] **M20 An account knows what it may do** ← **current milestone**",
+      "      `docs/milestones/M20-tiers.md`",
+      "- [ ] **M21 An account can pay for itself**",
+      "      `docs/milestones/M21-billing.md`",
+      "",
+    ].join("\n"),
+    "docs/milestones/M19-done.md": "# M19 — A done one\n\n## Exit gate\n- [x] a\n",
+  });
+  const out = run(root, ["close", "M20", "--next", "M19", "--confirm"], { expectFail: true });
+  assert.match(out, /--next M19 is already ticked/);
+  assert.match(out, /Nothing written/);
+  rmSync(root, { recursive: true, force: true });
+});
