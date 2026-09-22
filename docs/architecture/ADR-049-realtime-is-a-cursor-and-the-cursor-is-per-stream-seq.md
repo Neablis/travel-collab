@@ -186,7 +186,11 @@ A remote envelope arriving while the local send queue is non-empty is the same
 problem as a local outcome arriving while the queue is non-empty: adopt an
 authoritative outcome, then re-predict what is queued against it. That is
 exactly the widening of `confirmHead` that KI-90 already names as the fix for
-KI-90, KI-5's precondition and KI-77 at once, and that M13 link 3 owns.
+KI-90 and KI-5's `applyOutcome` precondition at once, and that M13 link 3
+owns. *(This sentence said "KI-77" too, quoting KI-90's own wording. That was a
+stale self-reference — KI-90 was **filed as 77** and renumbered on merge, and
+the only KI-77 that exists is a resolved geocoder bug. Two things, not three;
+corrected 2026-09-22 when link 3 closed them.)*
 
 **So broadcast must not have its own merge path.** If a received event took a
 shortcut into `confirmed`, it would discard the pending queue the same way the

@@ -166,10 +166,57 @@ export function enqueue(state: OptimisticState, id: string, commands: BatchableC
 // re-prediction failure flips `predictable` and every later unit is appended
 // unpredicted here, without going through `enqueue` at all.
 export function confirmHead(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
-  const rest = state.pending.slice(1);
+  return rePredictOnto(outcome, state.pending.slice(1));
+}
+
+/**
+ * Adopt an authoritative outcome the QUEUE DID NOT PRODUCE, and re-predict the
+ * whole queue on top of it (M13 link 3, KI-90).
+ *
+ * This and `confirmHead` are the same operation — "adopt this outcome,
+ * re-predict what is queued" — differing in one thing: whether the outcome is
+ * the answer to the unit at the head of the queue. It is for `confirmHead`, so
+ * the head is consumed. It is not here, so nothing is.
+ *
+ * **What it replaces is `{ confirmed: outcome, pending: [] }`**, which was
+ * written at two sites and silently discarded any queued unit it found:
+ *
+ * - `dispatch`'s undo/redo/revert reconcile. Its pre-send guard checks the
+ *   queue is empty, but the send is `await`ed and nothing stops the user
+ *   editing during that round trip, so a unit enqueued in the window was
+ *   dropped by the reconcile that followed. That is KI-90, and it is the same
+ *   line KI-70 fixed once already, one `await` further down.
+ * - `applyOutcome`, whose "only call me with an empty queue" precondition was
+ *   unenforceable and load-bearing — the callers (inserting a saved day,
+ *   the assistant applying a proposal) each gate their own affordance, and a
+ *   third caller inheriting the rule by reading it was the whole risk.
+ *
+ * Re-predicting instead of clearing makes both safe by construction rather
+ * than by a guard that has to be remembered. The queued units were predicted
+ * against a state the server has since replaced, so they are re-predicted
+ * against the new one under exactly the rules `confirmHead` already uses:
+ * KI-42's retention (a unit that no longer predicts is KEPT, unpredicted, and
+ * so is everything behind it) and KI-55's suffix rule.
+ *
+ * **`failure` is preserved, and that is not incidental.** The accumulator
+ * starts without one, which is right for `confirmHead` — a successful send
+ * clears the failed state. Here the queue is retained in full, so dropping the
+ * failure would unlatch the sender's gate and let it re-fire a head the server
+ * has already rejected, without bound: `failHead`'s note measured 41 sends of
+ * one command in 300ms the last time that gate was missing.
+ */
+export function adoptOutcome(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
+  const next = rePredictOnto(outcome, state.pending);
+  return state.failure ? { ...next, failure: state.failure } : next;
+}
+
+// The shared body of the two reducers above: adopt `outcome` as confirmed, then
+// replay `units` onto it in order. Not exported — a caller that has not decided
+// whether the head is consumed has not decided what it is doing.
+function rePredictOnto(outcome: CommandOutcome, units: PendingUnit[]): OptimisticState {
   let acc: OptimisticState = { confirmed: outcome, pending: [] };
   let predictable = true;
-  for (const unit of rest) {
+  for (const unit of units) {
     if (predictable) {
       const r = enqueue(acc, unit.id, unit.commands);
       if (r.ok) {

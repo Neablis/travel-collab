@@ -19,6 +19,7 @@ import {
   activeHistory,
   clearFailure,
   confirmHead,
+  adoptOutcome,
   enqueue,
   failHead,
   unsentCount,
@@ -317,9 +318,15 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         return;
       }
       if (HISTORY_TYPES.has(command.type)) {
-        // The REF, not the render-time `pending` (KI-70). This guard is the
-        // only thing that makes the `pending: []` reconcile below safe, and it
-        // used to read a value derived during render — so an undo/redo/revert
+        // The REF, not the render-time `pending` (KI-70). This used to be the
+        // only thing that made the reconcile below safe; since M13 link 3 that
+        // reconcile re-predicts rather than clearing, so the guard no longer
+        // carries correctness — it is now a PRODUCT rule, and the one KI-90
+        // declined to decide: a history command does not start while unsent
+        // work is queued. Whether it should (and whether the silent `return`
+        // should say so) is still open, and is a decision, not a bug.
+        //
+        // It used to read a value derived during render — so an undo/redo/revert
         // fired in the same tick as an accepted enqueue saw the PRE-enqueue
         // `false`, passed, and reconciled away the unit that had been queued a
         // moment earlier. One user edit gone, with no error and no count.
@@ -335,7 +342,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
           if (result.error.code !== "no-op") setError(result.error.message);
           return;
         }
-        setOptimistic((prev) => (prev ? { confirmed: result.value, pending: [] } : prev));
+        // KI-90: this was `{ confirmed: result.value, pending: [] }`. The guard
+        // above runs BEFORE the await, so a unit enqueued while the undo was in
+        // flight — a window measured in network latency — was discarded here on
+        // arrival. `adoptOutcome` re-predicts the queue onto the authoritative
+        // result instead of clearing it, so the reconcile is non-lossy whatever
+        // the queue holds by the time it lands.
+        setOptimistic((prev) => (prev ? adoptOutcome(prev, result.value) : prev));
         exit();
         return;
       }
@@ -364,20 +377,23 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   );
 
   const applyOutcome = useCallback((outcome: CommandOutcome) => {
-    // `outcome` is `{ detail, history }` — exactly the `confirmed` shape. Clear
-    // pending: this is authoritative server state, nothing local is unconfirmed
-    // relative to it (matches the undo/redo/revert reconciliation).
+    // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
     //
-    // PRECONDITION, on the caller: only apply an outcome when `pending` is
-    // empty. The server decided this outcome without seeing anything still
-    // queued here, so clearing discards those units from the UI as well as
-    // from the server — the same silent loss `dispatch` refuses to cause
-    // below (`if (pending) return`). Callers gate their own affordance rather
-    // than being refused here, so the user is told why instead of watching a
-    // control do nothing: AddSavedDayButton disables the button, and
+    // This used to clear `pending` and carry a PRECONDITION on the caller:
+    // only apply an outcome when the queue is empty, because the server decided
+    // this outcome without seeing anything still queued here. That precondition
+    // was unenforceable — it lived in this comment, and a third caller would
+    // have inherited it by reading it — and it is KI-5's ledger row of the same
+    // name. `adoptOutcome` re-predicts the queue onto the outcome instead, so
+    // an ungated caller no longer costs the user their unsent work.
+    //
+    // The existing callers still gate their own affordance, and should: being
+    // TOLD why a control is unavailable beats watching it silently do something
+    // subtler than expected. AddSavedDayButton disables the button and
     // TripBoardScreen's assistant ask reports it in the rail
-    // (docs/reviews/2026-08-28-m11-pr71-review.md §4).
-    setOptimistic((prev) => (prev ? { confirmed: outcome, pending: [] } : prev));
+    // (docs/reviews/2026-08-28-m11-pr71-review.md §4). That is now a UX choice
+    // rather than the only thing standing between a caller and data loss.
+    setOptimistic((prev) => (prev ? adoptOutcome(prev, outcome) : prev));
     setError(null);
   }, []);
 

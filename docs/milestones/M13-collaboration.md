@@ -20,7 +20,8 @@ migration for per-stop attribution.
 **Moved ahead of M12, 2026-09-18, by Mitchell.** This file already said it sat
 after M12 *"because M12 is smaller and finishes a surface that is already live,
 not because of a dependency"* — so the move costs nothing and buys three things:
-link 3 closes **KI-5, KI-90 and KI-77**, which are single-player data-loss
+link 3 closes **KI-90 and KI-5's `applyOutcome` precondition**, which are
+single-player data-loss
 defects live in the app today rather than realtime work; link 5 lands the
 attribution field **M19 link 3 and M14's two cut person widgets both wait on**;
 and the transport ADR stops blocking. **M23 runs before it** — see
@@ -52,7 +53,9 @@ reloads.
 This is the largest remaining architectural lift in the project, which is why it
 waited until something needed it. Two things now do: M12's library is built out
 of days people share with each other, and the optimistic-update loss class below
-has three open entries against it.
+had three open entries against it. *(Two of the three are closed as of
+2026-09-22 by link 3 — see the table, which is kept as the statement of the
+problem this milestone opened against.)*
 
 ### The loss class is already documented, and the fix is already named
 
@@ -67,7 +70,7 @@ send queue in the background. Three open known issues describe the same seam:
 
 **KI-90 names the fix and says why it was not done in a line:** widening
 `confirmHead` into a general *"adopt this outcome, re-predict what is queued"*
-reducer *"is the shape that would fix KI-77, KI-5's `applyOutcome` precondition
+reducer *"is the shape that would fix [KI-90], KI-5's `applyOutcome` precondition
 and this at once, and that is a design pass, not a line."*
 
 **That design pass is this milestone.** A reducer that re-predicts queued work
@@ -86,8 +89,9 @@ Five links. Link 1 is an ADR and gates the rest.
    against a fetched head. **`events.global_seq` is the obvious cursor and the
    ADR should say why it is or is not.** ADR due here, per the roadmap table
    since 2026-07-28.
-   **DRAFTED 2026-09-22 — `ADR-049`, status Proposed, awaiting Mitchell's
-   acceptance.** It decides the cursor is **per-stream `seq`** and **rejects
+   **WRITTEN AND ACCEPTED 2026-09-22 — `ADR-049`** (accepted on Mitchell's
+   instruction to begin implementation; the ADR's status line records that
+   basis). It decides the cursor is **per-stream `seq`** and **rejects
    `global_seq`** on a correctness argument rather than a preference: a
    `bigserial` is assigned at `INSERT` and visible at `COMMIT`, so a reader
    polling `global_seq > cursor` can advance past an event that commits late
@@ -107,9 +111,21 @@ Five links. Link 1 is an ADR and gates the rest.
    command pipeline does not change — this is a read-side push, and
    `AccessPolicy` decides who receives, the same object that decides who reads.
 3. **The re-prediction reducer.** `confirmHead` widened to "adopt this outcome,
-   re-predict what is queued", per KI-90. **Closes KI-90, KI-5's precondition,
-   and the same-tick preview read.** This is the link that makes a remote edit
+   re-predict what is queued", per KI-90. **Closes KI-90 and KI-5's
+   `applyOutcome` precondition.** This is the link that makes a remote edit
    arriving mid-edit safe rather than lossy.
+   **DONE 2026-09-22.** `confirmHead` and the new `adoptOutcome` share one
+   `rePredictOnto` body and differ in one thing: whether the outcome is the
+   answer to the unit at the head of the queue. Both `{ confirmed: X,
+   pending: [] }` sites call it. `adoptOutcome` **preserves `failure`** where
+   `confirmHead` clears it — retaining the queue while dropping the failure
+   would unlatch the sender's gate and re-fire a rejected head (`failHead`
+   measured 41 sends in 300ms the last time that gate was missing).
+   **Two corrections to this link's own scope, both recorded rather than quietly
+   absorbed:** it does **not** close "the same-tick preview read" — `enter` still
+   reads a render-time `pending`, nothing is lost when it races, and KI-90's
+   resolved entry says so; and it closes **two** things, not three, because the
+   "KI-77" this file carried was KI-90's own pre-renumbering number.
 4. **Concurrent-edit conflicts as resolvable data.** Two people editing the same
    stop is not an error dialog — it is a conflict the domain can already
    express. The soft-conflict engine (M1) and `detectConflicts` are the shape to
@@ -140,9 +156,18 @@ Five links. Link 1 is an ADR and gates the rest.
 - [ ] A viewer who loses access mid-session stops receiving updates — the
       broadcast path honours `AccessPolicy`, and there is a test that fails if
       it stops doing so.
-- [ ] **A command enqueued while an undo/redo/revert is in flight survives it**
+- [x] **A command enqueued while an undo/redo/revert is in flight survives it**
       — KI-90's reproduction fails before the change and passes after, and the
       entry is moved to `resolved/` with its proof line.
+      *(**Done 2026-09-22.** The reproduction is `describe.each` over all three
+      `HISTORY_TYPES` — the branch is keyed on set membership, so a regression
+      reachable through Redo but not Undo would otherwise pass, the same reason
+      KI-70's sibling suite is shaped that way. The history send is held open,
+      the edit is dispatched into that window, and the send settles with a
+      **different** trip from the one the edit was predicted against, so the
+      assertion proves the unit was RE-PREDICTED rather than merely preserved.
+      Restoring `{ confirmed: result.value, pending: [] }` fails all six with
+      `expected '2' to be '3'`.)*
 - [ ] Two people editing the same stop produce a **conflict the UI can show and
       a person can resolve**, not a lost write and not a modal.
 - [ ] A stop records who it is for, set through the UI and read back off the

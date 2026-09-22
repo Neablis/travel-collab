@@ -35,8 +35,9 @@ general setup.
 line has moved by a gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and the five links: `docs/milestones/M13-collaboration.md`.
-**Link 1 — the transport ADR that gates links 2-5 — is drafted and awaiting
-acceptance as of 2026-09-22; see the in-flight section below.**
+**Links 1-3 are done as of 2026-09-22 and the gate is 3 of 10** — the transport
+ADR (`ADR-049`, accepted), broadcast's server half, and the re-prediction
+reducer that closed KI-90 and KI-5's `applyOutcome` precondition. See below.
 
 **M13's preflight is DONE and it is not a risk to carry into the milestone.**
 `KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
@@ -58,50 +59,58 @@ both failures are map specs and both are KI-49 (Chromium does not trust the
 agent proxy's CA, so MapLibre never draws). CI, where the tiles load, is the
 verdict on those two. `pnpm check` itself was green and stamped clean.
 
-## IN FLIGHT 2026-09-22 — M13 link 1, the transport ADR (drafted, NOT accepted)
+## DONE 2026-09-22 — M13 links 1-3 (the gate is 3 of 10)
 
-**`docs/architecture/ADR-049-realtime-is-a-cursor-and-the-cursor-is-per-stream-seq.md`,
-status Proposed.** Link 1 gates links 2-5, so this is the whole of M13's
-critical path right now. **It needs Mitchell's acceptance and nothing else** —
-the gate box stays unticked until then, and the missing word in it is
-"accepted", not "written".
+**Link 1 — `ADR-049`, accepted** on Mitchell's instruction to begin
+implementation; the ADR's status line records that basis rather than implying a
+written review. Decision 2 (the transport) is explicitly open to reversal;
+Decision 1 (the cursor) is the expensive one to change.
 
-**The two decisions, so a reader does not have to open it:**
+**Link 2 — the server half.** `GET /api/trips/:tripId/events?after=<seq>` →
+`{ headSeq, events, resync }`. **The steady-state poll costs one index-only
+lookup**: when the caller is at the head it returns before the range scan runs,
+so only a poll with news pays for a second query. `resync` past 200 events
+behind, so an unbounded read cannot masquerade as a poll. `TripEventsPage` added
+to contracts; `EventEnvelope` deliberately unchanged, so `global_seq` stays off
+the wire. **The client half is NOT built, on purpose** — see link 3.
 
-1. **The cursor is per-stream `seq`; `global_seq` is rejected** — and on
-   correctness, not taste. A `bigserial` takes its value at `INSERT` and becomes
-   visible at `COMMIT`, so a reader polling `global_seq > cursor` can advance
-   past an event that commits late and **never be served it again**. Per-stream
-   `seq` cannot do that: writing `seq` N+1 requires having read N committed rows
-   in that stream (`commands.ts:109` passes `expectedSeq: history.length`), so
-   it is monotonic in *commit* order, and because seqs are `1..N` contiguous a
-   gap is even detectable.
-2. **Transport is polling with a cursor, and SSE is rejected *for now*.** The
-   argument is specific to this runtime: a serverless handler holding an
-   `EventSource` has no way to learn that another invocation committed an event,
-   so **SSE without a broker is not push — it is database polling that you also
-   pay to hold open.** WebSockets, a hosted broker and `LISTEN`/`NOTIFY` are
-   rejected with their own reasons. The transport sits behind a seam because
-   **the cursor is the durable decision and the transport is the swappable
-   one**; SSE's `Last-Event-ID` *is* this cursor, so adopting it later is one
-   module and no contract change.
+**Link 3 — the re-prediction reducer. Two live data-loss defects closed.**
+`confirmHead` and the new **`adoptOutcome`** share one `rePredictOnto` body and
+differ in one thing: whether the outcome is the answer to the unit at the head
+of the queue. Both `{ confirmed: X, pending: [] }` sites now call it —
+`dispatch`'s history branch (KI-90) and `applyOutcome` (KI-5's precondition).
 
-**Three findings links 2-5 should not rediscover:**
+- **`adoptOutcome` preserves `failure`; `confirmHead` clears it.** Not an
+  asymmetry worth removing: a successful send clears the failed state, but here
+  the queue is retained in full, so dropping the failure would unlatch the
+  sender's gate and re-fire a head the server already rejected. `failHead`
+  measured 41 sends of one command in 300ms the last time that gate was missing.
+- **The product decision KI-90 deferred was not taken, and did not need to be.**
+  It framed the choice as "refuse the reconcile, or disable editing for the
+  duration". Re-predicting is a third option costing neither. The pre-send guard
+  is KEPT but is now a **product** rule, not a correctness one, and
+  `TripProvider.tsx` says so at the line. Whether a history command should start
+  while work is queued — and whether that silent `return` should say so — is
+  still open and is still a decision.
 
-- **`EventEnvelope` does not carry `globalSeq`** (`eventStore.ts:17-29`). Its
-  only reader in the tree is `readAll`, for total-order replay.
-- **ADR-027 already pins share links to per-stream `seq` and replays to it**, and
-  `getTripDetailAtWithHead` already returns `headSeq: envelopes.length`
-  (`history.ts:68`). The coordinate is in production; it is not a new idea.
-- **The poll needs no new index and no migration** — `events_stream_seq`
-  (`schema.ts:275`) already covers `WHERE stream_id = $1 AND seq > $2`. Link 5's
-  attribution field still needs its own migration.
+**Three bookkeeping corrections, because they were load-bearing and wrong:**
 
-**One thing the ADR decided that link 2 must honour:** a received event goes
-through **link 3's re-prediction reducer**, not around it. A shortcut into
-`confirmed` would discard the pending queue exactly the way today's
-unconditional `pending: []` does, and M13 would ship a *fourth* member of the
-KI-5/KI-90/KI-77 loss class it was scheduled to close.
+1. **"KI-77" was never a third defect.** M13's file, `TODO.md` and `ADR-049` all
+   said link 3 closes "KI-90, KI-5 and KI-77". KI-90's own body says it was
+   **filed as 77** and renumbered on merge, so that was a stale self-reference;
+   the only KI-77 that exists is a **resolved geocoder bug**. Link 3 closes
+   **two** things. All three files corrected.
+2. **Link 3 does not close "the same-tick preview read."** M13's scope claimed
+   it; `enter` still reads a render-time `pending`. Nothing is lost when it
+   races, which is why KI-90 noted it rather than filing it — recorded in the
+   resolved entry rather than inherited by the next reader as closed.
+3. **KI-5's trigger ledger is down to one open trigger** — abrupt navigation,
+   this entry's own. It is not a reducer problem and no reducer will close it: it
+   needs a `pagehide`/`keepalive` mitigation that does not exist in `apps/web/src`.
+
+**What link 2's client half waits on is now built**, so wiring the poll into
+`TripProvider` is unblocked — and it must go through `adoptOutcome`, not around
+it, which is exactly the shape ADR-049 requires.
 
 ## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 

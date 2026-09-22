@@ -796,3 +796,156 @@ describe.each(HISTORY_COMMANDS)(
     });
   },
 );
+
+// ---------------------------------------------------------------------------
+// KI-90 — the same reconcile, one `await` further down (M13 link 3).
+//
+// KI-70 (above) closed the SAME-TICK window: a history command fired in the
+// same tick as an enqueue used to read a pre-enqueue `pending` and reconcile
+// the unit away. The guard now reads `optimisticRef.current`, so that is shut.
+//
+// This is the window the guard cannot reach. It runs BEFORE `await
+// sendTripCommand`, so it is answering a question about the queue as it was at
+// the start of the round trip. Nothing stops the user editing during the round
+// trip — `runDispatch` has no gate of its own — and the reconcile that landed
+// afterwards was `{ confirmed: result.value, pending: [] }`, which discarded
+// whatever had arrived in the meantime. A window measured in network latency
+// rather than in one React tick.
+//
+// The fix is not a third guard: it is that the reconcile re-predicts the queue
+// onto the authoritative outcome (`adoptOutcome`) instead of clearing it, so
+// there is no longer a window to guard. The history result here is a DIFFERENT
+// trip from the one the edit was predicted against, so these assert the unit
+// was RE-PREDICTED onto the new base — merely preserving it with its stale
+// prediction would show two days, not three.
+// ---------------------------------------------------------------------------
+
+function InFlightProbe({ command }: { command: (typeof HISTORY_COMMANDS)[number] }) {
+  const { activeTrip, dispatch, sync } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="unsent">{sync.unsent}</span>
+      <button onClick={() => void dispatch(command as never)}>history</button>
+      <button
+        onClick={() => void dispatch({ type: "AddDay", tripId: "x", dayId: "d-inflight" } as never)}
+      >
+        edit
+      </button>
+    </div>
+  );
+}
+
+describe.each(HISTORY_COMMANDS)(
+  "TripProvider $type with an edit queued while it is IN FLIGHT (KI-90)",
+  (command) => {
+    // Holds the history send open so the edit lands mid-round-trip, and keeps
+    // the AddDay send unresolved so its unit is unambiguously still pending
+    // when the history result arrives.
+    function renderWithHeldHistory() {
+      let settleHistory!: (value: unknown) => void;
+      sendTripCommandMock.mockImplementation((sent: { type: string }) =>
+        sent.type === command.type
+          ? new Promise((res) => {
+              settleHistory = res;
+            })
+          : new Promise(() => {}),
+      );
+      render(
+        <TripProvider tripId="x">
+          <InFlightProbe command={command} />
+        </TripProvider>,
+      );
+      return () => settleHistory;
+    }
+
+    it("keeps the edit that was queued during the round trip", async () => {
+      const held = renderWithHeldHistory();
+      await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+      fireEvent.click(screen.getByRole("button", { name: "history" }));
+      await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+
+      // The edit arrives while the history command is still in flight.
+      fireEvent.click(screen.getByRole("button", { name: "edit" }));
+      await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("1"));
+
+      await act(async () => {
+        held()({ ok: true, value: { detail: twoDayDetail(), history: historyFixture("x") } });
+      });
+
+      // Three: the two the history command decided, plus the edit re-predicted
+      // on top of them. It used to be two — the edit silently gone.
+      expect(screen.getByTestId("dayCount").textContent).toBe("3");
+      // And it is still queued work, not something quietly folded into
+      // confirmed state: the server has not accepted it.
+      expect(screen.getByTestId("unsent").textContent).toBe("1");
+    });
+
+    it("adopts the authoritative outcome rather than keeping the pre-command trip", async () => {
+      const held = renderWithHeldHistory();
+      await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+      fireEvent.click(screen.getByRole("button", { name: "history" }));
+      await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(1));
+      fireEvent.click(screen.getByRole("button", { name: "edit" }));
+      await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("1"));
+
+      await act(async () => {
+        held()({ ok: true, value: { detail: twoDayDetail(), history: historyFixture("x") } });
+      });
+
+      // The day the history command produced is on the board, so this is a real
+      // reconcile and not a refusal that happened to preserve the edit.
+      expect(screen.getByTestId("dayCount").textContent).toBe("3");
+    });
+  },
+);
+
+// KI-5's ledger row "applyOutcome clearing a non-empty queue from an ungated
+// caller". It was closed in 2026-08-28 by making both callers gate their own
+// affordance, which left the rule itself unenforced — a third caller would
+// have inherited it by reading a comment. Since M13 link 3 the reducer is
+// non-lossy, so the precondition is a UX preference rather than the only thing
+// between a caller and the user's unsent work.
+function ApplyOutcomeWithQueueProbe() {
+  const { activeTrip, applyOutcome, dispatch, sync } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="unsent">{sync.unsent}</span>
+      <button
+        onClick={() => void dispatch({ type: "AddDay", tripId: "x", dayId: "d-queued" } as never)}
+      >
+        edit
+      </button>
+      <button onClick={() => applyOutcome({ detail: twoDayDetail(), history: historyFixture("x") })}>
+        apply-outcome
+      </button>
+    </div>
+  );
+}
+
+describe("TripProvider applyOutcome with unsent work queued (KI-5)", () => {
+  it("re-predicts the queue onto the outcome instead of discarding it", async () => {
+    // Held open, so the queued unit is unambiguously still unsent when the
+    // outcome is applied.
+    sendTripCommandMock.mockImplementation(() => new Promise(() => {}));
+    render(
+      <TripProvider tripId="x">
+        <ApplyOutcomeWithQueueProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "edit" }));
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "apply-outcome" }));
+
+    // Three: the outcome's two days plus the queued edit re-predicted on top.
+    // It used to be two, with the edit gone and nothing said.
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("3"));
+    expect(screen.getByTestId("unsent").textContent).toBe("1");
+  });
+});
