@@ -300,9 +300,15 @@ Five links. Link 1 is an ADR and gates the rest.
       flow changed, and `seed:verify` because contract fields changed. Locally:
       `pnpm typecheck`, `pnpm lint` (36 walls), the unit lane, `pnpm test:int`
       811/811, `pnpm seed:verify` 102/102 and `pnpm content:verify` — all green.
-      **The e2e verdict is CI's `integration-e2e` job on this exact head
-      (`4e41b79`, run 35751824889), green.** That job is `pnpm --filter web
-      build` then `pnpm --filter web test:e2e`, and GitHub sets `CI=true`, so
+      **The e2e verdict is CI's `integration-e2e` job on the current head
+      (`0da8313`, run 35757734392), green** — re-established there rather than
+      left citing `4e41b79`, because two code commits landed after that run
+      (`42c74c1`, the Board adapter completion, and `0da8313`, which deleted
+      those adapters and moved the form-to-command mapping into
+      `activityCommands.ts`). An e2e verdict names a commit; when the commit
+      moves, so does the verdict, or the tick is about code that no longer
+      exists. That job is `pnpm --filter web build` then `pnpm --filter web
+      test:e2e`, and GitHub sets `CI=true`, so
       `playwright.config.ts`'s `webServer.command` resolves to `pnpm start`
       against the built app — which is exactly what `test:e2e:ci-like`
       (`pnpm build && CI=true pnpm test:e2e`) reproduces locally. The `ci-like`
