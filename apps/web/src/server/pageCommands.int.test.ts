@@ -8,6 +8,7 @@ import { readStream } from "./eventStore";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { getTripEventsAfter } from "./broadcast";
+import { rebuildProjections, getTripDetail } from "./projections";
 import { listPages } from "./pages";
 
 const OWNER = "user-1";
@@ -192,6 +193,25 @@ describe("executePageCommand", () => {
     // The notebook is still there.
     const [row] = await db.select().from(pages).where(eq(pages.id, pageId));
     expect(row?.title).toBe("Packing");
+  });
+
+  // **The rebuild reads EVERY stream on the instance**, so one trip carrying a
+  // notebook event took out the projection rebuild for all of them. That was
+  // caught by commands.int.test.ts's GOLDEN test, which passes in isolation and
+  // failed only in the full run — i.e. by accident, through a shared database.
+  // This asserts it directly, so the next person does not need the accident.
+  it("survives a projection rebuild", async () => {
+    const tripId = await seedTrip();
+    await createPageVia(tripId, "Packing", "socks");
+    await executeTripCommand({ type: "SetTripName", tripId, name: "Rome, later" }, OWNER);
+
+    await rebuildProjections();
+
+    const detail = await getTripDetail(tripId);
+    expect(detail?.name).toBe("Rome, later");
+    // And the page row is untouched by a rebuild — it is projected by the
+    // command path, not by this one.
+    expect(await db.select().from(pages).where(eq(pages.tripId, tripId))).not.toHaveLength(0);
   });
 
   it("refuses the demo trip", async () => {

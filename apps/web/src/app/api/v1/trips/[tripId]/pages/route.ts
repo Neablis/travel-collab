@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { CreatePageInput, Page, PageSummary } from "@tc/contracts";
-import { createPage, listPages } from "@/server/pages";
+import { listPages } from "@/server/pages";
+import { executePageCommand } from "@/server/pageCommands";
+import { randomUUID } from "node:crypto";
 import { PublicApiError } from "@/server/public-api/commands";
 import { decodeKeyedCursor, keyedCursor, route } from "@/server/public-api/route";
 
@@ -55,7 +57,28 @@ export const { GET, POST } = route({
       if (input.context.tripId !== params["tripId"]) {
         throw new PublicApiError(400, "This page's context names a different trip from the URL.");
       }
-      return createPage(params["tripId"]!, input, actor.userId);
+      // Through the command pipeline, for the reason the PATCH beside it
+      // gives: the public API is not allowed to be the one door that writes a
+      // page without writing the event that says so.
+      const result = await executePageCommand(
+        {
+          type: "CreatePage",
+          tripId: params["tripId"]!,
+          pageId: randomUUID(),
+          title: input.title,
+          context: input.context,
+          content: input.content,
+        },
+        actor.userId,
+      );
+      if (!result.ok) {
+        if (result.error.code === "concurrency-conflict") {
+          throw new PublicApiError(409, result.error.message, "invalid-request");
+        }
+        throw new PublicApiError(400, result.error.message, "invalid-request");
+      }
+      if (result.page === null) throw new PublicApiError(404, "No such page on this trip.");
+      return result.page;
     },
   },
 });

@@ -1,4 +1,6 @@
-import { TripEvent, type EventEnvelope, type TripDetail } from "@tc/contracts";
+import { TripEvent, type EventEnvelope, type TripDetail,
+  isPageEventType,
+} from "@tc/contracts";
 import { detectConflicts, DEFAULT_CONFLICT_CONTEXT, type ConflictContext } from "./conflicts";
 import { rollupCosts } from "./costs";
 import { deriveDayDates } from "./dates";
@@ -63,6 +65,9 @@ export function projectTripDetails(
 ): TripDetail[] {
   const streams = new Map<string, { state: TripState | null; createdAt: string }>();
   for (const env of envelopes) {
+    // The other aggregate's events, skipped by name — see `foldEnvelopes` and
+    // `projectTripSummaries` for the same guard and why it is by name.
+    if (isPageEventType(env.type)) continue;
     const event = TripEvent.parse({ type: env.type, version: env.version, payload: env.payload });
     const entry = streams.get(env.streamId) ?? { state: null, createdAt: env.occurredAt };
     entry.state = evolveTrip(entry.state, event);
