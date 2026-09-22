@@ -43,7 +43,6 @@ import {
   type ApiError,
   type AskScope,
 } from "@/lib/apiClient";
-import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
 

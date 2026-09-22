@@ -113,6 +113,7 @@ export function updateActivityCommand(
     // `dayId` — `ActivityEditor`'s Day select is disabled in edit mode for
     // exactly this reason, and a cross-day move stays `MoveActivity`'s job
     // (drag and drop), not this form's.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured to be DISCARDED, which is the point: naming it is what keeps the exhaustiveness check below honest, and a rest-spread that skipped it would let a future `dayId` change pass unnoticed
     dayId: _dayId,
     timeWindow,
     location,
