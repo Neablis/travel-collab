@@ -205,7 +205,9 @@ reorder and the one place a reorder updates.
 - [x] **M11 Sharing, invites, and a trip you can hand to someone** — gate closed 2026-08-28 → `docs/milestones/M11-sharing-and-invites.md`
 - [x] **M11a An invite gate on the front door** — gate closed 2026-08-31 → `docs/milestones/M11a-invite-gate.md`
 - [x] **M11b Playbooks becomes a public library** — gate closed 2026-08-31 → `docs/milestones/M11b-playbooks-public-library.md`
-- [ ] **M12 Reviews and moderation** — all trust & safety scope
+- [ ] **M12 Reviews and moderation** ← **current milestone** (2026-09-22, **by
+      M13's gate closing** — the second consecutive move made by a gate rather
+      than by Mitchell placing a milestone). All trust & safety scope
       lives here, nowhere earlier.
       → `docs/milestones/M12-reviews-and-moderation.md`
       *(**Retitled and scoped 2026-09-01** — was "Community", with no file and
@@ -223,12 +225,17 @@ reorder and the one place a reorder updates.
       **none** of its 1,375 locations today. Both are in the milestone file.
       This entry said "six links, nine gate boxes"; the file in fact had ten
       boxes before link 7 was added, so the count here was already one out.)*
-- [ ] **M13 Collaboration** ← **current milestone** (2026-09-21, **by M26's
-      gate closing** — this marker moving by a gate rather than by Mitchell
-      placing it is the first time in five moves). It held the line for a few
-      hours on 2026-09-19 too, between M23's gate closing and M26 being placed;
-      its scope is unchanged — realtime transport ADR and concurrent-edit
-      conflicts. → `docs/milestones/M13-collaboration.md`
+- [x] **M13 Collaboration** — **gate closed 2026-09-22 at 10 of 10**, merged as
+      `#201`. Placed 2026-09-21 by M26's gate closing, which was the first time
+      in five moves this marker had moved by a gate rather than by Mitchell; it
+      held the line for a few hours on 2026-09-19 too, between M23's gate
+      closing and M26 being placed. Its scope was unchanged — realtime
+      transport ADR and concurrent-edit conflicts — and it also carried an
+      unplanned sixth piece, **notebooks joining the event log**, after a
+      two-device report. The two-actor walk box is ticked on **Mitchell's
+      attestation**; an agent cannot reach it (the preview answers 402 without
+      the owner's `trip.collaborators` entitlement). Retro in the milestone
+      file. → `docs/milestones/M13-collaboration.md`
       *(**The preflight is DONE — 2026-09-21.** The activity-field descriptor
       refactor `KI-20260905-o` ran ONCE, BEFORE this milestone, as its own
       piece of work at Mitchell's request; the entry is in `resolved/` and

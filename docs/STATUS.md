@@ -30,94 +30,49 @@ general setup.
 
 ## Where the work is right now
 
-**M13 — COLLABORATION — IS THE CURRENT MILESTONE AS OF 2026-09-21**, by
-**M26's gate closing at 22 of 22** — the first time in five moves that this
-line has moved by a gate rather than by Mitchell placing a milestone. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
-Scope and the five links: `docs/milestones/M13-collaboration.md`.
-**All five links are built as of 2026-09-22; the gate is 8 of 10.** Two boxes
-left, neither of them code: the two-actor browser walk, and the retro. **The
-walk cannot be done by an agent** — a two-member trip needs the owner's
-`trip.collaborators` entitlement and the preview answers 402, so that box is
-Mitchell's or it needs an entitled account.
-
-**PR #201 also carries a SECOND, unplanned piece — notebooks joining the event
-log.** A notebook edited on one device never reached another because page
-writes went straight to the `pages` table, so a save never moved `headSeq` and
-the M13 poll was correctly told nothing had happened. Pages are now commands
-and events in the trip's own stream: they broadcast, they appear in history,
-and one write path serves the BFF, v1 and the importer. Two traps below.
-
-**M13's preflight is DONE and it is not a risk to carry into the milestone.**
-`KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
-its own piece of work at Mitchell's request — `ActivitySnapshot` declares the
-eight activity fields once, `ActivityState` is inferred from it, and
-`FIELD_EQUAL` makes a ninth field a compile error rather than a silent no-op.
-M13's gate box for it is ticked; M19 link 1 and M24 are unblocked by the same
-landing. **One thing link 5 must know before it adds `who`:** the read model
-`ActivityView` is deliberately NOT derived — the build will fail until `who` is
-added to it by hand, but the guard forces the KEY, not the TYPE. The resolved
-entry says why the derivation was backed out.
+**M12 — REVIEWS AND MODERATION — IS THE CURRENT MILESTONE AS OF 2026-09-22**,
+by **M13's gate closing at 10 of 10** — the second consecutive move made by a
+gate rather than by Mitchell placing a milestone. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M12 → M24 → M14 → M19`.
+Scope, seven links and thirteen boxes: `docs/milestones/M12-reviews-and-moderation.md`.
+It needs **two migrations** (the reviews table, and `saved_days.countries`) and
+has a data prerequisite: the content library carries `countryCode` on **none**
+of its 1,375 locations. M12 exists to delete one line from `SPEC.md` §15 —
+*"Until the reviews table exists, every rating here is fixture data"* — still
+true in `main`.
 
 **What M26's close does and does not assert** — including the two boxes closed
 on attestation and the Definition-of-Done box ticked at 153/2 rather than green
 — moved to `docs/milestones/M26-design-parity.md` on 2026-09-22, same gate-close
 rule as the section below.
 
-## DONE 2026-09-22 — M13, all five links built (the gate is 8 of 10)
+## DONE 2026-09-22 — M13 Collaboration, gate closed 10 of 10
 
-**Full detail per link is in `docs/milestones/M13-collaboration.md`**, beside
-each link and each gate box. This section keeps only what a next session needs
-before reading it.
+**Moved to `docs/milestones/M13-collaboration.md`** — the five links, the
+notebooks-in-the-event-log piece that came with them, and the retro. M13's gate
+closed 2026-09-22 and this file's rule is that a phase's narrative moves to its
+milestone file at gate close, leaving the pointer. Merged as `#201` (`99f32d3`),
+green on CI at `18623fb`; the two-actor walk box is ticked **on Mitchell's
+attestation**, recorded as such in the box.
 
-**What is left is not code.** Two unticked boxes: the two-actor browser walk
-(the preview is deployed, nobody has driven it) and the retro.
+**Four things in it are still live and are still instruction:**
 
-**PR #201 is green on CI**, most recently on `eeb12a1` (run 35776248515).
-Locally: typecheck, lint with **zero warnings**, the unit lane (web 3541),
-`test:int` 822/822, `seed:verify` 102/102 and `content:verify`.
-
-### Notebooks in the event log — two things to read first
-
-**`KI-2026-09-22-c` before touching undo.** Wiring `diffPageStates` into
-`decideHistoryCommand` looks like two lines and would delete every notebook on
-a revert. A test pins the safe state; the entry has the trace and three
-answers. `KI-2026-09-22-d` says why the notebook EDITOR still does not
-live-update (a re-read would clobber in-progress typing).
-
-**Any new reader of the log must skip the other aggregate's events BY NAME**,
-never by "whatever fails to parse" — that is what keeps a corrupt stream loud.
-`foldEnvelopes`, `foldPages` and both projections do it; the rebuild path was
-caught missing it only by the full int lane.
-
-**The e2e box is ticked on CI's run rather than a local one**, and gate box 9
-in `docs/milestones/M13-collaboration.md` carries the argument for why that is
-the thing `test:e2e:ci-like` proxies rather than a weaker substitute — plus
-`KI-49`, which is why an agent container cannot render MapLibre at all.
-
-**Five things a next session should not have to rediscover:**
-
-1. **`ADR-049` is accepted**, on Mitchell's instruction to begin implementation
-   rather than a written review — the ADR's status line records that basis.
-   Decision 2 (polling over SSE) is explicitly open to reversal; Decision 1
-   (per-stream `seq` as the cursor) is the expensive one to change.
-2. **Broadcast refetches, it does not fold.** The poll is a change *signal*; the
-   detail comes from the server's projection. Folding client-side would let
-   `confirmed` disagree with the server about conflicts, which is link 4's
-   subject. The refetch invalidates the read cache before reading, or the 5s
-   window answers with the staleness the poll just found.
-3. **Everything authoritative goes through `adoptOutcome`, never around it.**
-   That is what keeps remote edits out of the KI-5/KI-90 loss class.
-4. **Attribution is TWO relations** (`bookedBy`, `participants`), per Mitchell
-   2026-09-03 in M19 link 3 — who booked a stop is not who is going, and M19's
-   splits need the participants. `SavedStop` carries neither, deliberately: a
-   saved day is publishable and would leak the originating trip's member ids.
-5. **There is no attribution migration, and that is a finding, not a skipped
-   step.** The gate box assumed DDL; activities live in jsonb at every layer,
-   so these are new keys in existing documents. The `.default()`s stand in for
-   it, and an int test proves it by stripping both keys from a stored
-   `trip_details.doc` — remove the defaults and it reads `expected 500 to be
-   200`.
+1. **Read `KI-2026-09-22-c` before touching undo.** Wiring `diffPageStates` into
+   `decideHistoryCommand` looks like two lines and would delete every notebook on
+   a revert. A test pins the safe state; the entry has the trace and three answers.
+2. **A page-only batch is deliberately NOT undoable.** `deriveUndoRedo` skips any
+   batch with no trip events. Stacking one wedges undo entirely — the trip diff
+   comes back empty, the command is rejected `nothing-to-undo`, nothing is popped,
+   and every earlier change sits unreachable behind it. The same skip is why a
+   notebook save no longer throws away the trip's redo. Both directions are tested.
+3. **Any new reader of the log must skip the other aggregate's events BY NAME**,
+   never by "whatever fails to parse" — that is what keeps a corrupt stream loud.
+   `foldEnvelopes`, `foldPages` and both projections do it; the rebuild path was
+   caught missing it only by the full int lane, as five failures that passed in
+   isolation.
+4. **`KI-2026-09-22-d`** — the notebook EDITOR still does not adopt a
+   co-traveller's edit while you are typing in it, deliberately: a re-read would
+   clobber in-progress work. It wants link 4's conflict-as-data shape.
 
 ## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 

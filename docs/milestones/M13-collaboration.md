@@ -204,7 +204,7 @@ Five links. Link 1 is an ADR and gates the rest.
       way M21's, M22's and M26's attested boxes are. Decision 2, the transport,
       is explicitly open to reversal; Decision 1, the cursor, is the one that
       would be expensive to change.)*
-- [ ] Two browsers on the same trip: an edit in one appears in the other without
+- [x] Two browsers on the same trip: an edit in one appears in the other without
       a reload, **walked in a real browser as two real actors**, the same
       standard M11's gate held itself to.
       *(**The code is built and unit-covered as of 2026-09-22 — this box is
@@ -227,6 +227,17 @@ Five links. Link 1 is an ADR and gates the rest.
       that is a fact about the environment rather than about the code. Recorded
       here because the box's own instruction above sends the next person at a
       wall that is now measured.)*
+      *
+      **TICKED 2026-09-22 on Mitchell's attestation.** He walked the preview
+      himself — the two-actor collaboration path and the undo-past-a-notebook
+      path — after `#201` merged, and reported both done. **This is his
+      attestation, not an agent observation**, and it is recorded that way on
+      purpose: no agent in this session saw two browsers, and the 402 wall
+      above is still there for the next one. What an agent did verify is
+      underneath it — `TripProvider.test.tsx` for adoption without a reload,
+      `events/route.int.test.ts` for revocation between polls, and the
+      collaboration path exercised locally against an inserted
+      `trip_memberships` row.)*
 - [x] A viewer who loses access mid-session stops receiving updates — the
       broadcast path honours `AccessPolicy`, and there is a test that fails if
       it stops doing so.
@@ -331,7 +342,7 @@ Five links. Link 1 is an ADR and gates the rest.
       also the only lane that can render MapLibre — `KI-49` means the two map
       specs cannot pass in an agent container, which is what M26's gate box had
       to name as 153/2.)*
-- [ ] Retro appended at gate close.
+- [x] Retro appended at gate close. Below.
 
 ## Deliberately not here
 
@@ -390,3 +401,96 @@ person the way it binds to a day.
 **And the standing warning stays in force**: M19 link 3 depends on this field
 too, which is why M19 runs after M13. If M13 ships without it, that link returns
 to M19 and these three surfaces go with it.
+
+## Retro — M13, closed 2026-09-22
+
+Ten boxes, five links, and a sixth piece nobody planned. The transport was
+right on the first try and never moved; the aggregate boundary was right on
+the second. What went wrong was almost entirely **tests that reported more
+coverage than they had**, and the milestone found six of them.
+
+### The decision that paid for itself
+
+**One stream, two aggregates, skipping by name.** Notebook events share the
+trip's stream, so `headSeq` moves on a save and the cursor, batch grouping and
+undo targeting all worked untouched. They do *not* join `TripState`, and the
+reason is mechanical rather than aesthetic: `hydrate.ts` is the documented
+inverse of the projection under a round-trip property test, which makes
+`TripDetail` a strict superset of `TripState`. A `pages` field on one is a
+`pages` field on the other — stored whole in `trip_details.doc` and refetched
+every 2s by the very poll this milestone built. The alternative shipped every
+notebook's full ProseMirror document on the hot path to keep a document nobody
+was reading up to date.
+
+The skip being **by name** rather than by try/catch is the part that would have
+been easy to get wrong and impossible to notice. A `catch` would have swallowed
+a genuinely corrupt envelope and folded to a plausible wrong state; the by-name
+skip keeps `foldEnvelopes` loud. There is a test that fails if anyone swaps it.
+
+### Two things that were true before anyone built them
+
+- **No migration was needed, twice, for different reasons.** Link 5's `bookedBy`
+  and `participants` needed none because an activity lives in jsonb at every
+  layer that stores one. The page backfill needed none because `listPages` had
+  *always* seeded lazily on read — so genesis events could be written the first
+  time a page is commanded, which cannot miss a trip created between deploying a
+  migration and running it. Neither was a step skipped; both were findings.
+- **The 402 wall is about the environment, not the code.** An agent cannot build
+  a two-member trip on the preview, so the two-actor gate box could not be
+  self-served however the code behaved. Measuring that precisely — and saying so
+  in the box rather than substituting a local proxy and calling it the walk —
+  is what let Mitchell close it in one pass.
+
+### What actually went wrong, and the pattern under it
+
+**Six mutations changed nothing.** Every one was a test that looked like
+coverage and was not, and the pattern was the same each time: *a negative
+assertion with nothing establishing that the path under test ran at all.*
+
+1. Nothing covered `TripProvider` bumping `remoteRevision`. Deleting the bump
+   passed a 39-test suite.
+2. The re-read test used a *failing* fetch, and `cachedRead` stores only
+   `ok: true` — so the cache was never warm and the invalidation could not
+   have mattered.
+3. It then asserted on the page *list* rather than the page *document*, which
+   is the thing that goes stale.
+4. The first regression test for the editor re-sync flipped the mode without
+   typing, so the editor never diverged from `value`, the broken code
+   short-circuited, and **both implementations passed**.
+5. `"does not bump when the poll finds nothing"` never checked the poll ran. A
+   dead `enabled` gate made it true for the wrong reason — found by CodeRabbit,
+   confirmed by killing the gate.
+6. **The worst one asserted the bug.** `"makes a notebook edit undoable without
+   deriveUndoRedo knowing about pages"` pinned a page-only batch as the undo
+   target — which is precisely the state that wedged undo forever. The bug had
+   a comment defending it *and* a test enforcing it.
+
+The through-line: rule 3 says a test is not done until you have seen it fail,
+and five of these six were written by someone who believed that and skipped the
+step anyway. The sixth was caught by a reviewer. **Watching it fail is not a
+formality at the end; it is the only thing that distinguishes a test from a
+comment that runs.**
+
+Three more defects reached CI or a preview, each a claim that outran the code:
+
+- **The projection rebuild broke for every trip on the instance.** Both
+  projectors parsed every envelope as a `TripEvent`, and a rebuild reads every
+  stream — so one trip with a notebook event took out the rest. It surfaced as
+  five failures that passed in isolation, which is the shape of a shared-database
+  accident rather than a unit bug.
+- **The public API was a divergence bug.** `/api/v1`'s page routes still wrote
+  the table after the BFF routes moved to commands, so a v1 edit changed the row
+  without an event and the next command decided from a stale copy.
+- **The live-update fix broke leaving edit mode.** `content` is a mount-time
+  option of `useEditor`, and the first fix keyed its re-sync on the `editable`
+  flip rather than on the prop changing — so "Done editing" pushed a
+  fetch-stale document over everything just typed. Caught by two e2e specs,
+  one desktop and one phone, which is the lane that exists for exactly this.
+
+### One process note worth keeping
+
+A claim about the day-columns scroll regression was posted publicly with
+`origin/main` stale in the working tree — #200 had moved the base and the two
+commits blamed were already on it. The correction is kept in the PR body rather
+than deleted. **Fetch before attributing a regression to a diff**, and prefer
+"this is in the diff" to "this is from this work" when the two differ.
