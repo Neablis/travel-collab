@@ -20,12 +20,29 @@ import { fetchTripEvents } from "@/lib/apiClient";
  * How often a visible, multi-member trip asks.
  *
  * ADR-049 Decision 2 sized this against the freshness it buys, not the requests
- * it saves: a co-traveller's edit appears within ~5s of being committed. That
- * is a product-visible latency and the explicit price of not running a broker.
- * It is also a straight improvement on the previous answer, which was
- * "whenever someone remounts".
+ * it saves: a co-traveller's edit appears within one interval of being
+ * committed. That is a product-visible latency and the explicit price of not
+ * running a broker.
+ *
+ * **2s, down from the 5s the ADR shipped.** Mitchell, 2026-09-22, walking two
+ * devices on the preview: *"updates can be a bit sluggish … maybe shorten it a
+ * bit?"* 5s was chosen on a cost argument rather than a measured one, and the
+ * cost it was protecting is bounded by the `enabled` gate above it: only a
+ * VISIBLE, multi-member, non-demo trip polls at all, so this is 30 requests a
+ * minute per open multi-traveller trip rather than per user.
+ *
+ * Worst-case latency is one interval plus the refetch, so this takes the
+ * window a co-traveller's edit can sit invisible from ~5s to ~2s — the
+ * difference between "did that save?" and "there it is".
+ *
+ * **The next move is adaptive, not shorter.** Halving this again buys less
+ * each time and costs linearly; the real win is polling fast while someone is
+ * actively working and backing off when they are not. Deliberately not built
+ * here — it needs an activity signal this seam does not have, and a fixed
+ * interval that is fast enough is worth more than a clever one that is not
+ * yet written.
  */
-export const POLL_INTERVAL_MS = 5000;
+export const POLL_INTERVAL_MS = 2000;
 
 /**
  * The trip's confirmed head `seq`, read off the history the client already has.
