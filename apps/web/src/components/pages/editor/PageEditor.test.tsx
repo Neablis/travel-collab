@@ -573,3 +573,93 @@ describe("the slash menu", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });
+
+// **The live-update bug, at the layer that actually caused it.** Mitchell,
+// 2026-09-22, two devices: one editing the Overview notebook, the other on the
+// trip's Overview tab. The whole chain worked — the edit became a `PageEdited`
+// event, `headSeq` moved, the poll returned it (he could see it in the
+// `/events` response) and `OverviewLens` re-read and set its state. The tab
+// still showed the old text, because TipTap reads `content` once at creation.
+describe("PageEditor — a document that changes underneath a reader", () => {
+  const para = (text: string): PageDoc =>
+    newPageDoc([{ type: "paragraph", content: [{ type: "text", text }] }]);
+
+  it("shows the new document when a read-only value changes", async () => {
+    const { rerender } = render(
+      <PageEditor detail={detail} context={context} value={para("before")} onChange={() => {}} editable={false} />,
+    );
+    expect(await screen.findByText("before")).toBeTruthy();
+
+    rerender(
+      <PageEditor detail={detail} context={context} value={para("after")} onChange={() => {}} editable={false} />,
+    );
+    expect(await screen.findByText("after")).toBeTruthy();
+    expect(screen.queryByText("before")).toBeNull();
+  });
+
+  // The guard that matters more than the fix. Replacing the document under
+  // somebody's cursor discards what they have typed since the fetch — worse
+  // than the staleness, and the reason KI-2026-09-22-d says the notebook EDITOR
+  // wants a conflict notice rather than a re-read.
+  it("does NOT replace the document while it is being edited", async () => {
+    const { rerender } = render(
+      <PageEditor detail={detail} context={context} value={para("mine")} onChange={() => {}} editable={true} />,
+    );
+    expect(await screen.findByText("mine")).toBeTruthy();
+
+    rerender(
+      <PageEditor detail={detail} context={context} value={para("theirs")} onChange={() => {}} editable={true} />,
+    );
+    // No await, and that is deliberate rather than sloppy: RTL's `rerender` is
+    // act-wrapped, so effects have already fired by the time it returns. A
+    // `findByText` here would resolve on the text that was never going to
+    // change and prove nothing.
+    expect(screen.getByText("mine")).toBeTruthy();
+    expect(screen.queryByText("theirs")).toBeNull();
+  });
+
+  // `onUpdate` is what saves. Emitting on a re-sync would make a READER write
+  // back the document they were just sent, produce another PageEdited, and wake
+  // every other device to do the same — a loop at the poll interval.
+  it("does not report a change when it re-syncs", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <PageEditor detail={detail} context={context} value={para("before")} onChange={onChange} editable={false} />,
+    );
+    await screen.findByText("before");
+    onChange.mockClear();
+
+    rerender(
+      <PageEditor detail={detail} context={context} value={para("after")} onChange={onChange} editable={false} />,
+    );
+    await screen.findByText("after");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // An unchanged re-read must not disturb the view. `OverviewLens` hands down a
+  // FRESH object on every poll, so this is the common case, not the rare one.
+  //
+  // **Two layers happen to provide this and the test does not care which**, but
+  // the finding is worth recording: deleting `sameDocument` from the effect
+  // fails NOTHING, including this test, because ProseMirror parses and diffs —
+  // `setContent` with identical content leaves the rendered nodes alone by
+  // itself. The check is a parse-avoiding short-circuit, and the comment beside
+  // it now says so rather than claiming to prevent a rebuild.
+  //
+  // Asserted by node identity because that is the observable property; an
+  // earlier version asserted `onChange` was not called, which `emitUpdate:
+  // false` makes true either way and so could never have failed.
+  it("does not rebuild the document for an equal re-read", async () => {
+    const { rerender } = render(
+      <PageEditor detail={detail} context={context} value={para("same")} onChange={() => {}} editable={false} />,
+    );
+    const before = await screen.findByText("same");
+
+    rerender(
+      <PageEditor detail={detail} context={context} value={para("same")} onChange={() => {}} editable={false} />,
+    );
+    // Same reason as above — `rerender` has already flushed the effect, so the
+    // identity comparison is meaningful immediately.
+    expect(screen.getByText("same")).toBe(before);
+  });
+});
