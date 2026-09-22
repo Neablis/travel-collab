@@ -94,6 +94,8 @@ export function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
         kind: KINDS[raw.b % KINDS.length],
         tags: TAGS[raw.c % TAGS.length]?.slice(),
         cost: COSTS[raw.c % COSTS.length] ?? undefined,
+        bookedBy: null,
+        participants: [],
       };
     case 4:
       return activity
@@ -107,6 +109,8 @@ export function buildCommand(state: TripState, raw: RawOp): TripCommand | null {
             kind: KINDS[raw.c % KINDS.length],
             tags: TAGS[raw.a % TAGS.length]?.slice(),
             cost: COSTS[raw.b % COSTS.length],
+            bookedBy: null,
+            participants: [],
           }
         : null;
     case 5:

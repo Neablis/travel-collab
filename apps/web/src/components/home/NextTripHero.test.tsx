@@ -179,6 +179,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
         },
       }),
@@ -229,6 +231,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
           "6071829a-3b4c-4f5d-6e7f-8091a2b3c4d5": {
             activityId: "6071829a-3b4c-4f5d-6e7f-8091a2b3c4d5",
@@ -240,6 +244,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
         },
       }),
@@ -293,6 +299,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
           "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f": {
             activityId: "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f",
@@ -304,6 +312,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
         },
       }),
@@ -363,6 +373,8 @@ describe("NextTripHero", () => {
       kind,
       tags,
       cost: null,
+      bookedBy: null,
+      participants: [],
     });
     fetchTripDetailMock.mockResolvedValue({
       ok: true,

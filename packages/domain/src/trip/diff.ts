@@ -120,6 +120,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           kind: a.kind,
           tags: a.tags,
           cost: a.cost,
+          bookedBy: a.bookedBy,
+          participants: a.participants,
         },
       });
     }
@@ -143,6 +145,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           kind: a.kind,
           tags: a.tags,
           cost: a.cost,
+          bookedBy: a.bookedBy,
+          participants: a.participants,
         },
       });
     }

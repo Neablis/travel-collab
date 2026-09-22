@@ -240,6 +240,8 @@ function detailFixture() {
         kind: "planned" as const,
         tags: [],
         cost: null,
+        bookedBy: null,
+        participants: [],
       },
       unlocated1: {
         activityId: "unlocated1",
@@ -251,6 +253,8 @@ function detailFixture() {
         kind: "planned" as const,
         tags: [],
         cost: null,
+        bookedBy: null,
+        participants: [],
       },
       unlocated2: {
         activityId: "unlocated2",
@@ -262,6 +266,8 @@ function detailFixture() {
         kind: "planned" as const,
         tags: [],
         cost: null,
+        bookedBy: null,
+        participants: [],
       },
     },
   });
@@ -292,6 +298,8 @@ function locatedActivity(
     kind,
     tags: [],
     cost: null,
+    bookedBy: null,
+    participants: [],
   };
 }
 

@@ -22,6 +22,8 @@ function fixture() {
     kind: "planned" as const,
     tags: [],
     cost: null,
+    bookedBy: null,
+    participants: [],
   });
   return tripDetailFixture({
     days: [

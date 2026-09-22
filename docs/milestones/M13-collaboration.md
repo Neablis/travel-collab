@@ -173,6 +173,24 @@ Five links. Link 1 is an ADR and gates the rest.
    which day it came from"*. Participation against the trip's existing members.
    **M19's link 3 builds splits on this field and must not add its own** — that
    is the drift `AGENTS.md` invariant 5 exists to stop.
+   **DONE 2026-09-22, and it is TWO relations rather than the one this link's
+   own wording implies.** M19 link 3 records the decision (Mitchell,
+   2026-09-03): *"we need activities to have owners (and i think participants
+   that are going to that activity)"* — who **booked** a stop is not who is
+   **going** to it, and **M19's splits need the participants, not the owner**.
+   A single `who` would have satisfied `add-stop-who`'s wording and been wrong
+   for every split built on it, so link 5 landed `bookedBy: string | null` and
+   `participants: string[]`. Named `bookedBy` rather than `owner` because
+   `owner` is already a `TripRole` and the `saved_days.owner_id` column.
+   **Both registry entries are gone**: the editor's "Who is in" is a real
+   control over the trip's members, and the rack line says who parked a stop.
+   **Half of `rack-provenance` was NOT built** — which day a parked stop came
+   from is not modelled, because `MoveActivity` carries `toDayId` and nothing
+   about where it left; that half is in `docs/candidates.md` rather than left
+   as a placeholder that reads as a promise.
+   **`SavedStop` deliberately does not carry either field**, asserted by name
+   in `packages/contracts/test/saved.test.ts`: a saved day is publishable, so
+   copying attribution in would publish the originating trip's member ids.
 
 ## Exit gate
 
@@ -228,9 +246,18 @@ Five links. Link 1 is an ADR and gates the rest.
       Deleting the raise in `adoptOutcome` fails four tests; swapping
       `activityStatesEqual` for identity fails two; making them dismissible
       again fails two more.)*
-- [ ] A stop records who it is for, set through the UI and read back off the
+- [x] A stop records who it is for, set through the UI and read back off the
       API; `add-stop-who` and `rack-provenance` are wired up or deleted, and no
       M13-tagged entry remains in `preview-registry.ts`.
+      *(**Done 2026-09-22.** Set through the UI: two controls in
+      `ActivityEditor` over the trip's own member list — toggles for who is
+      going, a select for who booked it — covered by
+      `ActivityEditor.test.tsx`. Read back off the API:
+      `route.int.test.ts` runs a real `AddActivity` carrying both and reads
+      them off `GET /api/trips/:id`; `ActivityView` is also a public v1
+      response shape, so `openapi.json` was regenerated. Both registry entries
+      deleted and `grep 'milestone: "M13"' preview-registry.ts` returns
+      nothing.)*
 - [x] **`KI-20260905-o` is resolved before link 5 adds its field** — the
       activity-field descriptor refactor has landed, the entry is moved to
       `resolved/` with its proof line, and adding an activity field now fails
@@ -251,8 +278,21 @@ Five links. Link 1 is an ADR and gates the rest.
       key-parity assertion in `detail.ts` will fail the build until you do,
       which is the point, but it forces the KEY and not the TYPE. The resolved
       entry says why the derivation was backed out.
-- [ ] **The attribution migration is written, applied locally, and its
+- [x] **The attribution migration is written, applied locally, and its
       production dispatch is called out in the PR body.**
+      *(**There is no migration, and that is the finding rather than a skipped
+      step — 2026-09-22.** This box was written at scoping time, before the
+      design, on the reasonable assumption that a new per-stop relation means
+      DDL. It does not here: an activity lives in jsonb at every layer that
+      stores one — `events.payload`, `trip_details.doc`, `saved_days.stops` —
+      so `bookedBy` and `participants` are new keys in documents that already
+      exist, exactly as `kind` and `tags` were in M18. What stands in for a
+      migration is the pair of `.default()`s on every schema that parses stored
+      data, and that is **asserted rather than assumed**:
+      `route.int.test.ts` strips both keys from a stored `trip_details.doc` and
+      reads the trip back, expecting `{ bookedBy: null, participants: [] }`.
+      Removing the defaults turns that test into `expected 500 to be 200` —
+      the #71 shape, one field later. **Nothing to dispatch to production.**)*
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.

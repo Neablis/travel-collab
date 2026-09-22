@@ -38,6 +38,11 @@ export function hydrate(detail: TripDetail): TripState {
           kind: a.kind ?? "planned",
           tags: a.tags ?? [],
           cost: a.cost,
+          // M13 link 5, and defaulted here for exactly the reason above: a doc
+          // written before attribution existed has neither key, and this read
+          // does not parse.
+          bookedBy: a.bookedBy ?? null,
+          participants: a.participants ?? [],
         },
       ]),
     ),

@@ -9,8 +9,8 @@ afterEach(cleanup);
 // times, so a parked stop usually has none — but one created unscheduled can
 // still carry a window, and the card has to tell the truth about which.
 const items = [
-  { activityId: "a1", title: "Souvenir shopping", area: "Rochester", timeWindow: null },
-  { activityId: "a2", title: "Second breakfast", area: null, timeWindow: { start: "08:00", end: "09:00" } },
+  { activityId: "a1", title: "Souvenir shopping", area: "Rochester", timeWindow: null, bookedBy: null },
+  { activityId: "a2", title: "Second breakfast", area: null, timeWindow: { start: "08:00", end: "09:00" }, bookedBy: null },
 ];
 const dayOptions = [{ value: "d1", label: "Day 1 · Sep 5" }, { value: "d2", label: "Day 2 · Sep 6" }];
 

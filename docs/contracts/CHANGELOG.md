@@ -13,6 +13,54 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-22 — a stop knows who booked it and who is going (M13 link 5)
+
+- Added to `ActivitySnapshot` (`packages/contracts/src/activity.ts`):
+  **`bookedBy: string | null`** (default `null`) and **`participants: string[]`**
+  (default `[]`). Both flow automatically into `ActivityAddedV1` /
+  `ActivityUpdatedV1` (which `.extend()` the snapshot) and into
+  `ActivityState` (which is `z.infer<typeof ActivitySnapshot>`).
+- Added to `ActivityView` (`packages/contracts/src/detail.ts`) **by hand** — the
+  read model is deliberately not derived, and the `ActivityViewCoversSnapshot`
+  guard forced the key. Its validators are deliberately looser than the
+  snapshot's: a `bookedBy` naming somebody who has since left the trip must
+  still READ, because membership changing under a stored document is an
+  ordinary outcome.
+- Added to `AddActivity` and `UpdateActivity` as optional inputs. On update,
+  **omitted = unchanged and `bookedBy: null` CLEARS** — hence
+  `=== undefined` rather than `??` in the decider, or "nobody booked this after
+  all" would be read as "unchanged". `participants` is replaced wholesale
+  rather than merged.
+- **Two relations, not one**, and that is the load-bearing decision:
+  Mitchell, 2026-09-03 (recorded in `M19-cost-model.md` link 3) — *"we need
+  activities to have owners (and i think participants that are going to that
+  activity)"*. Who BOOKED a stop is not who is GOING to it, and M19's cost
+  splits need the participants. A single `assignee` would have satisfied
+  `add-stop-who`'s wording and been wrong for every split built on it.
+  Named `bookedBy` rather than `owner` because `owner` is already a `TripRole`
+  and the `saved_days.owner_id` column.
+- **`SavedStop` deliberately does NOT carry either field**, and
+  `packages/contracts/test/saved.test.ts` now asserts the omission by name. A
+  saved day is publishable — `visibility` flips to `"public"` — so copying
+  attribution in would publish the originating trip's member ids to strangers,
+  and it would be meaningless on the other end besides.
+- **No migration.** Activities live in jsonb (`events.payload`,
+  `trip_details.doc`), so there is no DDL to run; the contract defaults are
+  what let a document written before this field existed read back at all. That
+  is asserted, not assumed — `route.int.test.ts` strips both keys from a stored
+  projection and reads the trip back.
+- Why: M13 link 5. `add-stop-who` and `rack-provenance` had sat in
+  `preview-registry.ts` since M11b blocked on exactly this absence; both
+  entries are now gone, and M19 link 3 and M14's two cut person widgets are
+  unblocked.
+- Consumers updated: `packages/domain` (`decide`, `evolve`, `diff`, `detail`,
+  `hydrate`, `equality`'s `FIELD_EQUAL`), `packages/factories`, `apps/web`
+  (the editor's two new controls, the rack's provenance line, the MSW mock),
+  and `apps/web/src/app/api/v1/openapi.json` (regenerated — `ActivityView` is a
+  public v1 response shape).
+- Breaking? **no** — both fields are defaulted on every schema that parses
+  stored data, so every existing payload and document still parses.
+
 ## 2026-09-22 — a trip's log is pollable: `TripEventsPage` (M13 link 2, ADR-049)
 
 - Added: `TripEventsPage` (`packages/contracts/src/envelope.ts`) — the response

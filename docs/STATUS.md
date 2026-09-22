@@ -35,9 +35,9 @@ general setup.
 line has moved by a gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and the five links: `docs/milestones/M13-collaboration.md`.
-**Links 1, 2 and 3 are done as of 2026-09-22; the gate is 4 of 10** — the
-transport ADR (`ADR-049`, accepted), broadcast end to end, and the
-re-prediction reducer that closed KI-90 and KI-5's `applyOutcome` precondition.
+**All five links are built as of 2026-09-22; the gate is 7 of 10.** What is
+left is not code: the two-browser walk (needs a preview, so a PR), the full
+Definition of Done including `test:e2e:ci-like`, and the retro.
 
 **M13's preflight is DONE and it is not a risk to carry into the milestone.**
 `KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
@@ -55,64 +55,41 @@ on attestation and the Definition-of-Done box ticked at 153/2 rather than green
 — moved to `docs/milestones/M26-design-parity.md` on 2026-09-22, same gate-close
 rule as the section below.
 
-## DONE 2026-09-22 — M13 links 1, 2 and 3 (the gate is 4 of 10)
+## DONE 2026-09-22 — M13, all five links built (the gate is 7 of 10)
 
-**Link 1 — `ADR-049`, accepted** on Mitchell's instruction to begin
-implementation; the ADR's status line records that basis rather than implying a
-written review. Decision 2 (the transport) is explicitly open to reversal;
-Decision 1 (the cursor) is the expensive one to change.
+**Full detail per link is in `docs/milestones/M13-collaboration.md`**, beside
+each link and each gate box. This section keeps only what a next session needs
+before reading it.
 
-**Link 2 — broadcast, both halves.** `GET /api/trips/:tripId/events?after=<seq>`
-→ `{ headSeq, events, resync }`. **The steady-state poll costs one index-only
-lookup**: at the head it returns before the range scan, so only a poll with news
-pays for a second query. `TripEventsPage` added to contracts; `EventEnvelope`
-unchanged, so `global_seq` stays off the wire. The client is
-`context/broadcast.ts` — 5s while visible, nothing while hidden, an immediate
-poll on returning, and no interval at all for a solo trip. **The poll is a
-change SIGNAL; the detail comes from a refetch, not a client-side fold** — the
-server projects with `serverConflictContext()`, so folding here would let
-`confirmed` disagree with the server about conflicts, which is link 4's whole
-subject. The refetch invalidates before it reads, or the 5s read cache would
-answer with the staleness the poll just found.
+**What is left is not code.** Three unticked boxes: the two-browser walk as two
+real actors (needs a Vercel preview, so a **PR first**), the full Definition of
+Done including `pnpm --filter web test:e2e:ci-like` (not `test:e2e`), and the
+retro. Everything else is built and green — unit lane, integration lane
+811/811, `pnpm typecheck` and `pnpm lint` clean.
 
-**Link 3 — the re-prediction reducer. Two live data-loss defects closed.**
-`confirmHead` and the new **`adoptOutcome`** share one `rePredictOnto` body and
-differ in one thing: whether the outcome is the answer to the unit at the head
-of the queue. Both `{ confirmed: X, pending: [] }` sites now call it —
-`dispatch`'s history branch (KI-90) and `applyOutcome` (KI-5's precondition).
+**Five things a next session should not have to rediscover:**
 
-- **`adoptOutcome` preserves `failure`; `confirmHead` clears it.** Not an
-  asymmetry worth removing: a successful send clears the failed state, but here
-  the queue is retained in full, so dropping the failure would unlatch the
-  sender's gate and re-fire a head the server already rejected. `failHead`
-  measured 41 sends of one command in 300ms the last time that gate was missing.
-- **The product decision KI-90 deferred was not taken, and did not need to be.**
-  It framed the choice as "refuse the reconcile, or disable editing for the
-  duration". Re-predicting is a third option costing neither. The pre-send guard
-  is KEPT but is now a **product** rule, not a correctness one, and
-  `TripProvider.tsx` says so at the line. Whether a history command should start
-  while work is queued — and whether that silent `return` should say so — is
-  still open and is still a decision.
-
-**Three bookkeeping corrections, because they were load-bearing and wrong:**
-
-1. **"KI-77" was never a third defect.** M13's file, `TODO.md` and `ADR-049` all
-   said link 3 closes "KI-90, KI-5 and KI-77". KI-90's own body says it was
-   **filed as 77** and renumbered on merge, so that was a stale self-reference;
-   the only KI-77 that exists is a **resolved geocoder bug**. Link 3 closes
-   **two** things. All three files corrected.
-2. **Link 3 does not close "the same-tick preview read."** M13's scope claimed
-   it; `enter` still reads a render-time `pending`. Nothing is lost when it
-   races, which is why KI-90 noted it rather than filing it — recorded in the
-   resolved entry rather than inherited by the next reader as closed.
-3. **KI-5's trigger ledger is down to one open trigger** — abrupt navigation,
-   this entry's own. It is not a reducer problem and no reducer will close it: it
-   needs a `pagehide`/`keepalive` mitigation that does not exist in `apps/web/src`.
-
-**Gate box 2 is NOT ticked and cannot be from here**: it wants two real
-browsers walked as two actors, which needs a Vercel preview and therefore a PR.
-Box 3 (a revoked viewer stops receiving) IS ticked — every poll is a fresh
-request, so the int test that revokes mid-session covers it.
+1. **`ADR-049` is accepted**, on Mitchell's instruction to begin implementation
+   rather than a written review — the ADR's status line records that basis.
+   Decision 2 (polling over SSE) is explicitly open to reversal; Decision 1
+   (per-stream `seq` as the cursor) is the expensive one to change.
+2. **Broadcast refetches, it does not fold.** The poll is a change *signal*; the
+   detail comes from the server's projection. Folding client-side would let
+   `confirmed` disagree with the server about conflicts, which is link 4's
+   subject. The refetch invalidates the read cache before reading, or the 5s
+   window answers with the staleness the poll just found.
+3. **Everything authoritative goes through `adoptOutcome`, never around it.**
+   That is what keeps remote edits out of the KI-5/KI-90 loss class.
+4. **Attribution is TWO relations** (`bookedBy`, `participants`), per Mitchell
+   2026-09-03 in M19 link 3 — who booked a stop is not who is going, and M19's
+   splits need the participants. `SavedStop` carries neither, deliberately: a
+   saved day is publishable and would leak the originating trip's member ids.
+5. **There is no attribution migration, and that is a finding, not a skipped
+   step.** The gate box assumed DDL; activities live in jsonb at every layer,
+   so these are new keys in existing documents. The `.default()`s stand in for
+   it, and an int test proves it by stripping both keys from a stored
+   `trip_details.doc` — remove the defaults and it reads `expected 500 to be
+   200`.
 
 ## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 

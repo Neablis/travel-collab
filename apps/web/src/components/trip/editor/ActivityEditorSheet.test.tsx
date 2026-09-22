@@ -71,6 +71,8 @@ function fixture() {
         kind: "planned" as const,
         tags: [],
         cost: null,
+        bookedBy: null,
+        participants: [],
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -82,6 +84,8 @@ function fixture() {
         kind: "planned" as const,
         tags: [],
         cost: null,
+        bookedBy: null,
+        participants: [],
       },
     },
   });

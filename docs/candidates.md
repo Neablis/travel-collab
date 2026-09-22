@@ -596,3 +596,14 @@ here two days later.
      calendar lens itself (nothing under `apps/web/src/components/lenses/`
      does today, per the gap above) and reuses `MoveActivity`, the same
      command Board's `ActivityCard` drag already dispatches.
+
+- **A parked stop remembers which day it came from (2026-09-22).** Half of the
+  `rack-provenance` preview M13 link 5 retired. That link modelled **who**
+  parked a stop (`bookedBy`), and the rack now says so; it did not model
+  **which day it was parked from**, because a backlog stop keeps no record of
+  the day it was moved off — `MoveActivity` carries `toDayId` and nothing
+  about where it left. Worth having: the rack's whole problem is that a stop
+  out of its day loses the context that explains it. **Not costed and not
+  placed** — it needs a decision about whether the origin is a field on the
+  activity (which replay would have to maintain) or something read back off
+  the event log, and that is a real design question rather than a line.

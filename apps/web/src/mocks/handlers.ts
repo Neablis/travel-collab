@@ -79,6 +79,8 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         kind: command.kind ?? "planned",
         tags: command.tags ?? [],
         cost: command.cost ?? null,
+        bookedBy: command.bookedBy ?? null,
+        participants: command.participants ?? [],
       };
       if (command.dayId !== undefined) {
         next.days.find((d) => d.dayId === command.dayId)?.activityIds.push(command.activityId);
@@ -109,6 +111,8 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         if (command.kind !== undefined) activity.kind = command.kind;
         if (command.tags !== undefined) activity.tags = command.tags;
         if (command.cost !== undefined) activity.cost = command.cost;
+        if (command.bookedBy !== undefined) activity.bookedBy = command.bookedBy;
+        if (command.participants !== undefined) activity.participants = command.participants;
       }
       rerollup(next);
       break;

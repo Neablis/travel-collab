@@ -43,6 +43,8 @@ export function tripDetailFromState(
           kind: a.kind,
           tags: a.tags,
           cost: a.cost,
+          bookedBy: a.bookedBy,
+          participants: a.participants,
         },
       ]),
     ),

@@ -16,6 +16,8 @@ const activity = (patch: { location: Location }): ActivityState => ({
   kind: "planned" as const,
   tags: [],
   cost: null,
+  bookedBy: null,
+  participants: [],
   ...patch,
 });
 

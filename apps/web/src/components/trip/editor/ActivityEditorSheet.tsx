@@ -70,6 +70,11 @@ export function ActivityEditorSheet() {
           kind: "hold" as const,
           tags: [],
           cost: null,
+          // M13 link 5. A stop being created is attributed to nobody until
+          // somebody says otherwise — "nobody yet" and "everyone's business",
+          // not "unknown".
+          bookedBy: null,
+          participants: [],
         }
       : null;
 
@@ -131,6 +136,12 @@ export function ActivityEditorSheet() {
         kind: value.kind,
         tags: value.tags,
         cost: value.cost,
+        // M13 link 5, and the comment above is why these are FORWARDED rather
+        // than defaulted: hardcoding `null`/`[]` here would silently wipe a
+        // stop's attribution on every unrelated edit, which is the same shape
+        // as the `kind`/`tags` drop this branch already paid for once.
+        bookedBy: value.bookedBy,
+        participants: value.participants,
       });
     } else if (state.mode === "create") {
       void dispatch({
@@ -151,6 +162,8 @@ export function ActivityEditorSheet() {
         kind: value.kind,
         tags: value.tags,
         cost: value.cost ?? undefined,
+        bookedBy: value.bookedBy,
+        participants: value.participants,
       });
     }
     close();
@@ -195,6 +208,10 @@ export function ActivityEditorSheet() {
           days={dayOptions}
           defaultDayId={defaultDayId}
           tripCurrency={activeTrip?.currency ?? "USD"}
+          // M13 link 5. The trip's own member list is the only vocabulary the
+          // attribution controls offer, so an id from nowhere is not reachable
+          // through the product — which is why the domain does not validate it.
+          members={activeTrip?.members ?? []}
           onSave={handleSave}
           onCancel={close}
         />

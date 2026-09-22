@@ -55,16 +55,38 @@ describe("SavedStop", () => {
   // Everything a stop needs to be a plan again, and nothing more — plus the one
   // field that is about the SEQUENCE rather than about the stop.
   //
-  // **`dayIndex` is the deliberate exception, and it is the only one.** Before
-  // M23 this asserted `SavedStop === ActivityView - activityId` exactly, and
-  // that was the right assertion while a Playbook was one day: everything a
-  // saved stop knew, an activity knew. A sequence needs each stop to say which
-  // of its days it is on, and a trip activity has no equivalent — its day is
-  // `day.activityIds`, a relationship the trip owns. Listing the exception by
-  // name keeps the original property: a stop gains nothing else quietly.
-  it("carries the same planning fields an ActivityView does, plus dayIndex", () => {
-    const viewKeys = Object.keys(ActivityView.shape).filter((k) => k !== "activityId");
+  // **Two deliberate exceptions, each named, and they point in opposite
+  // directions.** Before M23 this asserted `SavedStop === ActivityView -
+  // activityId` exactly, and that was the right assertion while a Playbook was
+  // one day: everything a saved stop knew, an activity knew. Listing each
+  // exception by name keeps the original property — a stop neither gains nor
+  // loses anything else quietly.
+  //
+  // 1. **`dayIndex` is ADDED.** A sequence needs each stop to say which of its
+  //    days it is on, and a trip activity has no equivalent — its day is
+  //    `day.activityIds`, a relationship the trip owns.
+  //
+  // 2. **`bookedBy` and `participants` are OMITTED (M13 link 5).** They are
+  //    user ids of the ORIGINATING trip's members, and a saved day is
+  //    publishable — `visibility` flips to `"public"` and the library serves it
+  //    to strangers. Copying attribution in would publish those ids, and it
+  //    would be meaningless on the other end besides: when somebody inserts
+  //    this day into their own trip, "booked by a person you have never met" is
+  //    not a plan they can act on. `stopsForDay` already hand-enumerates the
+  //    fields it copies, so the omission is enforced there as well as asserted
+  //    here.
+  const ATTRIBUTION = ["bookedBy", "participants"];
+  it("carries the same planning fields an ActivityView does, plus dayIndex, minus attribution", () => {
+    const viewKeys = Object.keys(ActivityView.shape).filter(
+      (k) => k !== "activityId" && !ATTRIBUTION.includes(k),
+    );
     expect(Object.keys(SavedStop.shape).sort()).toEqual([...viewKeys, "dayIndex"].sort());
+  });
+
+  // The omission stated as its own assertion, so deleting the filter above
+  // cannot quietly satisfy this file by widening SavedStop instead.
+  it("never carries a trip's attribution into the public library", () => {
+    for (const key of ATTRIBUTION) expect(Object.keys(SavedStop.shape)).not.toContain(key);
   });
 
   // The whole additive property (ADR-048 decision 1, KI-20260905-l): a stop

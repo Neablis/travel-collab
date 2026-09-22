@@ -31,6 +31,17 @@ export const ActivityView = z.object({
   kind: ActivityKind.default("planned"),
   tags: z.array(ActivityTag).default([]),
   cost: Money.nullable(),
+  // M13 link 5, added by hand because this model is deliberately not derived —
+  // the guard below forced the KEY and this line is the answer to it.
+  //
+  // **Looser than the snapshot's, on purpose, and that is this model's whole
+  // rule**: a `bookedBy` naming somebody who has since left the trip, or a
+  // `participants` entry that is no longer a member, must still READ. Those are
+  // ordinary outcomes of membership changing under a stored document, and the
+  // read path's job is to render the trip, not to re-litigate who belongs to
+  // it. Membership is checked where it can be acted on — the command decider.
+  bookedBy: z.string().nullable().default(null),
+  participants: z.array(z.string()).default([]),
 });
 export type ActivityView = z.infer<typeof ActivityView>;
 

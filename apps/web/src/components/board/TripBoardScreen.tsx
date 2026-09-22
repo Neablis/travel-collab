@@ -431,6 +431,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         title: activity.title,
         area: shortPlace(activity.location),
         timeWindow: activity.timeWindow,
+        bookedBy: activity.bookedBy,
       },
     ];
   });

@@ -66,6 +66,8 @@ export function costedTripDetailFixture(): TripDetail {
         kind: "planned" as const,
         tags: [],
         cost: colosseumCost,
+        bookedBy: null,
+        participants: [],
       },
       [forumId]: {
         activityId: forumId,
@@ -77,6 +79,8 @@ export function costedTripDetailFixture(): TripDetail {
         kind: "planned" as const,
         tags: [],
         cost: forumCost,
+        bookedBy: null,
+        participants: [],
       },
       [flightId]: {
         activityId: flightId,
@@ -88,6 +92,8 @@ export function costedTripDetailFixture(): TripDetail {
         kind: "planned" as const,
         tags: [],
         cost: flightCost,
+        bookedBy: null,
+        participants: [],
       },
     },
     unscheduledCostSubtotal,

@@ -20,6 +20,8 @@ function stop(
     kind,
     tags,
     cost: costMinor === undefined ? null : { amountMinor: costMinor, currency: "USD" },
+    bookedBy: null,
+    participants: [],
   };
 }
 
