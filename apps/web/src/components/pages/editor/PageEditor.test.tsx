@@ -618,6 +618,39 @@ describe("PageEditor — a document that changes underneath a reader", () => {
     expect(screen.queryByText("theirs")).toBeNull();
   });
 
+  // **The regression this fix caused the first time round, and the reason the
+  // effect is keyed on the prop rather than on the mode.**
+  //
+  // `PageScreen` passes `value={stored.doc}` — the document as last FETCHED,
+  // never updated by typing. An earlier version ran whenever `editable` went
+  // false and compared against the editor's own content, so clicking "Done
+  // editing" pushed that stale document over everything just written. CI caught
+  // it as `m14-notebook-widgets.spec.ts › Reading takes the whole authoring
+  // surface away, and the widget stays` — insert a widget, leave edit mode, and
+  // the widget was gone.
+  it("does not reset the document when editing merely stops", async () => {
+    const doc = para("start");
+    const { rerender } = render(
+      <PageEditor detail={detail} context={context} value={doc} onChange={() => {}} editable={true} />,
+    );
+    await screen.findByText("start");
+
+    // **Typing is the whole point of this test.** It is what makes the editor's
+    // content diverge from `value`, and `value` is what `PageScreen` never
+    // updates. Without it the two still agree, the broken implementation
+    // returns early, and the test passes against the bug — which is exactly
+    // what the first draft of it did.
+    await userEvent.type(screen.getByRole("textbox"), " and more");
+    expect(screen.getByText(/and more/)).toBeTruthy();
+
+    // The SAME value object, which is what really happens: the mode changes and
+    // the parent's copy of the document does not.
+    rerender(
+      <PageEditor detail={detail} context={context} value={doc} onChange={() => {}} editable={false} />,
+    );
+    expect(screen.getByText(/and more/)).toBeTruthy();
+  });
+
   // `onUpdate` is what saves. Emitting on a re-sync would make a READER write
   // back the document they were just sent, produce another PageEdited, and wake
   // every other device to do the same — a loop at the poll interval.

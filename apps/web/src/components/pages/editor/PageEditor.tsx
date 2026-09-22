@@ -145,16 +145,42 @@ export function PageEditor({ detail, context, user = null, globals = null, value
    * `PageEdited`, and wake every other device to do the same. A loop, at the
    * poll interval, started by reading.
    */
+  const lastValueRef = useRef(value);
   useEffect(() => {
-    if (editor === null || editable) return;
-    // **A cheap short-circuit, NOT a correctness guard — proven, not assumed.**
-    // Deleting this line fails no test, including one written specifically to
-    // catch a rebuild by node identity: ProseMirror parses and DIFFS, so
-    // `setContent` with identical content already leaves the rendered nodes
-    // alone. What this saves is the parse itself, on every poll, for a document
-    // that has not moved. That is worth one comparison and is not worth
-    // claiming more for.
-    if (sameDocument(editor.getJSON(), value)) return;
+    if (editor === null) return;
+    const previous = lastValueRef.current;
+    // **Keyed on the PROP changing, not on the editor's content differing —
+    // and that distinction is a regression this already caused once.**
+    //
+    // The first version compared `value` against `editor.getJSON()` and ran
+    // whenever `editable` went false. Those are not the same question.
+    // `PageScreen` passes `value={stored.doc}`, which is the document as last
+    // FETCHED and is never updated by typing — so the moment somebody clicked
+    // "Done editing", this pushed a stale document over everything they had
+    // just written. CI caught it as
+    // `m14-notebook-widgets.spec.ts › Reading takes the whole authoring surface
+    // away, and the widget stays`: insert a widget, leave edit mode, and the
+    // widget was gone. The `editable` guard below protects a typist DURING
+    // editing and did nothing at the instant they stopped, which is exactly
+    // when the prop is stalest.
+    //
+    // A new document from outside is the only thing that should reach the
+    // editor, and the only evidence of one is the prop itself changing. A mode
+    // flip is not evidence of anything.
+    if (previous === value) return;
+    lastValueRef.current = value;
+    // Identity is the cheap test and content is the honest one: a poll that
+    // finds nothing new still hands down a freshly parsed object, so identity
+    // alone would re-set the document every two seconds for every reader.
+    // Still an optimization rather than a guard — deleting it fails no test,
+    // because ProseMirror diffs and re-rendering identical content is
+    // invisible. What it saves is the parse, and a reader's selection.
+    if (sameDocument(previous, value)) return;
+    // Never replace a document that is being typed into. The remote change is
+    // deliberately dropped rather than deferred: applying it later, after more
+    // typing, is the same clobbering one pause further on. `KI-2026-09-22-d`
+    // is where the conflict notice this wants is recorded.
+    if (editable) return;
     editor.commands.setContent(value as unknown as JSONContent, false);
   }, [editor, editable, value]);
 
