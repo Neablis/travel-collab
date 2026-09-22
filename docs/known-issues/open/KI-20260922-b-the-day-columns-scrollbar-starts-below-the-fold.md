@@ -96,6 +96,13 @@
   to fix. **That symptom is NOT back**: `scrollLeft = 0` names day 1 and
   `scrollLeft = max` names day 14, verified. Same words, different cause.
 
+- **STILL UNCONFIRMED after the thread was resolved.** Mitchell resolved the
+  Vercel feedback thread on 2026-09-22 **without answering the question above**.
+  A resolved thread is not a confirmed diagnosis: it clears the
+  `Vercel Preview Comments` check and says he is done with the report, and it
+  says nothing about whether the scrollbar is what he was missing. The question
+  is still the cheapest way to settle this, and it is still unanswered.
+
 - **Found by:** Mitchell on PR #201's preview, 2026-09-22; investigated in a
   browser the same day.
 - **First noted:** 2026-09-22.
