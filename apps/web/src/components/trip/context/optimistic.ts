@@ -1,5 +1,6 @@
-import type { BatchableCommand, HistoryEntry, TripDetail, TripHistory } from "@tc/contracts";
+import type { BatchableCommand, Conflict, HistoryEntry, TripDetail, TripHistory } from "@tc/contracts";
 import { predictBatch } from "@tc/predict";
+import { activityTargets, concurrentEditConflicts, pruneResolved } from "./concurrentEdits";
 
 export type PendingUnit = {
   id: string;
@@ -31,6 +32,17 @@ export type SendFailure = { at: string; message: string };
 export type OptimisticState = {
   confirmed: Confirmed;
   pending: PendingUnit[];
+  /**
+   * M13 link 4. Stops that moved on the server while this queue held unsent
+   * work naming them. Derived, never persisted: made by `adoptOutcome` (the
+   * only reducer where an authoritative outcome replaces the base while a
+   * queue exists) and pruned by `confirmHead` as the queue drains, so a
+   * concurrent-edit conflict cannot outlive the unsent work it is about.
+   *
+   * Absent rather than `[]` when there are none, so the common state keeps a
+   * stable identity and nothing re-renders for an empty array.
+   */
+  remoteConflicts?: Conflict[];
   // Absent = the queue is healthy and the sender may run. Present = the head
   // send failed, the queue is RETAINED (nothing discarded), and no further
   // send happens until `clearFailure` (i.e. the user's manual retry).
@@ -67,7 +79,14 @@ function baseDetail(state: OptimisticState): TripDetail {
 }
 
 export function activeDetail(state: OptimisticState): TripDetail {
-  return baseDetail(state);
+  const detail = baseDetail(state);
+  const remote = state.remoteConflicts ?? [];
+  if (remote.length === 0) return detail;
+  // Merged into the SAME array the board already renders, so a concurrent edit
+  // needs no new surface: `ConflictBanner` shows it, `dismissedConflictIds`
+  // hides it, and AGENTS.md invariant 3 ("conflicts are data, never blocking
+  // modals") covers it without an exception.
+  return { ...detail, conflicts: [...detail.conflicts, ...remote] };
 }
 
 // Confirmed entries (newest-first) with pending rows prepended (newest-first).
@@ -166,7 +185,13 @@ export function enqueue(state: OptimisticState, id: string, commands: BatchableC
 // re-prediction failure flips `predictable` and every later unit is appended
 // unpredicted here, without going through `enqueue` at all.
 export function confirmHead(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
-  return rePredictOnto(outcome, state.pending.slice(1));
+  const rest = state.pending.slice(1);
+  const next = rePredictOnto(outcome, rest);
+  // A successful send makes this outcome the queue's OWN answer, so nothing
+  // here is a concurrent edit — but conflicts raised earlier may now be about
+  // work that has just left the queue. Prune, never add (M13 link 4).
+  const kept = pruneResolved(state.remoteConflicts ?? [], queuedTargets(rest));
+  return kept.length > 0 ? { ...next, remoteConflicts: kept } : next;
 }
 
 /**
@@ -207,7 +232,23 @@ export function confirmHead(state: OptimisticState, outcome: CommandOutcome): Op
  */
 export function adoptOutcome(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
   const next = rePredictOnto(outcome, state.pending);
-  return state.failure ? { ...next, failure: state.failure } : next;
+  const withFailure = state.failure ? { ...next, failure: state.failure } : next;
+
+  // M13 link 4. This is the one reducer where an authoritative outcome the
+  // queue did not produce replaces the base while that queue still holds
+  // unsent work — which is exactly the situation "two people edited the same
+  // stop" describes. Computed here because it is the only place both sides
+  // exist: `state.confirmed.detail` is the trip as this client last had it,
+  // `outcome.detail` is what the server says now.
+  const targets = queuedTargets(state.pending);
+  const raised = concurrentEditConflicts(targets, state.confirmed.detail, outcome.detail);
+  const carried = pruneResolved(state.remoteConflicts ?? [], targets);
+  const merged = [...carried.filter((c) => !raised.some((r) => r.id === c.id)), ...raised];
+  return merged.length > 0 ? { ...withFailure, remoteConflicts: merged } : withFailure;
+}
+
+function queuedTargets(units: readonly PendingUnit[]): string[] {
+  return [...new Set(units.flatMap((u) => activityTargets(u.commands)))];
 }
 
 // The shared body of the two reducers above: adopt `outcome` as confirmed, then

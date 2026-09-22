@@ -148,6 +148,25 @@ Five links. Link 1 is an ADR and gates the rest.
    express. The soft-conflict engine (M1) and `detectConflicts` are the shape to
    reuse; a concurrent edit is another kind of thing the trip knows is wrong,
    not a modal.
+   **DONE 2026-09-22.** `context/concurrentEdits.ts` produces ordinary
+   `Conflict` values, merged by `activeDetail` into the same array the board
+   already renders — so `ConflictBanner` shows them with **no new surface**.
+   **It is NOT a rule in `detectConflicts`, and that is the interesting part:**
+   every rule there is `(state, ctx) => Conflict[]`, a pure function of the
+   trip, and this one cannot be. A stop two people edited looks completely
+   ordinary in the resulting state; what makes it a conflict is something the
+   trip does not contain — the caller's own unsent queue. So it is computed at
+   the overlay, in `adoptOutcome`, the one reducer where an authoritative
+   outcome replaces the base while a queue still exists.
+   **Two things worth not rediscovering.** Equality is the domain's
+   `activityStatesEqual`, reached through the `@tc/predict` entrypoint because
+   the lint wall lets only `src/server` and `src/app/api` import `@tc/domain` —
+   which also means the detector inherits `KI-2026-09-05-o`'s compile-forcing
+   field set rather than keeping a second copy. And these conflicts are
+   deliberately **not dismissible**: dismissal persists as a command and their
+   id is stable per stop, so one click would permanently suppress every future
+   collision on that stop. They need no dismissal — they are derived from the
+   queue and leave when it drains (`pruneResolved`, on every `confirmHead`).
 5. **Per-stop attribution — who a stop is for.** `add-stop-who` and
    `rack-provenance` in `preview-registry.ts`, both blocked on the same absent
    field: *"no field records who a stop is for"*, and *"who parked a stop, and
@@ -198,8 +217,17 @@ Five links. Link 1 is an ADR and gates the rest.
       assertion proves the unit was RE-PREDICTED rather than merely preserved.
       Restoring `{ confirmed: result.value, pending: [] }` fails all six with
       `expected '2' to be '3'`.)*
-- [ ] Two people editing the same stop produce a **conflict the UI can show and
+- [x] Two people editing the same stop produce a **conflict the UI can show and
       a person can resolve**, not a lost write and not a modal.
+      *(**Done 2026-09-22.** Shown: an ordinary `Conflict` in `ConflictBanner`,
+      warning severity, naming the stop and what happened to it. Resolvable: it
+      carries the two real options as `resolutions` — send yours and overwrite,
+      or undo yours and keep the server's — and **no write is lost either way**,
+      because the queue survives via `adoptOutcome` (link 3) rather than being
+      cleared. Not a modal: AGENTS.md invariant 3 holds unchanged.
+      Deleting the raise in `adoptOutcome` fails four tests; swapping
+      `activityStatesEqual` for identity fails two; making them dismissible
+      again fails two more.)*
 - [ ] A stop records who it is for, set through the UI and read back off the
       API; `add-stop-who` and `rack-provenance` are wired up or deleted, and no
       M13-tagged entry remains in `preview-registry.ts`.

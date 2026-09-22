@@ -11,7 +11,7 @@ import {
   type HistoryRow,
   type OptimisticState,
 } from "./optimistic";
-import { tripDetailFixture, historyFixture } from "@tc/factories";
+import { activityFactory, tripDetailFixture, historyFixture } from "@tc/factories";
 
 const tripId = tripDetailFixture().tripId;
 const base = (): OptimisticState => ({
@@ -428,5 +428,85 @@ describe("adoptOutcome re-predicts the whole queue (M13 link 3, KI-90)", () => {
 
     expect(next.pending.map((u) => u.id)).toEqual(["u1", "u2"]);
     expect(next.pending.map((u) => u.predictedDetail)).toEqual([null, null]);
+  });
+});
+
+// M13 link 4. Conflicts are data (AGENTS.md invariant 3), so a concurrent edit
+// is merged into the same `conflicts` array the board already renders rather
+// than getting a surface of its own.
+describe("concurrent-edit conflicts ride the overlay (M13 link 4)", () => {
+  const STOP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+  const withStop = (title: string) =>
+    tripDetailFixture({
+      activities: {
+        [STOP]: activityFactory.build({ activityId: STOP, title }),
+      },
+    });
+
+  const stateEditing = (): OptimisticState => {
+    const start: OptimisticState = {
+      confirmed: { detail: withStop("Fushimi Inari"), history: historyFixture(tripId) },
+      pending: [],
+    };
+    const q = enqueue(start, "u1", [
+      { type: "UpdateActivity", tripId, activityId: STOP, notes: "mine" },
+    ]);
+    if (!q.ok) throw new Error("setup");
+    return q.state;
+  };
+
+  const remote = (title: string) => ({
+    detail: withStop(title),
+    history: historyFixture(tripId),
+  });
+
+  it("raises one when a stop moves under unsent work", () => {
+    const next = adoptOutcome(stateEditing(), remote("Kiyomizu-dera"));
+    expect(next.remoteConflicts?.map((c) => c.kind)).toEqual(["concurrent-edit"]);
+  });
+
+  it("shows it on the active detail, alongside the domain's own conflicts", () => {
+    const next = adoptOutcome(stateEditing(), remote("Kiyomizu-dera"));
+    const shown = activeDetail(next).conflicts;
+    expect(shown.some((c) => c.kind === "concurrent-edit")).toBe(true);
+    expect(shown.some((c) => c.subjects.includes(STOP))).toBe(true);
+  });
+
+  it("raises none when the stop did not move", () => {
+    const next = adoptOutcome(stateEditing(), remote("Fushimi Inari"));
+    expect(next.remoteConflicts).toBeUndefined();
+    expect(activeDetail(next).conflicts.some((c) => c.kind === "concurrent-edit")).toBe(false);
+  });
+
+  // `confirmHead` is the queue's OWN answer arriving, so the stop changing is
+  // expected rather than a collision.
+  it("is never raised by a successful send of the caller's own work", () => {
+    const next = confirmHead(stateEditing(), remote("Kiyomizu-dera"));
+    expect(next.remoteConflicts).toBeUndefined();
+  });
+
+  // It is about UNSENT work, so it leaves with the work rather than needing to
+  // be dismissed.
+  it("is pruned when the work it is about is sent", () => {
+    const conflicted = adoptOutcome(stateEditing(), remote("Kiyomizu-dera"));
+    expect(conflicted.remoteConflicts).toHaveLength(1);
+    const drained = confirmHead(conflicted, remote("Kiyomizu-dera"));
+    expect(drained.pending).toHaveLength(0);
+    expect(drained.remoteConflicts).toBeUndefined();
+  });
+
+  it("does not duplicate a conflict when the same stop moves twice", () => {
+    const once = adoptOutcome(stateEditing(), remote("Kiyomizu-dera"));
+    const twice = adoptOutcome(once, remote("Ginkaku-ji"));
+    expect(twice.remoteConflicts).toHaveLength(1);
+  });
+
+  it("leaves a trip with no queue alone", () => {
+    const idle: OptimisticState = {
+      confirmed: { detail: withStop("Fushimi Inari"), history: historyFixture(tripId) },
+      pending: [],
+    };
+    expect(adoptOutcome(idle, remote("Kiyomizu-dera")).remoteConflicts).toBeUndefined();
   });
 });

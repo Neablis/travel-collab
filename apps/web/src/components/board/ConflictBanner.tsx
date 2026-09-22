@@ -5,6 +5,7 @@ import type { ActivityView, Conflict } from "@tc/contracts";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { CONCURRENT_EDIT_KIND } from "@/components/trip/context/concurrentEdits";
 
 // Above this many, the list collapses behind a one-line summary by default
 // (KI-43). Two is the largest number that still fits above the fold with a day
@@ -14,6 +15,18 @@ const COLLAPSE_ABOVE = 2;
 // Conflicts are data, never blocking modals (AGENTS.md invariant 3).
 // Dismissal is a real command since M2 — it persists, appears in history,
 // and is undoable like any other change.
+//
+// **That persistence is why one kind of conflict is not dismissible.** A
+// concurrent-edit conflict (M13 link 4) is derived from the caller's own unsent
+// queue, and its id is stable per stop (`concurrent-edit:<activityId>`) so that
+// the same collision is not re-raised twice while it lasts. Those two facts
+// together make dismissal a trap: it would write a permanent
+// `dismissedConflictIds` entry that silently suppresses EVERY future collision
+// on that stop, for everyone, forever. It also needs no dismissal — it leaves
+// on its own when the work it is about is sent.
+function isDismissible(kind: string): boolean {
+  return kind !== CONCURRENT_EDIT_KIND;
+}
 export function ConflictBanner({
   conflicts,
   dismissedConflictIds,
@@ -108,7 +121,7 @@ export function ConflictBanner({
                 key={c.id}
                 variant="warning"
                 actions={
-                  readOnly ? undefined : (
+                  readOnly || !isDismissible(c.kind) ? undefined : (
                     <Button
                       variant="ghost"
                       onClick={() => onDismiss(c.id)}
