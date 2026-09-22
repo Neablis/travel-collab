@@ -212,7 +212,21 @@ Five links. Link 1 is an ADR and gates the rest.
       proves a co-traveller's edit is adopted without a reload and that the
       user's unsent work survives it, but a jsdom test is not two browsers. The
       walk needs a Vercel preview and therefore a PR; the repo's own answer is
-      to dispatch `phase-verifier` against it.)*
+      to dispatch `phase-verifier` against it.*
+      *
+      **That answer was tried on 2026-09-22 and does not reach this box.** The
+      verifier drove the preview successfully, but a two-actor walk needs a trip
+      with two members, and an agent cannot make one there: `POST
+      /api/trips/:id/invites` returns **402** without the owner's
+      `trip.collaborators` entitlement, and granting it is an admin action a
+      sandboxed agent is refused. The collaboration path had to be exercised
+      locally instead, against a second member inserted straight into
+      `trip_memberships` — which proves the code and is not the walk this box
+      asks for.
+      **So this box is Mitchell's or it needs an entitled preview account**, and
+      that is a fact about the environment rather than about the code. Recorded
+      here because the box's own instruction above sends the next person at a
+      wall that is now measured.)*
 - [x] A viewer who loses access mid-session stops receiving updates — the
       broadcast path honours `AccessPolicy`, and there is a test that fails if
       it stops doing so.
