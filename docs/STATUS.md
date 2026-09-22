@@ -35,9 +35,9 @@ general setup.
 line has moved by a gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and the five links: `docs/milestones/M13-collaboration.md`.
-**Links 1-3 are done as of 2026-09-22 and the gate is 3 of 10** — the transport
-ADR (`ADR-049`, accepted), broadcast's server half, and the re-prediction
-reducer that closed KI-90 and KI-5's `applyOutcome` precondition. See below.
+**Links 1, 2 and 3 are done as of 2026-09-22; the gate is 4 of 10** — the
+transport ADR (`ADR-049`, accepted), broadcast end to end, and the
+re-prediction reducer that closed KI-90 and KI-5's `applyOutcome` precondition.
 
 **M13's preflight is DONE and it is not a risk to carry into the milestone.**
 `KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
@@ -50,29 +50,30 @@ landing. **One thing link 5 must know before it adds `who`:** the read model
 added to it by hand, but the guard forces the KEY, not the TYPE. The resolved
 entry says why the derivation was backed out.
 
-**What M26's close does and does not assert.** Every link in both waves is
-built (Wave 1: 0-10, Wave 2: 11-16); link 15's `Cancel · New trip · Empty`
-header is recorded as not done with its reason. **Two boxes closed on
-Mitchell's attestation rather than agent-recorded evidence**, and **the
-Definition-of-Done box is ticked at 153 passed / 2 failed, not at green** —
-both failures are map specs and both are KI-49 (Chromium does not trust the
-agent proxy's CA, so MapLibre never draws). CI, where the tiles load, is the
-verdict on those two. `pnpm check` itself was green and stamped clean.
+**What M26's close does and does not assert** — including the two boxes closed
+on attestation and the Definition-of-Done box ticked at 153/2 rather than green
+— moved to `docs/milestones/M26-design-parity.md` on 2026-09-22, same gate-close
+rule as the section below.
 
-## DONE 2026-09-22 — M13 links 1-3 (the gate is 3 of 10)
+## DONE 2026-09-22 — M13 links 1, 2 and 3 (the gate is 4 of 10)
 
 **Link 1 — `ADR-049`, accepted** on Mitchell's instruction to begin
 implementation; the ADR's status line records that basis rather than implying a
 written review. Decision 2 (the transport) is explicitly open to reversal;
 Decision 1 (the cursor) is the expensive one to change.
 
-**Link 2 — the server half.** `GET /api/trips/:tripId/events?after=<seq>` →
-`{ headSeq, events, resync }`. **The steady-state poll costs one index-only
-lookup**: when the caller is at the head it returns before the range scan runs,
-so only a poll with news pays for a second query. `resync` past 200 events
-behind, so an unbounded read cannot masquerade as a poll. `TripEventsPage` added
-to contracts; `EventEnvelope` deliberately unchanged, so `global_seq` stays off
-the wire. **The client half is NOT built, on purpose** — see link 3.
+**Link 2 — broadcast, both halves.** `GET /api/trips/:tripId/events?after=<seq>`
+→ `{ headSeq, events, resync }`. **The steady-state poll costs one index-only
+lookup**: at the head it returns before the range scan, so only a poll with news
+pays for a second query. `TripEventsPage` added to contracts; `EventEnvelope`
+unchanged, so `global_seq` stays off the wire. The client is
+`context/broadcast.ts` — 5s while visible, nothing while hidden, an immediate
+poll on returning, and no interval at all for a solo trip. **The poll is a
+change SIGNAL; the detail comes from a refetch, not a client-side fold** — the
+server projects with `serverConflictContext()`, so folding here would let
+`confirmed` disagree with the server about conflicts, which is link 4's whole
+subject. The refetch invalidates before it reads, or the 5s read cache would
+answer with the staleness the poll just found.
 
 **Link 3 — the re-prediction reducer. Two live data-loss defects closed.**
 `confirmHead` and the new **`adoptOutcome`** share one `rePredictOnto` body and
@@ -108,34 +109,20 @@ of the queue. Both `{ confirmed: X, pending: [] }` sites now call it —
    this entry's own. It is not a reducer problem and no reducer will close it: it
    needs a `pagehide`/`keepalive` mitigation that does not exist in `apps/web/src`.
 
-**What link 2's client half waits on is now built**, so wiring the poll into
-`TripProvider` is unblocked — and it must go through `adoptOutcome`, not around
-it, which is exactly the shape ADR-049 requires.
+**Gate box 2 is NOT ticked and cannot be from here**: it wants two real
+browsers walked as two actors, which needs a Vercel preview and therefore a PR.
+Box 3 (a revoked viewer stops receiving) IS ticked — every poll is a fresh
+request, so the int test that revokes mid-session covers it.
 
 ## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 
-**Built in PR #197.** `sharedDayFacts.ts` derives the title, the fact rows and
-the shape sentence from `dc.html:7495-7527`; `SharedDayMap` renders them under
-the canvas. The section below was written as a handoff and is kept as the
-record of what the design asks for — the table's `no` column is now `yes` for
-`mapTitle`, `mapFacts` and `mapNote`.
-
-**What it did NOT do**, both named rather than left to be rediscovered:
-
-- **`gaps[idx].label` is computed and not rendered.** `mapPanel` returns the
-  per-stop labels and a test covers them; putting them between stops needs
-  `SharedDayScreen`'s list.
-- **The 3.5s / 7.5s / 11s recovery ladder is still not wired into
-  `SharedDayMap`.** `mapRecovery.ts` has it and the Map *lens* uses it; the
-  shared day's map has only the fatal-error path. That, not "the rendering", is
-  what keeps M26 link 4 open — see the milestone file.
-
-The original handoff — the design derivation, the walk, the decisions and the
-reuse constraint — is **`docs/retros/2026-09-21-status-archive.md`**, verbatim
-and in order. It was 43,702 B, 69% of this file, describing work that shipped
-in #197. What was still LIVE inside it has been promoted rather than archived:
-the two blockers under *Blocking / broken right now*, and the two unfinished
-pieces named above.
+**Moved to `docs/milestones/M26-design-parity.md` on 2026-09-22**, verbatim,
+under *The shared day's map panel (link 4b)* — M26's gate closed 2026-09-21, and
+this file's own rule is that a phase's narrative moves to its milestone file at
+gate close and the pointer stays here. **Two things in it are still live and are
+still true**: `gaps[idx].label` is computed and not rendered, and the
+3.5s/7.5s/11s recovery ladder is not wired into `SharedDayMap` — which is what
+keeps M26 link 4 open rather than the rendering.
 
 ## Live rules that the code cannot enforce
 

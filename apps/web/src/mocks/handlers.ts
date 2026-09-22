@@ -6,6 +6,7 @@ import {
   UpdatePageInput,
   type Page,
   type TripDetail,
+  type TripEventsPage,
   type TripHistory,
   type TripRole,
 } from "@tc/contracts";
@@ -142,6 +143,7 @@ export function makeTripHandlers(
   initial: TripDetail,
   options?: {
     history?: TripHistory;
+    events?: TripEventsPage;
     detailAt?: Record<number, TripDetail>;
     onCommand?: (command: TripCommand) => void;
     geocode?: GeocodeResult[];
@@ -190,6 +192,19 @@ export function makeTripHandlers(
           options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
       }),
     ),
+    // M13 link 2. `useTripBroadcast` polls this while a multi-member trip is
+    // visible, so any component test whose trip has more than one member would
+    // otherwise make an unhandled request every 5s. The default answer is
+    // "nothing has happened": the head matches whatever history says, so a
+    // caller seeded from that history is already caught up and the poll is
+    // inert. A test that wants a remote edit overrides `events`.
+    http.get("/api/trips/:tripId/events", () => {
+      const history =
+        options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false };
+      return HttpResponse.json(
+        options?.events ?? { headSeq: history.entries[0]?.toSeq ?? 0, events: [], resync: false },
+      );
+    }),
     http.get("/api/trips/:tripId/history/:seq", ({ params }) => {
       const at = options?.detailAt?.[Number(params.seq)];
       return at !== undefined

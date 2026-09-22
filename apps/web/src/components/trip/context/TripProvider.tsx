@@ -12,7 +12,7 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
-import { cachedRead } from "@/lib/queryCache";
+import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import {
   activeDetail,
@@ -27,6 +27,7 @@ import {
   type SendFailure,
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { headSeqOf, useTripBroadcast } from "./broadcast";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 type TripCtx = {
@@ -109,12 +110,16 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // moved, and the first of them duplicated the `TripDetail` the home
         // page's hero had just fetched for its stats.
         //
-        // `DEDUPE.NAVIGATION` (5s) and not longer, deliberately: with no
-        // polling and no socket anywhere in this app, remounting IS how you
-        // find out a co-traveller edited the trip. The window is sized to one
-        // navigation round trip for that reason, and every command invalidates
-        // it (`sendTripCommand`'s `finally`), so it can only ever hide a
-        // REMOTE write, never one of yours.
+        // `DEDUPE.NAVIGATION` (5s) and not longer, deliberately. This used
+        // to say "with no polling and no socket anywhere in this app,
+        // remounting IS how you find out a co-traveller edited the trip" —
+        // true when ADR-046 wrote it, and **no longer true since M13 link 2**:
+        // `useTripBroadcast` below polls this trip's log and refetches when it
+        // moves. The window is still sized to one navigation round trip, and
+        // every command invalidates it (`sendTripCommand`'s `finally`), so it
+        // can only ever hide a REMOTE write, never one of yours — and the
+        // broadcast refetch invalidates before it reads, so the poll is never
+        // answered out of the cache it exists to bypass.
         cachedRead(tripKeys.detail(tripId), () => fetchTripDetail(tripId)),
         cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)),
         // Failure here is deliberately non-fatal: `myRole` stays null and the
@@ -396,6 +401,63 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     setOptimistic((prev) => (prev ? adoptOutcome(prev, outcome) : prev));
     setError(null);
   }, []);
+
+  // ---- M13 link 2: a co-traveller's edits arrive ------------------------
+  //
+  // The poll says only "the trip moved"; the authoritative detail comes from
+  // the server's own projection. **Deliberately a refetch and not a client-side
+  // fold of the envelopes the poll returns**: `tripDetailFromState` takes a
+  // ConflictContext and the server projects with `serverConflictContext()`, so
+  // folding here with a different one would let `confirmed` — which is supposed
+  // to BE authoritative server state — disagree with the server about which
+  // conflicts exist. That is precisely the area link 4 is about, and a
+  // divergence there would be invisible until it mattered. The envelopes are
+  // not wasted: they are what link 4 reads to know which stop a remote edit
+  // touched.
+  const onRemoteChange = useCallback(() => {
+    void (async () => {
+      // Invalidate BEFORE reading. `cachedRead`'s 5s window and the poll's 5s
+      // interval are the same order of magnitude, so without this the refetch
+      // triggered by a poll could be answered out of the very cache entry the
+      // poll just proved stale.
+      invalidate(tripKeys.all(tripId));
+      const [detailResult, historyResult] = await Promise.all([
+        cachedRead(tripKeys.detail(tripId), () => fetchTripDetail(tripId)),
+        cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)),
+      ]);
+      // A failed refetch is silent for the same reason a failed poll is: the
+      // next tick tries again, and nothing local is lost by missing one.
+      if (!detailResult.ok || !historyResult.ok) return;
+      // Through `adoptOutcome`, never around it (ADR-049 Decision 4). A remote
+      // edit arriving mid-queue is the same problem as a local outcome arriving
+      // mid-queue: adopt the authoritative state, re-predict what is queued.
+      // Assigning `{ confirmed, pending: [] }` here would have made remote edits
+      // a fourth member of the KI-5/KI-90 loss class link 3 just closed.
+      setOptimistic((prev) =>
+        prev
+          ? adoptOutcome(prev, { detail: detailResult.value, history: historyResult.value })
+          : prev,
+      );
+    })();
+  }, [tripId]);
+
+  useTripBroadcast({
+    tripId,
+    // A solo trip has no second writer, so the interval would be pure cost; and
+    // while the board is previewing an older seq, the present moving underneath
+    // it is noise rather than news. The demo trip is a fixture that never moves
+    // (ADR-031), so polling it can only ever return "nothing happened".
+    enabled:
+      status === "ready" &&
+      previewSeq === null &&
+      !isDemoTripId(tripId) &&
+      (optimistic?.confirmed.detail.members.length ?? 0) > 1,
+    // Read at poll time, not captured: the confirmed head advances every time
+    // the user's own work lands, and a stale cursor would re-report those as
+    // remote news on every tick.
+    cursor: () => (optimisticRef.current ? headSeqOf(optimisticRef.current.confirmed.history) : 0),
+    onChanged: onRemoteChange,
+  });
 
   // Kept in step with the state on every render, so a change made anywhere
   // else — the initial load, the sender confirming a head, applyOutcome,

@@ -8,6 +8,10 @@ const fetchTripAccessMock = vi.fn();
 // Settable, like the others: one test needs a trip whose own state refuses
 // every command, to prove a predicted rejection is reported rather than eaten.
 const fetchTripDetailMock = vi.fn();
+// M13 link 2: settable so one suite can make the poll report a remote edit,
+// and the refetch that follows return the trip the server now has.
+const fetchTripHistoryMock = vi.fn();
+const fetchTripEventsMock = vi.fn();
 
 function oneDayTripDetailFixture() {
   return tripDetailFixture({
@@ -20,7 +24,8 @@ vi.mock("@/lib/apiClient", async (orig) => {
   return {
     ...actual,
     fetchTripDetail: (...args: unknown[]) => fetchTripDetailMock(...args),
-    fetchTripHistory: vi.fn().mockResolvedValue({ ok: true, value: historyFixture("x") }),
+    fetchTripHistory: (...args: unknown[]) => fetchTripHistoryMock(...args),
+    fetchTripEvents: (...args: unknown[]) => fetchTripEventsMock(...args),
     fetchTripDetailAt: vi.fn(),
     fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
@@ -42,6 +47,14 @@ beforeEach(() => {
   // against a board its user can fully edit.
   fetchTripAccessMock.mockReset().mockResolvedValue(accessAs("owner"));
   fetchTripDetailMock.mockReset().mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() });
+  fetchTripHistoryMock.mockReset().mockResolvedValue({ ok: true, value: historyFixture("x") });
+  // Default: nothing has happened. Every pre-existing test in this file uses a
+  // one-member trip, so the broadcast interval is disabled for them anyway —
+  // this keeps the mock total rather than relying on that.
+  fetchTripEventsMock.mockReset().mockResolvedValue({
+    ok: true,
+    value: { headSeq: 0, events: [], resync: false },
+  });
 });
 
 function Probe() {
@@ -946,6 +959,152 @@ describe("TripProvider applyOutcome with unsent work queued (KI-5)", () => {
     // Three: the outcome's two days plus the queued edit re-predicted on top.
     // It used to be two, with the edit gone and nothing said.
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("3"));
+    expect(screen.getByTestId("unsent").textContent).toBe("1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M13 link 2 — a co-traveller's edit arrives.
+//
+// The poll only says "the trip moved"; the authoritative detail comes from a
+// refetch of the server's own projection. These drive the poll through the
+// visibility path rather than the interval, so there are no fake timers and no
+// wall-clock waiting: becoming visible polls immediately, which is the same
+// code path an interval tick takes.
+// ---------------------------------------------------------------------------
+
+function twoMemberDetail(days = 1) {
+  const d = tripDetailFixture({
+    members: [
+      { userId: "dev-alice", role: "owner" },
+      { userId: "dev-bob", role: "editor" },
+    ],
+    days: Array.from({ length: days }, (_, i) => ({
+      dayId: `d${i + 1}`,
+      activityIds: [],
+      date: null,
+      costSubtotal: 0,
+    })),
+  });
+  return d;
+}
+
+// Seeds a history whose newest entry's toSeq is `head`, which is what
+// `headSeqOf` reads as the client's cursor.
+function historyAtSeq(head: number) {
+  const h = historyFixture("x");
+  return {
+    ...h,
+    entries: [
+      {
+        batchId: "22222222-2222-4222-8222-222222222222",
+        fromSeq: head,
+        toSeq: head,
+        actorId: "dev-bob",
+        occurredAt: "2026-09-22T00:00:00.000Z",
+        origin: { kind: "user" as const },
+        description: "Bob added a day",
+        undone: false,
+      },
+    ],
+  };
+}
+
+function becomeVisible() {
+  Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  document.dispatchEvent(new Event("visibilitychange"));
+}
+
+function RemoteProbe() {
+  const { activeTrip, dispatch, sync } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="unsent">{sync.unsent}</span>
+      <button
+        onClick={() => void dispatch({ type: "AddDay", tripId: "x", dayId: "d-mine" } as never)}
+      >
+        edit
+      </button>
+    </div>
+  );
+}
+
+describe("TripProvider broadcast (M13 link 2)", () => {
+  it("adopts a co-traveller's edit without a reload", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    // Bob commits a day: the poll reports a head past the client's cursor, and
+    // the refetch that follows returns the trip the server now has.
+    fetchTripEventsMock.mockResolvedValue({
+      ok: true,
+      value: { headSeq: 2, events: [], resync: false },
+    });
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(2) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(2) });
+
+    becomeVisible();
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+  });
+
+  it("does not poll a solo trip — there is no second writer", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() });
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    becomeVisible();
+    // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
+    await act(async () => {});
+    expect(fetchTripEventsMock).not.toHaveBeenCalled();
+  });
+
+  // The whole reason link 3 had to land first. A remote edit arriving while the
+  // user has unsent work is the same problem as a local outcome arriving then:
+  // adopt the authoritative state, re-predict what is queued. Assigning
+  // `{ confirmed, pending: [] }` here would have made remote edits a fourth
+  // member of the KI-5/KI-90 loss class.
+  it("keeps the user's unsent work and re-predicts it onto the remote edit", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    // Held open, so the user's edit is unambiguously still queued when the
+    // remote change lands.
+    sendTripCommandMock.mockImplementation(() => new Promise(() => {}));
+
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "edit" }));
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("1"));
+    expect(screen.getByTestId("dayCount").textContent).toBe("2"); // 1 confirmed + 1 predicted
+
+    fetchTripEventsMock.mockResolvedValue({
+      ok: true,
+      value: { headSeq: 2, events: [], resync: false },
+    });
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(2) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(2) });
+
+    becomeVisible();
+
+    // Three: Bob's two days, plus the user's queued day re-predicted on top.
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("3"));
+    // Still unsent — adopting a remote edit does not mean the server accepted
+    // anything of the user's.
     expect(screen.getByTestId("unsent").textContent).toBe("1");
   });
 });

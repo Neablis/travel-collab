@@ -110,6 +110,23 @@ Five links. Link 1 is an ADR and gates the rest.
 2. **Broadcast.** Committed events reach other viewers of the same trip. The
    command pipeline does not change — this is a read-side push, and
    `AccessPolicy` decides who receives, the same object that decides who reads.
+   **DONE 2026-09-22, both halves.** Server:
+   `GET /api/trips/:tripId/events?after=<seq>` → `{ headSeq, events, resync }`,
+   `requireTripAccess(..., "viewer")`, no new index and no migration. **The
+   steady-state poll costs one index-only lookup** — at the head it returns
+   before the range scan runs, so only a poll with news pays for a second
+   query. Client: `context/broadcast.ts`, the ADR-049 Decision 3 seam — 5s while
+   visible, nothing while hidden, an immediate poll on returning, and no
+   interval at all for a solo trip or a board previewing an older seq.
+   **Two decisions inside it worth not re-litigating:** the poll is a change
+   *signal* and the detail comes from a **refetch, not a client-side fold** (the
+   server projects with `serverConflictContext()`, so folding here would let
+   `confirmed` disagree with the server about which conflicts exist — link 4's
+   whole subject); and the refetch **invalidates the read cache before it
+   reads**, because `cachedRead`'s 5s window and the poll's 5s interval are the
+   same order of magnitude, so otherwise the refetch is answered out of the very
+   entry the poll just proved stale. Received events go through `adoptOutcome`
+   (link 3), never around it.
 3. **The re-prediction reducer.** `confirmHead` widened to "adopt this outcome,
    re-predict what is queued", per KI-90. **Closes KI-90 and KI-5's
    `applyOutcome` precondition.** This is the link that makes a remote edit
@@ -153,9 +170,22 @@ Five links. Link 1 is an ADR and gates the rest.
 - [ ] Two browsers on the same trip: an edit in one appears in the other without
       a reload, **walked in a real browser as two real actors**, the same
       standard M11's gate held itself to.
-- [ ] A viewer who loses access mid-session stops receiving updates — the
+      *(**The code is built and unit-covered as of 2026-09-22 — this box is
+      about the walk, and it is deliberately NOT ticked.** `TripProvider.test.tsx`
+      proves a co-traveller's edit is adopted without a reload and that the
+      user's unsent work survives it, but a jsdom test is not two browsers. The
+      walk needs a Vercel preview and therefore a PR; the repo's own answer is
+      to dispatch `phase-verifier` against it.)*
+- [x] A viewer who loses access mid-session stops receiving updates — the
       broadcast path honours `AccessPolicy`, and there is a test that fails if
       it stops doing so.
+      *(**Done 2026-09-22.** Structurally, not by a teardown path: every poll is
+      a fresh request through `requireTripAccess`, so revocation bites on the
+      next one and there is nothing to remember to tear down. The test is
+      `events/route.int.test.ts`, *"stops serving a member whose membership is
+      revoked between polls"* — 200, revoke through the members route, 403.
+      Deleting the route's `if ("error" in access) return access.error` fails it
+      along with the 401 and stranger cases: `expected 200 to be 403`.)*
 - [x] **A command enqueued while an undo/redo/revert is in flight survives it**
       — KI-90's reproduction fails before the change and passes after, and the
       entry is moved to `resolved/` with its proof line.
