@@ -399,32 +399,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   //
   // Clamping to `null` is the same "wider reading is the safer one" call
   // `parseAskScope` makes server-side for a scope line it cannot parse.
-  // **Both of these hand-enumerate `ActivityFormValue`, which is the shape that
-  // has now dropped a field four times** (KI-1, KI-54, M18's editor sheet losing
-  // `kind`/`tags`, and this). They are currently UNREACHABLE — `Board` declares
-  // `onAddActivity`/`onUpdateActivity` taking an `ActivityFormValue` and nothing
-  // calls either; every real edit goes through `ActivityEditorSheet`. They are
-  // completed rather than left half-filled because the next person to wire them
-  // up would inherit a silent drop, which is exactly how the previous four
-  // happened. Kept rather than deleted because that is a live-code decision
-  // this PR should not make on its own — noted for whoever does.
-  const updateActivity = (activityId: string, value: ActivityFormValue) =>
-    void dispatch({
-      type: "UpdateActivity",
-      tripId,
-      activityId,
-      title: value.title,
-      timeWindow: value.timeWindow,
-      location: value.location,
-      notes: value.notes,
-      anchors: value.anchors,
-      kind: value.kind,
-      tags: value.tags,
-      cost: value.cost,
-      bookedBy: value.bookedBy,
-      participants: value.participants,
-    });
-
   // The unscheduled rack's contents: trip.backlog is the source of truth for
   // "parked", and each id resolves through activities. The card's `area` slot
   // is `shortPlace()` — the same area-then-city-then-name-segment order the
@@ -1022,28 +996,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                       onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
                       onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-                      // See `updateActivity` above: same enumeration, same
-                      // unreachable-but-completed reasoning. `dayId` was missing
-                      // too, so a wired-up caller would have put every new stop
-                      // in the backlog whatever day it chose.
-                      onAddActivity: (value: ActivityFormValue) =>
-                        void dispatch({
-                          type: "AddActivity",
-                          tripId,
-                          activityId: crypto.randomUUID(),
-                          dayId: value.dayId ?? undefined,
-                          title: value.title,
-                          timeWindow: value.timeWindow ?? undefined,
-                          location: value.location ?? undefined,
-                          notes: value.notes ?? undefined,
-                          anchors: value.anchors,
-                          kind: value.kind,
-                          tags: value.tags,
-                          cost: value.cost ?? undefined,
-                          bookedBy: value.bookedBy,
-                          participants: value.participants,
-                        }),
-                      onUpdateActivity: updateActivity,
                       onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
                       onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
                     }}

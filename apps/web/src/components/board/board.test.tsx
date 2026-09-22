@@ -106,8 +106,6 @@ function noopCallbacks(): BoardCallbacks {
     onSelectDay: vi.fn(),
     onAddDay: vi.fn(),
     onRemoveDay: vi.fn(),
-    onAddActivity: vi.fn(),
-    onUpdateActivity: vi.fn(),
     onRemoveActivity: vi.fn(),
     onDismissConflict: vi.fn(),
   };

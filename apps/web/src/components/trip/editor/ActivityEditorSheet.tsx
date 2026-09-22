@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { ActivityEditor, type ActivityDayOption, type ActivityFormValue } from "@/components/board/ActivityEditor";
+import { addActivityCommand, updateActivityCommand } from "@/components/board/activityCommands";
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip } from "@/components/trip/context/TripProvider";
@@ -111,60 +112,15 @@ export function ActivityEditorSheet() {
     // Unreachable while the form is not rendered for a viewer; kept so the
     // gate does not depend on the render branch above staying correct.
     if (readOnly) return;
+    // Both commands are built by `activityCommands`, which destructures every
+    // `ActivityFormValue` field and asserts nothing is left over. That is the
+    // standing fix the M18 comment that used to sit here asked for: the two
+    // literals it warned about are gone, and a field added to the form is now
+    // a compile error in one file rather than a silent drop in several.
     if (state.mode === "edit" && state.activityId !== undefined) {
-      // UpdateActivity carries no dayId (ActivityEditor's Day select is
-      // disabled in edit mode for exactly this reason) — cross-day moves
-      // stay MoveActivity's job (drag-and-drop), not this form's.
-      void dispatch({
-        type: "UpdateActivity",
-        tripId: activeTrip.tripId,
-        activityId: state.activityId,
-        title: value.title,
-        timeWindow: value.timeWindow,
-        location: value.location,
-        notes: value.notes,
-        anchors: value.anchors,
-        // M18. Both branches here hand-enumerate the form's fields, so a new
-        // one is dropped silently — TypeScript does not flag the extra
-        // property on `value`, and the sheet's own tests kept passing while
-        // the user's kind and tags went nowhere. This is the third time this
-        // milestone has hit that shape: PR 1 hit it in equality/diff/hydrate/
-        // detail, and the project review found it again in Location.city
-        // (KI-54). §6.1's activity-field descriptor refactor is the standing
-        // fix; until it lands, adding a field means grepping for every
-        // enumeration of them.
-        kind: value.kind,
-        tags: value.tags,
-        cost: value.cost,
-        // M13 link 5, and the comment above is why these are FORWARDED rather
-        // than defaulted: hardcoding `null`/`[]` here would silently wipe a
-        // stop's attribution on every unrelated edit, which is the same shape
-        // as the `kind`/`tags` drop this branch already paid for once.
-        bookedBy: value.bookedBy,
-        participants: value.participants,
-      });
+      void dispatch(updateActivityCommand(activeTrip.tripId, state.activityId, value));
     } else if (state.mode === "create") {
-      void dispatch({
-        type: "AddActivity",
-        tripId: activeTrip.tripId,
-        activityId: crypto.randomUUID(),
-        // The form's own Day select wins over the prefill once the user has
-        // touched it — value.dayId already falls back to the prefill/first
-        // day via ActivityEditor's default-day effect, so this is just
-        // forwarding its answer, not re-deriving one.
-        dayId: value.dayId ?? undefined,
-        title: value.title,
-        timeWindow: value.timeWindow ?? undefined,
-        location: value.location ?? undefined,
-        notes: value.notes ?? undefined,
-        anchors: value.anchors,
-        // See the UpdateActivity branch above — same enumeration, same trap.
-        kind: value.kind,
-        tags: value.tags,
-        cost: value.cost ?? undefined,
-        bookedBy: value.bookedBy,
-        participants: value.participants,
-      });
+      void dispatch(addActivityCommand(activeTrip.tripId, crypto.randomUUID(), value));
     }
     close();
   }
