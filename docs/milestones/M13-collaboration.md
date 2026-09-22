@@ -323,16 +323,27 @@ Five links. Link 1 is an ADR and gates the rest.
       *(**Done 2026-09-22, on CI's run rather than a local one, and the basis
       matters.** Tier 3 asks for `pnpm check`, `test:e2e:ci-like` because a user
       flow changed, and `seed:verify` because contract fields changed. Locally:
-      `pnpm typecheck`, `pnpm lint` (36 walls), the unit lane, `pnpm test:int`
-      811/811, `pnpm seed:verify` 102/102 and `pnpm content:verify` — all green.
-      **The e2e verdict is CI's `integration-e2e` job on the current head
-      (`0da8313`, run 35757734392), green** — re-established there rather than
-      left citing `4e41b79`, because two code commits landed after that run
-      (`42c74c1`, the Board adapter completion, and `0da8313`, which deleted
-      those adapters and moved the form-to-command mapping into
-      `activityCommands.ts`). An e2e verdict names a commit; when the commit
-      moves, so does the verdict, or the tick is about code that no longer
-      exists. That job is `pnpm --filter web build` then `pnpm --filter web
+      `pnpm typecheck`, `pnpm lint` (36 walls), the unit lane, `pnpm test:int`,
+      `pnpm seed:verify` 102/102 and `pnpm content:verify` — all green.
+      **The e2e verdict is CI's `integration-e2e` job on the milestone's FINAL
+      head (`18623fb`, run 35787343742), green**, merged as `99f32d3`. An e2e
+      verdict names a commit; when the commit moves, so does the verdict, or
+      the tick is about code that no longer exists.
+      *
+      **This citation has moved three times and the last move was nearly
+      missed.** It read `4e41b79`, then `0da8313` (run 35757734392) when the
+      Board adapters were completed and then deleted. It was STILL reading
+      `0da8313` when this gate was closed on 2026-09-22 — by which point **ten
+      further code commits had landed**, the whole notebooks-in-the-event-log
+      piece among them, including a regression `integration-e2e` caught and the
+      fix for it. A box citing a run from before the largest part of its own
+      milestone certifies the wrong code, which is exactly what the rule above
+      exists to prevent. It was caught by a scheduled check-in whose own
+      subject had already merged — not by the close. **The cheap lesson: re-read
+      this citation AT gate close, not only when a commit lands.** Two further
+      measurements on that final head, for anyone re-establishing it:
+      `pnpm --filter web test:int` **824/824**, and `test:e2e:ci-like` run
+      locally over both notebook specs, **26 passed**. That job is `pnpm --filter web build` then `pnpm --filter web
       test:e2e`, and GitHub sets `CI=true`, so
       `playwright.config.ts`'s `webServer.command` resolves to `pnpm start`
       against the built app — which is exactly what `test:e2e:ci-like`
