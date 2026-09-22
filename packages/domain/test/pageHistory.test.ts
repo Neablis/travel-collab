@@ -17,10 +17,16 @@ const B = (n: number) => `0000000${n}-0000-4000-8000-000000000000`;
 const doc = (text: string): PageDoc =>
   ({ v: 1, type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] }) as PageDoc;
 
-function env(seq: number, type: string, payload: unknown, batch: number): EventEnvelope {
+function env(
+  seq: number,
+  type: string,
+  payload: unknown,
+  batch: number,
+  origin: EventEnvelope["origin"] = { kind: "user" },
+): EventEnvelope {
   return {
     streamId: TRIP, seq, type, version: 1, payload, actorId: ALICE,
-    occurredAt: "2026-09-22T00:00:00.000Z", batchId: B(batch), origin: { kind: "user" },
+    occurredAt: "2026-09-22T00:00:00.000Z", batchId: B(batch), origin,
   };
 }
 
@@ -102,6 +108,33 @@ describe("deriveUndoRedo with page-only batches", () => {
     expect(decision.ok).toBe(true);
     if (!decision.ok) return;
     expect(decision.events.map((e) => e.type)).toEqual(["DayRemoved"]);
+  });
+
+  // **The OTHER half of the same function, and the half the undo fix changed
+  // silently.** A `user` batch clears the redo stack (`undone.length = 0`) —
+  // standard editor semantics, a new change discards the future you undid. A
+  // page-only batch used to hit that line, so saving a notebook after an undo
+  // threw the trip's redo away. Skipping the batch means it no longer can.
+  //
+  // That is the better answer rather than an accident of the fix: a notebook
+  // save is not redoable, so it has no business destroying a redo that is.
+  // Asserted because nothing else covers redo here, and a change to the skip
+  // would take this with it in silence.
+  it("does not let a notebook save throw away the trip's redo", () => {
+    const undoneDay = env(3, "DayRemoved", { tripId: TRIP, dayId: DAY }, 3, {
+      kind: "undo",
+      undoesBatchId: B(2),
+    });
+    const saved = env(4, "PageCreated", {
+      tripId: TRIP, pageId: P1, title: "Overview", context: { tripId: TRIP }, content: doc("a"), actorId: ALICE,
+    }, 4);
+
+    const beforeSave = deriveUndoRedo(groupBatches([genesis, dayAdded, undoneDay]));
+    const afterSave = deriveUndoRedo(groupBatches([genesis, dayAdded, undoneDay, saved]));
+
+    expect(beforeSave.redo).toEqual({ batchId: B(2), targetSeq: 2 });
+    // The notebook save changed nothing about what is redoable.
+    expect(afterSave.redo).toEqual(beforeSave.redo);
   });
 });
 
