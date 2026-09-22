@@ -54,6 +54,13 @@
   compromise. **Still Mitchell's decision; still costing a red row on every PR
   until it is made.**
 
+- **ANSWERED 2026-09-22 — answer 1, yes.** Mitchell: JSDoc is the convention,
+  and the 80% threshold is a floor worth having. Deliberately not acted on in
+  the same breath (*"let's do it in a ki not now"*), so **the work is
+  `KI-2026-09-22-a`** and this entry stays open as the record of the three
+  options and of why the check behaves as it does. The question this entry
+  asked is closed; the gap it measures is not.
+
 - **What it would take:** a decision, then either a `.coderabbit.yaml` edit
   (minutes) or a convention documented in `docs/guidelines/` and applied as
   files are touched (no big-bang rewrite).

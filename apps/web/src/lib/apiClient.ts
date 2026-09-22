@@ -10,6 +10,7 @@ import {
   TripAccess,
   TripDetail,
   TripGlobals,
+  TripEventsPage,
   TripHistory,
   TripInvite,
   TripShare,
@@ -144,6 +145,29 @@ export async function fetchTripHistory(tripId: string): Promise<ApiResult<TripHi
     }
     const data = (await res.json()) as { history: unknown };
     return { ok: true, value: TripHistory.parse(data.history) };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * One poll of a trip's log (M13 link 2, ADR-049): what happened after `after`,
+ * and where the head is now.
+ *
+ * `after` is a per-stream `seq`, not `events.global_seq` — see ADR-049
+ * Decision 1 for why the cursor cannot be the bigserial.
+ */
+export async function fetchTripEvents(
+  tripId: string,
+  after: number,
+): Promise<ApiResult<TripEventsPage>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/events?after=${after}`));
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    return { ok: true, value: TripEventsPage.parse(await res.json()) };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

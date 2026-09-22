@@ -43,7 +43,6 @@ import {
   type ApiError,
   type AskScope,
 } from "@/lib/apiClient";
-import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
 
@@ -90,7 +89,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -399,19 +398,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   //
   // Clamping to `null` is the same "wider reading is the safer one" call
   // `parseAskScope` makes server-side for a scope line it cannot parse.
-  const updateActivity = (activityId: string, value: ActivityFormValue) =>
-    void dispatch({
-      type: "UpdateActivity",
-      tripId,
-      activityId,
-      title: value.title,
-      timeWindow: value.timeWindow,
-      location: value.location,
-      notes: value.notes,
-      anchors: value.anchors,
-      cost: value.cost,
-    });
-
   // The unscheduled rack's contents: trip.backlog is the source of truth for
   // "parked", and each id resolves through activities. The card's `area` slot
   // is `shortPlace()` — the same area-then-city-then-name-segment order the
@@ -431,6 +417,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         title: activity.title,
         area: shortPlace(activity.location),
         timeWindow: activity.timeWindow,
+        bookedBy: activity.bookedBy,
       },
     ];
   });
@@ -1008,25 +995,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                       onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
                       onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-                      onAddActivity: (value: ActivityFormValue) =>
-                        void dispatch({
-                          type: "AddActivity",
-                          tripId,
-                          activityId: crypto.randomUUID(),
-                          title: value.title,
-                          timeWindow: value.timeWindow ?? undefined,
-                          location: value.location ?? undefined,
-                          notes: value.notes ?? undefined,
-                          anchors: value.anchors,
-                          cost: value.cost ?? undefined,
-                        }),
-                      onUpdateActivity: updateActivity,
                       onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
                       onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
                     }}
                   />
                 )}
-                {view === "Overview" && <OverviewLens detail={activeTrip} tripId={tripId} />}
+                {view === "Overview" && <OverviewLens detail={activeTrip} tripId={tripId} remoteRevision={remoteRevision} />}
                 {view === "Calendar" && (
                   <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
                 )}

@@ -27,6 +27,8 @@ function fixture(): TripDetail {
         kind: "planned" as const,
         tags: [],
         cost: null,
+        bookedBy: null,
+        participants: [],
       },
       [a2]: {
         activityId: a2,
@@ -38,6 +40,8 @@ function fixture(): TripDetail {
         kind: "planned" as const,
         tags: [],
         cost: null,
+        bookedBy: null,
+        participants: [],
       },
     },
     members: [

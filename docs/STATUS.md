@@ -35,6 +35,18 @@ general setup.
 line has moved by a gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and the five links: `docs/milestones/M13-collaboration.md`.
+**All five links are built as of 2026-09-22; the gate is 8 of 10.** Two boxes
+left, neither of them code: the two-actor browser walk, and the retro. **The
+walk cannot be done by an agent** — a two-member trip needs the owner's
+`trip.collaborators` entitlement and the preview answers 402, so that box is
+Mitchell's or it needs an entitled account.
+
+**PR #201 also carries a SECOND, unplanned piece — notebooks joining the event
+log.** A notebook edited on one device never reached another because page
+writes went straight to the `pages` table, so a save never moved `headSeq` and
+the M13 poll was correctly told nothing had happened. Pages are now commands
+and events in the trip's own stream: they broadcast, they appear in history,
+and one write path serves the BFF, v1 and the importer. Two traps below.
 
 **M13's preflight is DONE and it is not a risk to carry into the milestone.**
 `KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
@@ -47,39 +59,75 @@ landing. **One thing link 5 must know before it adds `who`:** the read model
 added to it by hand, but the guard forces the KEY, not the TYPE. The resolved
 entry says why the derivation was backed out.
 
-**What M26's close does and does not assert.** Every link in both waves is
-built (Wave 1: 0-10, Wave 2: 11-16); link 15's `Cancel · New trip · Empty`
-header is recorded as not done with its reason. **Two boxes closed on
-Mitchell's attestation rather than agent-recorded evidence**, and **the
-Definition-of-Done box is ticked at 153 passed / 2 failed, not at green** —
-both failures are map specs and both are KI-49 (Chromium does not trust the
-agent proxy's CA, so MapLibre never draws). CI, where the tiles load, is the
-verdict on those two. `pnpm check` itself was green and stamped clean.
+**What M26's close does and does not assert** — including the two boxes closed
+on attestation and the Definition-of-Done box ticked at 153/2 rather than green
+— moved to `docs/milestones/M26-design-parity.md` on 2026-09-22, same gate-close
+rule as the section below.
+
+## DONE 2026-09-22 — M13, all five links built (the gate is 8 of 10)
+
+**Full detail per link is in `docs/milestones/M13-collaboration.md`**, beside
+each link and each gate box. This section keeps only what a next session needs
+before reading it.
+
+**What is left is not code.** Two unticked boxes: the two-actor browser walk
+(the preview is deployed, nobody has driven it) and the retro.
+
+**PR #201 is green on CI**, most recently on `eeb12a1` (run 35776248515).
+Locally: typecheck, lint with **zero warnings**, the unit lane (web 3541),
+`test:int` 822/822, `seed:verify` 102/102 and `content:verify`.
+
+### Notebooks in the event log — two things to read first
+
+**`KI-2026-09-22-c` before touching undo.** Wiring `diffPageStates` into
+`decideHistoryCommand` looks like two lines and would delete every notebook on
+a revert. A test pins the safe state; the entry has the trace and three
+answers. `KI-2026-09-22-d` says why the notebook EDITOR still does not
+live-update (a re-read would clobber in-progress typing).
+
+**Any new reader of the log must skip the other aggregate's events BY NAME**,
+never by "whatever fails to parse" — that is what keeps a corrupt stream loud.
+`foldEnvelopes`, `foldPages` and both projections do it; the rebuild path was
+caught missing it only by the full int lane.
+
+**The e2e box is ticked on CI's run rather than a local one**, and gate box 9
+in `docs/milestones/M13-collaboration.md` carries the argument for why that is
+the thing `test:e2e:ci-like` proxies rather than a weaker substitute — plus
+`KI-49`, which is why an agent container cannot render MapLibre at all.
+
+**Five things a next session should not have to rediscover:**
+
+1. **`ADR-049` is accepted**, on Mitchell's instruction to begin implementation
+   rather than a written review — the ADR's status line records that basis.
+   Decision 2 (polling over SSE) is explicitly open to reversal; Decision 1
+   (per-stream `seq` as the cursor) is the expensive one to change.
+2. **Broadcast refetches, it does not fold.** The poll is a change *signal*; the
+   detail comes from the server's projection. Folding client-side would let
+   `confirmed` disagree with the server about conflicts, which is link 4's
+   subject. The refetch invalidates the read cache before reading, or the 5s
+   window answers with the staleness the poll just found.
+3. **Everything authoritative goes through `adoptOutcome`, never around it.**
+   That is what keeps remote edits out of the KI-5/KI-90 loss class.
+4. **Attribution is TWO relations** (`bookedBy`, `participants`), per Mitchell
+   2026-09-03 in M19 link 3 — who booked a stop is not who is going, and M19's
+   splits need the participants. `SavedStop` carries neither, deliberately: a
+   saved day is publishable and would leak the originating trip's member ids.
+5. **There is no attribution migration, and that is a finding, not a skipped
+   step.** The gate box assumed DDL; activities live in jsonb at every layer,
+   so these are new keys in existing documents. The `.default()`s stand in for
+   it, and an int test proves it by stripping both keys from a stored
+   `trip_details.doc` — remove the defaults and it reads `expected 500 to be
+   200`.
 
 ## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 
-**Built in PR #197.** `sharedDayFacts.ts` derives the title, the fact rows and
-the shape sentence from `dc.html:7495-7527`; `SharedDayMap` renders them under
-the canvas. The section below was written as a handoff and is kept as the
-record of what the design asks for — the table's `no` column is now `yes` for
-`mapTitle`, `mapFacts` and `mapNote`.
-
-**What it did NOT do**, both named rather than left to be rediscovered:
-
-- **`gaps[idx].label` is computed and not rendered.** `mapPanel` returns the
-  per-stop labels and a test covers them; putting them between stops needs
-  `SharedDayScreen`'s list.
-- **The 3.5s / 7.5s / 11s recovery ladder is still not wired into
-  `SharedDayMap`.** `mapRecovery.ts` has it and the Map *lens* uses it; the
-  shared day's map has only the fatal-error path. That, not "the rendering", is
-  what keeps M26 link 4 open — see the milestone file.
-
-The original handoff — the design derivation, the walk, the decisions and the
-reuse constraint — is **`docs/retros/2026-09-21-status-archive.md`**, verbatim
-and in order. It was 43,702 B, 69% of this file, describing work that shipped
-in #197. What was still LIVE inside it has been promoted rather than archived:
-the two blockers under *Blocking / broken right now*, and the two unfinished
-pieces named above.
+**Moved to `docs/milestones/M26-design-parity.md` on 2026-09-22**, verbatim,
+under *The shared day's map panel (link 4b)* — M26's gate closed 2026-09-21, and
+this file's own rule is that a phase's narrative moves to its milestone file at
+gate close and the pointer stays here. **Two things in it are still live and are
+still true**: `gaps[idx].label` is computed and not rendered, and the
+3.5s/7.5s/11s recovery ladder is not wired into `SharedDayMap` — which is what
+keeps M26 link 4 open rather than the rendering.
 
 ## Live rules that the code cannot enforce
 

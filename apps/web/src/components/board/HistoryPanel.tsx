@@ -5,6 +5,7 @@ import type { TripHistory } from "@tc/contracts";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { coalesceHistory } from "./coalesceHistory";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
@@ -43,13 +44,17 @@ export function HistoryPanel({
 
   if (history === null) return null;
 
-  const visible = history.entries.slice(0, visibleCount);
-  const hasMore = history.entries.length > visibleCount;
+  // Grouped BEFORE paging, so "Show older" reveals another PAGE_SIZE rows a
+  // reader can count rather than another PAGE_SIZE batches that might collapse
+  // into three lines.
+  const rows = coalesceHistory(history.entries);
+  const visible = rows.slice(0, visibleCount);
+  const hasMore = rows.length > visibleCount;
 
   return (
     <div className="flex flex-col gap-2">
       <ol reversed className="m-0 max-h-80 list-none divide-y divide-hairline overflow-y-auto p-0">
-        {visible.map((entry) => (
+        {visible.map(({ entry, count }) => (
           <li
             key={entry.batchId}
             data-testid="history-entry"
@@ -63,6 +68,13 @@ export function HistoryPanel({
               className={cn("min-w-0 flex-1 justify-start", entry.undone && "opacity-50", previewSeq === entry.toSeq && "font-bold")}
             >
               <span className="truncate">{entry.undone ? <s>{entry.description}</s> : entry.description}</span>
+              {/* The count is shown rather than implied, because one undo
+                  undoes one BATCH and this row stands for `count` of them —
+                  see `coalesceHistory`. A reader who cannot see the number
+                  would have no way to know why undo did not clear the line. */}
+              {count > 1 && (
+                <DataText size="xs" className="shrink-0 opacity-60">{`×${count}`}</DataText>
+              )}
             </Button>
             <DataText size="xs" className="shrink-0">{formatTripDate(entry.occurredAt.slice(0, 10))}</DataText>
           </li>

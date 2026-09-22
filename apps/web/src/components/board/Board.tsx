@@ -21,7 +21,6 @@ import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/compo
 import { dayAccents } from "@/lib/dayAccent";
 import { stopsForDay } from "@/lib/savedStops";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
-import { type ActivityFormValue } from "./ActivityEditor";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
 import { resolveDrop } from "./resolveDrop";
@@ -111,8 +110,17 @@ export type BoardCallbacks = {
   onSelectDay: (index: number | null) => void;
   onAddDay: () => void;
   onRemoveDay: (dayId: string) => void;
-  onAddActivity: (value: ActivityFormValue) => void;
-  onUpdateActivity: (activityId: string, value: ActivityFormValue) => void;
+  // `onAddActivity`/`onUpdateActivity` taking an `ActivityFormValue` were
+  // declared here when this file was extracted from `TripBoardScreen`
+  // (5a786a9) and were never called by anything, in any version — born dead
+  // rather than abandoned. Editing goes through `ActivityEditorSheet`, which
+  // owns the form and dispatches its own commands. Removed 2026-09-22 after
+  // `git log -S` confirmed no call site has ever existed: a second, unreachable
+  // copy of the form-to-command mapping is exactly how a field gets silently
+  // dropped, which is what CodeRabbit found on PR #201.
+  //
+  // `Column`'s own `onAddActivity` is unrelated and still live: it takes no
+  // arguments and opens the sheet.
   onRemoveActivity: (activityId: string) => void;
   onDismissConflict: (conflictId: string) => void;
 };

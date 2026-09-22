@@ -28,6 +28,8 @@ describe("ActivityEditor", () => {
       kind: "planned" as const,
       tags: [],
       cost: null,
+      bookedBy: null,
+      participants: [],
     };
     const onSave = vi.fn();
     const props = { initial, mode: "edit" as const, days: [], onSave, onCancel: vi.fn() };
@@ -55,6 +57,8 @@ function existingStop(overrides: Partial<ActivityView> = {}): ActivityView {
     kind: "planned",
     tags: [],
     cost: null,
+    bookedBy: null,
+    participants: [],
     ...overrides,
   };
 }
@@ -147,5 +151,95 @@ describe("ActivityEditor tag picker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Meal" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ tags: ["outdoors"] }));
+  });
+});
+
+// M13 link 5 — "set through the UI", the gate box's own words. Two controls
+// because they answer two questions: who is GOING (participants) and who
+// BOOKED it (bookedBy). A single "who" would read fine and be wrong for every
+// cost split M19 later derives from the participants.
+describe("ActivityEditor attribution (M13 link 5)", () => {
+  const MEMBERS = [
+    { userId: "alice", role: "owner" as const },
+    { userId: "bob", role: "editor" as const },
+  ];
+  const stop = (over: Partial<ActivityView> = {}): ActivityView => ({
+    activityId: "11111111-1111-1111-1111-111111111111",
+    title: "Colosseum",
+    timeWindow: null,
+    location: null,
+    notes: null,
+    anchors: [],
+    kind: "planned",
+    tags: [],
+    cost: null,
+    bookedBy: null,
+    participants: [],
+    ...over,
+  });
+
+  const mount = (initial: ActivityView | null, members = MEMBERS) => {
+    const onSave = vi.fn();
+    render(
+      <ActivityEditor
+        initial={initial}
+        mode={initial === null ? "create" : "edit"}
+        days={[]}
+        members={members}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    return onSave;
+  };
+  const save = () => fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+  it("offers one toggle per member and sends who is going", () => {
+    const onSave = mount(stop());
+    fireEvent.click(screen.getByRole("button", { name: "bob" }));
+    save();
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["bob"] }));
+  });
+
+  it("sends who booked it, separately from who is going", () => {
+    const onSave = mount(stop());
+    fireEvent.click(screen.getByRole("button", { name: "bob" }));
+    fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "alice" } });
+    save();
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ bookedBy: "alice", participants: ["bob"] }),
+    );
+  });
+
+  it("seeds both from the stop being edited", () => {
+    mount(stop({ bookedBy: "alice", participants: ["bob"] }));
+    expect(screen.getByRole("button", { name: "bob" }).getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByLabelText("Booked by") as HTMLSelectElement).value).toBe("alice");
+  });
+
+  // The drop this milestone's preflight exists to prevent: an edit that never
+  // touches attribution must not clear it.
+  it("round-trips attribution through an unrelated edit", () => {
+    const onSave = mount(stop({ bookedBy: "alice", participants: ["bob"] }));
+    fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Colosseum tour" } });
+    save();
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ bookedBy: "alice", participants: ["bob"] }),
+    );
+  });
+
+  it("clears who booked it back to nobody", () => {
+    const onSave = mount(stop({ bookedBy: "alice" }));
+    fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "" } });
+    save();
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
+  });
+
+  // A solo trip has nobody to attribute to, so the controls would be an empty
+  // box that reads as broken.
+  it("says why there is nothing to pick on a trip with no other members", () => {
+    mount(stop(), []);
+    expect(screen.getByText(/invite someone to the trip/i)).toBeTruthy();
+    expect(screen.queryByLabelText("Booked by")).toBeNull();
   });
 });

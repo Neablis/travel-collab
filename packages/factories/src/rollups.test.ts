@@ -99,4 +99,6 @@ const stop = {
   kind: "planned" as const,
   tags: [],
   cost: null,
+  bookedBy: null,
+  participants: [],
 };

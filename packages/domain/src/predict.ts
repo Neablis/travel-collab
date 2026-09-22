@@ -38,3 +38,17 @@ export function predictBatch(detail: TripDetail, commands: BatchableCommand[]): 
 export function predictCommand(detail: TripDetail, command: BatchableCommand): PredictResult {
   return predictBatch(detail, [command]);
 }
+
+// M13 link 4. The client's concurrent-edit detector asks "did this stop change
+// on the server while I had unsent work naming it?", and the honest comparison
+// is the domain's own field-by-field one rather than a structural or JSON
+// equality the client would maintain separately.
+//
+// Re-exported through THIS entrypoint on purpose: the lint wall lets only
+// `src/server` and `src/app/api` import `@tc/domain`, and `predict.ts` is the
+// curated surface the client is allowed (via `@tc/predict`). A second copy of
+// activity equality on the client side would also lose what
+// `KI-2026-09-05-o` bought — `FIELD_EQUAL` is a `Record<keyof ActivityState, …>`,
+// so a ninth activity field is a compile error there and every caller of this
+// starts accounting for it in the same commit.
+export { activityStatesEqual } from "./trip/equality";

@@ -13,6 +13,115 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-22 — notebook pages become commands and events
+
+- Added `packages/contracts/src/pageEvents.ts`: commands **`CreatePage`**,
+  **`EditPage`**, **`DeletePage`** (union `PageCommand`) and events
+  **`PageCreatedV1`**, **`PageEditedV1`**, **`PageDeletedV1`** (union
+  `PageEvent`), plus the `isPageEventType` guard.
+- Added to `HistoryEntry` (`packages/contracts/src/history.ts`) an optional
+  **`pageId`**, so a history row can name the notebook it is about.
+- Why: a notebook save wrote the `pages` table directly, so it moved no
+  `headSeq`, appeared in no history and could not be undone or reverted to —
+  reported by Mitchell on 2026-09-22 as a notebook edited on one device never
+  reaching another. Page events now share the trip's stream.
+- **`PageEvent` is NOT part of `TripEvent`, and that is the load-bearing
+  decision.** One stream, two aggregates: `hydrate.ts` is the documented
+  inverse of the projection under a round-trip property test, which makes
+  `TripDetail` a strict superset of `TripState` — so a `pages` field on one is
+  a `pages` field on the other, stored whole in `trip_details.doc` and
+  refetched on every 2s poll. Each fold skips the other aggregate's events **by
+  name**, so an envelope belonging to neither still throws.
+- **`EditPage` has no `context` field**, deliberately: the Overview marker
+  (`PageContext.kind`) is then structurally unwritable by an edit, so no
+  command can promote an ordinary page into the undeletable one.
+- Consumers updated: `@tc/domain` (`pageState.ts`, `history.ts`, `detail.ts`,
+  `project.ts`), `apps/web` (page commands, BFF + v1 routes, importer, history
+  panel, Overview lens) — in this same PR
+- Breaking? no — no stored event payload changes, and `TripEvent.parse` still
+  accepts every previously stored event. Pages that predate this have a ROW and
+  no genesis event; they are backfilled lazily on first command rather than by
+  a migration, and `HistoryEntry.pageId` is not in `required`.
+
+## 2026-09-22 — a stop knows who booked it and who is going (M13 link 5)
+
+- Added to `ActivitySnapshot` (`packages/contracts/src/activity.ts`):
+  **`bookedBy: string | null`** (default `null`) and **`participants: string[]`**
+  (default `[]`). Both flow automatically into `ActivityAddedV1` /
+  `ActivityUpdatedV1` (which `.extend()` the snapshot) and into
+  `ActivityState` (which is `z.infer<typeof ActivitySnapshot>`).
+- Added to `ActivityView` (`packages/contracts/src/detail.ts`) **by hand** — the
+  read model is deliberately not derived, and the `ActivityViewCoversSnapshot`
+  guard forced the key. Its validators are deliberately looser than the
+  snapshot's: a `bookedBy` naming somebody who has since left the trip must
+  still READ, because membership changing under a stored document is an
+  ordinary outcome.
+- Added to `AddActivity` and `UpdateActivity` as optional inputs. On update,
+  **omitted = unchanged and `bookedBy: null` CLEARS** — hence
+  `=== undefined` rather than `??` in the decider, or "nobody booked this after
+  all" would be read as "unchanged". `participants` is replaced wholesale
+  rather than merged.
+- **Two relations, not one**, and that is the load-bearing decision:
+  Mitchell, 2026-09-03 (recorded in `M19-cost-model.md` link 3) — *"we need
+  activities to have owners (and i think participants that are going to that
+  activity)"*. Who BOOKED a stop is not who is GOING to it, and M19's cost
+  splits need the participants. A single `assignee` would have satisfied
+  `add-stop-who`'s wording and been wrong for every split built on it.
+  Named `bookedBy` rather than `owner` because `owner` is already a `TripRole`
+  and the `saved_days.owner_id` column.
+- **`SavedStop` deliberately does NOT carry either field**, and
+  `packages/contracts/test/saved.test.ts` now asserts the omission by name. A
+  saved day is publishable — `visibility` flips to `"public"` — so copying
+  attribution in would publish the originating trip's member ids to strangers,
+  and it would be meaningless on the other end besides.
+- **No migration.** Activities live in jsonb (`events.payload`,
+  `trip_details.doc`), so there is no DDL to run; the contract defaults are
+  what let a document written before this field existed read back at all. That
+  is asserted, not assumed — `route.int.test.ts` strips both keys from a stored
+  projection and reads the trip back.
+- Why: M13 link 5. `add-stop-who` and `rack-provenance` had sat in
+  `preview-registry.ts` since M11b blocked on exactly this absence; both
+  entries are now gone, and M19 link 3 and M14's two cut person widgets are
+  unblocked.
+- Consumers updated: `packages/domain` (`decide`, `evolve`, `diff`, `detail`,
+  `hydrate`, `equality`'s `FIELD_EQUAL`), `packages/factories`, `apps/web`
+  (the editor's two new controls, the rack's provenance line, the MSW mock),
+  and `apps/web/src/app/api/v1/openapi.json` (regenerated — `ActivityView` is a
+  public v1 response shape).
+- Breaking? **no** — both fields are defaulted on every schema that parses
+  stored data, so every existing payload and document still parses.
+
+## 2026-09-22 — a trip's log is pollable: `TripEventsPage` (M13 link 2, ADR-049)
+
+- Added: `TripEventsPage` (`packages/contracts/src/envelope.ts`) — the response
+  of `GET /api/trips/:tripId/events?after=<seq>`: `headSeq` (non-negative int),
+  `events` (an array of the existing `EventEnvelope`), and `resync` (bool).
+- **`EventEnvelope` is unchanged, and that is a decision rather than an
+  omission.** ADR-049 Decision 1 rejects `events.global_seq` as the
+  subscription cursor, so it stays off the wire: a `bigserial` takes its value
+  at `INSERT` and becomes visible at `COMMIT`, so a reader polling
+  `global_seq > cursor` can advance past an event that commits late and never
+  be served it again. The cursor is per-stream `seq`, which `EventEnvelope`
+  already carries and which cannot do that, because writing `seq` N+1 requires
+  having read N committed rows in that stream.
+- `resync: true` means the caller is further behind than one poll will carry
+  (`MAX_EVENTS_PER_POLL`, 200) and should refetch the trip instead of
+  collecting the gap; `events` is empty whenever it is set, so the two are
+  alternatives rather than a partial answer plus a warning.
+- Why: M13 link 2 — "the second person's edits do not arrive". Before this
+  there was no shape for "what happened on this trip since `seq` N", and
+  `ADR-046` had already recorded the consequence: with no realtime,
+  refetch-on-mount was the only way anyone saw a co-traveller's edit.
+- Consumers updated: `apps/web` only — `src/server/eventStore.ts`
+  (`readStreamHeadSeq`, `readStreamAfter`), `src/server/broadcast.ts`, and the
+  route `src/app/api/trips/[tripId]/events/route.ts`, which parses the response
+  through this schema at the boundary. **No client consumer yet**: wiring
+  received events into `TripProvider` waits on M13 link 3's re-prediction
+  reducer, because ADR-049 forbids broadcast having its own merge path.
+- Breaking? **no** — a pure addition. No existing schema changed, no migration,
+  and no new index (the poll's range scan uses `events_stream_seq` as it
+  stands).
+
 ## 2026-09-21 — the activity field set is declared once (KI-2026-09-05-o)
 
 - Added: `ActivitySnapshot` (`packages/contracts/src/activity.ts`) — an exported

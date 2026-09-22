@@ -2097,3 +2097,48 @@ and Discover's header — **both of which this milestone rebuilds**. If link 2 a
 link 3 land first, M12 adds rows to a finished surface. If they do not, M12
 builds its rating rail into a layout that changes underneath it. That is the
 same argument M23 made for running before M12, and it points the same way.
+
+
+## The shared day's map panel (link 4b)
+
+*(Moved verbatim from `docs/STATUS.md` on 2026-09-22 at gate close, per that
+file's rule. Kept in full because the two "what it did NOT do" items are what
+keep link 4 open.)*
+
+**Built in PR #197.** `sharedDayFacts.ts` derives the title, the fact rows and
+the shape sentence from `dc.html:7495-7527`; `SharedDayMap` renders them under
+the canvas. The section below was written as a handoff and is kept as the
+record of what the design asks for — the table's `no` column is now `yes` for
+`mapTitle`, `mapFacts` and `mapNote`.
+
+**What it did NOT do**, both named rather than left to be rediscovered:
+
+- **`gaps[idx].label` is computed and not rendered.** `mapPanel` returns the
+  per-stop labels and a test covers them; putting them between stops needs
+  `SharedDayScreen`'s list.
+- **The 3.5s / 7.5s / 11s recovery ladder is still not wired into
+  `SharedDayMap`.** `mapRecovery.ts` has it and the Map *lens* uses it; the
+  shared day's map has only the fatal-error path. That, not "the rendering", is
+  what keeps M26 link 4 open — see the milestone file.
+
+The original handoff — the design derivation, the walk, the decisions and the
+reuse constraint — is **`docs/retros/2026-09-21-status-archive.md`**, verbatim
+and in order. It was 43,702 B, 69% of this file, describing work that shipped
+in #197. What was still LIVE inside it has been promoted rather than archived:
+the two blockers under *Blocking / broken right now*, and the two unfinished
+pieces named above.
+
+
+## What this milestone's close does and does not assert
+
+*(Moved from `docs/STATUS.md` on 2026-09-22 at gate close, per that file's
+rule.)*
+
+**What M26's close does and does not assert.** Every link in both waves is
+built (Wave 1: 0-10, Wave 2: 11-16); link 15's `Cancel · New trip · Empty`
+header is recorded as not done with its reason. **Two boxes closed on
+Mitchell's attestation rather than agent-recorded evidence**, and **the
+Definition-of-Done box is ticked at 153 passed / 2 failed, not at green** —
+both failures are map specs and both are KI-49 (Chromium does not trust the
+agent proxy's CA, so MapLibre never draws). CI, where the tiles load, is the
+verdict on those two. `pnpm check` itself was green and stamped clean.

@@ -244,7 +244,10 @@ reorder and the one place a reorder updates.
       that boundary twice costs twice. **Scoped 2026-09-01** — five links, and
       the transport ADR is a prerequisite rather than a deliverable. Link 3 is
       the *"adopt this outcome, re-predict what is queued"* reducer **KI-90
-      already names as the fix** for KI-90, KI-5 and KI-77 at once. It also owns
+      already names as the fix** for KI-90 and KI-5's `applyOutcome` precondition
+      at once — **two, not three**: the "KI-77" this line used to carry was
+      KI-90's own pre-renumbering number, and the real KI-77 is a resolved
+      geocoder bug (corrected 2026-09-22). It also owns
       per-stop attribution, which **M19's link 3 depends on** — if M13 ships
       without it, that link returns to M19.)*
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.

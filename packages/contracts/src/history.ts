@@ -68,6 +68,24 @@ export const HistoryEntry = z.object({
   origin: Origin,
   description: z.string(),
   undone: z.boolean(),
+  /**
+   * The notebook page this entry is about, when it is about exactly one.
+   *
+   * **Present only for a batch whose events all belong to the page aggregate**
+   * — absent on every trip change, which is what "absent" means here rather
+   * than "unknown".
+   *
+   * It exists so the history panel can group a run of edits to ONE page
+   * without inferring the page from the description. The editor autosaves on
+   * an 800ms debounce, so a few minutes of writing is dozens of batches that a
+   * reader wants to see as one line; grouping them by `(actorId, description)`
+   * would have worked by accident, and stopped working the moment two pages
+   * shared a title.
+   *
+   * Optional, so every stored and served entry written before this is still
+   * valid and every existing consumer is unaffected.
+   */
+  pageId: z.string().uuid().optional(),
 });
 export type HistoryEntry = z.infer<typeof HistoryEntry>;
 

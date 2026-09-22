@@ -25,6 +25,7 @@ import {
   fetchTripGlobals,
   fetchTrips,
   fetchTripDetailAt,
+  fetchTripEvents,
   fetchTripHistory,
   fetchTripShares,
   insertSavedDay,
@@ -186,6 +187,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchTripGlobals: () => fetchTripGlobals(TRIP_ID),
   fetchTrips: () => fetchTrips(),
   fetchTripHistory: () => fetchTripHistory(TRIP_ID),
+  fetchTripEvents: () => fetchTripEvents(TRIP_ID, 0),
   fetchTripDetailAt: () => fetchTripDetailAt(TRIP_ID, 1),
   sendTripCommand: () => sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID }),
   sendTripCommandBatch: () =>

@@ -40,6 +40,8 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           kind: a.kind ?? ("planned" as const),
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       ]),
     ),

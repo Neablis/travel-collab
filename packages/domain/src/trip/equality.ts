@@ -34,6 +34,16 @@ function sameTags(a: readonly ActivityTag[], b: readonly ActivityTag[]): boolean
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
 
+// Member-id lists compare POSITIONALLY, for the reason stated above `sameTags`
+// and not because participants are "really" ordered: the update snapshot keeps
+// whatever order the command supplied, and `diff` compares the two states
+// positionally. Set semantics here would make a reorder equal-but-different —
+// this function reporting no change while `diff` shows one — which is a worse
+// answer than treating the stored order as the stored order.
+function sameIdList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
 // `lines` order is significant — it is the street-level part in the country's
 // own order, so ["Apt 4", "5 High St"] and ["5 High St", "Apt 4"] are different
 // addresses. Compared positionally, like anchors and tags.
@@ -97,6 +107,10 @@ const FIELD_EQUAL: { [K in keyof ActivityState]: (a: ActivityState[K], b: Activi
   kind: (a, b) => a === b,
   tags: sameTags,
   cost: moneyEqual,
+  // M13 link 5. `bookedBy` is one id or nobody; `participants` compares
+  // positionally, the same rule `tags` and `anchors` already follow.
+  bookedBy: (a, b) => a === b,
+  participants: sameIdList,
 };
 
 const ACTIVITY_FIELDS = Object.keys(FIELD_EQUAL) as (keyof ActivityState)[];

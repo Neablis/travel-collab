@@ -24,6 +24,8 @@ function activity(
     kind: "planned" as const,
     tags: [],
     cost: null,
+    bookedBy: null,
+    participants: [],
   };
 }
 

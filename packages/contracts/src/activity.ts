@@ -200,6 +200,11 @@ export const AddActivity = z.object({
   type: z.literal("AddActivity"),
   tripId: z.string().uuid(),
   activityId: z.string().uuid(),
+  // M13 link 5. Both optional: a stop added without saying who it is for is
+  // the ordinary case, and the zero values are "nobody" and "everybody's
+  // business", not "unknown".
+  bookedBy: z.string().nullable().optional(),
+  participants: z.array(z.string()).optional(),
   dayId: z.string().uuid().optional(), // omitted = backlog
   title: z.string().min(1).max(200),
   timeWindow: TimeWindow.optional(),
@@ -235,6 +240,12 @@ export const UpdateActivity = z.object({
   type: z.literal("UpdateActivity"),
   tripId: z.string().uuid(),
   activityId: z.string().uuid(),
+  // M13 link 5. Omitted = unchanged; `null` clears `bookedBy`. `participants`
+  // is replaced wholesale rather than added to — the editor hands back the
+  // whole list, and a partial add/remove command would need its own conflict
+  // story the moment two people edit the same stop's list.
+  bookedBy: z.string().nullable().optional(),
+  participants: z.array(z.string()).optional(),
   title: z.string().min(1).max(200).optional(),
   timeWindow: TimeWindow.nullable().optional(),
   location: Location.nullable().optional(),
@@ -327,6 +338,39 @@ export const ActivitySnapshot = z.object({
   kind: ActivityKind.default("planned"), // never null — "planned" is the zero value
   tags: z.array(ActivityTag).default([]), // never null — [] is the zero value
   cost: Money.nullable().default(null),
+  // ---- Per-stop attribution (M13 link 5) ----
+  //
+  // **Two relations, not one.** Mitchell, 2026-09-03 (recorded in
+  // `M19-cost-model.md` link 3): *"we need activities to have owners (and i
+  // think participants that are going to that activity)"*. Who **booked** a
+  // stop is not who is **going** to it, and M19's splits need the participants,
+  // not the owner — so a single `assignee` would satisfy `add-stop-who`'s
+  // wording and still be wrong for every split later built on it.
+  //
+  // Named `bookedBy` rather than `owner` deliberately: `owner` is already a
+  // `TripRole` and the `saved_days.owner_id` column, and an activity-level
+  // `owner` would read as "the trip's owner" at every call site. `bookedBy`
+  // names the distinction M19 actually draws.
+  //
+  // Both are member user ids, and **nothing in the domain validates them
+  // against the member list** — deliberately, and not as an omission. Two
+  // reasons: a trip whose member later leaves must still replay, and the
+  // AUTHORITATIVE member list is not in the log at all. `TripState.members` is
+  // only what the log produced (the creator); invited members live in
+  // `trip_memberships` and are overlaid at the read boundary by
+  // `effectiveMembers`. A decider checking `state.members` would therefore
+  // reject a legitimately invited editor. Validation, where it is wanted,
+  // belongs on the server where that overlay exists — and the UI only ever
+  // offers current members, so an id from nowhere is not reachable through
+  // the product.
+  //
+  // Defaulted, never required, for exactly the reason `kind` and `tags` are:
+  // every payload and every `trip_details.doc` written before this field
+  // existed has no such key, and a row is only rewritten when its trip next
+  // changes. A required field here 500s the board for any trip nobody has
+  // touched since — which is what it did to the #71 preview.
+  bookedBy: z.string().nullable().default(null),
+  participants: z.array(z.string()).default([]),
 });
 export type ActivitySnapshot = z.infer<typeof ActivitySnapshot>;
 

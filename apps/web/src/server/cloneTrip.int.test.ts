@@ -6,7 +6,7 @@ import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { executeTripCommand } from "./commands";
 import { getTripDetail } from "./projections";
-import { createPage } from "./pages";
+import { executePageCommand } from "./pageCommands";
 import { cloneSharedTrip, duplicateTrip } from "./cloneTrip";
 import { rebuildProjections } from "./projections";
 import { acceptInvite, createInvite } from "./access/invites";
@@ -83,9 +83,15 @@ describe("duplicateTrip", () => {
   it("does not copy the source trip's pages", async () => {
     const tripId = randomUUID();
     await executeTripCommand({ type: "CreateTrip", tripId, name: "Japan" }, actor);
-    await createPage(
-      tripId,
-      { title: "Packing", context: { tripId }, content: newPageDoc() },
+    await executePageCommand(
+      {
+        type: "CreatePage",
+        tripId,
+        pageId: randomUUID(),
+        title: "Packing",
+        context: { tripId },
+        content: newPageDoc(),
+      },
       actor,
     );
 

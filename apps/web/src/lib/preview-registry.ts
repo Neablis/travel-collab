@@ -28,7 +28,12 @@
 // remains" was false for reasons M11b could not fix. Where each went:
 //
 //   * `rack-provenance` -> **M13**, which already holds `add-stop-who` for the
-//     same missing per-stop attribution field.
+//     same missing per-stop attribution field. **Both entries are GONE as of
+//     2026-09-22**: M13 link 5 landed `bookedBy` and `participants`, so the
+//     editor's "Who is in" is a real control and the rack line says who parked
+//     a stop. The half link 5 did NOT model — which day a parked stop came
+//     from — is in `docs/candidates.md` rather than left here as a placeholder
+//     that reads as a promise.
 //   * `cost-estimate-state` and `budget-breakdown` -> **M19**, minted for them
 //     the same day (`docs/milestones/M19-cost-model.md`). No existing milestone
 //     owned cost classification; M4 closed long ago.
@@ -80,7 +85,6 @@ export const PREVIEW_REGISTRY = {
   // per the rule below; do not retag it to a milestone that merely sounds
   // adjacent. See docs/reviews/2026-09-01-milestone-audit.md §3b.
   "map-legend-modes": { milestone: "unplaced", wiredUpBy: "Transport mode per leg — no field models it today, and no milestone owns adding one" },
-  "rack-provenance": { milestone: "M13", wiredUpBy: "Who parked a stop, and which day it came from — no field models either. Sits with `add-stop-who`, the same absence from the other side; whichever milestone lands per-stop attribution unblocks both" },
   // `cost-estimate-state` was here, and SPEC §24 deleted the surface it was
   // drawn on — the timeline was its only host, the same as `timeline-ghost`
   // above. The difference is that this one had a real owner: **M19 keeps the
@@ -96,7 +100,6 @@ export const PREVIEW_REGISTRY = {
   // `DRIFT.md` §3 lists this entry and is now two shorter.
   "budget-breakdown": { milestone: "M19", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
   "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
-  "add-stop-who": { milestone: "M13", wiredUpBy: "Per-stop attribution — no field records who a stop is for" },
   // **M21 link 5 wired both of the account sheet's plan shells up and removed
   // them**, 2026-09-14 — `account-plan-change` and `account-plan-billing`.
   //

@@ -17,6 +17,8 @@ function activity(id: string, timeWindow: { start: string; end: string } | null)
     kind: "planned" as const,
     tags: [],
     cost: null,
+    bookedBy: null,
+    participants: [],
   };
 }
 

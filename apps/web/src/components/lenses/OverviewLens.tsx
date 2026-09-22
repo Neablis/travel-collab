@@ -6,7 +6,7 @@ import type { PageDoc, PageSummary, TripDetail, TripGlobals } from "@tc/contract
 import { isOverviewPage } from "@tc/pages";
 import { fetchPage, fetchPages } from "@/lib/pagesClient";
 import { fetchTripGlobals } from "@/lib/apiClient";
-import { DEDUPE, cachedRead } from "@/lib/queryCache";
+import { DEDUPE, cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { inspectStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
@@ -45,7 +45,26 @@ import { cn } from "@/lib/cn";
 // stable) in the one place that solves it. Moving the seed to trip creation
 // would have to re-solve both, and would leave every trip created before the
 // change without one.
-export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: string }) {
+export function OverviewLens({
+  detail,
+  tripId,
+  remoteRevision = 0,
+}: {
+  detail: TripDetail;
+  tripId: string;
+  /**
+   * Bumped by `TripProvider` when the poll reports the trip's log moved.
+   *
+   * **A prop, not `useTrip()`,** for the reason `Board` is props-only and says
+   * so at length: this component's own tests render it with no provider, and
+   * `useTrip` throws outside one. `TripBoardScreen` is inside the provider
+   * already and passes it down — the same route `focusedDay` and `sync` take.
+   *
+   * Defaulted to 0 so every existing caller and test is unchanged, and so the
+   * effect below can tell "never moved" from "moved once".
+   */
+  remoteRevision?: number;
+}) {
   // Fetched here rather than taken as a prop, the same way `PageScreen` does
   // it: the trip board has never needed the cities projection and asking it to
   // carry one for this tab would put a request on Plan, Calendar and Map to
@@ -77,8 +96,40 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
   // that does not repeat the original read is a retry of something else.
   const [attempt, setAttempt] = useState(0);
 
+  // **A co-traveller's notebook edit, arriving without a reload.**
+  //
+  // Reported by Mitchell 2026-09-22: two devices, one editing the Overview
+  // notebook, the other sat on this tab and never seeing it. Three things were
+  // wrong and this is the last of them — page writes now go through the event
+  // log (so the poll notices) and the poll now reports it (`remoteRevision`),
+  // but this lens read its page ONCE on mount and never looked again.
+  //
+  // It joins the dependency list rather than getting an effect of its own, so
+  // a remote change re-runs exactly the read that a mount does. The cache is
+  // invalidated first for the same reason `TripProvider.onRemoteChange`
+  // invalidates: `DEDUPE.DOCUMENT` is far longer than the poll interval, so
+  // without it the re-read is answered out of the very entry the poll just
+  // proved stale.
   useEffect(() => {
     let live = true;
+    // **Folded into the read rather than sitting in an effect of its own.** A
+    // separate invalidate effect was untestable from here: dropping its
+    // dependency array changed nothing any test could see, because invalidating
+    // does not by itself cause a read. One effect means the mutation that
+    // breaks the re-read is the same one that breaks the invalidation.
+    //
+    // `> 0` so a mount does not invalidate — there is nothing stale on the
+    // first read, and clearing the cache there would discard the entry the
+    // trip's own hero just filled.
+    //
+    // Two prefixes, because `invalidate` matches by prefix and the list key is
+    // not a prefix of the document keys: `trip:X:pages` and `trip:X:page:`
+    // differ at the character after "page". The empty page id is what makes the
+    // second one a prefix of every document rather than one of them.
+    if (remoteRevision > 0) {
+      invalidate(tripKeys.pages(tripId));
+      invalidate(tripKeys.page(tripId, ""));
+    }
     void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
       dedupeMs: DEDUPE.DOCUMENT,
     }).then((r) => {
@@ -124,7 +175,7 @@ export function OverviewLens({ detail, tripId }: { detail: TripDetail; tripId: s
     return () => {
       live = false;
     };
-  }, [tripId, attempt]);
+  }, [tripId, attempt, remoteRevision]);
 
   // **The chrome, outside every branch** — §3b, and the artboard draws it that
   // way (`dc.html:1959-1964`: the heading row and its action sit ABOVE

@@ -1,6 +1,8 @@
 import { CreatePageInput } from "@tc/contracts";
+import { randomUUID } from "node:crypto";
 import { guard } from "@/server/pages-guard";
-import { listPages, createPage } from "@/server/pages";
+import { listPages } from "@/server/pages";
+import { executePageCommand } from "@/server/pageCommands";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
@@ -23,6 +25,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ tripId:
   const body = CreatePageInput.safeParse(await req.json());
   if (!body.success) return Response.json({ error: "invalid-page" }, { status: 400 });
   if (body.data.context.tripId !== tripId) return Response.json({ error: "context tripId mismatch" }, { status: 400 });
-  const page = await createPage(tripId, body.data, g.userId);
-  return Response.json({ page }, { status: 201 });
+  // **The id is minted HERE, not by the database**, which is what a command
+  // needs: `CreatePage` names the page it creates, so the event is the same
+  // whoever replays it. Activity ids have always worked this way; `createPage`
+  // let Postgres mint one because a direct insert could.
+  const result = await executePageCommand(
+    { type: "CreatePage", tripId, pageId: randomUUID(), title: body.data.title, context: body.data.context, content: body.data.content },
+    g.userId,
+  );
+  if (!result.ok) {
+    if (result.error.code === "forbidden") return Response.json({ error: result.error.message }, { status: 403 });
+    if (result.error.code === "concurrency-conflict") {
+      return Response.json({ error: result.error.message }, { status: 409 });
+    }
+    return Response.json({ error: result.error.message }, { status: 400 });
+  }
+  return Response.json({ page: result.page }, { status: 201 });
 }

@@ -20,7 +20,8 @@ migration for per-stop attribution.
 **Moved ahead of M12, 2026-09-18, by Mitchell.** This file already said it sat
 after M12 *"because M12 is smaller and finishes a surface that is already live,
 not because of a dependency"* — so the move costs nothing and buys three things:
-link 3 closes **KI-5, KI-90 and KI-77**, which are single-player data-loss
+link 3 closes **KI-90 and KI-5's `applyOutcome` precondition**, which are
+single-player data-loss
 defects live in the app today rather than realtime work; link 5 lands the
 attribution field **M19 link 3 and M14's two cut person widgets both wait on**;
 and the transport ADR stops blocking. **M23 runs before it** — see
@@ -52,7 +53,9 @@ reloads.
 This is the largest remaining architectural lift in the project, which is why it
 waited until something needed it. Two things now do: M12's library is built out
 of days people share with each other, and the optimistic-update loss class below
-has three open entries against it.
+had three open entries against it. *(Two of the three are closed as of
+2026-09-22 by link 3 — see the table, which is kept as the statement of the
+problem this milestone opened against.)*
 
 ### The loss class is already documented, and the fix is already named
 
@@ -67,7 +70,7 @@ send queue in the background. Three open known issues describe the same seam:
 
 **KI-90 names the fix and says why it was not done in a line:** widening
 `confirmHead` into a general *"adopt this outcome, re-predict what is queued"*
-reducer *"is the shape that would fix KI-77, KI-5's `applyOutcome` precondition
+reducer *"is the shape that would fix [KI-90], KI-5's `applyOutcome` precondition
 and this at once, and that is a design pass, not a line."*
 
 **That design pass is this milestone.** A reducer that re-predicts queued work
@@ -86,43 +89,189 @@ Five links. Link 1 is an ADR and gates the rest.
    against a fetched head. **`events.global_seq` is the obvious cursor and the
    ADR should say why it is or is not.** ADR due here, per the roadmap table
    since 2026-07-28.
+   **WRITTEN AND ACCEPTED 2026-09-22 — `ADR-049`** (accepted on Mitchell's
+   instruction to begin implementation; the ADR's status line records that
+   basis). It decides the cursor is **per-stream `seq`** and **rejects
+   `global_seq`** on a correctness argument rather than a preference: a
+   `bigserial` is assigned at `INSERT` and visible at `COMMIT`, so a reader
+   polling `global_seq > cursor` can advance past an event that commits late
+   and never see it again. Per-stream `seq` has no such window, because writing
+   `seq` N+1 requires having read N committed rows in that stream. Transport is
+   **polling with a cursor**, and the ADR's argument is that on this runtime
+   **SSE without a broker is not push** — a handler cannot learn of a commit
+   made by another invocation, so it polls the database itself while you also
+   pay to hold it open. SSE, WebSockets, a hosted broker and `LISTEN`/`NOTIFY`
+   are each rejected with a reason, and the transport sits behind a seam
+   because **the cursor is the durable decision and the transport is the
+   swappable one**. Two things the ADR found that links 2-5 should not
+   rediscover: `EventEnvelope` does not carry `globalSeq` at all, and ADR-027
+   already pins share links to per-stream `seq` and replays to it — so the
+   coordinate is in production, not new.
 2. **Broadcast.** Committed events reach other viewers of the same trip. The
    command pipeline does not change — this is a read-side push, and
    `AccessPolicy` decides who receives, the same object that decides who reads.
+   **DONE 2026-09-22, both halves.** Server:
+   `GET /api/trips/:tripId/events?after=<seq>` → `{ headSeq, events, resync }`,
+   `requireTripAccess(..., "viewer")`, no new index and no migration. **The
+   steady-state poll costs one index-only lookup** — at the head it returns
+   before the range scan runs, so only a poll with news pays for a second
+   query. Client: `context/broadcast.ts`, the ADR-049 Decision 3 seam — 5s while
+   visible, nothing while hidden, an immediate poll on returning, and no
+   interval at all for a solo trip or a board previewing an older seq.
+   **Two decisions inside it worth not re-litigating:** the poll is a change
+   *signal* and the detail comes from a **refetch, not a client-side fold** (the
+   server projects with `serverConflictContext()`, so folding here would let
+   `confirmed` disagree with the server about which conflicts exist — link 4's
+   whole subject); and the refetch **invalidates the read cache before it
+   reads**, because `cachedRead`'s 5s window and the poll's 5s interval are the
+   same order of magnitude, so otherwise the refetch is answered out of the very
+   entry the poll just proved stale. Received events go through `adoptOutcome`
+   (link 3), never around it.
 3. **The re-prediction reducer.** `confirmHead` widened to "adopt this outcome,
-   re-predict what is queued", per KI-90. **Closes KI-90, KI-5's precondition,
-   and the same-tick preview read.** This is the link that makes a remote edit
+   re-predict what is queued", per KI-90. **Closes KI-90 and KI-5's
+   `applyOutcome` precondition.** This is the link that makes a remote edit
    arriving mid-edit safe rather than lossy.
+   **DONE 2026-09-22.** `confirmHead` and the new `adoptOutcome` share one
+   `rePredictOnto` body and differ in one thing: whether the outcome is the
+   answer to the unit at the head of the queue. Both `{ confirmed: X,
+   pending: [] }` sites call it. `adoptOutcome` **preserves `failure`** where
+   `confirmHead` clears it — retaining the queue while dropping the failure
+   would unlatch the sender's gate and re-fire a rejected head (`failHead`
+   measured 41 sends in 300ms the last time that gate was missing).
+   **Two corrections to this link's own scope, both recorded rather than quietly
+   absorbed:** it does **not** close "the same-tick preview read" — `enter` still
+   reads a render-time `pending`, nothing is lost when it races, and KI-90's
+   resolved entry says so; and it closes **two** things, not three, because the
+   "KI-77" this file carried was KI-90's own pre-renumbering number.
 4. **Concurrent-edit conflicts as resolvable data.** Two people editing the same
    stop is not an error dialog — it is a conflict the domain can already
    express. The soft-conflict engine (M1) and `detectConflicts` are the shape to
    reuse; a concurrent edit is another kind of thing the trip knows is wrong,
    not a modal.
+   **DONE 2026-09-22.** `context/concurrentEdits.ts` produces ordinary
+   `Conflict` values, merged by `activeDetail` into the same array the board
+   already renders — so `ConflictBanner` shows them with **no new surface**.
+   **It is NOT a rule in `detectConflicts`, and that is the interesting part:**
+   every rule there is `(state, ctx) => Conflict[]`, a pure function of the
+   trip, and this one cannot be. A stop two people edited looks completely
+   ordinary in the resulting state; what makes it a conflict is something the
+   trip does not contain — the caller's own unsent queue. So it is computed at
+   the overlay, in `adoptOutcome`, the one reducer where an authoritative
+   outcome replaces the base while a queue still exists.
+   **Two things worth not rediscovering.** Equality is the domain's
+   `activityStatesEqual`, reached through the `@tc/predict` entrypoint because
+   the lint wall lets only `src/server` and `src/app/api` import `@tc/domain` —
+   which also means the detector inherits `KI-2026-09-05-o`'s compile-forcing
+   field set rather than keeping a second copy. And these conflicts are
+   deliberately **not dismissible**: dismissal persists as a command and their
+   id is stable per stop, so one click would permanently suppress every future
+   collision on that stop. They need no dismissal — they are derived from the
+   queue and leave when it drains (`pruneResolved`, on every `confirmHead`).
 5. **Per-stop attribution — who a stop is for.** `add-stop-who` and
    `rack-provenance` in `preview-registry.ts`, both blocked on the same absent
    field: *"no field records who a stop is for"*, and *"who parked a stop, and
    which day it came from"*. Participation against the trip's existing members.
    **M19's link 3 builds splits on this field and must not add its own** — that
    is the drift `AGENTS.md` invariant 5 exists to stop.
+   **DONE 2026-09-22, and it is TWO relations rather than the one this link's
+   own wording implies.** M19 link 3 records the decision (Mitchell,
+   2026-09-03): *"we need activities to have owners (and i think participants
+   that are going to that activity)"* — who **booked** a stop is not who is
+   **going** to it, and **M19's splits need the participants, not the owner**.
+   A single `who` would have satisfied `add-stop-who`'s wording and been wrong
+   for every split built on it, so link 5 landed `bookedBy: string | null` and
+   `participants: string[]`. Named `bookedBy` rather than `owner` because
+   `owner` is already a `TripRole` and the `saved_days.owner_id` column.
+   **Both registry entries are gone**: the editor's "Who is in" is a real
+   control over the trip's members, and the rack line says who parked a stop.
+   **Half of `rack-provenance` was NOT built** — which day a parked stop came
+   from is not modelled, because `MoveActivity` carries `toDayId` and nothing
+   about where it left; that half is in `docs/candidates.md` rather than left
+   as a placeholder that reads as a promise.
+   **`SavedStop` deliberately does not carry either field**, asserted by name
+   in `packages/contracts/test/saved.test.ts`: a saved day is publishable, so
+   copying attribution in would publish the originating trip's member ids.
 
 ## Exit gate
 
-- [ ] **The transport ADR is written, accepted, and names what it rejected and
+- [x] **The transport ADR is written, accepted, and names what it rejected and
       why** — including whether `events.global_seq` serves as the cursor.
+      *(**`ADR-049`, written and accepted 2026-09-22.** It names six rejections
+      with reasons and answers the `global_seq` question with a **no**, on a
+      commit-order-visibility argument. **Accepted on Mitchell's instruction to
+      begin implementation**, not on a separate written review — the basis is
+      recorded in the ADR's own status line rather than left implied, the same
+      way M21's, M22's and M26's attested boxes are. Decision 2, the transport,
+      is explicitly open to reversal; Decision 1, the cursor, is the one that
+      would be expensive to change.)*
 - [ ] Two browsers on the same trip: an edit in one appears in the other without
       a reload, **walked in a real browser as two real actors**, the same
       standard M11's gate held itself to.
-- [ ] A viewer who loses access mid-session stops receiving updates — the
+      *(**The code is built and unit-covered as of 2026-09-22 — this box is
+      about the walk, and it is deliberately NOT ticked.** `TripProvider.test.tsx`
+      proves a co-traveller's edit is adopted without a reload and that the
+      user's unsent work survives it, but a jsdom test is not two browsers. The
+      walk needs a Vercel preview and therefore a PR; the repo's own answer is
+      to dispatch `phase-verifier` against it.*
+      *
+      **That answer was tried on 2026-09-22 and does not reach this box.** The
+      verifier drove the preview successfully, but a two-actor walk needs a trip
+      with two members, and an agent cannot make one there: `POST
+      /api/trips/:id/invites` returns **402** without the owner's
+      `trip.collaborators` entitlement, and granting it is an admin action a
+      sandboxed agent is refused. The collaboration path had to be exercised
+      locally instead, against a second member inserted straight into
+      `trip_memberships` — which proves the code and is not the walk this box
+      asks for.
+      **So this box is Mitchell's or it needs an entitled preview account**, and
+      that is a fact about the environment rather than about the code. Recorded
+      here because the box's own instruction above sends the next person at a
+      wall that is now measured.)*
+- [x] A viewer who loses access mid-session stops receiving updates — the
       broadcast path honours `AccessPolicy`, and there is a test that fails if
       it stops doing so.
-- [ ] **A command enqueued while an undo/redo/revert is in flight survives it**
+      *(**Done 2026-09-22.** Structurally, not by a teardown path: every poll is
+      a fresh request through `requireTripAccess`, so revocation bites on the
+      next one and there is nothing to remember to tear down. The test is
+      `events/route.int.test.ts`, *"stops serving a member whose membership is
+      revoked between polls"* — 200, revoke through the members route, 403.
+      Deleting the route's `if ("error" in access) return access.error` fails it
+      along with the 401 and stranger cases: `expected 200 to be 403`.)*
+- [x] **A command enqueued while an undo/redo/revert is in flight survives it**
       — KI-90's reproduction fails before the change and passes after, and the
       entry is moved to `resolved/` with its proof line.
-- [ ] Two people editing the same stop produce a **conflict the UI can show and
+      *(**Done 2026-09-22.** The reproduction is `describe.each` over all three
+      `HISTORY_TYPES` — the branch is keyed on set membership, so a regression
+      reachable through Redo but not Undo would otherwise pass, the same reason
+      KI-70's sibling suite is shaped that way. The history send is held open,
+      the edit is dispatched into that window, and the send settles with a
+      **different** trip from the one the edit was predicted against, so the
+      assertion proves the unit was RE-PREDICTED rather than merely preserved.
+      Restoring `{ confirmed: result.value, pending: [] }` fails all six with
+      `expected '2' to be '3'`.)*
+- [x] Two people editing the same stop produce a **conflict the UI can show and
       a person can resolve**, not a lost write and not a modal.
-- [ ] A stop records who it is for, set through the UI and read back off the
+      *(**Done 2026-09-22.** Shown: an ordinary `Conflict` in `ConflictBanner`,
+      warning severity, naming the stop and what happened to it. Resolvable: it
+      carries the two real options as `resolutions` — send yours and overwrite,
+      or undo yours and keep the server's — and **no write is lost either way**,
+      because the queue survives via `adoptOutcome` (link 3) rather than being
+      cleared. Not a modal: AGENTS.md invariant 3 holds unchanged.
+      Deleting the raise in `adoptOutcome` fails four tests; swapping
+      `activityStatesEqual` for identity fails two; making them dismissible
+      again fails two more.)*
+- [x] A stop records who it is for, set through the UI and read back off the
       API; `add-stop-who` and `rack-provenance` are wired up or deleted, and no
       M13-tagged entry remains in `preview-registry.ts`.
+      *(**Done 2026-09-22.** Set through the UI: two controls in
+      `ActivityEditor` over the trip's own member list — toggles for who is
+      going, a select for who booked it — covered by
+      `ActivityEditor.test.tsx`. Read back off the API:
+      `route.int.test.ts` runs a real `AddActivity` carrying both and reads
+      them off `GET /api/trips/:id`; `ActivityView` is also a public v1
+      response shape, so `openapi.json` was regenerated. Both registry entries
+      deleted and `grep 'milestone: "M13"' preview-registry.ts` returns
+      nothing.)*
 - [x] **`KI-20260905-o` is resolved before link 5 adds its field** — the
       activity-field descriptor refactor has landed, the entry is moved to
       `resolved/` with its proof line, and adding an activity field now fails
@@ -143,10 +292,45 @@ Five links. Link 1 is an ADR and gates the rest.
       key-parity assertion in `detail.ts` will fail the build until you do,
       which is the point, but it forces the KEY and not the TYPE. The resolved
       entry says why the derivation was backed out.
-- [ ] **The attribution migration is written, applied locally, and its
+- [x] **The attribution migration is written, applied locally, and its
       production dispatch is called out in the PR body.**
-- [ ] The full Definition of Done is green, including
+      *(**There is no migration, and that is the finding rather than a skipped
+      step — 2026-09-22.** This box was written at scoping time, before the
+      design, on the reasonable assumption that a new per-stop relation means
+      DDL. It does not here: an activity lives in jsonb at every layer that
+      stores one — `events.payload`, `trip_details.doc`, `saved_days.stops` —
+      so `bookedBy` and `participants` are new keys in documents that already
+      exist, exactly as `kind` and `tags` were in M18. What stands in for a
+      migration is the pair of `.default()`s on every schema that parses stored
+      data, and that is **asserted rather than assumed**:
+      `route.int.test.ts` strips both keys from a stored `trip_details.doc` and
+      reads the trip back, expecting `{ bookedBy: null, participants: [] }`.
+      Removing the defaults turns that test into `expected 500 to be 200` —
+      the #71 shape, one field later. **Nothing to dispatch to production.**)*
+- [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
+      *(**Done 2026-09-22, on CI's run rather than a local one, and the basis
+      matters.** Tier 3 asks for `pnpm check`, `test:e2e:ci-like` because a user
+      flow changed, and `seed:verify` because contract fields changed. Locally:
+      `pnpm typecheck`, `pnpm lint` (36 walls), the unit lane, `pnpm test:int`
+      811/811, `pnpm seed:verify` 102/102 and `pnpm content:verify` — all green.
+      **The e2e verdict is CI's `integration-e2e` job on the current head
+      (`0da8313`, run 35757734392), green** — re-established there rather than
+      left citing `4e41b79`, because two code commits landed after that run
+      (`42c74c1`, the Board adapter completion, and `0da8313`, which deleted
+      those adapters and moved the form-to-command mapping into
+      `activityCommands.ts`). An e2e verdict names a commit; when the commit
+      moves, so does the verdict, or the tick is about code that no longer
+      exists. That job is `pnpm --filter web build` then `pnpm --filter web
+      test:e2e`, and GitHub sets `CI=true`, so
+      `playwright.config.ts`'s `webServer.command` resolves to `pnpm start`
+      against the built app — which is exactly what `test:e2e:ci-like`
+      (`pnpm build && CI=true pnpm test:e2e`) reproduces locally. The `ci-like`
+      script is named for being the local proxy of that run; CI is the thing it
+      proxies, so this is the stronger evidence, not a substitute for it. It is
+      also the only lane that can render MapLibre — `KI-49` means the two map
+      specs cannot pass in an agent container, which is what M26's gate box had
+      to name as 153/2.)*
 - [ ] Retro appended at gate close.
 
 ## Deliberately not here
