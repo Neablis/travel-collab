@@ -56,5 +56,13 @@
   arriving without a reload. It is better red occasionally than quietly
   loosened.
 
+- **THE ONE SANCTIONED RE-RUN PASSED.** The push that filed this entry re-ran
+  the lane on `24d34e0` (run 35780653901): **green, 3541 passed**. So the
+  failure is now one observation against one clean re-run plus seven local
+  runs. That does NOT make it a flake — it makes it unexplained, which is why
+  this entry stays open rather than being closed as "could not reproduce".
+  A second occurrence is the thing to wait for, and the entry above says what
+  to capture when it comes.
+
 - **Found by:** CI, 2026-09-22, on a docs-only commit.
 - **First noted:** 2026-09-22.
