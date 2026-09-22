@@ -57,12 +57,13 @@ import {
   type ContentBundleV1,
   type Finding,
 } from "@tc/fixtures";
+import { randomUUID } from "node:crypto";
 import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
-import { createPage } from "@/server/pages";
+import { executePageCommand } from "@/server/pageCommands";
 import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
 
@@ -267,7 +268,23 @@ async function importTrips(bundle: ContentBundleV1, ownerId: string) {
       if (!r.ok) throw new Error(`${trip.key} (${tripId}) backlog: ${r.error.message}`);
     }
     for (const notebook of bundle.notebooks) {
-      await createPage(tripId, { title: notebook.title, context: { tripId }, content: notebook.content }, ownerId);
+      // Through the command path like everything else this script writes. An
+      // imported notebook gets its `PageCreated` event at import rather than
+      // waiting for `pageCommands`' lazy genesis to backfill it on first edit —
+      // the trip already exists and `ownerId` is its owner, so the command's
+      // access check passes for the same reason the trip commands above do.
+      const r = await executePageCommand(
+        {
+          type: "CreatePage",
+          tripId,
+          pageId: randomUUID(),
+          title: notebook.title,
+          context: { tripId },
+          content: notebook.content,
+        },
+        ownerId,
+      );
+      if (!r.ok) throw new Error(`${trip.key} (${tripId}) notebook "${notebook.title}": ${r.error.message}`);
     }
     created++;
   }

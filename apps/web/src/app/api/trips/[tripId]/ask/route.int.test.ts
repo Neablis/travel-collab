@@ -2,7 +2,7 @@ import { newPageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
-import { createPage } from "@/server/pages";
+import { executePageCommand } from "@/server/pageCommands";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { getTripDetail } from "@/server/projections";
 import { getTripHistory } from "@/server/history";
@@ -231,14 +231,15 @@ async function tripAndPublishedDay(): Promise<{ tripId: string; savedDayId: stri
   return { tripId, savedDayId: saved.value.savedDayId };
 }
 
-/** One Notebook page on `tripId`, the way the Notebook's own CRUD route makes one. */
+/** One Notebook page on `tripId`, the way the Notebook's own route makes one. */
 async function seedPage(tripId: string, title = "Trip Overview") {
-  const page = await createPage(
-    tripId,
-    { title, context: { tripId }, content: newPageDoc() },
+  const pageId = randomUUID();
+  const result = await executePageCommand(
+    { type: "CreatePage", tripId, pageId, title, context: { tripId }, content: newPageDoc() },
     ACTOR_ID,
   );
-  return page.id;
+  if (!result.ok) throw new Error(`seedPage: ${result.error.message}`);
+  return pageId;
 }
 
 async function grantViewer(tripId: string, userId: string) {

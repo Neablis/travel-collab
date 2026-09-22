@@ -5,7 +5,8 @@ import { sql } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
 import { db } from "./db/client";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
-import { listPages, getPage, createPage, updatePage, deletePage } from "./pages";
+import { listPages, getPage } from "./pages";
+import { executePageCommand } from "./pageCommands";
 
 // The seeded titles, read from the templates rather than typed here.
 //
@@ -49,62 +50,67 @@ describe("pages repository", () => {
   // its delete control *"refuses with a reason"* rather than being hidden — so
   // the refusal has to be real at the server, where a keyboard shortcut or a
   // direct call lands.
+  //
+  // **Through the command now.** `deletePage` was this refusal's home when the
+  // table was the source of truth; it is `decidePageCommand`'s since page
+  // writes became events, and the message is unchanged so a reader cannot tell
+  // which one refused them.
   it("refuses to delete the seeded Overview, and says why", async () => {
     const { tripId } = await seedTrip();
     const [overview] = await listPages(tripId);
-    const outcome = await deletePage(overview!.id);
-    expect(outcome).toEqual({
-      ok: false,
-      reason: "undeletable",
-      message: expect.stringContaining("comes with the trip"),
-    });
+    const outcome = await executePageCommand(
+      { type: "DeletePage", tripId, pageId: overview!.id },
+      "user-1",
+    );
+    expect(outcome.ok).toBe(false);
+    expect(!outcome.ok && outcome.error.code).toBe("page-undeletable");
+    expect(!outcome.ok && outcome.error.message).toContain("comes with the trip");
     // Still there, which is the half that would matter to a person.
     expect(await getPage(overview!.id)).not.toBeNull();
   });
 
-  // **The refusal used to be removable through the front door.**
+  // **The refusal used to be removable through the front door, and now it
+  // cannot be reached at all.**
   //
   // `updatePage` stored `input.context` whole, and `PageContext.kind` is what
   // marks the Overview — so a PATCH carrying `{ tripId }` and nothing else
   // stripped the marker, and the next DELETE removed the page every trip is
-  // supposed to keep (CodeRabbit, PR 170). The route that PATCHes a page sends
-  // `context` for exactly one reason (re-stating `tripId`), so this was one
-  // ordinary request away.
-  it("keeps the Overview's marker through a PATCH that omits it", async () => {
+  // supposed to keep (CodeRabbit, PR 170). That was fixed by carrying the
+  // stored `kind` across.
+  //
+  // `EditPage` has no `context` field AT ALL, so the abuse is now structural
+  // rather than guarded: there is no request that can carry a marker, in
+  // either direction. This asserts the property survives the move — both
+  // halves, the same two abuses the old pair of tests covered.
+  it("an edit cannot strip the Overview's marker, nor grant it", async () => {
     const { tripId } = await seedTrip();
     const [overview] = await listPages(tripId);
 
-    const patched = await updatePage(overview!.id, { context: { tripId } });
-    expect(patched?.context.kind, "the marker is identity and a PATCH may not drop it").toBe("overview");
-    expect(await deletePage(overview!.id)).toMatchObject({ ok: false, reason: "undeletable" });
-    expect(await getPage(overview!.id)).not.toBeNull();
-  });
+    const edited = await executePageCommand(
+      { type: "EditPage", tripId, pageId: overview!.id, title: "Renamed" },
+      "user-1",
+    );
+    expect(edited.ok).toBe(true);
+    expect(edited.ok && edited.page?.context.kind, "the marker is identity").toBe("overview");
+    const stillRefused = await executePageCommand(
+      { type: "DeletePage", tripId, pageId: overview!.id },
+      "user-1",
+    );
+    expect(!stillRefused.ok && stillRefused.error.code).toBe("page-undeletable");
 
-  // And the other direction: asserting the marker must not make an ordinary
-  // page undeletable. Same line of code, opposite abuse.
-  it("refuses to let an ordinary page claim the marker through a PATCH", async () => {
-    const { tripId } = await seedTrip();
-    const mine = await createPage(tripId, { title: "Mine", context: { tripId }, content: newPageDoc([]) }, "u1");
-
-    const patched = await updatePage(mine.id, { context: { tripId, kind: "overview" } });
-    expect(patched?.context.kind, "a page cannot promote itself").toBeUndefined();
-    expect(await deletePage(mine.id)).toEqual({ ok: true });
-  });
-
-  // **The delete refuses in SQL, not in JavaScript.** The guard was a read, a
-  // decision and then an unconditional delete; this asserts the property that
-  // made those three statements safe to collapse — a row marked `overview`
-  // cannot be removed by the delete statement at all, whatever a caller
-  // believed when it asked.
-  it("cannot delete a marked page even when the check is bypassed", async () => {
-    const { tripId } = await seedTrip();
-    const mine = await createPage(tripId, { title: "Mine", context: { tripId }, content: newPageDoc([]) }, "u1");
-    // Mark it the way only the database can — around `updatePage`, which now
-    // refuses to. This is the state a race would produce.
-    await db.execute(sql`update pages set context = jsonb_set(context, '{kind}', '"overview"') where id = ${mine.id}`);
-
-    expect(await deletePage(mine.id)).toMatchObject({ ok: false, reason: "undeletable" });
-    expect(await getPage(mine.id)).not.toBeNull();
+    // The other direction: an ordinary page cannot promote itself, so it stays
+    // deletable however it is edited.
+    const mineId = randomUUID();
+    await executePageCommand(
+      { type: "CreatePage", tripId, pageId: mineId, title: "Mine", context: { tripId }, content: newPageDoc([]) },
+      "user-1",
+    );
+    const promoted = await executePageCommand(
+      { type: "EditPage", tripId, pageId: mineId, title: "Mine, renamed" },
+      "user-1",
+    );
+    expect(promoted.ok && promoted.page?.context.kind, "a page cannot promote itself").toBeUndefined();
+    expect((await executePageCommand({ type: "DeletePage", tripId, pageId: mineId }, "user-1")).ok).toBe(true);
   });
 
   // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)
@@ -159,9 +165,9 @@ describe("pages repository", () => {
       // Created on the very millisecond the seeding ran. This is the case that
       // broke CI: seeds stamped forward from `startedAt` tied with it, and the
       // random-UUID tiebreaker put "Packing" in the middle of the list.
-      const mine = await createPage(
-        tripId,
-        { title: "Packing", context: { tripId }, content: newPageDoc() },
+      const mineId = randomUUID();
+      await executePageCommand(
+        { type: "CreatePage", tripId, pageId: mineId, title: "Packing", context: { tripId }, content: newPageDoc() },
         "user-1",
       );
       expect((await listPages(tripId)).map((p) => p.title)).toEqual([...SEEDED_TITLES, "Packing"]);
@@ -169,9 +175,16 @@ describe("pages repository", () => {
       // Edit the first row, then the last. Neither may move — this is the half
       // that catches the physical-order reshuffle, since an UPDATE writes a new
       // row version.
-      await updatePage(seeded[0]!.id, { title: SEEDED_TITLES[0]! });
-      await updatePage(mine.id, { title: "Packing" });
-      expect((await listPages(tripId)).map((p) => p.title)).toEqual([...SEEDED_TITLES, "Packing"]);
+      // Titles that DIFFER, because a no-op edit now writes no event and
+      // therefore no row version — and a row that was never rewritten cannot
+      // demonstrate that a rewrite does not reorder the list.
+      await executePageCommand({ type: "EditPage", tripId, pageId: seeded[0]!.id, title: "Touched" }, "user-1");
+      await executePageCommand({ type: "EditPage", tripId, pageId: mineId, title: "Packing, touched" }, "user-1");
+      expect((await listPages(tripId)).map((p) => p.title)).toEqual([
+        "Touched",
+        ...SEEDED_TITLES.slice(1),
+        "Packing, touched",
+      ]);
     } finally {
       vi.useRealTimers();
     }
@@ -184,9 +197,11 @@ describe("pages repository", () => {
   it("returns summaries, not whole documents — no notebook content crosses the wire", async () => {
     const { tripId } = await seedTrip();
     await listPages(tripId);
-    await createPage(
-      tripId,
+    await executePageCommand(
       {
+        type: "CreatePage",
+        tripId,
+        pageId: randomUUID(),
         title: "Heavy",
         context: { tripId },
         content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "x".repeat(5000) }] }]),
@@ -209,18 +224,21 @@ describe("pages repository", () => {
 
   it("creates, reads, updates, deletes a page", async () => {
     const { tripId } = await seedTrip();
-    const created = await createPage(
-      tripId,
-      { title: "Notes", context: { tripId }, content: newPageDoc() },
+    const pageId = randomUUID();
+    const created = await executePageCommand(
+      { type: "CreatePage", tripId, pageId, title: "Notes", context: { tripId }, content: newPageDoc() },
       "user-1",
     );
-    expect(created.title).toBe("Notes");
-    const fetched = await getPage(created.id);
-    expect(fetched!.id).toBe(created.id);
-    const updated = await updatePage(created.id, { title: "Renamed" });
-    expect(updated!.title).toBe("Renamed");
-    expect(updated!.updatedAt >= created.updatedAt).toBe(true);
-    expect(await deletePage(created.id)).toEqual({ ok: true });
-    expect(await getPage(created.id)).toBeNull();
+    expect(created.ok && created.page?.title).toBe("Notes");
+    const fetched = await getPage(pageId);
+    expect(fetched!.id).toBe(pageId);
+    const updated = await executePageCommand(
+      { type: "EditPage", tripId, pageId, title: "Renamed" },
+      "user-1",
+    );
+    expect(updated.ok && updated.page?.title).toBe("Renamed");
+    expect((updated.ok && updated.page!.updatedAt) >= fetched!.updatedAt).toBe(true);
+    expect((await executePageCommand({ type: "DeletePage", tripId, pageId }, "user-1")).ok).toBe(true);
+    expect(await getPage(pageId)).toBeNull();
   });
 });
