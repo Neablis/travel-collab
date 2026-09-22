@@ -35,9 +35,18 @@ general setup.
 line has moved by a gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and the five links: `docs/milestones/M13-collaboration.md`.
-**All five links are built as of 2026-09-22; the gate is 8 of 10**, and
-**PR #201 is green on every check**. Two boxes left, neither of them code: the
-two-actor browser walk, and the retro.
+**All five links are built as of 2026-09-22; the gate is 8 of 10.** Two boxes
+left, neither of them code: the two-actor browser walk, and the retro. **The
+walk cannot be done by an agent** — a two-member trip needs the owner's
+`trip.collaborators` entitlement and the preview answers 402, so that box is
+Mitchell's or it needs an entitled account.
+
+**PR #201 also carries a SECOND, unplanned piece — notebooks joining the event
+log.** A notebook edited on one device never reached another because page
+writes went straight to the `pages` table, so a save never moved `headSeq` and
+the M13 poll was correctly told nothing had happened. Pages are now commands
+and events in the trip's own stream: they broadcast, they appear in history,
+and one write path serves the BFF, v1 and the importer. Two traps below.
 
 **M13's preflight is DONE and it is not a risk to carry into the milestone.**
 `KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
@@ -64,19 +73,27 @@ before reading it.
 **What is left is not code.** Two unticked boxes: the two-actor browser walk
 (the preview is deployed, nobody has driven it) and the retro.
 
-**PR #201 is green on all seven checks** on head `4e41b79` — `static-and-unit`,
-`integration-e2e`, CodeQL and the three Analyze jobs. Locally: typecheck, lint
-(36 walls), the unit lane, `test:int` 811/811, `seed:verify` 102/102 and
-`content:verify`.
+**PR #201 is green on CI**, most recently on `eeb12a1` (run 35776248515).
+Locally: typecheck, lint with **zero warnings**, the unit lane (web 3541),
+`test:int` 822/822, `seed:verify` 102/102 and `content:verify`.
 
-**The e2e box was ticked on CI's run, not a local one, and the basis is worth
-knowing.** CI's `integration-e2e` is `pnpm --filter web build` then
-`pnpm --filter web test:e2e`, and GitHub sets `CI=true`, so
-`playwright.config.ts`'s `webServer` resolves to `pnpm start` against the built
-app — exactly what `test:e2e:ci-like` reproduces locally. The `ci-like` script
-is named for being the local proxy of that run. It is also the only lane that
-renders MapLibre: `KI-49` is why an agent container cannot pass the two map
-specs, which is what M26's equivalent box recorded as 153/2.
+### Notebooks in the event log — two things to read first
+
+**`KI-2026-09-22-c` before touching undo.** Wiring `diffPageStates` into
+`decideHistoryCommand` looks like two lines and would delete every notebook on
+a revert. A test pins the safe state; the entry has the trace and three
+answers. `KI-2026-09-22-d` says why the notebook EDITOR still does not
+live-update (a re-read would clobber in-progress typing).
+
+**Any new reader of the log must skip the other aggregate's events BY NAME**,
+never by "whatever fails to parse" — that is what keeps a corrupt stream loud.
+`foldEnvelopes`, `foldPages` and both projections do it; the rebuild path was
+caught missing it only by the full int lane.
+
+**The e2e box is ticked on CI's run rather than a local one**, and gate box 9
+in `docs/milestones/M13-collaboration.md` carries the argument for why that is
+the thing `test:e2e:ci-like` proxies rather than a weaker substitute — plus
+`KI-49`, which is why an agent container cannot render MapLibre at all.
 
 **Five things a next session should not have to rediscover:**
 
