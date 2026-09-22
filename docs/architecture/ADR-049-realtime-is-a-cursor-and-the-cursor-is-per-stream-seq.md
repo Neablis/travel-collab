@@ -1,7 +1,15 @@
 # ADR-049 — Realtime is a cursor the client asks for, and the cursor is per-stream `seq`
 
-**Status:** **Proposed — 2026-09-22.** M13 link 1, which gates links 2–5. Needs
-Mitchell's acceptance before broadcast is built.
+**Status:** **Accepted — 2026-09-22.** M13 link 1, which gates links 2–5.
+**Accepted on Mitchell's instruction to begin implementation** — the same
+conversation that asked for the draft, not a separate written review. The basis
+is recorded rather than blurred, the same way M21's, M22's and M26's attested
+gate boxes are.
+**Open to reversal on Decision 2 (the transport) specifically**: the request
+that placed M13 said *"websockets"* and this ADR rejects it, so that is the
+decision most likely to be revisited — and Decision 3's seam is precisely what
+makes revisiting it one module rather than a rewrite. Decision 1 (the cursor) is
+the one that would be expensive to change.
 **Deciders:** Mitchell (product/eng); Claude — drafted
 Related: **ADR-001** (event-sourced modular monolith — the log this reads),
 **ADR-027** (a share link is pinned to a `seq` and the read replays — the same

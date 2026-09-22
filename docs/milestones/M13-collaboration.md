@@ -124,12 +124,16 @@ Five links. Link 1 is an ADR and gates the rest.
 
 ## Exit gate
 
-- [ ] **The transport ADR is written, accepted, and names what it rejected and
+- [x] **The transport ADR is written, accepted, and names what it rejected and
       why** — including whether `events.global_seq` serves as the cursor.
-      *(**Written 2026-09-22 — `ADR-049`. NOT ticked, and the missing word is
-      "accepted."** It names six rejections with reasons and answers the
-      `global_seq` question with a no. The box needs Mitchell's acceptance,
-      which is the one part of it an agent cannot supply.)*
+      *(**`ADR-049`, written and accepted 2026-09-22.** It names six rejections
+      with reasons and answers the `global_seq` question with a **no**, on a
+      commit-order-visibility argument. **Accepted on Mitchell's instruction to
+      begin implementation**, not on a separate written review — the basis is
+      recorded in the ADR's own status line rather than left implied, the same
+      way M21's, M22's and M26's attested boxes are. Decision 2, the transport,
+      is explicitly open to reversal; Decision 1, the cursor, is the one that
+      would be expensive to change.)*
 - [ ] Two browsers on the same trip: an edit in one appears in the other without
       a reload, **walked in a real browser as two real actors**, the same
       standard M11's gate held itself to.

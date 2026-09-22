@@ -13,6 +13,37 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-22 — a trip's log is pollable: `TripEventsPage` (M13 link 2, ADR-049)
+
+- Added: `TripEventsPage` (`packages/contracts/src/envelope.ts`) — the response
+  of `GET /api/trips/:tripId/events?after=<seq>`: `headSeq` (non-negative int),
+  `events` (an array of the existing `EventEnvelope`), and `resync` (bool).
+- **`EventEnvelope` is unchanged, and that is a decision rather than an
+  omission.** ADR-049 Decision 1 rejects `events.global_seq` as the
+  subscription cursor, so it stays off the wire: a `bigserial` takes its value
+  at `INSERT` and becomes visible at `COMMIT`, so a reader polling
+  `global_seq > cursor` can advance past an event that commits late and never
+  be served it again. The cursor is per-stream `seq`, which `EventEnvelope`
+  already carries and which cannot do that, because writing `seq` N+1 requires
+  having read N committed rows in that stream.
+- `resync: true` means the caller is further behind than one poll will carry
+  (`MAX_EVENTS_PER_POLL`, 200) and should refetch the trip instead of
+  collecting the gap; `events` is empty whenever it is set, so the two are
+  alternatives rather than a partial answer plus a warning.
+- Why: M13 link 2 — "the second person's edits do not arrive". Before this
+  there was no shape for "what happened on this trip since `seq` N", and
+  `ADR-046` had already recorded the consequence: with no realtime,
+  refetch-on-mount was the only way anyone saw a co-traveller's edit.
+- Consumers updated: `apps/web` only — `src/server/eventStore.ts`
+  (`readStreamHeadSeq`, `readStreamAfter`), `src/server/broadcast.ts`, and the
+  route `src/app/api/trips/[tripId]/events/route.ts`, which parses the response
+  through this schema at the boundary. **No client consumer yet**: wiring
+  received events into `TripProvider` waits on M13 link 3's re-prediction
+  reducer, because ADR-049 forbids broadcast having its own merge path.
+- Breaking? **no** — a pure addition. No existing schema changed, no migration,
+  and no new index (the poll's range scan uses `events_stream_seq` as it
+  stands).
+
 ## 2026-09-21 — the activity field set is declared once (KI-2026-09-05-o)
 
 - Added: `ActivitySnapshot` (`packages/contracts/src/activity.ts`) — an exported
