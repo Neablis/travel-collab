@@ -1016,10 +1016,11 @@ function becomeVisible() {
 }
 
 function RemoteProbe() {
-  const { activeTrip, dispatch, sync } = useTrip();
+  const { activeTrip, dispatch, sync, remoteRevision } = useTrip();
   return (
     <div>
       <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="remoteRevision">{remoteRevision}</span>
       <span data-testid="unsent">{sync.unsent}</span>
       <button
         onClick={() => void dispatch({ type: "AddDay", tripId: "x", dayId: "d-mine" } as never)}
@@ -1052,6 +1053,57 @@ describe("TripProvider broadcast (M13 link 2)", () => {
 
     becomeVisible();
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+  });
+
+  // **The signal the notebook surfaces read.** `trip` and `history` are
+  // refetched by the provider itself, so anything reading those re-renders
+  // without help — but a notebook page lives in its own table and its own
+  // read, and since page writes became events they move `headSeq` like
+  // anything else. Nothing covered the bump, and removing it failed no test
+  // until this one existed.
+  it("bumps remoteRevision so readers of its own tables can re-read", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    expect(screen.getByTestId("remoteRevision").textContent).toBe("0");
+
+    fetchTripEventsMock.mockResolvedValue({
+      ok: true,
+      value: { headSeq: 2, events: [], resync: false },
+    });
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(2) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(2) });
+
+    becomeVisible();
+    await waitFor(() => expect(screen.getByTestId("remoteRevision").textContent).toBe("1"));
+  });
+
+  // The other half: a poll that finds nothing must not bump, or every reader
+  // re-reads its tables every interval forever.
+  it("does not bump when the poll finds nothing", async () => {
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+    render(
+      <TripProvider tripId="x">
+        <RemoteProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+
+    // The head is exactly where the client already is.
+    fetchTripEventsMock.mockResolvedValue({
+      ok: true,
+      value: { headSeq: 1, events: [], resync: false },
+    });
+    becomeVisible();
+    // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
+    await act(async () => {});
+    expect(screen.getByTestId("remoteRevision").textContent).toBe("0");
   });
 
   it("does not poll a solo trip — there is no second writer", async () => {

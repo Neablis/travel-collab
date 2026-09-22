@@ -69,6 +69,22 @@ type TripCtx = {
   // is no timer, no backoff, and nothing re-sends on its own.
   sync: { unsent: number; failure: SendFailure | null; retry: () => void };
   preview: { seq: number | null; enter: (seq: number) => Promise<void>; exit: () => void };
+  /**
+   * Bumped every time the poll reports the trip's log moved.
+   *
+   * **For the parts of a trip this provider does NOT hold.** `trip` and
+   * `history` are refetched by `onRemoteChange` itself, so anything reading
+   * those re-renders without help. Notebook pages are the exception: they live
+   * in their own table and their own reads (`OverviewLens`, `PageScreen`), and
+   * since notebook edits became events they move `headSeq` like anything else.
+   * A counter is the smallest thing that lets those readers notice.
+   *
+   * A NUMBER rather than a boolean or a timestamp: an effect keyed on it fires
+   * once per change and never on a re-render, which neither of the others
+   * gives you. Callers use it as a dependency, not a value — its magnitude
+   * means nothing.
+   */
+  remoteRevision: number;
 };
 
 const Ctx = createContext<TripCtx | null>(null);
@@ -90,6 +106,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [error, setError] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<TripRole | null>(null);
   const [accessUnknown, setAccessUnknown] = useState(false);
+  // See `remoteRevision` on the context type for why this is a counter.
+  const [remoteRevision, setRemoteRevision] = useState(0);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const seq = useRef(0);
@@ -415,6 +433,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // not wasted: they are what link 4 reads to know which stop a remote edit
   // touched.
   const onRemoteChange = useCallback(() => {
+    // Bumped FIRST, and outside the async body on purpose: a reader of this
+    // trip's notebook pages has its own fetch to do, and making it wait for
+    // this provider's detail+history round trip would add latency for no
+    // reason. The two reads are independent.
+    setRemoteRevision((n) => n + 1);
     void (async () => {
       // Invalidate BEFORE reading. `cachedRead`'s 5s window and the poll's 5s
       // interval are the same order of magnitude, so without this the refetch
@@ -494,6 +517,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         accessUnknown,
         sync,
         preview: { seq: previewSeq, enter, exit },
+        remoteRevision,
       }}
     >
       {/* The header logo is the save light (SPEC "The logo is the save
