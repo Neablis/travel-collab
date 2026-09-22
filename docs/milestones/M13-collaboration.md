@@ -86,6 +86,23 @@ Five links. Link 1 is an ADR and gates the rest.
    against a fetched head. **`events.global_seq` is the obvious cursor and the
    ADR should say why it is or is not.** ADR due here, per the roadmap table
    since 2026-07-28.
+   **DRAFTED 2026-09-22 — `ADR-049`, status Proposed, awaiting Mitchell's
+   acceptance.** It decides the cursor is **per-stream `seq`** and **rejects
+   `global_seq`** on a correctness argument rather than a preference: a
+   `bigserial` is assigned at `INSERT` and visible at `COMMIT`, so a reader
+   polling `global_seq > cursor` can advance past an event that commits late
+   and never see it again. Per-stream `seq` has no such window, because writing
+   `seq` N+1 requires having read N committed rows in that stream. Transport is
+   **polling with a cursor**, and the ADR's argument is that on this runtime
+   **SSE without a broker is not push** — a handler cannot learn of a commit
+   made by another invocation, so it polls the database itself while you also
+   pay to hold it open. SSE, WebSockets, a hosted broker and `LISTEN`/`NOTIFY`
+   are each rejected with a reason, and the transport sits behind a seam
+   because **the cursor is the durable decision and the transport is the
+   swappable one**. Two things the ADR found that links 2-5 should not
+   rediscover: `EventEnvelope` does not carry `globalSeq` at all, and ADR-027
+   already pins share links to per-stream `seq` and replays to it — so the
+   coordinate is in production, not new.
 2. **Broadcast.** Committed events reach other viewers of the same trip. The
    command pipeline does not change — this is a read-side push, and
    `AccessPolicy` decides who receives, the same object that decides who reads.
@@ -109,6 +126,10 @@ Five links. Link 1 is an ADR and gates the rest.
 
 - [ ] **The transport ADR is written, accepted, and names what it rejected and
       why** — including whether `events.global_seq` serves as the cursor.
+      *(**Written 2026-09-22 — `ADR-049`. NOT ticked, and the missing word is
+      "accepted."** It names six rejections with reasons and answers the
+      `global_seq` question with a no. The box needs Mitchell's acceptance,
+      which is the one part of it an agent cannot supply.)*
 - [ ] Two browsers on the same trip: an edit in one appears in the other without
       a reload, **walked in a real browser as two real actors**, the same
       standard M11's gate held itself to.

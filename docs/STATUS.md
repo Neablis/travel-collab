@@ -35,6 +35,8 @@ general setup.
 line has moved by a gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and the five links: `docs/milestones/M13-collaboration.md`.
+**Link 1 — the transport ADR that gates links 2-5 — is drafted and awaiting
+acceptance as of 2026-09-22; see the in-flight section below.**
 
 **M13's preflight is DONE and it is not a risk to carry into the milestone.**
 `KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
@@ -55,6 +57,51 @@ Definition-of-Done box is ticked at 153 passed / 2 failed, not at green** —
 both failures are map specs and both are KI-49 (Chromium does not trust the
 agent proxy's CA, so MapLibre never draws). CI, where the tiles load, is the
 verdict on those two. `pnpm check` itself was green and stamped clean.
+
+## IN FLIGHT 2026-09-22 — M13 link 1, the transport ADR (drafted, NOT accepted)
+
+**`docs/architecture/ADR-049-realtime-is-a-cursor-and-the-cursor-is-per-stream-seq.md`,
+status Proposed.** Link 1 gates links 2-5, so this is the whole of M13's
+critical path right now. **It needs Mitchell's acceptance and nothing else** —
+the gate box stays unticked until then, and the missing word in it is
+"accepted", not "written".
+
+**The two decisions, so a reader does not have to open it:**
+
+1. **The cursor is per-stream `seq`; `global_seq` is rejected** — and on
+   correctness, not taste. A `bigserial` takes its value at `INSERT` and becomes
+   visible at `COMMIT`, so a reader polling `global_seq > cursor` can advance
+   past an event that commits late and **never be served it again**. Per-stream
+   `seq` cannot do that: writing `seq` N+1 requires having read N committed rows
+   in that stream (`commands.ts:109` passes `expectedSeq: history.length`), so
+   it is monotonic in *commit* order, and because seqs are `1..N` contiguous a
+   gap is even detectable.
+2. **Transport is polling with a cursor, and SSE is rejected *for now*.** The
+   argument is specific to this runtime: a serverless handler holding an
+   `EventSource` has no way to learn that another invocation committed an event,
+   so **SSE without a broker is not push — it is database polling that you also
+   pay to hold open.** WebSockets, a hosted broker and `LISTEN`/`NOTIFY` are
+   rejected with their own reasons. The transport sits behind a seam because
+   **the cursor is the durable decision and the transport is the swappable
+   one**; SSE's `Last-Event-ID` *is* this cursor, so adopting it later is one
+   module and no contract change.
+
+**Three findings links 2-5 should not rediscover:**
+
+- **`EventEnvelope` does not carry `globalSeq`** (`eventStore.ts:17-29`). Its
+  only reader in the tree is `readAll`, for total-order replay.
+- **ADR-027 already pins share links to per-stream `seq` and replays to it**, and
+  `getTripDetailAtWithHead` already returns `headSeq: envelopes.length`
+  (`history.ts:68`). The coordinate is in production; it is not a new idea.
+- **The poll needs no new index and no migration** — `events_stream_seq`
+  (`schema.ts:275`) already covers `WHERE stream_id = $1 AND seq > $2`. Link 5's
+  attribution field still needs its own migration.
+
+**One thing the ADR decided that link 2 must honour:** a received event goes
+through **link 3's re-prediction reducer**, not around it. A shortcut into
+`confirmed` would discard the pending queue exactly the way today's
+unconditional `pending: []` does, and M13 would ship a *fourth* member of the
+KI-5/KI-90/KI-77 loss class it was scheduled to close.
 
 ## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 
