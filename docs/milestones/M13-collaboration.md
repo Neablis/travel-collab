@@ -293,8 +293,24 @@ Five links. Link 1 is an ADR and gates the rest.
       reads the trip back, expecting `{ bookedBy: null, participants: [] }`.
       Removing the defaults turns that test into `expected 500 to be 200` —
       the #71 shape, one field later. **Nothing to dispatch to production.**)*
-- [ ] The full Definition of Done is green, including
+- [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
+      *(**Done 2026-09-22, on CI's run rather than a local one, and the basis
+      matters.** Tier 3 asks for `pnpm check`, `test:e2e:ci-like` because a user
+      flow changed, and `seed:verify` because contract fields changed. Locally:
+      `pnpm typecheck`, `pnpm lint` (36 walls), the unit lane, `pnpm test:int`
+      811/811, `pnpm seed:verify` 102/102 and `pnpm content:verify` — all green.
+      **The e2e verdict is CI's `integration-e2e` job on this exact head
+      (`4e41b79`, run 35751824889), green.** That job is `pnpm --filter web
+      build` then `pnpm --filter web test:e2e`, and GitHub sets `CI=true`, so
+      `playwright.config.ts`'s `webServer.command` resolves to `pnpm start`
+      against the built app — which is exactly what `test:e2e:ci-like`
+      (`pnpm build && CI=true pnpm test:e2e`) reproduces locally. The `ci-like`
+      script is named for being the local proxy of that run; CI is the thing it
+      proxies, so this is the stronger evidence, not a substitute for it. It is
+      also the only lane that can render MapLibre — `KI-49` means the two map
+      specs cannot pass in an agent container, which is what M26's gate box had
+      to name as 153/2.)*
 - [ ] Retro appended at gate close.
 
 ## Deliberately not here

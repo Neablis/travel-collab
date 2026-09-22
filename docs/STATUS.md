@@ -35,9 +35,9 @@ general setup.
 line has moved by a gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 Scope and the five links: `docs/milestones/M13-collaboration.md`.
-**All five links are built as of 2026-09-22; the gate is 7 of 10.** What is
-left is not code: the two-browser walk (needs a preview, so a PR), the full
-Definition of Done including `test:e2e:ci-like`, and the retro.
+**All five links are built as of 2026-09-22; the gate is 8 of 10**, and
+**PR #201 is green on every check**. Two boxes left, neither of them code: the
+two-actor browser walk, and the retro.
 
 **M13's preflight is DONE and it is not a risk to carry into the milestone.**
 `KI-20260905-o`, the activity-field descriptor refactor, ran on 2026-09-21 as
@@ -55,17 +55,28 @@ on attestation and the Definition-of-Done box ticked at 153/2 rather than green
 — moved to `docs/milestones/M26-design-parity.md` on 2026-09-22, same gate-close
 rule as the section below.
 
-## DONE 2026-09-22 — M13, all five links built (the gate is 7 of 10)
+## DONE 2026-09-22 — M13, all five links built (the gate is 8 of 10)
 
 **Full detail per link is in `docs/milestones/M13-collaboration.md`**, beside
 each link and each gate box. This section keeps only what a next session needs
 before reading it.
 
-**What is left is not code.** Three unticked boxes: the two-browser walk as two
-real actors (needs a Vercel preview, so a **PR first**), the full Definition of
-Done including `pnpm --filter web test:e2e:ci-like` (not `test:e2e`), and the
-retro. Everything else is built and green — unit lane, integration lane
-811/811, `pnpm typecheck` and `pnpm lint` clean.
+**What is left is not code.** Two unticked boxes: the two-actor browser walk
+(the preview is deployed, nobody has driven it) and the retro.
+
+**PR #201 is green on all seven checks** on head `4e41b79` — `static-and-unit`,
+`integration-e2e`, CodeQL and the three Analyze jobs. Locally: typecheck, lint
+(36 walls), the unit lane, `test:int` 811/811, `seed:verify` 102/102 and
+`content:verify`.
+
+**The e2e box was ticked on CI's run, not a local one, and the basis is worth
+knowing.** CI's `integration-e2e` is `pnpm --filter web build` then
+`pnpm --filter web test:e2e`, and GitHub sets `CI=true`, so
+`playwright.config.ts`'s `webServer` resolves to `pnpm start` against the built
+app — exactly what `test:e2e:ci-like` reproduces locally. The `ci-like` script
+is named for being the local proxy of that run. It is also the only lane that
+renders MapLibre: `KI-49` is why an agent container cannot pass the two map
+specs, which is what M26's equivalent box recorded as 153/2.
 
 **Five things a next session should not have to rediscover:**
 
