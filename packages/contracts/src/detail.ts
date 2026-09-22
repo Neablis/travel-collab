@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict.ts";
 import { TripLineage, TripMember, TripStatus } from "./trip.ts";
-import { ActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
+import { ActivityKind, ActivitySnapshot, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
 import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
@@ -33,6 +33,31 @@ export const ActivityView = z.object({
   cost: Money.nullable(),
 });
 export type ActivityView = z.infer<typeof ActivityView>;
+
+// KI-2026-09-05-o's compile-forcing, applied to the read model WITHOUT
+// deriving it.
+//
+// `ActivityView` is deliberately not `ActivitySnapshot.shape` spread into an
+// id. Deriving it would carry the snapshot's WRITE-path bounds — `title`
+// 1..200, `notes` <=2000 — onto a model that parses `trip_details.doc`
+// straight out of jsonb, where a stored value violating one does not fail a
+// write, it 500s the board on read. That is the #71 shape (a required `kind`
+// taking out every untouched pre-M18 trip), one field later, and the comment
+// on `kind`/`tags` above is the record of paying for it once. The read model
+// stays permissive on purpose. Decided by Mitchell, 2026-09-21.
+//
+// What the derivation WOULD have bought is bought here instead: add a ninth
+// field to `ActivitySnapshot` without adding it below, and this alias stops
+// satisfying its constraint and names this file. It is weaker than derivation
+// in exactly one way, stated so nobody assumes otherwise — it forces the KEY
+// to exist, not that its type matches the contract's. That is the price of
+// keeping the read model loose, and it still turns the silent omission this
+// KI is about into a build failure.
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type AssertTrue<T extends true> = T;
+export type ActivityViewCoversSnapshot = AssertTrue<
+  Exact<keyof ActivitySnapshot, Exclude<keyof ActivityView, "activityId">>
+>;
 
 // The board read model: one document per trip, conflicts included.
 export const TripDetail = z.object({

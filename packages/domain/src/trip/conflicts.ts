@@ -149,6 +149,12 @@ const timeOverlapRule: Rule = (state, _ctx) => {
 // It does not attempt to check that the transit stop goes to the right place:
 // nothing in the contract models a from/to (KI-59), so "some travel is
 // scheduled in this interval" is the strongest available signal.
+//
+// Both properties above are still exactly true OF THIS FUNCTION, but they no
+// longer describe the whole rule: since 2026-09-21 a transit stop is excluded
+// from the pairing altogether, so it is never a pair member whether or not it
+// is timed. See the comment at that exclusion in `geographyRule` — it is a
+// superset of this rule, not a replacement for it.
 function transitExcusesDistance(
   a: { start: string | null },
   b: { start: string | null },
@@ -179,7 +185,35 @@ const geographyRule: Rule = (state, _ctx) => {
       if (activity?.kind === "transit" && activity.timeWindow) {
         transitStarts.push(activity.timeWindow.start);
       }
+      // A transit stop is never a MEMBER of a distance pair. Its coordinate is
+      // where the movement STARTS, not a place the day has to be internally
+      // consistent with, so the distance from it to anything else on the day
+      // carries no information about feasibility — that distance IS the
+      // journey. Mitchell, 2026-09-21: "Train: Lisbon to Porto" (Santa
+      // Apolónia) flagged against "Ribeira and the Dom Luís I bridge" at
+      // ~273 km — "This is a train route, and its spose to be really far apart".
+      //
+      // **This is KI-60's explicitly rejected weaker variant, added ALONGSIDE
+      // the rule that replaced it rather than instead of it.** That rejection
+      // stands on its own terms and is not being relitigated: *skip a pair if
+      // either stop is transit* clears the Japan demo's day 7 but only 3 of
+      // day 14's 6 pairs, leaving "Breakfast at the hotel" against the three
+      // Tokyo stops. `transitExcusesDistance` still covers those. What it
+      // could not cover is the stop itself, because it returns false unless
+      // BOTH stops carry a `start` — so a transit stop with no time window, or
+      // one paired with an untimed stop, still flagged. Superset, not swap.
+      //
+      // It narrows exactly one of KI-60's three conservative properties, and
+      // only for the transit stop itself: an untimed transit stop still
+      // excuses nothing for OTHER pairs — `transitStarts` above is collected
+      // unchanged, so "we don't know when this is" is still not evidence that
+      // travel covered someone else's distance.
+      //
+      // The cost, stated plainly rather than left to be discovered: a mistyped
+      // coordinate on a transit stop can no longer be caught by this rule, and
+      // no other rule checks one.
       if (
+        activity?.kind !== "transit" &&
         activity?.location &&
         activity.location.lat !== undefined &&
         activity.location.lng !== undefined

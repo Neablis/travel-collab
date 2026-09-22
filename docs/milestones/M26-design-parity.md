@@ -960,17 +960,31 @@ marked **[walk]** and are not satisfiable by a green test.
       **Built 2026-09-19; WALKED 2026-09-20** on the PR preview at 1440x1050 —
       `/account`, `?tab=plan`, `?tab=tokens`, then Back twice, which returned
       `?tab=plan` and then `/account`. No rule is repeated under either tab.
-- [~] **All seven Sheet-bound test files are migrated, not deleted**, and
+- [x] **All seven Sheet-bound test files are migrated, not deleted**, and
       `e2e/m22-api-tokens.spec.ts` still proves a token can be minted and
       revoked by clicking. A token minted on the route is usable against
       `/api/v1`. **Migration done 2026-09-19** behind one `openAccountPage`
       helper; `m21-plans.spec.ts` failed rather than drifted, as predicted.
-      **The e2e lane has not been run**, so the second sentence is unproven.
-- [ ] **[walk]** A token minted with **Chosen trips** reaches those trips and is
+      **The e2e lane was run 2026-09-21** (`test:e2e:ci-like`, production
+      build, 153 passed / 2 failed) and the second sentence is no longer
+      unproven: all seven migrated files pass — `m22-api-tokens`,
+      `m21-plans`, `m17-account-preferences`, `m20-entitlements`,
+      `m25-trip-as-a-file`, `m11-saved-days`, `m26-phone-surfaces`, with zero
+      failures between them. The two failures are both map specs and are the
+      subject of the last box below; neither is in this list.
+- [x] **[walk]** A token minted with **Chosen trips** reaches those trips and is
       refused on another with `trip-out-of-scope`, and the same token is refused
       on `POST /v1/trips`. The refusals are the shipped ones — **no server
       change appears in this link's diff.**
-      **NOT WALKABLE on the preview as it stands, and the reason is worth
+      **WALKED AND CLOSED 2026-09-21 on Mitchell's attestation** (*"iv done the
+      walk and its totally complete"*), not on agent-recorded evidence — the
+      same basis M21's and M22's gates closed on, and named here for the same
+      reason: a box closed by attestation and a box closed by a recorded walk
+      are different evidence and the file should not blur them. The paragraph
+      below is why no agent could have closed it, and it is kept rather than
+      deleted, because the gap it describes is still there for the next session
+      that tries.
+      **NOT WALKABLE ON THE PREVIEW as it stood, and the reason is worth
       keeping.** Minting is gated on `api.tokens`, which only `premium` carries.
       Every account the preview offers resolves to less than that: `alice`
       holds `free@v1` with grants totalling `ai.ask, ai.command,
@@ -1223,10 +1237,15 @@ marked **[walk]** and are not satisfiable by a green test.
       the faked stagger §3b forbids; and **`homePb` has no build counterpart
       at all**, the Playbooks strip having been deleted in M11b, so it is a
       divergence sent back rather than a region to build.
-- [ ] **[walk]** A free account creating a trip reaches the no-access fork: one
+- [x] **[walk]** A free account creating a trip reaches the no-access fork: one
       description, a quiet Plus note, *See plans*, and **the dock absent rather
       than disabled**. The paid half stays a registered `<Preview>`.
-      **NOT WALKABLE on the preview as it stands, and this is the finding rather
+      **WALKED AND CLOSED 2026-09-21 on Mitchell's attestation**, on the same
+      basis and with the same caveat as Wave 1's token-scope box above. The
+      paragraph below is kept for the same reason: it records why the preview
+      cannot produce the account this box needs, which is a fact about the seed
+      and not about this wave.
+      **NOT WALKABLE ON THE PREVIEW as it stood, and this is the finding rather
       than an excuse.** The fork turns on `ai.ask` — a capability, never a plan
       name (ADR-045 rule 4) — and **no account the preview offers lacks it.**
       Read straight off `GET /api/account/plan`: `alice` is
@@ -1785,7 +1804,38 @@ everyone agrees is temporary is a test that will have to be argued with later.
       the design has never drawn.
       One bullet ADDED that should have been on the list already: a phone
       rendering the desktop day-column board, closed by link 13.
-- [ ] The full Definition of Done is green, including `test:e2e:ci-like`.
+- [x] The full Definition of Done is green, including `test:e2e:ci-like`.
+      **RUN 2026-09-21 on `claude/pensive-rubin-yrimcb`.** `pnpm check` green
+      and stamped clean at `91eb5dc` (`dirty: false`): typecheck across all
+      seven packages, lint and every wall, contracts 310, domain 241,
+      fixtures 102, factories 360, pages 172, web unit 3457/1 skipped, scripts
+      280, integration 793. `pnpm seed:verify` 102 — the Japan baseline did
+      not move (`conflictTotal: 2`).
+      **`test:e2e:ci-like` was 153 passed / 2 failed, so this box is ticked
+      with the two named rather than as an unqualified green**, which is the
+      honest form of it. Both failures render *"The map could not load"*:
+      `m10-map-rail.spec.ts:52` and `m26-shared-day-map.spec.ts:73`. Cause is
+      **KI-49**, measured 2026-09-20 and not what that entry's title says —
+      the tile host is reachable (`curl … → 200`, re-confirmed here), but
+      Chromium does not trust the agent proxy's CA, so MapLibre's style never
+      parses and the lens goes to `failed`. **KI-2026-09-20-c already records
+      `m10-map-rail` as red in every cloud session regardless of branch.**
+      Neither spec touches this milestone's diff or the two changes landed
+      alongside this close; CI, where the tiles load, is the verdict on them.
+      **CI RETURNED THAT VERDICT: green.** Run 35665010770 on `d0e07e0`,
+      job `integration-e2e` — `pnpm --filter web test:e2e` **success** and
+      `test:int` **success**, the whole lane, both map specs included. So the
+      two local failures are established as environmental rather than argued
+      to be, and this box now rests on evidence instead of an expectation.
+      **KI-49 is amended by the same walk that closed this gate**: the Map
+      lens CAN be verified from a container after all — `walk-preview.mjs`
+      pins the gateway CAs by SPKI hash and caps TLS at 1.2, and
+      `playwright.config.ts` has no `launchOptions` at all, which is the whole
+      difference. That is the fix for these two specs and it is a decision
+      rather than a repair, so it is proposed there, not taken here.
+      The one-line CA fix KI-49 names was offered and **deliberately not
+      taken** (Mitchell, 2026-09-21) — so KI-49 stays open, with this as a
+      third supporting case.
 - [x] Wave 2 retro appended here. **2026-09-20:**
 
 ### Wave 2 retro
@@ -1827,6 +1877,42 @@ narrow because `DAY_COLUMN_WIDTH_PX` is a desktop constant at every width — no
 because a phone is narrow — and the fix was a count, not a layout.
 
 ---
+
+## Gate closed — 2026-09-21, 22 of 22
+
+**What actually closed it, stated so the tally is not read as more than it
+is.** Eighteen boxes were ticked as the waves were built. The last four closed
+in one pass on 2026-09-21, and they did not all close the same way:
+
+- **Two `[walk]` boxes closed on Mitchell's attestation** — the Chosen-trips
+  token scope and the free-account no-access fork. Neither was walkable on the
+  preview, and the reason is a fact about the **seed**, not about this wave:
+  minting is gated on `api.tokens`, which only `premium` carries, and the
+  no-access fork turns on `ai.ask`, which every account the seed offers already
+  holds. Both paragraphs are kept above rather than deleted, because the next
+  session that tries will hit the same wall. This is the same basis M21 and M22
+  closed on, and it is named as attestation rather than blurred into evidence.
+- **One box closed on the e2e lane finally being run** — the seven migrated
+  Sheet-bound spec files, `[~]` until 2026-09-21 because nobody had run it.
+  All seven pass.
+- **One box closed with its failures named.** `test:e2e:ci-like` was 153 passed
+  / 2 failed. Both failures are map specs rendering *"The map could not load"*,
+  and the cause is KI-49: the tile host is reachable, but Chromium does not
+  trust the agent proxy's CA, so MapLibre's style never parses. A one-line CA
+  install would have made it green here; it was offered and declined, so the
+  box says 153/2 rather than "green". **A gate box that says green when two
+  specs are red is the thing this file has spent two waves refusing to do.**
+
+**The retro that matters is not in this list.** Two of twenty-two boxes could
+not be closed by anyone in this container, and a third could not be closed
+honestly, for reasons that are all about **what the preview seed and the
+container can produce** rather than about the build. That is the milestone's
+real finding: the design-parity work was verifiable, and the *entitlement-gated
+surfaces* were not, because no seeded account reaches them. `M20`'s
+entitlements and `M21`'s plans made those forks real without making them
+reachable. Whoever opens M13 should expect the same wall on anything gated,
+and `docs/guidelines/billing-without-spending-money.md` is the route through
+it — a test clock and a database, not a browser.
 
 ## Deliberately not here
 

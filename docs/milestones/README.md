@@ -15,11 +15,21 @@ A milestone's gate passing is the single trigger for flipping **every** status
 flag, in **one commit** — never a trailing manual step (that is how M2 stayed
 unticked). When the deployed gate demo passes:
 
-> **`pnpm milestone close <id>` performs steps 1, 4 and 6 and refuses to do
+> **`pnpm milestone close <id> --next <id>` performs steps 1, 4 and 6 and refuses to do
 > them wrong.** It will not close a milestone with open exit-gate boxes, will
-> not proceed on a parse that found nothing, and will not write anything
-> without `--confirm` — it prints a diff first. Steps 3 and 5 are prose and
-> stay yours; it lists them rather than inventing them.
+> not proceed on a parse that found nothing, will not write anything
+> without `--confirm` — it prints a diff first — and **will not guess which
+> milestone becomes current**: `--next <id>` is required. Steps 3 and 5 are
+> prose and stay yours; it lists them rather than inventing them.
+>
+> **Why `--next` is not optional.** It briefly was, on 2026-09-21, with the
+> first unticked `TODO.md` row as the fallback — and that fallback is wrong by
+> this file's own rules, because `TODO.md`'s header says to read the marker and
+> not the position. Closing M26 it proposed **M12**, when the recorded order is
+> `M26 → M13 → M12`. Only the `--confirm`-less diff caught it. A default that a
+> comment, a test and a known-issue entry all call wrong is still what runs when
+> nobody passes the flag, so it refuses instead. `KI-2026-09-21-a` carries the
+> real fix: a machine-readable order this could read.
 >
 > This is automated because the list is what kept failing. Step 5 was *added*
 > to this checklist after M11a's and M11b's gate-close commits both missed it,
@@ -223,27 +233,39 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: **M26 — Design parity** (`M26-design-parity.md`), as of
-**2026-09-19, by Mitchell placing it** — the fourth time this line has moved by
-decision rather than by a gate close, and the third move in a single day.
-**M26 link 0 (the preflight) is done**; Wave 1 link 1 is the next work. M13 had
-the line for the few hours between M23's gate closing and M26 being placed, and
-is now **next** rather than current, with its scope unchanged. **M23's gate closed at 11 of 11 and
-SHIPPED** the same day (#192, merged as `7763913`), with its migration
-dispatched and production verified; the note is below. **M25's gate closed
-2026-09-19**, 14 of 14. **M22's gate closed 2026-09-19 at 19 of 19 and M21's at
-17 of 17**, both on Mitchell's attestation rather than on agent-recorded
-evidence — the note is below. Neither moves this line: both sit behind M13 in
-the order.
+Current milestone: M13 — Collaboration
+**2026-09-21, BY M26'S GATE CLOSING** — and that is the notable part. The four
+moves before this one were all Mitchell placing a milestone by decision; this
+is the line moving the way the checklist at the top of this file describes,
+because a gate passed. M26 closed at **22 of 22**, having held the line since
+2026-09-19.
 
-**M13 has a preflight that is not its own deliverable, and it has been dropped
-once already** (a different preflight from M26 link 0, which is done). The activity-field descriptor refactor (`KI-20260905-o`) runs
-**once, before M13** — 21 non-test files hand-enumerate activity fields and
-nothing goes red when one is missed. It is shared by M13 link 5 (`who`), M19
-link 1 (cost kind) and M24; it was scheduled on 2026-08-29 as *"one overnight
-batch"* and did not happen, which is why M13's gate now carries a box for it.
+**Two of M26's boxes closed on Mitchell's attestation, not on agent-recorded
+evidence** — the API-token scope walk and the free-account no-access fork, both
+of which the preview seed cannot produce an account for. Same basis M21 and M22
+closed on, and named in the milestone file rather than blurred. **A third is
+ticked with its failures named rather than as an unqualified green:**
+`test:e2e:ci-like` ran 153 passed / 2 failed, both map specs, both KI-49 (the
+browser does not trust the agent proxy's CA, so MapLibre never draws) — a
+container fact, not a code one.
+
+**M13's preflight is DONE — 2026-09-21, and it is no longer a risk to carry.**
+The activity-field descriptor refactor (`KI-20260905-o`) ran once, before this
+milestone, as its own piece of work at Mitchell's request. ~21 non-test files
+hand-enumerated activity fields and nothing went red when one was missed; now
+`ActivitySnapshot` declares the set once and a ninth field is a compile error
+at every site. It was shared with M19 link 1 and M24, so both are unblocked
+too. It had been scheduled once before, on 2026-08-29 as *"one overnight
+batch"*, and did not happen — which is why it was a gate box rather than a
+promise, and that box is now ticked.
+
+**M23's gate closed at 11 of 11 and SHIPPED** the same day (#192, merged as
+`7763913`), with its migration dispatched and production verified; the note is
+below. **M25's gate closed 2026-09-19**, 14 of 14. **M22's gate closed
+2026-09-19 at 19 of 19 and M21's at 17 of 17**, both on Mitchell's attestation
+rather than on agent-recorded evidence — the note is below.
 Order from here:
-`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 → M13 → M12 → M24 → M14 → M19`.
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [Phase 0 ✓ — paused, grounding/durability/evals remain] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 → M12 → M24 → M14 → M19`.
 **Reordered and widened 2026-09-18 by Mitchell** — three milestones minted (M23, M24, M25), M13 moved ahead of M12, and two pieces of non-milestone work placed inside that order: see the 2026-09-18 note below.
 **M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
 below. The second one also records a cost it first got wrong.

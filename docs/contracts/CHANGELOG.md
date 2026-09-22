@@ -13,6 +13,65 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-21 — the activity field set is declared once (KI-2026-09-05-o)
+
+- Added: `ActivitySnapshot` (`packages/contracts/src/activity.ts`) — an exported
+  `z.object` holding the eight fields an activity carries in state and on the
+  wire (`title`, `timeWindow`, `location`, `notes`, `anchors`, `kind`, `tags`,
+  `cost`), with the exact validators, nullability and `.default()`s the private
+  `ActivityPayloadFields` object carried before it, **in the same key order**.
+- **Removed: `ActivityPayloadFields`** — it was module-private and is replaced
+  by `ActivitySnapshot.shape`, which `ActivityAddedV1` and `ActivityUpdatedV1`
+  now `.extend()`. No consumer could reference it. Two historical entries below
+  (2026-08-28 and 2026-09-05) name it; they are left verbatim as the record of
+  what was true when they were written.
+- **Changed: `ActivityState` (`packages/domain/src/trip/state.ts`) is now
+  `z.infer<typeof ActivitySnapshot>`** instead of a hand-written mirror. Proven
+  identical to the type it replaces with a `[A] extends [B] ? …` type-identity
+  check (which distinguishes `k?: T` from `k: T | undefined`), including that
+  `.default()` resolves to non-optional on the output type: `kind` is an
+  `ActivityKind` and never null, `tags` an array and never null, `cost` is
+  `Money | null`.
+- Why: the field set was hand-enumerated in ~21 non-test files and **nothing
+  went red when one was missed**. That class had already shipped three times,
+  each as a silently dropped field — KI-1 (day order), KI-54 (`city` and
+  `countryCode` invisible to equality, so a city-only edit was rejected as a
+  no-op) and M18's editor sheet dropping `kind`/`tags`. The compile error now
+  lands at `equality.ts`'s `FIELD_EQUAL` (a `Record<keyof ActivityState, …>`
+  replacing the boolean chain) and at every derived site. **Verified by adding a
+  ninth field and reading the errors**: `contracts/src/detail.ts`,
+  `domain/src/trip/{decide,diff,equality,evolve,hydrate}.ts`, plus `factories`,
+  `mocks/handlers.ts`, `ActivityEditorSheet.tsx` and ~27 test files.
+- **NOT changed: `ActivityView` (`packages/contracts/src/detail.ts`).** Deriving
+  it was built, measured and backed out — Mitchell's call, 2026-09-21. The
+  snapshot carries write-path bounds (`title` 1..200, `notes` ≤2000) that the
+  read model does not, and `getTripDetail` parses `trip_details.doc` straight
+  off jsonb, so a stored value violating one would not fail a write, it would
+  500 the board on read — the #71 shape (a required `kind` taking out every
+  untouched pre-M18 trip), one field later. Measured, the derivation moved
+  `ActivityView`'s parse behaviour in five ways: `cost` and `anchors` absent
+  became permissive, and `title` empty, `title` >200 and `notes` >2000 became
+  failures. The read model stays permissive; `ActivityViewCoversSnapshot`, a
+  key-parity type assertion in `detail.ts`, keeps the compile-forcing without
+  the behaviour change. It is weaker in one stated way — it forces the key to
+  exist, not that its type matches.
+- **NOT changed: `SavedStop` (`packages/contracts/src/saved.ts`).** Deliberate.
+  It looks like the same eight fields but its header states a different rule
+  (every field added from 2026-09-19 carries `.default()`) and its `kind`/`tags`
+  are required, not defaulted; deriving it would change how already-saved
+  `saved_days.stops` jsonb parses. Verified byte-identical parse behaviour after
+  the change, including `kind` absent still failing.
+- Consumers updated: `packages/domain` (`state.ts`, `equality.ts`),
+  `packages/contracts` (`activity.ts`, `detail.ts`, two test comments naming the
+  removed identifier). Nothing else needed an edit — the other sites were
+  already typed against the derived shape.
+- **Breaking? no, and wire identity was measured rather than argued.** A
+  fingerprint harness parsed the same inputs against `ActivityAddedV1`,
+  `ActivityUpdatedV1`, `ActivityView` and `SavedStop` before and after: zero
+  diff on all four. No event payload, `trip_details.doc` or `saved_days.stops`
+  changes shape, key order or parse behaviour. `apps/web/src/app/api/v1/openapi.json`
+  regenerates byte-identical, so the public API spec does not move. No migration.
+
 ## 2026-09-19 — a Playbook is a sequence of days (M23, ADR-048)
 
 - Added: `SavedStop.dayIndex` — `z.number().int().nonnegative().default(0)`

@@ -78,3 +78,13 @@ apps/web/public/maplibre/
 # rule guards, or it proves nothing.
 apps/web/**/__lint_wall_*__.*
 apps/web/eslint.config.__walltest__*
+# WIDENED 2026-09-21, because the rule above only covered one of the wall's
+# three fixture families and the same accident happened again. `lintFixture`
+# writes `__lint_wall_*__` (covered above), `__admin_*_fixture__` (the three
+# operator-console exemption fixtures) and `__test_quality_*_fixture__` (four
+# more) — so two families out of three were unignored, and a `git add -A` while
+# the wall ran committed `__test_quality_e2e_fixture__.ts` in 4b3569b, exactly
+# as two others reached b80da5e. Nothing tracked matches this pattern, checked
+# before adding it; if a real source file ever wants this name, rename the file
+# rather than narrowing this line.
+apps/web/**/__*_fixture__.*
