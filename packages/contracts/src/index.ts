@@ -9,6 +9,7 @@ export * from "./conflict.ts";
 export * from "./history.ts";
 export * from "./money.ts";
 export * from "./pages.ts";
+export * from "./pageEvents.ts";
 export * from "./pageDoc.ts";
 export * from "./access.ts";
 export * from "./share.ts";
