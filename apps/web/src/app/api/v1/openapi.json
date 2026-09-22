@@ -9090,6 +9090,10 @@
                           },
                           "undone": {
                             "type": "boolean"
+                          },
+                          "pageId": {
+                            "type": "string",
+                            "format": "uuid"
                           }
                         },
                         "required": [

@@ -333,6 +333,13 @@ export function buildHistoryEntries(envelopes: EventEnvelope[]): HistoryEntry[] 
     descriptions.set(batch.batchId, description);
     for (const event of batch.events) state = evolveTrip(state, event);
     for (const event of batch.pageEvents) pages = evolvePages(pages, event);
+    // One page and only one: a batch touching two pages has no single subject,
+    // and a batch with trip events in it is a trip change that happens to carry
+    // a page event. Both fall through to `undefined`, which the panel reads as
+    // "do not group this".
+    const pageIds = new Set(batch.pageEvents.map((e) => e.payload.pageId));
+    const pageId =
+      batch.events.length === 0 && pageIds.size === 1 ? [...pageIds][0] : undefined;
     entries.push({
       batchId: batch.batchId,
       fromSeq: batch.fromSeq,
@@ -342,6 +349,7 @@ export function buildHistoryEntries(envelopes: EventEnvelope[]): HistoryEntry[] 
       origin: batch.origin,
       description,
       undone: undoneSet.has(batch.batchId),
+      ...(pageId === undefined ? {} : { pageId }),
     });
   }
   return entries;
