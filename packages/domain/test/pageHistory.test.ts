@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { EventEnvelope, PageDoc } from "@tc/contracts";
-import { buildHistoryEntries, deriveUndoRedo, foldEnvelopes, groupBatches } from "../src";
+import {
+  buildHistoryEntries,
+  decideHistoryCommand,
+  deriveUndoRedo,
+  foldEnvelopes,
+  groupBatches,
+} from "../src";
 
 const TRIP = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const P1 = "7f8b3d0f-4a8b-4c7f-8e4a-3c2b6d9e8f70";
@@ -53,14 +59,49 @@ describe("groupBatches", () => {
     expect(pageBatch?.pageEvents).toHaveLength(1);
   });
 
-  // The reason a page-only batch must survive grouping: `deriveUndoRedo`
-  // stacks batches, so a notebook edit is undoable only if it is a batch.
-  it("makes a notebook edit undoable without deriveUndoRedo knowing about pages", () => {
-    const targets = deriveUndoRedo(groupBatches([genesis, pageCreated, pageEdited]));
-    expect(targets.undo).not.toBeNull();
-    // Undoing the last batch targets the seq just before it — i.e. back to the
-    // page as it was created, not back past the trip's genesis.
-    expect(targets.undo).toEqual({ batchId: B(3), targetSeq: 2 });
+  it("keeps a page-only batch as a batch, so history can still describe it", () => {
+    const batches = groupBatches([genesis, pageCreated, pageEdited]);
+    expect(batches).toHaveLength(3);
+    expect(batches[2]?.pageEvents).toHaveLength(1);
+  });
+});
+
+// **A page-only batch must NOT enter the undo stack**, and the test that used
+// to live here asserted the opposite — that a notebook edit became the undo
+// target "without deriveUndoRedo knowing about pages". It does become the
+// target, and that is the bug: `foldEnvelopes` skips page events, so undoing
+// to just before that batch produces an EMPTY trip diff, `decideHistoryCommand`
+// rejects it as `nothing-to-undo`, and nothing is popped. The next undo picks
+// the same batch. One notebook save and undo can never reach an earlier
+// itinerary change again.
+//
+// Page undo needs the history decision to carry `PageEvent[]` — that is
+// `KI-2026-09-22-c`, and it is an open design question because doing it naively
+// deletes every notebook on a revert. Until then a notebook edit is not
+// undoable, which is a smaller cost than undo being stuck.
+describe("deriveUndoRedo with page-only batches", () => {
+  const dayAdded = env(2, "DayAdded", { tripId: TRIP, dayId: DAY }, 2);
+  const created = env(3, "PageCreated", {
+    tripId: TRIP, pageId: P1, title: "Overview", context: { tripId: TRIP }, content: doc("a"), actorId: ALICE,
+  }, 3);
+  const edited = env(4, "PageEdited", { tripId: TRIP, pageId: P1, content: doc("b") }, 4);
+  const log = [genesis, dayAdded, created, edited];
+
+  it("steps over them, so undo reaches the last trip change", () => {
+    // The day, not the notebook save that happened after it.
+    expect(deriveUndoRedo(groupBatches(log)).undo).toEqual({ batchId: B(2), targetSeq: 1 });
+  });
+
+  it("leaves nothing to undo when the notebook edits are all there is", () => {
+    expect(deriveUndoRedo(groupBatches([genesis, created, edited])).undo).toBeNull();
+  });
+
+  // The symptom as a user meets it, one layer up from the stack bookkeeping.
+  it("undoes the day rather than rejecting the command", () => {
+    const decision = decideHistoryCommand(log, { type: "UndoLastChange", tripId: TRIP });
+    expect(decision.ok).toBe(true);
+    if (!decision.ok) return;
+    expect(decision.events.map((e) => e.type)).toEqual(["DayRemoved"]);
   });
 });
 

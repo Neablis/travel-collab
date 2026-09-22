@@ -35,6 +35,64 @@ async function createPageVia(tripId: string, title: string, text: string) {
 }
 
 describe("executePageCommand", () => {
+  // **A row the genesis backfill had to skip is still deletable.**
+  //
+  // `missingGenesis` skips a row whose `content` will not parse as a `PageDoc`
+  // — ADR-038 decision 4, a document this build cannot represent must not be
+  // written back through the log. The row then never enters the fold, so
+  // `decidePageCommand` answers `page-not-found` for EDIT and for DELETE
+  // alike, and the SQL `deletePage` that used to remove such a row is gone.
+  // Without this, an unreadable notebook is stuck in the list permanently.
+  // Delete does not save the document, so decision 4 does not forbid it.
+  it("deletes a legacy row whose document the backfill had to skip", async () => {
+    const tripId = await seedTrip();
+    const pageId = randomUUID();
+    const now = new Date().toISOString();
+    await db.insert(pages).values({
+      id: pageId,
+      tripId,
+      title: "Old notes",
+      context: { tripId },
+      // `PageDoc` is `.strict()`, so an unknown top-level key is unparseable —
+      // a document from a build this one does not know about.
+      content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
+      createdAt: now,
+      updatedAt: now,
+      actorId: OWNER,
+    });
+
+    const result = await executePageCommand({ type: "DeletePage", tripId, pageId }, OWNER);
+    expect(result.ok).toBe(true);
+
+    const rows = await db.select().from(pages).where(eq(pages.id, pageId));
+    expect(rows).toHaveLength(0);
+  });
+
+  // The rescue must not become a way around SPEC §25's undeletable Overview.
+  it("still refuses to delete the Overview when its document will not parse", async () => {
+    const tripId = await seedTrip();
+    const pageId = randomUUID();
+    const now = new Date().toISOString();
+    await db.insert(pages).values({
+      id: pageId,
+      tripId,
+      title: "Overview",
+      context: { tripId, kind: "overview" },
+      content: { v: 1, type: "doc", content: [], fromANewerBuild: true } as never,
+      createdAt: now,
+      updatedAt: now,
+      actorId: OWNER,
+    });
+
+    const result = await executePageCommand({ type: "DeletePage", tripId, pageId }, OWNER);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("page-undeletable");
+
+    const rows = await db.select().from(pages).where(eq(pages.id, pageId));
+    expect(rows).toHaveLength(1);
+  });
+
   it("writes the row and the event in one transaction", async () => {
     const tripId = await seedTrip();
     const pageId = await createPageVia(tripId, "Packing", "socks");

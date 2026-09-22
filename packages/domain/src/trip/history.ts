@@ -57,10 +57,10 @@ export type Batch = {
    * reader of `batch.events` keeps its exhaustive `TripEvent` switch and is
    * not silently handed a shape it has no case for.
    *
-   * **A batch of ONLY page events is still a batch**, which is the point: it
-   * has a batchId and an origin, so `deriveUndoRedo` stacks it like any other
-   * and a notebook edit becomes undoable without that function learning
-   * anything new.
+   * **A batch of ONLY page events is still a batch** — it has a batchId and an
+   * origin, so the history panel can describe it. It is deliberately NOT
+   * undoable: `deriveUndoRedo` skips any batch with no trip events, and the
+   * comment there says why stacking one wedges undo entirely.
    */
   pageEvents: PageEvent[];
 };
@@ -110,6 +110,20 @@ export function deriveUndoRedo(batches: Batch[]): UndoRedoTargets {
   const done: Batch[] = [];
   const undone: Batch[] = [];
   for (const batch of batches) {
+    // **A batch with no trip events never enters the stack.** Today that means
+    // a page-only batch — a notebook save. Stacking one makes undo STUCK, not
+    // merely ineffective: `foldEnvelopes` skips page events, so undoing to just
+    // before the batch yields an empty trip diff, `decideHistoryCommand`
+    // rejects `nothing-to-undo`, and nothing is popped. Press undo again and it
+    // picks the same batch forever, with every earlier itinerary change
+    // unreachable behind it.
+    //
+    // So a notebook edit is not undoable yet. Making it undoable means the
+    // history decision carrying `PageEvent[]` alongside `TripEvent[]`, which is
+    // `KI-2026-09-22-c` — open because the naive version emits `PageDeleted`
+    // for every notebook when a trip is reverted behind a backfilled genesis.
+    // Not-undoable is the smaller cost, and it is reversible.
+    if (batch.events.length === 0) continue;
     switch (batch.origin.kind) {
       case "user":
       case "revert":

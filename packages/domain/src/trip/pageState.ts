@@ -188,7 +188,7 @@ export type PageDecision =
   | { ok: true; events: PageEvent[] }
   | { ok: false; rejection: { code: string; message: string } };
 
-const OVERVIEW_UNDELETABLE =
+export const OVERVIEW_UNDELETABLE =
   "The Overview comes with the trip and cannot be deleted. You can empty it instead.";
 
 /**

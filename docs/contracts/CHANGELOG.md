@@ -13,6 +13,36 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-22 — notebook pages become commands and events
+
+- Added `packages/contracts/src/pageEvents.ts`: commands **`CreatePage`**,
+  **`EditPage`**, **`DeletePage`** (union `PageCommand`) and events
+  **`PageCreatedV1`**, **`PageEditedV1`**, **`PageDeletedV1`** (union
+  `PageEvent`), plus the `isPageEventType` guard.
+- Added to `HistoryEntry` (`packages/contracts/src/history.ts`) an optional
+  **`pageId`**, so a history row can name the notebook it is about.
+- Why: a notebook save wrote the `pages` table directly, so it moved no
+  `headSeq`, appeared in no history and could not be undone or reverted to —
+  reported by Mitchell on 2026-09-22 as a notebook edited on one device never
+  reaching another. Page events now share the trip's stream.
+- **`PageEvent` is NOT part of `TripEvent`, and that is the load-bearing
+  decision.** One stream, two aggregates: `hydrate.ts` is the documented
+  inverse of the projection under a round-trip property test, which makes
+  `TripDetail` a strict superset of `TripState` — so a `pages` field on one is
+  a `pages` field on the other, stored whole in `trip_details.doc` and
+  refetched on every 2s poll. Each fold skips the other aggregate's events **by
+  name**, so an envelope belonging to neither still throws.
+- **`EditPage` has no `context` field**, deliberately: the Overview marker
+  (`PageContext.kind`) is then structurally unwritable by an edit, so no
+  command can promote an ordinary page into the undeletable one.
+- Consumers updated: `@tc/domain` (`pageState.ts`, `history.ts`, `detail.ts`,
+  `project.ts`), `apps/web` (page commands, BFF + v1 routes, importer, history
+  panel, Overview lens) — in this same PR
+- Breaking? no — no stored event payload changes, and `TripEvent.parse` still
+  accepts every previously stored event. Pages that predate this have a ROW and
+  no genesis event; they are backfilled lazily on first command rather than by
+  a migration, and `HistoryEntry.pageId` is not in `required`.
+
 ## 2026-09-22 — a stop knows who booked it and who is going (M13 link 5)
 
 - Added to `ActivitySnapshot` (`packages/contracts/src/activity.ts`):

@@ -1103,6 +1103,11 @@ describe("TripProvider broadcast (M13 link 2)", () => {
     becomeVisible();
     // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
     await act(async () => {});
+    // **Witness first.** Without this the test passes when the poll never runs
+    // at all — a false `enabled` gate or an unattached visibility listener
+    // would make "did not bump" true for the wrong reason, and this test
+    // would go on reporting that it covers the poll's no-change path.
+    await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled());
     expect(screen.getByTestId("remoteRevision").textContent).toBe("0");
   });
 

@@ -1,12 +1,21 @@
 import {
   PageCommand,
+  PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
   type EventEnvelope,
   type Page,
   type PageEvent,
 } from "@tc/contracts";
-import { decidePageCommand, evolvePages, foldEnvelopes, foldPages, type PagesState } from "@tc/domain";
+import {
+  decidePageCommand,
+  evolvePages,
+  foldEnvelopes,
+  foldPages,
+  OVERVIEW_UNDELETABLE,
+  type PageDecision,
+  type PagesState,
+} from "@tc/domain";
 import { eq } from "drizzle-orm";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
@@ -154,7 +163,23 @@ export async function executePageCommand(
       foldPages(history),
     );
 
-    const decision = decidePageCommand(pagesState, command, actorId);
+    let decision = decidePageCommand(pagesState, command, actorId);
+
+    // **A row the backfill had to skip can still be DELETED.**
+    //
+    // `missingGenesis` skips a row whose document will not parse, so the fold
+    // never learns the page and every command against it is answered
+    // `page-not-found` — including delete, while `getPage` can see the row
+    // sitting right there. The SQL `deletePage` that used to remove one is
+    // gone with the other direct writers, so without this an unreadable
+    // notebook is stuck in the list with no way out and no repair path.
+    //
+    // ADR-038 decision 4 forbids SAVING a document this build cannot
+    // represent. Deleting does not save it: `PageDeleted` carries no content.
+    if (!decision.ok && decision.rejection.code === "page-not-found" && command.type === "DeletePage") {
+      const rescued = await deleteSkippedRow(tx, command.tripId, command.pageId);
+      if (rescued !== null) decision = rescued;
+    }
     if (!decision.ok) return { ok: false, error: decision.rejection };
 
     // A no-op edit — the 800ms autosave firing on the pause after an
@@ -191,6 +216,39 @@ export async function executePageCommand(
     await applyPageEvents(tx, appended.envelopes);
     return { ok: true, tripId: command.tripId, page: await readPage(tx, command.pageId) };
   });
+}
+
+/**
+ * The delete decision for a row `missingGenesis` skipped, or `null` if this is
+ * not that case.
+ *
+ * Deliberately narrow. It answers only for a row that exists, belongs to THIS
+ * trip, and is unparseable — the exact condition that put the page beyond the
+ * fold's reach. A parseable row is `null`, because then the fold already knew
+ * the page and the ordinary decision was right to refuse.
+ */
+async function deleteSkippedRow(
+  tx: Parameters<typeof appendToStream>[0],
+  tripId: string,
+  pageId: string,
+): Promise<PageDecision | null> {
+  const [row] = await tx.select().from(pages).where(eq(pages.id, pageId));
+  if (row === undefined || row.tripId !== tripId) return null;
+  // Parseable means the fold knew it, so `page-not-found` came from somewhere
+  // else and is not this function's to overturn.
+  if (PageDocSchema.safeParse(row.content).success) return null;
+
+  // The Overview stays undeletable (SPEC §25), and an unreadable `context` is
+  // refused rather than guessed: not being able to prove a page is ordinary is
+  // not the same as proving it is.
+  const context = PageContextSchema.safeParse(row.context);
+  if (!context.success || context.data.kind === "overview") {
+    return { ok: false, rejection: { code: "page-undeletable", message: OVERVIEW_UNDELETABLE } };
+  }
+  return {
+    ok: true,
+    events: [{ type: "PageDeleted", version: 1, payload: { tripId, pageId } }],
+  };
 }
 
 async function readPage(
