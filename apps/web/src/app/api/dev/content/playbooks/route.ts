@@ -7,6 +7,7 @@ import { savedDayAdds, savedDays } from "@/server/db/schema";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
 import { recomputeReviewCounters } from "@/server/reviews";
+import { carryModeration, restoreModeration } from "@/server/reports";
 
 export const runtime = "nodejs";
 
@@ -93,6 +94,8 @@ export async function POST(request: Request) {
   await db.transaction(async (tx) => {
     // Ledger first: `saved_day_adds` has no foreign key (the no-FK convention
     // this schema uses throughout), so deleting the days first would orphan it.
+    // Read before the delete erases it; put back after the re-insert.
+    const moderation = await carryModeration(tx, ids);
     await tx.delete(savedDayAdds).where(inArray(savedDayAdds.savedDayId, ids));
     await tx.delete(savedDays).where(inArray(savedDays.id, ids));
 
@@ -137,6 +140,7 @@ export async function POST(request: Request) {
     // without this every re-import would silently zero a reviewed day's rating
     // while its reviews still sat in `saved_day_reviews` (M12 link 2).
     for (const id of ids) await recomputeReviewCounters(tx, id);
+    await restoreModeration(tx, moderation);
   });
 
   return Response.json({

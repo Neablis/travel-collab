@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REVIEW_NOTE_MAX, SavedDayVisibility, type Review, type ReviewSummary, type SavedDayReviewsResponse } from "@tc/contracts";
 import { scenarios } from "@tc/factories";
 import { db } from "@/server/db/client";
 import { savedDayReviews, savedDays } from "@/server/db/schema";
+import { recomputeReviewCounters } from "@/server/reviews";
 import { deleteSavedDay, saveDay, setSavedDayVisibility } from "@/server/savedDays";
 
 // The reviews route (M12 links 1-3), walked as the people who use it: an author
@@ -175,5 +176,38 @@ describe("GET and DELETE /api/saved-days/:id/reviews", () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as { summary: ReviewSummary }).summary).toMatchObject({ average: null, count: 0 });
     expect((await remove()).status).toBe(404);
+  });
+
+  // A hidden review answers as absent to its writer. If DELETE removed it, the
+  // next PUT would insert a fresh visible row and undo the moderator's hide.
+  it("404s a DELETE of a hidden review, and a PUT after it leaves the review hidden", async () => {
+    const id = await authorsDay();
+    const other = `m12-other-${randomUUID().slice(0, 8)}`;
+    currentUserId = other;
+    await put(id, { stars: 5 });
+    currentUserId = READER;
+    await put(id, { stars: 1 });
+
+    const mine = and(eq(savedDayReviews.savedDayId, id), eq(savedDayReviews.reviewerId, READER));
+    // Unit 3's hide, in its shape: flag, then recompute, in one transaction.
+    await db.transaction(async (tx) => {
+      await tx.update(savedDayReviews).set({ hiddenAt: new Date() }).where(mine);
+      await recomputeReviewCounters(tx, id);
+    });
+    const counters = async () =>
+      (
+        await db
+          .select({ rating: savedDays.rating, reviewCount: savedDays.reviewCount })
+          .from(savedDays)
+          .where(eq(savedDays.id, id))
+      )[0];
+    expect(await counters()).toEqual({ rating: 5, reviewCount: 1 });
+
+    expect((await DELETE(new Request("http://test/x", { method: "DELETE" }), ctx(id))).status).toBe(404);
+    await put(id, { stars: 1 });
+
+    const [row] = await db.select().from(savedDayReviews).where(mine);
+    expect(row?.hiddenAt).toBeInstanceOf(Date);
+    expect(await counters()).toEqual({ rating: 5, reviewCount: 1 });
   });
 });

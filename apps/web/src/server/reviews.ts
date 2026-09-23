@@ -193,9 +193,14 @@ export async function putReview(
 
 // Not gated on the day still being public: a review is its writer's text, and
 // withdrawing it from a day that has since gone private is theirs to do.
+//
+// Gated on the review being VISIBLE, though. A hidden review is a moderator's
+// decision; if its writer could delete it, the next PUT would insert a fresh,
+// visible row and undo the hide in two requests. So a hidden review answers
+// as if it were absent — the same as `reviewsFor`'s `mine` already does.
 /**
- * Withdraw `reviewerId`'s own review and recompute the day's counters.
- * Returns the fresh summary, or null when this person has no review here.
+ * Withdraw `reviewerId`'s own visible review and recompute the day's counters.
+ * Returns the fresh summary, or null when this person has no visible review here.
  */
 export async function deleteReview(savedDayId: string, reviewerId: string): Promise<ReviewSummary | null> {
   if (!isUuid(savedDayId)) return null;
@@ -203,7 +208,9 @@ export async function deleteReview(savedDayId: string, reviewerId: string): Prom
     await lockSavedDayForReviewWrite(tx, savedDayId);
     const removed = await tx
       .delete(savedDayReviews)
-      .where(and(eq(savedDayReviews.savedDayId, savedDayId), eq(savedDayReviews.reviewerId, reviewerId)))
+      .where(
+        and(eq(savedDayReviews.savedDayId, savedDayId), eq(savedDayReviews.reviewerId, reviewerId), visible),
+      )
       .returning({ reviewerId: savedDayReviews.reviewerId });
     if (removed.length === 0) return null;
     await recomputeReviewCounters(tx, savedDayId);

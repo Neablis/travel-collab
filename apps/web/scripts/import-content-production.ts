@@ -64,6 +64,7 @@ import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
 import { recomputeReviewCounters } from "@/server/reviews";
+import { carryModeration, restoreModeration } from "@/server/reports";
 import { executePageCommand } from "@/server/pageCommands";
 import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
@@ -158,6 +159,8 @@ async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
   let pruned = 0;
 
   await db.transaction(async (tx) => {
+    // Read before the delete below erases it; put back after the re-insert.
+    const moderation = await carryModeration(tx, ids);
     // Ledger first: `saved_day_adds` has no foreign key (this schema's
     // convention), so removing the days first would orphan it.
     if (ids.length > 0) {
@@ -221,6 +224,7 @@ async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
     // without this every re-import would silently zero a reviewed day's rating
     // while its reviews still sat in `saved_day_reviews` (M12 link 2).
     for (const id of ids) await recomputeReviewCounters(tx, id);
+    await restoreModeration(tx, moderation);
   });
 
   return { days: resolved.length, pruned };

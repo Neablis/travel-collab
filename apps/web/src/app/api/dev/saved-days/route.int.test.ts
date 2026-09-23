@@ -226,4 +226,32 @@ describe("POST /api/dev/saved-days", () => {
 
     await deleteReview(day.savedDayId, reviewer);
   });
+
+  // The same rewrite would otherwise clear `moderated_at` — `newSavedDayRow`
+  // writes a fresh row with none — and republish a day an operator had hidden.
+  it("keeps a moderated day moderated across a re-seed", async () => {
+    openGate();
+    expect((await POST()).status).toBe(200);
+    const day = SEEDED.find((d) => d.visibility === "public")!;
+    const hiddenAt = new Date("2026-09-20T12:00:00.000Z");
+    await db
+      .update(savedDays)
+      .set({ moderatedAt: hiddenAt, moderationNote: "spam" })
+      .where(eq(savedDays.id, day.savedDayId));
+
+    try {
+      expect((await POST()).status).toBe(200);
+      const [row] = await db
+        .select({ moderatedAt: savedDays.moderatedAt, moderationNote: savedDays.moderationNote })
+        .from(savedDays)
+        .where(eq(savedDays.id, day.savedDayId));
+      expect(row).toEqual({ moderatedAt: hiddenAt, moderationNote: "spam" });
+    } finally {
+      // Fixed ids, shared with every other file's reads of the demo library.
+      await db
+        .update(savedDays)
+        .set({ moderatedAt: null, moderationNote: null })
+        .where(eq(savedDays.id, day.savedDayId));
+    }
+  });
 });

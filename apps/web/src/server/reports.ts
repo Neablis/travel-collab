@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type {
   AdminReportAction,
   ContentReport,
@@ -9,7 +9,7 @@ import type {
 } from "@tc/contracts";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import { displayNameFor } from "@/lib/displayName";
-import { db } from "./db/client";
+import { db, type Queryable } from "./db/client";
 import { contentReports, savedDayReviews, savedDays } from "./db/schema";
 import { isUuid } from "./ids";
 import { lockSavedDayForReviewWrite, recomputeReviewCounters } from "./reviews";
@@ -23,7 +23,8 @@ import { readableSavedDay } from "./savedDays";
 // `saved_day_reviews.hidden_at`.** What a moderated day disappears FROM is not
 // decided here — that is the `notModerated` filter in `playbooks.ts`,
 // `cities.ts` and `readableSavedDay`, listed in the schema's `moderatedAt`
-// note. This module only moves the columns.
+// note. This module only moves the columns — including putting them back after
+// a content re-import rewrites the row (`carryModeration`).
 
 type ReportRow = typeof contentReports.$inferSelect;
 
@@ -334,4 +335,37 @@ export async function actOnReport(
     const after = await tx.select().from(contentReports).where(eq(contentReports.id, reportId));
     return { ok: true, value: toDto(after[0]!) };
   });
+}
+
+/** A day's moderation state as `carryModeration` saw it before a rewrite. */
+type CarriedModeration = { id: string; moderatedAt: Date; moderationNote: string | null }[];
+
+// The content importers (the production script and both dev seed routes)
+// rewrite a day by DELETE + INSERT through `newSavedDayRow`, which writes a
+// fresh row with no moderation on it. Without this, re-importing a bundle
+// would silently republish every day an operator had hidden — the reviews
+// already survive that rewrite (`recomputeReviewCounters`), and a moderator's
+// decision is no less a person's than a reviewer's stars.
+/**
+ * Read the moderation of every hidden day among `ids`, BEFORE the caller
+ * deletes them; hand the result to `restoreModeration` after the re-insert,
+ * in the same transaction.
+ */
+export async function carryModeration(tx: Queryable, ids: string[]): Promise<CarriedModeration> {
+  if (ids.length === 0) return [];
+  const rows = await tx
+    .select({ id: savedDays.id, moderatedAt: savedDays.moderatedAt, moderationNote: savedDays.moderationNote })
+    .from(savedDays)
+    .where(and(inArray(savedDays.id, ids), isNotNull(savedDays.moderatedAt)));
+  return rows.map((r) => ({ id: r.id, moderatedAt: r.moderatedAt!, moderationNote: r.moderationNote }));
+}
+
+/**
+ * Put back what `carryModeration` read, onto the rewritten rows. A day the
+ * rewrite did not re-create stays gone — there is nothing left to hide.
+ */
+export async function restoreModeration(tx: Queryable, carried: CarriedModeration): Promise<void> {
+  for (const { id, moderatedAt, moderationNote } of carried) {
+    await tx.update(savedDays).set({ moderatedAt, moderationNote }).where(eq(savedDays.id, id));
+  }
 }

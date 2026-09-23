@@ -116,3 +116,31 @@ describe("the review counters", () => {
     expect(await reviewCounterDrift([id])).toEqual([]);
   });
 });
+
+// `putReview`'s own re-check under the row lock, reached directly: the route's
+// `requireSavedDayRead` already 404s a stranger on a moderated or deleted day,
+// so a route test never gets this far. A non-author, because for the author
+// `own-day` would refuse the write even without the re-check, and the test
+// would pass with it deleted.
+describe("putReview on a day that stopped being reviewable", () => {
+  const rowsFor = (id: string) => db.select().from(savedDayReviews).where(eq(savedDayReviews.savedDayId, id));
+
+  it("answers not-found on a moderated day and writes no review", async () => {
+    const id = await publishedDay();
+    await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, id));
+
+    expect(await putReview(id, reviewer(), { stars: 5, note: null })).toEqual({ kind: "not-found" });
+    expect(await rowsFor(id)).toEqual([]);
+  });
+
+  // Still public, only `deleted_at` set: the state a delete racing the route's
+  // read leaves, and the one where the visibility clause cannot stand in for
+  // the deleted one.
+  it("answers not-found on a deleted day and writes no review", async () => {
+    const id = await publishedDay();
+    await db.update(savedDays).set({ deletedAt: new Date() }).where(eq(savedDays.id, id));
+
+    expect(await putReview(id, reviewer(), { stars: 5, note: null })).toEqual({ kind: "not-found" });
+    expect(await rowsFor(id)).toEqual([]);
+  });
+});

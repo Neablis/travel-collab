@@ -70,11 +70,12 @@ export async function backfillSavedDayCountries(db) {
 
     // Counted after the write, so the number is what the column now holds.
     // "Published" is the set `searchPlaces` and a Discover country filter read:
-    // public and not deleted.
+    // public, not deleted, not moderated — `publishedCountries`' own filter, so
+    // a hidden day cannot lift the number the gate box is judged on.
     const covered = countries.length > 0 ? 1 : 0;
     all.total += 1;
     all.withCountry += covered;
-    if (row.visibility === "public" && row.deletedAt === null) {
+    if (row.visibility === "public" && row.deletedAt === null && row.moderatedAt === null) {
       published.total += 1;
       published.withCountry += covered;
     }

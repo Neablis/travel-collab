@@ -112,14 +112,21 @@ describe("the 0025 countries backfill", () => {
       [stop("Zócalo", "09:00", locationFactory.build({ name: "Zócalo", city: "Mexico City", countryCode: "MX" }))],
       "public",
     );
+    // A moderated day is out of place search (D5), so it must be out of the
+    // published count too — without one in the table the two filters agree.
+    const moderated = await rowWithoutCountries(
+      [stop("Palais", "10:00", locationFactory.build({ name: "Palais", city: "Monaco", countryCode: "MC" }))],
+      "public",
+    );
+    await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, moderated));
     const { coverage } = await backfillSavedDayCountries(db);
 
     const measured = await db.execute<{ all_with: number; all: number; pub_with: number; pub: number }>(sql`
       select
         count(*) filter (where cardinality(countries) > 0)::int as all_with,
         count(*)::int as all,
-        count(*) filter (where visibility = 'public' and deleted_at is null and cardinality(countries) > 0)::int as pub_with,
-        count(*) filter (where visibility = 'public' and deleted_at is null)::int as pub
+        count(*) filter (where visibility = 'public' and deleted_at is null and moderated_at is null and cardinality(countries) > 0)::int as pub_with,
+        count(*) filter (where visibility = 'public' and deleted_at is null and moderated_at is null)::int as pub
       from saved_days
     `);
     const row = measured.rows[0]!;

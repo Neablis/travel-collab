@@ -22,11 +22,14 @@ def up(port):
     except Exception:
         return False
 
-# Build the isolated repo: five places, one bundle, its own cache.
+# Build the isolated repo: five places, one bundle (a second arrives before
+# --apply), its own cache.
 REPO = Path(__file__).resolve().parent.parent.parent
 H.mkdir(parents=True, exist_ok=True)
 (H/"scripts").mkdir(exist_ok=True); (H/"content").mkdir(exist_ok=True)
 shutil.copy(REPO/"scripts/geocode-content.py", H/"scripts/geocode-content.py")
+# The second bundle below must be unresolved; a reused harness dir still has it.
+(H/"content/u.json").unlink(missing_ok=True)
 # Place 3 already carries a DIFFERENT code and Place 4 the same one, so the real
 # `--apply` below can check both halves of "write countryCode only where it is
 # absent": a conflict is reported and left alone, an agreement is not a write.
@@ -103,6 +106,16 @@ for argv in (["--status"], ["--diagnose"], ["--review"],
 # provider said `country_code: "is"` — M12 link 7's prerequisite is that this
 # becomes `countryCode: "IS"` in the bundle, not just a vote inside the cache.
 print("\ncountryCode write-back:")
+# A second bundle naming the same city, whose one stop has no row in the cache:
+# written only now, after every geocoding run, so nothing ever resolved it. A
+# city name is not a country (Santa Cruz, CA vs Santa Cruz, BO), so the first
+# bundle's IS votes must not reach this stop.
+json.dump({"$schema":"travel-collab/content-bundle/v1",
+  "bundle":{"id":"u","name":"u","description":"u","origin":"ai","generatedAt":"2026-09-06"},
+  "playbooks":[{"key":"k","title":"u","summary":"s","city":"Reykjavík","keptOn":"2026-09-01",
+    "stops":[{"kind":"sight","name":"U0",
+              "location":{"name":"Unresolved place","area":"Area","city":"Reykjavík"}}]}]},
+  open(H/"content/u.json","w"))
 r = subprocess.run([sys.executable, "scripts/geocode-content.py", "--apply"],
                    cwd=H, capture_output=True, text=True, timeout=60)
 stops = json.load(open(H/"content/t.json"))["playbooks"][0]["stops"]
@@ -116,6 +129,8 @@ checks = [
     ("...and the conflict is reported with both codes", "has NO, geocoder says IS" in r.stdout),
     ("a matching code is left as it is", stops[4]["location"].get("countryCode") == "IS"),
     ("3 codes written, not 5", "3 countryCode(s)" in r.stdout),
+    ("a same-named city in another bundle does not inherit the code",
+     "countryCode" not in json.load(open(H/"content/u.json"))["playbooks"][0]["stops"][0]["location"]),
 ]
 again = subprocess.run([sys.executable, "scripts/geocode-content.py", "--apply"],
                        cwd=H, capture_output=True, text=True, timeout=60)
