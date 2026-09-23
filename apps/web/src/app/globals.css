@@ -1671,6 +1671,18 @@ html[data-look="ledger"] .shadow-raised {
     @apply text-md;
     line-height: 1.75;
   }
+  /* **The letter sets prose, not widgets.** A widget is an inline atom inside
+     that `<p>`, so without this a table widget inherits 16px / 1.75 into every
+     cell and reads as oversized prose in a box — Mitchell, on the #205
+     preview, of `open`: *"It previously had more styling"*. These are the
+     notebook's own numbers (`text-base`, and the 1.7 its `:has` rule gives a
+     paragraph holding a widget). `single` is left out on purpose: a chip is a
+     word in the letter's sentence (SPEC §7) and sets at the letter's size. */
+  .tc-overview-letter .tc-page-editor [data-macro-shape="block"],
+  .tc-overview-letter .tc-page-editor [data-macro-shape="repeat"] {
+    @apply text-base;
+    line-height: 1.7;
+  }
   /* 18px is between the scale's 16 and 19; the design moved this heading off
      19 in the same pass, so the step is the point rather than a rounding. The
      extra 8px above is the design's `padding-top` on a section heading. */
