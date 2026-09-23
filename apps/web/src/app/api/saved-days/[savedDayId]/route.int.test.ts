@@ -173,6 +173,25 @@ beforeEach(() => {
   currentUserId = AUTHOR;
 });
 
+// A review held offline sends this back as `seenPublishedAt` (M12 D4), and the
+// server's 409 compares it to the millisecond — so the read must hand out the
+// stored instant exactly, and `null` for a day that is not published.
+describe("GET /api/saved-days/:id carries publishedAt", () => {
+  it("is null while private and the stored instant once published", async () => {
+    const savedDayId = await saveDay("Published when");
+    const before = (await (await read(savedDayId)).json()) as { publishedAt: string | null };
+    expect(before.publishedAt).toBeNull();
+
+    await publish(savedDayId);
+    const after = (await (await read(savedDayId)).json()) as { publishedAt: string | null };
+    const [row] = await db
+      .select({ publishedAt: savedDays.publishedAt })
+      .from(savedDays)
+      .where(eq(savedDays.id, savedDayId));
+    expect(after.publishedAt).toBe(row!.publishedAt!.toISOString());
+  });
+});
+
 describe("DELETE /api/saved-days/:id", () => {
   it("401s an anonymous caller", async () => {
     const savedDayId = await saveDay("Anon");

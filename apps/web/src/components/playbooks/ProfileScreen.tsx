@@ -26,8 +26,9 @@ import type { BackTarget } from "./backLink";
 // else. Adding a record to hold a name would be building M17's half of the
 // display-name seam here, in the one place the milestone says not to.
 //
-// No average rating and no reviews-received count either — those are M12's,
-// with the reviews table that would give them a meaning.
+// Average rating and reviews received are M12 link 5's, and read the same
+// `saved_days` counters Discover's cards and sorts do — so the profile's number
+// and the cards under it cannot come from two places.
 
 const SKELETON_COUNT = 3;
 
@@ -93,6 +94,14 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
           <Card className="flex flex-wrap gap-6 p-4" data-testid="profile-numbers">
             <Number label="Playbooks shared" value={feed.data.author.daysShared} />
             <Number label="Added to trips" value={feed.data.author.adds} />
+            {/* An em dash with no reviews, as the design draws it
+                (`dc.html:6729`) — never `0.0`, which would read as the lowest
+                score there is rather than the absence of one. */}
+            <Number
+              label="Average rating"
+              value={feed.data.author.averageRating === null ? "—" : feed.data.author.averageRating.toFixed(1)}
+            />
+            <Number label="Reviews received" value={feed.data.author.reviewsReceived} />
             <Number label="Cities" value={feed.data.knows.length} />
           </Card>
 
@@ -150,7 +159,7 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
   );
 }
 
-function Number({ label, value }: { label: string; value: number }) {
+function Number({ label, value }: { label: string; value: number | string }) {
   return (
     <div data-testid={`profile-number-${label.toLowerCase().replace(/ /g, "-")}`}>
       <DataText size="base" className="block text-ink">

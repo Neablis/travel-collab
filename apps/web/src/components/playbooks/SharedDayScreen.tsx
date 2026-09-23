@@ -36,14 +36,20 @@ import { backQuery } from "./backLink";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
 import { AddToTripDialog } from "./AddToTripDialog";
+import { ReportAction } from "./ReportDialog";
+import { ReviewRail } from "./ReviewRail";
+import { ReviewConflictBanner, ReviewsSection } from "./ReviewsSection";
+import { useDayReviews } from "./useDayReviews";
 
 // A shared day (M11b link 6). The full stop list with per-stop notes and city
 // chips, an author strip, and a sticky rail of facts with "Add to a trip".
 //
-// **No rating, no 5→1 histogram, no review states.** §15 puts all three here;
-// the 2026-08-30 scope decision puts them in M12 with the reviews table that
-// would make them mean anything. Their absence is the milestone's, not an
-// oversight — see "Explicitly not here".
+// **The rating, the 5→1 histogram and the review states are M12's** (links 3,
+// 4 and 6), and this screen only wires them: `useDayReviews` owns the state,
+// `ReviewRail` heads the sticky rail, `ReviewsSection` sits under the stop list,
+// `ReviewConflictBanner` sits with the other banners, and `ReportAction` is the
+// quiet "Report" on the day and on each review. They read the reviews endpoint,
+// never the day's own read, so posting a review does not re-read the day.
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -130,7 +136,13 @@ export function dayDividerLine(group: PlaybookDay): string {
     : `${toClockRange(group.window.start, group.window.end)} · ${count}`;
 }
 
-type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor; pinning: boolean };
+type DayView = {
+  day: SavedDay;
+  isAuthor: boolean;
+  author: PublicAuthor;
+  pinning: boolean;
+  publishedAt?: string | null;
+};
 
 /**
  * How often, and how many times, the page reads again while the server is
@@ -163,6 +175,7 @@ async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
       isAuthor: dayResult.value.isAuthor,
       author: authorResult.value.author,
       pinning: dayResult.value.pinning,
+      publishedAt: dayResult.value.publishedAt,
     },
   };
 }
@@ -198,6 +211,10 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
   const unit = useDistanceUnit();
+  // The day's `publishedAt` as this page read it: a review held offline sends
+  // it back as `seenPublishedAt`, so a republish in between becomes §15's
+  // conflict banner. `undefined` until the day has been read ("do not check").
+  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt);
 
   // Read again while the server is still pinning — silently, because the
   // stops gaining coordinates is not "the library moved" (the signature above
@@ -334,6 +351,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
       <LibraryMoved read={feed}>
         This day has changed since you opened it — its author published, withdrew or someone took it.
       </LibraryMoved>
+      <ReviewConflictBanner reviews={reviews} />
       {withdrawn && (
         <Banner variant="warning" data-testid="day-withdrawn">
           That day is no longer in the library, so it could not be added. Its author took it back
@@ -584,11 +602,21 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               </ol>
             </div>
           )}
+
+          <ReviewsSection reviews={reviews} savedDayId={day.savedDayId} canReview={!isAuthor} />
         </div>
 
         {/* The sticky rail: the facts, and the one action. */}
         <aside className="lg:w-72 lg:shrink-0">
           <Card raised className="flex flex-col gap-3 p-4 lg:sticky lg:top-6" data-testid="day-facts">
+            {/* The rating heads the rail, above the facts (`dc.html:2872`).
+                Nothing until the reviews are read: "Unrated so far" before the
+                answer arrives would be a claim the answer might contradict. */}
+            {reviews.data !== null && (
+              <div className="border-b border-hairline pb-3">
+                <ReviewRail summary={reviews.data.summary} />
+              </div>
+            )}
             {/* **Days and Stops left this rail** (M26 link 3, §33.1): the
                 title block states both for the whole Playbook, and stating them
                 twice on one screen is project rule 4. M23 link 4's requirement
@@ -710,6 +738,13 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   </Banner>
                 )}
               </>
+            )}
+            {/* Not for the author: reporting your own day is refused (403
+                `own-content`), so the control could only fail. */}
+            {!isAuthor && (
+              <div className="flex justify-end">
+                <ReportAction target={{ kind: "saved_day", savedDayId: day.savedDayId }} name="this day" />
+              </div>
             )}
           </Card>
         </aside>

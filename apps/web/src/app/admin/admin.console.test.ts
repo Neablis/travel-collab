@@ -28,6 +28,8 @@
 //   3. **The underwater list stays segmented.** Merging the two halves is a
 //      one-line change that makes the metric worthless, and nothing about the
 //      screen would look wrong afterwards.
+//   4. **The report queue is read after the gate** (M12 link 6) — the page's
+//      second server read, and the first that carries other people's words.
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -150,5 +152,23 @@ describe("ARPU is reported twice and labelled", () => {
     const strip = readFileSync(path.join(ADMIN_COMPONENTS_DIR, "RevenueStrip.tsx"), "utf8");
     expect(strip).toMatch(/ARPU · all accounts/);
     expect(strip).toMatch(/ARPU · paying only/);
+  });
+});
+
+describe("the report queue is read behind the gate", () => {
+  // M12 link 6 put a second server read on this page. The header's rule is
+  // that `notFound()` runs before ANY data is read, and it is easy to break by
+  // hoisting a `Promise.all` above the gate for a few milliseconds of latency:
+  // the page would still 404, having first loaded every open report — who
+  // filed it and what they said — for a caller who is not an operator.
+  it("calls listReports only after the admin check has run", () => {
+    const page = codeOf(path.join(HERE, "page.tsx"));
+    const gate = page.indexOf("notFound()");
+    const read = page.indexOf("listReports(");
+    expect(gate, "page.tsx no longer calls notFound()").toBeGreaterThan(-1);
+    expect(read, "page.tsx no longer reads the report queue").toBeGreaterThan(-1);
+    expect(page.indexOf("adminUserId()")).toBeGreaterThan(-1);
+    expect(page.indexOf("adminUserId()")).toBeLessThan(gate);
+    expect(gate).toBeLessThan(read);
   });
 });

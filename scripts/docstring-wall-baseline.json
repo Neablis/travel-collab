@@ -179,8 +179,6 @@
   "apps/web/src/components/plans/PlanComparison.tsx::PlanComparison",
   "apps/web/src/components/plans/PlansScreen.tsx::PlansScreen",
   "apps/web/src/components/playbooks/AddToTripDialog.tsx::AddToTripDialog",
-  "apps/web/src/components/playbooks/CitySearch.tsx::CitySearch",
-  "apps/web/src/components/playbooks/DiscoverScreen.tsx::DiscoverScreen",
   "apps/web/src/components/playbooks/LeaderboardScreen.tsx::LeaderboardScreen",
   "apps/web/src/components/playbooks/ProfileScreen.tsx::ProfileScreen",
   "apps/web/src/components/playbooks/SharedDayMap.tsx::SharedDayMap",

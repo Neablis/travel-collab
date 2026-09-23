@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,6 +19,7 @@ import type {
   DiscoverScope,
   DiscoverSort,
   LengthBand,
+  RatingFloor,
 } from "@/lib/playbooks";
 import {
   FILTER_DEFS,
@@ -31,7 +32,8 @@ import {
   type FilterOption,
   type FilterState,
 } from "./discoverFilters";
-import { CitySearch } from "./CitySearch";
+import { PlaceSearch, type PlacePick } from "./PlaceSearch";
+import { DISCOVER_URL_DEFAULTS, discoverQueryString, type DiscoverUrlState } from "./discoverUrl";
 import { DiscoverCard } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
@@ -39,17 +41,14 @@ import { useLibraryRead } from "./useLibraryRead";
 // Discover (M11b link 5) — the route that REPLACES the inert `/playbooks`
 // shell, not one that re-points it.
 //
-// Three things here are deliberate and are not to be "fixed" back to
-// `SPEC.md` §15, which asks for more of each:
+// §15's four sorts and §35.5's three filters are all here since M12 link 5:
+// `highest-rated`, `most-reviewed` and the rating floor waited for
+// `saved_days.rating` and `review_count` to exist, because a control over data
+// that does not exist is a control that does nothing (project rule 2). §15's
+// fourth filter, the month it was run, stays cut (M26 link 2).
 //
-//   * **Two sorts, not four.** `highest-rated` and `most-reviewed` need the
-//     reviews table M12 owns.
-//   * **Two filters, not three.** No rating floor (§35.5 draws one in the
-//     Filters menu; M27 D8): a control over data that does not exist is a
-//     control that does nothing (project rule 2), and a number the product
-//     cannot stand behind.
-//   * **`Everyone / Yours / Saved` is a scope segment, not a second page.**
-//     Your own library is a filter here (§15's R5).
+// **`Everyone / Yours / Saved` is a scope segment, not a second page.** Your
+// own library is a filter here (§15's R5).
 
 const SCOPES: readonly { value: DiscoverScope; label: string }[] = [
   { value: "everyone", label: "Everyone" },
@@ -57,8 +56,12 @@ const SCOPES: readonly { value: DiscoverScope; label: string }[] = [
   { value: "saved", label: "Saved" },
 ];
 
+// The design's `SORT_DEF` order. The rating-based two rank unrated days last
+// rather than dropping them — a sort orders and never hides (§33.2).
 const SORTS: readonly { value: DiscoverSort; label: string }[] = [
   { value: "most-added", label: "Most added" },
+  { value: "highest-rated", label: "Highest rated" },
+  { value: "most-reviewed", label: "Most reviewed" },
   { value: "newest", label: "Newest" },
 ];
 
@@ -67,27 +70,20 @@ const SKELETON_COUNT = 6;
 
 type Filters = {
   cities: string[];
+  /** ISO alpha-2 codes (M12 link 7) — OR'd with `cities` on the server. */
+  countries: string[];
   scope: DiscoverScope;
   sort: DiscoverSort;
+  rating: RatingFloor;
   budget: BudgetBand;
   length: LengthBand;
 };
 
-const NO_FILTERS: Filters = {
-  cities: [],
-  scope: "everyone",
-  sort: "most-added",
-  budget: "any",
-  length: "any",
-};
+const NO_FILTERS: Filters = { ...DISCOVER_URL_DEFAULTS, budget: "any" };
 
-/**
- * `initialCities` comes from the URL — a profile's "Knows" chip is a link to
- * `/playbooks?city=Kyoto`, because §15 wants a profile to be a way INTO the
- * library rather than a dead end. It seeds state once rather than controlling
- * it: the chips above are editable from here on, and a URL that kept
- * overwriting them would fight the person using them.
- */
+/** The question half of the state — what `discoverFilters` counts and clears. */
+const questionsOf = (f: Filters): FilterState => ({ rating: f.rating, budget: f.budget, length: f.length });
+
 /**
  * §35.5's chip: 32px, a full pill, 13px/600, and a trailing caret. Idle is a
  * hairline outline in slate; asking something is brand-tint with a brand edge
@@ -146,16 +142,43 @@ function FilterMenu({
   );
 }
 
-export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonly string[] }) {
-  const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, cities: [...initialCities] });
-  const { cities, scope, sort, budget, length } = filters;
+// `initial` comes from the URL (`parseDiscoverUrl`) — a profile's "Knows" chip
+// is a link to `/playbooks?city=Kyoto`, because §15 wants a profile to be a way
+// INTO the library rather than a dead end. It seeds state once rather than
+// controlling it: the controls are editable from here on, and a URL that kept
+// overwriting them would fight the person using them. The URL follows the state
+// instead (the effect below), so a reload or a copied link lands on the same
+// search.
+/** Discover: the public library, searched by place and narrowed by question. */
+export function DiscoverScreen({ initial = {} }: { initial?: Partial<DiscoverUrlState> }) {
+  const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, ...initial });
+  const { cities, countries, scope, sort, rating, budget, length } = filters;
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
   const read = useCallback(
-    () => searchPlaybooks({ cities, scope, sort, budget, length }),
-    [cities, scope, sort, budget, length],
+    () => searchPlaybooks({ cities, countries, scope, sort, budget, length, rating }),
+    [cities, countries, scope, sort, budget, length, rating],
   );
+
+  // **State → URL, one direction.** `history.replaceState` rather than
+  // `router.replace`: Next syncs the native history API into its router
+  // (since 14.1), and a router navigation would re-run this route's server
+  // component for a page that already holds everything it needs. Replace, not
+  // push — a filter change is not a place the Back button should stop at.
+  //
+  // Skipped on the first render: the URL is what the state was seeded FROM, and
+  // rewriting it before anything changed would only reorder its parameters.
+  const seeded = useRef(true);
+  useEffect(() => {
+    if (seeded.current) {
+      seeded.current = false;
+      return;
+    }
+    const query = discoverQueryString({ cities, countries, scope, sort, length, rating });
+    const url = `${window.location.pathname}${query === "" ? "" : `?${query}`}`;
+    window.history.replaceState(window.history.state, "", url);
+  }, [cities, countries, scope, sort, length, rating]);
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
   // whole payload: sibling chip counts shift constantly and a banner that fired
@@ -201,21 +224,40 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
     setFilters((prev) => {
       const cleared = FILTER_DEFS.reduce(
         (acc, def) => (filterOptions.get(def.id) == null ? def.apply(acc, def.none) : acc),
-        { budget: prev.budget, length: prev.length } as FilterState,
+        questionsOf(prev),
       );
       // Returning `prev` unchanged is what keeps this effect from looping:
       // `def.apply` always builds a new object, so an identity comparison would
       // re-set state on every render.
-      if (cleared.budget === prev.budget && cleared.length === prev.length) return prev;
+      if (FILTER_DEFS.every((def) => def.value(cleared) === def.value(prev))) return prev;
       return { ...prev, ...cleared };
     });
   }, [filterOptions]);
 
-  const questions: FilterState = { budget, length };
+  const questions: FilterState = { rating, budget, length };
   const activeCount = activeFilterCount(questions);
 
   const setQuestion = (def: FilterDef, value: string) =>
-    setFilters((prev) => ({ ...prev, ...def.apply({ budget: prev.budget, length: prev.length }, value) }));
+    setFilters((prev) => ({ ...prev, ...def.apply(questionsOf(prev), value) }));
+
+  const addPlace = (place: PlacePick) =>
+    setFilters((prev) =>
+      place.kind === "city"
+        ? { ...prev, cities: prev.cities.includes(place.city) ? prev.cities : [...prev.cities, place.city] }
+        : {
+            ...prev,
+            countries: prev.countries.includes(place.countryCode)
+              ? prev.countries
+              : [...prev.countries, place.countryCode],
+          },
+    );
+  const removePlace = (place: PlacePick) =>
+    setFilters((prev) =>
+      place.kind === "city"
+        ? { ...prev, cities: prev.cities.filter((city) => city !== place.city) }
+        : { ...prev, countries: prev.countries.filter((code) => code !== place.countryCode) },
+    );
+  const askedForPlace = cities.length > 0 || countries.length > 0;
 
   const days = feed.data?.days ?? [];
   const siblings = feed.data?.siblings ?? [];
@@ -224,13 +266,13 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
     <div className="flex flex-col gap-5">
       <div>
         <Heading level={1}>Discover</Heading>
-        {/* One line (§35.5). The design's *"planned and rated"* loses its
-            second verb until M12 gives anybody a way to rate (M27 D8) — a
-            header claiming ratings above cards that carry none is the first
-            thing a reader would disbelieve. 15px has no token; `text-base`
+        {/* One line (§35.5), with its second verb back: *"planned and rated"*
+            waited for M12 to give anybody a way to rate (M27 D8) — a header
+            claiming ratings above cards that carried none would have been the
+            first thing a reader disbelieved. 15px has no token; `text-base`
             (14px) is the nearer step that keeps the type scale. */}
         <Text className="mt-1.5 max-w-160 text-slate text-pretty">
-          Days other people planned. Find one for your city and drop it into your trip.
+          Days other people planned and rated. Find one for your city and drop it into your trip.
         </Text>
       </div>
 
@@ -260,11 +302,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
         aria-label="Whose days"
       />
 
-      <CitySearch
-        selected={cities}
-        onAdd={(city) => set("cities", cities.includes(city) ? cities : [...cities, city])}
-        onRemove={(city) => set("cities", cities.filter((c) => c !== city))}
-      />
+      <PlaceSearch selected={{ cities, countries }} onAdd={addPlace} onRemove={removePlace} />
       </div>
 
       {/* §35.5: **the filter row is ONE *Filters* menu**, preceded by a chip
@@ -323,8 +361,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           );
         })}
 
-        {/* Every filter the context can offer, grouped by label. M12's rating
-            filter lands here as a third group. */}
+        {/* Every filter the context can offer, grouped by label. */}
         <Popover
           open={openMenu === "more"}
           onOpenChange={(open) => setOpenMenu(open ? "more" : null)}
@@ -404,7 +441,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
       {siblings.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="sibling-cities">
           <Text as="span" variant="muted" className="text-xs">
-            {cities.length === 0 ? "Busy right now" : "Also in these results"}
+            {askedForPlace ? "Also in these results" : "Busy right now"}
           </Text>
           {siblings.map((sibling) => (
             <Button
@@ -613,7 +650,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
 
       {feed.data?.truncated === true && (
         <Text variant="muted" className="text-xs">
-          Showing the best matches. Narrow the cities to see the rest.
+          Showing the best matches. Narrow the places to see the rest.
         </Text>
       )}
 
@@ -646,7 +683,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
             // it reset `scope` to `everyone`, so somebody looking at *Saved*
             // and finding nothing was moved to a different place without
             // asking. §33.2 forbids it — a place is never reset by a control
-            // about questions. Cities go, because they are a question asked in
+            // about questions. Places go, because they are a question asked in
             // the search card.
             <Button
               variant="primary"

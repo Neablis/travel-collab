@@ -205,9 +205,9 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   // ── …takes it into a dated trip of his own ────────────────────────────────
   await card.getByRole("link", { name: dayName }).click();
   await expect(bob.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
-  // No rating, no histogram, no reviews — M12's, and their absence is the
-  // milestone's decision rather than an oversight.
-  await expect(bob.getByText(/rating/i)).toHaveCount(0);
+  // M12 put the rating rail here. A day nobody has reviewed says so rather than
+  // showing a number; posting and reading reviews is `m12-reviews.spec.ts`'s.
+  await expect(bob.getByText(/Unrated so far/)).toBeVisible();
 
   await bob.getByRole("button", { name: "Add to a trip" }).click();
   await bob.getByLabel("Which trip").selectOption(target.tripId);
@@ -353,7 +353,7 @@ test("city search shows all four states against the real endpoint", async ({ pag
   // it is asserted by holding the response rather than by racing it.
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
-  await page.route("**/api/cities?*", async (route) => {
+  await page.route("**/api/places?*", async (route) => {
     await held;
     await route.continue();
   });
@@ -361,7 +361,7 @@ test("city search shows all four states against the real endpoint", async ({ pag
   await expect(page.getByTestId("city-search-loading")).toBeVisible();
   release();
   await expect(page.getByTestId("city-search-results").getByRole("button", { name: new RegExp(`^${city} · 1`) })).toBeVisible();
-  await page.unroute("**/api/cities?*");
+  await page.unroute("**/api/places?*");
 
   // (3) "no city matches" — a real 200 with an empty list, rendered as an
   // answer rather than as a failure.
@@ -371,10 +371,10 @@ test("city search shows all four states against the real endpoint", async ({ pag
 
   // (4) failure, with a Retry that re-runs the SAME query rather than clearing
   // the box.
-  await page.route("**/api/cities?*", (route) => route.abort());
+  await page.route("**/api/places?*", (route) => route.abort());
   await page.getByLabel("Search cities").fill(city);
   await expect(page.getByTestId("city-search-failed")).toBeVisible();
-  await page.unroute("**/api/cities?*");
+  await page.unroute("**/api/places?*");
   await page.getByTestId("city-search-failed").getByRole("button", { name: "Retry" }).click();
   // The minted city itself, not merely "some results": the library is shared and
   // holds days from earlier runs, so a Retry that CLEARED the box and searched

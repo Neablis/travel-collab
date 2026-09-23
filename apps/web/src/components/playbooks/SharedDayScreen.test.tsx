@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SavedDay, SavedStop } from "@tc/contracts";
+import type { SavedDay, SavedDayReviewsResponse, SavedStop } from "@tc/contracts";
 import type { PublicProfileResponse } from "@/lib/playbooks";
 
 const fetchSavedDayMock = vi.fn();
@@ -13,6 +13,9 @@ const insertSavedDayMock = vi.fn();
 const createTripMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
 const deleteSavedDayMock = vi.fn();
+const fetchReviewsMock = vi.fn();
+const putReviewMock = vi.fn();
+const createReportMock = vi.fn();
 const pushMock = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
@@ -25,6 +28,9 @@ vi.mock("@/lib/apiClient", () => ({
   createTrip: (...a: unknown[]) => createTripMock(...a),
   sendTripCommandBatch: (...a: unknown[]) => sendTripCommandBatchMock(...a),
   deleteSavedDay: (...a: unknown[]) => deleteSavedDayMock(...a),
+  fetchReviews: (...a: unknown[]) => fetchReviewsMock(...a),
+  putReview: (...a: unknown[]) => putReviewMock(...a),
+  createReport: (...a: unknown[]) => createReportMock(...a),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 // jsdom has no WebGL, so the real MapLibre cannot run. This screen's tests only
@@ -93,6 +99,12 @@ function profile(over: Partial<PublicProfileResponse["author"]> = {}): PublicPro
 
 const ok = <T,>(value: T) => ({ ok: true as const, value });
 
+const noReviews: SavedDayReviewsResponse = {
+  summary: { average: null, count: 0, histogram: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
+  reviews: [],
+  mine: null,
+};
+
 beforeEach(() => {
   fetchSavedDayMock.mockReset().mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: false }));
   fetchPublicProfileMock.mockReset().mockResolvedValue(ok(profile()));
@@ -105,6 +117,9 @@ beforeEach(() => {
   createTripMock.mockReset().mockResolvedValue(ok({ tripId: NEW_TRIP_ID }));
   sendTripCommandBatchMock.mockReset().mockResolvedValue(ok({ detail: {}, history: {} }));
   deleteSavedDayMock.mockReset().mockResolvedValue(ok({ ok: true }));
+  fetchReviewsMock.mockReset().mockResolvedValue(ok(noReviews));
+  putReviewMock.mockReset();
+  createReportMock.mockReset();
   pushMock.mockReset();
 });
 
@@ -476,14 +491,77 @@ describe("a shared day", () => {
   // by the Medium case above; a second band was the same wiring with a second
   // fixture.
 
-  // M12's, and their absence is the milestone's decision rather than an
-  // oversight — pinned so restoring them is a deliberate act.
-  it("shows no rating, no histogram and no reviews", async () => {
+  // M12 links 3-4. This pinned the rail's ABSENCE until M12 restored it, so
+  // that restoring it was a deliberate act; what it pins now is where the
+  // rating lands — heading the rail, over the facts — and that the section
+  // under the stops is mounted. What either one draws is ReviewsSection's test.
+  it("heads the rail with the day's rating, and lists what people said under the stops", async () => {
+    fetchReviewsMock.mockResolvedValue(
+      ok({ ...noReviews, summary: { average: 4.5, count: 2, histogram: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 1 } } }),
+    );
     renderDay();
-    await screen.findByTestId("day-facts");
-    expect(screen.queryByText(/rating/i)).toBeNull();
-    expect(screen.queryByText(/review/i)).toBeNull();
-    expect(screen.queryByText(/star/i)).toBeNull();
+    const facts = await screen.findByTestId("day-facts");
+    expect((await within(facts).findByTestId("rating-average")).textContent).toBe("4.5");
+    expect(fetchReviewsMock).toHaveBeenCalledWith(DAY_ID);
+    expect(screen.getByRole("heading", { name: "What people said" })).toBeTruthy();
+  });
+
+  // The server refuses the author twice over — 403 `own-day` on a review and
+  // 403 `own-content` on a report — so neither control is offered to them.
+  // They still see what people said about their day.
+  it("gives the author the reviews but no form to rate, and nothing to report", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true }));
+    renderDay();
+    expect(await screen.findByTestId("reviews-empty")).toBeTruthy();
+    expect(screen.queryByTestId("review-form")).toBeNull();
+    expect(screen.queryByRole("button", { name: "1 star" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Report this day" })).toBeNull();
+  });
+
+  it("reports the day itself, by id, with the reason picked", async () => {
+    createReportMock.mockResolvedValue(ok({}));
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Report this day" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Spam or advertising" }));
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Thanks — an operator will look at it.")).toBeTruthy();
+    expect(createReportMock).toHaveBeenCalledWith({
+      target: { kind: "saved_day", savedDayId: DAY_ID },
+      reason: "spam",
+      note: null,
+    });
+  });
+
+  // §15's conflict state hangs on this one value crossing from the day's read
+  // into the held review. It was once passed as `undefined` because the read
+  // did not carry it, and every hook-level test still passed — the banner was
+  // unreachable from the real page. So the screen's own wiring is asserted.
+  it("holds an offline review against the publishedAt the day was read at", async () => {
+    const PUBLISHED = "2026-09-01T09:00:00.000Z";
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: false, publishedAt: PUBLISHED }));
+    putReviewMock.mockResolvedValue(
+      ok({ kind: "day-changed", changed: { error: "day-changed", changedAt: "2026-09-21T09:00:00.000Z", authorDisplayName: "Mei Tanaka" } }),
+    );
+    const onLine = vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    try {
+      window.localStorage.clear();
+      renderDay();
+      await userEvent.click(await screen.findByRole("button", { name: "4 stars" }));
+      await userEvent.click(screen.getByRole("button", { name: "Hold until online" }));
+      expect(putReviewMock).not.toHaveBeenCalled();
+
+      onLine.mockReturnValue(true);
+      await act(async () => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await waitFor(() =>
+        expect(putReviewMock).toHaveBeenCalledWith(DAY_ID, { stars: 4, note: null, seenPublishedAt: PUBLISHED }),
+      );
+      expect(await screen.findByTestId("review-conflict")).toBeTruthy();
+    } finally {
+      onLine.mockRestore();
+      window.localStorage.clear();
+    }
   });
 
   it("credits the author with the profile's own numbers, and links to it", async () => {

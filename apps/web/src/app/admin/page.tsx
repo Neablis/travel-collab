@@ -5,10 +5,12 @@ import { TierPanel } from "@/components/admin/TierPanel";
 import { GrantSourcePanel } from "@/components/admin/GrantSourcePanel";
 import { RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
+import { ReportsPanel } from "@/components/admin/ReportsPanel";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
 import { adminOverview } from "@/server/entitlements/admin";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
+import { listReports } from "@/server/reports";
 
 // **The console, read-only over plans and granting as its only write**
 // (M20 link 7, and the 2026-09-02 amendment).
@@ -63,7 +65,15 @@ export default async function AdminPage() {
   // Before any data is read, and before anything renders. `notFound()` throws,
   // so there is no path where `adminOverview()` runs for a non-operator.
   if ((await adminUserId()) === null) notFound();
-  const overview = await adminOverview();
+  // The report queue is read here for the same reason the overview is — see
+  // the header — and after the gate for the same reason too.
+  // `admin.console.test.ts` holds that order.
+  const [overview, open, actioned, dismissed] = await Promise.all([
+    adminOverview(),
+    listReports({ status: "open" }),
+    listReports({ status: "actioned" }),
+    listReports({ status: "dismissed" }),
+  ]);
 
   return (
     <main className="flex flex-col gap-6">
@@ -116,6 +126,14 @@ export default async function AdminPage() {
           would swamp the list and the metric would be worthless. */}
       <Panel title="Costs more than it pays">
         <UnderwaterPanel report={overview.underwater} />
+      </Panel>
+
+      {/* **Reports** (M12 link 6) — the one place an operator acts on them.
+          Hiding a day takes it off Discover, the board and profiles; the
+          author keeps their copy. First paint from the server, actions from
+          the browser against the gated endpoints: `ReportsPanel` says why. */}
+      <Panel title="Reports">
+        <ReportsPanel initial={{ open, actioned, dismissed }} />
       </Panel>
 
       {/* Two panels side by side, as the design lays them out; one column on a
