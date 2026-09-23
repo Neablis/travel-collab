@@ -68,7 +68,11 @@
           "location": {
             "name": "Puente de Poncebos riverside car park",
             "city": "Poncebos",
-            "area": "Picos de Europa"
+            "area": "Picos de Europa",
+            "countryCode": "ES",
+            "lat": 43.26178,
+            "lng": -4.831402,
+            "precision": "city"
           },
           "kind": "transit",
           "notes": "The road in is single-track with passing places; after 08:30 you meet the tour minibuses head-on and reverse a lot. Park at the lower riverside lot, not the upper one, which belongs to the Bulnes funicular.",
@@ -86,7 +90,11 @@
           "location": {
             "name": "Hotel Garganta del Cares bar",
             "city": "Poncebos",
-            "area": "Picos de Europa"
+            "area": "Picos de Europa",
+            "countryCode": "ES",
+            "lat": 43.25738,
+            "lng": -4.832477,
+            "precision": "venue"
           },
           "kind": "planned",
           "tags": [
@@ -107,7 +115,11 @@
           "location": {
             "name": "Ruta del Cares trailhead, Poncebos",
             "city": "Poncebos",
-            "area": "Picos de Europa"
+            "area": "Picos de Europa",
+            "countryCode": "ES",
+            "lat": 43.26178,
+            "lng": -4.831402,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -128,7 +140,11 @@
           "location": {
             "name": "Pension-Restaurante Casa Cuevas",
             "city": "Cain de Valdeon",
-            "area": "Picos de Europa"
+            "area": "Picos de Europa",
+            "countryCode": "ES",
+            "lat": 43.213433,
+            "lng": -4.90519,
+            "precision": "venue"
           },
           "kind": "planned",
           "tags": [
@@ -149,7 +165,11 @@
           "location": {
             "name": "Rio Cares footbridge below the village",
             "city": "Cain de Valdeon",
-            "area": "Picos de Europa"
+            "area": "Picos de Europa",
+            "countryCode": "ES",
+            "lat": 43.213369,
+            "lng": -4.905235,
+            "precision": "city"
           },
           "kind": "idea",
           "tags": [
@@ -166,7 +186,11 @@
           "location": {
             "name": "Ruta del Cares, Cain end",
             "city": "Cain de Valdeon",
-            "area": "Picos de Europa"
+            "area": "Picos de Europa",
+            "countryCode": "ES",
+            "lat": 43.213369,
+            "lng": -4.905235,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -185,7 +209,8 @@
             "city": "Arenas de Cabrales",
             "area": "Picos de Europa",
             "lat": 43.299144,
-            "lng": -4.819003
+            "lng": -4.819003,
+            "countryCode": "ES"
           },
           "kind": "booked",
           "tags": [
@@ -227,7 +252,8 @@
           "location": {
             "name": "Teleferico de Fuente De lower station",
             "city": "Fuente De",
-            "area": "Picos de Europa"
+            "area": "Picos de Europa",
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "The station car park is full by 09:30 in July. The queue for tickets is far longer than the queue for the cabin, so send one person ahead while the others sort boots.",
@@ -247,7 +273,8 @@
             "city": "Fuente De",
             "area": "Picos de Europa",
             "lat": 20.562322,
-            "lng": -103.361667
+            "lng": -103.361667,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -270,7 +297,8 @@
             "city": "Fuente De",
             "area": "Macizo Central",
             "lat": 20.562322,
-            "lng": -103.361667
+            "lng": -103.361667,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -291,7 +319,8 @@
           "location": {
             "name": "Refugio Cabana Veronica",
             "city": "Fuente De",
-            "area": "Macizo Central"
+            "area": "Macizo Central",
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -314,7 +343,8 @@
             "city": "Fuente De",
             "area": "Macizo Central",
             "lat": 20.562322,
-            "lng": -103.361667
+            "lng": -103.361667,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "tags": [
@@ -333,7 +363,8 @@
             "city": "Espinama",
             "area": "Picos de Europa",
             "lat": 43.1279,
-            "lng": -4.7864
+            "lng": -4.7864,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -354,7 +385,8 @@
           "location": {
             "name": "Hotel Remona restaurant",
             "city": "Espinama",
-            "area": "Valle de Camaleno"
+            "area": "Valle de Camaleno",
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -377,7 +409,8 @@
             "city": "Espinama",
             "area": "Valle de Camaleno",
             "lat": 43.1279,
-            "lng": -4.7864
+            "lng": -4.7864,
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "Four kilometres uphill on the CA-185. There is no rank - ring from the hotel before you sit down to eat, not after, because one driver covers the whole valley.",
@@ -427,7 +460,8 @@
             "city": "El Chorro",
             "area": "Alora",
             "lat": 36.907073,
-            "lng": -4.759133
+            "lng": -4.759133,
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "Park at the finish, not the start. The shuttle runs El Chorro to the north entrance every half hour, costs 2.50 euros and is cash only - no cards, no notes over twenty. Doing it this way means the walk ends where the car is instead of with an hour of waiting.",
@@ -447,7 +481,8 @@
             "city": "Ardales",
             "area": "Desfiladero de los Gaitanes",
             "lat": 36.932257,
-            "lng": -4.789407
+            "lng": -4.789407,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -470,7 +505,8 @@
             "city": "Ardales",
             "area": "Desfiladero de los Gaitanes",
             "lat": 36.878945,
-            "lng": -4.846363
+            "lng": -4.846363,
+            "countryCode": "ES"
           },
           "kind": "booked",
           "tags": [
@@ -493,7 +529,8 @@
             "city": "Ardales",
             "area": "Desfiladero de los Gaitanes",
             "lat": 36.923845,
-            "lng": -4.783346
+            "lng": -4.783346,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -516,7 +553,8 @@
             "city": "El Chorro",
             "area": "Alora",
             "lat": 36.906323,
-            "lng": -4.759295
+            "lng": -4.759295,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -539,7 +577,8 @@
             "city": "Ardales",
             "area": "Embalse del Conde de Guadalhorce",
             "lat": 36.918444,
-            "lng": -4.81721
+            "lng": -4.81721,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -576,7 +615,8 @@
             "city": "Soller",
             "area": "Serra de Tramuntana",
             "lat": 39.767368,
-            "lng": 2.709836
+            "lng": 2.709836,
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "Ride the bus at the start of the day, not the end. Walking the stage north-east means you finish at the sea in Port de Soller with a tram home, instead of standing at a Deia roadside at six with everyone else.",
@@ -596,7 +636,8 @@
             "city": "Deia",
             "area": "Serra de Tramuntana",
             "lat": 39.747736,
-            "lng": 2.648343
+            "lng": 2.648343,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -619,7 +660,8 @@
             "city": "Deia",
             "area": "Cala Deia",
             "lat": 39.759552,
-            "lng": 2.640057
+            "lng": 2.640057,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -642,7 +684,8 @@
             "city": "Deia",
             "area": "Cala Deia",
             "lat": 39.75948,
-            "lng": 2.640837
+            "lng": 2.640837,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -661,7 +704,8 @@
             "city": "Deia",
             "area": "Serra de Tramuntana",
             "lat": 39.747736,
-            "lng": 2.648343
+            "lng": 2.648343,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -684,7 +728,8 @@
             "city": "Port de Soller",
             "area": "Serra de Tramuntana",
             "lat": 39.796601,
-            "lng": 2.681159
+            "lng": 2.681159,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "notes": "The old army telegraph station, in use until 1956, now a forty-bed refugi. Its terrace is where the whole bay opens up in one go - the best five minutes of the stage and most people walk straight past it.",
@@ -704,7 +749,8 @@
             "city": "Port de Soller",
             "area": "Serra de Tramuntana",
             "lat": 39.797761,
-            "lng": 2.696415
+            "lng": 2.696415,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -727,7 +773,8 @@
             "city": "Port de Soller",
             "area": "Serra de Tramuntana",
             "lat": 39.797761,
-            "lng": 2.696415
+            "lng": 2.696415,
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "Runs every half hour through the orange groves to Soller station, tickets bought on board. Sit on the right for the groves, stand on the back platform if it is full.",
@@ -771,7 +818,8 @@
             "city": "Torla-Ordesa",
             "area": "Ordesa y Monte Perdido",
             "lat": 42.649893,
-            "lng": -0.101817
+            "lng": -0.101817,
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "The valley road is closed to private cars from 19 June to 20 September and on the shoulder-season weekends listed on the park site. The shuttle is six euros return; it runs every fifteen to twenty minutes from eight, but only every half hour before that. Take the 06:45 - you want the Cazadores climb finished before the sun reaches the wall.",
@@ -791,7 +839,8 @@
             "city": "Torla-Ordesa",
             "area": "Ordesa y Monte Perdido",
             "lat": 42.649893,
-            "lng": -0.101817
+            "lng": -0.101817,
+            "countryCode": "ES"
           },
           "kind": "booked",
           "notes": "An AEGM mountain guide for the day, split four ways. Worth paying for on this route specifically: the Cazadores has an exposed ladder-and-chain section near the top, and the weather over Monte Perdido turns by lunchtime far more often than the forecast admits.",
@@ -811,7 +860,8 @@
             "city": "Torla-Ordesa",
             "area": "Ordesa y Monte Perdido",
             "lat": 42.649893,
-            "lng": -0.101817
+            "lng": -0.101817,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -834,7 +884,8 @@
             "city": "Torla-Ordesa",
             "area": "Ordesa y Monte Perdido",
             "lat": 42.641415,
-            "lng": -0.054122
+            "lng": -0.054122,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "notes": "The balcony where the canyon suddenly drops 700 m below your boots. This is where the day stops being work and starts being a walk - sit down, eat something, everyone does.",
@@ -854,7 +905,8 @@
             "city": "Torla-Ordesa",
             "area": "Ordesa y Monte Perdido",
             "lat": 42.63845,
-            "lng": -0.051459
+            "lng": -0.051459,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -877,7 +929,8 @@
             "city": "Torla-Ordesa",
             "area": "Ordesa y Monte Perdido",
             "lat": 42.649893,
-            "lng": -0.101817
+            "lng": -0.101817,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -901,7 +954,8 @@
             "city": "Torla-Ordesa",
             "area": "Ordesa y Monte Perdido",
             "lat": 42.649893,
-            "lng": -0.101817
+            "lng": -0.101817,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -924,7 +978,8 @@
             "city": "Torla-Ordesa",
             "area": "Valle de Broto",
             "lat": 42.627701,
-            "lng": -0.111743
+            "lng": -0.111743,
+            "countryCode": "ES"
           },
           "kind": "hold",
           "tags": [
@@ -974,7 +1029,8 @@
             "city": "La Orotava",
             "area": "Parque Nacional del Teide",
             "lat": 28.361481,
-            "lng": -16.501043
+            "lng": -16.501043,
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "Leave before seven and you climb out through the mar de nubes at sunrise, which is half the reason to do this from the north side. There is no fuel inside the park - fill up in La Orotava, not Vilaflor.",
@@ -994,7 +1050,8 @@
             "city": "La Orotava",
             "area": "Las Canadas",
             "lat": 28.224421,
-            "lng": -16.626973
+            "lng": -16.626973,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1017,7 +1074,8 @@
             "city": "La Orotava",
             "area": "Parque Nacional del Teide",
             "lat": 28.270162,
-            "lng": -16.63872
+            "lng": -16.63872,
+            "countryCode": "ES"
           },
           "kind": "booked",
           "tags": [
@@ -1040,7 +1098,8 @@
             "city": "La Orotava",
             "area": "Pico del Teide",
             "lat": 28.272693,
-            "lng": -16.642274
+            "lng": -16.642274,
+            "countryCode": "ES"
           },
           "kind": "booked",
           "tags": [
@@ -1063,7 +1122,8 @@
             "city": "La Orotava",
             "area": "Pico del Teide",
             "lat": 28.270162,
-            "lng": -16.63872
+            "lng": -16.63872,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1086,7 +1146,8 @@
             "city": "La Orotava",
             "area": "Parque Nacional del Teide",
             "lat": 28.270162,
-            "lng": -16.63872
+            "lng": -16.63872,
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "The queue at the top station is worse than the one at the bottom and gets ugly after noon. If you would rather walk, hand back the return leg and take PNT-07 down to Montana Blanca - 1,200 m of loose pumice, about three hours, and it only works if you left a second car at the Montana Blanca gate on the TF-21.",
@@ -1106,7 +1167,8 @@
             "city": "La Orotava",
             "area": "Las Canadas",
             "lat": 28.224286,
-            "lng": -16.627039
+            "lng": -16.627039,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1129,7 +1191,8 @@
             "city": "La Orotava",
             "area": "Valle de La Orotava",
             "lat": 28.389531,
-            "lng": -16.523623
+            "lng": -16.523623,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -1164,7 +1227,8 @@
           "location": {
             "name": "Sendero Garganta Verde trailhead lay-by, CA-9104",
             "city": "Zahara de la Sierra",
-            "area": "Sierra de Grazalema"
+            "area": "Sierra de Grazalema",
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "The lay-by holds maybe fifteen cars and there is nowhere else to leave one. The Grazalema-Zahara pass is the best drive in Andalucia and it is worth doing early for the light on Zahara's castle rock.",
@@ -1182,7 +1246,8 @@
           "location": {
             "name": "Garganta Verde control gate",
             "city": "Zahara de la Sierra",
-            "area": "Sierra de Grazalema"
+            "area": "Sierra de Grazalema",
+            "countryCode": "ES"
           },
           "kind": "booked",
           "tags": [
@@ -1203,7 +1268,8 @@
           "location": {
             "name": "Sendero SL-A 118 La Garganta Verde",
             "city": "Zahara de la Sierra",
-            "area": "Sierra de Grazalema"
+            "area": "Sierra de Grazalema",
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1224,7 +1290,8 @@
           "location": {
             "name": "Mirador de los Buitres",
             "city": "Zahara de la Sierra",
-            "area": "Sierra de Grazalema"
+            "area": "Sierra de Grazalema",
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -1243,7 +1310,8 @@
             "city": "Zahara de la Sierra",
             "area": "Sierra de Grazalema",
             "lat": 36.842132,
-            "lng": -5.389905
+            "lng": -5.389905,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1264,7 +1332,8 @@
           "location": {
             "name": "Torre del Homenaje, Castillo de Zahara",
             "city": "Zahara de la Sierra",
-            "area": "Sierra de Grazalema"
+            "area": "Sierra de Grazalema",
+            "countryCode": "ES"
           },
           "kind": "planned",
           "notes": "Twenty minutes of steps up from the church, free, and the only spot where the reservoir and the Pinsapar ridge sit in the same frame.",
@@ -1284,7 +1353,8 @@
             "city": "Grazalema",
             "area": "Sierra de Grazalema",
             "lat": 36.75808,
-            "lng": -5.366042
+            "lng": -5.366042,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "notes": "The last working wool mill in the sierra, on the edge of the village. Blankets run roughly ninety to a hundred and forty euros. Grazalema is the wettest place in Spain, which is exactly why the pinsapo firs and the wool trade are both here.",
@@ -1304,7 +1374,8 @@
             "city": "Grazalema",
             "area": "Sierra de Grazalema",
             "lat": 36.757976,
-            "lng": -5.365279
+            "lng": -5.365279,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1348,7 +1419,8 @@
             "city": "Villafranca del Bierzo",
             "area": "El Bierzo",
             "lat": 42.6039,
-            "lng": -6.808113
+            "lng": -6.808113,
+            "countryCode": "ES"
           },
           "kind": "booked",
           "notes": "If you use the backpack transfer once on the whole Camino, use it today. Envelope with the cash left on the bag at the albergue before eight, and it is waiting at O Cebreiro. Seven hundred metres of climb at the end of twenty-eight kilometres is a completely different day with ten kilos on your back. Get the sello here too - the next one is twelve kilometres on.",
@@ -1368,7 +1440,8 @@
             "city": "Trabadelo",
             "area": "El Bierzo",
             "lat": 42.655043,
-            "lng": -6.854838
+            "lng": -6.854838,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1391,7 +1464,8 @@
             "city": "Vega de Valcarce",
             "area": "El Bierzo",
             "lat": 42.66068,
-            "lng": -6.93784
+            "lng": -6.93784,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1414,7 +1488,8 @@
             "city": "Herrerias",
             "area": "El Bierzo",
             "lat": 42.670772,
-            "lng": -6.981012
+            "lng": -6.981012,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1435,7 +1510,8 @@
           "location": {
             "name": "Camino Frances ascent to O Cebreiro",
             "city": "O Cebreiro",
-            "area": "Serra dos Ancares"
+            "area": "Serra dos Ancares",
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1456,7 +1532,8 @@
           "location": {
             "name": "Albergue de Peregrinos da Xunta de Galicia",
             "city": "O Cebreiro",
-            "area": "Serra dos Ancares"
+            "area": "Serra dos Ancares",
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -1477,7 +1554,8 @@
           "location": {
             "name": "Iglesia de Santa Maria la Real",
             "city": "O Cebreiro",
-            "area": "Serra dos Ancares"
+            "area": "Serra dos Ancares",
+            "countryCode": "ES"
           },
           "kind": "idea",
           "notes": "Ninth century and the oldest church still standing on the entire Camino Frances, with the pre-Roman thatched pallozas beside it. This is the reason to stop here rather than push on to Fonfria, and it takes twenty minutes."
@@ -1493,7 +1571,8 @@
             "city": "O Cebreiro",
             "area": "Serra dos Ancares",
             "lat": 42.707837,
-            "lng": -7.044063
+            "lng": -7.044063,
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [

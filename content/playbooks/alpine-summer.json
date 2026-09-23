@@ -67,7 +67,11 @@
           "location": {
             "name": "Interlaken Ost to Stechelberg Schilthornbahn",
             "city": "Lauterbrunnen",
-            "area": "Lauterbrunnen valley"
+            "area": "Lauterbrunnen valley",
+            "countryCode": "CH",
+            "lat": 46.596089,
+            "lng": 7.907566,
+            "precision": "area"
           },
           "kind": "transit",
           "tags": [
@@ -88,7 +92,11 @@
           "location": {
             "name": "Schilthornbahn valley station",
             "city": "Stechelberg",
-            "area": "Schilthorn"
+            "area": "Schilthorn",
+            "countryCode": "CH",
+            "lat": 46.557282,
+            "lng": 7.835174,
+            "precision": "area"
           },
           "kind": "booked",
           "tags": [
@@ -111,7 +119,8 @@
             "city": "Mürren",
             "area": "Schilthorn",
             "lat": 46.557444,
-            "lng": 7.892432
+            "lng": 7.892432,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -134,7 +143,8 @@
             "city": "Mürren",
             "area": "Schilthorn",
             "lat": 46.561978,
-            "lng": 7.857393
+            "lng": 7.857393,
+            "countryCode": "CH"
           },
           "kind": "idea",
           "tags": [
@@ -153,7 +163,8 @@
             "city": "Mürren",
             "area": "Blumental",
             "lat": 46.561153,
-            "lng": 7.892203
+            "lng": 7.892203,
+            "countryCode": "CH"
           },
           "kind": "transit",
           "tags": [
@@ -176,7 +187,8 @@
             "city": "Mürren",
             "area": "Blumental",
             "lat": 46.560896,
-            "lng": 7.879519
+            "lng": 7.879519,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -197,7 +209,11 @@
           "location": {
             "name": "Northface Trail",
             "city": "Gimmelwald",
-            "area": "Blumental"
+            "area": "Blumental",
+            "countryCode": "CH",
+            "lat": 46.546862,
+            "lng": 7.894003,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -218,7 +234,8 @@
           "location": {
             "name": "Airtime Paragliding, beside the Schilthornbahn station",
             "city": "Mürren",
-            "area": "Lauterbrunnen valley"
+            "area": "Lauterbrunnen valley",
+            "countryCode": "CH"
           },
           "kind": "hold",
           "tags": [
@@ -272,7 +289,8 @@
             "city": "Zermatt",
             "area": "Gornergrat",
             "lat": 46.02454,
-            "lng": 7.748704
+            "lng": 7.748704,
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -295,7 +313,8 @@
             "city": "Zermatt",
             "area": "Gornergrat",
             "lat": 45.983225,
-            "lng": 7.782279
+            "lng": 7.782279,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -314,7 +333,8 @@
             "city": "Zermatt",
             "area": "Riffelberg",
             "lat": 45.983359,
-            "lng": 7.762049
+            "lng": 7.762049,
+            "countryCode": "CH"
           },
           "kind": "hold",
           "tags": [
@@ -333,7 +353,8 @@
             "city": "Zermatt",
             "area": "Zermatt village",
             "lat": 46.022444,
-            "lng": 7.750699
+            "lng": 7.750699,
+            "countryCode": "CH"
           },
           "kind": "transit",
           "tags": [
@@ -354,7 +375,8 @@
           "location": {
             "name": "Sunnegga Express to Blauherd",
             "city": "Zermatt",
-            "area": "Sunnegga-Rothorn"
+            "area": "Sunnegga-Rothorn",
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -377,7 +399,8 @@
             "city": "Zermatt",
             "area": "Sunnegga-Rothorn",
             "lat": 46.012734,
-            "lng": 7.810974
+            "lng": 7.810974,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -401,7 +424,8 @@
             "city": "Zermatt",
             "area": "Sunnegga-Rothorn",
             "lat": 46.024105,
-            "lng": 7.752883
+            "lng": 7.752883,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -420,7 +444,8 @@
             "city": "Zermatt",
             "area": "Bahnhofstrasse",
             "lat": 46.021437,
-            "lng": 7.746917
+            "lng": 7.746917,
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -462,7 +487,8 @@
           "location": {
             "name": "Berner Oberland-Bahn",
             "city": "Grindelwald",
-            "area": "Lütschine valley"
+            "area": "Lütschine valley",
+            "countryCode": "CH"
           },
           "kind": "transit",
           "tags": [
@@ -485,7 +511,8 @@
             "city": "Grindelwald",
             "area": "First",
             "lat": 46.660014,
-            "lng": 8.054448
+            "lng": 8.054448,
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -508,7 +535,8 @@
             "city": "Grindelwald",
             "area": "First",
             "lat": 46.660014,
-            "lng": 8.054448
+            "lng": 8.054448,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -527,7 +555,8 @@
             "city": "Grindelwald",
             "area": "Faulhorn",
             "lat": 46.674775,
-            "lng": 7.999597
+            "lng": 7.999597,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -550,7 +579,8 @@
             "city": "Wilderswil",
             "area": "Faulhorn ridge",
             "lat": 46.66369,
-            "lng": 7.86175
+            "lng": 7.86175,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -573,7 +603,8 @@
             "city": "Wilderswil",
             "area": "Schynige Platte",
             "lat": 46.651179,
-            "lng": 7.909531
+            "lng": 7.909531,
+            "countryCode": "CH"
           },
           "kind": "idea",
           "tags": [
@@ -596,7 +627,8 @@
             "city": "Wilderswil",
             "area": "Schynige Platte",
             "lat": 46.651179,
-            "lng": 7.909531
+            "lng": 7.909531,
+            "countryCode": "CH"
           },
           "kind": "transit",
           "tags": [
@@ -619,7 +651,8 @@
             "city": "Wilderswil",
             "area": "Wilderswil",
             "lat": 46.66386,
-            "lng": 7.860088
+            "lng": 7.860088,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -666,7 +699,8 @@
             "city": "Chamonix",
             "area": "Chamonix centre",
             "lat": 45.924156,
-            "lng": 6.868465
+            "lng": 6.868465,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -689,7 +723,8 @@
             "city": "Chamonix",
             "area": "Aiguille du Midi",
             "lat": 45.918209,
-            "lng": 6.870182
+            "lng": 6.870182,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "tags": [
@@ -712,7 +747,8 @@
             "city": "Chamonix",
             "area": "Aiguille du Midi",
             "lat": 45.878704,
-            "lng": 6.887551
+            "lng": 6.887551,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -731,7 +767,8 @@
             "city": "Chamonix",
             "area": "Vallée Blanche",
             "lat": 46.028948,
-            "lng": 6.925459
+            "lng": 6.925459,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -755,7 +792,8 @@
             "city": "Chamonix",
             "area": "Vallée Blanche",
             "lat": 45.884664,
-            "lng": 6.929733
+            "lng": 6.929733,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -778,7 +816,8 @@
             "city": "Chamonix",
             "area": "Mer de Glace",
             "lat": 45.913653,
-            "lng": 6.938674
+            "lng": 6.938674,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -797,7 +836,8 @@
             "city": "Chamonix",
             "area": "Montenvers",
             "lat": 45.932181,
-            "lng": 6.916722
+            "lng": 6.916722,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "tags": [
@@ -820,7 +860,8 @@
             "city": "Chamonix",
             "area": "Chamonix centre",
             "lat": 45.92102,
-            "lng": 6.867123
+            "lng": 6.867123,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -861,7 +902,8 @@
             "city": "Zermatt",
             "area": "Zermatt village",
             "lat": 46.02147,
-            "lng": 7.746929
+            "lng": 7.746929,
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -884,7 +926,8 @@
             "city": "Zermatt",
             "area": "Klein Matterhorn",
             "lat": 45.938402,
-            "lng": 7.729538
+            "lng": 7.729538,
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -907,7 +950,8 @@
             "city": "Zermatt",
             "area": "Breithorn plateau",
             "lat": 45.934579,
-            "lng": 7.744533
+            "lng": 7.744533,
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -931,7 +975,8 @@
             "city": "Zermatt",
             "area": "Klein Matterhorn",
             "lat": 45.954988,
-            "lng": 7.725281
+            "lng": 7.725281,
+            "countryCode": "CH"
           },
           "kind": "transit",
           "tags": [],
@@ -948,7 +993,8 @@
             "city": "Zermatt",
             "area": "Theodul glacier",
             "lat": 45.964124,
-            "lng": 7.725597
+            "lng": 7.725597,
+            "countryCode": "CH"
           },
           "kind": "planned",
           "tags": [
@@ -971,7 +1017,8 @@
             "city": "Zermatt",
             "area": "Schwarzsee",
             "lat": 45.990773,
-            "lng": 7.706821
+            "lng": 7.706821,
+            "countryCode": "CH"
           },
           "kind": "transit",
           "tags": [
@@ -994,7 +1041,8 @@
             "city": "Zermatt",
             "area": "Hörnligrat",
             "lat": 46.025284,
-            "lng": 7.747965
+            "lng": 7.747965,
+            "countryCode": "CH"
           },
           "kind": "hold",
           "tags": [
@@ -1017,7 +1065,8 @@
             "city": "Zermatt",
             "area": "Hörnligrat",
             "lat": 45.982197,
-            "lng": 7.677011
+            "lng": 7.677011,
+            "countryCode": "CH"
           },
           "kind": "booked",
           "tags": [
@@ -1055,7 +1104,8 @@
             "city": "Hallstatt",
             "area": "Hallstättersee",
             "lat": 47.562395,
-            "lng": 13.649046
+            "lng": 13.649046,
+            "countryCode": "AT"
           },
           "kind": "idea",
           "tags": [
@@ -1078,7 +1128,8 @@
             "city": "Obertraun",
             "area": "Hallstättersee",
             "lat": 47.548396,
-            "lng": 13.704913
+            "lng": 13.704913,
+            "countryCode": "AT"
           },
           "kind": "transit",
           "tags": [
@@ -1101,7 +1152,8 @@
             "city": "Obertraun",
             "area": "Dachstein",
             "lat": 47.530418,
-            "lng": 13.695229
+            "lng": 13.695229,
+            "countryCode": "AT"
           },
           "kind": "booked",
           "tags": [
@@ -1124,7 +1176,8 @@
             "city": "Obertraun",
             "area": "Krippenstein",
             "lat": 47.522051,
-            "lng": 13.691412
+            "lng": 13.691412,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1143,7 +1196,8 @@
             "city": "Obertraun",
             "area": "Krippenstein",
             "lat": 47.52165,
-            "lng": 13.692585
+            "lng": 13.692585,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1166,7 +1220,8 @@
             "city": "Obertraun",
             "area": "Hallstättersee",
             "lat": 47.558232,
-            "lng": 13.677928
+            "lng": 13.677928,
+            "countryCode": "AT"
           },
           "kind": "idea",
           "tags": [
@@ -1185,7 +1240,8 @@
             "city": "Hallstatt",
             "area": "Salzberg",
             "lat": 47.562023,
-            "lng": 13.639272
+            "lng": 13.639272,
+            "countryCode": "AT"
           },
           "kind": "booked",
           "tags": [
@@ -1208,7 +1264,8 @@
             "city": "Hallstatt",
             "area": "Marktplatz",
             "lat": 47.562449,
-            "lng": 13.649657
+            "lng": 13.649657,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1261,7 +1318,8 @@
             "city": "Innsbruck",
             "area": "Altstadt",
             "lat": 47.267507,
-            "lng": 11.393505
+            "lng": 11.393505,
+            "countryCode": "AT"
           },
           "kind": "idea",
           "tags": [
@@ -1284,7 +1342,8 @@
             "city": "Innsbruck",
             "area": "Nordkette",
             "lat": 47.286003,
-            "lng": 11.399082
+            "lng": 11.399082,
+            "countryCode": "AT"
           },
           "kind": "booked",
           "tags": [
@@ -1307,7 +1366,8 @@
             "city": "Innsbruck",
             "area": "Nordkette",
             "lat": 47.272308,
-            "lng": 11.407851
+            "lng": 11.407851,
+            "countryCode": "AT"
           },
           "kind": "transit",
           "tags": [
@@ -1330,7 +1390,8 @@
             "city": "Innsbruck",
             "area": "Karwendel",
             "lat": 47.320922,
-            "lng": 11.404282
+            "lng": 11.404282,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1349,7 +1410,8 @@
             "city": "Innsbruck",
             "area": "Karwendel",
             "lat": 47.329958,
-            "lng": 11.42561
+            "lng": 11.42561,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1372,7 +1434,8 @@
             "city": "Innsbruck",
             "area": "Karwendel",
             "lat": 47.320922,
-            "lng": 11.404282
+            "lng": 11.404282,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1391,7 +1454,8 @@
             "city": "Innsbruck",
             "area": "Nordkette",
             "lat": 47.312833,
-            "lng": 11.386322
+            "lng": 11.386322,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1410,7 +1474,8 @@
             "city": "Innsbruck",
             "area": "Altstadt",
             "lat": 47.267899,
-            "lng": 11.392765
+            "lng": 11.392765,
+            "countryCode": "AT"
           },
           "kind": "booked",
           "tags": [
@@ -1454,7 +1519,8 @@
             "city": "Fusch an der Grossglocknerstrasse",
             "area": "Hohe Tauern",
             "lat": 47.16822,
-            "lng": 12.813875
+            "lng": 12.813875,
+            "countryCode": "AT"
           },
           "kind": "booked",
           "tags": [
@@ -1475,7 +1541,8 @@
           "location": {
             "name": "Edelweissspitze, 2571 m",
             "city": "Fusch an der Grossglocknerstrasse",
-            "area": "Hohe Tauern"
+            "area": "Hohe Tauern",
+            "countryCode": "AT"
           },
           "kind": "idea",
           "tags": [
@@ -1492,7 +1559,8 @@
           "location": {
             "name": "Fuscher Törl and Hochtor pass",
             "city": "Fusch an der Grossglocknerstrasse",
-            "area": "Hohe Tauern"
+            "area": "Hohe Tauern",
+            "countryCode": "AT"
           },
           "kind": "transit",
           "tags": [
@@ -1511,7 +1579,8 @@
             "city": "Heiligenblut",
             "area": "Glocknerstrasse",
             "lat": 47.069667,
-            "lng": 12.768206
+            "lng": 12.768206,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1534,7 +1603,8 @@
             "city": "Heiligenblut",
             "area": "Pasterze",
             "lat": 47.07592,
-            "lng": 12.750863
+            "lng": 12.750863,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1553,7 +1623,8 @@
             "city": "Heiligenblut",
             "area": "Pasterze",
             "lat": 47.085021,
-            "lng": 12.720911
+            "lng": 12.720911,
+            "countryCode": "AT"
           },
           "kind": "booked",
           "tags": [
@@ -1576,7 +1647,8 @@
             "city": "Heiligenblut",
             "area": "Glocknerstrasse",
             "lat": 47.066933,
-            "lng": 12.860881
+            "lng": 12.860881,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [
@@ -1599,7 +1671,8 @@
             "city": "Heiligenblut",
             "area": "Mölltal",
             "lat": 47.057974,
-            "lng": 12.855598
+            "lng": 12.855598,
+            "countryCode": "AT"
           },
           "kind": "planned",
           "tags": [

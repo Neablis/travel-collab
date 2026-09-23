@@ -75,7 +75,8 @@
             "city": "Sydney",
             "area": "Bondi Beach",
             "lat": -33.835951,
-            "lng": 151.204972
+            "lng": 151.204972,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -98,7 +99,8 @@
             "city": "Sydney",
             "area": "Bondi Beach",
             "lat": -33.890698,
-            "lng": 151.272412
+            "lng": 151.272412,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -121,7 +123,8 @@
             "city": "Sydney",
             "area": "Tamarama",
             "lat": -33.868633,
-            "lng": 151.209421
+            "lng": 151.209421,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -144,7 +147,8 @@
             "city": "Sydney",
             "area": "Clovelly",
             "lat": -33.914384,
-            "lng": 151.2677
+            "lng": 151.2677,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -167,7 +171,8 @@
             "city": "Sydney",
             "area": "Coogee",
             "lat": -33.925584,
-            "lng": 151.259411
+            "lng": 151.259411,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -190,7 +195,8 @@
             "city": "Sydney",
             "area": "Coogee",
             "lat": -33.918673,
-            "lng": 151.258257
+            "lng": 151.258257,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -213,7 +219,8 @@
             "city": "Sydney",
             "area": "Coogee",
             "lat": -33.919286,
-            "lng": 151.25585
+            "lng": 151.25585,
+            "countryCode": "AU"
           },
           "kind": "transit",
           "notes": "Tap on with a credit card or phone — no Opal card needed, and the daily cap applies to contactless the same way. The 373 runs Coogee to the CBD; the X73 is the express in peak. Do not try to do this walk and then drive: parking at both ends is metered, patrolled and full by nine.",
@@ -233,7 +240,8 @@
             "city": "Sydney",
             "area": "Surry Hills",
             "lat": -33.882117,
-            "lng": 151.210096
+            "lng": 151.210096,
+            "countryCode": "AU"
           },
           "kind": "booked",
           "tags": [
@@ -281,7 +289,8 @@
             "city": "Melbourne",
             "area": "CBD",
             "lat": -37.803547,
-            "lng": 144.966567
+            "lng": 144.966567,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "notes": "There are no seats. That is the whole design — you stand at the shelf, drink it, and leave, which is why the queue moves even when it is out the door at 08:15. Weekdays only: Patricia is shut Saturday and Sunday, and a laneway coffee day planned for a weekend has to start at Market Lane instead. The magic in a glass is what to order; the white chocolate mendiant comes with it.",
@@ -301,7 +310,8 @@
             "city": "Melbourne",
             "area": "North Melbourne",
             "lat": -37.806916,
-            "lng": 144.958949
+            "lng": 144.958949,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -324,7 +334,8 @@
             "city": "Melbourne",
             "area": "CBD",
             "lat": -37.825071,
-            "lng": 144.978682
+            "lng": 144.978682,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "notes": "Hosier Lane before 10:30 or not at all — the walking tours land on the half hour and the lane is 3 m wide. The walls are repainted constantly, so nothing you saw in a photo is still there; that is the point rather than a disappointment. Then cut through Centre Place and Degraves for the cafe-table version, and find Presgrave Place off Howey Place, which is the one nobody photographs: a lane hung with framed miniatures and tiny installations. Cathedral Arcade in the Nicholas Building has the leadlight dome worth a lift ride.",
@@ -344,7 +355,8 @@
             "city": "Melbourne",
             "area": "Southbank",
             "lat": -37.822925,
-            "lng": 144.968656
+            "lng": 144.968656,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "notes": "The permanent collection is free, always — you only pay for the summer blockbuster, and those sell timed slots that go weeks ahead. Walk through the water wall, go straight to the Great Hall and lie down on the carpet: the Leonard French stained-glass ceiling is meant to be seen flat on your back and the guards will not mind. Ninety minutes is enough for one wing; trying to do the whole building is how this day dies. Verified 2026-09-06: NGV International is open daily 10:00-17:00 and entry to the permanent collection is free, so a 10:40 arrival is fine and the building closes well before this day needs it to.",
@@ -364,7 +376,8 @@
             "city": "Melbourne",
             "area": "CBD",
             "lat": -37.815947,
-            "lng": 144.968312
+            "lng": 144.968312,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -387,7 +400,8 @@
             "city": "Melbourne",
             "area": "Collingwood",
             "lat": -37.802337,
-            "lng": 144.985247
+            "lng": 144.985247,
+            "countryCode": "AU"
           },
           "kind": "transit",
           "notes": "The Free Tram Zone stops at the edge of the CBD — the moment you cross into Collingwood you need a Myki, and the daily cap is a few dollars, so buy the card and stop thinking about it. Proud Mary roasts its own and is the reason half of Melbourne's other cafes taste the way they do. Weekend brunch there is a 45-minute wait; a Tuesday at two, you walk in. Walk back down Smith Street rather than taking the tram — it is 20 minutes of the best browsing in the city.",
@@ -407,7 +421,8 @@
             "city": "Melbourne",
             "area": "CBD",
             "lat": -37.815007,
-            "lng": 144.965427
+            "lng": 144.965427,
+            "countryCode": "AU"
           },
           "kind": "idea",
           "notes": "A tiled room the size of a bathroom that fits about ten people standing, hidden in the lane you found this morning. Cash used to be the rule and the no-photos house style still is. The drinks are expensive and correct. If it is full — it is often full by six — Siglo's terrace above the Supper Club has the Parliament view and a fireplace.",
@@ -427,7 +442,8 @@
             "city": "Melbourne",
             "area": "CBD",
             "lat": -37.814815,
-            "lng": 144.973027
+            "lng": 144.973027,
+            "countryCode": "AU"
           },
           "kind": "booked",
           "tags": [
@@ -477,7 +493,8 @@
             "city": "Port Douglas",
             "area": "Macrossan Street",
             "lat": -16.483654,
-            "lng": 145.462909
+            "lng": 145.462909,
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -500,7 +517,8 @@
             "city": "Port Douglas",
             "area": "Marina Mirage",
             "lat": -16.485228,
-            "lng": 145.461139
+            "lng": 145.461139,
+            "countryCode": "AU"
           },
           "kind": "transit",
           "notes": "Check-in is 30 minutes before departure and the boats leave on the hour they say they leave — Wavelength at 08:30, Poseidon at 08:30, Quicksilver's pontoon run later at 10:00. The marina car park is free and fills; a 12-minute walk from anywhere in town beats circling. Reef-safe sunscreen only, and a rash vest saves more skin than any bottle. Verified 2026-09-06: boarding for Wavelength is from 08:10 at the Crystalbrook Superyacht Marina (the marina formerly branded Marina Mirage) and the boat is back in Port Douglas about 16:00; the Wavelength shop itself is in the Reef Marina building, not at the berth, so go to the boat.",
@@ -520,7 +538,8 @@
             "city": "Port Douglas",
             "area": "Coral Sea",
             "lat": -16.522298,
-            "lng": 145.473486
+            "lng": 145.473486,
+            "countryCode": "AU"
           },
           "kind": "booked",
           "tags": [
@@ -542,7 +561,8 @@
           "location": {
             "name": "Wavelength site one, Opal or Tongue Reef",
             "city": "Port Douglas",
-            "area": "Great Barrier Reef"
+            "area": "Great Barrier Reef",
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -563,7 +583,8 @@
           "location": {
             "name": "Wavelength site two, Opal or St Crispin Reef",
             "city": "Port Douglas",
-            "area": "Great Barrier Reef"
+            "area": "Great Barrier Reef",
+            "countryCode": "AU"
           },
           "kind": "planned",
           "tags": [
@@ -587,7 +608,8 @@
             "city": "Port Douglas",
             "area": "Coral Sea",
             "lat": -16.499911,
-            "lng": 145.462419
+            "lng": 145.462419,
+            "countryCode": "AU"
           },
           "kind": "transit",
           "notes": "The run home is usually downwind and faster than the run out. Sit outside and at the back if your stomach is uncertain, and look for the low outline of the Low Isles on the port side. Boats are alongside about 16:30, which leaves the whole evening — do not book anything before 17:30 in case the swell adds half an hour. Verified 2026-09-06: Wavelength quotes a return to Port Douglas of approximately 16:00, not 16:30, so this window has been pulled back an hour earlier at the end. Still do not book anything before 17:30 in case the swell adds half an hour.",
@@ -607,7 +629,8 @@
             "city": "Port Douglas",
             "area": "Four Mile Beach",
             "lat": -16.507078,
-            "lng": 145.467382
+            "lng": 145.467382,
+            "countryCode": "AU"
           },
           "kind": "idea",
           "tags": [
@@ -630,7 +653,8 @@
             "city": "Port Douglas",
             "area": "Macrossan Street",
             "lat": -16.485228,
-            "lng": 145.461139
+            "lng": 145.461139,
+            "countryCode": "AU"
           },
           "kind": "booked",
           "tags": [
@@ -681,7 +705,8 @@
           "location": {
             "name": "Yulara to the park entry station",
             "city": "Yulara",
-            "area": "Ayers Rock Resort"
+            "area": "Ayers Rock Resort",
+            "countryCode": "AU"
           },
           "kind": "transit",
           "notes": "The park gates open before sunrise and the opening time moves every month — it is roughly half an hour before first light, so check the month's hours rather than assuming. Yulara to the Talinguru car park is about 25 minutes. Have the pass on your phone before you leave: there is no reliable signal at the gate. Cost here is a day of a small hire car plus fuel out of Yulara, which is the most expensive fuel you will buy in Australia — fill up before you leave Alice if you drove. Verified 2026-09-06: park gate hours move with the sun across the year - roughly 05:00 to 21:00 in December and January, narrowing to about 06:30 to 19:30 in June and July. This 04:50 departure is a December-to-February plan. In June or July the gate is still shut at 05:20 and sunrise is not until about 07:20, so the whole morning shifts about ninety minutes later and the base walk starts nearer 09:00. Check the month's posted hours before you set an alarm.",
@@ -699,7 +724,11 @@
           "location": {
             "name": "Talinguru Nyakunytjaku sunrise viewing area",
             "city": "Uluru-Kata Tjuta National Park",
-            "area": "Uluru"
+            "area": "Uluru",
+            "countryCode": "AU",
+            "lat": -25.345554,
+            "lng": 131.036961,
+            "precision": "area"
           },
           "kind": "planned",
           "tags": [
@@ -721,7 +750,11 @@
           "location": {
             "name": "Uluru base walk, Mala car park trailhead",
             "city": "Uluru-Kata Tjuta National Park",
-            "area": "Uluru"
+            "area": "Uluru",
+            "countryCode": "AU",
+            "lat": -25.345554,
+            "lng": 131.036961,
+            "precision": "area"
           },
           "kind": "planned",
           "tags": [
@@ -742,7 +775,11 @@
           "location": {
             "name": "Uluru-Kata Tjuta Cultural Centre",
             "city": "Uluru-Kata Tjuta National Park",
-            "area": "Mutitjulu"
+            "area": "Mutitjulu",
+            "countryCode": "AU",
+            "lat": -25.349096,
+            "lng": 131.064273,
+            "precision": "area"
           },
           "kind": "booked",
           "tags": [
@@ -765,7 +802,8 @@
             "city": "Yulara",
             "area": "Ayers Rock Resort",
             "lat": -25.241302,
-            "lng": 130.983565
+            "lng": 130.983565,
+            "countryCode": "AU"
           },
           "kind": "idea",
           "tags": [
@@ -788,7 +826,8 @@
             "city": "Yulara",
             "area": "Connellan Airport",
             "lat": -25.183395,
-            "lng": 130.978422
+            "lng": 130.978422,
+            "countryCode": "AU"
           },
           "kind": "booked",
           "tags": [
@@ -809,7 +848,8 @@
           "location": {
             "name": "Sounds of Silence dune-top dining area",
             "city": "Yulara",
-            "area": "Ayers Rock Resort"
+            "area": "Ayers Rock Resort",
+            "countryCode": "AU"
           },
           "kind": "booked",
           "tags": [
@@ -833,7 +873,8 @@
             "city": "Yulara",
             "area": "Ayers Rock Resort",
             "lat": -25.253621,
-            "lng": 130.997032
+            "lng": 130.997032,
+            "countryCode": "AU"
           },
           "kind": "booked",
           "tags": [
@@ -874,7 +915,8 @@
             "city": "Queenstown",
             "area": "Town Centre",
             "lat": -45.033599,
-            "lng": 168.656697
+            "lng": 168.656697,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -897,7 +939,8 @@
             "city": "Queenstown",
             "area": "Town Centre",
             "lat": -45.03091,
-            "lng": 168.659653
+            "lng": 168.659653,
+            "countryCode": "NZ"
           },
           "kind": "transit",
           "notes": "You cannot drive yourself to the Nevis — it is 40 minutes up a private 4WD farm track and the transfer is part of the ticket, leaving from The Station in town. Check in 30 minutes before your slot. Weigh-in happens here and the number goes on your hand in marker, which is how they set the cord; there is a minimum and a maximum weight and it is not negotiable. Verified 2026-09-06: the Bungy Bus leaves from the AJ Hackett Queenstown Bungy Centre on the corner of Camp and Shotover Streets, the first departure of the day is 08:40 and they run every 40 minutes to 14:40, and check-in is 30 minutes before your bus. The old 08:15 departure in this day was not a real bus time - this window is now check-in for the 08:40.",
@@ -917,7 +960,8 @@
             "city": "Queenstown",
             "area": "Nevis Valley",
             "lat": -45.332772,
-            "lng": 168.740262
+            "lng": 168.740262,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [
@@ -941,7 +985,8 @@
             "city": "Queenstown",
             "area": "Town Centre",
             "lat": -45.031742,
-            "lng": 168.659462
+            "lng": 168.659462,
+            "countryCode": "NZ"
           },
           "kind": "idea",
           "tags": [
@@ -964,7 +1009,8 @@
             "city": "Queenstown",
             "area": "Frankton",
             "lat": -45.0193,
-            "lng": 168.74344
+            "lng": 168.74344,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [
@@ -988,7 +1034,8 @@
             "city": "Queenstown",
             "area": "Frankton",
             "lat": -45.021468,
-            "lng": 168.734672
+            "lng": 168.734672,
+            "countryCode": "NZ"
           },
           "kind": "hold",
           "tags": [
@@ -1012,7 +1059,8 @@
             "city": "Queenstown",
             "area": "Arthurs Point",
             "lat": -44.980995,
-            "lng": 168.685428
+            "lng": 168.685428,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [
@@ -1035,7 +1083,8 @@
             "city": "Queenstown",
             "area": "Lake Hayes",
             "lat": -44.986578,
-            "lng": 168.815846
+            "lng": 168.815846,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [
@@ -1080,7 +1129,8 @@
             "city": "Te Anau",
             "area": "Town Centre",
             "lat": -45.41444,
-            "lng": 167.71563
+            "lng": 167.71563,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1103,7 +1153,8 @@
             "city": "Te Anau",
             "area": "Fiordland National Park",
             "lat": -45.410246,
-            "lng": 167.729404
+            "lng": 167.729404,
+            "countryCode": "NZ"
           },
           "kind": "transit",
           "notes": "Two hours without stopping, and you will stop, so give it two and a quarter. In order: the Eglinton flats where the beech forest opens out, Mirror Lakes (a five-minute boardwalk, only mirrors on a still morning, which is another argument for going early rather than at midday), Knobs Flat toilets, Pop's View, and Monkey Creek where you can drink straight from the stream and the kea will strip the rubber off your windscreen wipers while you do. Do not feed them. The road is single lane in places with no barrier, and the coaches from Queenstown come the other way from about 09:30 — being ahead of them is the entire trick of this day. Verified 2026-09-06: the stretch between the Hollyford Road junction and The Chasm is a signposted Restricted No Stopping Zone because it is avalanche path - the roadside stops on this list are all south of it, so keep driving through that section rather than pulling over for a photo.",
@@ -1123,7 +1174,8 @@
             "city": "Milford Sound",
             "area": "Fiordland National Park",
             "lat": -44.66836,
-            "lng": 167.92005
+            "lng": 167.92005,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1146,7 +1198,8 @@
             "city": "Milford Sound",
             "area": "Deepwater Basin",
             "lat": -44.668201,
-            "lng": 167.926978
+            "lng": 167.926978,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "notes": "Parking at the terminal is paid and enforced, the machine wants a card, and there is no phone signal to fix it if the machine dislikes you, so keep a card that works. It is a ten-minute walk from the car park to the wharf along the foreshore. Check in 20 minutes before departure — boats leave on time and there is no second one for an hour. Verified 2026-09-06: the terminal car park is NZ$10 an hour after the first 20 minutes free (NZ$5 an hour if you arrive after 15:00), the machine wants a card and there is no signal to argue with it; free parking exists at Deepwater Basin Road about 1.5 km back. In high season the main car park is full by about 09:00, which is another reason to be early even for a later sailing.",
@@ -1166,7 +1219,8 @@
             "city": "Milford Sound",
             "area": "Milford Sound / Piopiotahi",
             "lat": -44.671475,
-            "lng": 167.923739
+            "lng": 167.923739,
+            "countryCode": "NZ"
           },
           "kind": "hold",
           "tags": [
@@ -1188,7 +1242,8 @@
           "location": {
             "name": "Pio Pio Cafe, Milford Sound Lodge",
             "city": "Milford Sound",
-            "area": "Cleddau Valley"
+            "area": "Cleddau Valley",
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1211,7 +1266,8 @@
             "city": "Te Anau",
             "area": "Fiordland National Park",
             "lat": -45.410246,
-            "lng": 167.729404
+            "lng": 167.729404,
+            "countryCode": "NZ"
           },
           "kind": "transit",
           "notes": "Southbound in the afternoon is the good direction — the sun is on the Darran Mountains behind you and the coaches have all gone. Two worthwhile stops if the legs allow: the Lake Marian falls boardwalk off the Hollyford Road (20 minutes return; the full lake is four hours and not today), and Mirror Lakes again, which is a different place with the light from the other side. Watch for keas on the road at the tunnel and for one-lane bridges the whole way.",
@@ -1231,7 +1287,8 @@
             "city": "Te Anau",
             "area": "Town Centre",
             "lat": -45.415671,
-            "lng": 167.712538
+            "lng": 167.712538,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [
@@ -1266,7 +1323,11 @@
           "location": {
             "name": "National Park Village accommodation",
             "city": "National Park Village",
-            "area": "Ruapehu"
+            "area": "Ruapehu",
+            "countryCode": "NZ",
+            "lat": -39.175606,
+            "lng": 175.394566,
+            "precision": "area"
           },
           "kind": "planned",
           "tags": [
@@ -1289,7 +1350,8 @@
             "city": "Tongariro National Park",
             "area": "Mangatepopo Valley",
             "lat": -39.13901,
-            "lng": 175.552526
+            "lng": 175.552526,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [
@@ -1312,7 +1374,8 @@
             "city": "Tongariro National Park",
             "area": "Mangatepopo Valley",
             "lat": -39.168538,
-            "lng": 175.569501
+            "lng": 175.569501,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1333,7 +1396,8 @@
           "location": {
             "name": "Devil's Staircase and South Crater",
             "city": "Tongariro National Park",
-            "area": "Mount Ngauruhoe"
+            "area": "Mount Ngauruhoe",
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1354,7 +1418,8 @@
           "location": {
             "name": "Red Crater summit, 1886 m",
             "city": "Tongariro National Park",
-            "area": "Red Crater"
+            "area": "Red Crater",
+            "countryCode": "NZ"
           },
           "kind": "hold",
           "tags": [
@@ -1375,7 +1440,8 @@
           "location": {
             "name": "Emerald Lakes and Te Wai-whakaata-o-te-Rangihiroa",
             "city": "Tongariro National Park",
-            "area": "Central Crater"
+            "area": "Central Crater",
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1396,7 +1462,8 @@
           "location": {
             "name": "Ketetahi track and car park",
             "city": "Tongariro National Park",
-            "area": "Ketetahi"
+            "area": "Ketetahi",
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1417,7 +1484,11 @@
           "location": {
             "name": "Schnapps Bar, Carroll Street",
             "city": "National Park Village",
-            "area": "Ruapehu"
+            "area": "Ruapehu",
+            "countryCode": "NZ",
+            "lat": -39.175606,
+            "lng": 175.394566,
+            "precision": "area"
           },
           "kind": "planned",
           "tags": [
@@ -1464,7 +1535,8 @@
             "city": "Rotorua",
             "area": "Okere Falls",
             "lat": -38.018028,
-            "lng": 176.343217
+            "lng": 176.343217,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1487,7 +1559,8 @@
             "city": "Matamata",
             "area": "Hinuera",
             "lat": -37.87273,
-            "lng": 175.683564
+            "lng": 175.683564,
+            "countryCode": "NZ"
           },
           "kind": "transit",
           "notes": "Drive to the farm, not to the town. Tours depart from the Shire's Rest on Buckland Road, about 10 minutes outside Matamata; the i-SITE in town is only a pick-up point for people without a car and sending yourself there costs you 20 minutes. Cost here is the day's fuel out of Rotorua and back. Roads are rural and the fog sits in these valleys until nine in winter. Verified 2026-09-06: tours do depart from the Shire's Rest, 501 Buckland Road, Hinuera - but it is about a 20-minute drive from Matamata township, not 10, so leave the margin. Shire's Rest departures run every 30 minutes from 09:30 to 16:00; the Matamata i-SITE version leaves every 45 minutes from 09:30 to 15:30 and is a four-hour trip because it includes the coach both ways.",
@@ -1507,7 +1580,8 @@
             "city": "Matamata",
             "area": "Alexander Farm",
             "lat": -37.857945,
-            "lng": 175.680909
+            "lng": 175.680909,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [
@@ -1530,7 +1604,8 @@
             "city": "Matamata",
             "area": "Buckland Road",
             "lat": -37.872096,
-            "lng": 175.682945
+            "lng": 175.682945,
+            "countryCode": "NZ"
           },
           "kind": "idea",
           "tags": [
@@ -1553,7 +1628,8 @@
             "city": "Rotorua",
             "area": "Ngongotaha",
             "lat": -38.145007,
-            "lng": 176.223432
+            "lng": 176.223432,
+            "countryCode": "NZ"
           },
           "kind": "transit",
           "notes": "An hour back, and the smell tells you when you have arrived — hydrogen sulphide, everywhere, and you stop noticing it by dinner. Wai-O-Tapu is a further 25 minutes south of the city on SH5, so do not drive into town first and then back out; go straight past the turnoff.",
@@ -1573,7 +1649,8 @@
             "city": "Rotorua",
             "area": "Waiotapu",
             "lat": -38.355898,
-            "lng": 176.367513
+            "lng": 176.367513,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1597,7 +1674,8 @@
             "city": "Rotorua",
             "area": "Whakarewarewa",
             "lat": -38.201973,
-            "lng": 176.328242
+            "lng": 176.328242,
+            "countryCode": "NZ"
           },
           "kind": "planned",
           "tags": [
@@ -1621,7 +1699,8 @@
             "city": "Rotorua",
             "area": "Tikitere",
             "lat": -38.136905,
-            "lng": 176.256083
+            "lng": 176.256083,
+            "countryCode": "NZ"
           },
           "kind": "booked",
           "tags": [

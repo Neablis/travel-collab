@@ -75,7 +75,8 @@
             "city": "Krabi",
             "area": "Ao Nang",
             "lat": 8.033122,
-            "lng": 98.820331
+            "lng": 98.820331,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "cost": {
@@ -95,7 +96,8 @@
             "city": "Krabi",
             "area": "Railay",
             "lat": 8.005561,
-            "lng": 98.838732
+            "lng": 98.838732,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -114,7 +116,8 @@
             "city": "Krabi",
             "area": "Railay",
             "lat": 8.048174,
-            "lng": 98.832892
+            "lng": 98.832892,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -133,7 +136,8 @@
             "city": "Krabi",
             "area": "Tonsai",
             "lat": 8.020221,
-            "lng": 98.83615
+            "lng": 98.83615,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -156,7 +160,8 @@
             "city": "Krabi",
             "area": "Railay",
             "lat": 8.010676,
-            "lng": 98.839658
+            "lng": 98.839658,
+            "countryCode": "TH"
           },
           "kind": "booked",
           "tags": [
@@ -180,7 +185,8 @@
             "city": "Krabi",
             "area": "Railay West",
             "lat": 8.011467,
-            "lng": 98.837935
+            "lng": 98.837935,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -203,7 +209,8 @@
             "city": "Krabi",
             "area": "Railay East",
             "lat": 8.012953,
-            "lng": 98.844571
+            "lng": 98.844571,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -226,7 +233,8 @@
             "city": "Krabi",
             "area": "Railay East",
             "lat": 8.00991,
-            "lng": 98.842186
+            "lng": 98.842186,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "cost": {
@@ -267,7 +275,8 @@
             "city": "Ko Lanta",
             "area": "Klong Dao",
             "lat": 7.63433,
-            "lng": 99.030519
+            "lng": 99.030519,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -290,7 +299,8 @@
             "city": "Ko Lanta",
             "area": "Saladan",
             "lat": 7.649295,
-            "lng": 99.037892
+            "lng": 99.037892,
+            "countryCode": "TH"
           },
           "kind": "booked",
           "cost": {
@@ -310,7 +320,8 @@
             "city": "Ko Lanta",
             "area": "Klong Nin",
             "lat": 7.538146,
-            "lng": 99.048473
+            "lng": 99.048473,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -333,7 +344,8 @@
             "city": "Ko Lanta",
             "area": "Klong Nin",
             "lat": 7.599686,
-            "lng": 99.036491
+            "lng": 99.036491,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -356,7 +368,8 @@
             "city": "Ko Lanta",
             "area": "Lanta Old Town",
             "lat": 7.532715,
-            "lng": 99.093612
+            "lng": 99.093612,
+            "countryCode": "TH"
           },
           "kind": "idea",
           "cost": {
@@ -376,7 +389,8 @@
             "city": "Ko Lanta",
             "area": "Klong Nin",
             "lat": 7.539417,
-            "lng": 99.04879
+            "lng": 99.04879,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -399,7 +413,8 @@
             "city": "Ko Lanta",
             "area": "Klong Nin",
             "lat": 7.633719,
-            "lng": 99.031182
+            "lng": 99.031182,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -440,7 +455,8 @@
             "city": "Ko Tao",
             "area": "Sairee",
             "lat": 10.097279,
-            "lng": 99.827833
+            "lng": 99.827833,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -459,7 +475,8 @@
             "city": "Ko Tao",
             "area": "Chalok Baan Kao",
             "lat": 10.060126,
-            "lng": 99.829429
+            "lng": 99.829429,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -483,7 +500,8 @@
             "city": "Ko Tao",
             "area": "Mae Haad",
             "lat": 10.08268,
-            "lng": 99.825446
+            "lng": 99.825446,
+            "countryCode": "TH"
           },
           "kind": "booked",
           "tags": [
@@ -507,7 +525,8 @@
             "city": "Ko Tao",
             "area": "Sairee",
             "lat": 10.097279,
-            "lng": 99.827833
+            "lng": 99.827833,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "cost": {
@@ -527,7 +546,8 @@
             "city": "Ko Tao",
             "area": "Sairee",
             "lat": 10.089319,
-            "lng": 99.838246
+            "lng": 99.838246,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -550,7 +570,8 @@
             "city": "Ko Tao",
             "area": "Sairee",
             "lat": 10.089319,
-            "lng": 99.838246
+            "lng": 99.838246,
+            "countryCode": "TH"
           },
           "kind": "idea",
           "cost": {
@@ -594,7 +615,8 @@
             "city": "Khao Lak",
             "area": "Nang Thong",
             "lat": 8.611418,
-            "lng": 98.237788
+            "lng": 98.237788,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "notes": "The minibus loops the beach road and you are first or last depending on where you sleep — staying at Nang Thong buys you an extra twenty minutes in bed. Nothing is open for breakfast at that hour anywhere in Khao Lak; the boat feeds you at 08:30, so do not go hunting."
@@ -608,7 +630,8 @@
           "location": {
             "name": "Thap Lamu Pier",
             "city": "Khao Lak",
-            "area": "Thap Lamu"
+            "area": "Thap Lamu",
+            "countryCode": "TH"
           },
           "kind": "booked",
           "tags": [
@@ -629,7 +652,11 @@
           "location": {
             "name": "Mu Ko Similan National Park",
             "city": "Similan Islands",
-            "area": "Mu Ko Similan"
+            "area": "Mu Ko Similan",
+            "countryCode": "TH",
+            "lat": 8.577133,
+            "lng": 97.646351,
+            "precision": "area"
           },
           "kind": "transit",
           "cost": {
@@ -647,7 +674,11 @@
           "location": {
             "name": "Elephant Head Rock (Hin Pousar)",
             "city": "Similan Islands",
-            "area": "Island 8"
+            "area": "Island 8",
+            "countryCode": "TH",
+            "lat": 8.577133,
+            "lng": 97.646351,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -664,7 +695,11 @@
           "location": {
             "name": "Dive boat, Mu Ko Similan",
             "city": "Similan Islands",
-            "area": "Mu Ko Similan"
+            "area": "Mu Ko Similan",
+            "countryCode": "TH",
+            "lat": 8.577133,
+            "lng": 97.646351,
+            "precision": "area"
           },
           "kind": "planned",
           "tags": [
@@ -681,7 +716,11 @@
           "location": {
             "name": "Christmas Point, Island 9",
             "city": "Similan Islands",
-            "area": "Island 9"
+            "area": "Island 9",
+            "countryCode": "TH",
+            "lat": 8.577133,
+            "lng": 97.646351,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -698,7 +737,11 @@
           "location": {
             "name": "Donald Duck Bay, Island 8",
             "city": "Similan Islands",
-            "area": "Island 8"
+            "area": "Island 8",
+            "countryCode": "TH",
+            "lat": 8.577133,
+            "lng": 97.646351,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -717,7 +760,8 @@
             "city": "Khao Lak",
             "area": "Nang Thong",
             "lat": 8.645237,
-            "lng": 98.249316
+            "lng": 98.249316,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -765,7 +809,8 @@
           "location": {
             "name": "Phi Phi Viewpoint 1, 2 and 3",
             "city": "Ko Phi Phi",
-            "area": "Tonsai"
+            "area": "Tonsai",
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -787,7 +832,8 @@
           "location": {
             "name": "Tonsai Village",
             "city": "Ko Phi Phi",
-            "area": "Tonsai"
+            "area": "Tonsai",
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -808,7 +854,8 @@
           "location": {
             "name": "Tonsai Bay beachfront",
             "city": "Ko Phi Phi",
-            "area": "Tonsai"
+            "area": "Tonsai",
+            "countryCode": "TH"
           },
           "kind": "booked",
           "cost": {
@@ -828,7 +875,8 @@
             "city": "Ko Phi Phi",
             "area": "Phi Phi Leh",
             "lat": 7.6831,
-            "lng": 98.767677
+            "lng": 98.767677,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -847,7 +895,8 @@
             "city": "Ko Phi Phi",
             "area": "Phi Phi Leh",
             "lat": 7.676625,
-            "lng": 98.766117
+            "lng": 98.766117,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -869,7 +918,8 @@
           "location": {
             "name": "Bamboo Island (Koh Mai Phai)",
             "city": "Ko Phi Phi",
-            "area": "Koh Mai Phai"
+            "area": "Koh Mai Phai",
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -893,7 +943,8 @@
             "city": "Ko Phi Phi",
             "area": "Long Beach",
             "lat": 7.729414,
-            "lng": 98.787048
+            "lng": 98.787048,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -916,7 +967,8 @@
             "city": "Ko Phi Phi",
             "area": "Long Beach",
             "lat": 7.729414,
-            "lng": 98.787048
+            "lng": 98.787048,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -953,7 +1005,8 @@
             "city": "Phuket",
             "area": "Bang Rong",
             "lat": 8.049667,
-            "lng": 98.415997
+            "lng": 98.415997,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "cost": {
@@ -973,7 +1026,8 @@
             "city": "Ko Yao Noi",
             "area": "Tha Khao",
             "lat": 8.133852,
-            "lng": 98.609938
+            "lng": 98.609938,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "cost": {
@@ -993,7 +1047,8 @@
             "city": "Ko Yao Noi",
             "area": "Ban Tha Khao",
             "lat": 8.133852,
-            "lng": 98.609938
+            "lng": 98.609938,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1012,7 +1067,8 @@
             "city": "Ko Yao Noi",
             "area": "Pasai",
             "lat": 8.133852,
-            "lng": 98.609938
+            "lng": 98.609938,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1035,7 +1091,8 @@
             "city": "Ko Yao Noi",
             "area": "Laem Haad",
             "lat": 8.133852,
-            "lng": 98.609938
+            "lng": 98.609938,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1058,7 +1115,8 @@
             "city": "Ko Yao Noi",
             "area": "Ban Tha Khao",
             "lat": 8.133852,
-            "lng": 98.609938
+            "lng": 98.609938,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1081,7 +1139,8 @@
             "city": "Ko Yao Noi",
             "area": "Pasai",
             "lat": 8.133852,
-            "lng": 98.609938
+            "lng": 98.609938,
+            "countryCode": "TH"
           },
           "kind": "hold",
           "tags": [
@@ -1120,7 +1179,8 @@
           "location": {
             "name": "Surat Thani (Phun Phin) railway station",
             "city": "Surat Thani",
-            "area": "Phun Phin"
+            "area": "Phun Phin",
+            "countryCode": "TH"
           },
           "kind": "transit",
           "cost": {
@@ -1138,7 +1198,8 @@
           "location": {
             "name": "Phun Phin station food stalls",
             "city": "Surat Thani",
-            "area": "Phun Phin"
+            "area": "Phun Phin",
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1161,7 +1222,8 @@
             "city": "Surat Thani",
             "area": "Don Sak",
             "lat": 9.313109,
-            "lng": 99.687352
+            "lng": 99.687352,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "notes": "Ninety minutes east, included in the joint ticket, and there is no stop on the way. Use the toilet at the pier before boarding rather than the one on the boat."
@@ -1177,7 +1239,8 @@
             "city": "Ko Samui",
             "area": "Nathon",
             "lat": 9.564521,
-            "lng": 100.06188
+            "lng": 100.06188,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "cost": {
@@ -1197,7 +1260,8 @@
             "city": "Ko Samui",
             "area": "Nathon",
             "lat": 9.536455,
-            "lng": 99.93598
+            "lng": 99.93598,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "cost": {
@@ -1217,7 +1281,8 @@
             "city": "Ko Samui",
             "area": "Bophut",
             "lat": 9.558668,
-            "lng": 100.031527
+            "lng": 100.031527,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1240,7 +1305,8 @@
             "city": "Ko Samui",
             "area": "Bophut",
             "lat": 9.564616,
-            "lng": 100.021306
+            "lng": 100.021306,
+            "countryCode": "TH"
           },
           "kind": "hold",
           "tags": [
@@ -1259,7 +1325,8 @@
             "city": "Ko Samui",
             "area": "Bophut",
             "lat": 9.56078,
-            "lng": 100.028689
+            "lng": 100.028689,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1312,7 +1379,8 @@
             "city": "Ko Samui",
             "area": "Bophut",
             "lat": 9.558668,
-            "lng": 100.031527
+            "lng": 100.031527,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1335,7 +1403,8 @@
             "city": "Ko Samui",
             "area": "Bang Rak",
             "lat": 9.556,
-            "lng": 100.05242
+            "lng": 100.05242,
+            "countryCode": "TH"
           },
           "kind": "booked",
           "cost": {
@@ -1355,7 +1424,8 @@
             "city": "Ang Thong",
             "area": "Mu Ko Ang Thong",
             "lat": 14.454568,
-            "lng": 100.470337
+            "lng": 100.470337,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "tags": [
@@ -1376,7 +1446,8 @@
           "location": {
             "name": "Talay Nai (Emerald Lake), Koh Mae Ko",
             "city": "Ang Thong",
-            "area": "Koh Mae Ko"
+            "area": "Koh Mae Ko",
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1395,7 +1466,8 @@
             "city": "Ang Thong",
             "area": "Mu Ko Ang Thong",
             "lat": 14.454568,
-            "lng": 100.470337
+            "lng": 100.470337,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1418,7 +1490,8 @@
             "city": "Ang Thong",
             "area": "Koh Wua Talap",
             "lat": 14.57144,
-            "lng": 100.41467
+            "lng": 100.41467,
+            "countryCode": "TH"
           },
           "kind": "planned",
           "tags": [
@@ -1437,7 +1510,8 @@
             "city": "Ko Samui",
             "area": "Bang Rak",
             "lat": 9.556,
-            "lng": 100.05242
+            "lng": 100.05242,
+            "countryCode": "TH"
           },
           "kind": "transit",
           "notes": "Dining on the Rocks has a smart-casual line and after nine hours on a boat you are nowhere near it. Build the hour in deliberately: the drive north-east from Bophut to Six Senses is about 30 minutes, and the last stretch is a steep private road."
@@ -1453,7 +1527,8 @@
             "city": "Ko Samui",
             "area": "Choeng Mon",
             "lat": 9.571173,
-            "lng": 100.080449
+            "lng": 100.080449,
+            "countryCode": "TH"
           },
           "kind": "booked",
           "tags": [
