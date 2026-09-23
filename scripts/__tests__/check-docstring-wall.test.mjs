@@ -117,6 +117,70 @@ export function distanceKm(a: number, b: number): number {
   assert.match(stdout, /100\.0% documented/);
 });
 
+// THE SHAPES THAT GOT PAST THE REGEX SCANNER, kept as a group because they
+// are one defect: the wall reported this exact file as "0 exported
+// functions/classes, 100.0% documented" while it held three undocumented
+// exported functions. CodeRabbit found the first on PR #203; probing it found
+// the other two. A wall returning green for a file it cannot read is the
+// failure mode the whole mechanism exists to prevent, so each shape gets a
+// case rather than a shared one.
+const BYPASSED_THE_REGEXES = `const build = () => {};
+export { build };
+
+export const multiline = (
+  a: string,
+) => a;
+
+export {
+  helper,
+};
+function helper() {}
+`;
+
+test("catches the three shapes the regex scanner reported as 100% documented", () => {
+  const { status, stderr } = runWall({ "bypass.ts": BYPASSED_THE_REGEXES });
+  assert.equal(status, 1);
+  // A local declaration exported through a list, the list written inline...
+  assert.match(stderr, /bypass\.ts:1: build is exported without JSDoc/);
+  // ...and across lines, naming a function declared AFTER it.
+  assert.match(stderr, /bypass\.ts:11: helper is exported without JSDoc/);
+  // And a plainly-exported arrow whose `=\>` is not on the declaration line.
+  assert.match(stderr, /bypass\.ts:4: multiline is exported without JSDoc/);
+  assert.match(stderr, /BREACHED: 3 exported/);
+});
+
+test("an `export { local as renamed }` is the LOCAL declaration's docstring", () => {
+  // The exported name is `renamed`; the thing that needs the docstring is
+  // `build`, and that is what the report has to name or nobody can find it.
+  const { status, stderr } = runWall({
+    "renamed.ts": "const build = () => {};\nexport { build as make };\n",
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /renamed\.ts:1: build is exported without JSDoc/);
+});
+
+test("a re-export from another module is not this file's to document", () => {
+  // `export { x } from "./y"` does not declare anything here. The docstring
+  // belongs on y's declaration, which the wall scans where it lives — counting
+  // it twice would make one missing docstring two failures in two files.
+  const { status, stdout } = runWall({
+    "barrel.ts": 'export { selectAiModel } from "./modelSelection";\n',
+  });
+  assert.equal(status, 0);
+  assert.match(stdout, /0 exported functions\/classes/);
+});
+
+test("JSDoc above an exported arrow counts, though it sits on the statement", () => {
+  // The parser hangs a block above `export const f = …` on the
+  // VariableStatement rather than on the declarator inside it. Getting this
+  // wrong would fail every documented arrow function in the repo.
+  const { status, stdout } = runWall({
+    "arrow.ts": "/** The day's key. */\nexport const dayKey = (n: number) => `day-${n}`;\n",
+  });
+  assert.equal(status, 0);
+  assert.match(stdout, /100\.0% documented/);
+});
+
 test("skips tests, specs and declaration files", () => {
   const { status, stdout } = runWall({
     "a.test.ts": "export function helper() {}\n",

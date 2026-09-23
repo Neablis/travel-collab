@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import ts from "typescript";
 import { join, relative } from "node:path";
 
 // THE DOCSTRING WALL: every exported function or class carries JSDoc, and the
@@ -43,15 +44,48 @@ import { join, relative } from "node:path";
 // (KI-2026-09-02-b) cannot be silently re-grown. A baseline nobody is forced
 // to prune is a backlog that only grows.
 //
+// ## Why this parses TypeScript instead of matching lines
+//
+// It did match lines, for exactly one review cycle. CodeRabbit caught the hole
+// on PR #203 and it was worse than reported — this file passed clean:
+//
+//     const build = () => {};
+//     export { build };
+//
+//     export const multiline = (
+//       a: string,
+//     ) => a;
+//
+//     export { helper };
+//     function helper() {}
+//
+// Three undocumented exported functions, reported as *"0 exported
+// functions/classes, 100.0% documented"*. A wall that returns green for a file
+// it could not read is worse than no wall: it is the "a green run that proves
+// nothing" failure this repo already refuses elsewhere, and it would have been
+// invisible for exactly as long as nobody wrote an export list.
+//
+// Patching the regexes was the obvious answer and is the wrong one — each
+// missed shape (a multi-line arrow, `export {}` across lines, `as` renames)
+// costs another pattern and the next shape is always unlisted. `typescript` is
+// already in this repo's toolchain, so the parser that decides what an export
+// IS can be the same one `tsc` uses.
+//
 // ## What counts as an export here
 //
-// Exported **functions and classes**, including `export const f = () => …`.
+// Exported **functions and classes**, reached however they are exported:
+// `export function`, `export default function`, `export class`, an arrow or
+// function expression bound to an exported `const`, and a local declaration
+// named in an `export { … }` list (with or without `as`).
+//
 // Deliberately NOT types, interfaces, enums or plain value constants: the
 // check this mirrors counts functions ("analyzed 9 functions across 7 files"),
 // and a wall that demands a sentence above every exported Zod schema in
-// `packages/contracts` would produce 267 sentences nobody asked for. Widening
-// the wall later is a one-line change to EXPORT_PATTERNS; starting wide would
-// have meant grandfathering 1180 symbols instead of 475.
+// `packages/contracts` would produce 267 sentences nobody asked for.
+//
+// Also NOT `export { x } from "./y"`. That re-exports someone else's symbol;
+// the docstring belongs on the declaration, which this wall scans where it
+// lives.
 //
 // Tests are out of scope. `*.test.ts(x)` and `*.spec.ts(x)` export almost
 // nothing, and KI-2026-09-20-i's surviving objection is specifically about
@@ -85,61 +119,119 @@ function isScannable(path) {
 }
 
 /**
- * The three shapes an exported function or class is written in here. Each
- * captures the symbol's name, which is what the baseline keys on — a line
- * number would be invalidated by every edit above it, and a backlog that
- * churns on unrelated diffs is one people stop reading.
+ * Whether a node's initializer makes an exported `const` a FUNCTION rather
+ * than a value. `export const schema = z.object(…)` is a value and out of
+ * scope; `export const f = () => …` and `export const f = function () {}`
+ * are not.
  */
-const EXPORT_PATTERNS = [
-  /^export\s+(?:default\s+)?(?:async\s+)?function\s*\*?\s+([A-Za-z_$][\w$]*)/,
-  /^export\s+(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/,
-  /^export\s+(?:const|let)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*(?::[^=]*?)?=>/,
-];
+function isFunctionValued(node) {
+  if (!node) return false;
+  return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+}
 
 /**
- * True when the nearest non-blank line above `index` closes a JSDoc block —
- * i.e. the documentation is attached to the symbol rather than merely nearby.
+ * True when `node` carries a JSDoc block.
  *
- * A `//` block above the symbol deliberately does NOT count, and that is the
- * whole point of the convention rather than an oversight: `//` is still the
- * right home for a decision, a citation or a war story, and it belongs ABOVE
- * the JSDoc. See docs/guidelines/commenting.md.
+ * `ts.getJSDocCommentsAndTags` is the same lookup the language service uses
+ * for hover text, which is the useful definition: it is attached if an editor
+ * would show it at the call site. A `//` block above the symbol is not, and
+ * that is the convention rather than an oversight — `//` is still the right
+ * home for a decision, a citation or a war story, and it belongs ABOVE the
+ * JSDoc. See docs/guidelines/commenting.md.
+ *
+ * **It handles the arrow case by itself, which is not obvious.** A block above
+ * `export const f = () => …` is parsed onto the VariableStatement rather than
+ * the declarator inside it, so this looked like it needed a second lookup on
+ * the parent. It does not: TypeScript walks up for exactly this shape.
+ * Measured before the fallback was deleted — with it removed, the repo's whole
+ * 993-symbol scan is byte-identical, and a test written against it could not
+ * be made to fail. An untestable branch is not a safeguard.
  */
-function hasJsDocAbove(lines, index) {
-  let i = index - 1;
-  while (i >= 0 && lines[i].trim() === "") i -= 1;
-  if (i < 0 || !lines[i].trim().endsWith("*/")) return false;
-  // Walk back to the opening delimiter: `/**` is JSDoc, a bare `/*` is not.
-  for (let j = i; j >= 0; j -= 1) {
-    if (lines[j].includes("/**")) return true;
-    if (lines[j].includes("/*")) return false;
-  }
-  return false;
+function hasJsDoc(node) {
+  return ts.getJSDocCommentsAndTags(node).length > 0;
+}
+
+/** True when `node` has the `export` modifier on itself. */
+function isExported(node) {
+  return (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Export) !== 0;
 }
 
 /**
  * Every exported function or class in `source`, each flagged documented or
- * not. Overload signatures collapse onto the implementation's name, so a
- * symbol is reported once however many times it is declared.
+ * not.
+ *
+ * Two passes, because an `export { … }` list can name a declaration written
+ * anywhere in the file — above it or below it. The first pass records every
+ * top-level function and class declaration by name; the second decides which
+ * of them are exported, directly or by list. Overload signatures collapse onto
+ * one entry per name, keeping the documented half.
  */
-export function scan(source) {
-  const lines = source.split("\n");
-  const byName = new Map();
-  lines.forEach((line, i) => {
-    for (const pattern of EXPORT_PATTERNS) {
-      const match = pattern.exec(line);
-      if (!match) continue;
-      const name = match[1];
-      const documented = hasJsDocAbove(lines, i);
-      // An overload pair documents the group once; keep the documented half.
-      const seen = byName.get(name);
-      if (!seen || (!seen.documented && documented)) {
-        byName.set(name, { name, line: i + 1, documented });
-      }
-      return;
+export function scan(source, fileName = "scan.ts") {
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ true,
+    fileName.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+
+  /** name -> { line, documented } for every top-level function/class. */
+  const declared = new Map();
+  /** Names that are exported, however they got there. */
+  const exported = new Set();
+
+  const record = (name, node) => {
+    if (!name) return;
+    const line = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+    const documented = hasJsDoc(node);
+    const seen = declared.get(name);
+    // An overload pair documents the group once; keep the documented half.
+    if (!seen || (!seen.documented && documented)) declared.set(name, { line, documented });
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) {
+      // `export default function () {}` is anonymous; name it for the report
+      // rather than skipping it, because it is still an exported function.
+      const name = statement.name?.text ?? (isExported(statement) ? "default" : undefined);
+      record(name, statement);
+      if (name && isExported(statement)) exported.add(name);
+      continue;
     }
-  });
-  return [...byName.values()];
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue;
+        if (!isFunctionValued(declaration.initializer)) continue;
+        // `hasJsDoc` finds a block written above the STATEMENT from here; see
+        // its comment for why that needs no help.
+        record(declaration.name.text, declaration);
+        if (isExported(statement)) exported.add(declaration.name.text);
+      }
+      continue;
+    }
+    if (ts.isExportDeclaration(statement) && statement.exportClause) {
+      // `export { x } from "./y"` re-exports someone else's symbol; the
+      // docstring belongs on the declaration, wherever that file is.
+      if (statement.moduleSpecifier) continue;
+      if (!ts.isNamedExports(statement.exportClause)) continue;
+      for (const element of statement.exportClause.elements) {
+        // `export { build as make }` — `build` is the local declaration.
+        exported.add((element.propertyName ?? element.name).text);
+      }
+      continue;
+    }
+    if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
+      // `export default build`, where `build` is declared in this file.
+      exported.add(statement.expression.text);
+    }
+  }
+
+  const out = [];
+  for (const [name, info] of declared) {
+    if (!exported.has(name)) continue;
+    out.push({ name, line: info.line, documented: info.documented });
+  }
+  return out;
 }
 
 /** Every scannable source file under `dir`, depth-first and sorted. */
@@ -176,7 +268,7 @@ let documented = 0;
 /** `path::symbol` for every export currently missing JSDoc. */
 const undocumented = new Map();
 for (const file of files) {
-  for (const symbol of scan(readFileSync(join(repoRoot, file), "utf8"))) {
+  for (const symbol of scan(readFileSync(join(repoRoot, file), "utf8"), file)) {
     total += 1;
     if (symbol.documented) documented += 1;
     else undocumented.set(`${file}::${symbol.name}`, symbol.line);

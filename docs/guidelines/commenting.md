@@ -82,9 +82,30 @@ through at every call site.
 | | |
 |---|---|
 | **Scanned** | `apps/web/src/**`, `packages/*/src/**`, `.ts` and `.tsx` |
-| **Counted** | `export function`, `export class`, `export const f = () => …` |
-| **Not counted** | types, interfaces, enums, plain constants, re-exports |
+| **Counted** | `export function`, `export default function`, `export class`, a function or arrow bound to an exported `const`, and a local declaration named in an `export { … }` list (with or without `as`) |
+| **Not counted** | types, interfaces, enums, plain value constants, and `export { x } from "./y"` |
 | **Not scanned** | `*.test.*`, `*.spec.*`, `*.d.ts`, generated trees |
+
+It **parses** the file with TypeScript's own parser rather than matching lines,
+and that is not gold-plating — it is a bug fix. The first version matched
+regexes and reported this file as *"0 exported functions/classes, 100.0%
+documented"*:
+
+```ts
+const build = () => {};
+export { build };
+
+export const multiline = (
+  a: string,
+) => a;
+```
+
+Three undocumented exported functions, all green. A wall that returns a pass
+for a file it could not read is worse than no wall, and the next unlisted
+shape was always going to be one regex away. `export { x } from "./y"` stays
+uncounted on purpose: it re-exports someone else's symbol, and the docstring
+belongs on the declaration — which the wall scans where it lives, so counting
+it here would turn one missing docstring into two failures in two files.
 
 Types and interfaces are **not** counted, and that is deliberate rather than an
 oversight: the pre-merge check this mirrors counts functions, and a rule
@@ -98,9 +119,14 @@ rather than for a reader"* would make those files internally inconsistent.
 
 ## The backlog, and why you will not be asked to clear it
 
-470 exported functions and classes predate the decision — 52.6% documented,
-measured 2026-09-23. They are listed in `scripts/docstring-wall-baseline.json`
-and the wall ignores them.
+467 exported functions and classes predate the decision — 53.0% documented of
+993, measured 2026-09-23 with the parser above. They are listed in
+`scripts/docstring-wall-baseline.json` and the wall ignores them.
+
+(The regex version counted 470 of 991 at 52.6%. It was wrong in both
+directions — it missed one export entirely and listed four symbols as
+undocumented that carry perfectly good JSDoc. Both numbers are in this PR's
+history; the parser's is the real one.)
 
 KI-2026-09-22-a rules out a big-bang conversion in writing, and the reason is
 worth repeating: **the prose is already written in every one of those files.**
