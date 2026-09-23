@@ -7,7 +7,7 @@ import { PageScreen } from "./PageScreen";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
-import { makePagesHandlers } from "@/mocks/handlers";
+import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
 vi.mock("next/navigation", () => ({
@@ -35,6 +35,8 @@ const server = setupServer(
   http.get("/api/account/preferences", () =>
     HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km" } }),
   ),
+  // And the same again for the plan the assistant rail reads.
+  makeAccountPlanHandler(),
   // Same reasoning as the account default above: every notebook page now asks
   // for the trip's addressable collections (ADR-037 open question 4).
   http.get("/api/trips/:tripId/globals", () =>

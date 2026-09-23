@@ -11,7 +11,7 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/factories";
-import { makeTripHandlers } from "@/mocks/handlers";
+import { makeTripHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
 // Scoped to the panel rather than reached for by bare role+name, still —
@@ -151,7 +151,11 @@ function renderScreen(tripId: string) {
   );
 }
 
-const server = setupServer();
+// The assistant rail mounts with this screen and asks for the account's plan
+// (`useAiEntitled`). Without a default the suite logged 20 unhandled-request
+// errors and the rail sat on "unknown" throughout — a state no signed-in user
+// is in. A test about the refusal overrides it with `server.use`.
+const server = setupServer(makeAccountPlanHandler());
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   // **`view=Plan`, not "" — and this is the single change SPEC §24 makes to
@@ -208,6 +212,11 @@ describe("TripBoardScreen", () => {
     server.use(
       http.get("/api/trips/:tripId", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
       http.get("/api/trips/:tripId/history", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
+      // `/access` 401s for a signed-out visitor too. It was missing rather
+      // than deliberately omitted — the request went out unhandled on every
+      // run — and stubbing it makes the fixture the shape a real signed-out
+      // visitor meets instead of one endpoint short of it.
+      http.get("/api/trips/:tripId/access", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
     );
     renderScreen(fixture.tripId);
 
@@ -393,6 +402,10 @@ describe("TripBoardScreen", () => {
       http.get("/api/trips/:tripId/history", () =>
         HttpResponse.json({ history: { tripId: withConflict.tripId, entries: [], canUndo: true, canRedo: false } }),
       ),
+      // Everything this test does not override — `/access`, `/globals`,
+      // `/pages`. LAST on purpose: MSW takes the first match, so the two
+      // handlers above still win for the endpoints they exist to control.
+      ...makeTripHandlers(withConflict),
     );
 
     renderScreen(withConflict.tripId);

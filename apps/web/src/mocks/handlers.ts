@@ -1,4 +1,5 @@
 import { HttpResponse, http } from "msw";
+import type { AccountPlanView } from "@/lib/accountPlan";
 import {
   BatchableCommand,
   CreatePageInput,
@@ -234,6 +235,20 @@ export function makeTripHandlers(
         },
       }),
     ),
+    // Overview also lists the trip's notebooks. Empty by default and NOT a
+    // duplicate of `makePagesHandlers`, which is the stateful one a notebook
+    // suite drives; no suite spreads both, checked before adding this.
+    http.get("/api/trips/:tripId/pages", () => HttpResponse.json({ pages: [] })),
+    // The Overview view asks for the trip's addressable collections (ADR-037
+    // open question 4), so a suite that lands anywhere but `view=Plan` needs
+    // this. It belongs here rather than inline in each suite for the reason
+    // `PageScreen.test.tsx` already gives about its own defaults: an
+    // unhandled request logged on every run is how a genuinely unhandled one
+    // later gets missed. Empty collections, because no test asserts on them
+    // through this path — a suite that cares overrides with `server.use`.
+    http.get("/api/trips/:tripId/globals", () =>
+      HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
+    ),
     http.get("/api/geocode", ({ request }) => {
       const q = new URL(request.url).searchParams.get("q")?.trim();
       return HttpResponse.json({ results: q ? (options?.geocode ?? []) : [] });
@@ -314,4 +329,50 @@ export function makePagesHandlers(
       return HttpResponse.json({ ok: true });
     }),
   ];
+}
+
+/**
+ * `GET /api/account/plan`, entitled by default.
+ *
+ * **Why this is shared rather than a line in each suite.** Three suites were
+ * logging it as unhandled — 52 of the unit lane's 60 unhandled-request errors
+ * on 2026-09-23 — and `PageScreen.test.tsx`'s own setup already says what that
+ * costs: *"Without it the suite's `onUnhandledRequest: "error"` logs on every
+ * test, which is how a genuinely unhandled request later gets missed."* It was
+ * missed here for exactly that reason.
+ *
+ * **And it was not only noise.** `useAiEntitled` resolves a failed read rather
+ * than throwing (`apiClient.ts`'s invariant), so an unhandled `/api/account/plan`
+ * makes the hook answer `null` — "unknown" — forever, silently. Every suite
+ * below ran its assistant against an account whose plan never arrived, which is
+ * not a state a signed-in user is ever in. The tests passed because the rail
+ * renders while unknown; what they were not doing is exercising the entitled
+ * path they read as covering.
+ *
+ * `entitlements` defaults to including `ai.ask` because that is the ordinary
+ * case. A suite about the refusal overrides it with `server.use`.
+ */
+export function makeAccountPlanHandler(overrides: Partial<AccountPlanView> = {}) {
+  const plan: AccountPlanView = {
+    planVersionRef: "plus@v1",
+    conferredVersionRef: "plus@v1",
+    entitlements: ["ai.ask"],
+    grantedVersionRefs: ["plus@v1"],
+    questions: { used: 0, limit: 100 },
+    steps: { used: 0, limit: 1000 },
+    catalogue: [],
+    referralCode: null,
+    canRefer: false,
+    billing: {
+      state: "active",
+      renewsAt: null,
+      pastDueSince: null,
+      graceEndsAt: null,
+      trialEndsAt: null,
+      losesOnLapse: [],
+      available: true,
+    },
+    ...overrides,
+  };
+  return http.get("/api/account/plan", () => HttpResponse.json({ plan }));
 }
