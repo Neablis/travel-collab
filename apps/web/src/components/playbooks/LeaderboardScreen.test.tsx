@@ -11,9 +11,9 @@ import { LeaderboardScreen } from "./LeaderboardScreen";
 
 const board: LeaderboardResponse = {
   authors: [
-    { userId: "dev-bob", displayName: "dev-bob", daysShared: 1, adds: 4 },
-    { userId: "dev-alice", displayName: "dev-alice", daysShared: 2, adds: 3 },
-    { userId: "dev-carol", displayName: "dev-carol", daysShared: 3, adds: 0 },
+    { userId: "dev-bob", displayName: "dev-bob", daysShared: 1, adds: 4, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-alice", displayName: "dev-alice", daysShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-carol", displayName: "dev-carol", daysShared: 3, adds: 0, reviewsReceived: 0, averageRating: null },
   ],
   meUserId: "dev-alice",
 };

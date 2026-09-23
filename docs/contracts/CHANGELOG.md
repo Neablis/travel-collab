@@ -13,6 +13,46 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-23 — reviews, reports and place search: M12's contracts
+
+- Added `packages/contracts/src/review.ts`: **`ReviewStars`** (int 1-5),
+  **`ReviewNote`** (trimmed, at most **`REVIEW_NOTE_MAX`** = 140 code points,
+  empty → `null`), **`PutReviewInput`** `{ stars, note, seenPublishedAt? }`,
+  **`ReviewDayChanged`** (the 409 body), **`Review`**, **`ReviewSummary`**
+  `{ average, count, histogram: {1..5} }`, **`SavedDayReviewsResponse`**
+  `{ summary, reviews, mine }`, and the shared **`boundedNote(max)`**.
+- Added `packages/contracts/src/report.ts`: **`ReportReason`**,
+  **`ReportStatus`**, **`ReportTarget`** (discriminated on `kind`:
+  `saved_day { savedDayId }` | `review { savedDayId, reviewerId }`),
+  **`ReportTargetKind`**, **`CreateReportInput`** (note ≤ `REPORT_NOTE_MAX` =
+  500), **`ContentReport`**, **`AdminReportAction`** (discriminated on
+  `action`: `hide-day { note? }` | `hide-review` | `dismiss` | `restore-day` |
+  `restore-review`).
+- Widened the web-local shapes in `apps/web/src/lib/playbooks.ts` (not
+  `packages/contracts`, for the reason that file gives): **`DiscoverSort`**
+  gains `highest-rated` and `most-reviewed`; new **`RatingFloor`** `any | 3 | 4
+  | 4.5` with `RATING_FLOOR_MIN` / `RATING_FLOOR_LABELS`; **`DiscoverDay`**
+  gains `rating` and `reviewCount`; **`PublicAuthor`** gains `reviewsReceived`
+  and `averageRating`. `apps/web/src/lib/cities.ts` gains **`PlaceMatch`**
+  (discriminated on `kind`: `city` | `country { countryCode, name }`) and
+  `PlaceSearchResponse`, beside `CityMatch` and on its precedent.
+- Why: M12 links 1-7. A review attaches to the whole `saved_days` row (M12
+  D1); the note cap is refused at the contract rather than truncated in the UI
+  (a gate box), and is counted in code points because the column's
+  `char_length` CHECK is. `seenPublishedAt` is the conflict state (D4): absent
+  means "do not check", which is distinct from `null`. A review target has no
+  id of its own, so it is named by the reviews table's key.
+- Consumers updated: `apps/web` — schema + migration `0025_reviews_and_moderation`
+  (`saved_days.rating`, `review_count`, `countries`, `moderated_at`,
+  `moderation_note`; tables `saved_day_reviews`, `content_reports`),
+  `server/playbooks.ts` (the new columns on Discover cards, both new sorts, and
+  the author totals), `server/savedDays.ts` (`newSavedDayRow`), and the
+  playbook screen test fixtures. No endpoint reads or writes a review or a
+  report yet; those land with M12's later units.
+- Breaking? no — every change is additive. `?sort=highest-rated` used to fall
+  back to `most-added` and now sorts by rating, which is what the route's
+  comment promised a link written against §15 would eventually get.
+
 ## 2026-09-22 — notebook pages become commands and events
 
 - Added `packages/contracts/src/pageEvents.ts`: commands **`CreatePage`**,

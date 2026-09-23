@@ -256,6 +256,16 @@ export function newSavedDayRow(input: {
     // which writes the ledger row in the same statement pair; see the schema
     // note on `saved_days.adds`.
     adds: 0,
+    // Nobody has reviewed it either; the review write path recomputes both
+    // from `saved_day_reviews` (see the schema note on `saved_days.rating`).
+    rating: null,
+    reviewCount: 0,
+    // M12 link 7 derives this from the stops; until then it is the column's
+    // own default and the backfill's to fill.
+    countries: [],
+    // Not moderated. Only an operator action moves these.
+    moderatedAt: null,
+    moderationNote: null,
     // Moves with `visibility` and only with it (see `setSavedDayVisibility`):
     // a row that is public has a publish time, a row that is private has none.
     publishedAt: visibility === SavedDayVisibility.enum.public ? input.createdAt : null,
