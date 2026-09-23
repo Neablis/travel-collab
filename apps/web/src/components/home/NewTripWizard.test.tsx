@@ -98,6 +98,7 @@ function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDay
     stopCount: 4,
     dayCount: 1,
     window: null,
+    preview: [],
     totalCost: null,
     visibility: "public",
     authorKind: "human",

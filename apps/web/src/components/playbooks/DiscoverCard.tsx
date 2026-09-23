@@ -8,7 +8,7 @@ import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/lib/formatMoney";
 import { displayNameFor } from "@/lib/displayName";
 import type { DiscoverDay } from "@/lib/playbooks";
-import { toClockRange } from "@/lib/time";
+import { toClockLabel, toClockRange } from "@/lib/time";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
 import { backQuery, type BackOrigin } from "./backLink";
@@ -136,6 +136,25 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
             ` · ${formatMoney(day.totalCost.amountMinor, day.totalCost.currency)}`}
         </DataText>
       </div>
+
+      {/* `dc.html:2644-2651`: day one's first stops, time then title — the
+          same rows on a multi-day Playbook, which says "3 days" on the line
+          above instead (M27 link 10). The time column is the shared-day
+          list's 62px, so a card and the page it opens line up. */}
+      {day.preview.length > 0 && (
+        <ul className="flex flex-col gap-1.5" data-testid="discover-preview">
+          {day.preview.map((stop, i) => (
+            <li key={i} className="flex gap-2.5 text-sm">
+              <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
+                {stop.start !== null ? toClockLabel(stop.start) : ""}
+              </DataText>
+              <span className="text-ink" data-testid="preview-title">
+                {stop.title}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
         {/* The M17 seam, and the only place this card names a person. */}

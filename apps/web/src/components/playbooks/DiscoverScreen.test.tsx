@@ -23,6 +23,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     stopCount: 4,
     dayCount: 1,
     window: { start: "07:30", end: "18:30" },
+    preview: [],
     totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
     visibility: "public",
