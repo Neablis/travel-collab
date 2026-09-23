@@ -275,8 +275,30 @@ export async function createEmptyTripViaWizard(page: Page, tripName: string): Pr
   // name" — the sheet is four conversational turns now (SPEC §30.1). This one
   // rename is the whole reason the sequence moved in here first.
   await page.getByLabel("Where are you going?").fill(tripName);
-  await page.getByRole("button", { name: "Create empty" }).click();
+  // SPEC §35.2: *Create empty* stopped being a footer button and became the
+  // quiet row's *create an empty one*.
+  await page.getByRole("button", { name: "create an empty one" }).click();
+  // **The new trip lands as the hero — usually.** The list is newest-first and
+  // since §35.2 the hero is left out of *Other trips*, so a new trip has no
+  // card. But every spec file signs in as the same `alice` and files run in
+  // parallel, so another worker's trip created a moment later takes the hero
+  // and leaves this one as a card. The trip's NAME is a link to it in either
+  // place (the hero's heading is wrapped in one, like a card's), which is what
+  // every caller clicks next — so that is what this waits on. A hero-heading
+  // assertion here would fail whenever that race went the other way.
   await expect(page.getByRole("link", { name: tripName })).toBeVisible();
+}
+
+/**
+ * **Where a trip is drawn on Home: its hero, or its card.** Since SPEC §35.2 a
+ * trip is one or the other, never both, and which depends on what else the
+ * shared e2e account created first — see `createEmptyTripViaWizard`.
+ */
+export function homeTrip(page: Page, tripName: string): Locator {
+  return page
+    .getByTestId("trip-card")
+    .or(page.getByTestId("next-trip-hero"))
+    .filter({ hasText: tripName });
 }
 
 /**

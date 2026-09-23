@@ -83,14 +83,14 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // `/trip name/i` and matched nothing) — appears here too.
   await page.getByRole("button", { name: "New trip" }).click();
   await page.getByLabel("Where are you going?").fill(tripName);
-  await page.getByRole("button", { name: "Create empty" }).click();
-  // `.first()`, not a bare `getByText`: a freshly created trip legitimately
-  // renders twice on Home — once in NextTripHero and once as its TripCard —
-  // so a bare locator matches two elements and Playwright's strict mode
-  // throws. Seen flaking exactly that way on 2026-08-26, after every
-  // redirect and auth assertion above had already passed. What this line
-  // needs to prove is that the trip reached Home at all, which the first
-  // match establishes.
+  // SPEC §35.2: a quiet link now, where it was a "Create empty" footer button.
+  await page.getByRole("button", { name: "create an empty one" }).click();
+  // `.first()`, not a bare `getByText`: a freshly created trip used to render
+  // twice on Home — once in NextTripHero and once as its TripCard — and a bare
+  // locator threw in strict mode (seen flaking on 2026-08-26). Since §35.2 the
+  // grid leaves the hero out, so it is once; `.first()` stays because what
+  // this line needs to prove is that the trip reached Home at all, and the
+  // first match establishes that however many copies a later layout draws.
   await expect(page.getByText(tripName).first()).toBeVisible();
 
   // And back out the front door.

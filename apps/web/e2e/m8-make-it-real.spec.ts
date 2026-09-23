@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { dragCardTo, openPlan, createEmptyTripViaWizard } from "./helpers";
+import { dragCardTo, openPlan, createEmptyTripViaWizard, homeTrip } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // KI-5 (C4): every command below is optimistic-first, so waiting for its
@@ -134,8 +134,9 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // the same way KI-21's pre-drag `scrollIntoViewIfNeeded` settled both ends
   // of a drag rather than widening a timing budget. Either branch of
   // `plannedOfBudgetLine` (lib/cost.ts) proves the fetch resolved.
-  const tripCard = page.getByTestId("trip-card").filter({ hasText: renamedTripName });
-  await expect(tripCard.getByText(/planned of|No budget yet/)).toBeVisible();
+  // The hero or a card — `homeTrip`'s note says why it can be either (§35.2).
+  const tripOnHome = homeTrip(page, renamedTripName);
+  await expect(tripOnHome.getByText(/planned of|No budget yet/)).toBeVisible();
   await page.getByRole("button", { name: new RegExp(`trip actions for ${escapeForRegExp(renamedTripName)}`, "i") }).click();
   // One click, not two: SPEC §27 removed the confirm dialog outright. *"Delete
   // is optimistic. The card goes on the click; the toast carries a single Undo
@@ -146,18 +147,18 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // and it is asserted a few lines down, so nothing this walk proved was lost
   // with the second click.
   await page.getByRole("menuitem", { name: /delete/i }).click();
-  // getByRole("heading", ..., level: 3), not getByText: same substring
-  // collision as the rename assertion above — the "Deleted "..."" undo toast
-  // this click raises contains the trip's own name as a substring, so a bare
+  // getByRole("heading", ...), not getByText: same substring collision as the
+  // rename assertion above — the "Deleted "..."" undo toast this click raises
+  // contains the trip's own name as a substring, so a bare
   // getByText(renamedTripName) transiently matches the toast itself right
-  // after deletion (observed flaky in CI: the assertion raced the toast's
-  // own visible window). Trip cards on the list render as level-3 headings
-  // (smoke.spec.ts's own assertion already relies on this).
+  // after deletion (observed flaky in CI: the assertion raced the toast's own
+  // visible window). No `level`: the trip is the hero's level-2 heading or a
+  // card's level-3 one, never both (§35.2), and which is a race.
   // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-  await expect(page.getByRole("heading", { name: renamedTripName, level: 3 })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: renamedTripName })).not.toBeVisible();
 
   await page.getByRole("button", { name: /undo/i }).click(); // restore
-  await expect(page.getByRole("heading", { name: renamedTripName, level: 3 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: renamedTripName })).toBeVisible();
 });
 
 // KI-28 regression (the product-side half). The home page fans out one
@@ -183,6 +184,12 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
 
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
+  // **A second trip after it, so the anchor is a CARD** (SPEC §35.2). The
+  // newest trip is the hero, and the hero is not in *Other trips* — so the
+  // trip just made would have no card to anchor a menu on. Other spec files
+  // only ever add NEWER trips, so once this one is not the newest it stays a
+  // card for the rest of the test.
+  await createEmptyTripViaWizard(page, e2eTripName("Anchor hero"));
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
 
   // Hold every per-card TripDetail response until `release()`, then reload:
