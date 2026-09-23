@@ -119,14 +119,34 @@ function isScannable(path) {
 }
 
 /**
- * Whether a node's initializer makes an exported `const` a FUNCTION rather
- * than a value. `export const schema = z.object(…)` is a value and out of
- * scope; `export const f = () => …` and `export const f = function () {}`
- * are not.
+ * Whether an expression is a FUNCTION OR CLASS rather than a value.
+ * `export const schema = z.object(…)` is a value and out of scope;
+ * `export const f = () => …`, `export const f = function () {}` and
+ * `export const Widget = class {}` are not.
+ *
+ * **The unwrapping loop is not defensive programming.** Each wrapper was
+ * measured to bypass the wall: `export const memoized = (() => {}) as () =>
+ * void` reported *"0 exported functions/classes, 100.0% documented"*, same as
+ * `export const Widget = class {}` and `export default () => {}`. A type
+ * assertion, a `satisfies`, a parenthesis or a `!` does not stop something
+ * being a function, and a wall that a pair of brackets defeats is not a wall —
+ * which is the whole argument this file's header makes about the regexes it
+ * replaced. Found by CodeRabbit on PR #203, one round after the same class of
+ * hole.
  */
 function isFunctionValued(node) {
+  while (
+    node &&
+    (ts.isParenthesizedExpression(node) ||
+      ts.isAsExpression(node) ||
+      ts.isSatisfiesExpression(node) ||
+      ts.isTypeAssertionExpression(node) ||
+      ts.isNonNullExpression(node))
+  ) {
+    node = node.expression;
+  }
   if (!node) return false;
-  return ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+  return ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isClassExpression(node);
 }
 
 /**
@@ -220,9 +240,17 @@ export function scan(source, fileName = "scan.ts") {
       }
       continue;
     }
-    if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) {
-      // `export default build`, where `build` is declared in this file.
-      exported.add(statement.expression.text);
+    if (ts.isExportAssignment(statement)) {
+      if (ts.isIdentifier(statement.expression)) {
+        // `export default build`, where `build` is declared in this file.
+        exported.add(statement.expression.text);
+      } else if (isFunctionValued(statement.expression)) {
+        // `export default () => {}` — anonymous, so it is reported as
+        // `default`, the same name `export default function () {}` gets. It
+        // is still an exported function and still needs a docstring.
+        record("default", statement);
+        exported.add("default");
+      }
     }
   }
 

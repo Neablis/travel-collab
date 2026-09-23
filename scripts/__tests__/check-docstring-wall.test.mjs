@@ -181,6 +181,50 @@ test("JSDoc above an exported arrow counts, though it sits on the statement", ()
   assert.match(stdout, /100\.0% documented/);
 });
 
+// THE SECOND ROUND OF BYPASSES, found by CodeRabbit one round after the
+// export-list ones and measured the same way: each of these reported
+// "0 exported functions/classes, 100.0% documented" before the fix. Grouped
+// because they are one defect — a function is still a function behind a
+// wrapper, and a wall a pair of brackets defeats is not a wall.
+test("counts a function behind a type assertion, a `satisfies` or parentheses", () => {
+  const { status, stderr } = runWall({
+    "wrapped.ts": `export const asserted = (() => {}) as () => void;
+export const parenthesised = (function () {});
+export const bang = (() => {})!;
+`,
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /wrapped\.ts:1: asserted is exported without JSDoc/);
+  assert.match(stderr, /wrapped\.ts:2: parenthesised is exported without JSDoc/);
+  assert.match(stderr, /wrapped\.ts:3: bang is exported without JSDoc/);
+});
+
+test("counts a class expression bound to an exported const", () => {
+  const { status, stderr } = runWall({
+    "klass.ts": "export const Widget = class {\n  render() {}\n};\n",
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /klass\.ts:1: Widget is exported without JSDoc/);
+});
+
+test("counts an anonymous `export default` arrow, naming it `default`", () => {
+  // `export default function () {}` was already counted as `default`; the
+  // arrow form was not, though it is the same export with the same need.
+  const { status, stderr } = runWall({ "anon.ts": "export default () => {};\n" });
+  assert.equal(status, 1);
+  assert.match(stderr, /anon\.ts:1: default is exported without JSDoc/);
+});
+
+test("a wrapped VALUE is still not a function", () => {
+  // The unwrapping must not turn every asserted export into a function — the
+  // reason types and plain constants are out of scope in the first place.
+  const { status, stdout } = runWall({
+    "value.ts": 'export const schema = ({ a: 1 }) as Record<string, number>;\nexport const name = "trip";\n',
+  });
+  assert.equal(status, 0);
+  assert.match(stdout, /0 exported functions\/classes/);
+});
+
 test("skips tests, specs and declaration files", () => {
   const { status, stdout } = runWall({
     "a.test.ts": "export function helper() {}\n",
