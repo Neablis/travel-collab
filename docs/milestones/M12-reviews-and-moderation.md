@@ -206,7 +206,13 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
    Koh Lanta in Bangkok and Búðir in Garðabær, and those were re-pinned before
    commit. One pre-existing pin was also wrong: *Hotel pickup, La Fortuna
    centro* was in Colombia on `main`; it is now in Costa Rica. **Steps 5–6
-   (re-import, backfill, the two coverage numbers) are still open.**
+   done in production the same day:** `import-content-production` wrote 148
+   playbook days (run 35925887263); `backfill-countries-production`, its first
+   run (35926175525), scanned 149, updated 1, already current 148 —
+   **coverage all rows 149/149 (100.0%), published rows 149/149 (100.0%).**
+   The four demo trips were not re-imported (create-if-absent), so their new
+   pins are in `content/` but not in production; they are not `saved_days`
+   and the filter does not read them.
 
 ## Exit gate
 
@@ -242,10 +248,11 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
       once per day however many of that country's cities the day visits — the
       same "count days, not city-hits" rule `searchCities` already follows. A
       test fails if a multi-city day double-counts.
-- [ ] **The `countries` backfill's coverage is measured and written down**, and
+- [x] **The `countries` backfill's coverage is measured and written down**, and
       the filter is not shipped over a column that is empty for most of the
       library. See the prerequisite below — this box exists because the library
-      carries **zero** country codes today.
+      carries **zero** country codes today. **Ticked 2026-09-23: production
+      149/149 rows (100.0%), published 149/149 (100.0%)** — link 7's run-book.
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.
