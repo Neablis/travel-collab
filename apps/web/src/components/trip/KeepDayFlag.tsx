@@ -79,7 +79,8 @@ export function KeepDayFlag({
   days: KeepDayCandidate[];
 }) {
   const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
+  /** How many days the last keep held, while its toast is up. */
+  const [saved, setSaved] = useState<number | null>(null);
   // The design's `wave` (`Trip Planner Redesign.dc.html:4839`): the pennant
   // tips as you click it. Missing from the build until now — Mitchell,
   // 2026-09-01, "The click flag 'Save a day' animation from timeline view is
@@ -128,10 +129,10 @@ export function KeepDayFlag({
     return () => window.clearTimeout(timer);
   }, [run]);
 
-  // Both halves of the outcome: the toast names what was kept and is what a
+  // Both halves of the outcome: the toast says what was kept and is what a
   // screen reader hears; the pennant shows it, decoratively.
-  const onSaved = useCallback((name: string) => {
-    setSaved(name);
+  const onSaved = useCallback((dayCount: number) => {
+    setSaved(dayCount);
     runs.current += 1;
     setRun(runs.current);
   }, []);
@@ -216,7 +217,13 @@ export function KeepDayFlag({
         onSaved={onSaved}
       />
       {saved !== null && (
-        <Toast message={`Kept "${saved}"`} onDismiss={() => setSaved(null)} />
+        // §35.7's words. It says WHERE the keep went rather than echoing the
+        // name just typed, and a sequence is said to be one Playbook — the
+        // thing a reader who picked three days might otherwise doubt.
+        <Toast
+          message={saved > 1 ? `${saved} days kept in your Playbooks as one` : "Kept in your Playbooks"}
+          onDismiss={() => setSaved(null)}
+        />
       )}
     </>
   );

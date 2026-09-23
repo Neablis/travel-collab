@@ -55,14 +55,15 @@ test.describe("the phone's account screen", () => {
     // timeout waiting for a header that was never rendered.
     await page.goto("/");
     await openAccountPage(page);
-    for (const name of ["Profile", "Plan & usage", "API tokens"]) {
+    for (const name of ["Profile", "Plan & usage"]) {
       const box = await page.getByRole("tab", { name }).boundingBox();
       expect(box, `${name} has no box`).not.toBeNull();
       expect(box!.height, `${name} is ${box!.height}px tall`).toBeGreaterThanOrEqual(44);
     }
   });
 
-  // Each tab is a URL (`?tab=`), which is what makes the back button walk them.
+  // Each tab is a URL (`?tab=`), which is what makes the back button walk them —
+  // and the tokens sub-view (not a tab since M27, §35.4) is one too.
   test("walks its tabs with the back button", async ({ page }) => {
     await page.goto("/");
     await openAccountPage(page, "tokens");
@@ -105,8 +106,8 @@ test.describe("Playbooks on a phone", () => {
   test("puts every filter in one sheet and leaves scope out of it", async ({ page }) => {
     await page.goto("/playbooks");
     await expect(page.getByTestId("discover-phone-filters")).toBeVisible();
-    // The desktop chip row is not on this surface at all.
-    await expect(page.getByTestId("filter-chip-budget")).toBeHidden();
+    // The desktop row — its *Filters* menu — is not on this surface at all.
+    await expect(page.getByTestId("filter-more")).toBeHidden();
 
     await page.getByTestId("discover-phone-filters").click();
     const sheet = page.getByTestId("discover-filter-sheet");

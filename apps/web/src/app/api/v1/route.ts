@@ -11,7 +11,7 @@ const INDEX = {
   name: "Caesura API",
   version: "v1",
   openapi: "/api/v1/openapi",
-  auth: "Authorization: Bearer <token>; mint one in Account settings → API tokens.",
+  auth: "Authorization: Bearer <token>; mint one in Account → Profile → API tokens.",
 } as const;
 
 export function GET() {

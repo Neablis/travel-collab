@@ -22,7 +22,14 @@ vi.mock("next-auth/react", () => ({ signOut: (...args: unknown[]) => signOutMock
 // this file about the tabs. Each renders a marker so "which panel is mounted"
 // is observable.
 vi.mock("./ProfileSection", () => ({
-  ProfileSection: ({ email }: { email: string }) => <div data-testid="profile-panel">{email}</div>,
+  ProfileSection: ({ email, onOpenTokens }: { email: string; onOpenTokens: () => void }) => (
+    <div data-testid="profile-panel">
+      <span data-testid="profile-email">{email}</span>
+      <button type="button" onClick={onOpenTokens}>
+        API tokens →
+      </button>
+    </div>
+  ),
 }));
 vi.mock("./PlanSection", () => ({ PlanSection: () => <div data-testid="plan-panel" /> }));
 vi.mock("./TokensSection", () => ({ TokensSection: () => <div data-testid="tokens-panel" /> }));
@@ -36,7 +43,9 @@ beforeEach(() => push.mockClear());
 afterEach(cleanup);
 
 describe("accountTabFrom", () => {
-  it("reads the three real tabs", () => {
+  // `tokens` is a sub-view now, not a tab (SPEC §35.4, M27 D7) — but its URL
+  // is unchanged, so links from when it was a tab still land on it.
+  it("reads the two tabs and the tokens sub-view", () => {
     expect(accountTabFrom("profile")).toBe("profile");
     expect(accountTabFrom("plan")).toBe("plan");
     expect(accountTabFrom("tokens")).toBe("tokens");
@@ -53,15 +62,17 @@ describe("accountTabFrom", () => {
 });
 
 describe("AccountScreen", () => {
-  it("is a page with three tabs, Profile first", () => {
+  it("is a page with two tabs, Profile first", () => {
     mount();
     expect(screen.getByRole("heading", { name: "Account", level: 1 })).toBeTruthy();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
-      "Profile",
-      "Plan & usage",
-      "API tokens",
-    ]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Profile", "Plan & usage"]);
     expect(screen.getByTestId("profile-panel")).toBeTruthy();
+  });
+
+  // §35.4 removed the heading's explanatory paragraph.
+  it("does not explain itself under the heading", () => {
+    mount();
+    expect(screen.queryByText(/Everything true of you across every trip/)).toBeNull();
   });
 
   it.each([
@@ -86,21 +97,57 @@ describe("AccountScreen", () => {
   // The whole reason the tab is in the URL rather than in component state.
   it("navigates to a URL when a tab is taken, so the back button walks them", () => {
     mount();
-    fireEvent.click(screen.getByRole("tab", { name: "API tokens" }));
-    expect(push).toHaveBeenCalledWith("/account?tab=tokens");
+    fireEvent.click(screen.getByRole("tab", { name: "Plan & usage" }));
+    expect(push).toHaveBeenCalledWith("/account?tab=plan");
   });
 
   // `/account` and `/account?tab=profile` are the same page, and the bare path
   // is the one to leave in the address bar.
   it("drops the parameter for the default tab rather than writing ?tab=profile", () => {
-    mount("tokens");
+    mount("plan");
     fireEvent.click(screen.getByRole("tab", { name: "Profile" }));
     expect(push).toHaveBeenCalledWith("/account");
   });
 
+  // §35.4: Profile's "API tokens →" is the way in, and it is a URL for the
+  // same reason the tabs are.
+  it("opens the tokens sub-view from Profile's link, as a URL", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "API tokens →" }));
+    expect(push).toHaveBeenCalledWith("/account?tab=tokens");
+  });
+
+  describe("the tokens sub-view", () => {
+    it("selects neither tab, and keeps the strip one tab stop", () => {
+      mount("tokens");
+      const tabs = screen.getAllByRole("tab");
+      expect(tabs.filter((t) => t.getAttribute("aria-selected") === "true")).toEqual([]);
+      expect(tabs.filter((t) => t.getAttribute("tabindex") === "0").map((t) => t.textContent)).toEqual(["Profile"]);
+    });
+
+    it("has its own way back to Profile and its own heading", () => {
+      mount("tokens");
+      expect(screen.getByRole("heading", { name: "API tokens", level: 3 })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "← Profile" }));
+      expect(push).toHaveBeenCalledWith("/account");
+    });
+
+    // No tab controls it, so it must not claim to be a tab's panel or point at
+    // a tab for its name. The heading is there from the first paint — it is
+    // not inside `TokensSection`, which renders nothing until it has fetched.
+    it("is a region named by its heading", () => {
+      mount("tokens");
+      expect(screen.queryByRole("tabpanel")).toBeNull();
+      const region = screen.getByRole("region", { name: "API tokens" });
+      const heading = screen.getByRole("heading", { name: "API tokens", level: 3 });
+      expect(region.getAttribute("aria-labelledby")).toBe(heading.id);
+      expect(region.contains(screen.getByTestId("tokens-panel"))).toBe(true);
+    });
+  });
+
   it("passes the signed-in address to Profile", () => {
     mount();
-    expect(screen.getByTestId("profile-panel").textContent).toBe("sam@example.com");
+    expect(screen.getByTestId("profile-email").textContent).toBe("sam@example.com");
   });
 
   // §34.4: a tab's label IS the section's heading, so the panel takes its

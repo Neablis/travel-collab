@@ -72,10 +72,12 @@ function pendFetch() {
 // the move unchanged. That is the point of migrating rather than rewriting —
 // the PR-112 guards at the bottom are the reason this file exists, and a fresh
 // file would have been written without them.
+const openTokens = vi.fn();
+
 function mount() {
   return render(
     <PreferencesProvider>
-      <ProfileSection email="sam@example.com" />
+      <ProfileSection email="sam@example.com" onOpenTokens={openTokens} />
     </PreferencesProvider>,
   );
 }
@@ -87,6 +89,7 @@ beforeEach(() => {
   refuse = null;
   patches.length = 0;
   updatePreferencesMock.mockClear();
+  openTokens.mockClear();
 });
 afterEach(cleanup);
 
@@ -111,7 +114,7 @@ describe("ProfileSection", () => {
   it("does not claim the sign-in gave no address before the session has answered", async () => {
     render(
       <PreferencesProvider>
-        <ProfileSection email={undefined} />
+        <ProfileSection email={undefined} onOpenTokens={openTokens} />
       </PreferencesProvider>,
     );
     expect(await screen.findByText("…")).toBeTruthy();
@@ -121,7 +124,7 @@ describe("ProfileSection", () => {
   it("does say so once the session has answered with no address", async () => {
     render(
       <PreferencesProvider>
-        <ProfileSection email="" />
+        <ProfileSection email="" onOpenTokens={openTokens} />
       </PreferencesProvider>,
     );
     expect(await screen.findByText("Not provided by your sign-in")).toBeTruthy();
@@ -186,6 +189,15 @@ describe("ProfileSection", () => {
     // A rejected value left in the box reads as saved — the one thing a
     // settings form must never do.
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("SFO"));
+  });
+
+  // SPEC §35.4: API tokens left the tab strip, and this line is now the only
+  // way to them from the screen — on a phone as much as a desktop.
+  it("ends with the way to API tokens", async () => {
+    mount();
+    expect(await screen.findByText("Writing your own program against your trips? That needs an API token.")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "API tokens →" }));
+    expect(openTokens).toHaveBeenCalledTimes(1);
   });
 
   it("switches distance units immediately, at account scope", async () => {

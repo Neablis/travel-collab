@@ -37,7 +37,13 @@ export function UnderlineTabs<T extends string>({
   className,
   "aria-label": ariaLabel,
 }: {
-  value: T;
+  /**
+   * The selected tab, or `null` for a view that belongs to the strip without
+   * being one of its tabs (Account's tokens sub-view, SPEC §35.4). With nothing
+   * selected the FIRST tab keeps the tab stop — roving tabindex would otherwise
+   * give every tab -1 and the strip would drop out of keyboard order.
+   */
+  value: T | null;
   onValueChange: (value: T) => void;
   options: readonly { value: T; label: string }[];
   /** Namespaces the tab/panel ids so two strips on one page cannot collide. */
@@ -88,8 +94,9 @@ export function UnderlineTabs<T extends string>({
       // not here — see below.
       className={cn("flex items-stretch gap-5.5 border-b border-hairline", className)}
     >
-      {options.map((o) => {
+      {options.map((o, i) => {
         const selected = value === o.value;
+        const tabStop = selected || (i === 0 && !options.some((opt) => opt.value === value));
         return (
           <button
             key={o.value}
@@ -104,7 +111,7 @@ export function UnderlineTabs<T extends string>({
             aria-controls={tabPanelId(idPrefix, o.value)}
             // Roving tabindex: the strip is one tab stop, and the arrow keys
             // move within it.
-            tabIndex={selected ? 0 : -1}
+            tabIndex={tabStop ? 0 : -1}
             onClick={() => onValueChange(o.value)}
             className={cn(
               // `-mb-px` pulls each tab down by exactly the base line's width,
