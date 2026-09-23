@@ -55,6 +55,10 @@ export async function searchCities(q: string): Promise<CityMatch[]> {
       -- nobody can open would send a searcher to a Discover page holding one
       -- fewer day than the chip promised.
       and ${savedDays.deletedAt} is null
+      -- And a moderated one (M12 link 6): the index is a public artefact, and
+      -- an operator's hide has to reach it or a chip counts a day no searcher
+      -- can open. playbooks.ts's notModerated, spelled for this query.
+      and ${savedDays.moderatedAt} is null
       and city ilike ${prefix}
     group by city
     order by days desc, city asc

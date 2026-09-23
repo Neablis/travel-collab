@@ -78,11 +78,11 @@ export async function stripeCustomerFor(userId: string): Promise<string> {
 
 /** Why a checkout could not be started, in words a screen can show. */
 export class CheckoutRefusedError extends Error {
-  constructor(
-    readonly reason: "unpurchasable" | "already-held",
-    message: string,
-  ) {
+  readonly reason: "unpurchasable" | "already-held";
+
+  constructor(reason: "unpurchasable" | "already-held", message: string) {
     super(message);
+    this.reason = reason;
     this.name = "CheckoutRefusedError";
   }
 }

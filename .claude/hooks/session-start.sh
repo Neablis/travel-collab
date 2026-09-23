@@ -120,6 +120,55 @@ start_postgres() {
     || echo "session-start: db:migrate failed; run it by hand (see $logdir/db-migrate.log)." >&2
 }
 
+# The pinned Node (.nvmrc), for the rest of the session. The remote image ships
+# Node 22 on PATH; CI (`node-version-file: .nvmrc`), `engines` and Vercel all
+# run the pinned major, and verifying on a different one is how a lane goes red
+# on a tree CI passes (KI-2026-09-02-a) — or green on one production cannot
+# load: Node 22 and 24 both reject a TypeScript parameter property in
+# strip-types mode, and that is the class of failure the pin plus
+# `erasableSyntaxOnly` exist to keep in one place.
+#
+# `nvm` is in the image at /opt/nvm. Installing a Node takes a few seconds on
+# the first session and is a no-op after. The PATH change is written to
+# CLAUDE_ENV_FILE, which is how a SessionStart hook's environment reaches the
+# session's own shell; without it only this script would see the new Node.
+#
+# Advisory, like everything else here: no nvm, no network or no env file costs a
+# warning (and `pnpm lanes` says BLOCKED on the unit lane), never the session.
+use_pinned_node() {
+  local want nvm_sh bin
+  want="$(tr -d '[:space:]' < .nvmrc 2>/dev/null || true)"
+  [ -n "$want" ] || return 0
+  case "$(node --version 2>/dev/null)" in
+    "v${want}".*) return 0 ;;
+  esac
+  nvm_sh="${NVM_DIR:-/opt/nvm}/nvm.sh"
+  if [ ! -s "$nvm_sh" ]; then
+    echo "session-start: Node $(node --version 2>/dev/null) on PATH, .nvmrc pins $want, and no nvm to switch with." >&2
+    return 0
+  fi
+  # nvm.sh is not `set -u`-clean, and sourcing it RETURNS 3 when no default
+  # alias exists (this image has none) — under this file's `set -e` that would
+  # abort the whole hook. `--no-use` skips the auto-select that returns it, and
+  # the `|| true` covers any other non-zero on the way in.
+  set +u
+  # shellcheck disable=SC1090
+  . "$nvm_sh" --no-use || true
+  if ! nvm install "$want" >/dev/null 2>&1; then
+    set -u
+    echo "session-start: could not install Node $want with nvm; staying on $(node --version 2>/dev/null)." >&2
+    return 0
+  fi
+  bin="$(dirname "$(nvm which "$want" 2>/dev/null)")"
+  set -u
+  [ -x "$bin/node" ] || return 0
+  export PATH="$bin:$PATH"
+  if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+    echo "export PATH=\"$bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
+  fi
+  echo "session-start: switched to Node $("$bin/node" --version) to match .nvmrc."
+}
+
 # The image ships Playwright's browsers at PLAYWRIGHT_BROWSERS_PATH, but the
 # revision `@playwright/test` asks for and the revision that has a usable
 # headless-shell binary are not always the same one — 2026-08-26, chromium
@@ -331,6 +380,7 @@ print_lane_probe() {
 }
 
 if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
+  use_pinned_node
   pnpm install
   pnpm run setup
   start_postgres

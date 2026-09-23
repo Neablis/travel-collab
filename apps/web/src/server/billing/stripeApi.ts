@@ -74,12 +74,13 @@ const STRIPE_API_VERSION = "2025-08-27.basil";
 
 /** Stripe answered, and what it said was an error. */
 export class StripeApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly stripeCode: string | null,
-    message: string,
-  ) {
+  readonly status: number;
+  readonly stripeCode: string | null;
+
+  constructor(status: number, stripeCode: string | null, message: string) {
     super(message);
+    this.status = status;
+    this.stripeCode = stripeCode;
     this.name = "StripeApiError";
   }
 }

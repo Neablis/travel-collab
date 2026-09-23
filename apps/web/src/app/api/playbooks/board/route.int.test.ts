@@ -103,16 +103,18 @@ async function profile(userId: string): Promise<PublicProfileResponse> {
 // without either of them being obviously wrong (2 days/1 add vs 1 day/2 adds).
 const CITY = city("board");
 let popularDay: string;
+let alsoPopularDay: string;
+let quietDay: string;
 
 {
   currentUserId = POPULAR;
   popularDay = await saveDay(`Popular ${RUN}`, CITY);
   await publish(popularDay);
-  const quietOfPopular = await saveDay(`Also popular ${RUN}`, CITY);
-  await publish(quietOfPopular);
+  alsoPopularDay = await saveDay(`Also popular ${RUN}`, CITY);
+  await publish(alsoPopularDay);
 
   currentUserId = QUIET;
-  const quietDay = await saveDay(`Quiet ${RUN}`, CITY);
+  quietDay = await saveDay(`Quiet ${RUN}`, CITY);
   await publish(quietDay);
 
   // Two different people take the popular day into two different dated trips —
@@ -259,6 +261,8 @@ describe("GET /api/playbooks/profile/:userId", () => {
       displayName: "A traveler",
       daysShared: 0,
       adds: 0,
+      reviewsReceived: 0,
+      averageRating: null,
     });
     expect(nobody.days).toEqual([]);
     expect(nobody.knows).toEqual([]);
@@ -308,5 +312,38 @@ describe("GET /api/playbooks/profile/:userId", () => {
     expect(seen.author.displayName).toBe(
       `Traveler ${UNSHARED.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`,
     );
+  });
+});
+
+// `reviewsReceived` / `averageRating` (M12 link 5), read off the denormalised
+// counters. Written through the database because the review write path is not
+// built yet; these two columns are ordinary CRUD, not planning state.
+//
+// The numbers are chosen so each plausible wrong computation gives a different
+// answer: popularDay 5★×1 and alsoPopularDay 3★×3 is a mean of REVIEWS of
+// (5 + 9) / 4 = 3.5; a mean of per-day means says 4; and letting the
+// `saved_day_adds` join repeat popularDay once per add (it has two) says
+// (10 + 9) / 5 = 3.8 over 5 reviews. The quiet author's only day is rated and
+// moderated, so it must count for nothing.
+describe("an author's review totals", () => {
+  it("is the mean of the reviews on their visible days, the same on the board and the profile", async () => {
+    await db.update(savedDays).set({ rating: 5, reviewCount: 1 }).where(eq(savedDays.id, popularDay));
+    await db.update(savedDays).set({ rating: 3, reviewCount: 3 }).where(eq(savedDays.id, alsoPopularDay));
+    await db
+      .update(savedDays)
+      .set({ rating: 5, reviewCount: 2, moderatedAt: new Date() })
+      .where(eq(savedDays.id, quietDay));
+
+    currentUserId = TAKER;
+    const { body } = await board();
+    const popular = body.authors.find((a) => a.userId === POPULAR)!;
+    expect(popular).toMatchObject({ reviewsReceived: 4, averageRating: 3.5 });
+    // Moderating the quiet author's only day takes them off the board
+    // altogether (M12 link 6: "removed from ... the board"), so their totals
+    // are asserted on the profile below instead.
+    expect(body.authors.map((a) => a.userId)).not.toContain(QUIET);
+
+    expect((await profile(POPULAR)).author).toMatchObject({ reviewsReceived: 4, averageRating: 3.5 });
+    expect((await profile(QUIET)).author).toMatchObject({ reviewsReceived: 0, averageRating: null });
   });
 });

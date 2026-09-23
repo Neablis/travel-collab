@@ -19,9 +19,9 @@
 //   KI-2026-09-12-b  An agent worktree can have no node_modules at all,
 //                    because SessionStart appears not to fire for
 //                    worktree-isolated subagent sessions.
-//   KI-2026-09-02-a  Node 26 leaves `window.localStorage` undefined in the
-//                    jsdom unit lane, so the local unit suite is red on a tree
-//                    CI passes.
+//   KI-2026-09-02-a  A Node major other than the pinned one (Node 26 left
+//                    `window.localStorage` undefined in jsdom) makes the local
+//                    unit suite red on a tree CI passes.
 //   KI-49            The egress proxy blocks the map tile host, so the Map
 //                    lens cannot be visually verified here at all.
 //
@@ -130,21 +130,39 @@ function probeFilter() {
   };
 }
 
-// --- probe 3: Node major vs the jsdom unit lane (KI-2026-09-02-a) ---------
-export function nodeLaneStatus(nodeVersion) {
+// --- probe 3: Node major vs the pinned version (KI-2026-09-02-a) ---------
+// `.nvmrc` is the one place the project's Node major is written down; CI's
+// setup-node reads it (`node-version-file`), `engines` says the same major, and
+// Vercel builds on it. A different major here means this lane is verifying
+// something neither CI nor production runs — Node 26 turned the jsdom unit
+// lane red on a tree CI passed, and Node 22 hid nothing only by luck.
+export function pinnedNodeMajor(nvmrcText) {
+  const major = Number(/^\s*v?(\d+)/.exec(String(nvmrcText ?? ""))?.[1]);
+  return Number.isFinite(major) ? major : null;
+}
+
+export function nodeLaneStatus(nodeVersion, pinned) {
   const major = Number(/^v?(\d+)/.exec(String(nodeVersion ?? ""))?.[1]);
   if (!Number.isFinite(major)) return { status: UNKNOWN, note: "unreadable node version" };
-  if (major >= 26) {
+  if (pinned === null || pinned === undefined) {
+    return { status: UNKNOWN, note: `Node ${major}; no readable .nvmrc to compare against` };
+  }
+  if (major !== pinned) {
     return {
       status: BLOCKED,
-      note: `Node ${major}: window.localStorage is undefined in jsdom, so the local unit lane is red on a tree CI passes`,
+      note: `Node ${major}, but the project pins ${pinned} (.nvmrc) — CI and Vercel run ${pinned}; \`nvm use\` first`,
       ki: "KI-2026-09-02-a",
     };
   }
-  if (major < 22) {
-    return { status: BLOCKED, note: `Node ${major} is below the engines floor (>=22.18)` };
+  return { status: OK, note: `Node ${major} (matches .nvmrc)` };
+}
+
+function readPinnedNodeMajor() {
+  try {
+    return pinnedNodeMajor(readFileSync(join(root, ".nvmrc"), "utf8"));
+  } catch {
+    return null;
   }
-  return { status: OK, note: `Node ${major}` };
 }
 
 // --- probe 4: integration database ----------------------------------------
@@ -201,7 +219,7 @@ export function collectLanes() {
     ["pnpm --filter", deps.status === BLOCKED
       ? { status: UNKNOWN, note: "skipped — no node_modules" }
       : probeFilter()],
-    ["unit lane", nodeLaneStatus(process.version)],
+    ["unit lane", nodeLaneStatus(process.version, readPinnedNodeMajor())],
     ["database", probeDatabase()],
     ["browser", probeBrowser()],
     ["egress", probeEgress()],

@@ -1,11 +1,20 @@
 import { HttpResponse, http } from "msw";
 import type { AccountPlanView } from "@/lib/accountPlan";
+import type { AdminReportQueueItem } from "@/lib/reports";
+import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
 import {
+  AdminReportAction,
   BatchableCommand,
   CreatePageInput,
+  CreateReportInput,
+  PutReviewInput,
   TripCommand,
   UpdatePageInput,
+  type ContentReport,
   type Page,
+  type Review,
+  type ReviewSummary,
+  type SavedDayReviewsResponse,
   type TripDetail,
   type TripEventsPage,
   type TripHistory,
@@ -331,6 +340,90 @@ export function makePagesHandlers(
   ];
 }
 
+// Deliberately naive in-memory reviews for one shared day — just enough for the
+// rating rail and the review form against `/api/saved-days/:id/reviews` (M12).
+// The summary is recounted from the in-memory list on every call, which is the
+// same "aggregate, never ++" shape the server keeps, so a test that posts and
+// then reads sees the average move the way the real route moves it.
+//
+// `authorId` is who wrote the day, so the author posting gets the real route's
+// 403 `own-day`; `publishedAt` is the day's current publish time, so a PUT
+// carrying a different `seenPublishedAt` gets the 409 conflict body.
+/**
+ * MSW handlers for one day's reviews, seeded with `initial`, answering as
+ * `viewerId`. Mirrors the real route's status codes, not its storage.
+ */
+export function makeReviewsHandlers(
+  savedDayId: string,
+  initial: Review[],
+  options: { viewerId?: string; authorId?: string; publishedAt?: string; authorDisplayName?: string } = {},
+) {
+  const viewerId = options.viewerId ?? "dev-alice";
+  let reviews = structuredClone(initial);
+  const summary = (): ReviewSummary => {
+    const histogram = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const r of reviews) histogram[r.stars as 1 | 2 | 3 | 4 | 5] += 1;
+    const count = reviews.length;
+    return { average: count === 0 ? null : reviews.reduce((n, r) => n + r.stars, 0) / count, count, histogram };
+  };
+  const mark = (r: Review): Review => ({ ...r, isMine: r.reviewerId === viewerId });
+  const path = "/api/saved-days/:savedDayId/reviews";
+  const notFound = () => HttpResponse.json({ error: "not-found" }, { status: 404 });
+  return [
+    http.get(path, ({ params }) => {
+      if (params.savedDayId !== savedDayId) return notFound();
+      const list = [...reviews].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(mark);
+      const body: SavedDayReviewsResponse = {
+        summary: summary(),
+        reviews: list,
+        mine: list.find((r) => r.isMine) ?? null,
+      };
+      return HttpResponse.json(body);
+    }),
+    http.put(path, async ({ params, request }) => {
+      if (params.savedDayId !== savedDayId) return notFound();
+      const parsed = PutReviewInput.safeParse(await request.json().catch(() => null));
+      if (!parsed.success) return HttpResponse.json({ error: "invalid-review" }, { status: 400 });
+      if (options.authorId === viewerId) return HttpResponse.json({ error: "own-day" }, { status: 403 });
+      const { seenPublishedAt } = parsed.data;
+      if (
+        seenPublishedAt !== undefined &&
+        options.publishedAt !== undefined &&
+        seenPublishedAt !== options.publishedAt
+      ) {
+        return HttpResponse.json(
+          {
+            error: "day-changed",
+            changedAt: options.publishedAt,
+            authorDisplayName: options.authorDisplayName ?? "Mei",
+          },
+          { status: 409 },
+        );
+      }
+      const now = new Date().toISOString();
+      const existing = reviews.find((r) => r.reviewerId === viewerId);
+      const review: Review = {
+        savedDayId,
+        reviewerId: viewerId,
+        reviewerDisplayName: existing?.reviewerDisplayName ?? viewerId,
+        stars: parsed.data.stars,
+        note: parsed.data.note,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        isMine: true,
+      };
+      reviews = [...reviews.filter((r) => r.reviewerId !== viewerId), review];
+      return HttpResponse.json({ review, summary: summary() });
+    }),
+    http.delete(path, ({ params }) => {
+      if (params.savedDayId !== savedDayId) return notFound();
+      if (!reviews.some((r) => r.reviewerId === viewerId)) return notFound();
+      reviews = reviews.filter((r) => r.reviewerId !== viewerId);
+      return HttpResponse.json({ summary: summary() });
+    }),
+  ];
+}
+
 /**
  * `GET /api/account/plan`, entitled by default.
  *
@@ -375,4 +468,92 @@ export function makeAccountPlanHandler(overrides: Partial<AccountPlanView> = {})
     ...overrides,
   };
   return http.get("/api/account/plan", () => HttpResponse.json({ plan }));
+}
+
+/**
+ * Reporting and the operator queue (M12 link 6), hand-written against
+ * `CreateReportInput` / `AdminReportAction` like the rest of this file.
+ *
+ * Just enough state for a screen to walk it: a report is filed once per
+ * target (a repeat answers 200 with the same report, as the server does), a
+ * day in `ownSavedDayIds` is refused 403 `own-content`, and acting on an open
+ * report settles it — `hide-*` as actioned, anything else as dismissed. What a
+ * hide removes from Discover is the server's to prove, not this mock's.
+ */
+export function makeReportHandlers(
+  options: {
+    ownSavedDayIds?: string[];
+    queue?: AdminReportQueueItem[];
+    onAction?: (action: AdminReportAction) => void;
+  } = {},
+) {
+  const filed = new Map<string, ContentReport>();
+  const queue = structuredClone(options.queue ?? []);
+  const keyOf = (target: ContentReport["target"]) =>
+    target.kind === "review" ? `review:${target.savedDayId}:${target.reviewerId}` : `day:${target.savedDayId}`;
+  return [
+    http.post("/api/reports", async ({ request }) => {
+      const body = CreateReportInput.safeParse(await request.json().catch(() => null));
+      if (!body.success) return HttpResponse.json({ error: "invalid-report" }, { status: 400 });
+      const { target } = body.data;
+      if (target.kind === "saved_day" && options.ownSavedDayIds?.includes(target.savedDayId)) {
+        return HttpResponse.json({ error: "own-content" }, { status: 403 });
+      }
+      const existing = filed.get(keyOf(target));
+      if (existing !== undefined) return HttpResponse.json({ report: existing }, { status: 200 });
+      const report: ContentReport = {
+        reportId: crypto.randomUUID(),
+        target,
+        reporterId: "mock-reporter",
+        reason: body.data.reason,
+        note: body.data.note,
+        status: "open",
+        createdAt: new Date().toISOString(),
+        resolvedAt: null,
+        resolvedBy: null,
+        resolutionNote: null,
+      };
+      filed.set(keyOf(target), report);
+      return HttpResponse.json({ report }, { status: 201 });
+    }),
+    http.get("/api/admin/reports", ({ request }) => {
+      const status = new URL(request.url).searchParams.get("status") ?? "open";
+      return HttpResponse.json({ reports: queue.filter((item) => item.report.status === status) });
+    }),
+    http.post("/api/admin/reports/:reportId", async ({ params, request }) => {
+      const action = AdminReportAction.safeParse(await request.json().catch(() => null));
+      if (!action.success) return HttpResponse.json({ error: "invalid-action" }, { status: 400 });
+      const item = queue.find((i) => i.report.reportId === params.reportId);
+      if (item === undefined) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      options.onAction?.(action.data);
+      if (item.report.status === "open") {
+        item.report.status = action.data.action.startsWith("hide-") ? "actioned" : "dismissed";
+        item.report.resolvedAt = new Date().toISOString();
+        item.report.resolvedBy = "mock-operator";
+      }
+      return HttpResponse.json({ report: item.report });
+    }),
+  ];
+}
+
+/**
+ * `GET /api/places?q=` (M12 link 7) over a fixed list of places, typed against
+ * `PlaceMatch` so a mock row that fits neither the city nor the country arm is
+ * a type error rather than a surprise in a component.
+ *
+ * Deliberately naive, like every handler here: a case-insensitive prefix match
+ * on the label, the given order kept, and the real route's empty-box
+ * short-circuit. The ranking is the server's (`server/places.ts`), and a suite
+ * that cares about it asserts it there, not through this.
+ */
+export function makePlaceSearchHandler(places: PlaceMatch[]) {
+  return http.get("/api/places", ({ request }) => {
+    const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase();
+    const body: PlaceSearchResponse = {
+      places: q
+        ? places.filter((p) => (p.kind === "city" ? p.city : p.name).toLowerCase().startsWith(q))
+        : [],
+    };
+    return HttpResponse.json(body);
+  });
 }

@@ -355,12 +355,15 @@ export function planVersionRefOf(entry: PlanVersion): PlanVersionRef {
  * ordered. Both are worse than an error with the reference in it.
  */
 export class UnknownPlanVersionError extends Error {
-  constructor(readonly ref: string) {
+  readonly ref: string;
+
+  constructor(ref: string) {
     super(
       `Plan version "${ref}" is not published in this deploy. A pinned version must resolve ` +
         `(ADR-045 rule 3) — published entries are append-only and are never removed.`,
     );
     this.name = "UnknownPlanVersionError";
+    this.ref = ref;
   }
 }
 
