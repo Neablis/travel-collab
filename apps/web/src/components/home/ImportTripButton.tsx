@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Banner } from "@/components/ui/banner";
+import { cn } from "@/lib/cn";
+import { QUIET_LINK } from "./quietLink";
 
 // **A trip comes back from a file** (M25 link 2, the upload half).
 //
@@ -23,24 +25,52 @@ import { Banner } from "@/components/ui/banner";
 // person chose, so the limit it names in a refusal is the limit they can act on
 // — `JSON.parse` then `JSON.stringify` would quietly reshape the size it is
 // measured against.
+//
+// **A quiet text link, and only that** (SPEC §35.2). Import is rare, so it was
+// demoted from a secondary button in Home's head to an underlined line: *Have a
+// trip file? Import it* in the empty state, *Import a trip file* under the grid
+// on a phone, and a link in the new-trip sheet. The last one cannot be this
+// component — closing the sheet unmounts it — so it reaches the instance the
+// page has mounted through `handle` instead.
 
 /** Anything the server said, or anything that stopped us reaching it. */
 type Failure = { message: string };
 
+/** Lets a trigger that is not this link — the new-trip sheet's — open the picker. */
+export type ImportTripHandle = { pick: () => void };
+
 export function ImportTripButton({
+  label,
   disabled = false,
-  size,
   className,
+  handle,
 }: {
+  label: string;
   disabled?: boolean;
-  /** `sm` on the first-run card, where it sits beside the other routes in. */
-  size?: "sm" | "md";
+  /** Applied to the link only, so a `md:hidden` never hides a refusal. */
   className?: string;
+  /**
+   * **`pick()` must run inside the click that asked for it.** Browsers open a
+   * file picker only from a user gesture, so a caller that closes a dialog and
+   * picks on a later tick gets nothing at all. The sheet's link calls it
+   * synchronously from its own handler.
+   */
+  handle?: Ref<ImportTripHandle>;
 }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
+  const blocked = disabled || busy;
+  useImperativeHandle(
+    handle,
+    () => ({
+      pick: () => {
+        if (!blocked) input.current?.click();
+      },
+    }),
+    [blocked],
+  );
 
   async function importFile(file: File) {
     setBusy(true);
@@ -77,19 +107,40 @@ export function ImportTripButton({
 
   return (
     <>
+      {/* **A refusal is the server's own words in a BANNER** (§34.2, M26 link
+          9c). It was a line of danger-coloured text — which reads as a field
+          error beside a control, not as "the file you chose was turned away".
+          The words are unchanged; `v1`'s refusals are already written for a
+          person to act on (which file is too large and what the limit is, that
+          a bundle holds two trips), and restating them here would be a second
+          copy that drifts.
+
+          **Above the link**, where §35.2's phone artboard draws it: the link is
+          the last thing on Home, so a banner after it would land below the
+          fold. And never under the link's `className`, so a caller hiding the
+          link above a breakpoint (`md:hidden`) never hides a refusal that the
+          sheet's link produced there.
+
+          `role="alert"` overrides `Banner`'s default `role="status"`: this
+          lands after the reader has chosen a file and looked away from the
+          link, which is worth interrupting for. */}
+      {failure !== null && (
+        <Banner variant="danger" role="alert" className="w-full">
+          {failure.message}
+        </Banner>
+      )}
       <Button
         type="button"
-        variant="secondary"
-        {...(size ? { size } : {})}
-        {...(className ? { className } : {})}
-        disabled={disabled || busy}
+        variant="ghost"
+        className={cn(QUIET_LINK, "text-slate", className)}
+        disabled={blocked}
         onClick={() => input.current?.click()}
       >
-        {busy ? "Importing…" : "Import a file"}
+        {busy ? "Importing…" : label}
       </Button>
       {/* Hidden rather than styled, because a file input cannot be restyled
           across browsers and a visible one here would be the only control on
-          this page that does not look like the others. The button above is the
+          this page that does not look like the others. The link above is the
           accessible name; the input is reached only through it.
 
           `accept` is a hint a person can override in their own file picker, so
@@ -109,7 +160,7 @@ export function ImportTripButton({
         aria-hidden="true"
         tabIndex={-1}
         // Rung 3 of the locator ladder (`docs/guidelines/testing.md`): this
-        // element deliberately has no accessible identity — the button above is
+        // element deliberately has no accessible identity — the link above is
         // the one control in the a11y tree — so a testid is how a test reaches
         // it. It names structure, not content.
         data-testid="trip-file-input"
@@ -122,22 +173,6 @@ export function ImportTripButton({
           if (file !== undefined) void importFile(file);
         }}
       />
-      {/* **A refusal is the server's own words in a BANNER** (§34.2, M26 link
-          9c). It was a line of danger-coloured text — which reads as a field
-          error beside a control, not as "the file you chose was turned away".
-          The words are unchanged; `v1`'s refusals are already written for a
-          person to act on (which file is too large and what the limit is, that
-          a bundle holds two trips), and restating them here would be a second
-          copy that drifts.
-
-          `role="alert"` overrides `Banner`'s default `role="status"`: this
-          lands after the reader has chosen a file and looked away from the
-          button, which is worth interrupting for. */}
-      {failure !== null && (
-        <Banner variant="danger" role="alert" className="w-full">
-          {failure.message}
-        </Banner>
-      )}
     </>
   );
 }

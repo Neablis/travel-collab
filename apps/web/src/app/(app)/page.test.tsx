@@ -203,7 +203,7 @@ describe("Home trip actions", () => {
 
   // Phase 7 Task 7.2 replaced the single-field New-trip Dialog with the
   // 4-step NewTripWizard, hosted in a Sheet titled "New trip" (same
-  // accessible name the old Dialog had). "Create empty" is the wizard's
+  // accessible name the old Dialog had). *create an empty one* is the wizard's
   // still-reachable name-only path (NewTripWizard.tsx), so this exercises
   // the same createTrip-fails-and-the-overlay-stays-open behavior the old
   // test covered, through the new control.
@@ -230,7 +230,7 @@ describe("Home trip actions", () => {
 
     const dialog = await screen.findByRole("dialog", { name: /new trip/i });
     await userEvent.type(within(dialog).getByLabelText("Where are you going?"), "Iceland");
-    await userEvent.click(within(dialog).getByRole("button", { name: /^create empty$/i }));
+    await userEvent.click(within(dialog).getByRole("button", { name: /^create an empty one$/i }));
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/name already taken/i);
@@ -244,11 +244,13 @@ describe("Home trip actions", () => {
   // Regression (CI, PR #32): an earlier draft had "Create empty" navigate
   // straight to the new trip, same as the full wizard's "Create trip". That
   // broke every e2e spec built on the old single-field dialog's actual
-  // behavior — close, refresh the list, stay put, then click the new
-  // trip's own card to navigate. "Create empty" is explicitly that dialog's
-  // escape hatch (NewTripWizard.tsx), so it keeps that exact behavior; only
-  // the full wizard (dates/budget applied, "Create trip") navigates.
-  it("stays on the trip list and shows the new trip after Create empty, without navigating", async () => {
+  // behavior — close, refresh the list, stay put, then click the new trip to
+  // navigate. *create an empty one* (§35.2's link, which replaced the button)
+  // is explicitly that dialog's escape hatch (NewTripWizard.tsx), so it keeps
+  // that exact behavior; only the full wizard (dates/budget applied, "Create
+  // trip") navigates. The new trip is the list's newest, so it lands as the
+  // hero — a level-2 heading, not a card's level-3 one.
+  it("stays on the trip list and shows the new trip after create an empty one, without navigating", async () => {
     const newTripId = "1a2b3c4d-5e6f-4789-9abc-def012345678";
     let listCallCount = 0;
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -272,19 +274,19 @@ describe("Home trip actions", () => {
 
     render(<Home />);
     // The list loads empty, so the conversation is inline rather than in a
-    // sheet (SPEC §31) — same flow, same "Create empty", one fewer click.
+    // sheet (SPEC §31) — same flow, same link, one fewer click.
     const firstRun = await screen.findByTestId("first-trip-start");
     await userEvent.type(within(firstRun).getByLabelText("Where are you going?"), "Reykjavik");
-    await userEvent.click(within(firstRun).getByRole("button", { name: /^create empty$/i }));
+    await userEvent.click(within(firstRun).getByRole("button", { name: /^create an empty one$/i }));
 
-    expect(await screen.findByRole("heading", { name: "Reykjavik", level: 3 })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Reykjavik", level: 2 })).toBeTruthy();
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  // Task 18: the head's "Start from a Playbook" link is a real navigation
-  // control (unlike the /playbooks route it points to, which is entirely
-  // Preview-shielded) — it must render outside any Preview region and carry
-  // a real href, not merely appear in the markup.
+  // Task 18: "Start from a Playbook" — on the empty state since §35.2 took it
+  // out of the page head — is a real navigation control. It must render
+  // outside any Preview region and carry a real href, not merely appear in
+  // the markup.
   it("renders a real, navigable Start from a Playbook link outside any Preview region", async () => {
     fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -546,47 +548,107 @@ describe("Home page head", () => {
     }
   });
 
-  it("labels the trips grid", async () => {
-    renderHome();
-    expect(await screen.findByRole("heading", { name: "All trips" })).toBeTruthy();
+  const PERU = tripSummaryFixture({ tripId: "0b9d4a1e-2c3f-4d5e-8f60-718293a4b5c6", name: "Peru" });
+
+  it("labels the grid of the trips that are not the hero", async () => {
+    renderHome([tripSummaryFixture(), PERU]);
+    expect(await screen.findByRole("heading", { name: "Other trips" })).toBeTruthy();
   });
 
-  it("shows a trip count line next to the All trips heading, singularized for one trip", async () => {
-    renderHome([tripSummaryFixture()]);
-    await screen.findByRole("heading", { name: "All trips" });
+  // SPEC §35.2: it was "All trips", and it drew the hero's trip a second time
+  // directly under the hero. The list is newest-first and the hero is its
+  // head, so the grid is everything after it.
+  it("does not repeat the hero in Other trips, and counts only what the grid shows", async () => {
+    renderHome([tripSummaryFixture(), PERU]);
+    await screen.findByRole("heading", { name: "Other trips" });
+
+    const cards = screen.getAllByTestId("trip-card");
+    expect(cards).toHaveLength(1);
+    expect(within(cards[0]!).getByRole("heading", { name: "Peru" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
     expect(screen.getByText("1 trip")).toBeTruthy();
   });
 
-  it("does not render the All trips heading when there are no trips to show", async () => {
-    renderHome([]);
-    await screen.findByText(/A name is enough to start/i);
-    expect(screen.queryByRole("heading", { name: "All trips" })).toBeNull();
+  // One trip is the hero and nothing else — a heading over an empty grid would
+  // announce a list that is not there.
+  it("draws no Other trips heading when the hero is the only trip", async () => {
+    renderHome([tripSummaryFixture()]);
+    await screen.findByRole("heading", { name: "Japan", level: 2 });
+    expect(screen.queryByRole("heading", { name: "Other trips" })).toBeNull();
+    expect(screen.queryByTestId("trip-card")).toBeNull();
   });
 
-  // **Import a file is on exactly one of these two screens at a time** (M25).
-  //
-  // It began in the page head on both. On a 375px viewport that made the head's
-  // action row wrap onto an extra line and pushed the first-run card's composer
-  // out of the viewport — which `responsive.spec.ts:917` asserts against, and
-  // which failed in CI while passing locally in both lanes, because that
-  // assertion sits close enough to the fold that rendering decides it.
-  //
-  // Asserted here rather than left to the e2e lane because "two of them" and
-  // "none of them" are both one edit away, and neither would fail the browser
-  // walk: the walk finds the control by name, and would find either copy.
-  it("puts Import a file in the page head only once there are trips", async () => {
+  // **M27 D3.** The hero left the grid, and the grid's cards were the only
+  // place a trip's lifecycle menu lived on Home. The single-trip fixtures in
+  // "Home trip actions" above reach Delete and Duplicate through the hero's
+  // menu for exactly this reason; this names the claim.
+  it("gives the hero the same lifecycle menu a card has", async () => {
     renderHome([tripSummaryFixture()]);
-    await screen.findByRole("heading", { name: "All trips" });
-    expect(screen.getAllByRole("button", { name: "Import a file" })).toHaveLength(1);
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for japan/i }));
+    expect(screen.getByRole("menuitem", { name: "Duplicate" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
+  });
+
+  it("does not render the Other trips heading when there are no trips to show", async () => {
+    renderHome([]);
+    await screen.findByText(/A name is enough to start/i);
+    expect(screen.queryByRole("heading", { name: "Other trips" })).toBeNull();
+  });
+
+  // **SPEC §35.2: the head is "New trip" and nothing else.** *Import a file*
+  // and *Start from a Playbook* sat beside it; import is a quiet link now and
+  // Playbooks are reached from the new-trip sheet's row and the empty state.
+  // With trips and the sheet closed, neither is anywhere but that one link.
+  it("heads the page with New trip only", async () => {
+    renderHome([tripSummaryFixture(), PERU]);
+    await screen.findByRole("heading", { name: "Other trips" });
+    expect(screen.getByRole("button", { name: "New trip" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /start from a playbook/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /import a file/i })).toBeNull();
+  });
+
+  // **One import control, and one picker, on either screen** (M25). It was in
+  // the page head on both screens once, which at 375px pushed the first-run
+  // composer out of the viewport (`responsive.spec.ts`). Asserted here rather
+  // than left to the e2e lane because "two of them" and "none of them" are
+  // both one edit away, and the browser walk would find either copy by name.
+  //
+  // With trips it is the phone's link under the grid (§35.2) — hidden above
+  // `md` by CSS, which jsdom does not apply, so it is present here.
+  it("puts one import link under the grid once there are trips", async () => {
+    renderHome([tripSummaryFixture(), PERU]);
+    await screen.findByRole("heading", { name: "Other trips" });
+    expect(screen.getAllByRole("button", { name: /import/i })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Import a trip file" })).toBeTruthy();
+    expect(screen.getAllByTestId("trip-file-input")).toHaveLength(1);
     expect(screen.queryByTestId("first-trip-start")).toBeNull();
   });
 
   it("puts it on the first-run card instead when there are none, and only there", async () => {
     renderHome([]);
     const firstRun = await screen.findByTestId("first-trip-start");
-    const all = screen.getAllByRole("button", { name: "Import a file" });
+    const all = screen.getAllByRole("button", { name: /import/i });
     expect(all).toHaveLength(1);
     expect(firstRun.contains(all[0]!)).toBe(true);
+    expect(screen.getAllByTestId("trip-file-input")).toHaveLength(1);
+  });
+
+  // **The sheet's *import a trip file* opens the PAGE's picker** (§35.2). The
+  // sheet closes on the click, which unmounts anything inside it, so the
+  // picker and its refusal banner live on the page and the link reaches them.
+  // Same click, because a browser only opens a file picker from a gesture.
+  it("closes the sheet and opens the page's own picker from the sheet's import link", async () => {
+    renderHome([tripSummaryFixture(), PERU]);
+    await screen.findByRole("heading", { name: "Other trips" });
+    const pickerClicked = vi.fn();
+    screen.getByTestId("trip-file-input").addEventListener("click", pickerClicked);
+
+    await userEvent.click(screen.getByRole("button", { name: "New trip" }));
+    const sheet = await screen.findByRole("dialog", { name: /new trip/i });
+    await userEvent.click(within(sheet).getByRole("button", { name: "import a trip file" }));
+
+    expect(pickerClicked).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /new trip/i })).toBeNull());
   });
 });
 
@@ -601,24 +663,20 @@ describe("Home first-run experience", () => {
     expect(screen.getByText(/A name is enough to start/)).toBeDefined();
   });
 
-  // §34.2, M26 link 9c: "Import is on Home beside New trip, and again in the
-  // empty state, where the sentence about what a file is belongs." The control
-  // was in both places already; the sentence was in neither, so the fourth
-  // route in was a button whose label assumed the reader knew this app had
-  // files at all.
-  it("says what a trip file is, in the empty state, beside the import control", async () => {
+  // SPEC §35.2: the empty state's import is one quiet line whose own words say
+  // what it is for — *Have a trip file? Import it* — and the sentence §34.2
+  // put under the old button ("A trip you downloaded from here…") is dropped.
+  // *Start from a Playbook* stays as the one secondary route.
+  it("offers import in the empty state as one quiet line, beside Start from a Playbook", async () => {
     fetchMock = vi.fn(async () => jsonResponse({ trips: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<Home />);
 
     const firstRun = await screen.findByTestId("first-trip-start");
-    expect(within(firstRun).getByRole("button", { name: /import a file/i })).toBeTruthy();
-    // "or from another account" is the load-bearing half: a download is
-    // portable, and without saying so this reads as a backup of your own
-    // trips — the narrower and less useful thing.
-    expect(within(firstRun).getByText(/from another account/i)).toBeTruthy();
-    expect(within(firstRun).getByText(/comes back whole from its file/i)).toBeTruthy();
+    expect(within(firstRun).getByRole("button", { name: "Have a trip file? Import it" })).toBeTruthy();
+    expect(within(firstRun).getByRole("link", { name: "Start from a Playbook" })).toBeTruthy();
+    expect(within(firstRun).queryByText(/comes back whole from its file/i)).toBeNull();
   });
 
   // The first-run screen promises "a name is enough to start", so it has to
@@ -754,7 +812,7 @@ describe("Home first-run experience", () => {
     expect(screen.queryByTestId("first-trip-conversation")).toBeNull();
 
     // And it still works: the typed name reaches the create.
-    await userEvent.click(within(sheet).getByRole("button", { name: /^create empty$/i }));
+    await userEvent.click(within(sheet).getByRole("button", { name: /^create an empty one$/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/api/trips"),
@@ -800,9 +858,9 @@ describe("Home first-run experience", () => {
         listCallCount += 1;
         // First GET (initial load) finds no trips, which is what puts Home
         // in the first-run empty state this test starts from; the reload
-        // that "Create empty" triggers (Home's onCreated -> load(), same
+        // that *create an empty one* triggers (Home's onCreated -> load(), same
         // stay-on-list-and-refresh path "stays on the trip list and shows
-        // the new trip after Create empty" above exercises) finds the trip
+        // the new trip after create an empty one" above exercises) finds the trip
         // that was just created.
         const trips = listCallCount === 1 ? [] : [tripSummaryFixture({ tripId, name: "Japan" })];
         return jsonResponse({ trips });
@@ -820,9 +878,9 @@ describe("Home first-run experience", () => {
     await userEvent.click(await screen.findByRole("button", { name: "New trip" }));
     await userEvent.type(screen.getByLabelText("Where are you going?"), "Japan");
 
-    // The first turn — "Create empty" is enabled by the name alone, which is why
+    // The first turn — *create an empty one* works from the name alone, which is why
     // M15 needs no separate one-field first-run screen (decision 3).
-    await userEvent.click(screen.getByRole("button", { name: "Create empty" }));
+    await userEvent.click(screen.getByRole("button", { name: "create an empty one" }));
 
     // **The body now carries a client-minted `tripId`** (KI-2026-09-12-e), so
     // this can no longer be an exact `JSON.stringify` match. It is the only
@@ -844,11 +902,12 @@ describe("Home first-run experience", () => {
       tripId: expect.stringMatching(/^[0-9a-f-]{36}$/) as unknown as string,
     });
 
-    // Post-create state: the first-run empty state is gone, the new trip's
-    // own card is showing in its place, and "Create empty" never navigates
-    // (only the full wizard's dates/budget path does — see "stays on the
-    // trip list and shows the new trip after Create empty" above).
-    expect(await screen.findByRole("heading", { name: "Japan", level: 3 })).toBeTruthy();
+    // Post-create state: the first-run empty state is gone, the new trip is
+    // showing in its place as the hero (its only trip), and *create an empty
+    // one* never navigates (only the full wizard's dates/budget path does —
+    // see "stays on the trip list and shows the new trip after create an
+    // empty one" above).
+    expect(await screen.findByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
     expect(screen.queryByText("Plan your first trip")).toBeNull();
     expect(pushMock).not.toHaveBeenCalled();
   });
@@ -962,7 +1021,7 @@ describe("Home finishing a demo clone", () => {
   // no idea a copy is already headed for this same list. Holds the duplicate
   // response open (rather than letting `stubEmptyListAndDuplicate` resolve it
   // immediately) so there's a real window to observe both launchers — the
-  // page-head "New trip" button and the first-run conversation's "Create empty",
+  // page-head "New trip" button and the first-run conversation's *create an empty one*,
   // which is what's on screen because an empty trip list is what "no trips
   // yet" and "the clone hasn't resolved yet" both look like — disabled.
   it("disables both wizard launchers while the demo copy is in flight", async () => {
@@ -989,10 +1048,10 @@ describe("Home finishing a demo clone", () => {
     const headButton = await screen.findByRole("button", { name: "New trip" });
     // **The first-run launcher is the conversation's own exit now** (SPEC §31):
     // the screen no longer carries a "Name your trip" button, it carries the
-    // conversation, and "Create empty" is the control that writes. That is what
+    // conversation, and *create an empty one* is the control that writes. That is what
     // must not race the in-flight duplicate.
     const createEmpty = within(await screen.findByTestId("first-trip-start")).getByRole("button", {
-      name: "Create empty",
+      name: "create an empty one",
     });
     await waitFor(() => {
       expect((headButton as HTMLButtonElement).disabled).toBe(true);
@@ -1118,7 +1177,8 @@ describe("Home trip list load failures", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /try again/i }));
 
-    expect(await screen.findByRole("heading", { name: "Japan", level: 3 })).toBeTruthy();
+    // The only trip, so the hero's level-2 heading — not a card's (§35.2).
+    expect(await screen.findByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

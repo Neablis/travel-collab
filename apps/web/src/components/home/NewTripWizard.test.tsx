@@ -43,7 +43,7 @@ type NewTripCreate = (input: {
   tripId?: string;
 }) => Promise<ApiResult<{ tripId: string }>>;
 
-function renderWizard(overrides: { createTrip?: NewTripCreate } = {}) {
+function renderWizard(overrides: { createTrip?: NewTripCreate; onImportFile?: () => void } = {}) {
   // `tripId` is optional on the prop because the CLIENT mints it now
   // (KI-2026-09-12-e) — the mock has to accept what the component really sends.
   const createTrip =
@@ -64,6 +64,7 @@ function renderWizard(overrides: { createTrip?: NewTripCreate } = {}) {
       createTrip={createTrip}
       dispatch={dispatch}
       onCreated={onCreated}
+      {...(overrides.onImportFile === undefined ? {} : { onImportFile: overrides.onImportFile })}
     />,
   );
   return { createTrip, dispatch, onOpenChange, onCreated };
@@ -189,21 +190,75 @@ describe("NewTripWizard — the turns", () => {
     expect(screen.queryByRole("button", { name: "Nothing in particular" })).toBeNull();
   });
 
-  it("offers Create empty from turn one and Create with this from the first answer", async () => {
+  // SPEC §35.2: *Create empty* stopped being a footer button. It is a quiet
+  // link, live from turn one, and the footer exists only once it has
+  // *Create with this* to hold.
+  it("offers create an empty one from turn one and Create with this from the first answer", async () => {
     renderWizard();
-    const createEmpty = screen.getByRole("button", { name: "Create empty" });
-    // Present but inert until there is a name to use: `CreateTrip.name` is
-    // `z.string().min(1)`, so an unnamed trip is a request the domain refuses.
-    expect(createEmpty.hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "create an empty one" }).hasAttribute("disabled")).toBe(
+      false,
+    );
     expect(screen.queryByRole("button", { name: "Create with this" })).toBeNull();
-
-    await user.type(screen.getByLabelText("Where are you going?"), "Porto");
-    // The uncommitted composer text is a usable name — this is what preserves
-    // "type a name, press Create empty" from the old single-field dialog.
-    expect(screen.getByRole("button", { name: "Create empty" }).hasAttribute("disabled")).toBe(false);
 
     await user.click(screen.getByRole("button", { name: "Lisbon" }));
     expect(screen.getByRole("button", { name: "Create with this" })).not.toBeNull();
+  });
+
+  // **M27 D4.** The link is live before anything is typed, and
+  // `CreateTrip.name` is `z.string().min(1)` — the domain refuses a nameless
+  // trip. It was a disabled button until there was a name; a link that does
+  // nothing when pressed is worse, so it sends one.
+  it("names an empty trip nobody named Untitled trip", async () => {
+    const { createTrip, onCreated } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "create an empty one" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    expect(createTrip.mock.calls[0]![0]).toMatchObject({ name: "Untitled trip" });
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+  });
+
+  // The uncommitted composer text is still a usable name — this is what
+  // preserves "type a name, press create" from the old single-field dialog.
+  it("names an empty trip from the composer when something is typed", async () => {
+    const { createTrip } = renderWizard();
+    await user.type(screen.getByLabelText("Where are you going?"), "Porto");
+    await user.click(screen.getByRole("button", { name: "create an empty one" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    expect(createTrip.mock.calls[0]![0]).toMatchObject({ name: "Porto" });
+  });
+
+  // §35.2's row: *start from a Playbook* and *import a trip file*. Both leave
+  // the sheet, so both close it.
+  it("goes to Discover from start from a Playbook, closing the sheet", async () => {
+    const { onOpenChange } = renderWizard();
+    const link = screen.getByRole("link", { name: "start from a Playbook" });
+    expect(link.getAttribute("href")).toBe("/playbooks");
+
+    await user.click(link);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // **Closed, THEN the page's picker, in the same click.** The page owns the
+  // picker because closing the sheet unmounts everything in it; the order is
+  // asserted because a picker opened under a still-open modal sheet would be
+  // opened from behind its overlay.
+  it("closes the sheet and hands import a trip file to the page, in that order", async () => {
+    const calls: string[] = [];
+    const onImportFile = vi.fn(() => calls.push("import"));
+    const { onOpenChange } = renderWizard({ onImportFile });
+    onOpenChange.mockImplementation((open: boolean) => calls.push(`open:${String(open)}`));
+
+    await user.click(screen.getByRole("button", { name: "import a trip file" }));
+    expect(calls).toEqual(["open:false", "import"]);
+  });
+
+  // No page to hand it to, no link — one that closed the sheet and did nothing
+  // would be a dead end.
+  it("offers no import link when the page has no picker to hand it to", () => {
+    renderWizard();
+    expect(screen.queryByRole("button", { name: "import a trip file" })).toBeNull();
+    expect(screen.getByRole("link", { name: "start from a Playbook" })).not.toBeNull();
   });
 
   // **A failed create used to print the opposite of what happened**
@@ -394,7 +449,7 @@ describe("NewTripWizard — the turns", () => {
 
   // **`changeTo` keeps the answers, so the old destination outlived the edit**
   // (CodeRabbit, PR #188). Going back to turn one and typing a different city
-  // left `answers.where` committed, and `name` preferred it — so Create empty
+  // left `answers.where` committed, and `name` preferred it — so an empty create
   // made a trip named the thing on screen a moment ago rather than the thing in
   // the field. An uncommitted edit to the question being ASKED is the more
   // recent intent.
@@ -405,7 +460,7 @@ describe("NewTripWizard — the turns", () => {
 
     // Typed, deliberately not committed — this is the state the bug lived in.
     await user.type(screen.getByLabelText("Where are you going?"), "Porto");
-    await user.click(screen.getByRole("button", { name: "Create empty" }));
+    await user.click(screen.getByRole("button", { name: "create an empty one" }));
 
     await waitFor(() => expect(createTrip).toHaveBeenCalled());
     expect(createTrip.mock.calls[0]![0]).toMatchObject({ name: "Porto" });
@@ -418,7 +473,7 @@ describe("NewTripWizard — the turns", () => {
 
     await waitFor(() => expect(createTrip).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: "Open the trip" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Create empty" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "create an empty one" })).toBeNull();
   });
 
   // **D-C, answered 2026-09-16.** The design's closing copy claims the trip was
@@ -496,7 +551,7 @@ describe("NewTripWizard — the turns", () => {
     createTrip.mockResolvedValue({ ok: false, error: { status: 500, message: "server exploded" } });
 
     await user.type(screen.getByLabelText("Where are you going?"), "Porto");
-    await user.click(screen.getByRole("button", { name: "Create empty" }));
+    await user.click(screen.getByRole("button", { name: "create an empty one" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/server exploded/i);
@@ -506,7 +561,7 @@ describe("NewTripWizard — the turns", () => {
   it("dispatches nothing when creating an empty trip from the name alone", async () => {
     const { createTrip, dispatch, onCreated } = renderWizard();
     await user.type(screen.getByLabelText("Where are you going?"), "Porto");
-    await user.click(screen.getByRole("button", { name: "Create empty" }));
+    await user.click(screen.getByRole("button", { name: "create an empty one" }));
 
     await waitFor(() =>
       expect(createTrip).toHaveBeenCalledWith(expect.objectContaining({ name: "Porto" })),

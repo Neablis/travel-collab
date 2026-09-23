@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 
-import { ImportTripButton } from "./ImportTripButton";
+import { createRef } from "react";
+import { ImportTripButton, type ImportTripHandle } from "./ImportTripButton";
+
+const LABEL = "Import a trip file";
 
 const fetchMock = vi.fn();
 
@@ -54,7 +57,7 @@ describe("ImportTripButton", () => {
   // cookie the browser already has. No token, no `apiClient`, no MSW handler.
   it("posts the file's own bytes to the v1 import endpoint and opens the trip", async () => {
     fetchMock.mockResolvedValue(ok({ tripId: "11111111-1111-4111-8111-111111111111" }));
-    render(<ImportTripButton />);
+    render(<ImportTripButton label={LABEL} />);
     await choose();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -77,7 +80,7 @@ describe("ImportTripButton", () => {
     fetchMock.mockResolvedValue(
       refused(400, "That trip has 1,001 stops. The limit is 1,000."),
     );
-    render(<ImportTripButton />);
+    render(<ImportTripButton label={LABEL} />);
     await choose();
 
     const alert = await screen.findByRole("alert");
@@ -96,7 +99,7 @@ describe("ImportTripButton", () => {
         throw new Error("not json");
       },
     });
-    render(<ImportTripButton />);
+    render(<ImportTripButton label={LABEL} />);
     await choose();
 
     // **Still `role="alert"` now that this renders through `Banner`** (§34.2,
@@ -122,7 +125,7 @@ describe("ImportTripButton", () => {
   // version of the claim belongs to the e2e lane, in a real browser.
   it("clears the picker after a choice, so the same file can be retried", async () => {
     fetchMock.mockResolvedValue(refused(400, "This file contains no trip to import."));
-    render(<ImportTripButton />);
+    render(<ImportTripButton label={LABEL} />);
 
     await choose();
     await screen.findByRole("alert");
@@ -131,7 +134,37 @@ describe("ImportTripButton", () => {
   });
 
   it("is disabled while the page is busy with something else", () => {
-    render(<ImportTripButton disabled />);
-    expect(screen.getByRole("button", { name: "Import a file" }).hasAttribute("disabled")).toBe(true);
+    render(<ImportTripButton label={LABEL} disabled />);
+    expect(screen.getByRole("button", { name: LABEL }).hasAttribute("disabled")).toBe(true);
+  });
+
+  // **The new-trip sheet's link has no picker of its own** (SPEC §35.2): it
+  // closes the sheet, which unmounts it, so it opens THIS one through the
+  // handle — synchronously, inside its own click, or the browser drops the
+  // gesture and no picker appears. What is asserted is the mechanism the
+  // browser needs: a click on the hidden input.
+  it("opens its picker for a caller that holds the handle", () => {
+    const handle = createRef<ImportTripHandle>();
+    render(<ImportTripButton label={LABEL} handle={handle} />);
+    const clicked = vi.fn();
+    picker().addEventListener("click", clicked);
+
+    handle.current!.pick();
+
+    expect(clicked).toHaveBeenCalledTimes(1);
+  });
+
+  // And not while the page is holding every trip-start (a demo clone landing):
+  // a handle that ignored `disabled` would be a way round the button's own
+  // guard.
+  it("does not open its picker through the handle while disabled", () => {
+    const handle = createRef<ImportTripHandle>();
+    render(<ImportTripButton label={LABEL} handle={handle} disabled />);
+    const clicked = vi.fn();
+    picker().addEventListener("click", clicked);
+
+    handle.current!.pick();
+
+    expect(clicked).not.toHaveBeenCalled();
   });
 });

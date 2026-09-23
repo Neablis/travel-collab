@@ -39,6 +39,8 @@ import {
   createTripWithSetup,
   type SetupLatch,
 } from "./newTripSubmit";
+import { cn } from "@/lib/cn";
+import { QUIET_LINK } from "./quietLink";
 
 /**
  * **44px on a phone, this app's own size on a pointer** (SPEC §32.2, §13.1).
@@ -90,14 +92,22 @@ export type NewTripWizardProps = {
   dispatch: (command: BoardCommand) => Promise<ApiResult<CommandOutcome>>;
   // Called once the trip exists AND every dispatched command it needed has
   // confirmed. `navigate` is true only for the paths that finish the
-  // conversation — "Create empty" is the old single-field dialog's escape
-  // hatch, and that dialog never navigated: it closed and left the user on the
-  // trip list to open the new card themselves. Every pre-Phase-7 e2e spec is
-  // built on that, and a version of this that always navigated broke every one
-  // of them (CI, PR #32) by leaving the home page before the click ever ran.
+  // conversation — "create an empty one" is the old single-field dialog's
+  // escape hatch, and that dialog never navigated: it closed and left the user
+  // on the trip list to open the new trip themselves. Every pre-Phase-7 e2e
+  // spec is built on that, and a version of this that always navigated broke
+  // every one of them (CI, PR #32) by leaving the home page before the click
+  // ever ran.
   onCreated?: (tripId: string, opts: { navigate: boolean }) => void;
   /** See `SheetSize`. The caller decides how much of the window this takes. */
   size?: SheetSize;
+  /**
+   * The sheet's *import a trip file* link (SPEC §35.2). The sheet closes
+   * first, so the picker and any refusal must belong to the page, which
+   * outlives it. Called synchronously inside the click — see
+   * `ImportTripHandle.pick`. Absent, the link is not drawn.
+   */
+  onImportFile?: () => void;
 };
 
 export function NewTripWizard({
@@ -107,6 +117,7 @@ export function NewTripWizard({
   dispatch,
   onCreated,
   size = "rail",
+  onImportFile,
 }: NewTripWizardProps) {
   return (
     // The title stays "New trip" on both paths. It is the dialog's accessible
@@ -126,6 +137,17 @@ export function NewTripWizard({
           onDone={(tripId, navigate) => {
             onOpenChange(false);
             if (tripId !== null) onCreated?.(tripId, { navigate });
+          }}
+          otherStarts={{
+            onStartFromPlaybook: () => onOpenChange(false),
+            ...(onImportFile === undefined
+              ? {}
+              : {
+                  onImportFile: () => {
+                    onOpenChange(false);
+                    onImportFile();
+                  },
+                }),
           }}
         />
       )}
@@ -223,6 +245,14 @@ function NewTripPlusNote() {
   );
 }
 
+/**
+ * **What *create an empty one* names a trip nobody named** (M27 D4). The link
+ * is live from turn one, before anything is typed, and `CreateTrip.name` is
+ * `min(1)` — the domain refuses a nameless trip. Loosening that would be a
+ * contract change to save one word, and it is renamed from the trip header.
+ */
+const UNTITLED_TRIP = "Untitled trip";
+
 export function NewTripConversation({
   createTrip,
   dispatch,
@@ -230,6 +260,7 @@ export function NewTripConversation({
   firstRun = false,
   composerId,
   disabled = false,
+  otherStarts,
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
@@ -259,6 +290,19 @@ export function NewTripConversation({
    * controls that write are held.
    */
   disabled?: boolean;
+  /**
+   * **The sheet's other ways in** — *start from a Playbook* and *import a trip
+   * file* in §35.2's quiet row. Only the sheet passes them: the first-run card
+   * already draws both routes in its own row, and a second row of the same
+   * links one block above it would be the duplicate §35 exists to remove. So
+   * on first run the row is *Or create an empty one* alone — which has to stay,
+   * because it is the only way to a trip with no answers at all.
+   */
+  otherStarts?: {
+    /** Runs on the click, alongside the link's own navigation — the sheet closes. */
+    onStartFromPlaybook: () => void;
+    onImportFile?: () => void;
+  };
 }) {
   const [state, setState] = useState<NewTripState>(NEW_TRIP_START);
   const [phase, setPhase] = useState<"asking" | "made">("asking");
@@ -293,14 +337,15 @@ export function NewTripConversation({
   const where = state.answers.where;
   // The trip's name is the destination answer, or whatever is in the composer
   // before it has been committed — which is what preserves "type a name, press
-  // Create empty" exactly as the old single-field dialog worked.
+  // create an empty one" exactly as the old single-field dialog worked.
   //
   // **While `where` is the live question, the composer wins** (CodeRabbit, PR
   // #188). `changeTo` keeps the answers rather than clearing them, so pressing
   // Change back to turn one leaves the OLD destination committed; typing a new
   // one and pressing Create empty then made a trip named the thing on screen a
   // moment ago, not the thing in the field. An uncommitted edit to the question
-  // being asked is the more recent intent.
+  // being asked is the more recent intent. `UNTITLED_TRIP` covers the one
+  // path that may have neither.
   const composing = question?.id === "where" && draft.trim() !== "";
   const name = (composing ? draft : (where ?? draft)).trim();
   // **Only a length chip gives a day count.** Free text like "nine nights"
@@ -317,14 +362,14 @@ export function NewTripConversation({
   // machine-readable half of that same answer.
   const dated = state.answers.start !== undefined && ISO_DATE.test(arrive) && days !== null;
 
-  async function submit(applySetup: boolean): Promise<boolean> {
-    if (name === "" || submitting) return false;
+  async function submit(applySetup: boolean, tripName = name): Promise<boolean> {
+    if (tripName === "" || submitting) return false;
     setError(null);
     setSubmitting(true);
 
     const result = await createTripWithSetup({
       setup: {
-        name,
+        name: tripName,
         // Never the raw picker value on its own: `dated` is what says this ISO
         // is still the live answer, so a replaced arrival cannot date the trip.
         arrive: dated ? arrive : "",
@@ -641,42 +686,81 @@ export function NewTripConversation({
         </Text>
       )}
 
-      <DialogFooter>
-        {phase === "made" ? (
+      {/* **The rare ways in, as one quiet row** (SPEC §35.2). *Create empty*
+          was a footer button beside *Create with this*, from turn one — so the
+          first thing the sheet offered, before a single answer, was a
+          full-weight way to skip it. It is a link now, with the other two
+          routes that do not start from a conversation.
+
+          Gone once the trip is made: there is nothing left to start. */}
+      {phase === "asking" && (
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 px-0.5 text-xs text-slate">
+          <span>Or</span>
+          {otherStarts !== undefined && (
+            <>
+              {/* A link, because it is a navigation; the click also closes the
+                  sheet, which would otherwise ride along over Discover. */}
+              <Link
+                href="/playbooks"
+                onClick={otherStarts.onStartFromPlaybook}
+                className={cn(buttonVariants({ variant: "ghost" }), QUIET_LINK, "text-ink")}
+              >
+                start from a Playbook
+              </Link>
+              {otherStarts.onImportFile !== undefined && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(QUIET_LINK, "text-ink")}
+                  disabled={disabled || submitting}
+                  onClick={otherStarts.onImportFile}
+                >
+                  import a trip file
+                </Button>
+              )}
+            </>
+          )}
           <Button
             type="button"
-            variant="primary"
-            className={TOUCH}
-            disabled={submitting}
-            onClick={() => onDone(progress?.tripId ?? null, true)}
+            variant="ghost"
+            className={cn(QUIET_LINK, "text-ink")}
+            disabled={disabled || submitting}
+            onClick={() => void submit(false, name === "" ? UNTITLED_TRIP : name)}
           >
-            Open the trip
+            create an empty one
           </Button>
-        ) : (
-          <>
+        </div>
+      )}
+
+      {/* **Drawn only when it has something in it** (§35.2): *Create with
+          this* once there is an answer to create with, *Open the trip* once it
+          is made. An empty footer is a rule and a band of padding under
+          nothing. */}
+      {(phase === "made" || answered) && (
+        <DialogFooter>
+          {phase === "made" ? (
             <Button
               type="button"
-              variant="secondary"
+              variant="primary"
               className={TOUCH}
-              disabled={disabled || name === "" || submitting}
-              onClick={() => void submit(false)}
+              disabled={submitting}
+              onClick={() => onDone(progress?.tripId ?? null, true)}
             >
-              Create empty
+              Open the trip
             </Button>
-            {answered && (
-              <Button
-                type="button"
-                variant="primary"
-                className={TOUCH}
-                disabled={disabled || submitting}
-                onClick={() => void submit(true)}
-              >
-                Create with this
-              </Button>
-            )}
-          </>
-        )}
-      </DialogFooter>
+          ) : (
+            <Button
+              type="button"
+              variant="primary"
+              className={TOUCH}
+              disabled={disabled || submitting}
+              onClick={() => void submit(true)}
+            >
+              Create with this
+            </Button>
+          )}
+        </DialogFooter>
+      )}
       </div>
     </div>
   );
