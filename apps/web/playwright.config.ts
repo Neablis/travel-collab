@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { containerChromiumArgs } from "./scripts/container-chromium.mjs";
 import { BASE_URL } from "./src/config";
 import { DATABASE_URL } from "./src/server/config";
 import { E2E_SUPER_CODE } from "./e2e/admission";
@@ -70,6 +71,25 @@ export default defineConfig({
     // failure.
     trace: "on-first-retry",
     video: "off",
+    // KI-49, the actionable half. Empty everywhere except inside a Claude Code
+    // cloud container, where it pins the egress gateway's own CAs by SPKI hash
+    // so Chromium will complete a TLS handshake the proxy re-terminated.
+    //
+    // Only two specs care — `m10-map-rail` and `m26-shared-day-map` — because
+    // `tiles.openfreemap.org` is the single third-party host this suite's pages
+    // fetch from; everything else is localhost, which the proxy never sees.
+    // Without this they fail with "The map could not load" in every cloud
+    // session, which is what left M26's Definition-of-Done gate at 153 passed /
+    // 2 failed rather than green.
+    //
+    // `container-chromium.mjs` carries the reasoning, and two things it says
+    // are worth repeating at the call site: this ADDS trust for specific public
+    // keys rather than disabling verification (which the proxy README forbids,
+    // and which would make a green map run prove nothing), and the detector is
+    // deliberately NOT `process.env.CI` — `test:e2e:ci-like` sets that locally
+    // and is the only lane whose result counts, so gating on it would withhold
+    // the fix from the exact run anyone would act on.
+    launchOptions: { args: containerChromiumArgs() },
   },
   // One retry in CI only. NOT a flake-suppression tool: a test that passes
   // on retry is reported as flaky and must be treated as a bug, not waved

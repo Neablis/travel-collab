@@ -93,6 +93,36 @@ all enforced or visible only in a renderer — "no browser available" is the
 one excuse that turns a verifiable claim into an unverified one, and it was
 false both times it was used.
 
+**The e2e lane's Chromium reaches the tile host, as of 2026-09-23.** It did not
+before, and the two map specs (`m10-map-rail`, `m26-shared-day-map`) failed
+here with *"The map could not load"* in every cloud session — which is what
+left M26's gate box at 153 passed / 2 failed. The cause was never egress
+policy: the host was always allowed, and Chromium simply did not trust the
+certificate the proxy re-terminates TLS with (KI-49 has the four-line proof,
+including why `curl` succeeding tells you nothing about the browser).
+
+`apps/web/scripts/container-chromium.mjs` now pins the gateway's own CAs by
+SPKI hash, and `playwright.config.ts` passes them as `launchOptions.args`. It
+is **empty off-container** — the detector is an egress proxy in the environment
+plus certificates in `/usr/local/share/ca-certificates`, which a GitHub Actions
+runner has neither of.
+
+Two things about it worth knowing before you touch it:
+
+- **It adds trust for specific public keys; it does not disable verification.**
+  `--ignore-certificate-errors` and `ignoreHTTPSErrors: true` are not the
+  alternative — `/root/.ccr/README.md` forbids them, and a map spec that passes
+  because the browser stopped checking proves nothing while looking exactly
+  like a pass.
+- **The detector is deliberately not `process.env.CI`.** `test:e2e:ci-like`
+  sets that locally, and it is the only lane whose result counts — gating on it
+  would withhold the fix from the exact run you would act on.
+
+`--ssl-version-max=tls1.2` is NOT part of this and stays in `walk-preview.mjs`.
+It is needed only for `*.vercel.app`, which the gateway tunnels rather than
+inspects; the tile host is inspected and completes a TLS 1.3 handshake
+normally. So the e2e lane keeps TLS 1.3 here as well as in CI.
+
 **The Vercel preview IS reachable from here.** This paragraph used to say the
 opposite, and stopped three runs from testing where the bug was. Deployment
 Protection does 302 every unauthenticated request to `vercel.com/sso-api`, and

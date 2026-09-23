@@ -46,6 +46,35 @@ reviews:
     # is about to change.
     drafts: false
 
+  # THE DOCSTRING COVERAGE CHECK, now a setting this repo chose rather than a
+  # default it inherited. It ran unconfigured until 2026-09-23 and reported
+  # 66.67% (#198), 51.39% (#199) and 41.18% (#201) against an 80% floor nobody
+  # had picked — three red rows in a row that meant nothing, which is the one
+  # outcome KI-2026-09-20-i called worse than either answer: "a permanently-
+  # failing gate is one people learn to scroll past".
+  #
+  # Mitchell answered it on 2026-09-22 — yes, JSDoc is the convention and 80%
+  # is a floor worth having — so the threshold is written down here at the
+  # value that was agreed, and `docs/guidelines/commenting.md` is the rule it
+  # scores against.
+  #
+  # `warning`, not `error`: the absolute enforcement lives in
+  # `scripts/check-docstring-wall.mjs`, which fails `pnpm lint` on any NEW
+  # undocumented export and is not fooled by a percentage that a large
+  # well-documented diff can carry. This check covers the other half — the
+  # gradient across a PR's changed functions — and blocking on a gradient
+  # while 470 grandfathered symbols are still being worked through would stop
+  # PRs for a backlog nobody is being asked to clear in one pass.
+  #
+  # It scores the functions a PR CHANGES, not the repository: "9 functions
+  # across 7 files" on #198, "72 functions across 17 files" on #199. That is
+  # what settles the question KI-2026-09-22-a left open about repo-wide versus
+  # changed-file measurement — it was already the latter.
+  pre_merge_checks:
+    docstrings:
+      mode: warning
+      threshold: 80
+
   path_filters:
     # 94 markdown files and growing. Docs correctness here is enforced by the
     # gate/DoD process, not by a prose reviewer, and markdown review was a
