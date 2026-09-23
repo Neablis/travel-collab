@@ -187,7 +187,8 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
       `pnpm --filter web dev`; for production, the path in
       `docs/guidelines/content-bundles.md` → *Publishing to production*. The
       importer writes through `newSavedDayRow`, which now derives `countries`.
-   6. `pnpm --filter web db:backfill-countries` against each database (it is
+   6. `pnpm --filter web db:backfill-countries` against each database — for
+      production, dispatch `backfill-countries-production` (`confirm: backfill`) (it is
       idempotent) — it prints `coverage (>= 1 country)` for all rows and for
       published rows. **Write those two numbers here**, then tick the box.
 
