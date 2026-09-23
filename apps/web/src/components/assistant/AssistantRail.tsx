@@ -12,6 +12,7 @@ import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
+import type { ProposalState, ProposalUndo } from "./ProposalCard";
 import {
   ASSISTANT_FLOAT_SIZE,
   clampToViewport,
@@ -129,6 +130,8 @@ const TRIP_EMPTY_HINT = "Ask about this trip and the conversation stays here.";
  * @param onApproveProposal - Handles approval of a proposal in a turn.
  * @param onRejectProposal - Handles rejection of a proposal in a turn.
  * @param approvalBlockedReason - Explanation shown when proposal approval is unavailable.
+ * @param onUndoProposal - Undoes an applied proposal while it is still the trip's last change.
+ * @param undoFor - Whether an applied proposal may still be undone from its card.
  * @param asking - Whether a question is currently being processed.
  * @param askError - Error message displayed for the most recent question.
  * @param simulated - Whether the latest answer was generated in simulated mode.
@@ -147,6 +150,8 @@ export function AssistantRail({
   onApproveProposal = () => {},
   onRejectProposal = () => {},
   approvalBlockedReason = null,
+  onUndoProposal,
+  undoFor,
   onNewConversation,
   asking = false,
   askError = null,
@@ -230,6 +235,13 @@ export function AssistantRail({
   onRejectProposal?: (turnId: string) => void;
   /** Why approving is unavailable right now, or `null`. */
   approvalBlockedReason?: string | null;
+  /**
+   * Undoes an applied card's change, and says whether it still may (M27 D17).
+   * Optional for the reason `onApproveProposal` is: a scope that never holds
+   * a proposal has nothing to undo, and omitting both offers no Undo at all.
+   */
+  onUndoProposal?: (turnId: string) => void;
+  undoFor?: (state: ProposalState) => ProposalUndo | null;
   /** Clears the thread. Offered only once there is one to clear. */
   onNewConversation: () => void;
   /** True while a turn is streaming. The composer is disabled for its duration. */
@@ -786,6 +798,9 @@ export function AssistantRail({
               onApproveProposal={onApproveProposal}
               onRejectProposal={onRejectProposal}
               approvalBlockedReason={approvalBlockedReason}
+              touch={isSheet}
+              {...(onUndoProposal === undefined ? {} : { onUndoProposal })}
+              {...(undoFor === undefined ? {} : { undoFor })}
             />
           )}
         </div>

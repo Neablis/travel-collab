@@ -4,15 +4,24 @@ import {
   DATE_YES,
   FEEL_DEFAULT,
   LENGTH_DAYS,
+  PB_FRESH,
+  acknowledge,
   changeTo,
   daysFor,
   commitAnswer,
   commitMulti,
+  firstNameOf,
   isComplete,
+  offerDays,
+  openingFor,
+  pickPopularDays,
   questionAt,
   questionsFor,
+  questionsOf,
+  spokenAsk,
   togglePick,
   type NewTripState,
+  type PopularDay,
 } from "./newTripScript";
 
 // Everything that decides WHAT IS ASKED, WHAT COMMITS, and WHAT AN ANSWER MEANS
@@ -218,5 +227,143 @@ describe("Change", () => {
     expect(isComplete(undated)).toBe(true);
     // The same turn count, with a date in play, is one turn short.
     expect(isComplete({ ...undated, answers: { ...undated.answers, date: DATE_YES } })).toBe(false);
+  });
+});
+
+// SPEC §35.8 + M27 D13: the Playbook-day turn. The offer is DATA handed to the
+// script, so everything it decides is assertable here without a network.
+describe("the Playbook-day turn", () => {
+  const TRAM: PopularDay = { savedDayId: "tram", name: "Tram 28 morning", adds: 12, dayCount: 1, author: "Mei" };
+  const ALFAMA: PopularDay = { savedDayId: "alfama", name: "Alfama at dusk", adds: 3, dayCount: 2, author: "Mei" };
+  const AT_PB: NewTripState = { turn: 1, answers: { where: "Lisbon" }, picked: [], offer: [TRAM, ALFAMA] };
+
+  it("is asked after the city only when there is something to offer", () => {
+    expect(ids({ where: "Lisbon" })).toEqual(["where", "date", "len", "pace", "feel"]);
+    expect(questionsFor({ where: "Lisbon" }, [TRAM]).map((q) => q.id)).toEqual([
+      "where",
+      "pb",
+      "date",
+      "len",
+      "pace",
+      "feel",
+    ]);
+  });
+
+  it("says what the number is, in the singular and the plural", () => {
+    expect(questionsFor({ where: "Back to Kyoto" }, [TRAM])[1]!.ask).toBe(
+      "People planning Kyoto keep adding this day. Want me to build around it? Or skip, and I’ll plan it fresh.",
+    );
+    expect(questionsFor({ where: "Lisbon" }, [TRAM, ALFAMA])[1]!.ask).toBe(
+      "People planning Lisbon keep adding these days. Want me to build around any of them? Or skip, and I’ll plan it fresh.",
+    );
+  });
+
+  it("commits the picked days' names as the answer, and their ids as the choice", () => {
+    const next = commitMulti(togglePick(togglePick(AT_PB, "alfama"), "tram"));
+    expect(next.answers.pb).toBe("Alfama at dusk, Tram 28 morning");
+    expect(next.chosen).toEqual(["alfama", "tram"]);
+    expect(questionAt(next)!.id).toBe("date");
+  });
+
+  it("commits a fresh plan, and no days, when nothing is picked or words are typed", () => {
+    expect(commitMulti(AT_PB).answers.pb).toBe(PB_FRESH);
+    expect(commitMulti(AT_PB).chosen).toEqual([]);
+    const typed = commitAnswer({ ...AT_PB, chosen: ["tram"] }, "somewhere with a view");
+    expect(typed.answers.pb).toBe("somewhere with a view");
+    expect(typed.chosen).toEqual([]);
+  });
+
+  // A new city's read has not come back yet when its `where` commits; until
+  // `offerDays` freezes it there is no offer, so no turn about the old city.
+  it("drops the old offer on a new city, and the old picks with it", () => {
+    const chose = commitMulti(togglePick(AT_PB, "tram"));
+    const moved = commitAnswer(changeTo(chose, 0), "Porto");
+    expect(moved.offer).toBeUndefined();
+    expect(moved.answers.pb).toBeUndefined();
+    expect(moved.chosen).toBeUndefined();
+    // Re-confirming the SAME city keeps what was chosen there.
+    expect(commitAnswer(changeTo(chose, 0), "Lisbon").chosen).toEqual(["tram"]);
+  });
+
+  it("freezes an empty offer as no turn, and drops picks the new offer cannot honour", () => {
+    const chose: NewTripState = {
+      ...AT_PB,
+      turn: 2,
+      answers: { where: "Lisbon", pb: "Tram 28 morning" },
+      chosen: ["tram"],
+    };
+    const none = offerDays(chose, []);
+    expect(questionsOf(none).map((q) => q.id)).not.toContain("pb");
+    expect(none.answers.pb).toBeUndefined();
+    expect(none.chosen).toEqual([]);
+
+    expect(offerDays(chose, [ALFAMA]).chosen).toEqual([]);
+    expect(offerDays(chose, [TRAM, ALFAMA]).chosen).toEqual(["tram"]);
+  });
+
+  it("re-opens the picks as they were when going back to the turn", () => {
+    const chose = commitMulti(togglePick(AT_PB, "tram"));
+    expect(changeTo(chose, 1).picked).toEqual(["tram"]);
+    expect(changeTo(chose, 0).picked).toEqual([]);
+  });
+
+  it("offers up to three days with at least one add, most-added first, never the reader's own", () => {
+    const day = (savedDayId: string, adds: number, isMine = false) => ({
+      savedDayId,
+      name: savedDayId,
+      adds,
+      dayCount: 1,
+      ownerId: `owner-${savedDayId}`,
+      isMine,
+    });
+    const offered = pickPopularDays(
+      [day("a", 2), day("b", 0), day("c", 40, true), day("d", 9), day("e", 5), day("f", 1)],
+      (ownerId) => ownerId.toUpperCase(),
+    );
+    expect(offered.map((each) => each.savedDayId)).toEqual(["d", "e", "a"]);
+    expect(offered[0]!.author).toBe("OWNER-D");
+  });
+});
+
+describe("Cass's lines", () => {
+  it("acknowledges each answer in one clause, and says nothing to Yes", () => {
+    expect(acknowledge("where", "Lisbon")).toBe("Lisbon, good.");
+    expect(acknowledge("where", "Back to Kyoto")).toBe("Kyoto again — good.");
+    expect(acknowledge("pb", PB_FRESH)).toBe("Fresh it is.");
+    expect(acknowledge("pb", "Tram 28 morning", 1)).toBe("I’ll build the rest around that one.");
+    expect(acknowledge("pb", "Tram 28 morning, Alfama at dusk", 2)).toBe("I’ll build the rest around those.");
+    expect(acknowledge("date", DATE_YES)).toBe("");
+    expect(acknowledge("date", DATE_NOT_YET)).toBe("No problem — dates can come later.");
+    expect(acknowledge("len", "A week")).toBe("Got it.");
+    expect(acknowledge("pace", "Slow")).toBe("Slow — fewer stops, longer lunches.");
+    expect(acknowledge("pace", "Packed")).toBe("Packed — I’ll keep the travel between stops tight.");
+    expect(acknowledge("pace", "Balanced")).toBe("Balanced it is.");
+    // Words no chip covers get the plain line, not a chip's.
+    expect(acknowledge("pace", "whatever the kids can manage")).toBe("Got it.");
+    expect(acknowledge("feel", "Food")).toBe("");
+  });
+
+  it("puts the acknowledgement before the question it answers into", () => {
+    const state: NewTripState = { turn: 2, answers: { where: "Lisbon", date: DATE_NOT_YET }, picked: [] };
+    expect(spokenAsk(state, 0)).toBe("Where are you going?");
+    expect(spokenAsk(state, 1)).toBe("Lisbon, good. Do you have a start date in mind?");
+    expect(spokenAsk(state, 2)).toBe("No problem — dates can come later. How long, roughly?");
+  });
+
+  it("opens as Cass, and greets a first run by a name only when there is one", () => {
+    expect(openingFor(false)).toBe(
+      "Hi, it’s Cass. A few quick questions and I’ll draft the trip — nothing is made until your last answer.",
+    );
+    expect(openingFor(true, "Sam")).toBe(
+      "Hi Sam, I’m Cass. I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.",
+    );
+    expect(openingFor(true, null)).toMatch(/^Hi, I’m Cass\. I plan trips here/);
+  });
+
+  it("takes a first name from a real name only", () => {
+    expect(firstNameOf("Sam Rivera", "Traveler 4f2a91")).toBe("Sam");
+    expect(firstNameOf("Traveler 4f2a91", "Traveler 4f2a91")).toBeNull();
+    expect(firstNameOf("sam@example.com", "Traveler 4f2a91")).toBeNull();
+    expect(firstNameOf("   ", "Traveler 4f2a91")).toBeNull();
   });
 });

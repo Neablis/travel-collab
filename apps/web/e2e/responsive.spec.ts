@@ -895,8 +895,12 @@ test.describe("responsive (new trip sheet, short viewport)", () => {
     const thread = sheet.getByRole("log", { name: "Conversation" });
 
     // Answer the long path — the six-turn one, with the day picker in it — so
-    // the thread is as tall as this flow ever gets.
-    await sheet.getByLabel("Where are you going?").fill("Lisbon");
+    // the thread is as tall as this flow ever gets. A place nobody has
+    // published a day for: a city with Playbook days gets an extra turn after
+    // it (M27 D13), which would make this walk depend on the shared library.
+    // Each click below waits out Cass's typing beat by auto-waiting for the
+    // next control to appear — never on a timer.
+    await sheet.getByLabel("Where are you going?").fill("Nowhere Bay");
     await sheet.getByRole("button", { name: "Send" }).click();
     await sheet.getByRole("button", { name: "Yes" }).click();
     // `exact`, because Playwright's `getByLabel` is a substring match and the

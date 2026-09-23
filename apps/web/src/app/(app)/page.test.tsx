@@ -354,7 +354,7 @@ describe("Home trip cards' planned-of-budget line", () => {
     // from its own real TripDetail fetch, not something threaded through
     // NextTripHero (which never renders or calls TripCard).
     expect(await screen.findByText(`${formatMoney(12_500, "USD")} planned of ${formatMoney(50_000, "USD")}`)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`), expect.anything());
   });
 
   it("renders a grid card without a planned-of-budget line while its own TripDetail fetch is still pending or has failed (no fabricated or stale line)", async () => {
@@ -398,7 +398,7 @@ describe("Home trip cards' planned-of-budget line", () => {
 
     // Resolving with an error afterward must not retroactively fabricate one.
     resolveSecond!(jsonResponse({ error: "boom" }, 500));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`)));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`), expect.anything()));
     expect(within(peruBlock!).queryByText(/planned of/)).toBeNull();
     expect(within(peruBlock!).queryByText("No budget yet")).toBeNull();
   });
@@ -697,9 +697,29 @@ describe("Home first-run experience", () => {
       "Where are you going?",
     );
     expect(within(firstRun).getByLabelText("Where are you going?")).toBeTruthy();
-    // And the opening line, which states the no-generation contract (§31.2).
+    // And the opening line, which states the no-generation contract (§31.2)
+    // in Cass's voice (§35.8). No name to greet with here — the session read
+    // below answers with no user — so she does not invent one.
     expect(within(firstRun).getByRole("log").textContent).toContain(
-      "Nothing is generated until the last answer lands",
+      "Hi, I’m Cass. I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.",
+    );
+  });
+
+  // §35.8: *"first run: Hi Sam, I'm Cass"* — by the first word of a real name,
+  // read from the session, and never the "Traveler 4f2a91" handle.
+  it("greets a first run by the reader's first name", async () => {
+    fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes("/api/auth/session")
+        ? jsonResponse({ user: { id: "google-123", name: "Sam Rivera" } })
+        : jsonResponse({ trips: [] }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Home />);
+
+    const firstRun = await screen.findByTestId("first-trip-start");
+    await waitFor(() =>
+      expect(within(firstRun).getByRole("log").textContent).toContain("Hi Sam, I’m Cass."),
     );
   });
 

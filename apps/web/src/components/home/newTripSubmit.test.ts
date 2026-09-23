@@ -451,4 +451,82 @@ describe("createTripWithSetup", () => {
       expect.objectContaining({ type: "SetTripCurrency", currency: "JPY" }),
     );
   });
+
+  // M27 D13: the Playbook-day turn's picks go in AFTER the dates — the adds
+  // ledger only counts an add into a dated trip, so the other order would
+  // cost the author the credit the whole turn is ranked on.
+  describe("chosen Playbook days", () => {
+    it("inserts each chosen day after the dates, once", async () => {
+      const { createTrip, newTripId } = stubs("trip-days");
+      const order: string[] = [];
+      const dispatch = vi.fn(async (command: BoardCommand) => {
+        order.push(command.type);
+        return ok({} as CommandOutcome);
+      });
+      const insertDay = vi.fn(async (_tripId: string, savedDayId: string) => {
+        order.push(`insert ${savedDayId}`);
+        return ok({} as CommandOutcome);
+      });
+      const result = await createTripWithSetup({
+        setup: { ...SETUP, savedDayIds: ["tram", "alfama"] },
+        applySetup: true,
+        latch: null,
+        createTrip,
+        dispatch,
+        insertDay,
+        newTripId,
+      });
+
+      expect(order).toEqual(["SetTripDates", "insert tram", "insert alfama"]);
+      expect(insertDay).toHaveBeenCalledWith("trip-days", "tram");
+      expect(result.ok && result.missedDays).toEqual([]);
+    });
+
+    it("keeps the trip and names the day when an insert fails, and does not re-insert on retry", async () => {
+      const { createTrip, dispatch, newTripId } = stubs("trip-missed");
+      const insertDay = vi.fn(async (_tripId: string, savedDayId: string) =>
+        savedDayId === "alfama" ? fail("That saved day does not exist.", 404) : ok({} as CommandOutcome),
+      );
+      const first = await createTripWithSetup({
+        setup: { ...SETUP, savedDayIds: ["tram", "alfama"] },
+        applySetup: true,
+        latch: null,
+        createTrip,
+        dispatch,
+        insertDay,
+        newTripId,
+      });
+      expect(first.ok).toBe(true);
+      expect(first.ok && first.missedDays).toEqual(["alfama"]);
+
+      insertDay.mockClear();
+      await createTripWithSetup({
+        setup: { ...SETUP, savedDayIds: ["tram", "alfama"] },
+        applySetup: true,
+        latch: first.latch,
+        createTrip,
+        dispatch,
+        insertDay,
+        newTripId,
+      });
+      // An insert appends a whole new day; a second one is a duplicate day, not
+      // a no-op the domain would refuse. Only the one that missed is tried.
+      expect(insertDay.mock.calls.map(([, id]) => id)).toEqual(["alfama"]);
+    });
+
+    it("inserts nothing for Create empty", async () => {
+      const { createTrip, dispatch, newTripId } = stubs("trip-empty-days");
+      const insertDay = vi.fn(async () => ok({} as CommandOutcome));
+      await createTripWithSetup({
+        setup: { ...SETUP, savedDayIds: ["tram"] },
+        applySetup: false,
+        latch: null,
+        createTrip,
+        dispatch,
+        insertDay,
+        newTripId,
+      });
+      expect(insertDay).not.toHaveBeenCalled();
+    });
+  });
 });

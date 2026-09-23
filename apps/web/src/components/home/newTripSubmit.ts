@@ -37,6 +37,9 @@ export interface TripSetup {
   days: number | null;
   budget: Money | null;
   currency: string;
+  /** Published days the Playbook-day turn chose (M27 D13). Optional: every
+   *  caller before that turn existed sends none. */
+  savedDayIds?: readonly string[];
 }
 
 /**
@@ -58,6 +61,12 @@ export interface SetupLatch {
   datedAs: { startDate: string; endDate: string } | null;
   budgetAppliedAs: Money | null;
   currencyAppliedAs: string | null;
+  /**
+   * The chosen days that are in the trip, so a retry does not insert one a
+   * second time — an insert appends a whole new day, and is not a no-op the
+   * domain would refuse. Optional so a latch written before M27 still reads.
+   */
+  insertedDays?: readonly string[];
 }
 
 /**
@@ -67,7 +76,17 @@ export interface SetupLatch {
  * It is `null` only when `createTrip` itself failed and there is no trip.
  */
 export type SetupResult =
-  | { ok: true; latch: SetupLatch }
+  | {
+      ok: true;
+      latch: SetupLatch;
+      /**
+       * Chosen days that could not be inserted. **Not a failure of the
+       * setup:** the trip exists, is dated and is usable, and a day that did
+       * not land can be added from Playbooks — so the caller says which, in
+       * its closing line, rather than holding the trip back over it.
+       */
+      missedDays: readonly string[];
+    }
   | { ok: false; error: string; latch: SetupLatch | null };
 
 export const DEFAULT_CURRENCY = "USD";
@@ -78,6 +97,7 @@ export async function createTripWithSetup({
   latch,
   createTrip,
   dispatch,
+  insertDay,
   newDayId = () => crypto.randomUUID(),
   newTripId = () => crypto.randomUUID(),
 }: {
@@ -93,6 +113,13 @@ export async function createTripWithSetup({
    * in-flight `SetTripDates` against the trip page's own first load.
    */
   dispatch: (command: BoardCommand) => Promise<ApiResult<CommandOutcome>>;
+  /**
+   * Puts one chosen published day into the trip —
+   * `POST /api/trips/:id/saved-days/:savedDayId`, the same door the manual
+   * "Add to a trip" uses. Absent means no day can be inserted, and any chosen
+   * one is reported as missed rather than silently forgotten.
+   */
+  insertDay?: (tripId: string, savedDayId: string) => Promise<ApiResult<CommandOutcome>>;
   /** Injectable so a test can read the ids it produced. */
   newDayId?: () => string;
   /** The same, for the trip's own id — see the retry note below. */
@@ -128,7 +155,7 @@ export async function createTripWithSetup({
     };
   }
   const tripId = applied.tripId;
-  if (!applySetup) return { ok: true, latch: applied };
+  if (!applySetup) return { ok: true, latch: applied, missedDays: [] };
 
   // **Dates.** What the form says NOW, which may be null because the field was
   // cleared between attempts (CodeRabbit, PR #165). Comparing a nullable
@@ -208,5 +235,27 @@ export async function createTripWithSetup({
     applied = { ...applied, currencyAppliedAs: setup.currency };
   }
 
-  return { ok: true, latch: applied };
+  // **The chosen Playbook days, last** (M27 D13). After the dates on purpose:
+  // the adds ledger only counts an add into a trip that has dates, and a day
+  // inserted before `SetTripDates` would be one the author never gets credit
+  // for. One insert per day, each its own undoable batch, exactly as the manual
+  // "Add to a trip" makes it.
+  //
+  // **A failed insert does not fail the setup.** Everything the reader asked
+  // the trip to BE has landed by now; a day that did not is one they can add
+  // from Playbooks, and holding the whole trip back over it — or reporting
+  // "Trip created, but…" with a retry that re-sends nothing useful — would
+  // cost more than it saves. It is reported, not lost.
+  const missedDays: string[] = [];
+  for (const savedDayId of setup.savedDayIds ?? []) {
+    if (applied.insertedDays?.includes(savedDayId)) continue;
+    const result = insertDay === undefined ? null : await insertDay(tripId, savedDayId);
+    if (result === null || !result.ok) {
+      missedDays.push(savedDayId);
+      continue;
+    }
+    applied = { ...applied, insertedDays: [...(applied.insertedDays ?? []), savedDayId] };
+  }
+
+  return { ok: true, latch: applied, missedDays };
 }

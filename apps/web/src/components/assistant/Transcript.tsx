@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { ProposalCard, type ProposalState } from "./ProposalCard";
+import { ProposalCard, type ProposalState, type ProposalUndo } from "./ProposalCard";
 
 /** One line of "showing its work" — a tool call, rendered as a sentence. */
 export type ToolNote = { id: string; label: string };
@@ -102,16 +102,18 @@ export function toolNoteLabel(toolName: string, input: unknown): string {
  * re-announced while it is still arriving. The finished answer is announced
  * exactly once, when it is finished and worth hearing.
  */
-function announcementFor(turns: readonly AssistantTurn[]): string {
+function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string {
   const last = turns[turns.length - 1];
   if (last === undefined || last.role !== "assistant") return "";
   if (last.pending) {
+    // The chat look's typing row is its own labelled status (§35.8).
+    if (chat) return "";
     return last.text === "" && last.tools.length === 0 ? "Thinking…" : "Writing the answer…";
   }
   if (last.text === "") return "";
   const proposal =
     last.proposal != null && last.proposal.status === "pending"
-      ? " A proposed change is waiting for your review below."
+      ? " A suggested change is waiting below — make it, or leave it as it is."
       : "";
   return `Answer: ${last.text}${proposal}`;
 }
@@ -173,6 +175,49 @@ function ToolSteps({ tools }: { tools: readonly ToolNote[] }) {
   );
 }
 
+/** Whether this turn opens a run of assistant turns — where a chat shows who is talking. */
+function startsRun(turns: readonly AssistantTurn[], index: number): boolean {
+  return turns[index]?.role === "assistant" && turns[index - 1]?.role !== "assistant";
+}
+
+/**
+ * **Cass's face, once per run** (SPEC §35.8). The column is always there, so
+ * the later turns in a run indent under the first one, the way any chat lines
+ * up a burst of messages under one avatar.
+ *
+ * The ‖ is the product's own mark in miniature, and the dot says someone is
+ * there. `aria-hidden`: the name beside it is text, and says it better.
+ */
+function CassMark({ show }: { show: boolean }) {
+  return (
+    <span className="flex w-a-mark shrink-0 justify-center pt-px">
+      {show && (
+        <span
+          aria-hidden
+          data-testid="cass-mark"
+          className="relative grid size-a-mark place-items-center rounded-full bg-brand"
+        >
+          <span className="flex h-3.25 gap-0.75">
+            <span className="w-0.75 rounded-a-bar bg-surface" />
+            <span className="w-0.75 rounded-a-bar bg-surface" />
+          </span>
+          <span className="absolute -right-px -bottom-px size-2.25 rounded-full border-2 border-surface bg-success" />
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** The name line: who, and what they are for. */
+function CassName() {
+  return (
+    <span className="flex items-baseline gap-1.75">
+      <span className="text-sm font-semibold text-ink">Cass</span>
+      <span className="text-xs text-slate">Trip planner</span>
+    </span>
+  );
+}
+
 /**
  * **This component does not scroll.** It has no scrollport — its consumers do
  * (`AssistantRail`'s `overflow-y-auto` column, and the New-trip sheet's
@@ -186,6 +231,9 @@ export function Transcript({
   onApproveProposal = () => {},
   onRejectProposal = () => {},
   approvalBlockedReason = null,
+  onUndoProposal,
+  undoFor,
+  touch = false,
   renderTurnFooter,
   look = "prose",
 }: {
@@ -200,6 +248,15 @@ export function Transcript({
    * properties of the board, not of a proposal.
    */
   approvalBlockedReason?: string | null;
+  /** Undoes an applied card's change. Keyed by turn id, like the other two. */
+  onUndoProposal?: (turnId: string) => void;
+  /**
+   * Whether an applied card may still offer Undo — a fact about the TRIP's
+   * history, which this component does not hold (`proposalUndoFor`).
+   */
+  undoFor?: (state: ProposalState) => ProposalUndo | null;
+  /** The phone sheet: the cards take §35.9's 44px targets there. */
+  touch?: boolean;
   /**
    * **An optional slot under each turn, whose contents this component never
    * learns about.** The New-trip flow needs a "Change" control under every
@@ -239,7 +296,7 @@ export function Transcript({
         aria-live="off"
         className={chat ? "flex flex-col gap-a-turn-chat" : "flex flex-col gap-a-turn"}
       >
-      {turns.map((turn) =>
+      {turns.map((turn, index) =>
         turn.role === "user" ? (
           // **No bubble** (design §2a, SPEC §30.5). A 2px rule and an indent,
           // not a filled box — and not right-aligned either, because a rule on
@@ -274,23 +331,35 @@ export function Transcript({
             {renderTurnFooter?.(turn)}
           </div>
           )
+        ) : chat && turn.pending ? (
+          // **Cass is typing** (SPEC §35.8, M27 D14). The new-trip script is
+          // local, so this is a beat, not latency — see `NewTripWizard`. A
+          // `status` of its own, labelled, because it is the one thing on
+          // screen saying why the dock went away; the sr-only announcer below
+          // stays quiet for it rather than saying the same thing twice.
+          <div key={turn.id} className="flex gap-2">
+            <CassMark show={startsRun(turns, index)} />
+            <div className="flex min-w-0 max-w-a-asst flex-col gap-1">
+              {startsRun(turns, index) && <CassName />}
+              <span
+                role="status"
+                aria-label="Cass is typing"
+                className="inline-flex items-center gap-2 py-1.5 text-a-note text-slate"
+              >
+                <span aria-hidden className="inline-flex gap-1">
+                  {[0, 1, 2].map((dot) => (
+                    <span key={dot} data-typing-dot={dot} className="size-1.5 rounded-full bg-slate" />
+                  ))}
+                </span>
+                {turn.text}
+              </span>
+            </div>
+          </div>
         ) : (
           <div key={turn.id} className={chat ? "flex gap-2" : "flex flex-col gap-1.5"}>
-            {/* **The mark is what makes a one-line question read as the other
-                party rather than as a form label** (§31.1). `aria-hidden`: the
-                role is already carried by the log's turn order, and a screen
-                reader announcing "C" before every assistant line would be
-                noise. It is the assistant's only ornament — no name, no
-                timestamp. */}
-            {chat && (
-              <span
-                aria-hidden
-                className="flex size-a-mark shrink-0 items-center justify-center rounded-sm bg-brand font-mono text-xs text-paper"
-              >
-                C
-              </span>
-            )}
-            <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1.5" : "contents"}>
+            {chat && <CassMark show={startsRun(turns, index)} />}
+            <div className={chat ? "flex min-w-0 max-w-a-asst flex-col gap-1" : "contents"}>
+            {chat && startsRun(turns, index) && <CassName />}
             <ToolSteps tools={turn.tools} />
             {turn.text !== "" && (
               // `whitespace-pre-wrap`: the answer arrives as one text part
@@ -311,6 +380,9 @@ export function Transcript({
                 onReject={() => onRejectProposal(turn.id)}
                 disabled={approvalBlockedReason !== null}
                 disabledReason={approvalBlockedReason}
+                touch={touch}
+                undo={undoFor?.(turn.proposal) ?? null}
+                {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
               />
             )}
             {/* Visible only, and no `role` — a second live region nested
@@ -331,7 +403,7 @@ export function Transcript({
       {/* The one live region. `sr-only` because everything it says is already
           on screen — its job is timing, not content a sighted user is missing. */}
       <p role="status" aria-atomic className="sr-only">
-        {announcementFor(turns)}
+        {announcementFor(turns, chat)}
       </p>
     </>
   );
