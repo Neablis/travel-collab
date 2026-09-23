@@ -362,6 +362,7 @@ function truncateForLog(text: string): string {
 //     line outright in others.
 const MAX_LOGGED_CAUSE_CHARS = 500;
 
+/** `text` with control characters flattened to spaces and cut to `max` characters, so a logged string can never break or truncate a log line. */
 export function sanitizeForLog(text: string, max = MAX_LOGGED_CAUSE_CHARS): string {
   const flattened = text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim();
   return flattened.length > max ? `${flattened.slice(0, max)}…` : flattened;
@@ -436,6 +437,7 @@ function describeFailure(err: unknown): AskFailureCause {
 // use for the ledger, and a `logAskAnalytics(record)` call site should not have
 // to invent a ledger to satisfy a type. It is still assignable to the sink,
 // which is the direction that matters.
+/** The production sink for one `ai.ask` record: a single structured `console.info` line, plus an error line carrying the cause when the turn failed. */
 export const logAskAnalytics = (record: AskAnalyticsRecord): void => {
   if (record.outcome === "error") {
     try {

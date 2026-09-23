@@ -64,6 +64,7 @@ function parseLocalDate(iso: string): Date {
 //
 // Walks back through earlier activityIds if the last has no location; null if
 // none of the day's activities name a city or an area.
+/** The city (or, failing that, the area) of a day's last located activity, or `null` when none of its stops names either. */
 export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
   for (let index = day.activityIds.length - 1; index >= 0; index--) {
     const activityId = day.activityIds[index]!;
@@ -80,6 +81,7 @@ export function cityFor(day: TripDetail["days"][number], activities: TripDetail[
 // and both are non-null, so a day with no located activity (or the very
 // first day, which has no previous day at all) never claims a fake
 // transition.
+/** One `ChipDay` per trip day — weekday, date number, derived city, stop count and any city transition — for the day chips and every other surface that labels a day. */
 export function chipModel(detail: TripDetail): ChipDay[] {
   let previousCity: string | null = null;
 

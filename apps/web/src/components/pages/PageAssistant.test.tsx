@@ -6,7 +6,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { newPageDoc } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
-import { makePagesHandlers } from "@/mocks/handlers";
+import { makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
 // M14 link 8's second half: the notebook's AI surface is the assistant rail,
@@ -89,6 +89,11 @@ const server = setupServer(
   http.get("/api/account/preferences", () =>
     HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km" } }),
   ),
+  // Same reasoning as the preferences default above. Without it the rail's
+  // `useAiEntitled` never learns the plan and sits on "unknown" for the whole
+  // suite — a state no signed-in user is in, and one that hid 33 of this
+  // lane's unhandled-request errors.
+  makeAccountPlanHandler(),
   http.get("/api/trips/:tripId/globals", () =>
     HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
   ),
@@ -119,6 +124,35 @@ async function openRail() {
 }
 
 describe("the assistant on a notebook page", () => {
+  // **The witness for the plan handler above, and it has to be the DISABLED
+  // case.** `AssistantRail` computes `upgradeGated = aiEntitled === false`, so
+  // `null` — the answer while the plan is unknown, and the answer forever if
+  // the read fails — leaves the composer enabled exactly as `true` does. Every
+  // other test here types into an enabled composer, which therefore cannot
+  // tell "the plan loaded and grants ai.ask" from "the plan never arrived".
+  //
+  // That is not hypothetical: before `makeAccountPlanHandler` existed this
+  // whole suite ran on `null`, with 33 unhandled-request errors saying so and
+  // nothing failing. Asserting the one state only a LOADED plan can produce is
+  // what stops that happening again silently.
+  //
+  // No `clearQueryCache()` here: `vitest.setup.ts` already clears it after
+  // every test, for exactly this class of leak, and the override is installed
+  // before the rail's first read.
+  it("disables the composer when the loaded plan does not grant ai.ask", async () => {
+    server.use(makeAccountPlanHandler({ entitlements: [] }));
+    await openRail();
+
+    // `.disabled` rather than a jest-dom matcher: this repo does not load
+    // jest-dom, and `AssistantRail.test.tsx` asserts the same thing this way.
+    await waitFor(() =>
+      expect(
+        (screen.getByPlaceholderText(/add to this page/i) as HTMLInputElement).disabled,
+      ).toBe(true),
+    );
+  });
+
+
   it("asks with a page scope carrying THIS page's id", async () => {
     const { page } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");

@@ -51,6 +51,7 @@ const NULL_ISLAND_DEGREES = 0.5;
  */
 export const TRIP_REGION_MARGIN_KM = 150;
 
+/** The value's coordinates when they are finite numbers away from Null Island (0, 0), else `null`. */
 export function plausibleCoords(value: { lat?: number | null; lng?: number | null }): LatLng | null {
   const { lat, lng } = value;
   if (typeof lat !== "number" || typeof lng !== "number") return null;
@@ -72,6 +73,7 @@ function clamp(value: number, min: number, max: number): number {
 
 // Great-circle distance. Precision well beyond what an acceptance threshold
 // measured in tens of km needs — the point is only ever "same place or not".
+/** Great-circle distance between two points, in kilometres. */
 export function distanceKm(a: LatLng, b: LatLng): number {
   const dLat = toRadians(b.lat - a.lat);
   const dLng = toRadians(b.lng - a.lng);
@@ -89,6 +91,7 @@ export function distanceKm(a: LatLng, b: LatLng): number {
 // the long way round. That degrades to "no useful bias", which is the current
 // behavior for every trip anyway, so it fails safe rather than wrong. Left
 // unfixed deliberately; revisit with M9's grounding work.
+/** The box around `points` widened by `marginKm` on every side, or `null` for no points. */
 export function boundingBoxAround(points: readonly LatLng[], marginKm: number): BoundingBox | null {
   if (points.length === 0) return null;
 
@@ -118,6 +121,7 @@ export function boundingBoxAround(points: readonly LatLng[], marginKm: number): 
   };
 }
 
+/** Whether `point` lies inside `box`, edges included. */
 export function withinBox(box: BoundingBox, point: LatLng): boolean {
   return (
     point.lat >= box.minLat &&

@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { TEMPLATE_LIBRARY } from "@tc/pages";
-import { makePagesHandlers } from "@/mocks/handlers";
+import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -43,7 +43,10 @@ function turnEmitting(...events: AskEvent[]) {
   };
 }
 
+// The Ask sheet mounts the assistant rail, which reads the account's plan.
+// See `makeAccountPlanHandler` for why this is a shared default.
 const server = setupServer(
+  makeAccountPlanHandler(),
   // Every render of this screen now fetches the trip: SPEC §23 puts the trip
   // name in the title block, and with the tab bar scoped (§22) there is no trip
   // header above this route to carry it. A suite-wide default rather than a

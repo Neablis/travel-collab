@@ -19,7 +19,7 @@
     "arch:graph": "depcruise --collapse '^(packages/[^/]+|apps/web/src/server/[^/]+|apps/web/src/components/[^/]+|apps/web/src/[^/]+)' --output-type mermaid apps/web/src packages/*/src",
     "tier3": "node scripts/tier3-stamp.mjs",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm --filter web lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs && node scripts/check-case-collisions.mjs && node scripts/check-sleep-wall.mjs && node scripts/check-ki-filenames.mjs && node scripts/check-ki-citations.mjs && node scripts/check-migration-journal.mjs && node scripts/surface-size.mjs --check && pnpm arch",
+    "lint": "pnpm --filter web lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs && node scripts/check-case-collisions.mjs && node scripts/check-sleep-wall.mjs && node scripts/check-docstring-wall.mjs && node scripts/check-ki-filenames.mjs && node scripts/check-ki-citations.mjs && node scripts/check-migration-journal.mjs && node scripts/surface-size.mjs --check && pnpm arch",
     "test": "pnpm -r --if-present test && node --test \"scripts/**/__tests__/**/*.test.mjs\"",
     "test:int": "pnpm --filter web test:int",
     "test:int:if-db": "node apps/web/scripts/db-probe.mjs; probe=$?; if [ $probe -eq 0 ]; then pnpm test:int; elif [ $probe -eq 1 ]; then printf '\\n================================================================\\n  SKIPPED: integration tests did NOT run.\\n  No database answered at DATABASE_URL (reason above).\\n  Start it with `docker compose up -d`.\\n  CI runs them. A green `pnpm check` here is NOT a green CI.\\n================================================================\\n\\n'; else exit $probe; fi",
@@ -32,6 +32,8 @@
   "devDependencies": {
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
-    "dependency-cruiser": "^18.4.0"
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "dependency-cruiser": "^18.4.0",
+    "typescript": "^5.5.0"
   }
 }
