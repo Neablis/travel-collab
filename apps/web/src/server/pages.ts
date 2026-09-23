@@ -1,8 +1,8 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
-import type { Page, PageSummary, CreatePageInput, UpdatePageInput } from "@tc/contracts";
-import { instantiateDefaults, isOverviewPage, OVERVIEW_KIND } from "@tc/pages";
+import type { Page, PageSummary, CreatePageInput } from "@tc/contracts";
+import { instantiateDefaults } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
@@ -25,11 +25,6 @@ function toSummary(row: typeof pages.$inferSelect): PageSummary {
 
 function newRow(tripId: string, input: CreatePageInput, actorId: string, now: string): typeof pages.$inferInsert {
   return { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };
-}
-
-export async function createPage(tripId: string, input: CreatePageInput, actorId: string): Promise<Page> {
-  const [inserted] = await db.insert(pages).values(newRow(tripId, input, actorId, new Date().toISOString())).returning();
-  return toPage(inserted!);
 }
 
 // Ordered by `createdAt`, and the ordering is load-bearing rather than tidy.
@@ -149,99 +144,28 @@ export async function getPage(id: string): Promise<Page | null> {
  *
  * `null` for an id that is not a uuid, or names no page.
  */
-export async function updatePage(id: string, input: UpdatePageInput): Promise<Page | null> {
-  // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
-  // Unreachable through a route today — both callers validate — but this is the
-  // one place that fix guarded from IN FRONT of the query rather than inside
-  // it, so a future caller added here would inherit the old 500.
-  if (!isUuid(id)) return null;
-  const patch: Partial<typeof pages.$inferInsert> = { updatedAt: new Date().toISOString() };
-  if (input.title !== undefined) patch.title = input.title;
-  if (input.content !== undefined) patch.content = input.content;
-  if (input.context !== undefined) {
-    // **`kind` is identity, and a PATCH may not write it.**
-    //
-    // `UpdatePageInput.context` is a whole `PageContext`, and this used to
-    // store whatever arrived. `PageContext.kind` is what marks the Overview
-    // (SPEC §25) and what `deletePage` refuses on — so a PATCH carrying
-    // `{ tripId }` and nothing else silently stripped the marker, and the
-    // next DELETE removed the page every trip is supposed to keep
-    // (CodeRabbit, PR 170). The same hole the other way would let any page
-    // become undeletable by asserting `kind: "overview"`.
-    //
-    // So the stored `kind` is carried across and the caller's is discarded.
-    // There is no legitimate caller: the one route that PATCHes a page sends
-    // `context` only to re-state its `tripId`, which it separately checks
-    // against the URL. Nothing else in `PageContext` is identity, so
-    // everything else is taken as sent.
-    const current = await getPage(id);
-    if (current === null) return null;
-    patch.context = { ...input.context, ...(current.context.kind === undefined ? {} : { kind: current.context.kind }) };
-    if (current.context.kind === undefined) delete (patch.context as { kind?: unknown }).kind;
-  }
-  const [row] = await db.update(pages).set(patch).where(eq(pages.id, id)).returning();
-  return row ? toPage(row) : null;
-}
 
 /**
- * Why a delete was refused, or `null` if it was performed.
+ * `createPage`, `updatePage` and `deletePage` used to live here, and they are
+ * gone rather than kept "just in case".
  *
- * A tri-state rather than a boolean, because "no such page" and "that page
- * cannot be deleted" are different answers and the route owes the caller the
- * difference: the first is a 404, the second is a 409 carrying a reason a
- * person can read. SPEC §25 is explicit that the Overview's delete control is
- * **present and refuses**, rather than hidden — so there has to be something to
- * say when it is pressed.
- */
-export type DeletePageOutcome = { ok: true } | { ok: false; reason: "not-found" | "undeletable"; message: string };
-
-/**
- * Deletes a page unless it is the trip's Overview, which §25 says a reader may
- * edit but not remove.
+ * Every page write goes through `executePageCommand` now, so these were a
+ * SECOND way to change a page — one that wrote the row without writing the
+ * event, leaving the log and the table disagreeing about a document's content.
+ * That is not hypothetical: `/api/v1`'s page routes were still calling them
+ * after the BFF routes had moved, which is exactly the divergence. A dead
+ * second copy of a write path is how the Board activity adapters dropped five
+ * fields in this same PR.
  *
- * **The refusal is in the `WHERE` clause**, not in a read-then-delete pair, so
- * it holds against a caller that believed otherwise and against a race. The
- * read only happens on the failure path, to tell `not-found` from
- * `undeletable`; both carry a message meant for a person to read.
+ * **What went with them, and why that is safe.** `deletePage` refused the
+ * Overview in SQL (`coalesce(context->>'kind','') <> 'overview'`), a guard
+ * against the state `updatePage` could produce by storing a caller's whole
+ * `context` and dropping the marker. `EditPage` carries no `context` at all,
+ * so no request can mark or unmark a page in either direction — the property
+ * is structural now instead of defended, and `pages.int.test.ts` asserts both
+ * halves through the command.
+ *
+ * `listPages` KEEPS its lazy seeding, deliberately. It runs on a READ, and a
+ * read must not append events; the lazy genesis in `pageCommands.ts` is what
+ * brings those rows into the log the first time one is commanded.
  */
-export async function deletePage(id: string): Promise<DeletePageOutcome> {
-  // A non-uuid `id` would reach Postgres and raise 22P02 (KI-2026-09-05-x).
-  // Unreachable through a route today — both callers validate — but this is the
-  // one place that fix guarded from IN FRONT of the query rather than inside
-  // it, so a future caller added here would inherit the old 500.
-  if (!isUuid(id)) return { ok: false, reason: "not-found", message: "No such page." };
-
-  // SPEC §25: *"Every trip is created with one notebook page it cannot
-  // delete."* The guard is HERE, at the server, and not only in the UI, for the
-  // same reason §27 gates its mutation entry points at source: a keyboard
-  // shortcut, a stale tab or a direct call that slips past a missing control
-  // has to stop with one explanation rather than half-applying. Hiding the
-  // button would leave the row deletable by anyone who sent the request.
-  // **The refusal is in the WHERE clause, so it cannot be raced.** This was a
-  // read, a decision, and then an unconditional delete — three statements, and
-  // a PATCH that stripped the marker in between made the delete succeed on a
-  // page the read had just protected (CodeRabbit, PR 170). Now the database
-  // refuses it: the row is only removed if it is not marked, whatever happened
-  // since anyone last looked.
-  const rows = await db
-    .delete(pages)
-    .where(and(eq(pages.id, id), sql`coalesce(${pages.context}->>'kind', '') <> ${OVERVIEW_KIND}`))
-    .returning({ id: pages.id });
-  if (rows.length > 0) return { ok: true };
-
-  // Nothing was deleted, so a read is safe — and it is the only way to tell the
-  // two refusals apart, which the route owes the caller (see the type above).
-  const page = await getPage(id);
-  if (page === null) return { ok: false, reason: "not-found", message: "No such page." };
-  if (isOverviewPage(page.context)) {
-    return {
-      ok: false,
-      reason: "undeletable",
-      // The reason, not a refusal — §25 wants the control to explain itself.
-      message: "The Overview comes with the trip and cannot be deleted. You can empty it instead.",
-    };
-  }
-  // The row exists, is not the Overview, and was not deleted: it was removed
-  // between the two statements by something else. "No such page" is true now.
-  return { ok: false, reason: "not-found", message: "No such page." };
-}

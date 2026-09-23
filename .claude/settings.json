@@ -27,6 +27,11 @@
           {
             "type": "command",
             "command": "node scripts/hooks/resource-lease.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node scripts/hooks/draft-pr-guard.mjs",
+            "if": "Bash(gh *)"
           }
         ]
       },

@@ -510,6 +510,29 @@ html[data-look="ledger"] .shadow-raised {
     user-select: none;
   }
 
+  /* **The widget rail's height, so its LIST scrolls and the page does not.**
+
+     SPEC §26 puts the insert rail in the desktop right column, and the design
+     (`Trip Planner Redesign.dc.html:3956`) bounds it at
+     `max-height: calc(100vh - 120px)`. 120px is what the two already-pinned
+     bars occupy — `AppHeader` (`sticky top-0 h-14`, 56px) and the editing
+     toolbar (12 + 36 + 12 = 60px) — which is the same pair `top-29` clears,
+     with 4px of breathing room at the bottom.
+
+     A named utility rather than `max-h-[calc(100vh-7.5rem)]` for the reason
+     `.hero-grid` right below gives: `check-color-wall.mjs` rejects arbitrary
+     Tailwind values outright, and no token names a viewport-relative height.
+
+     `min-height: 0` is the half that does the work. The rail is a flex column
+     and its list is `flex-1 overflow-y-auto`; without this, a flex item refuses
+     to shrink below its content, the list never gets a bounded height, and the
+     whole column grows past the viewport with the header scrolling away at the
+     top of the page instead. */
+  .tc-widget-rail {
+    max-height: calc(100vh - 120px);
+    min-height: 0;
+  }
+
   /* NextTripHero's two-column split (README §1: 1.15fr/1fr) has no scale
      equivalent, so a Tailwind arbitrary bracket value (`lg:grid-cols-[1.15fr_1fr]`)
      would trip the color-wall's "no arbitrary values" check with no inline-style
@@ -1092,6 +1115,85 @@ html[data-look="ledger"] .shadow-raised {
     display: flex;
     flex-direction: column;
     gap: 34px;
+  }
+
+  /* The Map rail's hover card (M26 link 5a, handoff `riseIn 140ms`). A named
+     class for the same reason as everything else in this block:
+     `animate-[om-rise-in_140ms...]` would trip the colour wall's any-bracket
+     ban.
+
+     Under prefers-reduced-motion the card simply APPEARS rather than being
+     dropped — unlike the pulse below, the animation here is not the content.
+     The card is detail on demand, and a reader who has asked for less motion
+     still asked the question. */
+  @keyframes om-rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .map-hover-card {
+    animation: om-rise-in 140ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .map-hover-card {
+      animation: none;
+    }
+  }
+
+  /* Placeholders while a region is still arriving (M26 link 7, §3b,
+     dc.html:19-25). Two rules the design states in as many words, and this
+     block is the only place either is enforced:
+
+     **Outlines only, never filled.** `Skeleton` draws a hairline border and no
+     background, so nothing on a loading page can be mistaken for data. A
+     filled grey block is a value the reader did not give us.
+
+     **The breathe is load-bearing.** It "is the one thing that separates
+     'still arriving' from 'empty' or 'broken'" — all three are boxes with
+     nothing in them, and only one of them is going to change on its own.
+
+     `data-sk` carries the stagger (1/2/3) rather than three class names,
+     because that is what the handoff ships and because the attribute is also
+     what a test can count. Named rules, not `animate-[om-sk_1.8s...]`: the
+     colour wall bans arbitrary-value brackets.
+
+     Under prefers-reduced-motion the breathe stops and a fixed 0.62 opacity
+     stands in for it — dimmer than the page around it, so "arriving" still
+     reads differently from "empty", without the motion. */
+  @keyframes om-sk {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  [data-sk] {
+    animation: om-sk 1.8s ease-in-out infinite;
+  }
+
+  [data-sk="2"] {
+    animation-delay: 220ms;
+  }
+
+  [data-sk="3"] {
+    animation-delay: 440ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-sk] {
+      animation: none;
+      opacity: 0.62;
+    }
   }
 
   /* SyncIndicator (Task 8b.3, dc.html:18/3109): the saving state's two

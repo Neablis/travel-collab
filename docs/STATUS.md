@@ -30,323 +30,59 @@ general setup.
 
 ## Where the work is right now
 
-**M13 — COLLABORATION — IS THE CURRENT MILESTONE AS OF 2026-09-19**, by
-**M23's gate closing**, which is the ordinary way this line moves. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M13 → M12 → M24 → M14 → M19`.
-Scope and gate: `docs/milestones/M13-collaboration.md`. Near-real-time sync
-(the transport ADR is a **prerequisite**, not a deliverable), concurrent-edit
-conflicts as resolvable data, and **per-stop attribution** — which M19 link 3
-depends on, so if M13 ships without it that link returns to M19.
+**M12 — REVIEWS AND MODERATION — IS THE CURRENT MILESTONE AS OF 2026-09-22**,
+by **M13's gate closing at 10 of 10** — the second consecutive move made by a
+gate rather than by Mitchell placing a milestone. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M12 → M24 → M14 → M19`.
+Scope, seven links and thirteen boxes: `docs/milestones/M12-reviews-and-moderation.md`.
+It needs **two migrations** (the reviews table, and `saved_days.countries`) and
+has a data prerequisite: the content library carries `countryCode` on **none**
+of its 1,375 locations. M12 exists to delete one line from `SPEC.md` §15 —
+*"Until the reviews table exists, every rating here is fixture data"* — still
+true in `main`.
 
-**Do the preflight first, and it has been dropped once already.** The
-activity-field descriptor refactor (`KI-20260905-o`) runs **once, before M13**:
-21 non-test files hand-enumerate activity fields and nothing goes red when one
-is missed. It is shared by M13 link 5 (`who`), M19 link 1 (cost kind) and M24.
-It was scheduled on 2026-08-29 as *"one overnight batch"* and did not happen —
-which is why M13's gate now carries a box for it rather than trusting anyone to
-remember.
+**What M26's close does and does not assert** — including the two boxes closed
+on attestation and the Definition-of-Done box ticked at 153/2 rather than green
+— moved to `docs/milestones/M26-design-parity.md` on 2026-09-22, same gate-close
+rule as the section below.
 
-**M23 SHIPPED 2026-09-19** — gate 11 of 11, merged as `7763913` (#192),
-migration dispatched, production verified at 25/25 the same session. A saved
-day generalises into a saved **sequence** in the same row: flat `stops[]` with
-a 0-based `dayIndex` defaulted to `0`, plus a stored `day_count`. **The
-narrative is not here** — `docs/milestones/M23-multi-day-playbooks.md` carries
-the gate evidence, the retro and the feedback round;
-`docs/architecture/ADR-048-a-playbook-is-a-sequence-of-days.md` carries the
-five decisions, two of them marked ✳ where they overrode a premise in the
-milestone file; and `docs/milestones/README.md`'s *2026-09-19* note carries
-what it leaves M12.
+## DONE 2026-09-22 — M13 Collaboration, gate closed 10 of 10
 
-**Three things M23 leaves live**, which is why they are here rather than in its
-retro:
+**Moved to `docs/milestones/M13-collaboration.md`** — the five links, the
+notebooks-in-the-event-log piece that came with them, and the retro. M13's gate
+closed 2026-09-22 and this file's rule is that a phase's narrative moves to its
+milestone file at gate close, leaving the pointer. Merged as `#201` (`99f32d3`),
+green on CI at `18623fb`; the two-actor walk box is ticked **on Mitchell's
+attestation**, recorded as such in the box.
 
-- **The `saved_days` row will not change shape again for this reason.** That
-  was the whole argument for running M23 before M12, and M12 can now key
-  `saved_day_reviews` to it.
-- **`SavedStop` carries a rule in its header**: every field added to it from
-  2026-09-19 onwards carries `.default()`. `KI-2026-09-05-l` is **amended, not
-  closed** — there is still no `{ v, stops }` wrapper, so the first genuinely
-  non-additive change to that shape has nowhere to land.
-- **Two quality gates cannot see a whole class of defect, and both were proven
-  blind by this milestone.** The colour wall scans for raw hex, so an
-  **undefined token NAME** passes it clean — a selected chip shipped with a
-  transparent background. And no test layer can hold a layout claim (jsdom has
-  no layout; the lint wall refuses `toHaveClass`), so a code comment asserting
-  a label fit its cell was wrong by 10.19px for two commits until somebody
-  measured it on a preview.
+**Four things in it are still live and are still instruction:**
 
-**The integration lane needs `API_TOKEN_PEPPER` set in the shell.**
-`apps/web/.env.local` ships it EMPTY and vitest's `??=` does not override an
-empty string, so a fresh container fails ~91 token tests that have nothing to
-do with the change under test. That is `KI-2026-09-19-a`, and it cost a full
-baseline run to confirm rather than assume.
+1. **Read `KI-2026-09-22-c` before touching undo.** Wiring `diffPageStates` into
+   `decideHistoryCommand` looks like two lines and would delete every notebook on
+   a revert. A test pins the safe state; the entry has the trace and three answers.
+2. **A page-only batch is deliberately NOT undoable.** `deriveUndoRedo` skips any
+   batch with no trip events. Stacking one wedges undo entirely — the trip diff
+   comes back empty, the command is rejected `nothing-to-undo`, nothing is popped,
+   and every earlier change sits unreachable behind it. The same skip is why a
+   notebook save no longer throws away the trip's redo. Both directions are tested.
+3. **Any new reader of the log must skip the other aggregate's events BY NAME**,
+   never by "whatever fails to parse" — that is what keeps a corrupt stream loud.
+   `foldEnvelopes`, `foldPages` and both projections do it; the rebuild path was
+   caught missing it only by the full int lane, as five failures that passed in
+   isolation.
+4. **`KI-2026-09-22-d`** — the notebook EDITOR still does not adopt a
+   co-traveller's edit while you are typing in it, deliberately: a re-read would
+   clobber in-progress work. It wants link 4's conflict-as-data shape.
 
-**M25's GATE CLOSED 2026-09-19** — 14 of 14 boxes, `pnpm check` green (765
-tests) and `test:e2e:ci-like` at **137 passed**. A trip downloads as a
-`content-bundle/v1` file and uploads back, through two `v1` endpoints the
-browser calls with its own cookie. **No migration, no contract change, no
-entitlement, no plan version.** The narrative is **not here** —
-`docs/milestones/M25-a-trip-is-a-file.md` carries the gate evidence and the
-retro, including the three boxes ticked with a caveat named.
+## DONE 2026-09-20 — the shared day's map panel (M26 link 4b)
 
-**Three things M25 leaves live**, which is why they are here rather than in its
-retro:
-
-- **The round trip is a tripwire now, not just a test.** M23, M24, M13 and M14
-  each make a trip carry more; a field added to an activity and not to
-  `toBundleStop` fails `fromTrip.test.ts` **in the diff that adds it**. That is
-  what M25 was placed early to buy, and it is now real.
-- **A derived reference can be FALSE rather than merely verbose.** M22's
-  `openapi.json` cannot drift from the route declarations — which guarantees the
-  doc matches the *declaration*, and says nothing about whether the declaration
-  matches the endpoint. One endpoint's entry was 2,267 lines of recursive
-  notebook AST for a section it never writes. **Check what a new endpoint
-  publishes, not just that it publishes.**
-- **The two doors into the bundle format stay different.** `content:import`
-  DERIVES ids so a re-import updates its own rows; a user upload MINTS them so
-  it can never land on somebody else's trip. Collapsing them is a
-  plausible-looking simplification and is the one change that would make an
-  upload dangerous.
-
-**M22's and M21's gates closed 2026-09-19** — 19 of 19 and 17 of 17 — with the
-last boxes ticked **on Mitchell's attestation** that he walked them and they
-worked, not on agent-recorded evidence. Basis and caveats:
-`docs/milestones/README.md`, *2026-09-19 — M21's and M22's gates closed*.
-**The tail of that order changed 2026-09-18** — three milestones minted (**M23**
-multi-day playbooks, **M24** travel legs, **M25** trip export/import) and **M13
-moved ahead of M12**, all by Mitchell in a design conversation. The reasoning is
-**not here**: `docs/milestones/README.md`'s *2026-09-18* note carries it, the
-Phase 3 table carries each milestone's decisions, and each new file carries its
-own scope and exit gate. Two things placed the same day are **not** milestones
-and are easy to lose for that reason: the activity-field descriptor refactor
-(`KI-20260905-o`) runs **once, before M13**, and is a gate box there; and a
-generated, drift-checked architecture map is designed in
-`docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` and approved
-in principle.
-Scope and the gate — **19 of 19, closed 2026-09-19**, the last box on Mitchell's attestation — are in `docs/milestones/M22-public-api-and-tokens.md`; the fully decided
-design behind it: `docs/specs/2026-09-16-public-rest-api-and-scoped-tokens-design.md`.
-
-**Post-gate follow-up, SHIPPED and live in production 2026-09-18** (#189, merged as
-`c42be58`): a v1 caller can give a stop coordinates, a structured postal address, or just a
-name, and the stop gets a pin — `Location.address` (the CLDR / libaddressinput model),
-resolution on the stop writes reported through a `Geocode-Outcome` header, and
-`GET /v1/trips/{tripId}/geocode` for looking coordinates up first. No new scope and no
-migration, so nothing was owed after the merge. How to call it:
-`docs/guidelines/using-the-api.md` → *Putting a stop on the map*; the decisions and task
-breakdown: `docs/plans/2026-09-18-api-locations-address-geocode.md`.
-**Not gate work** — M22's 19 boxes are unchanged by it.
-
-**M21'S GATE CLOSED 2026-09-19 — 17 of 17**, the last six boxes **on Mitchell's attestation**
-that he walked them and they worked; no agent walked them and no network log or Test Clock
-evidence is recorded. Two carry a caveat in the milestone file (`KI-20260919-e`; box 2's
-`premium@v1` clause). What follows is the state as recorded while it was paused
-(2026-09-16 → 2026-09-19), kept rather than deleted.
-
-**The reorder costs M21 nothing, and an earlier version of this file said otherwise.**
-M22 needs an account holding `api.tokens`, not a sale — an admin grant pins
-`livePlanVersion(planId)` (`api/admin/grants/route.ts:29`) and `resolveEntitlements` unions the
-held plan with every grant's pinned version, which is what M20 built the grant path for.
-Publishing `premium@v2` does mean a later Premium purchase verifies v2's Stripe Price rather
-than v1's, leaving v1 — unsellable, unheld and ungrantable once superseded — with a Price that
-was never created; `checkPriceConsistency` calls that `missing`, *"an ordinary state"*, not a
-finding. **That is M21's footnote to settle on M21's schedule, not a gate on M22.**
-
-**All four phases are written and merged** (#177, then #180 and #181) — the subscription
-table and priced plan versions, hosted checkout and the webhook, the `plans` route with the
-account sheet's billing surface, and the revenue half of the operator console.
-**Eleven of seventeen gate boxes are ticked with evidence.**
-
-**A real purchase and a real downgrade were walked in production on 2026-09-16**, and the
-database is the evidence rather than the screen: four `billing_events` rows, every one with
-`applied_at` set, in the order `customer.subscription.created` →
-`checkout.session.completed` → `invoice.payment_succeeded` →
-`customer.subscription.updated`; and one `subscriptions` row that after the downgrade reads
-`status: active`, `cancel_at_period_end: true`, `current_period_end: 2026-10-16` — access
-running to the end of the paid period rather than ending at the click. That closes the
-hosted-checkout box, the Stripe-driven half of the cancel box, and the migration box, whose
-dispatch was confirmed against the database (`subscriptions`, `billing_events.applied_at`
-and `users.stripe_customer_id` all present) rather than against `TODO.md`.
-
-**The walk was only possible because it found a defect first, and that is the part worth
-keeping.** Every paid path — first checkout and plan change alike — answered 500 in
-production: `findPriceByLookupKey` sent Stripe's `lookup_keys` ARRAY parameter as a scalar,
-so Stripe refused with `400: Invalid array`. Nothing caught it because `prices.test.ts`
-mocks that function wholesale, and `stripeApi.ts` — the module that builds every outbound
-Stripe request — **had no test file at all**. The bug lived below the mock line. #181 fixes
-the two brackets and adds `stripeApi.test.ts`, which stubs `fetch` and asserts the URL that
-actually leaves the process. **A mock is a boundary, and the code on the far side of it is
-untested until something asserts the wire.**
-
-**What the gate still wanted** *(as of the pause; closed 2026-09-19 on attestation)* was the failure half: a `past_due` account through its
-three-day grace window, and a lapse walking M20's collaborator cap. Neither costs money —
-a Test Clock and card `4000 0000 0000 0341` walk both locally, per
-`docs/guidelines/billing-without-spending-money.md`. Also open: one Premium purchase (to
-resolve that version's Price the way the live `plus` purchase resolved its own), the
-network-log observation for the no-card-data box, and the retro. The milestone file's *What was
-built* has the five deviations from its own scope, each with its reason; **ADR-047** carries
-the three decisions that are one-way doors.
-
-**PR #177 collected three reviews and they found sixteen defects in code that passed every
-local lane** — four of them expensive: an existing subscriber could be charged twice, a failed
-webhook delivery lost its event permanently, the confirm step promised a payment it did not
-collect, and the pending screen claimed a payment had happened on a forged URL. All fixed;
-the milestone file's *What review found* has the list and the lesson. **The lesson in one
-line: every one of the four had a passing test over it — asserting presence, or state, or a
-substring, on the exact path where the defect lived.**
-
-**Then a fourth review arrived, on the preview itself** (2026-09-15) — five Vercel toolbar
-threads, a surface with its own mechanics that `docs/guidelines/working-a-review.md` covers
-and that no GitHub check surfaces as a review. **Four were design decisions this build had
-got wrong, not bugs**, and two of them reverse M20's §17.3 in the same words: a gated
-affordance now STAYS on screen, disabled, under a CTA to `plans`, rather than not rendering
-at all. M20's reasoning ("a control that can never work") was right when there was nowhere
-to send anybody; §29 gave plans a route, so the premise expired. The assistant's gate also
-moved EARLIER than the server's 402 — `useAiEntitled` asks the plan before anything is
-typed. The fifth is a design question with a wrong premise, answered on the thread and filed
-in `TODO.md` → *Candidate ideas* rather than guessed at. **The threads stay unresolved until
-Mitchell resolves them** — that check is a human gate, and clearing it from this side would
-be defeating a control rather than passing it.
-
-**What is left is a walk against a real Stripe test-mode key**, which no lane in this repo
-has — exactly what the milestone's *Why it is separate* predicted. **Nothing about it costs
-money, and the recipe is `docs/guidelines/billing-without-spending-money.md`**: test cards,
-`stripe listen`, and Test Clocks for walking the three-day grace window without waiting three
-days. Read the one rule at the top of it before opening a Stripe dashboard.
-
-**Migration `0021_subscriptions_and_billing` is written and applied locally, and is NOT
-dispatched to production.** Merging does not apply it — see the standing rule below.
-
-**Three things this work leaves live, all of them instruction rather than history:**
-
-- **A lapse is a derivation, not a write** (ADR-047 decision 3). The subscription row keeps
-  saying what Stripe last said and the resolver computes what it MEANS against the clock, so
-  nothing runs on a schedule and there is no second downgrade path. The tempting change —
-  writing `free` when a grace window closes — is the one that would need a scheduler, and it
-  would break link 4's sole writer to get it.
-- **The webhook is the only thing that writes `subscriptions` or `users.plan_id`**, and
-  `soleWriter.test.ts` sweeps for a second. The second writer is never called "grant the plan
-  from the redirect": it is a helpful success route that updates the row so the page has
-  something to show.
-- **`GRACE_WINDOW_DAYS = 3` has one definition and three readers** — the resolver, the copy a
-  person reads, and the test. It is a guess that first contact with real declines will want to
-  revise, which is the whole reason it is one constant.
-
-**M20's gate closed 2026-09-14** — 32 of 32 live boxes, built as #174 and #175, migrations
-0019 and 0020 dispatched to production (`migrate-production` run 20) and checked against the
-database, the operator console walked on production and the account surfaces on a preview.
-**The narrative is not here**: what it cost, the two findings a browser produced that no test
-could, and the two boxes ticked with a caveat named are the retro in
-`docs/milestones/M20-account-tiers-and-entitlements.md`.
-
-**Four things M20 leaves live, which is why they are here rather than in its retro:**
-
-- **A plan is a set, not a rank.** Code asks `can(ent, "ai.ask")` and nothing compares plans.
-  `accessPolicy.ts:11`'s `RANK` is the right shape for roles inside a trip and the wrong shape
-  here; copying it is the obvious move and it is a one-way door. The buyer's ladder is
-  presentation only.
-- **The console has no revenue half, and a test keeps it that way.** The four-number strip and
-  the per-tier MRR and median-margin columns are M21 link 7's; `admin.console.test.ts` sweeps
-  the admin files for that vocabulary. M21 link 7 also replaces one function body,
-  `startPlanChange` in `PlanSection.tsx`. **A price string in M20's files means the split
-  failed, in either direction.**
-- **The first operator exists and the path is not obvious**: `ADMIN_USER_IDS` takes `users.id`
-  verbatim (`google-<sub>`, never an email), comma-separated and not a JSON array, injected at
-  deploy time so it needs a redeploy, and written to `users.is_admin` on that account's next
-  sign-in. It fails closed on every one of those, which is why a mistake looks like silence.
-  The `admin-console` flag is the same promotion with no deploy.
-- **`ai_usage` is best-effort on the abort and error paths** — `KI-2026-09-14-b`. The ledger
-  M21 prices against is complete for every turn that finishes and eventual for the rest.
-
-**M9 IS NO LONGER PAUSED, AND MOST OF ITS REMAINING BUILD LANDED 2026-09-16** on
-`claude/dreamy-meitner-4o27ml`, under `docs/plans/2026-09-16-M9-remainder.md` — which is
-also where the four build-order items it deliberately did NOT touch are listed (the
-theme pass, the draft trip, the paid fork; the transcript rebuild has since landed). It
-keeps its place after M21 for the *gate*, which is what is left of it.
-
-**IT WAS REVERTED AND RELANDED, AND THE HISTORY MATTERS MORE THAN THE DATES.** Both halves
-(#184's server side, #186's UI) were merged, then reverted wholesale in `17ecd52` at
-Mitchell's request — *"there was some bad ui problems, but i was struggling to get code
-rabbit to review"*. Reverting content does **not** un-merge commits, so neither branch could
-serve as a PR head again: git treats them as already merged and a PR from either shows an
-empty or half diff. The work came back as fresh commits in **#188**, whose diff and merge
-therefore agree, and that is what `90deaaa` squashed onto main on 2026-09-18. Two design
-passes and three review rounds landed on it there:
-
-- **`SPEC.md` §31** — the new-trip sheet reads as a conversation (two sides, the live
-  question as the last message, one answer dock), and the empty Home renders that
-  conversation instead of a numbered list describing it.
-- **`SPEC.md` §32** — the dates turn split in two ("do you have a start date", then an
-  optional day picker, then a length), so **the question list is derived and nothing states
-  its length, including the copy**. A trip is a start date plus a length on this surface now,
-  as it already was everywhere else.
-- **Three CodeRabbit rounds, eighteen findings**, every one verified against the code before
-  being believed; two push-backs accepted and filed as `KI-2026-09-17-b`/`-c`.
-- **The preview found two defects no test layer could**, on Mitchell's own walk: the sheet
-  *contained* a chat box rather than being one (`Sheet`'s scrollport is a block, so the
-  conversation's `flex-1` transcript had nothing to fill and the composer scrolled off the
-  fold), and the sheet was being closed under a reader who was typing into it. That is the
-  argument for the walk, made by the walk.
-
-`docs/specs/2026-09-15-M9-assistant-and-new-trip-design.md` §3a–§3f carries all of it.
-**No gate box moved**, which is the point of the next paragraph.
-
-**Grounding** (`search_places` → `placeRef`, resolved server-side), **KI-93** (every door
-into the vendor key charges the geocode quota), **KI-12**, **escalation + `certainty`**,
-**conversation durability** (`localStorage`, no table) and **the replay harness**.
-Resolved with them: **KI-81, KI-11, KI-2026-09-12-a**; KI-15 narrowed to its enrichment
-residual. The milestone file's exit gate carries what each one did and did not close.
-
-**Four things to know before touching it.**
-
-1. **What is left of the gate is what a build cannot supply**: a live model call, the
-   Rochester re-run that rests on one, and the browser walks. The replay lane is evidence
-   about the code AROUND the model and is **not** the live-call box — its own header says
-   so, and the five transcripts that ship declare `source: synthetic`.
-2. **The harness found a defect on its first run** — `KI-2026-09-16-a`: a tool call whose
-   arguments were truncated ends the WHOLE turn, losing the reads it had already paid for.
-   Exactly the class KI-11 said CI could not see.
-3. **`Location.precision` is server-written by construction now.** A model's claim is
-   stripped before the server's is written, and `enrichCommandLocations` SKIPS a location
-   that already carries it — so the field is load-bearing rather than descriptive, and
-   that is what closes the gap `contracts/src/activity.ts` names in its own comment.
-4. **A `withheld` turn is no longer a dead end.** It holds `request_change_tools` and
-   re-enters with the write set via `prepareStep`. Every escalation is a labelled
-   classifier miss on the `ai.ask` line, which is the eval corpus written by real use.
-
-Phase 0 is below, unchanged, because it is what all of the above is built on.
-
-**M9 PHASE 0 — THE ASSISTANT KERNEL — IS COMPLETE, 2026-09-11.** Two PRs, both merged:
-P0-P5 as `bbc5bdb` (#162) and P6 as `845fc48` (#163). It closed **KI-2026-09-05-t** and
-**KI-22**, and ticked **no gate box**, by design — it is what M9's three real pieces of work
-are built on.
-
-**The narrative is not here.** What landed phase by phase, what it cost, the squash-merge
-hazard that cost the most, and the three open questions it raised for Mitchell are in
-`docs/milestones/M9-ai-planning-partner.md` under "Phase 0". Decision and the five rules:
-**ADR-043**. Design, corrections and measurements:
-`docs/specs/2026-09-10-assistant-kernel-design.md`.
-
-**The one-line version, because it is the thing to know before touching the assistant:**
-`handleAskRequest()` went **455 -> 105 non-comment lines** while the comment record grew
-**634 -> 996**; a tool is now a module with a required output schema and declared
-dependencies, a scope is a grant of (domain, effect) pairs and the tool set is a *filter*,
-admission is a nine-stage array whose order a test asserts, tool-returned user content is
-fenced in `⟦…⟧` inside the system instruction, and a turn returns a `TurnLedger` shaped as
-M20 link 9's `ai_usage` row — with **model identity and cost as variable inputs**.
-
-**Four known issues were filed by doing the work** and are open: `KI-2026-09-11-a` (a
-`userId` in Sentry breadcrumbs), `-b` (`simulatedModel`'s unchecked cast), `-c` (two
-`modelSelection` tests read `serverConfig` at module load), `-d` (`TurnMeter.toolCalls()`
-hands back its live array).
-
-**Two fixture trips are still on the preview database** from #162's browser walk: `Kyoto
-pass 162` and `Blank slate 162`. **M20's gate walk (2026-09-14) left three more things
-there**: the account `dev-gatewalk314819` (created through `/signup` with a real referral
-code, so it carries the signup trial), its trip `GateWalk Kyoto 9583`, and an unredeemed
-referral code minted by `dev-alice`. None is load-bearing; all four dev accounts on preview
-also carry `0019`'s permanent `founder` premium grant, which is why a preview account cannot
-demonstrate the free tier's refusals — that negative belongs to the e2e lane, which controls
-its own grant state.
+**Moved to `docs/milestones/M26-design-parity.md` on 2026-09-22**, verbatim,
+under *The shared day's map panel (link 4b)* — M26's gate closed 2026-09-21, and
+this file's own rule is that a phase's narrative moves to its milestone file at
+gate close and the pointer stays here. **Two things in it are still live and are
+still true**: `gaps[idx].label` is computed and not rendered, and the
+3.5s/7.5s/11s recovery ladder is not wired into `SharedDayMap` — which is what
+keeps M26 link 4 open rather than the rendering.
 
 ## Live rules that the code cannot enforce
 
@@ -384,6 +120,20 @@ nothing in CI will tell you when one is broken. The narrative each came from is 
   sets it in the workflow env.
 
 ## Blocking / broken right now
+
+**Promoted out of the 2026-09-20 handoff on 2026-09-21.** These were live
+inside a section that was 69% of this file, where nothing looks for a blocker.
+
+* **Coordinates.** `KI-2026-09-20-d`. Every derivation above needs `lat`/`lng`
+  and the seed has three. The gateway blocks the geocoder (403 to `CONNECT
+  nominatim.openstreetmap.org:443`), so this cannot be closed from a cloud
+  session. Two routes that do not need one: lift coordinates from the 19
+  already-geocoded bundles under `content/` where the places overlap (Mexico
+  City, Glen Coe, New York are plausible — CHECK, do not assume), or run the
+  geocoder from a laptop per `docs/guidelines/content-bundles.md`.
+* **The preview's database.** It has never had `content:import` run and is not
+  reseeded by a deploy, so seed-side work stays invisible there until somebody
+  with the credential reseeds it. Mitchell knows; it is his to do.
 
 **1. The Map lens's tiles have still never been confirmed to paint — KI-49.**
 From a cloud session the egress proxy blocks the tile host outright, so the
@@ -458,21 +208,38 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M13 is the current milestone** (M23's gate closed 2026-09-19). Read
+**M13 is the current milestone** (M26's gate closed 2026-09-21, 22 of 22). Read
 `docs/milestones/M13-collaboration.md` before planning anything. M21's and
-M22's gates also closed 2026-09-19, on Mitchell's attestation — nothing of
-either is owed.
+M22's gates closed 2026-09-19 on Mitchell's attestation — nothing of either is
+owed.
 
-**One piece of non-milestone work runs before M13's own links, and it is
-a prerequisite rather than a deliverable**: the activity-field descriptor
-refactor, `KI-20260905-o`. Three milestones each add a field to an activity
-(M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link 1's cost kind), and
-**21 non-test files hand-enumerate activity fields with nothing going red when
-one is missed**. It was already scheduled once, on 2026-08-29, and did not
-happen — which is why M13's gate now carries a box for it instead of this file
-carrying a second promise. **M25 changed the arithmetic slightly in its
-favour**: `toBundleStop` is a 22nd site, and the only one with a test that
-fails in the diff that misses it.
+**The prerequisite that used to stand here is DONE — 2026-09-21.** The
+activity-field descriptor refactor, `KI-20260905-o`, ran as its own piece of
+work at Mitchell's request rather than inside M13. Three milestones each add a
+field to an activity (M13 link 5's `who`, M24's `mode`/`endLocation`, M19 link
+1's cost kind), and ~21 non-test files hand-enumerated those fields with
+nothing going red when one was missed. Now `ActivitySnapshot` declares the set
+once, `ActivityState` is inferred from it, and `FIELD_EQUAL` in `equality.ts`
+turns a ninth field into a compile error at every site — proven by adding one
+and reading the errors. The entry is in `resolved/`; M13's gate box is ticked.
+
+**Read this before writing link 5.** The read model `ActivityView` is
+**deliberately not derived** from the snapshot. Deriving it carried write-path
+length bounds onto a model that parses `trip_details.doc` straight off jsonb,
+where a violating stored value would 500 the board rather than fail a write —
+the #71 shape one field later. A key-parity assertion in `contracts/detail.ts`
+keeps the compile-forcing instead, and it is weaker in exactly one way: it
+forces the KEY to exist, not that its type matches. So adding `who` will break
+the build until you add it to `ActivityView` too, and nothing will check that
+you gave it the right type there.
+
+**A second thing landed with it, and it is a behaviour change worth knowing
+about**: a stop whose `kind` is `transit` is no longer a member of an
+`impossible-geography` pair. Mitchell's case was a Lisbon→Porto train flagged
+against its own destination at ~273 km. This is KI-60's explicitly rejected
+weaker variant, added *alongside* the rule that replaced it rather than instead
+of it; KI-60's entry now records that. The cost: a mistyped coordinate on a
+transit stop is no longer caught by any rule.
 
 **M22's last gate box closed 2026-09-19 on Mitchell's attestation**, but the
 problem that blocked an agent from walking it is still open, and the next
@@ -597,3 +364,4 @@ and `docs/retros/2026-09-11-status-archive.md`.
 | The feature-flag / AI-kill-switch insert (PR #24) | ADR-019 and `docs/specs/2026-08-19-feature-flags-and-ai-kill-switch-design.md` |
 | The test-suite overhaul, Phases 0-4 | `docs/plans/2026-08-23-test-suite-overhaul.md`, `docs/testing-baseline.md`, `docs/testing-inventory.md` |
 | Which known issues are open, and which were closed when | `docs/known-issues/` — authoritative, and the only place that list should be kept |
+| The 2026-09-20 shared-day-map handoff (43,702 B) | `docs/retros/2026-09-21-status-archive.md` |

@@ -51,6 +51,33 @@ export interface PageEditorProps {
 // `onChange` emits raw `getJSON()`, deliberately typed `unknown`: it is what the
 // editor produced, not yet something we have agreed to store. `toStoredPageDoc`
 // is the step in between.
+/**
+ * Structural equality for two documents, for the re-sync effect below.
+ *
+ * **Not `JSON.stringify`.** One side comes from the server's stored document
+ * and the other from TipTap's own serializer, so key order is not guaranteed to
+ * match even when the documents are identical — and a false "different" here
+ * resets the editor on every poll. A ProseMirror document is plain JSON, so a
+ * recursive walk is total.
+ *
+ * The domain has a twin of this (`pageState.ts`'s `docsEqual`) which cannot be
+ * imported here: `@tc/domain` is walled off from UI code, and widening that
+ * wall to share nine lines would be the wrong trade.
+ */
+function sameDocument(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => sameDocument(item, b[i]));
+  }
+  const ax = a as Record<string, unknown>;
+  const bx = b as Record<string, unknown>;
+  const keys = Object.keys(ax);
+  if (keys.length !== Object.keys(bx).length) return false;
+  return keys.every((k) => Object.prototype.hasOwnProperty.call(bx, k) && sameDocument(ax[k], bx[k]));
+}
+
 export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true, onWidgetSelected }: PageEditorProps) {
   // The slash menu's keydown handler has to be installed at editor creation
   // (`editorProps` is read once), but the menu itself only exists after the
@@ -92,6 +119,70 @@ export function PageEditor({ detail, context, user = null, globals = null, value
   useEffect(() => {
     editor?.setEditable(editable);
   }, [editor, editable]);
+
+  /**
+   * **`content` is a mount-time option too, and that was the live-update bug.**
+   *
+   * Mitchell, 2026-09-22, two devices: one editing the Overview notebook, the
+   * other watching the trip's Overview tab. The whole chain worked — the edit
+   * became a `PageEdited` event, `headSeq` moved, the poll returned it, and
+   * `OverviewLens` re-read the document and set its state. He could see the
+   * event arriving in the `/events` response. The tab still showed the old
+   * text, because TipTap read `content` once when the editor was created and
+   * never looked at the prop again. Exactly the same shape as `editable` above,
+   * which already needed this treatment.
+   *
+   * **Only when NOT editable, and that guard is the important half.** Pushing a
+   * new document into an editor somebody is typing in would discard whatever
+   * they had written since the fetch — worse than the staleness it fixes, and
+   * the reason `KI-2026-09-22-d` says the notebook EDITOR wants a conflict
+   * notice rather than a re-read. A read-only view has no in-progress work to
+   * lose, so there it is simply correct.
+   *
+   * **`emitUpdate: false` is load-bearing**, not tidiness. `onUpdate` calls
+   * `onChange`, which is what saves — so emitting here would make a reader
+   * write back the document they had just been sent, produce another
+   * `PageEdited`, and wake every other device to do the same. A loop, at the
+   * poll interval, started by reading.
+   */
+  const lastValueRef = useRef(value);
+  useEffect(() => {
+    if (editor === null) return;
+    const previous = lastValueRef.current;
+    // **Keyed on the PROP changing, not on the editor's content differing —
+    // and that distinction is a regression this already caused once.**
+    //
+    // The first version compared `value` against `editor.getJSON()` and ran
+    // whenever `editable` went false. Those are not the same question.
+    // `PageScreen` passes `value={stored.doc}`, which is the document as last
+    // FETCHED and is never updated by typing — so the moment somebody clicked
+    // "Done editing", this pushed a stale document over everything they had
+    // just written. CI caught it as
+    // `m14-notebook-widgets.spec.ts › Reading takes the whole authoring surface
+    // away, and the widget stays`: insert a widget, leave edit mode, and the
+    // widget was gone. The `editable` guard below protects a typist DURING
+    // editing and did nothing at the instant they stopped, which is exactly
+    // when the prop is stalest.
+    //
+    // A new document from outside is the only thing that should reach the
+    // editor, and the only evidence of one is the prop itself changing. A mode
+    // flip is not evidence of anything.
+    if (previous === value) return;
+    lastValueRef.current = value;
+    // Identity is the cheap test and content is the honest one: a poll that
+    // finds nothing new still hands down a freshly parsed object, so identity
+    // alone would re-set the document every two seconds for every reader.
+    // Still an optimization rather than a guard — deleting it fails no test,
+    // because ProseMirror diffs and re-rendering identical content is
+    // invisible. What it saves is the parse, and a reader's selection.
+    if (sameDocument(previous, value)) return;
+    // Never replace a document that is being typed into. The remote change is
+    // deliberately dropped rather than deferred: applying it later, after more
+    // typing, is the same clobbering one pause further on. `KI-2026-09-22-d`
+    // is where the conflict notice this wants is recorded.
+    if (editable) return;
+    editor.commands.setContent(value as unknown as JSONContent, false);
+  }, [editor, editable, value]);
 
   // Hand the editor up once it exists. `useEditor` returns null on the first
   // render (`immediatelyRender: false`), so this fires twice: null, then the

@@ -33,7 +33,7 @@
 import { z } from "zod";
 import { defineTool } from "@/server/assistant/defineTool";
 import { untrusted } from "@/server/assistant/prompt";
-import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/geocoding/region";
 import type { PlaceCandidate, PlaceLookup } from "@/server/assistant/deps";
 
 /**

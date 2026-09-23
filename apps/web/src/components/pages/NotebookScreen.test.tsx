@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { TEMPLATE_LIBRARY } from "@tc/pages";
-import { makePagesHandlers } from "@/mocks/handlers";
+import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -43,7 +43,10 @@ function turnEmitting(...events: AskEvent[]) {
   };
 }
 
+// The Ask sheet mounts the assistant rail, which reads the account's plan.
+// See `makeAccountPlanHandler` for why this is a shared default.
 const server = setupServer(
+  makeAccountPlanHandler(),
   // Every render of this screen now fetches the trip: SPEC §23 puts the trip
   // name in the title block, and with the tab bar scoped (§22) there is no trip
   // header above this route to carry it. A suite-wide default rather than a
@@ -471,5 +474,54 @@ describe("NotebookScreen", () => {
       // a refusal that reads as silence.)
       expect(await screen.findByText(/open Plan and ask again/i, { selector: "p:not(.sr-only)" })).toBeTruthy();
     });
+  });
+});
+
+// M26 link 7, §3b. This route answered a slow read with a bare `Loading…` for
+// the WHOLE page — chrome included — and a failed one by replacing the page
+// with a sentence. Both are the dead end §3b forbids: the reader loses the way
+// out, the templates, and any way to ask for the list again.
+describe("NotebookScreen — the states between asked and answered", () => {
+  it("keeps its chrome and its templates while the list is still arriving", async () => {
+    server.use(http.get("/api/trips/:tripId/pages", () => new Promise(() => {})));
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+
+    expect(await screen.findByRole("status", { name: "Loading your notebooks" })).toBeTruthy();
+    // Rule 1: the chrome is real from the first frame.
+    expect(screen.getByRole("heading", { name: "Notebooks", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Your trips/ })).toBeTruthy();
+    // And the one thing this page can still DO without its list.
+    expect(screen.getByRole("region", { name: "Start from a template" })).toBeTruthy();
+  });
+
+  it("puts a failed list's retry in place, and the templates still work", async () => {
+    let attempts = 0;
+    const page = pageFixture({ tripId: TRIP_ID, title: "Trip Overview" });
+    server.use(
+      http.get("/api/trips/:tripId/pages", () => {
+        attempts += 1;
+        return attempts === 1
+          ? HttpResponse.json({ error: "Could not load your notebooks." }, { status: 500 })
+          : HttpResponse.json({ pages: [page], viewerId: "dev-alice" });
+      }),
+    );
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+
+    const failed = await screen.findByTestId("notebook-pages-error");
+    // The templates gallery is a module constant, so it survives a failed read
+    // — which is the whole reason it sits outside the branch.
+    expect(within(screen.getByRole("region", { name: "Start from a template" })).getByText("Blank notebook")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Notebooks", level: 2 })).toBeTruthy();
+
+    await userEvent.click(within(failed).getByRole("button", { name: "Try again" }));
+
+    const list = await screen.findByRole("region", { name: "Your notebooks" });
+    expect(within(list).getByText("Trip Overview")).toBeTruthy();
+    expect(screen.queryByTestId("notebook-pages-error")).toBeNull();
+    // The retry really went back to the network rather than replaying the
+    // cached failure — `cachedRead` never stores one (`queryCache.ts:189`).
+    expect(attempts).toBe(2);
   });
 });

@@ -65,6 +65,10 @@ const activity: fc.Arbitrary<ActivityState> = fc.record({
   kind: fc.constantFrom("planned", "booked", "hold", "idea", "transit"),
   tags: fc.uniqueArray(fc.constantFrom("meal", "lodging", "ticketed", "outdoors"), { maxLength: 3 }),
   cost: fc.option(money, { nil: null }),
+  // M13 link 5. Generated rather than constant, so the property actually
+  // exercises attribution surviving a hydrate round trip.
+  bookedBy: fc.option(fc.string({ minLength: 1, maxLength: 12 }), { nil: null }),
+  participants: fc.uniqueArray(fc.string({ minLength: 1, maxLength: 12 }), { maxLength: 3 }),
 });
 
 // A non-owner member is unreachable by replay — no command adds a member, so

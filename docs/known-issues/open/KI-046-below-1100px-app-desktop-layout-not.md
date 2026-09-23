@@ -49,6 +49,58 @@
   directly comparable; both say the same thing. `Button`'s `touch` size exists
   and is still essentially unused outside the §23 pill.
 
+- **RE-MEASURED AND ADDRESSED 2026-09-20 at 390x844** (M26 link 13), through
+  Playwright against a production build. **The surviving symptom is gone, and
+  its cause had already moved once before this link touched it.**
+
+  | | 2026-09-05 (412px) | 2026-09-20, before | 2026-09-20, after |
+  |---|---|---|---|
+  | Card width | 364px | 241px | **315px** |
+  | Text column | **82px** | 141px | **215px** |
+  | That title's card height | 121px | 131px | **91px** |
+  | A stop's row controls | 42x28 / 43x28 | 32x32 | **44x44** |
+
+  *The 92px time gutter was already gone, and nobody did it.* It went out with
+  the Timeline lens (SPEC §24 deletes it), which took the text column from 82px
+  to 141px as a side effect. This entry's "cards without the 92px time gutter"
+  point was satisfied by a deletion made for another reason.
+
+  *What was left was a DESKTOP constant leaking through a breakpoint nobody
+  drew.* `DAY_COLUMN_WIDTH_PX` is a fixed 268px at every width, inside a
+  horizontally scrolling row, so a 390px phone was showing one and a bit day
+  columns side by side and the card had shrunk to 241px. The card was narrow
+  because of a layout constant, not because the screen is.
+
+  *The fix is SPEC §13.4, which the build already had every piece of:* "a phone
+  can hold one day at a time; the rail is how you change which". Plan now
+  renders the focused day alone at full width — same `Column`, same cards, same
+  drag logic, a count of one. `DayChips` was already that rail and
+  `FocusProvider` already held the selection across Plan, Map and Notebook.
+
+  *And the 44px half is no longer 91%.* A stop's own Edit and Remove were 32x32,
+  under §13.1's floor — M26 link 14's pass covered chrome and these live inside
+  a card, so it never reached them. `PHONE_TOUCH` was widened to both axes
+  (it was height-only, which is exactly half a target for an icon-only control)
+  and applied here.
+
+  *And the 44px census, taken the same way.* KI-046's **191 of 211 (91%)** was
+  one trip screen at 412px. Re-taken across seven phone routes at 411x852:
+  **48 of 91 (53%) before the sweep, 4 of 91 (4%) after.** The denominators are
+  not comparable — this entry says the same of its own two figures — but both
+  say the same thing, and the four that remain are MapLibre's own legally
+  required attribution, which the library styles.
+
+  The sweep reached them through three primitives rather than N call sites:
+  `buttonVariants`' base and `Input`'s base carry §13.1's floor with
+  `md:min-h-0` releasing it at the same 768px line every other phone rule in
+  this app draws, and `PHONE_TOUCH` covers the elements styled like controls
+  without being them — a segmented option, a nav link, a row link.
+
+  **This entry can close** once somebody walks a phone: everything it still
+  claimed is now measured otherwise, and two specs keep measuring it
+  (`e2e/m26-phone-plan.spec.ts`, `e2e/m26-phone-targets.spec.ts`). Left open
+  pending that walk rather than closed on numbers I took myself.
+
 - **Cross-reference:** KI-19 (the 1180px blind spot the `narrow` Playwright
   project exists to cover — it runs at 1100px, above this).
 - **First noted:** 2026-08-26 (design-sync UI audit, C2).

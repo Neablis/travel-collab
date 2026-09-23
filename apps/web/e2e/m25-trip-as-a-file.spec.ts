@@ -148,7 +148,7 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     // response body.
     const download = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("link", { name: "Download as a file" }).click(),
+      page.getByRole("link", { name: "Download Trip" }).click(),
     ]).then(([event]) => event);
 
     const stream = await download.createReadStream();
@@ -187,7 +187,7 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     await expect(page.getByTestId("collaborators-gate")).toContainText("Inviting people");
     // The download itself carries no gate: it is a link, enabled, and it just
     // produced the file asserted above.
-    await expect(page.getByRole("link", { name: "Download as a file" })).toBeEnabled();
+    await expect(page.getByRole("link", { name: "Download Trip" })).toBeEnabled();
 
     // **Now import it back, by clicking.** Home, beside "New trip".
     await page.goto("/");

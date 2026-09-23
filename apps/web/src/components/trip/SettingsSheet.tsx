@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
-import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
@@ -20,9 +18,8 @@ import type { TripCounts } from "@/components/trip/TripMetaPill";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import type { TripSpend } from "@/lib/cost";
-import { duplicateTrip, sendTripCommand, type CommandOutcome } from "@/lib/apiClient";
 
 // The four category rows in the "unbacked" budget breakdown are illustrative
 // only (Preview id="budget-breakdown", M11 — no field on TripDetail
@@ -97,7 +94,6 @@ export function SettingsSheet({
   createdAt,
   myRole,
   onCommand,
-  onDeleted,
 }: {
   tripId: string;
   tripName: string;
@@ -136,19 +132,7 @@ export function SettingsSheet({
   // below), so TripProvider's read-only gate never sees them and cannot help.
   myRole: TripRole | null;
   onCommand: (command: TripCommand) => void;
-  // The outcome is forwarded alongside the {tripId, name} summary so the
-  // caller (TripHeader) can call TripProvider's applyOutcome with it —
-  // mirroring the RestoreTrip/undo path — and reconcile trip.status to
-  // "deleted" immediately, rather than leaving the board's local state
-  // (and thus its full interactivity) stale for the whole toast window.
-  onDeleted: (trip: { tripId: string; name: string }, outcome: CommandOutcome) => void;
 }) {
-  const router = useRouter();
-  // `DeleteTrip` is owner-only in accessPolicy.ts's MINIMUM_ROLE table, so an
-  // editor clicking Delete got the same silent nothing a viewer did —
-  // `handleDelete` only acts `if (result.ok)`. Gate on the rank the server
-  // actually enforces rather than merely hiding it from viewers.
-  const canDelete = myRole === "owner";
   // A viewer holds read access and executes no planning command at all —
   // accessPolicy.ts's MINIMUM_ROLE table has no `viewer` entry.
   const readOnly = myRole === "viewer";
@@ -160,29 +144,7 @@ export function SettingsSheet({
   // as the delete handler). The server refuses these regardless; this is
   // about not offering them.
   const dispatch = readOnly ? () => undefined : onCommand;
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [datesOpen, setDatesOpen] = useState(false);
-
-  async function handleDelete() {
-    setBusy(true);
-    const result = await sendTripCommand({ type: "DeleteTrip", tripId });
-    setBusy(false);
-    setConfirmOpen(false);
-    if (result.ok) {
-      onOpenChange(false);
-      onDeleted({ tripId, name: tripName }, result.value);
-    }
-  }
-
-  async function handleDuplicate() {
-    setBusy(true);
-    const result = await duplicateTrip(tripId);
-    setBusy(false);
-    if (result.ok) {
-      router.push(`/trips/${result.value.tripId}`);
-    }
-  }
 
   // Null only for an unparseable timestamp, which is a projection bug rather
   // than a state to word around — the line just drops the date rather than
@@ -460,6 +422,25 @@ export function SettingsSheet({
         )}
 
         <div className="flex flex-col gap-2 border-t border-hairline pt-4">
+          {/* **One button, no prose** — Mitchell, Vercel Toolbar comment on the
+              PR #196 preview, 2026-09-20: *"in trip settings, drop all the
+              extra text for download a trip, and just have button at bottom
+              that says 'Download Trip'"*.
+
+              **This reverses link 6d, which is his call to make and is recorded
+              rather than quietly applied.** 6d gave Download a `Take it with
+              you` heading and a sentence — *"A download carries the plan — your
+              days and activities. Its history does not travel: an imported trip
+              starts fresh, with no undo, redo or revert."* — on the reasoning
+              that the fact was real and buried in a comment
+              (`bundle/fromTrip.ts`) where only the next developer would read
+              it. The fact is still true and still only in that comment.
+              Flagged to him on the thread; if it should come back it wants a
+              place that is not three lines above the button, and that is a
+              design question rather than a revert.
+
+              Duplicate and Delete are still not here (link 6a, DRIFT D13, SPEC
+              §34.2 and §27) — see the note below. */}
           {/* **A plain anchor, which is the whole of link 2** (M25).
               `GET /api/v1/trips/{tripId}/export` is the same endpoint an API
               caller uses, and a session cookie satisfies every scope on a `v1`
@@ -484,32 +465,22 @@ export function SettingsSheet({
             download
             className={buttonVariants({ variant: "secondary" }) + " no-underline"}
           >
-            Download as a file
+            Download Trip
           </a>
-          <Button variant="secondary" disabled={busy} onClick={() => void handleDuplicate()}>
-            Duplicate trip
-          </Button>
-          {canDelete && (
-            <Button variant="destructive" disabled={busy} onClick={() => setConfirmOpen(true)}>
-              Delete trip
-            </Button>
-          )}
+          {/* **Duplicate and Delete are not here** — M26 link 6a, DRIFT D13,
+              SPEC §34.2 and §27. They live on the trip card's popover on Home,
+              which is where they already worked, and a trip you are INSIDE is
+              not where you delete it. Two homes for one verb is how the two
+              drift; the design's call stands (project rule 4).
+
+              Deleting them took the confirm dialog with them, which was
+              arguing against itself: its body read *"You can undo this from
+              the toast that follows"* — a modal whose own copy explains the
+              action is reversible, which is the exact thing §27 gives as the
+              reason not to have one. */}
         </div>
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen} title="Delete trip">
-        <Text variant="secondary">
-          Delete &quot;{tripName}&quot;? You can undo this from the toast that follows.
-        </Text>
-        <DialogFooter>
-          <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
-            Cancel
-          </Button>
-          <Button variant="destructive" disabled={busy} onClick={() => void handleDelete()}>
-            Delete
-          </Button>
-        </DialogFooter>
-      </Dialog>
     </Sheet>
   );
 }

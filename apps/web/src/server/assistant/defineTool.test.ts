@@ -11,7 +11,7 @@ import { z } from "zod";
 import { witness } from "@/test-support/witness";
 import { defineTool } from "./defineTool";
 import { newPageBuffer, newProposalBuffer } from "./deps";
-import type { RawToolIntent } from "@/server/ai/batchResolver";
+import type { RawToolIntent } from "@/server/assistant/batchResolver";
 
 const NOTHING = [] as const;
 

@@ -24,22 +24,29 @@ import { dayMetaParts } from "./dayMeta";
 // than made in a component.
 export function ItineraryDayBlock({ payload }: { payload: ItineraryDayPayload }) {
   return (
-    <span className="block rounded-md border border-hairline bg-surface p-3">
+    <span className="block overflow-hidden rounded-md border border-hairline bg-surface">
       {/* **The day's own header, restored with SPEC §24's timeline.** This card
           rendered a bare list of stops — no date, no city, no total — so a
           notebook page pointed at one day said less about that day than the
           board's own column header did. `dayMetaParts` is the same line the
           day-by-day table draws, so one day reads the same whichever widget is
-          looking at it. */}
-      <span className="mb-2 block border-b border-hairline pb-2 text-xs text-slate">
+          looking at it.
+
+          **It is the design's caption strip, and it was drawn as inset text.**
+          `NotebookBlock.dc.html:19` gives a block's caption a full-bleed band —
+          `--color-paper` ground, a bottom hairline, `8px 13px` — not a line of
+          text with a stub rule under it. The content stays as it is: the strip
+          here carries the day's meta line, and the design's mono micro-caps are
+          for a LABEL ("A day's stops"), which would mangle a date. */}
+      <span className="block border-b border-hairline bg-paper px-3 py-2 text-xs text-slate">
         {`Day ${payload.ordinal} · ${dayMetaParts(payload).join(" · ")}`}
       </span>
-      <span role="list" className="flex flex-col gap-2">
+      <span role="list" className="block">
         {payload.activities.map((activity, i) => (
           <span
             role="listitem"
             key={i}
-            className="flex items-baseline justify-between gap-3 border-b border-hairline pb-2 last:border-b-0 last:pb-0"
+            className="flex items-baseline justify-between gap-3 border-b border-hairline px-3 py-2 last:border-b-0"
           >
             <span className="flex flex-col">
               <span className="text-base text-ink">{activity.title}</span>

@@ -5,7 +5,6 @@ import {
   decideHistoryCommand,
   decideTripCommand,
   deriveUndoRedo,
-  evolveTrip,
   foldEnvelopes,
   groupBatches,
   tripStatesEqual,

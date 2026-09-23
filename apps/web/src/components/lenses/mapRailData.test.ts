@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
-import { mapDays, markerGroups, routeLegs } from "./mapRailData";
+import { longestLeg, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
+import type { MapStop } from "./mapRailData";
 
 function detailWith(days: { dayId: string; date: string | null; activityIds: string[] }[], activities: Record<string, unknown>): TripDetail {
   return {
@@ -221,5 +222,114 @@ describe("markerGroups", () => {
       c2: atPrecision("c2", 43.2, -77.51, "city"),
     });
     expect(markerGroups(day)).toHaveLength(2);
+  });
+});
+
+// M26 link 5c. `longestLeg` is the hover card's third note, and the one fact
+// about a day's shape that the rail row cannot carry: "5 stops · 40 km" reads
+// identically for five close stops and for one long hop with four neighbours.
+describe("longestLeg", () => {
+  const at = (title: string, lat: number, lng: number): MapStop => ({
+    activityId: title,
+    title,
+    lat,
+    lng,
+    kind: "planned" as ActivityKind,
+    precision: undefined,
+  });
+
+  it("is null when there is nothing to travel between", () => {
+    expect(longestLeg([])).toBeNull();
+    expect(longestLeg([at("Only stop", 35, 135)])).toBeNull();
+  });
+
+  it("picks the longest hop and names both of its ends", () => {
+    // Three stops, and the LONG hop is in the middle of the list rather than at
+    // either end — a scan that only compared the first or last pair would pass
+    // a two-stop test and fail here.
+    const result = longestLeg([at("Near A", 35.0, 135.0), at("Near B", 35.01, 135.0), at("Far", 36.5, 135.0)]);
+    expect(result).not.toBeNull();
+    expect(result!.from).toBe("Near B");
+    expect(result!.to).toBe("Far");
+    expect(result!.km).toBeGreaterThan(100);
+  });
+
+  // **Ties go to the EARLIEST leg.** Two legs of equal length would otherwise
+  // resolve to whichever the loop saw last, so the note would change as a
+  // reader hovered back and forth over one unchanged day.
+  it("keeps the earliest leg on a tie, so the note does not move", () => {
+    const result = longestLeg([at("First", 35.0, 135.0), at("Second", 36.0, 135.0), at("Third", 37.0, 135.0)]);
+    expect(result!.from).toBe("First");
+    expect(result!.to).toBe("Second");
+  });
+});
+
+// M26 link 5b. The bar row is a picture of the day's TRAVEL, and travel happens
+// between stops — so N located stops make N-1 bars. It used to make N, giving
+// the first stop a bar with no leg under it: a phantom taking `1/stops.length`
+// of the width, worst on a two-stop day where one real leg was drawn as two.
+describe("mapDays bars — one per leg, never per stop", () => {
+  it("draws one bar per leg, not one per stop", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b", "c"] }], {
+      a: at("a", 43.15, -77.6), b: at("b", 43.16, -77.62), c: at("c", 43.17, -77.64),
+    });
+    const [day] = mapDays(d);
+    expect(day!.stops).toHaveLength(3);
+    expect(day!.bars).toHaveLength(2);
+  });
+
+  it("draws ONE bar for a two-stop day — the phantom first bar is gone", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b"] }], {
+      a: at("a", 43.15, -77.6), b: at("b", 43.2, -77.7),
+    });
+    expect(mapDays(d)[0]!.bars).toHaveLength(1);
+  });
+
+  it("draws nothing for a single located stop — nothing was travelled", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a"] }], { a: at("a", 43.15, -77.6) });
+    expect(mapDays(d)[0]!.bars).toEqual([]);
+  });
+
+  it("shares the width by distance, so the bars sum to the whole row", () => {
+    const d = detailWith([{ dayId: "d1", date: null, activityIds: ["a", "b", "c"] }], {
+      // A long first leg and a short second one, so an even split would be
+      // visibly wrong rather than coincidentally right.
+      a: at("a", 43.0, -77.6), b: at("b", 44.0, -77.6), c: at("c", 44.02, -77.6),
+    });
+    const bars = mapDays(d)[0]!.bars;
+    expect(bars).toHaveLength(2);
+    expect(bars[0]!.grow).toBeGreaterThan(bars[1]!.grow);
+    expect(bars.reduce((sum, b) => sum + b.grow, 0)).toBeCloseTo(1, 5);
+  });
+});
+
+// M26 link 5b. "Sep" repeated down every row of a September trip is noise; the
+// month informs only where it changes.
+describe("monthEdges", () => {
+  it("prints the month on the first dated row and at each boundary", () => {
+    expect(
+      monthEdges([
+        { date: "2026-09-29" },
+        { date: "2026-09-30" },
+        { date: "2026-10-01" },
+        { date: "2026-10-02" },
+      ]),
+    ).toEqual([true, false, true, false]);
+  });
+
+  it("treats a new YEAR's January as a boundary, not a repeat of last January", () => {
+    expect(monthEdges([{ date: "2026-01-31" }, { date: "2027-01-01" }])).toEqual([true, true]);
+  });
+
+  // An undated day is not a boundary, and must not break the run: the next
+  // dated row still compares against the last month actually seen.
+  it("skips undated rows without resetting the run", () => {
+    expect(
+      monthEdges([{ date: "2026-09-29" }, { date: null }, { date: "2026-09-30" }]),
+    ).toEqual([true, false, false]);
+  });
+
+  it("is empty for no days at all", () => {
+    expect(monthEdges([])).toEqual([]);
   });
 });

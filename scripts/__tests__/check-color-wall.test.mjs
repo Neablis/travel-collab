@@ -63,6 +63,17 @@ test("the wall passes end-to-end and names the generated-non-product exclusion s
   const { status, stdout } = runWall();
   assert.equal(status, 0, `expected the wall to pass; got: ${stdout}`);
   assert.match(stdout, /1 generated non-product excluded/);
+  // The color-math list is named separately too, and for the same reason the
+  // other two are: three lists with three different rules, reported as three
+  // numbers. Merging any of them into one count is how a list that should only
+  // ever shrink quietly grows — KI-51.
+  //
+  // This assertion exists because adding the count broke the line above: the
+  // new number was spliced INTO the phrase "generated non-product excluded",
+  // and the wall's own test caught it in CI (PR 196, 2026-09-20) after a local
+  // `pnpm lint` passed — lint runs the wall, it does not check what the wall
+  // says about itself.
+  assert.match(stdout, /\d+ color-math excluded/);
 });
 
 test("the exclusion is scoped to the named file only, not the whole directory", () => {
@@ -125,4 +136,161 @@ test("real raw color literals are still caught, including all-decimal hexes in c
       `expected line ${index + 1} to be flagged: ${line}`,
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// THE TOKEN WALL (KI-2026-09-19-g). The tests above are all about a color
+// VALUE. These are its mirror image: a token NAME that does not exist. The
+// defect is invisible to every other layer — Tailwind emits nothing for an
+// unknown utility, ESLint has no opinion on a class name, and jsdom has no
+// layout — so before this wall the only detector was a person on a preview,
+// which is how M23 shipped a selected chip with a transparent background.
+// ---------------------------------------------------------------------------
+
+// The anti-vacuity test, and the one that proves the wall for its own reason:
+// each line is a shape the wall claims to catch, and each must be named.
+test("an undefined token name fails the wall, in every namespace form it claims to cover", () => {
+  const lines = [
+    // A one-letter typo inside a real token family — the M23 defect verbatim.
+    'export const A = () => <div className="bg-brand-tnit" />;',
+    'export const B = () => <div className="text-warning-nk" />;',
+    // Tailwind's own default palette, which `--color-*: initial` deleted.
+    'export const C = () => <div className="bg-amber-50" />;',
+    // A side sits between the prefix and the value, so a naive suffix lookup
+    // misses it: `border-t-<color>` is the color, `border-t` is a width.
+    'export const D = () => <div className="border-t-mos" />;',
+    // shadcn's default ring color, which this app never defined. Copied in
+    // from a snippet, it silently falls back to currentColor.
+    'export const E = () => <div className="ring-primary" />;',
+    // The custom property spelled straight into an arbitrary value.
+    'export const F = () => <div className="text-[var(--color-nosuch)]" />;',
+  ];
+  const { status, stderr, relative } = runWallAgainst("bad-tokens.tsx", `${lines.join("\n")}\n`);
+  assert.equal(status, 1, "expected the wall to fail on a file full of undefined token names");
+  for (const [index, line] of lines.entries()) {
+    assert.match(
+      stderr,
+      new RegExp(`${relative}:${index + 1}: \`[^\`]+\` — no such token`),
+      `expected line ${index + 1} to be flagged: ${line}`,
+    );
+  }
+});
+
+// The other half of the pair: a wall that caught the lines above by flagging
+// everything would pass that test too. Every line here is real, current
+// vocabulary from `apps/web/src`, and all of it must stay green.
+test("real tokens, non-color utilities and CSS property names all pass the token wall", () => {
+  const contents = [
+    // Colour tokens across the namespaces the wall checks.
+    'export const A = () => <div className="bg-brand-tint text-warning-ink border-hairline" />;',
+    'export const B = () => <div className="ring-brand outline-brand fill-surface stroke-hairline divide-hairline" />;',
+    // `text-*` is two token families at once: `--color-ink` and `--text-sm`.
+    'export const C = () => <div className="text-ink text-sm text-3xs" />;',
+    // Non-colour utilities sharing the same prefixes.
+    'export const D = () => <div className="bg-cover bg-no-repeat bg-clip-text bg-center" />;',
+    'export const E = () => <div className="text-center text-pretty text-nowrap text-ellipsis" />;',
+    'export const F = () => <div className="border-2 border-t border-b-0 border-dashed border-collapse" />;',
+    'export const G = () => <div className="ring-2 ring-inset outline-2 outline-offset-1 divide-y stroke-2" />;',
+    // The CSS keywords every namespace accepts.
+    'export const H = () => <div className="bg-transparent text-current border-none fill-none" />;',
+    // Variants put their colon in FRONT of the utility; the opacity modifier
+    // goes behind it. Neither changes which token is being named.
+    'export const I = () => <div className="hover:bg-moss focus-visible:outline-brand bg-ink/70" />;',
+    // A CSS property name wears a utility's shape. This one is asserted as a
+    // bare word inside a regex in `assistant/transcriptLook.test.ts`, so the
+    // colon rule alone does not save it.
+    'export const J = /background|border-radius|text-align/;',
+    "",
+  ].join("\n");
+  const { status, stdout, stderr } = runWallAgainst("good-tokens.tsx", contents);
+  assert.equal(status, 0, `expected the wall to pass; got: ${stdout}${stderr}`);
+});
+
+// Comments are where this repo records the defect it is warning the next reader
+// about — `ui/toggle-chip.tsx` names `bg-brand-subtle`/`text-muted` in prose
+// precisely because they were wrong, and `pages/cityAccents.ts` says in as many
+// words that there is no `--color-brand-ink`. A token wall that read comments
+// would force the deletion of the institutional memory it was built on.
+test("a comment naming a bad token is not a violation, in either comment syntax", () => {
+  const contents = [
+    "// This shipped as `bg-brand-subtle` / `text-muted`, and NEITHER is a token.",
+    "/* There is no `--color-brand-ink`; brand's darkest tone is `-pressed`. */",
+    "/* A block comment",
+    "   that names bg-amber-50 across lines. */",
+    // A `//` inside a string is not a comment opener, so the class after it on
+    // the same line still has to be seen.
+    'export const A = () => <a href="https://example.com" className="text-ink" />;',
+    "",
+  ].join("\n");
+  const { status, stdout, stderr } = runWallAgainst("token-comments.tsx", contents);
+  assert.equal(status, 0, `expected the wall to pass; got: ${stdout}${stderr}`);
+});
+
+// **The witness the test above is missing.** It ends its url line with
+// `text-ink`, a VALID token — so if the wall wrongly treated `//` inside the
+// string as a comment opener and discarded the rest of the line, that test
+// would still pass. It asserts nothing about the path it claims to cover.
+//
+// A first attempt at this witness put the bad token on the NEXT line, which
+// does not discriminate either: truncating line 1 never hid line 2, and it
+// passed against the old regex too. It was deleted rather than kept, because a
+// test that cannot fail is the thing being fixed here, not a second copy of it.
+// The same hazard on ONE line, which is the shape the old regex actually lost:
+// everything after the first `//` went, including a token later in the line.
+test("a token after a url ON THE SAME LINE is still scanned", () => {
+  const contents = [
+    'export const A = () => <a href="//cdn.example.com" className="text-nonexistent-token" />;',
+    "",
+  ].join("\n");
+  const { status, stderr, relative } = runWallAgainst("same-line-url.tsx", contents);
+  assert.equal(status, 1, "expected the wall to report the undefined token after the url");
+  assert.match(stderr, new RegExp(`${relative}:1: \\\`text-nonexistent-token\\\` — no such token`));
+});
+
+// The same non-vacuity argument the Sentry exclusion gets above: the
+// `notAClassName` entry could be a typo or left behind after the dependency
+// stopped using the word, and the wall would still pass because nothing in the
+// tree spells it. Prove each entry is still earning its exemption.
+test("every notAClassName exemption is still used by the tree it was added for", () => {
+  const source = readFileSync(WALL, "utf8");
+  const match = source.match(/const notAClassName = new Set\(\[([\s\S]*?)\]\);/);
+  assert.ok(match, "expected a notAClassName Set literal in check-color-wall.mjs");
+  const entries = [...match[1].matchAll(/^\s*"([^"]+)",/gm)].map((m) => m[1]);
+  assert.ok(entries.length > 0, "expected at least one exemption to check");
+  for (const entry of entries) {
+    const hits = spawnSync("git", ["grep", "-l", "--fixed-strings", `"${entry}"`, "--", "apps/web/src"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    });
+    assert.equal(
+      hits.status,
+      0,
+      `\`${entry}\` is exempted as foreign vocabulary but nothing in apps/web/src spells it any more — delete the exemption`,
+    );
+  }
+});
+
+// **The same hazard one level up, and it is the reason the scanner no longer
+// runs per line.** The stripper used to be mapped across `split("\n")`, which
+// reset its quote state at every newline — so a template literal stopped being
+// a string after its first line, and a protocol-relative url on a LATER line
+// truncated that line exactly as the old regex did.
+//
+// **The bad token must sit after the url, on a later line of a template that
+// OPENED on an earlier one.** A first draft of this put the whole template on
+// one line, where the per-line scanner tracks the backtick perfectly well — it
+// passed against the very mutation it was written to catch, which is the third
+// time in this milestone a witness asserted nothing about its own path.
+test("a token after a url on a LATER LINE of a template literal is still scanned", () => {
+  const contents = [
+    "export const css = `",
+    // Line 2 of the template: the old scanner arrived here with no quote state,
+    // read `//` as a comment opener, and dropped everything after it.
+    "  a { background: url(//cdn.example.com/x.png); } bg-amber-50",
+    "`;",
+    "",
+  ].join("\n");
+  const { status, stdout, stderr } = runWallAgainst("token-template.tsx", contents);
+  assert.equal(status, 1, `expected the wall to FAIL on bg-amber-50; got: ${stdout}${stderr}`);
+  assert.match(`${stdout}${stderr}`, /bg-amber-50/);
 });

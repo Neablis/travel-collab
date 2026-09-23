@@ -6,6 +6,7 @@ import { route } from "@/server/public-api/route";
 // caller's side that is exactly what it is — the warning goes away.
 export const { DELETE } = route({
   DELETE: {
+    summary: "Dismiss a scheduling conflict warning on a trip",
     scope: "trips:write",
     trip: "path",
     role: "editor",

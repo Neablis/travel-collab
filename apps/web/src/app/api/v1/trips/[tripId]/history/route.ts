@@ -6,6 +6,7 @@ import { route } from "@/server/public-api/route";
 // Every change anyone has made to this trip, newest first.
 export const { GET } = route({
   GET: {
+    summary: "List a trip's change history, newest first, and whether undo or redo is possible",
     scope: "trips:read",
     trip: "path",
     role: "viewer",

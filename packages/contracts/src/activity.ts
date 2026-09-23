@@ -200,6 +200,11 @@ export const AddActivity = z.object({
   type: z.literal("AddActivity"),
   tripId: z.string().uuid(),
   activityId: z.string().uuid(),
+  // M13 link 5. Both optional: a stop added without saying who it is for is
+  // the ordinary case, and the zero values are "nobody" and "everybody's
+  // business", not "unknown".
+  bookedBy: z.string().nullable().optional(),
+  participants: z.array(z.string()).optional(),
   dayId: z.string().uuid().optional(), // omitted = backlog
   title: z.string().min(1).max(200),
   timeWindow: TimeWindow.optional(),
@@ -212,9 +217,9 @@ export const AddActivity = z.object({
   // `positive` because the numbering the search tool prints is that tool's to
   // choose, and a schema that forbade 0 would decide it from here.
   //
-  // Transport only, which is why it is absent from `ActivityPayloadFields`
-  // below: what is worth storing forever is the resolved place, never the index
-  // the model used to name it, and a ref outlives nothing (the candidates are a
+  // Transport only, which is why it is absent from `ActivitySnapshot` below:
+  // what is worth storing forever is the resolved place, never the index the
+  // model used to name it, and a ref outlives nothing (the candidates are a
   // per-turn server-side cache).
   //
   // **Optional on purpose.** A location a *user* typed arrives as free text with
@@ -235,6 +240,12 @@ export const UpdateActivity = z.object({
   type: z.literal("UpdateActivity"),
   tripId: z.string().uuid(),
   activityId: z.string().uuid(),
+  // M13 link 5. Omitted = unchanged; `null` clears `bookedBy`. `participants`
+  // is replaced wholesale rather than added to — the editor hands back the
+  // whole list, and a partial add/remove command would need its own conflict
+  // story the moment two people edit the same stop's list.
+  bookedBy: z.string().nullable().optional(),
+  participants: z.array(z.string()).optional(),
   title: z.string().min(1).max(200).optional(),
   timeWindow: TimeWindow.nullable().optional(),
   location: Location.nullable().optional(),
@@ -266,28 +277,104 @@ export const RemoveActivity = z.object({
 });
 export type RemoveActivity = z.infer<typeof RemoveActivity>;
 
-// ---- Events (payloads use explicit null — they are stored as jsonb forever) ----
+// ---- The stored activity field set ----
 
-// The activity field set as an event payload carries it: explicit null instead
-// of omission, and a `.default()` on every field added after v1 shipped so a
-// payload written before that field existed still parses off jsonb.
-//
-// ActivityAdded and ActivityUpdated both `.extend()` this rather than listing
-// it twice (they were verbatim copies until 2026-08-28). The duplication was a
-// live hazard, not just noise: a `.default()` added to one payload and missed
-// on the other corrupts replay for *updated* activities only, and nothing would
-// surface it until someone replayed an old log. `.extend()` after the ids keeps
-// the shape's key order — and therefore the serialised payload — unchanged.
-const ActivityPayloadFields = {
+/**
+ * **The eight fields an activity carries in state and on the wire, declared
+ * once.** Both event payloads below and the domain's `ActivityState` are
+ * derived from this object, so a ninth field is a *compile error* at every site
+ * that has to handle it rather than a silent no-op at twenty-odd. The read
+ * model's `ActivityView` is the one deliberate exception — it is not derived,
+ * it is held to this shape by a key-parity assertion in `detail.ts`, and that
+ * file says why. That is the whole point: the class of bug has shipped
+ * three times — KI-1 (day order), KI-54 (`city`/`countryCode` invisible to
+ * equality, so a city-only edit was rejected as a no-op) and M18's editor sheet
+ * dropping `kind`/`tags` — every time as a field nothing compared. See
+ * KI-2026-09-05-o, and `equality.ts`'s `FIELD_EQUAL`, which is where the
+ * compile error actually lands.
+ *
+ * Shaped the way an event payload has to be, because that is the constraint
+ * with no escape hatch: explicit null instead of omission, and a `.default()`
+ * on every field added after v1 shipped so a payload written before that field
+ * existed still parses off jsonb. `ActivityAddedV1` and `ActivityUpdatedV1`
+ * both `.extend()` it rather than listing it twice (they were verbatim copies
+ * until 2026-08-28). The duplication was a live hazard, not just noise: a
+ * `.default()` added to one payload and missed on the other corrupts replay for
+ * *updated* activities only, and nothing would surface it until someone
+ * replayed an old log. `.extend()` after the ids keeps the shape's key order —
+ * and therefore the serialised payload — unchanged.
+ *
+ * **`placeRef` is deliberately not a member** — see `AddActivity.placeRef`
+ * above. It is a per-turn citation the server resolves into `location`, not
+ * something an activity carries.
+ *
+ * **`saved.ts`'s `SavedStop` is deliberately NOT derived from this.** It looks
+ * like the same eight fields, but its header states a different rule about
+ * `.default()` and its `kind`/`tags` are required, not defaulted; deriving it
+ * would silently change how already-saved `saved_days.stops` jsonb parses.
+ */
+export const ActivitySnapshot = z.object({
   title: z.string().min(1).max(200),
   timeWindow: TimeWindow.nullable(),
   location: Location.nullable(),
   notes: z.string().max(2000).nullable(),
   anchors: z.array(Anchor).default([]),
-  kind: ActivityKind.default("planned"),
-  tags: z.array(ActivityTag).default([]),
+  // `kind` and `tags` are DEFAULTED rather than required, and on the event
+  // payload that is what lets a pre-M18 payload replay off jsonb at all.
+  // `ActivityView` carries the same two defaults for the same reason on the
+  // read side — `trip_details.doc` is stored jsonb, and since KI-2026-09-05-r
+  // `getTripDetail` parses it at the source rather than handing it back raw —
+  // but it states them itself, because it is not derived from this shape.
+  // Every document written before M18 added these two fields has neither key,
+  // and a row is only rewritten when its trip next changes, so a required
+  // `kind` 500s the board for any trip nobody has touched since. That is
+  // exactly what it did on the #71 preview (GET /api/trips/… → ZodError,
+  // `kind` Required). The defaults are what lets an untouched pre-M18 row be
+  // read back at all.
+  //
+  // They are also the zero values the rest of the stack already agrees on:
+  // `AddActivity.kind` is optional and documented "omitted = planned", and
+  // `state.ts` calls "planned" the zero value outright.
+  kind: ActivityKind.default("planned"), // never null — "planned" is the zero value
+  tags: z.array(ActivityTag).default([]), // never null — [] is the zero value
   cost: Money.nullable().default(null),
-};
+  // ---- Per-stop attribution (M13 link 5) ----
+  //
+  // **Two relations, not one.** Mitchell, 2026-09-03 (recorded in
+  // `M19-cost-model.md` link 3): *"we need activities to have owners (and i
+  // think participants that are going to that activity)"*. Who **booked** a
+  // stop is not who is **going** to it, and M19's splits need the participants,
+  // not the owner — so a single `assignee` would satisfy `add-stop-who`'s
+  // wording and still be wrong for every split later built on it.
+  //
+  // Named `bookedBy` rather than `owner` deliberately: `owner` is already a
+  // `TripRole` and the `saved_days.owner_id` column, and an activity-level
+  // `owner` would read as "the trip's owner" at every call site. `bookedBy`
+  // names the distinction M19 actually draws.
+  //
+  // Both are member user ids, and **nothing in the domain validates them
+  // against the member list** — deliberately, and not as an omission. Two
+  // reasons: a trip whose member later leaves must still replay, and the
+  // AUTHORITATIVE member list is not in the log at all. `TripState.members` is
+  // only what the log produced (the creator); invited members live in
+  // `trip_memberships` and are overlaid at the read boundary by
+  // `effectiveMembers`. A decider checking `state.members` would therefore
+  // reject a legitimately invited editor. Validation, where it is wanted,
+  // belongs on the server where that overlay exists — and the UI only ever
+  // offers current members, so an id from nowhere is not reachable through
+  // the product.
+  //
+  // Defaulted, never required, for exactly the reason `kind` and `tags` are:
+  // every payload and every `trip_details.doc` written before this field
+  // existed has no such key, and a row is only rewritten when its trip next
+  // changes. A required field here 500s the board for any trip nobody has
+  // touched since — which is what it did to the #71 preview.
+  bookedBy: z.string().nullable().default(null),
+  participants: z.array(z.string()).default([]),
+});
+export type ActivitySnapshot = z.infer<typeof ActivitySnapshot>;
+
+// ---- Events (payloads use explicit null — they are stored as jsonb forever) ----
 
 export const ActivityAddedV1 = z.object({
   type: z.literal("ActivityAdded"),
@@ -298,7 +385,7 @@ export const ActivityAddedV1 = z.object({
       activityId: z.string().uuid(),
       dayId: z.string().uuid().nullable(),
     })
-    .extend(ActivityPayloadFields),
+    .extend(ActivitySnapshot.shape),
 });
 export type ActivityAddedV1 = z.infer<typeof ActivityAddedV1>;
 
@@ -311,7 +398,7 @@ export const ActivityUpdatedV1 = z.object({
       tripId: z.string().uuid(),
       activityId: z.string().uuid(),
     })
-    .extend(ActivityPayloadFields),
+    .extend(ActivitySnapshot.shape),
 });
 export type ActivityUpdatedV1 = z.infer<typeof ActivityUpdatedV1>;
 

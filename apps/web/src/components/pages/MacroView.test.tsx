@@ -55,6 +55,8 @@ const costedDetail: TripDetail = withCostRollups({
       activityId: "a1", title: "Museum", timeWindow: { start: "09:00", end: "10:00" },
       location: null, notes: null, anchors: [], kind: "planned", tags: [],
       cost: { amountMinor: 12345, currency: "USD" },
+      bookedBy: null,
+      participants: [],
     },
   },
 });
@@ -76,6 +78,8 @@ const backloggedDetail: TripDetail = withCostRollups({
       activityId: "u1", title: "Souvenirs", timeWindow: null,
       location: null, notes: null, anchors: [], kind: "idea", tags: [],
       cost: { amountMinor: 500, currency: "USD" },
+      bookedBy: null,
+      participants: [],
     },
   },
   backlog: ["u1"],
@@ -385,10 +389,14 @@ describe("every widget is legal where widgets actually go", () => {
         activityId: "booked", title: "Ryokan", timeWindow: { start: "15:00", end: "23:00" },
         location: null, notes: null, anchors: [], kind: "booked", tags: [],
         cost: { amountMinor: 12000, currency: "USD" },
+        bookedBy: null,
+        participants: [],
       },
       parked: {
         activityId: "parked", title: "Ghibli Museum", timeWindow: null,
         location: null, notes: null, anchors: [], kind: "idea", tags: [], cost: null,
+bookedBy: null,
+participants: [],
       },
     },
   };

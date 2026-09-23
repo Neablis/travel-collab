@@ -216,7 +216,7 @@ describe("attributing stops to a city (`stopsInCity`)", () => {
   });
 
   it("keeps only the days the selection kept, counting from 1", () => {
-    const { trip, globals } = selectionTrip();
+    const { globals } = selectionTrip();
     const rome = globals.cities[0]!;
     expect(cityDayOrdinals(rome, [0, 1, 2])).toEqual([1, 2]);
     expect(cityDayOrdinals(rome, [0])).toEqual([1]);

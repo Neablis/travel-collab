@@ -1,8 +1,29 @@
 import { defineConfig, devices } from "@playwright/test";
+import { containerChromiumArgs } from "./scripts/container-chromium.mjs";
 import { BASE_URL } from "./src/config";
 import { DATABASE_URL } from "./src/server/config";
 import { E2E_SUPER_CODE } from "./e2e/admission";
 import { E2E_ADMIN_USER_ID } from "./e2e/adminBootstrap";
+
+// **The phone-only specs, named once.**
+//
+// These run in the "phone" project and nowhere else. Keeping the two halves of
+// that as separate hand-written lists — a `testMatch` here and a `testIgnore`
+// on "desktop" — is a standing trap, and the config used to say so in a
+// comment: *"That is what happened the first time `m14-mobile-notebook`
+// landed: it passed in 'phone' and failed twice in 'desktop', looking for a
+// bind sheet a desktop correctly does not have."*
+//
+// It then happened AGAIN, identically, when `m26-phone-surfaces` landed
+// (2026-09-20, PR 196): added to the phone `testMatch`, not to the desktop
+// `testIgnore`, six failures in "desktop" looking for phone chrome. A comment
+// warning you to keep two lists in step is not a mechanism. This is.
+const PHONE_ONLY_SPECS = ["m16-mobile-assistant", "m14-mobile-notebook", "m26-phone-surfaces"] as const;
+// `m26-phone-plan` is deliberately NOT in that list: its last case is a DESKTOP
+// assertion (every day side by side), and each case sets its own viewport, so it
+// belongs in the project that has both widths to compare rather than the one
+// pinned to 411px.
+const PHONE_ONLY = new RegExp(`(${PHONE_ONLY_SPECS.join("|")})\\.spec\\.ts`);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -50,6 +71,25 @@ export default defineConfig({
     // failure.
     trace: "on-first-retry",
     video: "off",
+    // KI-49, the actionable half. Empty everywhere except inside a Claude Code
+    // cloud container, where it pins the egress gateway's own CAs by SPKI hash
+    // so Chromium will complete a TLS handshake the proxy re-terminated.
+    //
+    // Only two specs care — `m10-map-rail` and `m26-shared-day-map` — because
+    // `tiles.openfreemap.org` is the single third-party host this suite's pages
+    // fetch from; everything else is localhost, which the proxy never sees.
+    // Without this they fail with "The map could not load" in every cloud
+    // session, which is what left M26's Definition-of-Done gate at 153 passed /
+    // 2 failed rather than green.
+    //
+    // `container-chromium.mjs` carries the reasoning, and two things it says
+    // are worth repeating at the call site: this ADDS trust for specific public
+    // keys rather than disabling verification (which the proxy README forbids,
+    // and which would make a green map run prove nothing), and the detector is
+    // deliberately NOT `process.env.CI` — `test:e2e:ci-like` sets that locally
+    // and is the only lane whose result counts, so gating on it would withhold
+    // the fix from the exact run anyone would act on.
+    launchOptions: { args: containerChromiumArgs() },
   },
   // One retry in CI only. NOT a flake-suppression tool: a test that passes
   // on retry is reported as flaky and must be treated as a bug, not waved
@@ -89,12 +129,11 @@ export default defineConfig({
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 900 }, storageState: ".auth/alice.json" },
       dependencies: ["setup"],
-      // Every breakpoint-specific spec, or the desktop project runs it too — at
-      // 1280px, where the phone branch it is about does not exist. That is what
-      // happened the first time `m14-mobile-notebook` landed: it passed in
-      // "phone" and failed twice in "desktop", looking for a bind sheet a
-      // desktop correctly does not have. The two lists have to be kept in step.
-      testIgnore: [/responsive\.spec\.ts/, /m16-mobile-assistant\.spec\.ts/, /m14-mobile-notebook\.spec\.ts/],
+      // Breakpoint-specific specs are excluded here, or the desktop project
+      // runs them too — at 1280px, where the phone branch they are about does
+      // not exist. **Both sides come from `PHONE_ONLY_SPECS` above**, so the
+      // two lists cannot fall out of step; they are one list.
+      testIgnore: [/responsive\.spec\.ts/, PHONE_ONLY],
     },
     {
       name: "narrow",
@@ -109,7 +148,17 @@ export default defineConfig({
       // Both phone specs, not one: M14 gave the Notebook a phone treatment
       // of its own (SPEC §19), and it is a different breakpoint behaviour
       // rather than a restyle — the chrome row becomes a sheet.
-      testMatch: /(m16-mobile-assistant|m14-mobile-notebook)\.spec\.ts/,
+      //
+      // **`m26-phone-surfaces` joined them in M26 Wave 2 (link 16).** Until
+      // then these two were the whole phone lane: the trips list, Playbooks,
+      // Plans, account, the shared day and trip settings had no phone coverage
+      // at all, and the `narrow` project sits at 1100px — *above* KI-046's band
+      // by construction — so the band this wave is about was untested.
+      //
+      // That spec deliberately does not touch Plan. Link 13's surface question
+      // is open, and a test written over a state everyone agrees is temporary is
+      // one that has to be argued with later.
+      testMatch: PHONE_ONLY,
     },
   ],
   webServer: {

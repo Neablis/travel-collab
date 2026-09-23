@@ -17,3 +17,50 @@
   **What this does NOT prove**, per the entry's own limit: the actual runaway-scroll loop needs a mobile browser with a dynamic toolbar (Android Chrome), which nothing in this environment provides — Playwright's desktop Chromium has no dynamic toolbar, so `dvh`/`svh`/`lvh` render identically there, and this container's egress proxy additionally blocks the map's own tiles (KI-49), independent of this issue. The fix is the entry's own recommended mechanism (verified present, then swapped and comment-updated), not independently re-derived, and it has not been confirmed on a real device.
   **Tradeoff carried forward, as the entry already flagged:** `svh` reintroduces "a strip of page visible under the map on a tall window" while the toolbar is collapsed, by up to the toolbar's height — the symptom the original `vh`→`dvh` swap fixed. This is bounded (not a runaway) and accepted per the entry's own analysis.
   **Interaction with KI-085** (separate, still open, not touched here): KI-085 is about the Map lens reportedly not reaching full height on a very wide desktop window (3440×1271), unrelated to mobile `dvh` growth. `svh` and `dvh` are the same on desktop (no dynamic toolbar there), so this change does not affect that report's mechanism or its repro either way.
+
+---
+
+**2026-09-20 — THE TRADEOFF IS CONFIRMED ON A REAL DEVICE, for the first time.**
+Mitchell, Vercel Toolbar comment on the PR #196 preview, Android Chrome 153 at
+411x816 (DPR 2.625), `/trips/{id}?view=Map`, with `body > div.phone-tab-bar-inset`
+selected: *"on mobile theres a space between map and bottom of page"*.
+
+That is this entry's own predicted cost, in its own words — *"a strip of page
+visible under the map on a tall window ... by up to the toolbar's height"* —
+seen by a person, on the device class that has a dynamic toolbar. The entry
+said it "has not been confirmed on a real device". It has now, and the entry
+should not go on saying otherwise.
+
+**The static layout is exact, and that is a new measurement rather than a
+restatement.** Driven on the PR preview at 411x816, signed in, Map lens:
+
+| | |
+|---|---|
+| `document.documentElement.scrollHeight` | 816 |
+| `window.innerHeight` | 816 |
+| **overflow** | **0** |
+| canvas bottom | 755 |
+| tab bar top | 755 |
+| `--phone-tab-bar-height` | 61px |
+
+The canvas's bottom edge and the fixed tab bar's top edge are the same pixel,
+and the document is exactly one viewport. So nothing is wrong with the
+arithmetic; the gap is the `svh`-vs-visual-viewport difference and nothing else.
+
+**That zero bears on whether `svh` is still the right answer, which is why it is
+recorded here rather than only in the reply.** This entry's mechanism needs
+*some* initial overflow for the loop to start. There is none on this page now.
+With `dvh` the canvas would be `100dvh - canvasTop - bar` and the document
+exactly `100dvh` — zero overflow at every toolbar state, with nothing for the
+loop to feed on. So going back to `dvh` may now be free, and would remove the
+strip.
+
+**It was NOT changed back, deliberately.** This entry is explicit that the
+loop's mechanism was diagnosed and fixed by reasoning and never reproduced
+("Not verified, and it cannot be here"). Swapping the unit again on reasoning
+alone would be the same move that traded one real-device symptom for another,
+made by someone who still cannot tell the three units apart in any harness
+available here. The choice is Mitchell's and it needs his device either way:
+leave the bounded strip, or try `dvh` and check whether the scrollable distance
+*grows* with each swipe. Both options and the measurement above are on the
+toolbar thread (`UlKjnMhq9ixc`).

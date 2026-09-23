@@ -657,3 +657,113 @@ larger architectural lift and this milestone is long. Nothing in §7 reads a
 realtime transport.
 
 **A decision on external calendar sync** — see the second bullet under Scope.
+
+## 2026-09-19 — what the design-parity survey found in the Notebook, and routed here
+
+From M26's five-survey sweep (`docs/milestones/M26-design-parity.md`). M26 is a
+parity milestone and **deliberately does not touch the Notebook**, because M14
+owns the whole redesign. What it found is recorded here so M14 opens with a real
+inventory rather than a three-week-old one.
+
+### The good news first: three things M14 no longer has to do
+
+- **`w-open` is registered and insertable.** `packages/pages/src/registry.ts:34`
+  and `presets.ts:256`. `DRIFT.md` §3b's *"one registry addition owed"* is
+  closed, and SPEC §25's requirement that it be insertable into an ordinary page
+  is met.
+- **§26 — widget settings out of the document flow — is substantially built.**
+  The right column has exactly two states, exists only in Editing, and the phone
+  gets the bind sheet as its inspector. The chrome row is gone. The handle is
+  the designed 58×20 out-of-flow `▸`.
+- **The catalogue gap is largely closed, and `DRIFT.md` §7's figure is stale.**
+  It cites *"21-designed / 7-in-registry"*; the tree now has **13 primitives and
+  20 browsable presets** after ADR-039 restructured 17 named widgets into
+  primitive-plus-preset rows, with a v1→v2 document migration.
+
+### The largest single gap in the document surface: the ghost does not exist
+
+`specs/notebook-widget-framework.md` makes the ghost the framework's central
+idea — a dropped-in widget renders **as the shape of its value** (`$XXX`, `NN
+rows`, its real sentence) and fills in **per part** as inputs bind, so a
+half-bound widget reads *"We were at Kichi Kichi in Pontochō — $XXX."* It is
+monospace, hatched, dashed-underlined, warning ink, **never danger and never an
+alert icon**.
+
+**None of the rendering layer exists.** `MacroView.tsx:135-185` collapses every
+unbound case to a single `EmptyChip` carrying a short label — *"needs a trip"*,
+*"that day was removed"*, *"needs a person field"*. No shape, no glyph, no
+monospace, no hatch, no dashed underline. `ghost` appears nowhere in
+`components/pages/**` or `packages/pages/**` except as a `Button` variant.
+
+**What does exist, and is worth protecting:** the four states are a real
+resolver contract (`registry.ts:88-96`), `because` rides through, and the hard
+case is right — **a deleted day gives `unbound("day")` and never falls back to
+Day 1**. So this is a rendering layer to add over a correct model, not a model
+to redesign. It needs a per-part `valueKind` on `Seg`, which is a payload type
+in this repo's own hands.
+
+### Four more, in order of size
+
+1. **`NotebookBlock` is four bespoke components, not one shape.** The framework
+   says a block takes **declared `columns` and `rows`**, optional caption and
+   total, with a column's `kind` picking font and alignment — *"a widget author
+   picks a shape and supplies content. They never supply spacing, borders, ghost
+   glyphs or empty-state copy."* `BlockView.tsx` instead dispatches on
+   `BlockPayload.kind` to `ItineraryDayBlock`, `ItineraryTripBlock`,
+   `CostsTableBlock` and `CityDetailBlock`. The exhaustive-`never` enforcement
+   is genuinely good and should survive the refactor; what should not is the
+   model in which **a fifth block invents its own layout.** The repeat shape is
+   closer — it is a real table with a moss total row — but it lives inside
+   `MacroView` rather than as a component, and has no caption and no declared
+   column kind. The repeat's **dashed rail** (chrome naming what it repeats over
+   and how many, accented when resolved, neutral in ghost/empty/stale) is
+   absent entirely.
+2. **`WidgetSettings` is single-selection and missing three of §26's five
+   contents.** §26 asks for *one entry per bound widget, never aggregated,
+   **numbered to match the marks in the text***, plus tag filters, **Wording**
+   and **Remove**. The panel renders one selected widget with binds and a static
+   *Reads as* preview; there is no numbering, no multi-entry, and no Wording or
+   Remove control anywhere.
+3. **§18's author-supplied repeat template is the one real catalogue hole left.**
+   The repeat shape renders resolver-supplied rows, not an authored sentence.
+   That needs a macro param schema for the template, and it is the *"one new
+   primitive"* §7 named.
+4. **`count{of: "day" | "city"}` has no preset**, so *how many days* and *how
+   many cities* are reachable only by the assistant through `primitiveCatalog()`
+   — `KI-20260905-i` finding F-B05. Two preset rows and a generalised guard.
+
+### Two of these are questions, not tickets — and one has been open since §21
+
+- **Are ghosts editing-only?** The framework says that in reading mode a widget
+  with any unbound input **prints nothing** — an inline one collapses, a block
+  or repeat is skipped — and that anyone with edit rights sees **one quiet line
+  at the top of the page**: *"2 widgets aren't set up."* SPEC §21 flags this as
+  *the one rule needing the build's sign-off*, and **it is still unanswered.**
+  Today one `MacroView` serves both modes, so a reader on the trip sees
+  *"that day was removed"* printed into the document. The count itself already
+  exists — `phoneAskContext.ts:191` spends `page.unsetUpWidgets` on a phone
+  quick-ask — so the page-top line is cheap once the rule is settled.
+- **What do the Save-a-day dialog's four *Include* chips do to the snapshot?**
+  `specs/save-a-day-as-a-playbook.md` says that in the design *"these only
+  toast"* and asks the question outright; the built dialog carries no such chip
+  row. **Blocked on a design answer, not on code.** *(The same spec still
+  describes the expanding "Kept" label, which was removed on Mitchell's
+  instruction on 2026-09-06 because at 412px it pushed* Add stop *onto a second
+  line — design-side documentation debt, listed in M26's stale-design list.)*
+
+### Blocked on a field, not on M14
+
+**`person` is vocabulary with no dimension behind it** — nothing links an
+activity to a person. That blocks SPEC §18's two person widgets and is **M13
+link 5's field** (see that milestone's 2026-09-19 note, which lists all three
+consumers together). `days` and `trip` map to no dimension either and are
+called *dead vocabulary* by `KI-20260905-i` — **keep-or-retire is a decision
+this milestone should make**, since it owns the vocabulary.
+
+### One place the design is behind the build
+
+**SPEC §18 and §19 still describe a two-step insert sheet** — search, then
+*Point it at* with a select per input. The build ships a **one-step** picker and
+binds afterwards in §26's settings panel, because ADR-039 decision 2 makes an
+unbound filter mean *everything*, so every row is ready as soon as it lands.
+That is convergent, not drift, and **the handoff owes the reconciliation.**

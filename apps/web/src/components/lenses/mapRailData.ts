@@ -1,5 +1,5 @@
 import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
-import { chipModel } from "@/components/trip/DayChips";
+import { chipModel } from "@/lib/dayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 
@@ -46,6 +46,12 @@ export type MapDay = {
   // An empty day sets `isEmpty` instead and leaves this null; the two are
   // mutually exclusive by construction (no stops means nothing unlocated).
   flagText: string | null;
+  /**
+   * The day's longest hop, or null when there is nothing to travel between
+   * (fewer than two located stops). Feeds the hover card's third note — the one
+   * fact about a day's shape that "5 stops · 40 km" cannot carry.
+   */
+  longest: LongestLeg | null;
 };
 
 function locatedStops(day: TripDetail["days"][number], activities: TripDetail["activities"]): MapStop[] {
@@ -78,6 +84,69 @@ function legKms(stops: MapStop[]): number[] {
   return kms;
 }
 
+/**
+ * Which rows should print the month alongside the date (M26 link 5b).
+ *
+ * The rail repeats "Sep" down every row of a September trip, which is noise:
+ * the month only carries information where it CHANGES. So it prints on the
+ * first dated row and at each month boundary, and nowhere else.
+ *
+ * **The milestone said to reuse `DayChips`'s `monthEdge`. There is no such
+ * thing** — checked 2026-09-20: `DayChips` renders `dow` and `dateNum` (a
+ * weekday and a day number) and shows no month at all, so the two surfaces were
+ * never in the disagreement the milestone describes. This is a fresh
+ * implementation, and the milestone has been corrected rather than left to send
+ * the next reader looking for a function that does not exist.
+ *
+ * Undated days are skipped rather than breaking the run: a null date is not a
+ * month boundary, and the next dated row still compares against the last month
+ * actually seen.
+ */
+export function monthEdges(days: readonly { date: string | null }[]): boolean[] {
+  let lastMonth: string | null = null;
+  return days.map((day) => {
+    if (day.date === null) return false;
+    // The ISO date's own `YYYY-MM` prefix, so this never constructs a `Date`
+    // and cannot drift across a timezone the way a parsed local date can.
+    const month = day.date.slice(0, 7);
+    const edge = month !== lastMonth;
+    lastMonth = month;
+    return edge;
+  });
+}
+
+/** The longest single hop of a day, and the two stops it runs between. */
+export type LongestLeg = { km: number; from: string; to: string };
+
+/**
+ * The longest leg of a day, or `null` when there is nothing to travel between.
+ *
+ * M26 link 5c: *"`longest` — the longest leg and its endpoints — is pure
+ * derivation from coordinates and titles already on `MapStop`"*. It is the
+ * hover card's third note, and it is the one fact about a day's shape that the
+ * rail's own row cannot show: a day of five close stops and a day with one
+ * two-hour hop read identically as "5 stops · 40 km".
+ *
+ * **Ties go to the EARLIEST leg**, not the last. `>` rather than `>=` keeps the
+ * note stable as a reader hovers back and forth over the same day — two legs of
+ * equal length would otherwise pick whichever the loop saw last, which is an
+ * implementation detail leaking into copy.
+ *
+ * Fewer than two located stops is `null`, which is the caller's cue for the
+ * *"A single anchor. Nothing to travel between."* note rather than an error.
+ */
+export function longestLeg(stops: readonly MapStop[]): LongestLeg | null {
+  if (stops.length < 2) return null;
+  let best: LongestLeg | null = null;
+  for (let i = 1; i < stops.length; i++) {
+    const km = haversineKm(stops[i - 1]!, stops[i]!);
+    if (best === null || km > best.km) {
+      best = { km, from: stops[i - 1]!.title, to: stops[i]!.title };
+    }
+  }
+  return best;
+}
+
 export function mapDays(detail: TripDetail): MapDay[] {
   const cities = chipModel(detail);
   // One dayAccents() call over the whole trip's cities, so collisions
@@ -92,17 +161,24 @@ export function mapDays(detail: TripDetail): MapDay[] {
     const totalKm = stops.length >= 2 ? legs.reduce((sum, km) => sum + km, 0) : null;
     const accent = accents[index]?.solid ?? "neutral";
 
-    // One bar per located stop: legs share proportionally by distance when we
-    // have a real total, else split evenly (a single located stop, or a day
-    // whose stops happen to share one coordinate, still renders a bar row).
+    // **One bar per LEG, not per stop** (M26 link 5b). The bar row is a picture
+    // of the day's travel, and travel happens between stops — so N stops make
+    // N-1 bars. It used to make N, giving the first stop a bar of its own with
+    // no leg under it: a phantom that took `1 / stops.length` of the width and
+    // made every day's shape read a little wrong, worst on a two-stop day where
+    // a single real leg was drawn as two bars of 50% each.
+    //
+    // A day with fewer than two located stops now renders NO bars, which is
+    // correct: nothing was travelled. The even split remains only for the real
+    // degenerate case — legs that exist but sum to zero, i.e. stops sharing one
+    // coordinate — where proportion is undefined but the legs are real.
     const bars =
-      stops.length === 0
+      legs.length === 0
         ? []
-        : stops.map((_, i) => {
-            const grow =
-              totalKm !== null && totalKm > 0 && i > 0 ? legs[i - 1]! / totalKm : 1 / stops.length;
-            return { grow, color: accent };
-          });
+        : legs.map((km) => ({
+            grow: totalKm !== null && totalKm > 0 ? km / totalKm : 1 / legs.length,
+            color: accent,
+          }));
 
     const flagText =
       unlocatedCount > 0
@@ -124,6 +200,7 @@ export function mapDays(detail: TripDetail): MapDay[] {
       bars,
       isEmpty: day.activityIds.length === 0,
       flagText,
+      longest: longestLeg(stops),
     };
   });
 }

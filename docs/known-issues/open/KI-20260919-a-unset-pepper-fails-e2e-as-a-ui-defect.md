@@ -50,13 +50,55 @@
   own heuristic points the wrong way**: a failure that does not move between
   runs is supposed to be a real defect. Here it is neither that nor a flake.
 
-- **Why no other lane catches it:** every other lane supplies a pepper of its
-  own. `vitest.config.ts:19` and `vitest.setup.ts:18` both `??=` a test value,
-  so the unit and `int` suites — including `export.int.test.ts`, which mints a
-  token on every case — are green. CI sets `API_TOKEN_PEPPER: ci-pepper`
-  (`.github/workflows/ci.yml:70`). **Only the e2e web server, started from the
-  real environment, sees the blank**, which is exactly the lane that takes its
-  configuration the way a deployment does.
+- **~~Why no other lane catches it~~ — WRONG, AND MEASURED WRONG ON
+  2026-09-23. The `int` lane catches it too, 86 tests at a time.** The
+  paragraph below is kept because its reasoning is the interesting part and
+  because it is exactly the shape of claim that gets believed:
+
+  > every other lane supplies a pepper of its own. `vitest.config.ts:19` and
+  > `vitest.setup.ts:18` both `??=` a test value, so the unit and `int` suites
+  > — including `export.int.test.ts`, which mints a token on every case — are
+  > green. CI sets `API_TOKEN_PEPPER: ci-pepper`
+  > (`.github/workflows/ci.yml:70`). **Only the e2e web server, started from
+  > the real environment, sees the blank**, which is exactly the lane that
+  > takes its configuration the way a deployment does.
+
+  Both cited lines are real and both do exactly what that says. **`??=` assigns
+  only when the left side is `undefined` or `null`.** `.env.local` sets
+  `API_TOKEN_PEPPER=`, which is the empty string — present, not nullish — so
+  the default never fires and `pepper()` throws exactly as it does for the e2e
+  server. The `int` lane reads `.env.local` like every other local lane; the
+  only thing that protected it in the original measurement was that the
+  measurement was never taken.
+
+  Measured in a cloud session, `pnpm --filter web test:int`, no code change
+  between the two runs:
+
+      as bootstrapped                     8 failed | 56 passed (64 files)
+                                         86 failed | 731 passed | 7 skipped
+      API_TOKEN_PEPPER=<anything> set     64 passed (64 files)
+                                             824 passed
+
+  All eight failing files trace to the same frame — `pepper`
+  (`src/server/api-tokens/index.ts:111`) → `hashOf` → `mintToken`:
+  `apiTokens.int.test.ts`, `locations.int.test.ts`, `collections`, `export`,
+  `rateLimit`, `route`, `surface` and `accounts`. One of them surfaces as
+  `relation "api_tokens" does not exist`, which looks like a migration problem
+  and is not — it is a cascade from a `beforeAll` that threw.
+
+  **This is `docs/guidelines/cloud-agent-sessions.md`'s own "an `.env.local`
+  KEY can be present and its VALUE still empty" trap**, one level further in:
+  there the failing check is a `grep` for the name, here it is `??=`. Both pass
+  on a key that is present and useless. **CI is unaffected** — it sets
+  `ci-pepper` explicitly rather than relying on a default — so this stays a
+  local-bootstrap papercut, but it is a much larger one than this entry
+  claimed: 86 integration tests plus one e2e spec, not one e2e spec.
+
+  **It also raises the cost of the "filed rather than fixed" call below.** Fix
+  1 (a visible fake value in `.env.example`) would close both lanes at once;
+  fix 2 (make the e2e lane say it) closes only the smaller half. That is new
+  information about a choice this entry left open, not a decision — still
+  Mitchell's.
 - **Found by:** running the full Definition of Done for M25, 2026-09-19. Proven
   rather than inferred: adding `API_TOKEN_PEPPER` to `apps/web/.env.local` and
   re-running `m22` turned 1 failed / 2 passed into 2 passed, with no code

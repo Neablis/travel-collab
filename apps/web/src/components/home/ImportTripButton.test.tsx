@@ -99,6 +99,13 @@ describe("ImportTripButton", () => {
     render(<ImportTripButton />);
     await choose();
 
+    // **Still `role="alert"` now that this renders through `Banner`** (§34.2,
+    // M26 link 9c). `Banner`'s own default is `role="status"`, and a refusal
+    // that lands after the reader has chosen a file and looked away from the
+    // button is worth interrupting for — so the override is behaviour, not
+    // decoration, and this assertion is what holds it. The LOOK of the banner
+    // is not asserted here: class assertions live in `components/ui/**` by the
+    // lint wall's rule, and the colour wall owns the rest.
     expect((await screen.findByRole("alert")).textContent).toContain("could not be imported");
   });
 

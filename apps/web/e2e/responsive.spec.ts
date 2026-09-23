@@ -172,7 +172,12 @@ test.describe("responsive (narrow viewport)", () => {
     expect(kept.ok()).toBe(true);
 
     await page.goto("/playbooks");
-    await page.getByRole("radio", { name: "Yours" }).click();
+    // `role="tab"`, not `role="radio"`: M26 link 2a turned Discover's scope
+    // into `UnderlineTabs` (§33.2 — an underline says "a different page of
+    // this thing"). This line was the only e2e lookup that change broke; the
+    // remaining `getByRole("radio")` calls are account preferences, which are
+    // still a real radio group.
+    await page.getByRole("tab", { name: "Yours" }).click();
     await expect(page.getByTestId("discover-results")).toBeVisible();
 
     const columns = () =>
@@ -513,12 +518,18 @@ test.describe("responsive (trip header on a phone)", () => {
     const account = header.getByRole("button", { name: "Account menu" });
     await expect(account).toBeVisible();
     await account.click();
-    // `button`, not `menuitem`: the account control is a Popover, not a Menu
-    // (SPEC §5 — "Account menu and History are both Popover"), so its contents
-    // carry no menu roles. Both entries asserted, because "Your account" is the
-    // only route to account settings on a phone once the header's links are
-    // gone, and it is the one that would be missed.
-    await expect(page.getByRole("button", { name: "Your account" })).toBeVisible();
+    // No `menuitem` roles: the account control is a Popover, not a Menu (SPEC
+    // §5 — "Account menu and History are both Popover"). Both entries are
+    // asserted, because "Your account" is the only route to account settings on
+    // a phone once the header's links are gone, and it is the one that would be
+    // missed.
+    //
+    // **"Your account" is a LINK since M26 link 1** (SPEC §34.4 made account
+    // settings the `/account` route), while Sign out is still a button — it
+    // performs an act rather than going somewhere, and it stays in this popover
+    // on desktop and phone alike rather than moving onto the account page
+    // (project rule 4; the decision is recorded in M26 link 1).
+    await expect(page.getByRole("link", { name: "Your account" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 
     // Asserted, not just pressed. This started as cleanup so the popover would
@@ -528,7 +539,7 @@ test.describe("responsive (trip header on a phone)", () => {
     // dismiss this popover has on a phone once the header links are gone, so it
     // is worth a real assertion. (CodeRabbit, PR #143.)
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("button", { name: "Your account" })).toBeHidden();
+    await expect(page.getByRole("link", { name: "Your account" })).toBeHidden();
     await expect(page.getByRole("button", { name: "Sign out" })).toBeHidden();
 
     // "Crowded" has a measurable form at this width: a header wider than the

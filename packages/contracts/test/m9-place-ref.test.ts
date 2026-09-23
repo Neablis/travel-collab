@@ -96,7 +96,7 @@ describe("M9 grounding — placeRef (KI-81)", () => {
     }
   });
 
-  // **The ref is transport, and the event log is forever.** `ActivityPayloadFields`
+  // **The ref is transport, and the event log is forever.** `ActivitySnapshot`
   // is what gets written to jsonb, and a candidate number means nothing once the
   // turn that produced the candidates is gone — replaying it would cite a list
   // no longer in existence. The server resolves the ref into `location` before

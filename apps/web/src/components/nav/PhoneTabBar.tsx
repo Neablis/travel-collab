@@ -109,6 +109,29 @@ function tripIdFromPathname(pathname: string): string | null {
  * link somebody is still holding resolves, and the bar must light the same tab
  * the page actually rendered. Deriving it twice is how those two drift apart.
  */
+/**
+ * Routes where **a task owns the whole screen**, so the bar steps aside.
+ *
+ * SPEC §34.3 makes `/account` a task rather than a view — *"because it is a
+ * task rather than a view the tab bar steps aside for it (the shape §30
+ * established for the new-trip conversation). Done returns you to Trips."* The
+ * same is true of `/plans`, which §34.3 gives a `‹ Account` header and no bar;
+ * the build rendered one over it.
+ *
+ * **Not the same thing as lighting no tab.** `activePhoneTab` already returns
+ * `null` for both, and for `/invite/<token>` — but a bar that lights nothing is
+ * still a bar taking 83px off a screen somebody is trying to complete
+ * something on. An invite is a view of a thing; an account is a job you finish
+ * and leave.
+ *
+ * Deliberately a short explicit list rather than "anything that lights no tab":
+ * a route that selects no tab is the ordinary case for anything the bar does
+ * not own, and most of those are still views.
+ */
+export function taskOwnsScreen(pathname: string): boolean {
+  return pathname === "/account" || pathname === "/plans";
+}
+
 function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null {
   if (tripIdFromPathname(pathname)) {
     if (/^\/trips\/[^/]+\/pages(?:\/|$)/.test(pathname)) return "notebook";
@@ -185,6 +208,7 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
 
   const tripId = tripIdFromPathname(pathname);
   const active = activePhoneTab(pathname, view);
+  const hidden = taskOwnsScreen(pathname);
 
   // The bar is `position: fixed`, so it reserves no space in normal flow and a
   // page's last row ends up underneath it. This is the same problem — and the
@@ -205,9 +229,18 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
   // crossed, so nothing here depends on ResizeObserver's behaviour for an
   // element that has stopped being rendered.
   useEffect(() => {
+    const root = document.documentElement;
+    // **Unpublish the reservation when the bar steps aside.** This effect used
+    // to run once (`[]`) because the bar was always mounted; now that a task
+    // route hides it, a stale `--phone-tab-bar-height` would reserve 83px at
+    // the foot of a screen with no bar in it — the inset is a sibling of the
+    // bar and cannot see that it is gone.
+    if (hidden) {
+      root.style.removeProperty("--phone-tab-bar-height");
+      return;
+    }
     const el = barRef.current;
     if (!el) return;
-    const root = document.documentElement;
     const sync = () => root.style.setProperty("--phone-tab-bar-height", `${el.getBoundingClientRect().height}px`);
     sync();
     // Feature-detected: jsdom does not ship ResizeObserver, the same guard
@@ -220,7 +253,12 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
       window.removeEventListener("resize", sync);
       root.style.removeProperty("--phone-tab-bar-height");
     };
-  }, []);
+  }, [hidden]);
+
+  // **After the hooks, never before them.** The effect above has to run on a
+  // task route too — it is what removes the height this bar published on the
+  // route before it.
+  if (hidden) return null;
 
   return (
     // `md:hidden`, not `useIsPhone()`: that hook starts `false` on the server

@@ -20,9 +20,11 @@ practice. Read the one that matches your task:
 | `validating-direction.md` | How do we know we're still building the *right* thing, and when do we stop and ask Mitchell? |
 | `testing.md` | I need to write a test — which layer, what shape, and how do I know it can fail? |
 | `quality-enforcement.md` | What testing/CI/review bar must every change clear? |
+| `commenting.md` | JSDoc or `//`? Which goes where, what the docstring wall demands, and why the backlog is not mine to clear |
 | `working-a-review.md` | My PR has feedback on it — which of the four surfaces is it on, what resolves itself, and where do asks I am not building get recorded? |
 | `ci-cost-and-capacity.md` | What does CI cost, what is the minute budget, and why is the workflow shaped the way it is? |
 | `design-system.md` | What tokens, colors, and shared components does UI code use — and when? |
+| `building-from-the-design.md` | I'm building a screen the design drew — where is the artboard, which spec section, and what is this milestone's half of it? |
 | `cloud-agent-sessions.md` | I'm in a Claude Code cloud session — what's different here, and which failures are the container's fault? |
 | `fixtures-and-seed-data.md` | I added a feature — where does its sample data go so the demo trip, the preview branch and the tests keep exercising it? |
 | `observability-and-telemetry.md` | What does the app report to Sentry and the logs, where do I look at it, and how do I turn any of it down? |

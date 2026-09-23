@@ -1,6 +1,6 @@
 import type { TripDetail } from "@tc/contracts";
 import { formatTripDate } from "@/lib/formatDate";
-import { chipModel } from "./DayChips";
+import { chipModel } from "@/lib/dayChips";
 
 /** The three figures this pill states beside the date range. */
 export type TripCounts = { days: number; stops: number; cities: number };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAP_RAIL_TUNING_DEFAULTS } from "./mapRailTuning";
-import { gearedTravel, pickFocusedDay, railScrollGeometry, type RailGeometry, type RailItem } from "./mapRailFocus";
+import { gearedTravel, pickFocusedDay, railScrollGeometry, railScrollTopFor, type RailGeometry, type RailItem } from "./mapRailFocus";
 
 // Real measured values from the live rail: ~95px buttons in a ~600px viewport.
 const DAY_HEIGHT = 95;
@@ -143,5 +143,35 @@ describe("railScrollGeometry", () => {
     expect(
       railScrollGeometry({ scrollTop: 0, viewportHeight: VIEWPORT, contentHeight: 200, gearedTravel: 0 }),
     ).toEqual({ offset: 0, progress: 0 });
+  });
+});
+
+// M26 link 5d. The rail is geared, so a clicked day cannot be revealed with
+// `scrollTo(el.offsetTop)` — that overshoots by the gear ratio. This is the
+// exact inverse of `railScrollGeometry`, and the round-trip is the assertion
+// worth making: it holds the two directions together by construction rather
+// than by two hand-kept constants.
+describe("railScrollTopFor", () => {
+  const geometry = { viewportHeight: 600, contentHeight: 2000, gearedTravel: 5000 };
+
+  it("round-trips with railScrollGeometry", () => {
+    for (const targetOffset of [0, 100, 700, 1399]) {
+      const scrollTop = railScrollTopFor({ ...geometry, targetOffset });
+      const { offset } = railScrollGeometry({ ...geometry, scrollTop });
+      expect(offset).toBeCloseTo(targetOffset, 6);
+    }
+  });
+
+  it("clamps rather than scrolling past either end", () => {
+    expect(railScrollTopFor({ ...geometry, targetOffset: -500 })).toBe(0);
+    expect(railScrollTopFor({ ...geometry, targetOffset: 99_999 })).toBe(geometry.gearedTravel);
+  });
+
+  // Content shorter than the viewport has nowhere to scroll, and zero travel
+  // gives the container no range to express an answer in. Both would divide by
+  // zero if the guards were dropped.
+  it("is zero when there is nothing to scroll", () => {
+    expect(railScrollTopFor({ targetOffset: 100, viewportHeight: 600, contentHeight: 400, gearedTravel: 5000 })).toBe(0);
+    expect(railScrollTopFor({ targetOffset: 100, viewportHeight: 600, contentHeight: 2000, gearedTravel: 0 })).toBeGreaterThan(0);
   });
 });

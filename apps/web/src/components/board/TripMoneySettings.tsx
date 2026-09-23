@@ -26,19 +26,25 @@ export function TripMoneySettings({
 }) {
   return (
     // Redesign layout (Task 4.2, current/…dc.html:849-900): budget Input
-    // first (1fr) then Currency select second (130px) — the reverse of this
-    // component's old plain flex-column order. Dispatch logic below is
-    // untouched, byte-identical to before this task.
+    // first then Currency select second — the reverse of this component's old
+    // plain flex-column order. Dispatch logic below is untouched.
+    //
+    // **Two equal columns, and it used to be `1fr 130px`.** Mitchell, Vercel
+    // Toolbar comment on the PR #196 preview, 2026-09-20: *"in the trip
+    // settings, make the currency type 'USD' box the same size as the input
+    // for how much is the budget"*. On a 411px phone the fixed 130px left the
+    // currency box visibly narrower than the field beside it, which reads as
+    // two different kinds of control rather than one row.
+    //
+    // `grid-cols-2` rather than a second computed split: it is a scale class,
+    // so the arbitrary-value inline style and its `no-restricted-syntax`
+    // exception both go with it. One fewer place where geometry is spelled in
+    // pixels the token scale cannot see.
     // A `fieldset` rather than a `disabled` prop threaded to each control:
     // it natively disables every form element beneath it, including the
     // currency <select> and MoneyInput (which has no `disabled` prop of its
     // own), and it keeps covering anything added here later.
-    <fieldset
-      disabled={disabled}
-      className="grid gap-2.5 border-0 p-0"
-      // eslint-disable-next-line no-restricted-syntax -- the redesign's 1fr/130px budget-input split has no token equivalent, matching BudgetChip's computed-geometry pattern
-      style={{ gridTemplateColumns: "1fr 130px" }}
-    >
+    <fieldset disabled={disabled} className="grid grid-cols-2 gap-2.5 border-0 p-0">
       {/* No helper copy: "Used for the over-budget warning across lenses."
           was dropped in the 2026-08-30 design pass (Mitchell, on the
           preview). It previously sat in `hint` rather than `description`

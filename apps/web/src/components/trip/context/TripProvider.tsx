@@ -12,13 +12,14 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
-import { cachedRead } from "@/lib/queryCache";
+import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import {
   activeDetail,
   activeHistory,
   clearFailure,
   confirmHead,
+  adoptOutcome,
   enqueue,
   failHead,
   unsentCount,
@@ -26,6 +27,7 @@ import {
   type SendFailure,
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { headSeqOf, useTripBroadcast } from "./broadcast";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 type TripCtx = {
@@ -67,6 +69,22 @@ type TripCtx = {
   // is no timer, no backoff, and nothing re-sends on its own.
   sync: { unsent: number; failure: SendFailure | null; retry: () => void };
   preview: { seq: number | null; enter: (seq: number) => Promise<void>; exit: () => void };
+  /**
+   * Bumped every time the poll reports the trip's log moved.
+   *
+   * **For the parts of a trip this provider does NOT hold.** `trip` and
+   * `history` are refetched by `onRemoteChange` itself, so anything reading
+   * those re-renders without help. Notebook pages are the exception: they live
+   * in their own table and their own reads (`OverviewLens`, `PageScreen`), and
+   * since notebook edits became events they move `headSeq` like anything else.
+   * A counter is the smallest thing that lets those readers notice.
+   *
+   * A NUMBER rather than a boolean or a timestamp: an effect keyed on it fires
+   * once per change and never on a re-render, which neither of the others
+   * gives you. Callers use it as a dependency, not a value — its magnitude
+   * means nothing.
+   */
+  remoteRevision: number;
 };
 
 const Ctx = createContext<TripCtx | null>(null);
@@ -88,6 +106,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [error, setError] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<TripRole | null>(null);
   const [accessUnknown, setAccessUnknown] = useState(false);
+  // See `remoteRevision` on the context type for why this is a counter.
+  const [remoteRevision, setRemoteRevision] = useState(0);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const seq = useRef(0);
@@ -108,12 +128,16 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // moved, and the first of them duplicated the `TripDetail` the home
         // page's hero had just fetched for its stats.
         //
-        // `DEDUPE.NAVIGATION` (5s) and not longer, deliberately: with no
-        // polling and no socket anywhere in this app, remounting IS how you
-        // find out a co-traveller edited the trip. The window is sized to one
-        // navigation round trip for that reason, and every command invalidates
-        // it (`sendTripCommand`'s `finally`), so it can only ever hide a
-        // REMOTE write, never one of yours.
+        // `DEDUPE.NAVIGATION` (5s) and not longer, deliberately. This used
+        // to say "with no polling and no socket anywhere in this app,
+        // remounting IS how you find out a co-traveller edited the trip" —
+        // true when ADR-046 wrote it, and **no longer true since M13 link 2**:
+        // `useTripBroadcast` below polls this trip's log and refetches when it
+        // moves. The window is still sized to one navigation round trip, and
+        // every command invalidates it (`sendTripCommand`'s `finally`), so it
+        // can only ever hide a REMOTE write, never one of yours — and the
+        // broadcast refetch invalidates before it reads, so the poll is never
+        // answered out of the cache it exists to bypass.
         cachedRead(tripKeys.detail(tripId), () => fetchTripDetail(tripId)),
         cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)),
         // Failure here is deliberately non-fatal: `myRole` stays null and the
@@ -317,9 +341,15 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         return;
       }
       if (HISTORY_TYPES.has(command.type)) {
-        // The REF, not the render-time `pending` (KI-70). This guard is the
-        // only thing that makes the `pending: []` reconcile below safe, and it
-        // used to read a value derived during render — so an undo/redo/revert
+        // The REF, not the render-time `pending` (KI-70). This used to be the
+        // only thing that made the reconcile below safe; since M13 link 3 that
+        // reconcile re-predicts rather than clearing, so the guard no longer
+        // carries correctness — it is now a PRODUCT rule, and the one KI-90
+        // declined to decide: a history command does not start while unsent
+        // work is queued. Whether it should (and whether the silent `return`
+        // should say so) is still open, and is a decision, not a bug.
+        //
+        // It used to read a value derived during render — so an undo/redo/revert
         // fired in the same tick as an accepted enqueue saw the PRE-enqueue
         // `false`, passed, and reconciled away the unit that had been queued a
         // moment earlier. One user edit gone, with no error and no count.
@@ -335,7 +365,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
           if (result.error.code !== "no-op") setError(result.error.message);
           return;
         }
-        setOptimistic((prev) => (prev ? { confirmed: result.value, pending: [] } : prev));
+        // KI-90: this was `{ confirmed: result.value, pending: [] }`. The guard
+        // above runs BEFORE the await, so a unit enqueued while the undo was in
+        // flight — a window measured in network latency — was discarded here on
+        // arrival. `adoptOutcome` re-predicts the queue onto the authoritative
+        // result instead of clearing it, so the reconcile is non-lossy whatever
+        // the queue holds by the time it lands.
+        setOptimistic((prev) => (prev ? adoptOutcome(prev, result.value) : prev));
         exit();
         return;
       }
@@ -364,22 +400,87 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   );
 
   const applyOutcome = useCallback((outcome: CommandOutcome) => {
-    // `outcome` is `{ detail, history }` — exactly the `confirmed` shape. Clear
-    // pending: this is authoritative server state, nothing local is unconfirmed
-    // relative to it (matches the undo/redo/revert reconciliation).
+    // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
     //
-    // PRECONDITION, on the caller: only apply an outcome when `pending` is
-    // empty. The server decided this outcome without seeing anything still
-    // queued here, so clearing discards those units from the UI as well as
-    // from the server — the same silent loss `dispatch` refuses to cause
-    // below (`if (pending) return`). Callers gate their own affordance rather
-    // than being refused here, so the user is told why instead of watching a
-    // control do nothing: AddSavedDayButton disables the button, and
+    // This used to clear `pending` and carry a PRECONDITION on the caller:
+    // only apply an outcome when the queue is empty, because the server decided
+    // this outcome without seeing anything still queued here. That precondition
+    // was unenforceable — it lived in this comment, and a third caller would
+    // have inherited it by reading it — and it is KI-5's ledger row of the same
+    // name. `adoptOutcome` re-predicts the queue onto the outcome instead, so
+    // an ungated caller no longer costs the user their unsent work.
+    //
+    // The existing callers still gate their own affordance, and should: being
+    // TOLD why a control is unavailable beats watching it silently do something
+    // subtler than expected. AddSavedDayButton disables the button and
     // TripBoardScreen's assistant ask reports it in the rail
-    // (docs/reviews/2026-08-28-m11-pr71-review.md §4).
-    setOptimistic((prev) => (prev ? { confirmed: outcome, pending: [] } : prev));
+    // (docs/reviews/2026-08-28-m11-pr71-review.md §4). That is now a UX choice
+    // rather than the only thing standing between a caller and data loss.
+    setOptimistic((prev) => (prev ? adoptOutcome(prev, outcome) : prev));
     setError(null);
   }, []);
+
+  // ---- M13 link 2: a co-traveller's edits arrive ------------------------
+  //
+  // The poll says only "the trip moved"; the authoritative detail comes from
+  // the server's own projection. **Deliberately a refetch and not a client-side
+  // fold of the envelopes the poll returns**: `tripDetailFromState` takes a
+  // ConflictContext and the server projects with `serverConflictContext()`, so
+  // folding here with a different one would let `confirmed` — which is supposed
+  // to BE authoritative server state — disagree with the server about which
+  // conflicts exist. That is precisely the area link 4 is about, and a
+  // divergence there would be invisible until it mattered. The envelopes are
+  // not wasted: they are what link 4 reads to know which stop a remote edit
+  // touched.
+  const onRemoteChange = useCallback(() => {
+    // Bumped FIRST, and outside the async body on purpose: a reader of this
+    // trip's notebook pages has its own fetch to do, and making it wait for
+    // this provider's detail+history round trip would add latency for no
+    // reason. The two reads are independent.
+    setRemoteRevision((n) => n + 1);
+    void (async () => {
+      // Invalidate BEFORE reading. `cachedRead`'s 5s window and the poll's 5s
+      // interval are the same order of magnitude, so without this the refetch
+      // triggered by a poll could be answered out of the very cache entry the
+      // poll just proved stale.
+      invalidate(tripKeys.all(tripId));
+      const [detailResult, historyResult] = await Promise.all([
+        cachedRead(tripKeys.detail(tripId), () => fetchTripDetail(tripId)),
+        cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)),
+      ]);
+      // A failed refetch is silent for the same reason a failed poll is: the
+      // next tick tries again, and nothing local is lost by missing one.
+      if (!detailResult.ok || !historyResult.ok) return;
+      // Through `adoptOutcome`, never around it (ADR-049 Decision 4). A remote
+      // edit arriving mid-queue is the same problem as a local outcome arriving
+      // mid-queue: adopt the authoritative state, re-predict what is queued.
+      // Assigning `{ confirmed, pending: [] }` here would have made remote edits
+      // a fourth member of the KI-5/KI-90 loss class link 3 just closed.
+      setOptimistic((prev) =>
+        prev
+          ? adoptOutcome(prev, { detail: detailResult.value, history: historyResult.value })
+          : prev,
+      );
+    })();
+  }, [tripId]);
+
+  useTripBroadcast({
+    tripId,
+    // A solo trip has no second writer, so the interval would be pure cost; and
+    // while the board is previewing an older seq, the present moving underneath
+    // it is noise rather than news. The demo trip is a fixture that never moves
+    // (ADR-031), so polling it can only ever return "nothing happened".
+    enabled:
+      status === "ready" &&
+      previewSeq === null &&
+      !isDemoTripId(tripId) &&
+      (optimistic?.confirmed.detail.members.length ?? 0) > 1,
+    // Read at poll time, not captured: the confirmed head advances every time
+    // the user's own work lands, and a stale cursor would re-report those as
+    // remote news on every tick.
+    cursor: () => (optimisticRef.current ? headSeqOf(optimisticRef.current.confirmed.history) : 0),
+    onChanged: onRemoteChange,
+  });
 
   // Kept in step with the state on every render, so a change made anywhere
   // else — the initial load, the sender confirming a head, applyOutcome,
@@ -416,6 +517,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         accessUnknown,
         sync,
         preview: { seq: previewSeq, enter, exit },
+        remoteRevision,
       }}
     >
       {/* The header logo is the save light (SPEC "The logo is the save

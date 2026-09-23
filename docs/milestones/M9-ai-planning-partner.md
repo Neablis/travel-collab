@@ -466,3 +466,65 @@ open — but **not gate boxes**, and the gate does not wait on them.
 
 The full inventory each of those rows summarises, with severities, is in the
 audit: `docs/reviews/2026-09-01-milestone-audit.md` §3a.
+
+## 2026-09-19 — three designed surfaces routed here by the parity survey
+
+From M26's five-survey sweep (`docs/milestones/M26-design-parity.md`). M26 is a
+parity milestone over data that already exists; these three are designed, drawn,
+and blocked on this milestone. Recorded here so they are not rediscovered a
+third time.
+
+**1. The new-trip fork's paid half (SPEC §30.3).** After the last answer the
+conversation forks on entitlements. **The free half is not blocked and M26 link
+9 builds it** — one description, a quiet Plus note, a *See plans* button, and
+the dock **absent rather than disabled** (§31.3). The **paid half is M9's**: a
+live composer that continues the conversation in the trip's context, *"tell me
+what to change and I will redraw it before you open it"*. That is generation,
+and it stays behind `<Preview id="wizard-assistant-draft">`
+(`NewTripWizard.tsx:444-452`) until this milestone lands it.
+
+Note what the build already says out loud in its closing turn: the days are
+empty, and *"what you said about pace and what the trip is about is not built in
+yet"* — because `pace` and `feel` are collected and stored **nowhere**. There is
+no field on `CreateTrip` or `TripDetail` for either. **If M9's generation is
+meant to read the five answers, that field is this milestone's to add**, and it
+is not currently in anyone's scope.
+
+**2. `add-stop-suggestions` (`ActivityEditor.tsx:189`).** Still shelled, still
+correctly tagged M9, still waiting on grounded place search — which is this
+milestone's remaining link 1. No change; listed for completeness, because
+`preview-registry.ts` now holds six entries rather than eleven and two of the
+six are M9's.
+
+**3. `Ask` in read-only, and it is the one with a real decision in it.**
+SPEC §27 requires it: *"Ask stays available in read-only. A reader with a
+question is the most likely visitor the demo has, and answering is not
+changing."* The design goes further and specifies the guard rails — `propose()`
+refuses and says why, both proposal **Keep** handlers are gated, and the
+context line reads *"Reading &lt;trip&gt; · answers only"* so the limit is
+stated **before** someone asks.
+
+The build removes the assistant from `/demo` in four places and the server 403s
+`demo-trip-unsupported`. **That is not an oversight; it is `KI-079`**, which
+records why: `requireTripAccess` resolves a demo visitor as `viewer` *before*
+`auth()`, so a viewer-gated `/ask` would be an **unauthenticated,
+internet-facing model proxy on the operator's key**, with one shared
+`demo-visitor` quota bucket and a Postgres write on a path ADR-031 keeps
+DB-free.
+
+**Three product decisions have to land before any of it is buildable** — who
+pays for an anonymous turn, whether the `/demo` path may touch Postgres at all,
+and what an anonymous prompt may reach. KI-079 names all three and is already
+carried by this milestone. **M26 does not touch it**, and its file says so in
+*Deliberately not here*.
+
+**Also relevant to this milestone's own surfaces, from the same survey.** §9's
+*"one panel, three presentations, and the user picks"* is **half built**: all
+three geometries exist in `AssistantRail.tsx:311`, but the choice is hardcoded
+per surface (`docked` on the trip board, `floating` in the notebook) and nobody
+can pick. Dragging, clamping and re-clamp-on-resize are not built at all, and
+`AssistantBubble.tsx:44-46` says so. **M26 link 10 takes this**, because it is
+presentation over no new data — but it lands a **persisted position and open
+state**, and that makes §29's *"the dock on `plans` is hidden, not unmounted"*
+rule live for the first time. If M9 moves the dock or changes what it holds,
+that rule is now load-bearing rather than theoretical.

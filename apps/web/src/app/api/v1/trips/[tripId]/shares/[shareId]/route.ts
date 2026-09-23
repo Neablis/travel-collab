@@ -5,6 +5,7 @@ import { route } from "@/server/public-api/route";
 
 export const { DELETE } = route({
   DELETE: {
+    summary: "Revoke a trip's share link",
     scope: "sharing:write",
     trip: "path",
     role: "owner",

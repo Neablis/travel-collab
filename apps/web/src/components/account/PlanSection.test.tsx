@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { PlanSection } from "./PlanSection";
@@ -48,6 +48,7 @@ const CATALOGUE: AccountPlanView["catalogue"] = [
 const FREE: AccountPlanView = {
   planVersionRef: "free@v1",
   conferredVersionRef: "free@v1",
+  grantedVersionRefs: [],
   entitlements: [],
   questions: { used: 0, limit: 0 },
   steps: { used: 0, limit: 0 },
@@ -139,19 +140,22 @@ describe("what you hold", () => {
     expect(screen.queryByTestId("plan-catalogue")).toBeNull();
   });
 
-  // **The sheet is a modal dialog, so navigating out of it has to close it.**
-  // Reported on the preview, 2026-09-15: *"Clicking change plan should navigate
-  // to the plans, but also close the sidebar"*. Without this the route changed
-  // underneath a dialog that stayed open over the page it had just reached.
+  // **This asserted an `onNavigate` callback until M26 link 1.** The callback
+  // existed to close the account Sheet behind this navigation — a modal dialog
+  // otherwise stayed open over the page it had just reached (preview,
+  // 2026-09-15: *"Clicking change plan should navigate to the plans, but also
+  // close the sidebar"*). Account is a route now (§34.4), so there is no dialog
+  // and no host to tell.
   //
-  // Asserted as the callback firing rather than as the sheet closing: this
-  // component does not own the sheet and must not decide that it closes —
-  // `AccountSettingsSheet` passes `() => onOpenChange(false)`.
-  it("tells its host to close when Change plan is taken", async () => {
-    const onNavigate = vi.fn();
-    render(<PlanSection onNavigate={onNavigate} />);
-    fireEvent.click(await screen.findByTestId("plan-change-link"));
-    expect(onNavigate).toHaveBeenCalledOnce();
+  // What survives is the half that is still true and still worth holding: this
+  // is a real anchor to `/plans`, not a button that fakes one. Keeping it means
+  // the CTA cannot silently regress to a `<button>` with a handler, which is
+  // what it was before the `buttonVariants`-on-a-`Link` pattern landed.
+  it("offers Change plan as a real link to the plans route", async () => {
+    render(<PlanSection />);
+    const link = await screen.findByTestId("plan-change-link");
+    expect(link.tagName).toBe("A");
+    expect(link.getAttribute("href")).toBe("/plans");
   });
 
   // §29: *"do not offer a CTA that opens a checkout that cannot succeed"*. A
@@ -337,5 +341,62 @@ describe("the meters", () => {
     await screen.findByTestId("plan-section");
     expect(text("meter-questions")).toContain("3 / 200");
     expect(text("meter-steps")).toContain("40 / 1600");
+  });
+});
+
+// **The tier an account can actually use is not always the one it bought.**
+// Mitchell's own founding account, 2026-09-19: `users.plan_id` said `plus@v1`,
+// two permanent `premium` grants sat active on it, and the sheet never once
+// printed the word `premium` — so the screen disagreed with what the assistant
+// and the collaborator cap were actually letting through. `entitlements` was
+// already the union; what was missing was a TIER a person recognises.
+describe("a grant above the held plan", () => {
+  const comped = (): AccountPlanView => ({
+    ...FREE,
+    planVersionRef: "plus@v1",
+    conferredVersionRef: "plus@v1",
+    // What the operator console writes for a comp: a grant pinned to its own
+    // version, which outlives the plan the account pays for.
+    grantedVersionRefs: ["premium@v1", "premium@v2"],
+    entitlements: ["ai.ask", "ai.command", "trip.collaborators", "api.tokens"],
+    catalogue: CATALOGUE.map((choice) => ({ ...choice, held: choice.planId === "plus" })),
+  });
+
+  it("shows the granted tier, not the bought one", async () => {
+    serve(comped());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    // The newest granted version of the most capable granted plan.
+    expect(text("plan-effective")).toContain("premium");
+    expect(text("plan-effective")).toContain("2");
+  });
+
+  // Both facts, because the billing copy below the card is about the
+  // SUBSCRIPTION: an account reading only "premium" would have no way to
+  // understand a renewal notice naming `plus`.
+  it("still names the plan that was actually bought", async () => {
+    serve(comped());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-held")).toContain("plus");
+  });
+
+  // The guard against the reverse failure: with no grant, the label is the held
+  // plan and nothing invents a tier.
+  it("leaves an ungranted account on its own plan", async () => {
+    serve(subscribed());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-effective")).toContain("premium");
+    expect(text("plan-held")).toContain("premium");
+  });
+
+  // A plan the chooser does not offer (`studio` ships disabled) must never
+  // become the label — there is no page that could explain it.
+  it("ignores a grant for a plan the catalogue does not offer", async () => {
+    serve({ ...comped(), grantedVersionRefs: ["studio@v1"] });
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-effective")).toContain("plus");
   });
 });

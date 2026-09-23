@@ -93,6 +93,36 @@ all enforced or visible only in a renderer — "no browser available" is the
 one excuse that turns a verifiable claim into an unverified one, and it was
 false both times it was used.
 
+**The e2e lane's Chromium reaches the tile host, as of 2026-09-23.** It did not
+before, and the two map specs (`m10-map-rail`, `m26-shared-day-map`) failed
+here with *"The map could not load"* in every cloud session — which is what
+left M26's gate box at 153 passed / 2 failed. The cause was never egress
+policy: the host was always allowed, and Chromium simply did not trust the
+certificate the proxy re-terminates TLS with (KI-49 has the four-line proof,
+including why `curl` succeeding tells you nothing about the browser).
+
+`apps/web/scripts/container-chromium.mjs` now pins the gateway's own CAs by
+SPKI hash, and `playwright.config.ts` passes them as `launchOptions.args`. It
+is **empty off-container** — the detector is an egress proxy in the environment
+plus certificates in `/usr/local/share/ca-certificates`, which a GitHub Actions
+runner has neither of.
+
+Two things about it worth knowing before you touch it:
+
+- **It adds trust for specific public keys; it does not disable verification.**
+  `--ignore-certificate-errors` and `ignoreHTTPSErrors: true` are not the
+  alternative — `/root/.ccr/README.md` forbids them, and a map spec that passes
+  because the browser stopped checking proves nothing while looking exactly
+  like a pass.
+- **The detector is deliberately not `process.env.CI`.** `test:e2e:ci-like`
+  sets that locally, and it is the only lane whose result counts — gating on it
+  would withhold the fix from the exact run you would act on.
+
+`--ssl-version-max=tls1.2` is NOT part of this and stays in `walk-preview.mjs`.
+It is needed only for `*.vercel.app`, which the gateway tunnels rather than
+inspects; the tile host is inspected and completes a TLS 1.3 handshake
+normally. So the e2e lane keeps TLS 1.3 here as well as in CI.
+
 **The Vercel preview IS reachable from here.** This paragraph used to say the
 opposite, and stopped three runs from testing where the bug was. Deployment
 Protection does 302 every unauthenticated request to `vercel.com/sso-api`, and
@@ -191,6 +221,37 @@ different error, so the second one landed here.
 until the expensive lane. `test:e2e:ci-like`, `test:int` and every `db:*` script
 do.
 
+### An `.env.local` KEY can be present and its VALUE still empty
+
+`setup-env.mjs` writes `.env.local` from `.env.example`, and a name whose
+example value is a placeholder lands as a bare `NAME=`. **The key is there, so
+every "is it set?" check that greps for the name passes**, and the failure
+arrives much later wearing a different face.
+
+Measured 2026-09-20. `e2e/m22-api-tokens.spec.ts` failed in a cloud session at
+`expect(token-revealed).toContainText("not shown again")` — a missing element,
+which reads as a UI regression and was investigated as one (the token section
+had just moved to `/account` in M26 link 1, so there was a plausible culprit
+sitting right there). It was not. The page snapshot Playwright captures on
+failure had the real answer in one line — *"Tokens are not available on this
+deployment just now"*, the component's own 5xx branch — and the server log
+underneath it said `ApiTokenPepperMissingError`. `grep -c "^API_TOKEN_PEPPER="
+.env.local` returned **1**, because the line was `API_TOKEN_PEPPER=`.
+
+CI does not have this: the workflow sets `API_TOKEN_PEPPER: ci-pepper`
+explicitly, so a test that fails this way locally passes there — which is the
+combination most likely to be mistaken for a defect you just introduced.
+
+Check the VALUE, not the name:
+
+    v=$(grep '^API_TOKEN_PEPPER=' apps/web/.env.local | cut -d= -f2-)
+    [ -z "$v" ] && echo EMPTY
+
+And read `test-results/**/error-context.md` before theorising. Playwright
+writes a full accessibility snapshot of the page at the moment of failure; it
+named the cause here immediately, and the twenty minutes spent reading
+component source first were avoidable.
+
 **A real environment variable wins over `.env.local`.** Node's `--env-file`
 only fills in names that are not already set (verified on Node 22:
 `PROBE=from_environment node --env-file-if-exists=.env.local` prints
@@ -271,6 +332,45 @@ explicitly rather than letting a blank canvas read as a pass.
 `LOCATIONIQ_API_KEY` and `AI_GATEWAY_API_KEY` belong in Vercel's env scopes.
 Only non-secret gates (`SEED_DEMO_DATA=true`) are appropriate there.
 
+## Waiting on a PR: subscribe, do not watch
+
+`AGENTS.md`'s *Waiting on PR checks* section owns the rule; this is the
+container-specific half of it.
+
+A cloud session can be **woken by external events**, which a laptop session
+cannot:
+
+```
+subscribe_pr_activity(owner, repo, pullNumber)   # then end the turn
+```
+
+CI completions, review comments and merge-state changes arrive as
+`<wake reason="external-event">` envelopes. **Ending the turn is how you wait.**
+A blocking `gh pr checks --watch` here spends a median 6.6 minutes of session
+doing nothing, and still misses the review comment that lands afterwards.
+
+Two things that follow:
+
+- **Never run a blocking watch in a subscribed session.** It spends exactly the
+  wait the subscription removes.
+- **Do not poll as a substitute.** If no event has arrived, nothing has
+  happened. Repeated `gh pr checks` was measured as a reliable time sink before
+  the wake mechanism was documented at all.
+
+## What this container can verify — run the probe
+
+`pnpm lanes` prints which verification lanes exist here: `pnpm --filter`
+usable, node_modules present, the jsdom unit lane, the integration database,
+Playwright's browsers, and (with `--net`) egress to the map tile host. The
+`SessionStart` hook prints it beside the state digest, so it has usually
+already run.
+
+Read it before promising a verification. Four open entries are each a session
+discovering a broken lane mid-task and reading it as a code failure:
+`KI-2026-09-08-b`, `KI-2026-09-12-b`, `KI-2026-09-02-a`, `KI-49`. A blocked
+lane is a fine outcome recorded on the PR's *"Not run, and why"* line; a lane
+you assumed and never had is not.
+
 ## The container is ephemeral
 
 Anything worth keeping is committed and pushed. A hand-fix applied to the image
@@ -280,6 +380,18 @@ future agent's memory.
 
 Writable disk is a fixed allowance, so `df` misleads: "Avail" at 0 with low
 "Used" means the allowance is spent. Deletes still succeed while writes fail.
+
+**The session transcript is ephemeral too, and that has a measurement cost.**
+`~/.claude/projects/<dir>/*.jsonl` goes with the container. The 2026-09-02
+tooling review's corpus was 35 *macOS* directories — local sessions only — so
+every figure in it (F1's 1.9M tokens of orientation re-reads, the 51.3x
+cache-read multiplier, F3's 814k for subagents) describes the local slice of a
+window that partly predates the shift to cloud-primary work. Re-running that
+analysis on a laptop today samples a shrinking minority while looking like a
+baseline. `pnpm session-metrics --self <transcript>` emits this session's
+aggregate — counts and token sums only, never prompt text or file contents —
+which is the piece that has to be captured *before* the container is
+reclaimed. See `docs/reviews/2026-09-21-development-loop-review.md`.
 
 ## The rule that matters
 

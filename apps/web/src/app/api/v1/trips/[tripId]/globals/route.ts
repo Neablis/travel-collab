@@ -7,6 +7,7 @@ import { route } from "@/server/public-api/route";
 // the same `viewer` the detail endpoint asks for.
 export const { GET } = route({
   GET: {
+    summary: "Summarise a trip: its days, the cities and tags it uses, and how many stops are booked",
     scope: "trips:read",
     trip: "path",
     role: "viewer",

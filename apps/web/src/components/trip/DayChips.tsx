@@ -1,5 +1,4 @@
 import { useRef } from "react";
-import type { TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
 import {
@@ -8,23 +7,10 @@ import {
   type DaySync,
 } from "@/components/trip/context/FocusProvider";
 import { DataText } from "@/components/ui/data-text";
-import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { ACCENT_INK_TEXT, dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
+import type { ChipDay } from "@/lib/dayChips";
 
-export type ChipDay = {
-  dow: string;
-  dateNum: string;
-  city: string | null;
-  // The city this day arrived FROM — the previous day's derived city, set only
-  // when it differs from this day's. Named "from" rather than "to" because
-  // that is what it has always held the other half of: `transitionTo` was, by
-  // construction, `city` itself (see chipModel), so the two could never carry
-  // different information. Storing the from-half is what lets a chip render a
-  // real "Tokyo → Nikkō" instead of "Nikkō → Nikkō".
-  transitionFrom: string | null;
-  transitionTo: string | null;
-  stops: number;
-};
 
 // Same static-map pattern as Sparkline.tsx's BAR_BG / TripCard.tsx's
 // ACCENT_BAR_BG: Tailwind's JIT scanner can't see a template-interpolated
@@ -48,97 +34,6 @@ const DOT_BG: Record<AccentFamily, string> = {
   neutral: "bg-slate",
 };
 
-// "danger"/"warning"/"success"/"info" each carry a `-ink` token; "brand" does
-// not (its darkest tone is `-pressed`) — same map shape as TimelineLens.tsx's
-// and KeepDayFlag.tsx's own INK_TEXT. Static Record, not a template string:
-// Tailwind only emits utilities it can see as literal text.
-const INK_TEXT: Record<AccentFamily, string> = {
-  brand: "text-brand-pressed",
-  info: "text-info-ink",
-  success: "text-success-ink",
-  warning: "text-warning-ink",
-  danger: "text-danger-ink",
-  neutral: "text-slate",
-};
-
-// Dates are calendar dates (YYYY-MM-DD), not instants — construct in local
-// time so "2027-06-01" never rolls back a day in a negative-offset zone.
-// Mirrors lib/formatDate.ts's own local-parse helper; that module only
-// exports pre-formatted strings (day-of-week + month + day together), not a
-// bare Date, so this is a small local copy — exported so NextTripHero.tsx's
-// sparkline day-number derivation reuses it rather than a third copy.
-function parseLocalDate(iso: string): Date {
-  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
-  return new Date(y, m - 1, d);
-}
-
-// The LAST scheduled activity's location.city (packages/contracts'
-// Location.city — the geocoder's own structured city/town/village, distinct
-// from the full place-name label).
-//
-// Last, not first (Mitchell, 2026-08-29): the day label compares yesterday's
-// last activity city with today's, because where you END a day is where you
-// start the next one — SPEC §12's own framing is that the day belongs to
-// where you end up. On the Japan fixture first and last coincide (whole days
-// sit in one city) so nothing rendered differently when this flipped; the
-// case it fixes is a day that genuinely spans two cities, which is the only
-// case the "Tokyo → Kyoto" transition line exists for. Reading the first stop
-// there named the travel day by the city it was leaving and pushed the arrow
-// onto the FOLLOWING day, which never moved.
-//
-// `city` stays FIRST here, unlike shortPlace() (lib/place.ts), which leads
-// with `area`. This value names the day and drives the day accent and the
-// "Tokyo → Nikkō" transition, so a ward or neighbourhood in this slot would
-// split one city's days apart and invent transitions inside a single city.
-//
-// `area` is the ONLY fallback, and there is deliberately no `name` one.
-// Resolved here when #72 (KI-35) merged into this branch: #72 was written off
-// a `main` that predated Mitchell's instruction on the #71 preview — "Never
-// fall back to name, if you have absolutely no city, then make a new bucket
-// with no city in title" — and so restored `?? location.name`. That rule
-// stands: a venue name is not a place, and it is how a restaurant came to
-// label a whole day. `area` does not violate it, because a real locality
-// ("Higashiyama") IS a place; the venue name ("Kiyomizu-dera") never was.
-// So a day whose stops carry neither city nor area has no city, and says so
-// by returning null — the callers all handle that.
-//
-// Walks back through earlier activityIds if the last has no location; null if
-// none of the day's activities name a city or an area.
-export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
-  for (let index = day.activityIds.length - 1; index >= 0; index--) {
-    const activityId = day.activityIds[index]!;
-    const location = activities[activityId]?.location;
-    const place = location?.city ?? location?.area;
-    if (place !== undefined && place !== "") return place;
-  }
-  return null;
-}
-
-// Pure: one ChipDay per TripDetail day, no DOM — testable standalone
-// (mirrors Sparkline.tsx's sparklineBars). transitionTo is set only when
-// this day's derived city differs from the *previous* day's derived city
-// and both are non-null, so a day with no located activity (or the very
-// first day, which has no previous day at all) never claims a fake
-// transition.
-export function chipModel(detail: TripDetail): ChipDay[] {
-  let previousCity: string | null = null;
-
-  return detail.days.map((day, index) => {
-    const city = cityFor(day, detail.activities);
-    const moved = previousCity !== null && city !== null && city !== previousCity;
-    const transitionFrom = moved ? previousCity : null;
-    const transitionTo = moved ? city : null;
-    previousCity = city;
-
-    const dow =
-      day.date === null
-        ? `Day ${index + 1}`
-        : parseLocalDate(day.date).toLocaleDateString("en-US", { weekday: "short" });
-    const dateNum = day.date === null ? "" : String(parseLocalDate(day.date).getDate());
-
-    return { dow, dateNum, city, transitionFrom, transitionTo, stops: day.activityIds.length };
-  });
-}
 
 export type DayChipsProps = {
   days: ChipDay[];
@@ -352,7 +247,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
                 the reason a longer city name truncated: it took a fixed
                 `shrink-0` bite out of a chip only ~72px wide. */}
             <div className="flex w-full items-baseline gap-1 overflow-hidden">
-              <span className={cn("text-xs font-semibold", INK_TEXT[accent.ink])}>{day.dow}</span>
+              <span className={cn("text-xs font-semibold", ACCENT_INK_TEXT[accent.ink])}>{day.dow}</span>
               <DataText size="xs" className="shrink-0">
                 {day.dateNum}
               </DataText>
@@ -364,7 +259,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
                 // `!readOnly` because on a trip you cannot edit it reads as
                 // "delete this day" — see `readOnly` in the props above. The
                 // chip still deselects on a second tap; only the glyph goes.
-                <span aria-hidden className={cn("ml-auto shrink-0 text-xs leading-none", INK_TEXT[accent.ink])}>
+                <span aria-hidden className={cn("ml-auto shrink-0 text-xs leading-none", ACCENT_INK_TEXT[accent.ink])}>
                   ×
                 </span>
               )}

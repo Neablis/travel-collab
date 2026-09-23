@@ -8,6 +8,7 @@ import { route } from "@/server/public-api/route";
 // creating something at revision 42.
 export const { POST } = route({
   POST: {
+    summary: "Return a trip to how it stood at a past revision, recorded as a new change",
     scope: "trips:write",
     trip: "path",
     role: "editor",

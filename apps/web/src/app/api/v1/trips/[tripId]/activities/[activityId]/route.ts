@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { GEOCODE_OUTCOME_HEADER, TripDetail, UpdateActivity, type Location } from "@tc/contracts";
-import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
 import { GEOCODE_OUTCOME_DOC, resolveStopLocation } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";
@@ -29,6 +29,7 @@ const PatchStopBody = UpdateActivity.omit({ type: true, tripId: true, activityId
 
 export const { PATCH, DELETE } = route({
   PATCH: {
+    summary: "Edit a stop's details, or move it to another day, position or the backlog",
     scope: "trips:write",
     trip: "path",
     role: "editor",
@@ -79,6 +80,7 @@ export const { PATCH, DELETE } = route({
     },
   },
   DELETE: {
+    summary: "Remove a stop from a trip",
     scope: "trips:write",
     trip: "path",
     role: "editor",

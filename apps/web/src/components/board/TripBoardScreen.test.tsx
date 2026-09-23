@@ -11,7 +11,7 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/factories";
-import { makeTripHandlers } from "@/mocks/handlers";
+import { makeTripHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
 // Scoped to the panel rather than reached for by bare role+name, still —
@@ -151,7 +151,11 @@ function renderScreen(tripId: string) {
   );
 }
 
-const server = setupServer();
+// The assistant rail mounts with this screen and asks for the account's plan
+// (`useAiEntitled`). Without a default the suite logged 20 unhandled-request
+// errors and the rail sat on "unknown" throughout — a state no signed-in user
+// is in. A test about the refusal overrides it with `server.use`.
+const server = setupServer(makeAccountPlanHandler());
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   // **`view=Plan`, not "" — and this is the single change SPEC §24 makes to
@@ -208,6 +212,11 @@ describe("TripBoardScreen", () => {
     server.use(
       http.get("/api/trips/:tripId", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
       http.get("/api/trips/:tripId/history", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
+      // `/access` 401s for a signed-out visitor too. It was missing rather
+      // than deliberately omitted — the request went out unhandled on every
+      // run — and stubbing it makes the fixture the shape a real signed-out
+      // visitor meets instead of one endpoint short of it.
+      http.get("/api/trips/:tripId/access", () => HttpResponse.json({ error: "unauthenticated" }, { status: 401 })),
     );
     renderScreen(fixture.tripId);
 
@@ -223,7 +232,7 @@ describe("TripBoardScreen", () => {
     const pastFixture = tripDetailFixture({
       backlog: [ancientId],
       activities: {
-        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        [ancientId]: { activityId: ancientId, title: "Ancient Rome", timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: []},
       },
     });
     const onCommand = vi.fn<(command: TripCommand) => void>();
@@ -275,16 +284,18 @@ describe("TripBoardScreen", () => {
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Map" }));
-    expect(await screen.findByText(/No located activities yet/)).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
     expect(await screen.findByText("Set a start date to see the calendar.")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
-    // The Overview fetches its page; "loading" is the first thing it says and
-    // is enough to prove this tab mounts its own surface rather than falling
-    // through to Plan.
-    expect(await screen.findByRole("status", { name: "" })).toBeTruthy();
+    // The Overview fetches its page, so its `ovBody` placeholder is the first
+    // thing it draws. The region's own NAME is what proves this tab mounted
+    // its own surface rather than falling through to Plan — it used to look
+    // for an unnamed `role="status"`, which any lens's spinner would have
+    // satisfied (M26 link 7 gave every region a label of its own).
+    expect(await screen.findByRole("status", { name: "Loading the Overview" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("tab", { name: "Plan" }));
     expect(await screen.findByTestId("one-more-day-column")).toBeTruthy();
@@ -350,6 +361,8 @@ describe("TripBoardScreen", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       },
       conflicts: [
@@ -389,6 +402,10 @@ describe("TripBoardScreen", () => {
       http.get("/api/trips/:tripId/history", () =>
         HttpResponse.json({ history: { tripId: withConflict.tripId, entries: [], canUndo: true, canRedo: false } }),
       ),
+      // Everything this test does not override — `/access`, `/globals`,
+      // `/pages`. LAST on purpose: MSW takes the first match, so the two
+      // handlers above still win for the endpoints they exist to control.
+      ...makeTripHandlers(withConflict),
     );
 
     renderScreen(withConflict.tripId);
@@ -1553,6 +1570,8 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       },
     };
@@ -1768,8 +1787,8 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
       startDate: "2027-06-01",
       days: [{ dayId: DAY, activityIds: [EARLIER, LATER], date: "2027-06-01", costSubtotal: 0 }],
       activities: {
-        [EARLIER]: { activityId: EARLIER, title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
-        [LATER]: { activityId: LATER, title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null },
+        [EARLIER]: { activityId: EARLIER, title: "Nezu Museum", timeWindow: { start: "10:30", end: "13:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: []},
+        [LATER]: { activityId: LATER, title: "Lunch at Kagari", timeWindow: { start: "12:30", end: "14:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: []},
       },
       conflicts: [
         {

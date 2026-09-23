@@ -2,6 +2,17 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
+// §30.3's fork reads a capability, and every test below needs to say which
+// answer it is testing. `null` is the default because that is what an
+// unresolved or failed read gives, and `useAiEntitled`'s own note requires
+// every caller to treat it as entitled — so the default here is also the
+// behaviour every pre-existing test in this file was written against.
+const aiEntitled = { value: null as boolean | null };
+vi.mock("@/components/assistant/useAiEntitled", async (orig) => ({
+  ...(await orig<typeof import("@/components/assistant/useAiEntitled")>()),
+  useAiEntitled: () => aiEntitled.value,
+}));
+
 import { NewTripWizard } from "./NewTripWizard";
 
 // THE SHEET IS A TRANSCRIPT NOW (SPEC §30.1, design §3), and since §32.3 its
@@ -20,7 +31,10 @@ import { NewTripWizard } from "./NewTripWizard";
 // asked, that an answer commits and appears as the reader's own words, that
 // Change goes back without losing what came after, and that nothing reaches the
 // network until an exit is pressed.
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  aiEntitled.value = null;
+});
 
 const user = userEvent.setup({ delay: null });
 
@@ -506,5 +520,76 @@ describe("NewTripWizard — the turns", () => {
     // `navigate: false` — the old dialog closed and left you on the trip list
     // to open the card yourself, and every pre-Phase-7 e2e spec is built on it.
     expect(onCreated).toHaveBeenCalledWith(sent, { navigate: false });
+  });
+});
+
+// §30.3, M26 link 9a: "After the fifth answer the flow splits on whether the
+// account has assistant access — resolved from entitlements, exactly as
+// everywhere else, never from a plan name compared by rank."
+describe("NewTripWizard — the fork at the end, on plan (§30.3)", () => {
+  async function makeTheTrip() {
+    await answerThroughToFeel();
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+    await screen.findByRole("button", { name: "Open the trip" });
+  }
+
+  it("shows nothing about the fork until the trip is actually made", async () => {
+    aiEntitled.value = false;
+    renderWizard();
+    await answerThroughToFeel();
+
+    // On the LAST QUESTION, before it is answered. This used to render here,
+    // which put a claim about the trip on screen before there was a trip.
+    expect(screen.queryByText(/part of Plus/i)).toBeNull();
+    expect(screen.queryByText(/Let the assistant draft it/i)).toBeNull();
+  });
+
+  it("gives a free account the finished trip, a quiet Plus note, and See plans", async () => {
+    aiEntitled.value = false;
+    renderWizard();
+    await makeTheTrip();
+
+    // The reassurance FIRST: the fear a paywall at the end of a flow creates
+    // is that the work was for nothing.
+    expect(screen.getByText(/finished and yours to edit/i)).toBeTruthy();
+    expect(screen.getByText(/part of Plus/i)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
+    // "No teaser, no disabled input" — and not a teaser of the paid half
+    // either, which is what the `Preview` is.
+    expect(screen.queryByText(/Let the assistant draft it/i)).toBeNull();
+  });
+
+  // §30.3: "The composer is gone, because there is nothing it could do. No
+  // teaser, no disabled input."
+  it("offers a free account no composer at all — not a disabled one", async () => {
+    aiEntitled.value = false;
+    renderWizard();
+    await makeTheTrip();
+
+    expect(screen.queryByLabelText("What is this trip about?")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+  });
+
+  it("keeps the paid half a Preview for an entitled account", async () => {
+    aiEntitled.value = true;
+    renderWizard();
+    await makeTheTrip();
+
+    expect(screen.getByText(/Let the assistant draft it/i)).toBeTruthy();
+    expect(screen.queryByText(/part of Plus/i)).toBeNull();
+  });
+
+  // The asymmetry that matters: `null` is BOTH "not resolved yet" and "the read
+  // failed", and `useAiEntitled` requires every caller to treat it as entitled.
+  // Flashing a paywall at a subscriber is a worse failure than showing a free
+  // account one optimistic frame — and here that frame is a `Preview`, which
+  // promises nothing.
+  it("takes the paid branch while the entitlement is unknown", async () => {
+    aiEntitled.value = null;
+    renderWizard();
+    await makeTheTrip();
+
+    expect(screen.queryByText(/part of Plus/i)).toBeNull();
+    expect(screen.getByText(/Let the assistant draft it/i)).toBeTruthy();
   });
 });

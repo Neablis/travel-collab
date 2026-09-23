@@ -51,8 +51,8 @@ import { primitiveCatalog } from "@tc/pages";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { settleAiSteps } from "@/server/quota";
-import type { AskScope } from "@/server/ai/context";
-import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
+import type { AskScope } from "@/server/assistant/context";
+import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
 import { MAX_READ_DAYS } from "@/server/assistant/tools/read";
 import {
   buildProposal,
@@ -86,7 +86,7 @@ import { admissionPorts } from "@/server/ai/admissionPorts";
 import { SIMULATED_HEADER, type AskStreamMetadata, type Page, type TripDetail } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
-import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/ai/askAnalytics";
+import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/assistant/askAnalytics";
 import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
 import { recordAiUsage } from "@/server/entitlements/usage";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";

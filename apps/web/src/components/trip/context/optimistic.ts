@@ -1,5 +1,6 @@
-import type { BatchableCommand, HistoryEntry, TripDetail, TripHistory } from "@tc/contracts";
+import type { BatchableCommand, Conflict, HistoryEntry, TripDetail, TripHistory } from "@tc/contracts";
 import { predictBatch } from "@tc/predict";
+import { activityTargets, concurrentEditConflicts, pruneResolved } from "./concurrentEdits";
 
 export type PendingUnit = {
   id: string;
@@ -31,6 +32,17 @@ export type SendFailure = { at: string; message: string };
 export type OptimisticState = {
   confirmed: Confirmed;
   pending: PendingUnit[];
+  /**
+   * M13 link 4. Stops that moved on the server while this queue held unsent
+   * work naming them. Derived, never persisted: made by `adoptOutcome` (the
+   * only reducer where an authoritative outcome replaces the base while a
+   * queue exists) and pruned by `confirmHead` as the queue drains, so a
+   * concurrent-edit conflict cannot outlive the unsent work it is about.
+   *
+   * Absent rather than `[]` when there are none, so the common state keeps a
+   * stable identity and nothing re-renders for an empty array.
+   */
+  remoteConflicts?: Conflict[];
   // Absent = the queue is healthy and the sender may run. Present = the head
   // send failed, the queue is RETAINED (nothing discarded), and no further
   // send happens until `clearFailure` (i.e. the user's manual retry).
@@ -67,7 +79,14 @@ function baseDetail(state: OptimisticState): TripDetail {
 }
 
 export function activeDetail(state: OptimisticState): TripDetail {
-  return baseDetail(state);
+  const detail = baseDetail(state);
+  const remote = state.remoteConflicts ?? [];
+  if (remote.length === 0) return detail;
+  // Merged into the SAME array the board already renders, so a concurrent edit
+  // needs no new surface: `ConflictBanner` shows it, `dismissedConflictIds`
+  // hides it, and AGENTS.md invariant 3 ("conflicts are data, never blocking
+  // modals") covers it without an exception.
+  return { ...detail, conflicts: [...detail.conflicts, ...remote] };
 }
 
 // Confirmed entries (newest-first) with pending rows prepended (newest-first).
@@ -167,9 +186,78 @@ export function enqueue(state: OptimisticState, id: string, commands: BatchableC
 // unpredicted here, without going through `enqueue` at all.
 export function confirmHead(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
   const rest = state.pending.slice(1);
+  const next = rePredictOnto(outcome, rest);
+  // A successful send makes this outcome the queue's OWN answer, so nothing
+  // here is a concurrent edit — but conflicts raised earlier may now be about
+  // work that has just left the queue. Prune, never add (M13 link 4).
+  const kept = pruneResolved(state.remoteConflicts ?? [], queuedTargets(rest));
+  return kept.length > 0 ? { ...next, remoteConflicts: kept } : next;
+}
+
+/**
+ * Adopt an authoritative outcome the QUEUE DID NOT PRODUCE, and re-predict the
+ * whole queue on top of it (M13 link 3, KI-90).
+ *
+ * This and `confirmHead` are the same operation — "adopt this outcome,
+ * re-predict what is queued" — differing in one thing: whether the outcome is
+ * the answer to the unit at the head of the queue. It is for `confirmHead`, so
+ * the head is consumed. It is not here, so nothing is.
+ *
+ * **What it replaces is `{ confirmed: outcome, pending: [] }`**, which was
+ * written at two sites and silently discarded any queued unit it found:
+ *
+ * - `dispatch`'s undo/redo/revert reconcile. Its pre-send guard checks the
+ *   queue is empty, but the send is `await`ed and nothing stops the user
+ *   editing during that round trip, so a unit enqueued in the window was
+ *   dropped by the reconcile that followed. That is KI-90, and it is the same
+ *   line KI-70 fixed once already, one `await` further down.
+ * - `applyOutcome`, whose "only call me with an empty queue" precondition was
+ *   unenforceable and load-bearing — the callers (inserting a saved day,
+ *   the assistant applying a proposal) each gate their own affordance, and a
+ *   third caller inheriting the rule by reading it was the whole risk.
+ *
+ * Re-predicting instead of clearing makes both safe by construction rather
+ * than by a guard that has to be remembered. The queued units were predicted
+ * against a state the server has since replaced, so they are re-predicted
+ * against the new one under exactly the rules `confirmHead` already uses:
+ * KI-42's retention (a unit that no longer predicts is KEPT, unpredicted, and
+ * so is everything behind it) and KI-55's suffix rule.
+ *
+ * **`failure` is preserved, and that is not incidental.** The accumulator
+ * starts without one, which is right for `confirmHead` — a successful send
+ * clears the failed state. Here the queue is retained in full, so dropping the
+ * failure would unlatch the sender's gate and let it re-fire a head the server
+ * has already rejected, without bound: `failHead`'s note measured 41 sends of
+ * one command in 300ms the last time that gate was missing.
+ */
+export function adoptOutcome(state: OptimisticState, outcome: CommandOutcome): OptimisticState {
+  const next = rePredictOnto(outcome, state.pending);
+  const withFailure = state.failure ? { ...next, failure: state.failure } : next;
+
+  // M13 link 4. This is the one reducer where an authoritative outcome the
+  // queue did not produce replaces the base while that queue still holds
+  // unsent work — which is exactly the situation "two people edited the same
+  // stop" describes. Computed here because it is the only place both sides
+  // exist: `state.confirmed.detail` is the trip as this client last had it,
+  // `outcome.detail` is what the server says now.
+  const targets = queuedTargets(state.pending);
+  const raised = concurrentEditConflicts(targets, state.confirmed.detail, outcome.detail);
+  const carried = pruneResolved(state.remoteConflicts ?? [], targets);
+  const merged = [...carried.filter((c) => !raised.some((r) => r.id === c.id)), ...raised];
+  return merged.length > 0 ? { ...withFailure, remoteConflicts: merged } : withFailure;
+}
+
+function queuedTargets(units: readonly PendingUnit[]): string[] {
+  return [...new Set(units.flatMap((u) => activityTargets(u.commands)))];
+}
+
+// The shared body of the two reducers above: adopt `outcome` as confirmed, then
+// replay `units` onto it in order. Not exported — a caller that has not decided
+// whether the head is consumed has not decided what it is doing.
+function rePredictOnto(outcome: CommandOutcome, units: PendingUnit[]): OptimisticState {
   let acc: OptimisticState = { confirmed: outcome, pending: [] };
   let predictable = true;
-  for (const unit of rest) {
+  for (const unit of units) {
     if (predictable) {
       const r = enqueue(acc, unit.id, unit.commands);
       if (r.ok) {

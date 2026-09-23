@@ -19,6 +19,8 @@ const activity = (activityId: string, title: string): ActivityView => ({
   kind: "booked",
   tags: ["meal"],
   cost: { amountMinor: 1200, currency: "USD" },
+  bookedBy: null,
+  participants: [],
 });
 
 function detail(): TripDetail {

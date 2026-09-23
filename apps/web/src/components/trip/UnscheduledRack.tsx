@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { toClockRange } from "@/lib/time";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Preview } from "@/components/ui/preview";
 import { cn } from "@/lib/cn";
 
 export type RackItem = {
@@ -20,6 +19,10 @@ export type RackItem = {
   // real window when there is one and the design's "No time yet" when there
   // isn't, rather than asserting "No time yet" over a time the trip holds.
   timeWindow: { start: string; end: string } | null;
+  // M13 link 5. Who parked this stop, or null. The rack's provenance line
+  // shows it; the half that is still missing (which day it came from) is a
+  // candidate, not a field.
+  bookedBy: string | null;
 };
 
 // Phase 3 design values (`current/…dc.html:671-707`, transcribed in
@@ -245,18 +248,22 @@ function RackCard({
               : toClockRange(item.timeWindow.start, item.timeWindow.end)}
           </div>
         </div>
-        {/* Provenance is not modelled: no field records who parked a
-            stop or which day it came from, so the line describes
-            what it will say rather than fabricating either. */}
-        <Preview id="rack-provenance" size="compact">
+        {/* M13 link 5 modelled HALF of what this line was drawn to say.
+            `bookedBy` records who parked the stop, so that half is real now.
+            **Which day it came from is still not modelled** — a backlog stop
+            keeps no record of the day it was moved off — so the line shows the
+            half that exists rather than fabricating the other, and the missing
+            half is recorded in `docs/candidates.md` rather than left as a
+            placeholder that reads as a promise. */}
+        {item.bookedBy !== null && (
           <div
             className="text-slate"
             // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor
             style={{ fontSize: "11.5px" }}
           >
-            Who parked it · which day it came from
+            Parked by {item.bookedBy}
           </div>
-        </Preview>
+        )}
         {/* Accessible name is the bare "Add to day"; the first
             option's "Add to day…" is the visible placeholder. The
             select stays pinned to `value=""` so it reads as an

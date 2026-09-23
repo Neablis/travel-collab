@@ -4,6 +4,7 @@ import { route } from "@/server/public-api/route";
 
 export const { DELETE } = route({
   DELETE: {
+    summary: "Remove a day from a trip; its stops move to the unscheduled backlog",
     scope: "trips:write",
     trip: "path",
     role: "editor",

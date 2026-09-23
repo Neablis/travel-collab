@@ -6,11 +6,12 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
 import { useLens } from "@/components/trip/context/LensRouter";
-import { chipModel, DayChips } from "@/components/trip/DayChips";
+import { chipModel } from "@/lib/dayChips";
+import { DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { OverviewLens } from "@/components/lenses/OverviewLens";
-import { useIsPhone } from "@/components/lenses/useIsPhone";
+import { useIsPhone } from "@/lib/useIsPhone";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/component
 import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
+import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
@@ -42,7 +44,6 @@ import {
   type ApiError,
   type AskScope,
 } from "@/lib/apiClient";
-import { type ActivityFormValue } from "./ActivityEditor";
 import { Board } from "./Board";
 import { cn } from "@/lib/cn";
 
@@ -89,7 +90,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly } = useTrip();
+  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -129,6 +130,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // which-button-did-you-press flag would not: rotating a 411x852 phone into
   // landscape crosses 768px with the panel already open.
   const isPhone = useIsPhone();
+  // SPEC §9's "and the user picks" (M26 link 10a). Per surface and per
+  // device — see `useAssistantShape` for why neither is one global setting.
+  const [assistantShape, chooseAssistantShape] = useAssistantShape("board");
 
   /**
    * Arriving at the phone's plan with nothing selected picks the first day.
@@ -314,12 +318,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
   // its own horizontal padding via PageContainer wrappers below, so these
   // early-return states need their own too.
-  if (status === "loading")
-    return (
-      <PageContainer width="full">
-        Loading…
-      </PageContainer>
-    );
+  // **No loading state at all**: the board is not there until its data is.
+  //
+  // It used to render `Loading…`, and on the common path — Home's hero has
+  // usually already cached this `TripDetail` (`TripProvider.tsx:109`) — that
+  // painted for about one frame. Mitchell, 2026-09-20: *"just never do the
+  // 'Loading', gate the preview behind a network request to get the data not
+  // having returned, dont even have the loading state. KEep it simple."*
+  //
+  // Both fancier answers were considered and cost more than they return. A
+  // timed gate on the word is a second piece of timing state to own, for a
+  // word. A skeleton of the board's shape is what link 7 actually asks for,
+  // and that is real work rather than a line in a branch — KI-2026-09-20-e.
+  //
+  // `null` and not an empty container: `trips/[tripId]/page.tsx` already owns
+  // the <main> landmark and its padding, so the chrome around this stays
+  // exactly where it was and nothing collapses.
+  if (status === "loading") return null;
   if (status === "unauthenticated") {
     // I3 (final review): this used to be `<Heading level={1}>Caesura</Heading>`
     // plus a bare link to Auth.js's default `/api/auth/signin` — exactly the
@@ -384,19 +399,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   //
   // Clamping to `null` is the same "wider reading is the safer one" call
   // `parseAskScope` makes server-side for a scope line it cannot parse.
-  const updateActivity = (activityId: string, value: ActivityFormValue) =>
-    void dispatch({
-      type: "UpdateActivity",
-      tripId,
-      activityId,
-      title: value.title,
-      timeWindow: value.timeWindow,
-      location: value.location,
-      notes: value.notes,
-      anchors: value.anchors,
-      cost: value.cost,
-    });
-
   // The unscheduled rack's contents: trip.backlog is the source of truth for
   // "parked", and each id resolves through activities. The card's `area` slot
   // is `shortPlace()` — the same area-then-city-then-name-segment order the
@@ -416,6 +418,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         title: activity.title,
         area: shortPlace(activity.location),
         timeWindow: activity.timeWindow,
+        bookedBy: activity.bookedBy,
       },
     ];
   });
@@ -829,18 +832,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               <div className="hidden shrink-0 md:block">
                 <TripViewTabs />
               </div>
-              {/* Deliberately NOT wrapped in a `shrink-0` div the way the tabs
-                  are, though the design pins it `flex: 0 0 auto`: TagFocusLine
-                  renders null when no tag is focused and a wrapper does not, so
-                  the wrapper would leave a phantom flex item — and a `gap-4`
-                  worth of dead space — on every board that is not focused. It
-                  carries its own `min-w-0` and truncate for the squeeze. */}
-              <TagFocusLine />
-              {/* The design's explicit spacer, in place of `ml-auto` on the
-                  pill: the focus line appears and disappears between the tabs
-                  and the pill, and a margin-auto would drag the pill leftwards
-                  whenever a tag came into focus. `min-w-3` is the design's
-                  12px floor, so the two never touch once the row is scrolling. */}
+              {/* **The tag-focus notice used to sit here, in the toolbar, and
+                  it has moved out** (SPEC §33.3, M26 link 2). Same rule as
+                  Discover one surface over: a toolbar holds CONTROLS, and this
+                  is a statement about the content below it — "you are looking
+                  at a subset, here is how to stop". It now renders on its own
+                  line above the thing it dims.
+
+                  What went with it: the `min-w-0`/truncate squeeze it carried
+                  for this row, and the explicit spacer below. The spacer
+                  existed only because the line appeared and disappeared BETWEEN
+                  the tabs and the pill, so `ml-auto` would have dragged the
+                  pill leftwards whenever a tag came into focus. With the line
+                  gone from this row, nothing moves and `ml-auto` is honest
+                  again — but the spacer is kept as-is rather than swapped,
+                  because the row still needs the design's 12px floor between
+                  the tabs and the pill once it scrolls. */}
               <div className="min-w-3 flex-auto" />
               {/* SPEC §11: the Notebooks pill sits at the FAR RIGHT of this
                   row, deliberately a different class of thing from the tabs —
@@ -868,6 +875,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 </div>
               )}
             </div>
+            {/* §33.3: the tag-focus notice, **above the content it dims** and
+                on its own line. It renders null when no tag is focused, so it
+                costs nothing on a board that is not focused — which is why it
+                needs no wrapper and gets none. `clearTagFilter` is unchanged;
+                this link is one JSX move, exactly as §33.3 says it is. */}
+            <TagFocusLine />
             {/* Task 2.3: MapRail replaces the chips row's job in map view — the
                 two side by side would be redundant, and the chips row's own
                 horizontal scroll makes no sense floating over a full-bleed map. */}
@@ -932,6 +945,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   <Board
                     trip={activeTrip}
                     focusedDay={focusedDay}
+                    // **One day at a time on a phone** — M26 link 13, SPEC
+                    // §13.4. `useIsPhone` is the right tool here for the same
+                    // reason it is on `NewTripWizard`'s sheet and the wrong one
+                    // for chrome: this is a discrete layout swap CSS cannot make
+                    // (a count of columns, not a width), and it starts `false`
+                    // so a phone paints the desktop row for one frame before
+                    // the effect corrects. That frame is a scrolling row of
+                    // 268px columns rather than a wrong control, and it is the
+                    // same first-frame cost `DayChips` already pays one row up.
+                    oneDay={isPhone}
                     // A viewer's board, and the demo's, show the plan and offer
                     // nothing that changes it (ADR-031). `readOnly` comes from
                     // the provider's own gate — the same flag that already
@@ -973,25 +996,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                       onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),
                       onRemoveDay: (dayId) => void dispatch({ type: "RemoveDay", tripId, dayId }),
-                      onAddActivity: (value: ActivityFormValue) =>
-                        void dispatch({
-                          type: "AddActivity",
-                          tripId,
-                          activityId: crypto.randomUUID(),
-                          title: value.title,
-                          timeWindow: value.timeWindow ?? undefined,
-                          location: value.location ?? undefined,
-                          notes: value.notes ?? undefined,
-                          anchors: value.anchors,
-                          cost: value.cost ?? undefined,
-                        }),
-                      onUpdateActivity: updateActivity,
                       onRemoveActivity: (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }),
                       onDismissConflict: (conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId }),
                     }}
                   />
                 )}
-                {view === "Overview" && <OverviewLens detail={activeTrip} tripId={tripId} />}
+                {view === "Overview" && <OverviewLens detail={activeTrip} tripId={tripId} remoteRevision={remoteRevision} />}
                 {view === "Calendar" && (
                   <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
                 )}
@@ -1073,7 +1083,28 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             "tabs are not tappable behind an open sheet" e2e test. */}
         {!isDemo && assistant.open && (
           <AssistantRail
-            presentation={isPhone ? "sheet" : "docked"}
+            // **The reader's own choice above 768px** (SPEC §9, M26 link 10a):
+            // this hardcoded `docked`, which is now only the DEFAULT. The phone
+            // is not offered the choice — §23 gives it a sheet and only a
+            // sheet, and `onShapeChange` is withheld there so the rail draws
+            // no control it cannot honour.
+            presentation={isPhone ? "sheet" : assistantShape}
+            {...(isPhone ? {} : { onShapeChange: chooseAssistantShape })}
+            // **§29's "hidden, not unmounted", delivered the only way this
+            // tree allows** (M26 link 10c). `/plans` is an account-scope route
+            // that renders neither this screen nor the trip, so there is
+            // nothing here to hide — the subtree is genuinely gone. What §29
+            // is protecting is that coming back does not reset the panel, and
+            // that is now true of all three things it names but one: the
+            // thread already survived (`persistAs` above), the shape survives
+            // (`useAssistantShape`), and the position survives through this
+            // key. The open/closed state does not, deliberately —
+            // `useAssistantVisibility`'s note above is the reason, and
+            // `useAssistantPosition` states the trade in full.
+            //
+            // Per TRIP, like the thread: a panel parked clear of one trip's
+            // unscheduled rack has no business deciding where another's opens.
+            rememberPositionAs={`assistant:position:trip:${tripId}`}
             contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
             scope={askScope}
             turns={thread}

@@ -136,6 +136,7 @@ function theTrip(bundle: TripImportBundle): BundleTrip {
 
 export const { POST } = route({
   POST: {
+    summary: "Create a new trip from a content-bundle file (the format export produces)",
     scope: "trips:write",
     // **The schema, and only the schema** (question 3). `TripImportBundle`
     // carries `parseBundle`'s own `BundleTrip`, so a malformed stop, an

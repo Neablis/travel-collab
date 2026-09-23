@@ -86,6 +86,11 @@ export const activityFactory = Factory.define<ActivityView, ActivityTransient>(
     kind: "planned" as const,
     tags: [],
     cost: null,
+    // M13 link 5. Unattributed by default: a stop with nobody named is the
+    // ordinary case, and a factory that invented a `bookedBy` would make every
+    // attribution test pass for the wrong reason.
+    bookedBy: null,
+    participants: [],
   }),
 );
 

@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import type { DaySync } from "./context/FocusProvider";
-import { chipModel, cityFor, DayChips } from "./DayChips";
+import { chipModel, cityFor } from "@/lib/dayChips";
+import { DayChips } from "./DayChips";
 
 afterEach(cleanup);
 
@@ -34,6 +35,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       },
     });
@@ -62,6 +65,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
         [osakaActivity]: {
           activityId: osakaActivity,
@@ -73,6 +78,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       },
     });
@@ -110,6 +117,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
         [noLocationActivity]: {
           activityId: noLocationActivity,
@@ -121,6 +130,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       },
     });
@@ -156,6 +167,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
         [kyotoActivity]: {
           activityId: kyotoActivity,
@@ -167,6 +180,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       },
     });
@@ -199,6 +214,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
         [tokyoActivity]: {
           activityId: tokyoActivity,
@@ -210,6 +227,8 @@ describe("chipModel", () => {
           kind: "planned" as const,
           tags: [],
           cost: null,
+          bookedBy: null,
+          participants: [],
         },
       },
     });
@@ -359,6 +378,8 @@ describe("cityFor", () => {
     kind: "planned",
     tags: [],
     cost: null,
+    bookedBy: null,
+    participants: [],
   });
   const oneStopDay = { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 };
   const twoStopDay = {

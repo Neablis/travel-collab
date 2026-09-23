@@ -141,18 +141,22 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
   await expect(page.getByTestId("day-column")).toHaveCount(3);
 });
 
+// **Duplicated from HOME's card menu, not from Trip settings** — M26 link 6a
+// moved lifecycle off the sheet (SPEC §34.2, §27, DRIFT D13), so the click this
+// test used to make no longer exists. The thing being tested is unchanged: a
+// copy records where it came from.
 test("duplicating your own trip records where the copy came from", async ({ page }) => {
   test.slow();
   const tripName = e2eTripName("Duplicated");
-  const tripId = await createTrip(page, tripName);
-  await page.goto(`/trips/${tripId}?view=Plan`);
-  await page.getByRole("button", { name: `${tripName} — Trip settings` }).click();
+  await createTrip(page, tripName);
+  await page.goto("/");
 
+  await page.getByRole("button", { name: `Trip actions for ${tripName}` }).click();
   await Promise.all([
     page.waitForResponse(
       (r) => /\/api\/trips\/[^/]+\/duplicate$/.test(new URL(r.url()).pathname) && r.ok(),
     ),
-    page.getByRole("button", { name: "Duplicate trip" }).click(),
+    page.getByRole("menuitem", { name: "Duplicate" }).click(),
   ]);
 
   await expect(page.getByRole("heading", { name: `${tripName} (copy)`, level: 2 })).toBeVisible();

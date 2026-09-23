@@ -4,8 +4,8 @@ import { ActivityAddedV1, ActivityUpdatedV1 } from "../src";
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 const A1 = "7d9a1f8e-0000-4000-8000-0000000000a1";
 
-// src/activity.ts composes both event payloads from one `ActivityPayloadFields`
-// block, and its comment claims that is what keeps their defaults in step. This
+// src/activity.ts composes both event payloads from one `ActivitySnapshot`
+// object, and its comment claims that is what keeps their defaults in step. This
 // enforces the claim: hand the two payloads back their own duplicated field
 // lists and these fail, which is exactly the pre-2026-08-28 state — a
 // `.default()` landing on Added but not Updated corrupts replay for *updated*
@@ -19,7 +19,7 @@ describe("ActivityAdded/ActivityUpdated payload parity", () => {
 
   // Sorted, deliberately. `Object.keys` on a Zod shape reflects DECLARATION
   // order, so the previous `toEqual` also failed when two fields were merely
-  // swapped in `ActivityPayloadFields` — a diff that changes nothing either
+  // swapped in `ActivitySnapshot` — a diff that changes nothing either
   // payload accepts or produces. Order is not part of this contract: event
   // payloads are stored in `event_log.payload` as jsonb (schema.ts), which
   // Postgres normalises rather than storing verbatim, and nothing hashes or

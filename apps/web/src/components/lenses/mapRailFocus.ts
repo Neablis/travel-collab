@@ -59,6 +59,33 @@ export function railScrollGeometry(input: {
 }
 
 /**
+ * The container `scrollTop` that puts a given track offset under the viewport —
+ * the exact inverse of `railScrollGeometry`.
+ *
+ * M26 link 5d. Clicking a rail day scrolls it into view the way the design's
+ * `railTo` does, and on a GEARED rail that cannot be `scrollTo(el.offsetTop)`:
+ * the container's scroll range is manufactured (`gearedTravel`) and the track
+ * moves at a reduced rate, so a raw offset would overshoot by the gear ratio.
+ * Going through the inverse keeps one definition of the gearing, so the two
+ * directions cannot drift apart.
+ *
+ * Both degenerate cases return 0 rather than dividing: content shorter than the
+ * viewport has nowhere to scroll, and zero travel means the container has no
+ * scroll range to express the answer in.
+ */
+export function railScrollTopFor(input: {
+  targetOffset: number;
+  viewportHeight: number;
+  contentHeight: number;
+  gearedTravel: number;
+}): number {
+  const naturalTravel = Math.max(0, input.contentHeight - input.viewportHeight);
+  const travel = input.gearedTravel > 0 ? input.gearedTravel : naturalTravel;
+  if (naturalTravel <= 0 || travel <= 0) return 0;
+  return clamp(input.targetOffset / naturalTravel, 0, 1) * travel;
+}
+
+/**
  * Which day the rail is currently focusing, or null if there are no days.
  *
  * The focus line sweeps from `focusLineStart` to `focusLineEnd` of the rail's

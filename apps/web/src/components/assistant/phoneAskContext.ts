@@ -1,5 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
-import { chipModel } from "@/components/trip/DayChips";
+import { chipModel } from "@/lib/dayChips";
 import type { AskScope } from "@/lib/apiClient";
 import { suggestedQuestions } from "./suggestedQuestions";
 

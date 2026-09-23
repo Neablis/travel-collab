@@ -6,6 +6,9 @@ import { TEMPLATE_LIBRARY, isOverviewPage, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
 import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
+import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
+import { PHONE_TOUCH } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 import { fetchTripDetail, type ApiError } from "@/lib/apiClient";
 import { DEDUPE, cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -21,7 +24,7 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
-import { useIsPhone } from "@/components/lenses/useIsPhone";
+import { useIsPhone } from "@/lib/useIsPhone";
 
 type Status = "loading" | "ready" | "error";
 
@@ -131,6 +134,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // M26 link 7, §3b: a failed region retries IN PLACE. Bumping this re-runs
+  // the effect below — the same pair of reads the first attempt made, not a
+  // second code path. `cachedRead` never stores a failure
+  // (`queryCache.ts:189`), so the retry genuinely goes back to the network.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,7 +169,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [tripId]);
+  }, [tripId, attempt]);
 
   // **SPEC §23's phone entry point, and this screen had none of it.** Plan, Map
   // and an open page all reached the assistant before today; the Notebook index
@@ -242,15 +250,6 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assistantOpen, isPhone]);
 
-  if (status === "loading") return <PageContainer>Loading…</PageContainer>;
-  if (status === "error" || pages === null || trip === null) {
-    return (
-      <PageContainer>
-        <p role="alert">{error ?? "Something went wrong"}</p>
-      </PageContainer>
-    );
-  }
-
   // One create path for all three starters, blank included — the previous
   // `handleCreate` was this with the blank starter's arguments inlined, and
   // keeping two would mean the gallery's Blank page and any other create could
@@ -283,7 +282,12 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // page-scoped one route down. `focusedDay` is `null` because it is: the
   // `FocusProvider` is mounted on the board route, not this one, and there is
   // no day open on a list of notebooks to point at.
-  const phoneAsk = phoneAskContext(trip, null, { tab: "notebook", page: null });
+  // `null` until the trip lands, which is also why `AskPill` waits for it: the
+  // assistant's whole scope IS this trip, and a pill that opens a sheet with
+  // nothing to ask about is worse than a pill that is not there yet. The rest
+  // of this screen's chrome — the way out, the heading, the standfirst — does
+  // not depend on a read and so renders from the first frame (§3b rule 1).
+  const phoneAsk = trip === null ? null : phoneAskContext(trip, null, { tab: "notebook", page: null });
 
   return (
     <PageContainer>
@@ -312,7 +316,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           <Link href="/" className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink">
             ← Your trips
           </Link>
-          <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
+          {phoneAsk !== null && <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />}
         </div>
         <Heading level={2}>Notebooks</Heading>
         {/* SPEC §23's meta line: *"'Notebook' at title scale with the trip name
@@ -330,9 +334,15 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             heading the design did not ask to rename, to a word that also has to
             be right in the tab bar, is a change to make in the design's own
             terms rather than as a side effect of adding a meta line. */}
-        <Text variant="secondary" className="mt-1">
-          {trip.name}
-        </Text>
+        {/* Data, not chrome — so it is absent until it is known rather than
+            placeholdered. §3b's rule 1 is about CONTROLS being real from the
+            first frame; a breathing outline where a trip's name goes invents
+            nothing useful and delays nothing. */}
+        {trip !== null && (
+          <Text variant="secondary" className="mt-1">
+            {trip.name}
+          </Text>
+        )}
         {/* The standfirst, VERBATIM from SPEC §7, including its two uses of
             "page" where §11's one-noun rule would say notebook. Deliberate: it
             is the design's own sentence, and paraphrasing the one line a
@@ -351,7 +361,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         </Text>
       </div>
 
-      {error !== null && <p role="alert">{error}</p>}
+      {/* Create/delete feedback about a page, with the list still on screen.
+          Gated on `ready` because a FAILED READ puts its own message in the
+          region below, and two alerts saying the same thing is one more than
+          the reader can act on. */}
+      {error !== null && status === "ready" && <p role="alert">{error}</p>}
 
       {/* A titled region, not a bare list. Two things made this necessary
           rather than decorative: the gallery above is itself a list of named
@@ -360,11 +374,51 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           to say which is which; and a template card and a notebook seeded FROM
           that template carry the same name by design ("Trip Overview" is both),
           so the name alone can never disambiguate them. */}
+      {/* **The `nbPages` region** — M26 link 7, §3b, `LOAD_PLAN.notebook`.
+          This route used to answer a slow read with a bare `Loading…` for the
+          WHOLE page, chrome included, and a failed one by replacing the page
+          with a sentence. Now the heading stays, the way out stays, the
+          templates below stay, and only this list changes shape.
+
+          **One region covering both reads**, `fetchPages` and
+          `fetchTripDetail`, rather than two. That is this screen's existing
+          decision (see `trip`'s declaration: both requests are gated by the
+          same membership check, so a pages-succeeded / trip-failed split is
+          transient rather than a state worth rendering) and link 7 does not
+          reopen it — §3b asks for regions that can fail independently, and
+          these two cannot. */}
       <section aria-labelledby="your-notebooks" className="mb-8">
         <Heading level={3} id="your-notebooks">
           Your notebooks
         </Heading>
-        {pages.length === 0 ? (
+        {status === "loading" ? (
+          <SkeletonRegion label="Loading your notebooks" className="mt-3 flex flex-col gap-2">
+            {["w-2/5", "w-1/2", "w-1/3"].map((titleWidth, row) => (
+              <div
+                key={row}
+                className="flex items-center justify-between gap-3 rounded-lg border border-hairline bg-surface px-4 py-3.5"
+              >
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <Skeleton className={`h-3.5 ${titleWidth}`} />
+                  <Skeleton circle className="h-2.5 w-1/4" delay={2} />
+                </div>
+                <Skeleton circle className="h-2.5 w-16" delay={3} />
+              </div>
+            ))}
+          </SkeletonRegion>
+        ) : status === "error" || pages === null || trip === null ? (
+          <RegionError
+            className="mt-3"
+            title={error ?? "Something went wrong"}
+            note="Only this list failed — the templates below still work, and nothing was lost."
+            onRetry={() => {
+              setError(null);
+              setStatus("loading");
+              setAttempt((n) => n + 1);
+            }}
+            data-testid="notebook-pages-error"
+          />
+        ) : pages.length === 0 ? (
           <EmptyState
             title="No notebooks yet"
             body="Start from a template below, or create a blank one and write your own."
@@ -379,7 +433,16 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                     it does the actual edit/rename"*. The notebook's own `h1`
                     is the rename surface now (`PageTitle`), which is also the
                     only place the new name is visible while you type it. */}
-                <Link href={`/trips/${tripId}/pages/${page.id}`} className="flex-1">
+                {/* §13.1's phone floor on a ROW ACTION — the link into the
+                    page is what this row is for, and it measured 40px at 411px
+                    (M26 link 14's sweep). `PHONE_TOUCH` rather than the Button
+                    base, because a link is not a button.
+                    `flex items-center` so the floor makes the row taller
+                    rather than leaving the text at the top of an empty 44px. */}
+                <Link
+                  href={`/trips/${tripId}/pages/${page.id}`}
+                  className={cn("flex flex-1 flex-col justify-center", PHONE_TOUCH)}
+                >
                   <span className="flex items-center gap-2">
                     <Text as="span" className="font-medium text-ink">
                       {page.title}
@@ -430,7 +493,19 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           question nobody asks twice.
 
           `mb-8` moves with the order: the gap belongs under whichever section
-          comes first, and templates are last now. */}
+          comes first, and templates are last now.
+
+          **Outside every load branch, and that is deliberate rather than
+          lucky.** `STARTERS` is a module constant — no request produces it —
+          so it is real from the first frame and stays real through a failed
+          read, which is why §3b's `nbTpl` region has no counterpart here.
+          The handoff makes the same call for its own reason: *"Templates are
+          not the account's data — an account with nothing in it still has
+          them"* (`dc.html:6941`), so `nbTpl` is the one region it exempts from
+          the empty state. Ours is exempt from all three states, and the test
+          in `NotebookScreen.test.tsx` holds it there — a future reader who
+          moves this inside the branch above takes away the only thing this
+          page can still offer when its list will not load. */}
       <section aria-labelledby="start-from-a-template">
         <Heading level={3} id="start-from-a-template">
           Start from a template
@@ -478,7 +553,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           phone's entry point and not a desktop one, and inventing a bubble here
           would be build ahead of design. That is exactly why the guard above
           closes rather than swapping to `PageScreen`'s floating panel. */}
-      {assistantOpen ? (
+      {assistantOpen && phoneAsk !== null ? (
         <AssistantRail
           presentation="sheet"
           contextLine={phoneAsk.contextLine}

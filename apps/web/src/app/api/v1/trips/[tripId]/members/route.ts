@@ -5,6 +5,7 @@ import { route } from "@/server/public-api/route";
 // **Endpoint N+1, added to measure what it costs.** Nothing else was touched.
 export const { GET } = route({
   GET: {
+    summary: "List the people on a trip and their roles",
     scope: "trips:read",
     trip: "path",
     role: "viewer",

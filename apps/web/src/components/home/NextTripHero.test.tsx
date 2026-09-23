@@ -85,8 +85,8 @@ describe("NextTripHero", () => {
     const tiles = screen.getAllByTestId("stat-tile");
     expect(tiles.length).toBe(3);
 
-    // "Open plan" control, linking to the trip route.
-    const openLink = screen.getByRole("link", { name: /open plan/i });
+    // "Open trip" control, linking to the trip route.
+    const openLink = screen.getByRole("link", { name: /open trip/i });
     expect(openLink.getAttribute("href")).toBe(`/trips/${trip.tripId}`);
 
     expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId);
@@ -179,6 +179,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
         },
       }),
@@ -229,6 +231,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
           "6071829a-3b4c-4f5d-6e7f-8091a2b3c4d5": {
             activityId: "6071829a-3b4c-4f5d-6e7f-8091a2b3c4d5",
@@ -240,6 +244,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
         },
       }),
@@ -293,6 +299,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
           "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f": {
             activityId: "3d4e5f60-7182-4c9d-0e1f-2a3b4c5d6e7f",
@@ -304,6 +312,8 @@ describe("NextTripHero", () => {
             kind: "planned" as const,
             tags: [],
             cost: null,
+            bookedBy: null,
+            participants: [],
           },
         },
       }),
@@ -363,6 +373,8 @@ describe("NextTripHero", () => {
       kind,
       tags,
       cost: null,
+      bookedBy: null,
+      participants: [],
     });
     fetchTripDetailMock.mockResolvedValue({
       ok: true,
@@ -420,11 +432,11 @@ describe("NextTripHero", () => {
     expect(screen.queryByText("travelers")).toBeNull();
   });
 
-  it("does not render an Open plan link to any other trip", async () => {
+  it("does not render an Open trip link to any other trip", async () => {
     const trip = tripSummaryFixture({ tripId: "9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a", name: "Rome" });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
-    const openLink = screen.getByRole("link", { name: /open plan/i });
+    const openLink = screen.getByRole("link", { name: /open trip/i });
     expect(openLink.getAttribute("href")).toBe("/trips/9f8e7d6c-5b4a-3928-1716-0f1e2d3c4b5a");
     await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId));
   });
@@ -470,5 +482,68 @@ describe("NextTripHero", () => {
 
     await screen.findByRole("group", { name: /shape of the trip/i });
     expect(screen.queryByText("stops per day")).toBeNull();
+  });
+});
+
+// DRIFT D6, M26 link 9d: "Upcoming-by-date hero + 'in 47 days' countdown".
+//
+// D6 is two things and only one of them is blocked. WHICH trip this hero picks
+// needs a start date on `TripSummary` (KI-034, still open — `nextTrip` is
+// `visibleTrips[0]`), but the hero already fetches the whole `TripDetail` for
+// its sparkline, so the date it counts to is real and always was.
+describe("NextTripHero — the countdown (D6's unblocked half)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function heroStartingOn(startDate: string | null) {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: { ...tripDetailWithDays(trip.tripId), startDate },
+    });
+    render(<NextTripHero trip={trip} />);
+    return trip;
+  }
+
+  it("counts the days to a trip that has not started", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 7, 4));
+    heroStartingOn("2026-09-20");
+
+    // The handoff's own numbers (dc.html:9486): TODAY 2026-08-04,
+    // NEXT_TRIP_START 2026-09-20, "in 47 days".
+    expect(await screen.findByText("in 47 days")).toBeTruthy();
+  });
+
+  // **Honest about a trip that has already gone**, which KI-034 makes likely
+  // rather than theoretical: with nothing to sort by, `visibleTrips[0]` can be
+  // any trip at all. A countdown that only counted down would print nothing —
+  // or a negative — in exactly the case D6 warns this hero can land on.
+  it("says how long ago a trip that has passed was", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 7, 4));
+    heroStartingOn("2026-07-23");
+
+    expect(await screen.findByText("12 days ago")).toBeTruthy();
+  });
+
+  it("says today and tomorrow in words", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 7, 4));
+    heroStartingOn("2026-08-04");
+    expect(await screen.findByText("today")).toBeTruthy();
+  });
+
+  // The hero never invents a date it has not been given: a trip with no start
+  // date gets its created line and no countdown, rather than a countdown to
+  // when somebody made the trip.
+  it("shows no countdown at all for a trip with no start date", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 7, 4));
+    const trip = heroStartingOn(null);
+
+    await screen.findByRole("heading", { level: 2, name: trip.name });
+    expect(screen.queryByText(/days ago|in \d+ days|^today$|^tomorrow$/)).toBeNull();
   });
 });

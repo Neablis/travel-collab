@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ActivityKind, ActivityTag, ActivityView, Anchor, Location, Money, TimeWindow } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, ActivityView, Anchor, Location, Money, TimeWindow, TripMember } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ import {
   type DurationLabel,
 } from "./activityDuration";
 import { KIND_LABEL, KIND_OPTIONS } from "./activityKind";
-import { TAG_LABEL, TAG_ORDER, toggleTag } from "./activityTags";
+import { TAG_LABEL, TAG_ORDER, toggleTag } from "@/lib/activityTags";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
 
@@ -35,6 +35,10 @@ export type ActivityFormValue = {
   kind: ActivityKind;
   tags: ActivityTag[];
   cost: Money | null;
+  // M13 link 5. Two relations, not one (Mitchell, 2026-09-03): who BOOKED a
+  // stop is not who is GOING to it, and M19's splits need the participants.
+  bookedBy: string | null;
+  participants: string[];
 };
 
 // One option per trip day for the "Day" NativeSelect, plus that day's
@@ -53,7 +57,8 @@ const SUGGESTED_MATCH_SHAPE = [
 
 // Illustrative only (Preview id="add-stop-who", M13 — no field records who a
 // stop is for yet, so there is nothing real to list per-stop).
-const CREW_CHIP_SHAPE = [{ name: "Everyone" }] as const;
+// M13 link 5 replaced the `add-stop-who` Preview placeholder that stood here
+// (a single hardcoded "Everyone" chip) with the real control below.
 
 export function ActivityEditor({
   initial,
@@ -61,6 +66,7 @@ export function ActivityEditor({
   days,
   defaultDayId,
   tripCurrency = "USD",
+  members = [],
   onSave,
   onCancel,
 }: {
@@ -73,6 +79,14 @@ export function ActivityEditor({
   // selection then falls back to "no day" rather than guessing one.
   defaultDayId?: string;
   tripCurrency?: string;
+  /**
+   * The trip's members, as the only options this form offers for attribution
+   * (M13 link 5). Defaulted to `[]` so every existing caller and test keeps
+   * working: with no members there is nobody to attribute to, and the section
+   * renders a plain "nobody else is on this trip yet" rather than an empty
+   * control that looks broken.
+   */
+  members?: TripMember[];
   onSave: (value: ActivityFormValue) => void;
   onCancel: () => void;
 }) {
@@ -104,6 +118,8 @@ export function ActivityEditor({
   // activity's own real kind.
   const [kind, setKind] = useState<ActivityKind>(initial?.kind ?? (mode === "create" ? "hold" : "planned"));
   const [tags, setTags] = useState<ActivityTag[]>(initial?.tags ?? []);
+  const [bookedBy, setBookedBy] = useState<string | null>(initial?.bookedBy ?? null);
+  const [participants, setParticipants] = useState<string[]>(initial?.participants ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
   const [error, setError] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(defaultDayId ?? "");
@@ -166,6 +182,10 @@ export function ActivityEditor({
       // Always the complete set: `UpdateActivity.tags` is a whole-array
       // replace, not a delta (packages/contracts/src/activity.ts).
       tags,
+      bookedBy,
+      // Always the complete list, for the same reason `tags` is: the command
+      // replaces the array wholesale rather than adding to it.
+      participants,
       cost,
     });
   }
@@ -343,21 +363,62 @@ export function ActivityEditor({
         </div>
       </div>
 
+      {/* M13 link 5. Two controls because they answer two questions — who
+          BOOKED this stop, and who is GOING to it. A single "who" would read
+          fine here and be wrong for every cost split later built on it
+          (M19 link 3). */}
       <div className="flex flex-col gap-1.5">
-        <Text variant="muted">Who is in</Text>
-        <Preview id="add-stop-who" size="container" className="flex flex-wrap gap-1.5 p-1.5">
-          {CREW_CHIP_SHAPE.map((crew) => (
-            <span
-              key={crew.name}
-              className="flex items-center gap-1.5 rounded-full border border-hairline py-0.5 pl-0.5 pr-2.5"
+        <div className="flex items-baseline justify-between gap-2.5">
+          <Text variant="muted">Who is in</Text>
+          {members.length > 0 && <Text variant="muted">Pick as many as are going</Text>}
+        </div>
+        {members.length === 0 ? (
+          <Text variant="muted">Invite someone to the trip to say who a stop is for.</Text>
+        ) : (
+          <>
+            <div role="group" aria-label="Who is going" className="flex flex-wrap gap-1.5">
+              {members.map((member) => {
+                const on = participants.includes(member.userId);
+                return (
+                  <Button
+                    key={member.userId}
+                    variant={on ? "primary" : "secondary"}
+                    size="sm"
+                    aria-pressed={on}
+                    className="rounded-full px-3"
+                    onClick={() =>
+                      setParticipants((current) =>
+                        current.includes(member.userId)
+                          ? current.filter((id) => id !== member.userId)
+                          : [...current, member.userId],
+                      )
+                    }
+                  >
+                    {member.userId}
+                  </Button>
+                );
+              })}
+            </div>
+            <FormField
+              id="activity-booked-by"
+              label="Booked by"
+              description="Who is handling this one. Not the same as who is going."
             >
-              <span className="size-6 shrink-0 rounded-full bg-moss" aria-hidden />
-              <Text as="span" className="text-sm text-ink">
-                {crew.name}
-              </Text>
-            </span>
-          ))}
-        </Preview>
+              <NativeSelect
+                id="activity-booked-by"
+                value={bookedBy ?? ""}
+                onChange={(e) => setBookedBy(e.target.value === "" ? null : e.target.value)}
+              >
+                <option value="">Nobody yet</option>
+                {members.map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.userId}
+                  </option>
+                ))}
+              </NativeSelect>
+            </FormField>
+          </>
+        )}
       </div>
 
       <FormField id="activity-notes" label="Notes" hint="Confirmation numbers, what to order, who to ask for.">

@@ -39,6 +39,7 @@ import { route } from "@/server/public-api/route";
 // the UI one.
 export const { GET } = route({
   GET: {
+    summary: "Download a trip's days and stops as a content-bundle file you can re-import",
     scope: "trips:read",
     trip: "path",
     role: "viewer",

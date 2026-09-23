@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/cn";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -9,7 +10,7 @@ import type { ActivityTag, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { chipModel } from "@/components/trip/DayChips";
+import { chipModel } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
 import {
   useDayScrollSpy,
@@ -20,7 +21,6 @@ import { badgeableConflictSubjects, overlapsForDay, type Overlap } from "@/compo
 import { dayAccents } from "@/lib/dayAccent";
 import { stopsForDay } from "@/lib/savedStops";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
-import { type ActivityFormValue } from "./ActivityEditor";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
 import { resolveDrop } from "./resolveDrop";
@@ -47,13 +47,16 @@ import { resolveDrop } from "./resolveDrop";
 // additionally carries a "Saved days keep their order and gaps" line and the
 // three end-of-trip Playbook shortcuts; neither is in this phase's copy table,
 // so neither is invented here.
-function OneMoreDayColumn({ onAddDay, addSavedDay }: { onAddDay: () => void; addSavedDay?: ReactNode }) {
+function OneMoreDayColumn({ onAddDay, addSavedDay, fullWidth = false }: { onAddDay: () => void; addSavedDay?: ReactNode; fullWidth?: boolean }) {
   return (
     <section
       data-testid="one-more-day-column"
-      className="flex shrink-0 flex-col gap-2.5 rounded-2xl border border-dashed border-border-strong p-3.5"
+      className={cn(
+        "flex flex-col gap-2.5 rounded-2xl border border-dashed border-border-strong p-3.5",
+        fullWidth ? "w-full" : "shrink-0",
+      )}
       // eslint-disable-next-line no-restricted-syntax -- 268px matches the day columns' width, which has no token equivalent (Column.tsx carries the same escape hatch and owns the constant)
-      style={{ width: DAY_COLUMN_WIDTH_PX }}
+      style={fullWidth ? undefined : { width: DAY_COLUMN_WIDTH_PX }}
     >
       <span
         className="font-semibold text-ink"
@@ -107,8 +110,17 @@ export type BoardCallbacks = {
   onSelectDay: (index: number | null) => void;
   onAddDay: () => void;
   onRemoveDay: (dayId: string) => void;
-  onAddActivity: (value: ActivityFormValue) => void;
-  onUpdateActivity: (activityId: string, value: ActivityFormValue) => void;
+  // `onAddActivity`/`onUpdateActivity` taking an `ActivityFormValue` were
+  // declared here when this file was extracted from `TripBoardScreen`
+  // (5a786a9) and were never called by anything, in any version — born dead
+  // rather than abandoned. Editing goes through `ActivityEditorSheet`, which
+  // owns the form and dispatches its own commands. Removed 2026-09-22 after
+  // `git log -S` confirmed no call site has ever existed: a second, unreachable
+  // copy of the form-to-command mapping is exactly how a field gets silently
+  // dropped, which is what CodeRabbit found on PR #201.
+  //
+  // `Column`'s own `onAddActivity` is unrelated and still live: it takes no
+  // arguments and opens the sheet.
   onRemoveActivity: (activityId: string) => void;
   onDismissConflict: (conflictId: string) => void;
 };
@@ -139,9 +151,30 @@ export function Board({
   readOnly = false,
   sync,
   addSavedDay,
+  oneDay = false,
 }: {
   trip: TripDetail;
   callbacks: BoardCallbacks;
+  /**
+   * **One day at a time, at full width** — M26 link 13, SPEC §13.4: *"The day
+   * rail never collapses … A phone can hold one day at a time; the rail is how
+   * you change which."*
+   *
+   * A phone was rendering the DESKTOP board: `DAY_COLUMN_WIDTH_PX` is a fixed
+   * 268px at every width, inside a horizontally scrolling row, so a 390px
+   * screen showed one and a bit columns and a stop card measured 241px with
+   * 141px of text in it. The card was narrow because of a layout constant, not
+   * because the screen is.
+   *
+   * **Not a phone-only view.** Same `Column`, same cards, same drag logic, same
+   * `focusedDay` — a count of one and a different width. §13 calls that a
+   * variant layer, and the milestone's own instruction was not to build a
+   * fallback view to paper over KI-046.
+   *
+   * A prop rather than `useIsPhone()` here, because this component is
+   * props-only by design and its tests render it with no provider.
+   */
+  oneDay?: boolean;
   /**
    * The "Add a saved day" control for the trailing "One more day?" column.
    *
@@ -438,11 +471,32 @@ export function Board({
         aria-label="Day columns"
         onScroll={onScroll}
         onKeyDown={onKeyDown}
-        className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-1"
+        // **A column on a phone, a scrolling row on a desktop** (link 13).
+        // With one full-width day there is nothing to scroll sideways, and the
+        // trailing "One more day?" belongs below the day rather than beside it.
+        className={cn(
+          "-mx-1 flex gap-3 px-1 pt-1 pb-1",
+          oneDay ? "flex-col" : "overflow-x-auto",
+        )}
       >
-        {trip.days.map((day, index) => (
+        {/* **One day on a phone, every day on a desktop** (M26 link 13). The
+            index is preserved through the filter, not re-derived: every day's
+            accent, its `dayLabel`, its focus ring and its keep-a-day pennant
+            are all keyed on the day's real position in the trip, and a
+            re-indexed single day would silently become Day 1 of a fortnight.
+
+            `focusedDay ?? 0` matches the phone's own default — `TripBoardScreen`
+            already focuses day 1 on a phone, so this only ever falls back on a
+            frame before that landed. */}
+        {(oneDay
+          ? trip.days
+              .map((day, index) => [day, index] as const)
+              .filter(([, index]) => index === (focusedDay ?? 0))
+          : trip.days.map((day, index) => [day, index] as const)
+        ).map(([day, index]) => (
           <Column
             key={day.dayId}
+            fullWidth={oneDay}
             title={dayLabel(trip.startDate, index)}
             dayId={day.dayId}
             activityIds={day.activityIds}
@@ -507,8 +561,17 @@ export function Board({
         ))}
         {/* "One more day?" is an invitation to change the trip, so it is the
             reader's cue that they are looking at somebody else's — or, on the
-            demo, at one that is not theirs yet. */}
-        {!readOnly && <OneMoreDayColumn onAddDay={callbacks.onAddDay} addSavedDay={addSavedDay} />}
+            demo, at one that is not theirs yet.
+
+            **On a phone it appears only at the END of the trip** (M26 link 13).
+            With one day on screen it is no longer a column beyond the last one;
+            it would sit under Day 3 of a fortnight saying "one more day?",
+            which is a question about somewhere the reader is not. Focusing the
+            last day is what puts them at the end, and that is where the
+            invitation belongs. */}
+        {!readOnly && (!oneDay || (focusedDay ?? 0) === trip.days.length - 1) && (
+          <OneMoreDayColumn onAddDay={callbacks.onAddDay} addSavedDay={addSavedDay} fullWidth={oneDay} />
+        )}
       </div>
     </div>
   );

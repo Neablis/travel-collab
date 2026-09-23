@@ -232,6 +232,8 @@ function decideCommand(
             kind: command.kind ?? "planned",
             tags: command.tags ?? [],
             cost: command.cost ?? null,
+            bookedBy: command.bookedBy ?? null,
+            participants: command.participants ?? [],
           },
         },
       ]);
@@ -257,6 +259,11 @@ function decideCommand(
             kind: command.kind ?? current.kind,
             tags: command.tags ?? current.tags,
             cost: command.cost === undefined ? current.cost : command.cost,
+            // `=== undefined`, not `??`: `bookedBy: null` is "nobody booked
+            // this after all" and must clear, where `?? current` would read it
+            // as "unchanged" and silently refuse the edit.
+            bookedBy: command.bookedBy === undefined ? current.bookedBy : command.bookedBy,
+            participants: command.participants ?? current.participants,
           },
         },
       ]);

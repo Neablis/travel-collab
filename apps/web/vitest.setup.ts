@@ -17,6 +17,40 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 // run, because nothing here asserts a digest against a fixture.
 process.env.API_TOKEN_PEPPER ??= "test-pepper-not-a-real-key";
 
+// **jsdom implements no scrolling, and one dependency calls it anyway.**
+// `@atlaskit/pragmatic-drag-and-drop-auto-scroll`'s `try-scroll.js` calls
+// `window.scrollBy` while a drag is near a viewport edge, and jsdom answers
+// with `Error: Not implemented: Window's scrollBy() method` on its virtual
+// console — 37 times in one unit run on 2026-09-23, all from
+// `PageAssistant.test.tsx`, the suite that drags widgets.
+//
+// **A no-op is the honest stub here, and this is the argument for it rather
+// than an apology.** Nothing in this repo asserts on scroll POSITION in jsdom,
+// and nothing could: jsdom has no layout, so every element is 0x0 and every
+// scroll offset is 0 whatever this function does. The auto-scroll behaviour
+// that matters is a real-browser concern and is covered where a real browser
+// is — `m13-day-sync.spec.ts` and `m10-map-rail.spec.ts` in the e2e lane.
+// What the stub removes is a library's unmet expectation, not a signal.
+//
+// Assigned rather than spied, so it survives `vi.restoreAllMocks()`.
+//
+// **`??=` does not work here and the first version of this used it.** jsdom
+// DEFINES `window.scrollBy`; the definition is a stub whose body raises the
+// "Not implemented" error, so the property is never nullish and the default
+// never fired. The log lines were unchanged and the setup looked correct —
+// exactly the shape of silent no-op this repo keeps paying for. Overwrite it.
+//
+// **Guarded, because this setup file is shared with the `node` environment.**
+// `vitest.unit.config.ts` runs `*.test.ts` under node and `*.test.tsx` under
+// jsdom, and an unguarded `window` here is a `ReferenceError` at setup time
+// that fails the whole FILE rather than any test in it — measured: 143 suites
+// failed with 1649 tests still passing and none failing, which is what that
+// looks like and reads like nothing at all.
+if (typeof window !== "undefined") {
+  window.scrollBy = () => {};
+  window.scrollTo = () => {};
+}
+
 // @testing-library/react's automatic cleanup-after-each only self-registers
 // when it detects `globals: true`-style test framework globals. This repo's
 // vitest config does not set `test.globals`, so without this, DOM/body state

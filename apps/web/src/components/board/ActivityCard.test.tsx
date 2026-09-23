@@ -18,6 +18,8 @@ function activity(overrides: Partial<ActivityView> = {}): ActivityView {
     kind: "planned",
     tags: [],
     cost: null,
+    bookedBy: null,
+    participants: [],
     ...overrides,
   };
 }

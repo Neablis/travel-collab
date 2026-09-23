@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { signInAsDevUser } from "./helpers";
+import { expect, test } from "@playwright/test";
+import { openAccountPage, signInAsDevUser } from "./helpers";
 import { grantCollaborators } from "./adminBootstrap";
 import { e2eTripName } from "./tripNames";
 
@@ -20,12 +20,6 @@ import { e2eTripName } from "./tripNames";
 // identity. Same reasoning `m17-account-preferences.spec.ts` records.
 test.use({ storageState: undefined });
 
-async function openAccountSettings(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("button", { name: "Your account" }).click();
-  await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
-}
-
 test("api tokens: minted by clicking, opens the API, and revoking closes it", async ({
   page,
   browser,
@@ -45,7 +39,7 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   // ---- a free account sees the section, locked ------------------------------
   // **A prompt, not a hidden section.** Hiding it would answer "this product
   // has no API"; showing it locked answers "not on this plan".
-  await openAccountSettings(page);
+  await openAccountPage(page, "tokens");
   await expect(page.getByTestId("tokens-section")).toBeVisible();
   await expect(page.getByTestId("tokens-upgrade")).toContainText("Premium");
   await expect(page.getByTestId("token-new")).toBeHidden();
@@ -56,7 +50,7 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   // M11's; what it does is grant premium.)
   await grantCollaborators(browser, `dev-${username}`);
   await page.reload();
-  await openAccountSettings(page);
+  await openAccountPage(page, "tokens");
   await expect(page.getByTestId("tokens-upgrade")).toBeHidden();
 
   // ---- mint one by clicking -------------------------------------------------

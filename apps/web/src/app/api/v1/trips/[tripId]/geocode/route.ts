@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { GeocodeCandidates, type Location } from "@tc/contracts";
-import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/geocoding/region";
 import { getGeocoder } from "@/server/geocoding";
 import { PublicApiError } from "@/server/public-api/commands";
 import { defaultResolveDeps } from "@/server/public-api/locations";
@@ -30,6 +30,7 @@ const UNAVAILABLE = "Geocoding is unavailable. Try again shortly.";
 
 export const { GET } = route({
   GET: {
+    summary: "Search for a real place by name near this trip's stops, returning up to five locations ready to use on a stop (spends geocode quota)",
     scope: "trips:write",
     trip: "path",
     role: "editor",

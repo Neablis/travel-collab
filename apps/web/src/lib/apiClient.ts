@@ -10,6 +10,7 @@ import {
   TripAccess,
   TripDetail,
   TripGlobals,
+  TripEventsPage,
   TripHistory,
   TripInvite,
   TripShare,
@@ -33,7 +34,6 @@ import {
   type LengthBand,
   type DiscoverScope,
   type DiscoverSort,
-  type Season,
 } from "@/lib/playbooks";
 
 export type ApiError = { status: number; message: string; code?: string };
@@ -150,6 +150,29 @@ export async function fetchTripHistory(tripId: string): Promise<ApiResult<TripHi
   }
 }
 
+/**
+ * One poll of a trip's log (M13 link 2, ADR-049): what happened after `after`,
+ * and where the head is now.
+ *
+ * `after` is a per-stream `seq`, not `events.global_seq` — see ADR-049
+ * Decision 1 for why the cursor cannot be the bigserial.
+ */
+export async function fetchTripEvents(
+  tripId: string,
+  after: number,
+): Promise<ApiResult<TripEventsPage>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/events?after=${after}`));
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    return { ok: true, value: TripEventsPage.parse(await res.json()) };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
 export async function fetchTripDetailAt(tripId: string, seq: number): Promise<ApiResult<TripDetail>> {
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`));
@@ -240,6 +263,31 @@ export async function duplicateTrip(tripId: string): Promise<ApiResult<{ tripId:
     }
     const data = (await res.json()) as { tripId: string };
     return { ok: true, value: data };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * **Leave a trip somebody shared with you** — M26 link 6b, SPEC §27.
+ *
+ * `DELETE /api/trips/{id}/membership`, which takes the CALLER off the trip and
+ * answers `{ ok: true }` rather than the trip's member list: whoever just left
+ * is no longer entitled to read it.
+ *
+ * Deliberately not `sendTripCommand`. Leaving is not a planning command — no
+ * event is appended, nothing enters the trip's history, and the optimistic
+ * queue has nothing to predict (ADR-003: access is CRUD). Routing it through
+ * the command pipeline would have been the shorter diff and the wrong one.
+ */
+export async function leaveTrip(tripId: string): Promise<ApiResult<{ ok: true }>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/membership`), { method: "DELETE" });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+    }
+    return { ok: true, value: { ok: true } };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
@@ -655,7 +703,6 @@ export async function searchPlaybooks(query: {
   sort?: DiscoverSort;
   budget?: BudgetBand;
   length?: LengthBand;
-  season?: Season | null;
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
@@ -663,7 +710,6 @@ export async function searchPlaybooks(query: {
   if (query.sort) params.set("sort", query.sort);
   if (query.budget) params.set("budget", query.budget);
   if (query.length) params.set("length", query.length);
-  if (query.season != null) params.set("season", query.season);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
     return await readJson(res, (data) => DiscoverResponse.parse(data));

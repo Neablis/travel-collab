@@ -56,6 +56,25 @@ async function cloneFrom(
   lineage: TripLineage,
   actorId: string,
   name: string,
+  // **M26 link 6c — SPEC §27: "Duplicate lands a real card named '(copy)' with
+  // dates and travellers cleared — a copy is a starting point, not a
+  // commitment."**
+  //
+  // An option rather than an unconditional rule, and the milestone said to
+  // check before making it one: all three copies share this function, and the
+  // sentence is about DUPLICATE. "Make this trip mine" from `/demo` is somebody's
+  // first trip, and a demo whose dates were stripped on the way in is a worse
+  // example than one that keeps them; "Make this my trip" from a share link is
+  // a copy of a particular state the holder chose to take, and its dates are
+  // part of what they saw. Only `duplicateTrip` passes `true`.
+  //
+  // **Travellers need no clearing — they were never copied.** `diff.ts` does not
+  // diff `members` ("tripId and members never differ between two states of one
+  // trip"), so the copy's membership is whatever `CreateTrip` gave it: the
+  // cloner, as owner, and nobody else. Stated here because §27 names both halves
+  // and a reader checking the second one would otherwise go looking for code
+  // that should not exist.
+  { clearDates = false }: { clearDates?: boolean } = {},
 ): Promise<CommandResult> {
   const tripId = randomUUID();
   const created = await executeTripCommand(
@@ -80,7 +99,16 @@ async function cloneFrom(
   // reason: the source's lineage (if it was itself a clone) is not this trip's,
   // and lineage is not diffable anyway — no command changes it.
   const empty = hydrate(created.detail);
-  const target = { ...remapIds(hydrate(source), tripId), name, forkedFrom: empty.forkedFrom };
+  const target = {
+    ...remapIds(hydrate(source), tripId),
+    name,
+    forkedFrom: empty.forkedFrom,
+    // The DAYS stay and only their anchor goes: the shape of the trip is what
+    // was worth copying, and an undated day is this build's ordinary state
+    // (`startDate` is what gives days their dates — see `dates.ts`). Clearing
+    // the days too would make Duplicate a rename of an empty trip.
+    ...(clearDates ? { startDate: null } : {}),
+  };
   const commands = diffTripStates(empty, target).map((e) => eventToCommand(e, tripId));
   if (commands.length === 0) return created;
 
@@ -152,6 +180,7 @@ export async function duplicateTrip(sourceTripId: string, actorId: string): Prom
     { tripId: sourceTripId, atSeq, name: source.name },
     actorId,
     `${source.name} (copy)`,
+    { clearDates: true },
   );
 }
 

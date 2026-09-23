@@ -149,6 +149,23 @@ export interface AccountPlanView {
    */
   conferredVersionRef: string;
   entitlements: readonly string[];
+  /**
+   * **Every active grant's pinned version**, as `"<planId>@v<n>"` refs.
+   *
+   * On the wire because the screen cannot otherwise say the one thing an
+   * admin-comped or founder-granted account most needs to read: that it holds
+   * `plus` and can nonetheless use `premium`. `entitlements` above already
+   * carries the union, but a list of capability strings is not a tier, and the
+   * two tier fields beside it are both about the subscription.
+   *
+   * **Data, not a verdict.** Which of these is "the best one" is a question
+   * only RENDERING may answer, and it answers it from `catalogue`'s order —
+   * see `effectiveTierRef` in `lib/accountPlan.ts`. Deciding it here would put
+   * an ordering over plans inside the module that also resolves entitlements,
+   * which is what ADR-045 rule 4 forbids and what
+   * `planVersions.noExtension.test.ts` sweeps for.
+   */
+  grantedVersionRefs: readonly string[];
   /** Today's standing against the pinned version's ceilings. */
   questions: QuotaStanding;
   steps: QuotaStanding;
@@ -268,6 +285,9 @@ export async function accountPlanView(
     // grant sees premium's capabilities and premium's ceilings, because the
     // resolver takes the most generous of each.
     entitlements: [...resolved.entitlements],
+    // The versions the grants pin, in the order the resolver returned them. No
+    // ordering is applied and none may be: see the field's comment.
+    grantedVersionRefs: resolved.grants.map((grant) => `${grant.planId}@v${grant.planVersion}`),
     questions,
     steps,
     catalogue,

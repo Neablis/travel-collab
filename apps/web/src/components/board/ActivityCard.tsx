@@ -8,15 +8,15 @@ import { AlertTriangle, Pencil, X } from "lucide-react";
 import type { ActivityTag, ActivityView } from "@tc/contracts";
 import { toClockRange } from "@/lib/time";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { kindBadge } from "./activityKind";
-import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint, tagFocusOpacity } from "./activityTags";
+import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint, tagFocusOpacity } from "@/lib/activityTags";
 import { displayPlace } from "@/lib/place";
 
 export function ActivityCard({
@@ -163,12 +163,31 @@ export function ActivityCard({
             </Badge>
           )}
         </span>
+        {/* **44px on a phone, 32px above it** — SPEC §13.1, M26 link 13. These
+            measured 32x32 at 390px: link 14's pass covered chrome, and these
+            live inside a card, so they were never reached. `size: "icon"` stays
+            as the desktop's density and `PHONE_TOUCH` lifts the floor where
+            §13.1 asks for it — the "same component at a different density" §13
+            calls a variant layer, rather than a second control. `h-auto` so the
+            min-height can win over `icon`'s fixed `h-8`. */}
         {!readOnly && (
           <span className="flex shrink-0 gap-0.5">
-            <Button variant="ghost" size="icon" onClick={onEdit} aria-label={`Edit ${activity.title}`}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(PHONE_TOUCH, "h-auto")}
+              onClick={onEdit}
+              aria-label={`Edit ${activity.title}`}
+            >
               <Pencil className="size-3.5" aria-hidden />
             </Button>
-            <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remove ${activity.title}`}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(PHONE_TOUCH, "h-auto")}
+              onClick={onRemove}
+              aria-label={`Remove ${activity.title}`}
+            >
               <X className="size-3.5" aria-hidden />
             </Button>
           </span>

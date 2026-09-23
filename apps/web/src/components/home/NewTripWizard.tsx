@@ -4,13 +4,15 @@ import { useRef, useState } from "react";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
 import { Sheet, type SheetSize } from "@/components/ui/sheet";
 import { DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
+import { useAiEntitled } from "@/components/assistant/useAiEntitled";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 // `…WithYear`, not `formatTripDate`: §32.3's own example of "the app's own
 // style" is `Apr 10, 2027`, and a trip being planned eleven months out is the
@@ -53,7 +55,14 @@ import {
  * The 40px chip is deliberately not built: it would be a sixth control height
  * in a scale that has four, to sit 4px under a floor §13.1 says is absolute.
  */
-export const TOUCH = "min-h-11 sm:min-h-0";
+/**
+ * **Moved into the design system** as `PHONE_TOUCH` (M26 link 14) and re-exported
+ * here so existing importers keep working. It was defined in this wizard and
+ * imported by anything that needed a phone floor, which is the wrong owner for
+ * a rule from SPEC §13.1 — and it released at `sm`, leaving 640–767px without a
+ * floor while every other phone rule in this app draws the line at 767.
+ */
+export const TOUCH = PHONE_TOUCH;
 
 export type NewTripWizardProps = {
   open: boolean;
@@ -178,6 +187,42 @@ function threadFor(state: NewTripState, closing: string | null, opening: string)
  * already gone stale once, promising a "Who & money" step the flow does not
  * have). One conversation, rendered in both places, cannot drift from itself.
  */
+/**
+ * **The free half of §30.3's fork.** The trip is made and it is theirs; what is
+ * behind Plus is *changing it by asking*.
+ *
+ * Three things §30.3 asks for by name, and one it forbids:
+ *
+ * - *"the trip is finished and yours to edit"* — said first, because the fear a
+ *   paywall at the end of a flow creates is that the work was for nothing.
+ * - *"changing it by asking is part of Plus"* — the capability, stated plainly,
+ *   not a plan name and not a list of features.
+ * - *"A See plans button beside it goes to the plans route"* (§29).
+ * - **"No teaser, no disabled input."** The composer is not rendered at all in
+ *   the `made` phase, for either branch — which is the shape this build already
+ *   had, and is why nothing here disables anything.
+ *
+ * A `Link`, not a `Button` with a router push: a navigation a reader can
+ * middle-click, copy, or open in a new tab, and that assistive technology reads
+ * as a link.
+ */
+function NewTripPlusNote() {
+  return (
+    <div className="mt-4 flex flex-col items-start gap-2 rounded-lg border border-hairline bg-moss p-3.5">
+      <Text variant="secondary" className="text-pretty">
+        Your trip is finished and yours to edit. Changing it by asking — telling the assistant what
+        to move and having it redrawn — is part of Plus.
+      </Text>
+      <Link
+        href="/plans"
+        className={`${buttonVariants({ variant: "secondary", size: "sm" })} no-underline`}
+      >
+        See plans
+      </Link>
+    </div>
+  );
+}
+
 export function NewTripConversation({
   createTrip,
   dispatch,
@@ -371,6 +416,13 @@ export function NewTripConversation({
         "about is not built in yet."
       : null;
 
+  // §30.3's fork reads the account's CAPABILITY, not its plan. Asked here
+  // rather than at the split so the read is in flight from the first question —
+  // by the time the fifth answer lands it has long resolved, and the
+  // permissive-`null` branch below is a first-frame guard rather than the
+  // common case.
+  const aiEntitled = useAiEntitled();
+
   const thread = threadFor(
     state,
     closing,
@@ -435,21 +487,42 @@ export function NewTripConversation({
           }}
         />
 
-        {/* The fork is design §4 and is NOT built in this slice, so its shell
-            survives rather than being deleted — removing it would move a false
-            claim rather than remove one (plan 4, Task 6). It sits INSIDE the
-            scrolling half, above the dock: it is something to read, not
-            something to answer with, and under the composer it was one of the
-            two blocks that stopped the input being the last thing on screen. */}
-        {phase === "asking" && state.turn === questions.length - 1 && (
-          <Preview id="wizard-assistant-draft" size="container" className="mt-4 bg-brand-tint p-3.5">
-            <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
-            <Text variant="secondary" className="mt-0.5 text-brand-pressed">
-              Once you say go, the assistant lays out your days at the pace you pick, leaves the
-              bookings to you, and flags anything that needs a decision.
-            </Text>
-          </Preview>
-        )}
+        {/* **The fork at the end, on plan** — §30.3, M26 link 9a. It sits
+            INSIDE the scrolling half, above the dock: it is something to read,
+            not something to answer with, and under the composer it was one of
+            the two blocks that stopped the input being the last thing on
+            screen.
+
+            **After the fifth ANSWER, not on the fifth question.** §30.3 is
+            explicit — *"After the fifth answer the flow splits"* — and this
+            used to render on the last question, before it was answered, which
+            put a claim about the trip on screen before there was a trip.
+
+            **The split is on the entitlement, never on a plan name**
+            (ADR-045 rule 4; `planVersions.fourthPlan.test.ts` greps source for
+            exactly that comparison). `useAiEntitled` answers what the account
+            HOLDS, so a fourth plan granting the assistant works here with no
+            edit.
+
+            **`null` takes the PAID branch, and that asymmetry is deliberate.**
+            `useAiEntitled` returns `null` while unknown AND on a failed read,
+            and its own note says every caller must treat that as entitled:
+            flashing a paywall at a subscriber is a worse failure than showing
+            a free account one optimistic frame. Being wrong the permissive way
+            costs nothing here at all — this branch is a `Preview`, which
+            promises nothing. */}
+        {phase === "made" &&
+          (aiEntitled === false ? (
+            <NewTripPlusNote />
+          ) : (
+            <Preview id="wizard-assistant-draft" size="container" className="mt-4 bg-brand-tint p-3.5">
+              <Text className="font-semibold text-brand-pressed">Let the assistant draft it</Text>
+              <Text variant="secondary" className="mt-0.5 text-brand-pressed">
+                Once you say go, the assistant lays out your days at the pace you pick, leaves the
+                bookings to you, and flags anything that needs a decision.
+              </Text>
+            </Preview>
+          ))}
         </div>
       </div>
 

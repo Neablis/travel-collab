@@ -94,17 +94,42 @@ function money(amountMinor: number): SavedStop["cost"] {
   return { amountMinor, currency: JAPAN_TRIP_CURRENCY };
 }
 
+/**
+ * A stop, with its place.
+ *
+ * **`lat`/`lng` are optional and almost every stop here has none**, which is
+ * the seed telling the truth rather than an omission: a saved day whose stops
+ * were never geocoded is the ordinary state of this table, and §16's
+ * degrade-to-list-only exists for it.
+ *
+ * What is NOT acceptable is the state this file was in until 2026-09-20 —
+ * **no stop anywhere carrying a coordinate**, so `SharedDayMap` could not draw
+ * on any seeded database and the map half of §16 had never been seen by
+ * anybody. Walking the preview found three Discover days rendering zero
+ * canvases; the cause was here, not in the component.
+ *
+ * **Every coordinate below is lifted from `coordinates.json`** — this repo's
+ * own geocode of the Japan trip, already reviewed against its `canonicalName`.
+ * None is typed from memory. That is a rule, not a preference: KI-39 is the
+ * entry that cost this seed a pin in the wrong country, and a hand-authored
+ * coordinate is permanent (`geocode-content.py`'s `--apply` skips any stop that
+ * already has a `lat`). If a stop's place is not in that file, it gets no
+ * coordinate here — see `KI-2026-09-20-d` for the rest of the library.
+ */
 function stop(
   title: string,
   start: string,
   end: string,
-  place: { name: string; city?: string } | null,
+  place: { name: string; city?: string; lat?: number; lng?: number } | null,
   extras: Partial<SavedStop> = {},
 ): SavedStop {
   return {
     title,
     timeWindow: { start, end },
-    location: place === null ? null : { name: place.name, city: place.city },
+    location:
+      place === null
+        ? null
+        : { name: place.name, city: place.city, lat: place.lat, lng: place.lng },
     notes: null,
     anchors: [],
     kind: "planned",
@@ -136,7 +161,9 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
       // Under the Discover filter's lower band edge ($50 for the day) once summed —
       // the cheap end of the three ranges has to have an occupant in the demo
       // or the band is a control nobody can see work.
-      stop("Fushimi Inari at opening", "07:30", "09:30", { name: "Fushimi Inari Taisha", city: "Kyoto" }, {
+      // `coordinates.json`, `d8-s1-fushimi-inari-at-dawn` — canonicalName
+      // "Fushimi Inari-taisha, Fushimi Ward, Kyoto, Kyoto Prefecture, Japan".
+      stop("Fushimi Inari at opening", "07:30", "09:30", { name: "Fushimi Inari Taisha", city: "Kyoto", lat: 34.9675192, lng: 135.7797101 }, {
         cost: money(0),
       }),
       stop("Tofuku-ji gardens", "10:15", "11:30", { name: "Tofuku-ji", city: "Kyoto" }, {
@@ -148,7 +175,12 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
       // Same city as the first stop and not adjacent to it — the day reports
       // Kyoto ONCE, which is what makes `cities.length` "how many cities does
       // this day touch" rather than "how many stops are placed".
-      stop("Kiyomizu-dera at dusk", "17:00", "18:30", { name: "Kiyomizu-dera", city: "Kyoto" }, {
+      // `coordinates.json`, `d8-s3-kiyomizu-dera-and-sannenzaka`. **The second
+      // located stop on this day, and that is the point** — `worthDrawing`
+      // needs two, so this is the one seeded Playbook whose map DRAWS. The two
+      // middle stops stay unlocated, so it also draws the gapped leg
+      // `sharedDayGeometry` has always had a code path for and never a seed.
+      stop("Kiyomizu-dera at dusk", "17:00", "18:30", { name: "Kiyomizu-dera", city: "Kyoto", lat: 34.994303, lng: 135.7844389 }, {
         cost: money(400),
       }),
     ],
@@ -222,7 +254,12 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
       // the rail's Budget figure has to be readable as a FLOOR — it sums the
       // stops that carry a price and says nothing about the ones that do not,
       // which is what `unpricedStops` sits beside it to admit.
-      stop("Nishiki Market", "10:00", "11:30", { name: "Nishiki Market", city: "Kyoto" }, {
+      // `coordinates.json`, `d8-s5-nishiki-market`. **The ONLY located stop on
+      // this day, deliberately left that way**: one coordinate is fewer than
+      // `worthDrawing`'s two, so this day is §16's degrade-to-list-only — the
+      // other half of M26's shared-day gate box, and it is beside the day that
+      // draws on the same Discover page rather than in a test fixture.
+      stop("Nishiki Market", "10:00", "11:30", { name: "Nishiki Market", city: "Kyoto", lat: 35.0050244, lng: 135.7655699 }, {
         cost: money(2_500),
       }),
       // A location with NO city — `Location.city` is `.optional()`, so a

@@ -13,7 +13,7 @@ afterEach(() => {
 const day = (over: Partial<MapDay> = {}): MapDay => ({
   index: 0, dayId: "d1", label: "Day 1", date: "2026-09-05", city: "Rochester",
   accent: "warning", stops: [], unlocatedCount: 0, totalKm: 4.2,
-  bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, ...over,
+  bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, longest: null, ...over,
 });
 
 describe("MapRail", () => {
@@ -55,6 +55,99 @@ describe("MapRail", () => {
       // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(button.className).not.toMatch(/hover:bg-/);
     }
+  });
+
+  // **The sibling of the assertion above, not its replacement** (M26 link 5a).
+  // The design raises a card BESIDE the rail and leaves the row exactly as it
+  // was: `bg` stays focus-driven. So "no hover tint" and "hover reveals detail"
+  // are not in tension — they are the two halves of one rule, which is why the
+  // test above is untouched and this one sits next to it.
+  //
+  // The rail REPORTS the hover rather than rendering the card: the card
+  // positions against the map wrap, not against this rail's geared-scroll
+  // transform, which would drag it along as the track moves.
+  it("reports a hovered day and its row's top, and reports the leave", () => {
+    const onHover = vi.fn();
+    const onHoverEnd = vi.fn();
+    render(
+      <MapRail
+        days={[day(), day({ index: 1, dayId: "d2", label: "Day 2" })]}
+        focusedDay={0}
+        onFocus={vi.fn()}
+        onHover={onHover}
+        onHoverEnd={onHoverEnd}
+      />,
+    );
+
+    const second = screen.getAllByRole("button")[1]!;
+    fireEvent.mouseEnter(second);
+    expect(onHover).toHaveBeenCalledTimes(1);
+    // The DAY, so the caller never has to map an index back to a row, and a
+    // number — jsdom reports 0 for every box, which is fine: the contract is
+    // that the row's own top travels, and the clamp is asserted in
+    // MapHoverCard.test.tsx where it can be reasoned about without layout.
+    expect(onHover.mock.calls[0]![0]).toMatchObject({ index: 1, label: "Day 2" });
+    expect(typeof onHover.mock.calls[0]![1]).toBe("number");
+
+    fireEvent.mouseLeave(second);
+    expect(onHoverEnd).toHaveBeenCalledTimes(1);
+  });
+
+  // M26 link 5d. Clicking a day also SCROLLS it into view, and that path had no
+  // test at all — which is how it shipped calling `container.scrollTo`, a method
+  // jsdom does not implement. It threw on every rail click as an UNHANDLED
+  // ERROR, so vitest still reported every test passing and only its `Errors 1`
+  // line and a non-zero exit disagreed. A test that merely renders the rail
+  // could never have caught it; this one drives the click.
+  it("scrolls the clicked day into view", () => {
+    // jsdom has no `scrollTo` on any element, so it is installed here as a spy.
+    // **This is the assertion, and `.not.toThrow()` was not**: a first attempt
+    // wrapped the click in `expect(...).not.toThrow()`, and with the guard
+    // removed it STILL reported 19 passed — React dispatches the handler
+    // outside the assertion's call stack, so only vitest's `Errors` line saw
+    // the throw. Observing the call is what makes this fail when the click
+    // cannot reach the scroll.
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+      value: scrollTo,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      render(
+        <MapRail
+          days={[day(), day({ index: 1, dayId: "d2", label: "Day 2" })]}
+          focusedDay={0}
+          onFocus={vi.fn()}
+        />,
+      );
+      fireEvent.click(screen.getAllByRole("button")[1]!);
+
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      expect(scrollTo.mock.calls[0]![0]).toMatchObject({ behavior: "smooth" });
+      // The POSITION is not asserted: jsdom gives every element a zero-sized
+      // box, so it is 0 whatever the gearing computes. That maths is covered
+      // by `railScrollTopFor`'s round-trip test, where it can be reasoned
+      // about without a layout engine.
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
+    }
+  });
+
+  // Hovering is not selecting. If this ever fires, the card has become a second
+  // way to choose a day and the rule the no-hover-tint test protects is gone.
+  it("does not change the focused day on hover", () => {
+    const onFocus = vi.fn();
+    render(
+      <MapRail
+        days={[day(), day({ index: 1, dayId: "d2", label: "Day 2" })]}
+        focusedDay={0}
+        onFocus={onFocus}
+        onHover={vi.fn()}
+      />,
+    );
+    fireEvent.mouseEnter(screen.getAllByRole("button")[1]!);
+    expect(onFocus).not.toHaveBeenCalled();
   });
 
   it("shows a warning flag when the day carries one", () => {

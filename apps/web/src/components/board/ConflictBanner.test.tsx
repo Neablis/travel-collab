@@ -8,7 +8,7 @@ const A1 = "11111111-1111-4111-8111-111111111111";
 const A2 = "22222222-2222-4222-8222-222222222222";
 
 function activity(id: string, title: string): ActivityView {
-  return { activityId: id, title, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null };
+  return { activityId: id, title, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: []};
 }
 
 function overlapConflict(): Conflict {
@@ -190,5 +190,66 @@ describe("ConflictBanner — read-only", () => {
   it("offers Dismiss when not read-only", () => {
     renderBanner(false);
     expect(screen.getByRole("button", { name: /^Dismiss:/ })).toBeTruthy();
+  });
+});
+
+// M13 link 4. Dismissal persists as a command, and a concurrent-edit
+// conflict's id is stable per stop — so offering Dismiss would let one click
+// permanently suppress every future collision on that stop. It needs none: it
+// leaves when the unsent work it is about is sent.
+describe("a concurrent-edit conflict is shown but not dismissible", () => {
+  const concurrent = {
+    id: "concurrent-edit:a1",
+    kind: "concurrent-edit",
+    severity: "warn" as const,
+    subjects: ["a1"],
+    description: '"Fushimi Inari" changed on the server while you had an unsent change to it.',
+    resolutions: ["Send your change anyway — it will overwrite theirs"],
+  };
+  const ordinary = {
+    id: "time-overlap:d1:a1:a2",
+    kind: "time-overlap",
+    severity: "warn" as const,
+    subjects: ["a1", "a2"],
+    description: "Two activities overlap.",
+    resolutions: [],
+  };
+
+  it("renders it — the product noticing is the point", () => {
+    render(
+      <ConflictBanner
+        conflicts={[concurrent]}
+        dismissedConflictIds={[]}
+        activities={{}}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(concurrent.description)).toBeTruthy();
+  });
+
+  it("offers no Dismiss for it", () => {
+    render(
+      <ConflictBanner
+        conflicts={[concurrent]}
+        dismissedConflictIds={[]}
+        activities={{}}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^Dismiss:/ })).toBeNull();
+  });
+
+  it("still offers Dismiss for an ordinary conflict beside it", () => {
+    render(
+      <ConflictBanner
+        conflicts={[concurrent, ordinary]}
+        dismissedConflictIds={[]}
+        activities={{}}
+        onDismiss={vi.fn()}
+      />,
+    );
+    const buttons = screen.getAllByRole("button", { name: /^Dismiss:/ });
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]!.getAttribute("aria-label")).toContain("overlap");
   });
 });

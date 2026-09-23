@@ -1,6 +1,9 @@
 import {
+  PageEvent as PageEventSchema,
   TripEvent as TripEventSchema,
+  isPageEventType,
   type EventEnvelope,
+  type PageEvent,
   type HistoryEntry,
   type Origin,
   type RedoChange,
@@ -11,12 +14,26 @@ import {
 import type { Rejection } from "./decide";
 import { diffTripStates } from "./diff";
 import { evolveTrip } from "./evolve";
+import { evolvePages, type PagesState } from "./pageState";
 import type { TripState } from "./state";
 
+/**
+ * The trip aggregate, folded from a stream that also carries page events.
+ *
+ * **The skip is BY NAME, and that is the whole care here.** This fold used to
+ * parse every envelope as a `TripEvent`, which is what made a corrupt stream
+ * fail loudly rather than fold to a plausible wrong state — the guarantee
+ * `evolve.ts`'s `requireDay` comment defends. Notebook pages now live in this
+ * same stream as a second aggregate (`pageState.ts`), so this has to step over
+ * their events; stepping over *anything that fails to parse* would have thrown
+ * that guarantee away to buy it. An envelope belonging to neither aggregate
+ * still reaches `TripEventSchema.parse` and still throws.
+ */
 export function foldEnvelopes(envelopes: EventEnvelope[], toSeq?: number): TripState | null {
   let state: TripState | null = null;
   for (const env of envelopes) {
     if (toSeq !== undefined && env.seq > toSeq) break;
+    if (isPageEventType(env.type)) continue;
     state = evolveTrip(
       state,
       TripEventSchema.parse({ type: env.type, version: env.version, payload: env.payload }),
@@ -33,6 +50,19 @@ export type Batch = {
   actorId: string;
   occurredAt: string;
   events: TripEvent[];
+  /**
+   * The page aggregate's events from the same batch.
+   *
+   * Separate from `events` rather than a widened union, so every existing
+   * reader of `batch.events` keeps its exhaustive `TripEvent` switch and is
+   * not silently handed a shape it has no case for.
+   *
+   * **A batch of ONLY page events is still a batch** — it has a batchId and an
+   * origin, so the history panel can describe it. It is deliberately NOT
+   * undoable: `deriveUndoRedo` skips any batch with no trip events, and the
+   * comment there says why stacking one wedges undo entirely.
+   */
+  pageEvents: PageEvent[];
 };
 
 // Envelopes arrive seq-ordered; a batch is a contiguous run sharing a batchId
@@ -40,11 +70,15 @@ export type Batch = {
 export function groupBatches(envelopes: EventEnvelope[]): Batch[] {
   const batches: Batch[] = [];
   for (const env of envelopes) {
-    const event = TripEventSchema.parse({ type: env.type, version: env.version, payload: env.payload });
+    const page = isPageEventType(env.type);
+    const parsed = page
+      ? PageEventSchema.parse({ type: env.type, version: env.version, payload: env.payload })
+      : TripEventSchema.parse({ type: env.type, version: env.version, payload: env.payload });
     const last = batches[batches.length - 1];
     if (last !== undefined && last.batchId === env.batchId) {
       last.toSeq = env.seq;
-      last.events.push(event);
+      if (page) last.pageEvents.push(parsed as PageEvent);
+      else last.events.push(parsed as TripEvent);
     } else {
       batches.push({
         batchId: env.batchId,
@@ -53,7 +87,8 @@ export function groupBatches(envelopes: EventEnvelope[]): Batch[] {
         toSeq: env.seq,
         actorId: env.actorId,
         occurredAt: env.occurredAt,
-        events: [event],
+        events: page ? [] : [parsed as TripEvent],
+        pageEvents: page ? [parsed as PageEvent] : [],
       });
     }
   }
@@ -75,6 +110,20 @@ export function deriveUndoRedo(batches: Batch[]): UndoRedoTargets {
   const done: Batch[] = [];
   const undone: Batch[] = [];
   for (const batch of batches) {
+    // **A batch with no trip events never enters the stack.** Today that means
+    // a page-only batch — a notebook save. Stacking one makes undo STUCK, not
+    // merely ineffective: `foldEnvelopes` skips page events, so undoing to just
+    // before the batch yields an empty trip diff, `decideHistoryCommand`
+    // rejects `nothing-to-undo`, and nothing is popped. Press undo again and it
+    // picks the same batch forever, with every earlier itinerary change
+    // unreachable behind it.
+    //
+    // So a notebook edit is not undoable yet. Making it undoable means the
+    // history decision carrying `PageEvent[]` alongside `TripEvent[]`, which is
+    // `KI-2026-09-22-c` — open because the naive version emits `PageDeleted`
+    // for every notebook when a trip is reverted behind a backfilled genesis.
+    // Not-undoable is the smaller cost, and it is reversible.
+    if (batch.events.length === 0) continue;
     switch (batch.origin.kind) {
       case "user":
       case "revert":
@@ -221,8 +270,46 @@ function describeEvent(state: TripState | null, event: TripEvent): string {
   }
 }
 
+/**
+ * One page event in words, using the page state from BEFORE the batch.
+ *
+ * Before, not after, for the same reason `describeUserBatch` reads the trip
+ * state before: a deletion has to name the page it removed, and after the
+ * event there is nothing left to name.
+ */
+function describePageEvent(pagesBefore: PagesState, event: PageEvent): string {
+  switch (event.type) {
+    case "PageCreated":
+      return `Added the notebook "${event.payload.title}"`;
+    case "PageDeleted":
+      return `Deleted the notebook "${pagesBefore[event.payload.pageId]?.title ?? "a notebook"}"`;
+    case "PageEdited": {
+      // A rename says so; a content edit names the page. Both read off the
+      // title BEFORE this event, so "Renamed X to Y" is true in both halves.
+      const before = pagesBefore[event.payload.pageId]?.title ?? "a notebook";
+      if (event.payload.title !== undefined && event.payload.title !== before) {
+        return `Renamed "${before}" to "${event.payload.title}"`;
+      }
+      return `Edited "${before}"`;
+    }
+  }
+}
+
+function describePageBatch(pagesBefore: PagesState, events: PageEvent[]): string {
+  const first = events[0];
+  if (first === undefined) return "Changed this trip";
+  if (events.length === 1) return describePageEvent(pagesBefore, first);
+  // More than one page event in one batch only happens on undo/redo/revert,
+  // which have their own wording below, and on a backfill. Naming the count is
+  // honest and does not pretend to summarise documents.
+  return `${describePageEvent(pagesBefore, first)} and ${events.length - 1} more notebook change${
+    events.length - 1 === 1 ? "" : "s"
+  }`;
+}
+
 function describeBatch(
   stateBefore: TripState | null,
+  pagesBefore: PagesState,
   batch: Batch,
   priorDescriptions: ReadonlyMap<string, string>,
 ): string {
@@ -234,7 +321,13 @@ function describeBatch(
     case "revert":
       return `Reverted to version ${batch.origin.toSeq}`;
     case "user":
-      return describeUserBatch(stateBefore, batch.events);
+      // **A batch is one aggregate's or the other's, never both**, because a
+      // command targets one of them. The trip's events win the tie only so
+      // that a future batched command carrying both still reads as a trip
+      // change rather than silently losing its notebook half.
+      return batch.events.length > 0
+        ? describeUserBatch(stateBefore, batch.events)
+        : describePageBatch(pagesBefore, batch.pageEvents);
   }
 }
 
@@ -245,10 +338,22 @@ export function buildHistoryEntries(envelopes: EventEnvelope[]): HistoryEntry[] 
   const descriptions = new Map<string, string>();
   const entries: HistoryEntry[] = [];
   let state: TripState | null = null;
+  // Folded alongside the trip state, and for one reason: a page event's
+  // description needs the page's TITLE, which lives in the page aggregate.
+  // Rebuilding it per entry would be quadratic over the stream.
+  let pages: PagesState = {};
   for (const batch of batches) {
-    const description = describeBatch(state, batch, descriptions);
+    const description = describeBatch(state, pages, batch, descriptions);
     descriptions.set(batch.batchId, description);
     for (const event of batch.events) state = evolveTrip(state, event);
+    for (const event of batch.pageEvents) pages = evolvePages(pages, event);
+    // One page and only one: a batch touching two pages has no single subject,
+    // and a batch with trip events in it is a trip change that happens to carry
+    // a page event. Both fall through to `undefined`, which the panel reads as
+    // "do not group this".
+    const pageIds = new Set(batch.pageEvents.map((e) => e.payload.pageId));
+    const pageId =
+      batch.events.length === 0 && pageIds.size === 1 ? [...pageIds][0] : undefined;
     entries.push({
       batchId: batch.batchId,
       fromSeq: batch.fromSeq,
@@ -258,6 +363,7 @@ export function buildHistoryEntries(envelopes: EventEnvelope[]): HistoryEntry[] 
       origin: batch.origin,
       description,
       undone: undoneSet.has(batch.batchId),
+      ...(pageId === undefined ? {} : { pageId }),
     });
   }
   return entries;

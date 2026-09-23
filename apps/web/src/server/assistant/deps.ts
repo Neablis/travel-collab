@@ -17,8 +17,8 @@
 import { z } from "zod";
 import type { PageNode, SavedDay, TripDetail } from "@tc/contracts";
 import type { DiscoverDay } from "@/lib/playbooks";
-import type { RawToolIntent } from "@/server/ai/batchResolver";
-import type { AskScope } from "@/server/ai/context";
+import type { RawToolIntent } from "@/server/assistant/batchResolver";
+import type { AskScope } from "@/server/assistant/context";
 import type { BoundingBox } from "@/server/geocoding/geocoder";
 
 /**

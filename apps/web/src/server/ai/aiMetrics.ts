@@ -38,7 +38,7 @@
 // end-of-turn path a streaming answer runs through, so a telemetry fault must
 // never become the reason an answer stops mid-sentence.
 import * as Sentry from "@sentry/nextjs";
-import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
+import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 
 /**

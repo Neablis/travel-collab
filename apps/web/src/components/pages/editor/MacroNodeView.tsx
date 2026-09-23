@@ -28,7 +28,12 @@ export function macroShape(name: string): WidgetShape {
 // So a block-shaped wrapper becomes a block box too. That changes no layout —
 // its content is already block-level flex rows — it only gives the ring a box
 // to hug.
-const SELECTED_RING = "ring-2 ring-primary rounded";
+// `ring-brand`, and the name matters. This shipped as `ring-primary` — shadcn's
+// default ring colour, which this app never defined: `globals.css` sets
+// `--color-*: initial`, so an unknown utility emits nothing and the ring fell
+// back to `currentColor` instead of the brand. Caught by the token wall
+// (`KI-2026-09-19-g`), not by a test, because no layer here can assert a paint.
+const SELECTED_RING = "ring-2 ring-brand rounded";
 
 // SPEC §26's edit-mode affordance, and the whole of what edit mode adds to the
 // document:
