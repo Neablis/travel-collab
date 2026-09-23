@@ -656,12 +656,18 @@ export async function insertSavedDay(
  */
 export async function fetchSavedDay(
   savedDayId: string,
-): Promise<ApiResult<{ savedDay: SavedDay; isAuthor: boolean }>> {
+): Promise<ApiResult<{ savedDay: SavedDay; isAuthor: boolean; pinning: boolean }>> {
   try {
     const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`));
     return await readJson(res, (data) => {
-      const body = data as { savedDay: unknown; isAuthor: unknown };
-      return { savedDay: SavedDay.parse(body.savedDay), isAuthor: body.isAuthor === true };
+      const body = data as { savedDay: unknown; isAuthor: unknown; pinning: unknown };
+      return {
+        savedDay: SavedDay.parse(body.savedDay),
+        isAuthor: body.isAuthor === true,
+        // True while the server is putting this day's stops on the map after
+        // the response (M27 link 10) — the page reads again until it is not.
+        pinning: body.pinning === true,
+      };
     });
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };

@@ -377,6 +377,61 @@ export async function readableSavedDay(
 }
 
 /**
+ * Write coordinates the server looked up into a day's stops (M27 link 10;
+ * `savedDayPins.ts` decides what they are and why a reader may trigger it).
+ *
+ * **Not owner-scoped, unlike every other write here**, and that is the point of
+ * the function rather than an oversight: `pin` may only ADD coordinates to
+ * stops that had none, which is not an authored change, and `savedDayPins.ts`
+ * is its only caller. It is still refused for a deleted day.
+ *
+ * **Written only over the exact stops it read.** The UPDATE compares the stored
+ * jsonb with what `pin` was handed, so a second pass that overlapped this one
+ * (two readers, two instances) loses cleanly as `"raced"` rather than writing
+ * over whatever the first pass wrote.
+ *
+ * The result is parsed before it is written, because the read boundary drops a
+ * whole row whose stops fail `SavedStop` (KI-71): a bad coordinate must cost
+ * this write, never the Playbook.
+ */
+export async function backfillSavedDayStops(
+  savedDayId: string,
+  pin: (stops: readonly SavedStop[]) => Promise<SavedStop[] | null>,
+): Promise<"nothing-to-do" | "written" | "unchanged" | "gone" | "raced"> {
+  if (!isUuid(savedDayId)) return "gone";
+  const rows = await db
+    .select()
+    .from(savedDays)
+    .where(and(eq(savedDays.id, savedDayId), isNull(savedDays.deletedAt)));
+  const row = rows[0];
+  const day = row === undefined ? null : fromRow(row);
+  if (row === undefined || day === null) return "gone";
+  const next = await pin(day.stops);
+  if (next === null) return "nothing-to-do";
+  if (JSON.stringify(next) === JSON.stringify(day.stops)) return "unchanged";
+  const validated = SavedStop.array().safeParse(next);
+  if (!validated.success) {
+    console.error("refused to write pinned stops that do not match SavedStop", {
+      savedDayId,
+      issues: validated.error.issues,
+    });
+    return "unchanged";
+  }
+  const updated = await db
+    .update(savedDays)
+    .set({ stops: validated.data })
+    .where(
+      and(
+        eq(savedDays.id, savedDayId),
+        isNull(savedDays.deletedAt),
+        sql`${savedDays.stops} = ${JSON.stringify(row.stops)}::jsonb`,
+      ),
+    )
+    .returning({ id: savedDays.id });
+  return updated.length === 0 ? "raced" : "written";
+}
+
+/**
  * Publish or unpublish one of your own days (M11b link 3).
  *
  * Owner-scoped in the WHERE clause, for `getSavedDay`'s reason: somebody else's
