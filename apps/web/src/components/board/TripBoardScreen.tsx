@@ -29,6 +29,7 @@ import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { isInviteLook } from "@/lib/inviteLook";
 import { dayLabel } from "@/lib/dates";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
@@ -203,8 +204,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // work: `/api/trips/:id/ask` refuses the demo trip outright with a 403
   // `demo-trip-unsupported` (KI-79), so a launcher offered to a signed-out
   // visitor has no outcome but an error. This is the one control on the board
-  // with no read-only half to fall back to.
-  const isDemo = isDemoTripId(tripId);
+  // with no read-only half to fall back to. An invite's *Have a look first*
+  // (M27 D12) is the same case: a signed-out visitor, and Ask answers 401.
+  const isDemo = isDemoTripId(tripId) || isInviteLook(tripId);
   // The conversation lives in `useAskThread` now — it is the same machinery a
   // notebook page needs (M14 link 8), and two copies would have meant two
   // thread ceilings and two definitions of "this turn was abandoned". What

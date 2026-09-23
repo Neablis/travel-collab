@@ -12,6 +12,7 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { isInviteLook } from "@/lib/inviteLook";
 import { cn } from "@/lib/cn";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
@@ -121,10 +122,11 @@ export function TripHeader({
       // FrontDoorHeader instead, which does not stick — so there, offsetting by
       // 56px pins this header 56px down from the top and leaves a see-through
       // strip of scrolled content above it (Mitchell, preview comment on
-      // `/demo`). Nothing is sticky above it there, so it pins to the top.
+      // `/demo`). Nothing is sticky above it there, so it pins to the top. The
+      // same holds for an invite's look screen (M27 D12).
       className={cn(
         "sticky z-10 border-b border-hairline bg-surface px-6 pt-3.5",
-        isDemoTripId(tripId) ? "top-0" : "top-14",
+        isDemoTripId(tripId) || isInviteLook(tripId) ? "top-0" : "top-14",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -146,7 +148,7 @@ export function TripHeader({
               have an account. `DemoTripScreen` renders the front door's own
               header above this one, which is where a signed-out reader's way
               onward belongs. */}
-          {!isDemoTripId(tripId) && (
+          {!isDemoTripId(tripId) && !isInviteLook(tripId) && (
             <nav className="flex w-full items-center justify-between gap-3">
               {/* `min-h-11` and the inline-flex that makes it apply: §22 made
                   this link load-bearing on a phone. Scoping the tab bar removed

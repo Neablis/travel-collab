@@ -1,4 +1,5 @@
 import { useSyncExternalStore, type ComponentProps } from "react";
+import { beginInviteLook } from "@/lib/inviteLook";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -599,6 +600,19 @@ describe("TripBoardScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     expect(screen.queryByLabelText(/ask ai to plan/i)).toBeNull();
+  });
+
+  it("offers no assistant on an invite's look screen, where a signed-out visitor's Ask would answer 401 (M27 D12)", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const end = beginInviteLook(fixture.tripId, "look-token");
+    try {
+      renderScreen(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      expect(screen.queryByTestId("assistant-launcher")).toBeNull();
+    } finally {
+      end();
+    }
   });
 
   it("the Ask box holds a real conversation: the question, the tool call and the streamed answer all land in the transcript", async () => {

@@ -41,3 +41,14 @@ export function inviteLookHeaders(tripId: string): Record<string, string> {
   const token = looks.get(tripId);
   return token === undefined ? {} : { [INVITE_TOKEN_HEADER]: token };
 }
+
+/**
+ * Is a look open on `tripId`? The board reads this at render to treat the look
+ * the way it treats the demo: no assistant (Ask answers 401 to a signed-out
+ * visitor, so a launcher has no outcome but an error) and a header pinned to
+ * the top (the front door's header above it does not stick). Safe to read at
+ * render because `InviteLookScope` registers before it renders its children.
+ */
+export function isInviteLook(tripId: string): boolean {
+  return looks.has(tripId);
+}
