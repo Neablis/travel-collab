@@ -207,6 +207,11 @@ being built:** *"make sure the playbooks get correctly styled? Every playbook
 should have maps for instance, not just the multi day ones"*. It is not in §35.
 It is the parity of the Playbooks surfaces as a whole (§15/§16/§33), plus the
 root cause of single-day Playbooks drawing no map.
+Mitchell's follow-up sets the rule for it: *"Multiday and single day playbooks
+should mostly look the same other than the day picker on map, don't treat them
+different."* So one layout serves every Playbook. The day picker renders only
+when there is more than one day. The only other difference allowed is copy
+that is genuinely about the count (*Add all 3 days to a trip*).
 
 ## Exit gate
 
