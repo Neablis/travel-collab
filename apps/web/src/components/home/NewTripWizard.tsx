@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   insertSavedDay,
+  searchCities,
   searchPlaybooks,
   type ApiResult,
   type BoardCommand,
@@ -566,19 +567,33 @@ function Conversation({
    * `where` commit, so it runs while the typing row shows; what it has found
    * when the row ends is what is offered. A failed read and a slow one both
    * leave `days` empty, which skips the turn — it never blocks the script.
+   *
+   * **The answer goes through the city index first.** Discover matches a city
+   * by its exact stored name, so "lisbon" or "Lisbon, Portugal" found nothing
+   * and the turn was skipped in silence. The index matches case-insensitively
+   * by prefix, so it is asked for the part before any comma and only a match
+   * naming the whole answer, or that part, is taken: "Lis" is not the reader
+   * saying Lisbon.
    */
   function lookUp(where: string): number {
     const token = pbRead.current.token + 1;
     pbRead.current = { token, days: [] };
-    const city = cityOf(where);
-    if (city !== "") {
-      void searchPlaybooks({ cities: [city], sort: "most-added" }).then((result) => {
+    const typed = cityOf(where);
+    const head = typed.split(",")[0]!.trim();
+    if (head !== "") {
+      void (async () => {
+        const index = await searchCities(head);
+        if (pbRead.current.token !== token || !index.ok) return;
+        const named = (name: string) => index.value.find((match) => match.city.toLowerCase() === name.toLowerCase());
+        const city = (named(typed) ?? named(head))?.city;
+        if (city === undefined) return;
+        const result = await searchPlaybooks({ cities: [city], sort: "most-added" });
         if (pbRead.current.token !== token || !result.ok) return;
         pbRead.current = {
           token,
           days: pickPopularDays(result.value.days, (ownerId) => displayNameFor({ userId: ownerId })),
         };
-      });
+      })();
     }
     return token;
   }

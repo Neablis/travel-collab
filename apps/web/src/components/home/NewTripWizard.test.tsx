@@ -8,11 +8,13 @@ import type { DiscoverDay, DiscoverResponse } from "@/lib/playbooks";
 // own imports, so they are replaced here. Every test starts with an empty
 // library: the turn is skipped and the walk below is the one it always was.
 const library = vi.hoisted(() => ({
+  cities: vi.fn(),
   search: vi.fn(),
   insert: vi.fn(),
 }));
 vi.mock("@/lib/apiClient", async (orig) => ({
   ...(await orig<typeof import("@/lib/apiClient")>()),
+  searchCities: library.cities,
   searchPlaybooks: library.search,
   insertSavedDay: library.insert,
 }));
@@ -53,6 +55,9 @@ import { CASS_DRAFTING_MS, CASS_TYPING_MS } from "./newTripScript";
 // tests that are ABOUT the beat drive `raw` and the clock themselves.
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
+  // The city index knows every city a test answers, under the name it was
+  // answered with — so the resolve step is transparent unless a test says not.
+  library.cities.mockImplementation(async (q: string) => ({ ok: true, value: [{ city: q, days: 1 }] }));
   library.search.mockResolvedValue(discover([]));
   library.insert.mockResolvedValue({ ok: true, value: {} as CommandOutcome });
 });
@@ -682,9 +687,10 @@ describe("NewTripWizard — the turns", () => {
   // path §32.3 added and the one where a date control could plausibly reach for
   // a geocoder.
   //
-  // M27 D13 added ONE read — the city's published days — and this is where it
-  // is held to being only that: a library read, once, for the city answered,
-  // and no write until an exit is pressed.
+  // M27 D13 added ONE lookup — the city's published days, by way of the city
+  // index that names the city the way Discover stores it — and this is where
+  // it is held to being only that: two reads, once each, for the city
+  // answered, and no write until an exit is pressed.
   it("sends nothing to the network while the turns are being answered", async () => {
     const { createTrip, dispatch } = renderWizard();
     await answerThroughToFeelDated("2026-10-03");
@@ -693,6 +699,7 @@ describe("NewTripWizard — the turns", () => {
     expect(createTrip).not.toHaveBeenCalled();
     expect(dispatch).not.toHaveBeenCalled();
     expect(library.insert).not.toHaveBeenCalled();
+    expect(library.cities).toHaveBeenCalledExactlyOnceWith("Lisbon");
     expect(library.search).toHaveBeenCalledTimes(1);
     expect(library.search).toHaveBeenCalledWith({ cities: ["Lisbon"], sort: "most-added" });
   });
@@ -838,6 +845,37 @@ describe("NewTripWizard — the Playbook-day turn", () => {
     await waitFor(() => expect(library.insert).toHaveBeenCalledTimes(2));
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripDates", newDayIds: [] }));
     expect(screen.getByRole("log").textContent).toContain("Done. Lisbon is created, 6 days from Oct 3, 2026.");
+  });
+
+  // Discover matches a city exactly, so the raw answer "lisbon, portugal"
+  // found nothing and the turn was silently skipped. The city index resolves
+  // it to the name Discover knows.
+  it("looks the typed city up by the name the city index knows it by", async () => {
+    library.cities.mockResolvedValue({ ok: true, value: [{ city: "Lisbon", days: 4 }, { city: "Lisbon Coast", days: 1 }] });
+    library.search.mockResolvedValue(discover(OFFERED));
+    renderWizard();
+    await user.type(screen.getByLabelText("Where are you going?"), "lisbon, portugal{Enter}");
+
+    expect(library.search).toHaveBeenCalledWith({ cities: ["Lisbon"], sort: "most-added" });
+    expect(library.cities).toHaveBeenCalledWith("lisbon");
+    expect(screen.getByRole("group", { name: "Popular days" })).not.toBeNull();
+  });
+
+  // A prefix hit is not an answer: "Lis" is not the reader saying Lisbon.
+  it("skips the turn when the city index has no such city, or cannot be read", async () => {
+    library.cities.mockResolvedValueOnce({ ok: true, value: [{ city: "Lisbon", days: 4 }] });
+    library.search.mockResolvedValue(discover(OFFERED));
+    renderWizard();
+    await user.type(screen.getByLabelText("Where are you going?"), "Lis{Enter}");
+    expect(screen.queryByRole("group", { name: "Popular days" })).toBeNull();
+
+    cleanup();
+    library.cities.mockResolvedValueOnce({ ok: false, error: { status: 500, message: "down" } });
+    renderWizard();
+    await user.type(screen.getByLabelText("Where are you going?"), "Lisbon{Enter}");
+    expect(screen.queryByRole("group", { name: "Popular days" })).toBeNull();
+    expect(library.search).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Not yet" })).not.toBeNull();
   });
 
   // "Never block the script": the read runs under the typing row, and when
