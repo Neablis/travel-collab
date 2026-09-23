@@ -187,7 +187,8 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
       `pnpm --filter web dev`; for production, the path in
       `docs/guidelines/content-bundles.md` → *Publishing to production*. The
       importer writes through `newSavedDayRow`, which now derives `countries`.
-   6. `pnpm --filter web db:backfill-countries` against each database (it is
+   6. `pnpm --filter web db:backfill-countries` against each database — for
+      production, dispatch `backfill-countries-production` (`confirm: backfill`) (it is
       idempotent) — it prints `coverage (>= 1 country)` for all rows and for
       published rows. **Write those two numbers here**, then tick the box.
 
@@ -205,7 +206,13 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
    Koh Lanta in Bangkok and Búðir in Garðabær, and those were re-pinned before
    commit. One pre-existing pin was also wrong: *Hotel pickup, La Fortuna
    centro* was in Colombia on `main`; it is now in Costa Rica. **Steps 5–6
-   (re-import, backfill, the two coverage numbers) are still open.**
+   done in production the same day:** `import-content-production` wrote 148
+   playbook days (run 35925887263); `backfill-countries-production`, its first
+   run (35926175525), scanned 149, updated 1, already current 148 —
+   **coverage all rows 149/149 (100.0%), published rows 149/149 (100.0%).**
+   The four demo trips were not re-imported (create-if-absent), so their new
+   pins are in `content/` but not in production; they are not `saved_days`
+   and the filter does not read them.
 
 ## 2026-09-23 — the UI half: built, not yet walked
 
@@ -243,7 +250,7 @@ five partial stars.
 
 **Still open against the gate:** the three review states and the operator path
 are walked in e2e specs (`m12-reviews`, `m12-moderation`, `m12-discover`), not
-by a person; the `countries` data is in `content/` (#213) but steps 5–6 of the run-book — re-import, backfill, the two coverage numbers — are still open; a card
+by a person; the `countries` data is done (#213-#215: production 149/149 days carry a country); a card
 matched only by country shows no match line (`DiscoverDay` carries no
 `matchedCountries`); a held review is keyed by day, not by person, so two
 accounts on one browser share it.
@@ -282,10 +289,11 @@ accounts on one browser share it.
       once per day however many of that country's cities the day visits — the
       same "count days, not city-hits" rule `searchCities` already follows. A
       test fails if a multi-city day double-counts.
-- [ ] **The `countries` backfill's coverage is measured and written down**, and
+- [x] **The `countries` backfill's coverage is measured and written down**, and
       the filter is not shipped over a column that is empty for most of the
       library. See the prerequisite below — this box exists because the library
-      carries **zero** country codes today.
+      carries **zero** country codes today. **Ticked 2026-09-23: production
+      149/149 rows (100.0%), published 149/149 (100.0%)** — link 7's run-book.
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.
