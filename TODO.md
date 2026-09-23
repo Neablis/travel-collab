@@ -225,8 +225,8 @@ reorder and the one place a reorder updates.
       safety, and an amendment to the milestone's own "nothing that changes what
       M11b ships". It needs a **second migration** (`saved_days.countries`) and
       had a data prerequisite: the content library carried `countryCode` on
-      **none** of its 1,375 locations — all 1,375 since 2026-09-23; re-import
-      and `db:backfill-countries` still to run. Both are in the milestone file.
+      **none** of its 1,375 locations — all 1,375 since 2026-09-23, and
+      production's 149/149 `saved_days` carry a country. Both are in the milestone file.
       This entry said "six links, nine gate boxes"; the file in fact had ten
       boxes before link 7 was added, so the count here was already one out.)*
 - [x] **M13 Collaboration** — **gate closed 2026-09-22 at 10 of 10**, merged as
