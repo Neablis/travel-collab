@@ -17,7 +17,7 @@ and nothing else.
 
 ### Get a token
 
-Account settings → **API tokens** → *New token*. Pick what it may do, pick how
+Account → Profile → **API tokens** → *New token*. Pick what it may do, pick how
 long it lives, copy the secret.
 
 **The secret is shown once.** Nothing stores it — the database keeps a keyed

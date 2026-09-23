@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DistanceUnit, UpdateUserPreferences } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { DataText } from "@/components/ui/data-text";
@@ -43,8 +44,17 @@ const UNIT_OPTIONS = [
  * the provider genuinely supplied no address, and the address otherwise. The
  * three are deliberately distinct: "Not provided by your sign-in" is a claim
  * about the reader's own account, and it must not be made before anyone knows.
+ *
+ * `onOpenTokens` opens the API tokens sub-view. The URL is `AccountScreen`'s to
+ * own (`?tab=`), so the section asks rather than navigating itself.
  */
-export function ProfileSection({ email }: { email: string | undefined }) {
+export function ProfileSection({
+  email,
+  onOpenTokens,
+}: {
+  email: string | undefined;
+  onOpenTokens: () => void;
+}) {
   const { preferences, loaded, save } = useAccountPreferences();
   const [name, setName] = useState(preferences.displayName ?? "");
   const [airport, setAirport] = useState(preferences.homeAirport ?? "");
@@ -236,7 +246,7 @@ export function ProfileSection({ email }: { email: string | undefined }) {
       <SettingsCard heading="Display">
         <SettingsRow
           label="Distance"
-          description="How far apart two stops are, everywhere it is shown."
+          description="How walks and hops between stops are measured."
         >
           {/* Account scope, not trip scope — "a trip does not have a unit, a
               person does" (SPEC §12). Saved immediately: there is one choice
@@ -276,6 +286,20 @@ export function ProfileSection({ email }: { email: string | undefined }) {
           </div>
         </SettingsRow>
       </SettingsCard>
+
+      {/* **API tokens left the tab strip for this line** (SPEC §35.4, M27
+          D7): a rarely used action demoted to a quiet link (project rule 5). One
+          responsive screen, so a phone gets it too — the design's phone
+          artboard never drew a way to the tokens, and without this line a
+          phone would have none. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 px-0.5 py-1">
+        <Text variant="secondary" className="min-w-0 grow basis-70 leading-normal text-pretty">
+          Writing your own program against your trips? That needs an API token.
+        </Text>
+        <Button variant="ghost" size="sm" onClick={onOpenTokens}>
+          API tokens &rarr;
+        </Button>
+      </div>
     </div>
   );
 }

@@ -8,7 +8,7 @@ const OPTIONS = [
   { value: "tokens", label: "API tokens" },
 ] as const;
 
-function renderTabs(value: (typeof OPTIONS)[number]["value"] = "profile") {
+function renderTabs(value: (typeof OPTIONS)[number]["value"] | null = "profile") {
   const onValueChange = vi.fn();
   render(
     <UnderlineTabs
@@ -120,5 +120,16 @@ describe("UnderlineTabs", () => {
     renderTabs("plan");
     const tabbable = screen.getAllByRole("tab").filter((t) => t.getAttribute("tabindex") === "0");
     expect(tabbable.map((t) => t.textContent)).toEqual(["Plan & usage"]);
+  });
+
+  // Account's tokens sub-view (SPEC §35.4) belongs to the strip without being
+  // one of its tabs. Roving tabindex alone would give every tab -1 there and the
+  // strip would vanish from keyboard order; the first tab keeps the stop.
+  it("keeps one tab stop, on the first tab, when nothing is selected", () => {
+    renderTabs(null);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.filter((t) => t.getAttribute("aria-selected") === "true")).toEqual([]);
+    const tabbable = tabs.filter((t) => t.getAttribute("tabindex") === "0");
+    expect(tabbable.map((t) => t.textContent)).toEqual(["Profile"]);
   });
 });

@@ -55,14 +55,15 @@ test.describe("the phone's account screen", () => {
     // timeout waiting for a header that was never rendered.
     await page.goto("/");
     await openAccountPage(page);
-    for (const name of ["Profile", "Plan & usage", "API tokens"]) {
+    for (const name of ["Profile", "Plan & usage"]) {
       const box = await page.getByRole("tab", { name }).boundingBox();
       expect(box, `${name} has no box`).not.toBeNull();
       expect(box!.height, `${name} is ${box!.height}px tall`).toBeGreaterThanOrEqual(44);
     }
   });
 
-  // Each tab is a URL (`?tab=`), which is what makes the back button walk them.
+  // Each tab is a URL (`?tab=`), which is what makes the back button walk them —
+  // and the tokens sub-view (not a tab since M27, §35.4) is one too.
   test("walks its tabs with the back button", async ({ page }) => {
     await page.goto("/");
     await openAccountPage(page, "tokens");
