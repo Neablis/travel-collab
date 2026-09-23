@@ -191,6 +191,47 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
       idempotent) — it prints `coverage (>= 1 country)` for all rows and for
       published rows. **Write those two numbers here**, then tick the box.
 
+## 2026-09-23 — the UI half: built, not yet walked
+
+Branch `claude/youthful-hopper-zgjdkv`, on top of the backend (#206). No
+migration: `0025` already carries every column this reads.
+
+- **Links 3-4, the shared day.** `ReviewRail` heads the sticky rail (average,
+  five fractional stars, the 5→1 histogram, or *Unrated so far*);
+  `ReviewsSection` under the stops holds the form (stars, the one-line note
+  with a code-point counter, Post), *Change it* (an update, never a second
+  row), the list, and §15's three states — empty, offline (held in
+  `localStorage` by `reviewQueue.ts`, badged *Queued*, flushed on `online`) and
+  conflict (`ReviewConflictBanner`, *Post it anyway* / *Discard it*). A note
+  over 140 disables Post and is never truncated. The author gets no form.
+  **`GET /api/saved-days/:id` now returns `publishedAt`** on the envelope —
+  without it the conflict state was unreachable from the real page.
+- **Link 5, Discover and profiles.** All four sorts on the results sentence;
+  the rating floor in the one *Filters* menu (counted, chipped, cleared, in the
+  URL); `★ 4.6 · 12 reviews` or *No reviews yet* on cards; average and reviews
+  received on the profile.
+- **Link 6, reporting.** *Report this day* and *Report {name}'s review* open
+  `ReportDialog` (five reasons, optional note). The operator's queue is a
+  **Reports** panel on `/admin` — Open / Actioned / Dismissed, hide-with-note,
+  dismiss, restore — first paint server-side after the admin gate, actions
+  through the API.
+- **Link 7, the box.** `CitySearch` became `PlaceSearch` over `/api/places`;
+  every row and chip is tagged *City* or *Country*, and a country is
+  `?country=XX` in the URL.
+
+**Not drawn in `.design-sync/`, so decided in the build and open to Mitchell:**
+the Report affordances and reasons, the whole operator panel, the conflict
+banner's copy (the 409 does not say *what* changed, so the design's "the ferry
+time and two stops" was dropped), and one ★ plus a number on cards rather than
+five partial stars.
+
+**Still open against the gate:** the three review states and the operator path
+are walked in e2e specs (`m12-reviews`, `m12-moderation`, `m12-discover`), not
+by a person; the `countries` coverage step is still the run-book above; a card
+matched only by country shows no match line (`DiscoverDay` carries no
+`matchedCountries`); a held review is keyed by day, not by person, so two
+accounts on one browser share it.
+
 ## Exit gate
 
 - [ ] A signed-in person rates a shared day with stars and an optional note, the
