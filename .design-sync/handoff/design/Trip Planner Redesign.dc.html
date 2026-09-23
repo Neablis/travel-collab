@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
+@keyframes tc-dot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
 @keyframes om-save-pulse { 0% { transform: scale(0.5); opacity: 0.7; } 75% { transform: scale(2.1); opacity: 0; } 100% { transform: scale(2.1); opacity: 0; } }
 /* Placeholders are outlines only — the shape of the page, nothing filled. The slow
    breathe is the one thing that separates "still arriving" from "empty" or "broken". */
@@ -88,30 +89,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 /* ---------------------------------------------------------------------------
    Themes. Nothing here changes behaviour: every rule reassigns design-system
    tokens (and a few assistant-shape variables), so the same markup, handlers,
-   layout and hit targets carry across all four looks.
+   layout and hit targets carry across.
    --------------------------------------------------------------------------- */
 :root, [data-app-theme] {
   --city-tint-l: 0.945; --city-tint-c: 0.042;
   --city-ink-l: 0.44; --city-ink-c: 0.115;
   --city-solid-l: 0.50; --city-solid-c: 0.125;
 }
-[data-app-theme="nightdesk"] {
-  --color-paper: #0f141d; --color-surface: #171e2a; --color-moss: #1f2734;
-  --color-hairline: #2b3441; --color-border-strong: #3b4553; --color-border-input: #4d5867;
-  --color-slate: #9ba7b6; --color-ink: #eef2f7;
-  --color-brand: #35a98d; --color-brand-hover: #45b99c; --color-brand-pressed: #b9e8da; --color-brand-tint: #14302a;
-  --color-danger: #e0776d; --color-danger-tint: #391e1c; --color-danger-ink: #f2b6b0;
-  --color-warning: #d8a75a; --color-warning-tint: #382d18; --color-warning-ink: #eed296;
-  --color-success: #56b880; --color-success-tint: #143020; --color-success-ink: #a6dcb9;
-  --color-info: #5b9dd6; --color-info-tint: #15273a; --color-info-ink: #aecfec;
-}
-[data-app-theme="nightdesk"] body, body[data-app-theme="nightdesk"] { color-scheme: dark; }
-[data-app-theme="nightdesk"] {
-  --city-tint-l: 0.29; --city-tint-c: 0.045;
-  --city-ink-l: 0.85; --city-ink-c: 0.075;
-  --city-solid-l: 0.62; --city-solid-c: 0.115;
-}
-[data-app-theme="airmail"] { --city-tint-l: 0.95; --city-tint-c: 0.05; }
 /* Ledger squares every corner EXCEPT the fully-round ones (999px: avatars, dots,
    the pennant), which are shapes rather than styling. Matching on the inline
    value is deliberate — the radii are inline literals, so a token cannot reach them. */
@@ -146,13 +130,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   --font-next-sans: 'IBM Plex Mono', ui-monospace, monospace;
   --radius-sm: 2px; --radius-md: 2px; --radius-lg: 2px;
 }
-[data-app-theme="airmail"] {
-  --color-paper: #fdf5ec; --color-surface: #fffdfa; --color-moss: #f6e9da;
-  --color-hairline: #ead9c5; --color-border-strong: #cfb79b; --color-border-input: #a8927a;
-  --color-slate: #6f6153; --color-ink: #2a2018;
-  --color-brand: #a8532f; --color-brand-hover: #954829; --color-brand-pressed: #7c3b21; --color-brand-tint: #f7e3d5;
-  --radius-sm: 12px; --radius-md: 16px; --radius-lg: 20px;
-}
 
 /* Assistant shape per theme — fills and corners only. */
 [data-asst-theme="ledger"] {
@@ -166,22 +143,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   --a-think-bg: transparent; --a-think-edge: 1px dashed var(--color-border-strong); --a-think-radius: 2px;
   --a-ctx-bg: transparent; --a-ctx-radius: 2px; --a-ctx-ink: var(--color-ink);
   --a-chip-bg: transparent; --a-chip-edge: 1px solid var(--color-hairline); --a-chip-radius: 2px; --a-chip-ink: var(--color-ink);
-}
-[data-asst-theme="nightdesk"] {
-  --a-head-bg: var(--color-paper); --a-bg: var(--color-surface); --a-gap: 11px;
-  --a-you-rule: 2px solid var(--color-brand); --a-you-ink: var(--color-slate);
-  --a-asst-ink: var(--color-ink);
-  --a-think-bg: var(--color-moss); --a-think-edge: 1px solid var(--color-hairline);
-  --a-ctx-bg: var(--color-moss);
-  --a-chip-bg: var(--color-moss); --a-chip-ink: var(--color-ink);
-}
-[data-asst-theme="airmail"] {
-  --a-panel-bg: var(--color-moss); --a-head-bg: var(--color-surface); --a-bg: var(--color-moss); --a-gap: 13px;
-  --a-you-rule: 3px double var(--color-brand); --a-you-ink: var(--color-slate);
-  --a-asst-ink: var(--color-ink);
-  --a-think-bg: var(--color-surface); --a-think-edge: 1px solid var(--color-hairline); --a-think-radius: 16px;
-  --a-ctx-bg: var(--color-moss); --a-ctx-radius: 999px;
-  --a-chip-bg: var(--color-moss); --a-chip-ink: var(--color-ink);
 }
 </style>
 </helmet>
@@ -263,7 +224,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <sc-if value="{{ impErr }}" hint-placeholder-val="{{ false }}">
                   <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="That file was not imported">{{ impErr }}</x-import>
                 </sc-if>
-                <button onClick="{{ importTrip }}" style="display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 4px; background: none; border: 1px dashed var(--color-border-strong); border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Import a trip file</button>
+                <button onClick="{{ importTrip }}" style="align-self: center; min-height: 44px; margin-top: 4px; background: none; border: 0; padding: 0 8px; font-family: inherit; font-size: 13px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px; cursor: pointer;">Import a trip file</button>
               </div>
             </div>
           </sc-if>
@@ -523,14 +484,30 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">New trip</span>
                 <button onClick="{{ createBlank }}" style="min-height: 44px; background: none; border: 0; padding: 0; font-family: inherit; font-size: 15px; color: var(--color-slate); cursor: pointer;">Empty</button>
               </div>
-              <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 16px 16px 14px;" ref="{{ ntThreadRef }}">
+              <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 16px 16px 14px;" ref="{{ ntThreadRef }}">
+        <span aria-hidden="true" style="flex: 1 0 0px;"></span>
         <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
-          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+          <div style="flex: none; display: flex; justify-content: {{ m.align }}; gap: 8px;">
             <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
-              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
+              <span style="flex: 0 0 auto; width: 30px; display: flex; justify-content: center; padding-top: 1px;">
+                <sc-if value="{{ m.showAvatar }}" hint-placeholder-val="{{ true }}">
+                  <span aria-hidden="true" style="position: relative; width: 30px; height: 30px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center;">
+                    <span style="display: flex; align-items: stretch; gap: 3px; height: 13px;"><span style="width: 3px; background: currentColor; border-radius: 1px;"></span><span style="width: 3px; background: currentColor; border-radius: 1px;"></span></span>
+                    <span style="position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 999px; background: var(--color-success); border: 2px solid var(--color-surface);"></span>
+                  </span>
+                </sc-if>
+              </span>
             </sc-if>
             <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
-              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.showName }}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; align-items: baseline; gap: 7px;"><span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Cass</span><span style="font-size: 12px; color: var(--color-slate);">Trip planner</span></span>
+              </sc-if>
+              <sc-if value="{{ m.isTyping }}" hint-placeholder-val="{{ false }}">
+                <span role="status" aria-label="Cass is typing" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; color: var(--color-slate);">{{ m.dots }}{{ m.typingLine }}</span>
+              </sc-if>
+              <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
+                <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              </sc-if>
               <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ m.change }}" style="min-height: 22px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
               </sc-if>
@@ -551,8 +528,23 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <button onClick="{{ ntUseDate }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 14px; background: var(--color-moss); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Use</button>
                 </div>
               </sc-if>
-              <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
-                <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+              <sc-if value="{{ ntPbOn }}" hint-placeholder-val="{{ false }}">
+            <span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">Add any to the trip — or skip</span>
+            <div role="group" aria-label="Highly rated days" style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ ntPbCards }}" as="p" hint-placeholder-count="3">
+                <button type="button" aria-pressed="{{ p.on }}" onClick="{{ p.toggle }}" style="display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-family: inherit; background: {{ p.bg }}; border: 1px solid {{ p.edge }}; color: var(--color-ink);">
+                  <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 14px; font-weight: 600;">{{ p.name }}</span>
+                    <span style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">{{ p.meta }}</span>
+                  </span>
+                  <span style="flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: {{ p.markInk }};">{{ p.mark }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+                <sc-if value="{{ ntReplyHint }}" hint-placeholder-val="{{ true }}"><span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">{{ ntReplyHint }}</span></sc-if>
+            <div style="display: flex; flex-wrap: wrap; gap: 7px;">
                   <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
                     <button onClick="{{ c.act }}" style="min-height: 40px; font-size: 14px; border-radius: 999px; padding: 0 15px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
                   </sc-for>
@@ -1359,7 +1351,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
                 <div style="font-family: var(--a-meta-font, inherit); font-size: 12.5px; color: var(--a-ctx-ink, var(--color-slate)); background: var(--a-ctx-bg, var(--color-paper)); border: 1px solid var(--a-hair, var(--color-hairline)); border-radius: var(--a-ctx-radius, 7px); padding: 7px 10px; text-wrap: pretty;">{{ phoneAskCtx }}</div>
               </div>
-              <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: var(--a-gap, 15px); background: var(--a-bg, transparent);">
+              <div ref="{{ phoneChatBodyRef }}" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: var(--a-gap, 15px); background: var(--a-bg, transparent);">
                 <sc-if value="{{ phoneAskEmpty }}" hint-placeholder-val="{{ true }}">
                   <div style="font-size: 13px; line-height: 1.55; color: var(--a-meta-ink, var(--color-slate)); text-wrap: pretty;">{{ phoneAskHint }}</div>
                 </sc-if>
@@ -1383,6 +1375,28 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
                       <div style="align-self: stretch; max-width: 100%; background: transparent; border: 0; border-left: {{ m.rule }}; border-radius: 0; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
                     </sc-if>
+                <sc-if value="{{ m.offerOpen }}" hint-placeholder-val="{{ false }}">
+                  <div role="group" aria-label="Suggested change" style="align-self: stretch; border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 13px; padding: 12px;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-size: 11px; font-weight: 700;">↻</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-brand-pressed);">Ready when you are</span>
+                    </div>
+                    <div style="font-size: 14px; font-weight: 600; color: var(--color-brand-pressed); padding-top: 7px; text-wrap: pretty;">{{ m.offerTitle }}</div>
+                    <div style="font-size: 12.5px; line-height: 1.5; color: var(--color-brand-pressed); padding-top: 2px; text-wrap: pretty;">{{ m.offerDetail }}</div>
+                    <div style="display: flex; gap: 8px; padding-top: 10px;">
+                      <button onClick="{{ m.accept }}" style="flex: 1; min-height: 44px; border: 0; border-radius: 999px; background: var(--color-brand); font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-surface); cursor: pointer;" style-hover="background: var(--color-brand-hover);">{{ m.offerYes }}</button>
+                      <button onClick="{{ m.decline }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 14px; border: 1px solid var(--color-brand); border-radius: 999px; background: transparent; font-family: inherit; font-size: 13px; color: var(--color-brand-pressed); cursor: pointer;">Not now</button>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ m.offerSettled }}" hint-placeholder-val="{{ false }}">
+                  <div style="align-self: stretch; display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 12.5px; color: {{ m.settledInk }};">
+                    <span>{{ m.settledText }}</span>
+                    <sc-if value="{{ m.canUndoOffer }}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{ m.undoOffer }}" style="background: none; border: 0; padding: 0; min-height: 24px; cursor: pointer; font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--color-ink); text-decoration: underline; text-underline-offset: 2px;">Undo</button>
+                    </sc-if>
+                  </div>
+                </sc-if>
                   </div>
                 </sc-for>
                 <sc-for list="{{ phoneProposals }}" as="p" hint-placeholder-count="0">
@@ -1449,8 +1463,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">Your trips</x-import>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ importTrip }}">Import a file</x-import>
-                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ goPlaybooks }}">Start from a Playbook</x-import>
                 <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openNewTrip }}">New trip</x-import>
               </div>
             </div>
@@ -1525,9 +1537,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <div style="display: flex; gap: 8px; padding-top: 10px;">
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" size="sm" onClick="{{ openNewTrip }}">New trip</x-import>
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ goPlaybooks }}">Start from a Playbook</x-import>
-                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ importTrip }}">Import a file</x-import>
                 </div>
-                <div style="font-size: 12.5px; color: var(--color-slate); max-width: 46ch; text-wrap: pretty;">A trip you downloaded from here — or from another account — comes back whole from its file.</div>
+                <button onClick="{{ importTrip }}" style="background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Have a trip file? Import it</button>
               </div>
             </sc-if>
 
@@ -1553,23 +1564,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </div>
                     <span style="font-size: 13px; color: var(--color-slate);">Sam, Priya, Jonah, Mei</span>
                   </div>
-                  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding-top: 2px;">
-                    <div style="background: var(--color-brand-tint); border-radius: 14px; padding: 14px 16px;">
-                      <div style="font-family: var(--font-next-mono); font-size: 24px; color: var(--color-brand-pressed);">68</div>
-                      <div style="font-size: 12px; color: var(--color-brand-pressed);">stops planned</div>
-                    </div>
-                    <div style="background: var(--color-warning-tint); border-radius: 14px; padding: 14px 16px;">
-                      <div style="font-family: var(--font-next-mono); font-size: 24px; color: var(--color-warning-ink);">7</div>
-                      <div style="font-size: 12px; color: var(--color-warning-ink);">not booked</div>
-                    </div>
-                    <div style="background: var(--color-danger-tint); border-radius: 14px; padding: 14px 16px;">
-                      <div style="font-family: var(--font-next-mono); font-size: 24px; color: var(--color-danger-ink);">2</div>
-                      <div style="font-size: 12px; color: var(--color-danger-ink);">need a decision</div>
-                    </div>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 2px;">
                     <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ openJapan }}">Open plan</x-import>
-                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" onClick="{{ copyLink }}">Share</x-import>
+                    <button onClick="{{ openJapan }}" style="display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 6px 0; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-danger-ink);">
+                      <span style="width: 7px; height: 7px; border-radius: 999px; background: var(--color-danger);"></span>2 need a decision
+                    </button>
+                    <span style="font-size: 13px; color: var(--color-slate);">7 not booked yet</span>
                   </div>
                 </div>
                 <div style="padding: 28px 30px; background: var(--color-moss);">
@@ -1601,7 +1601,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             <sc-if value="{{ homeSections }}" hint-placeholder-val="{{ true }}">
             <div>
               <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px;">
-                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,26px" level="{{ 3 }}">All trips</x-import>
+                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,26px" level="{{ 3 }}">{{ otherTripsLabel }}</x-import>
               </div>
 
               <sc-if value="{{ loadHomeTrips }}" hint-placeholder-val="{{ false }}">
@@ -1646,7 +1646,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
               <sc-if value="{{ showHomeTrips }}" hint-placeholder-val="{{ true }}">
               <div data-r="grid3" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
-                <sc-for list="{{ tripCards }}" as="t" hint-placeholder-count="3">
+                <sc-for list="{{ homeTripCards }}" as="t" hint-placeholder-count="3">
                   <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,168px" className="flex flex-col gap-4 cursor-pointer rounded-lg p-5 hover:border-border-strong" onClick="{{ t.open }}">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                       <div style="height: 6px; border-radius: 999px; background: {{ t.solid }}; width: 46px;"></div>
@@ -1688,7 +1688,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,26px" level="{{ 3 }}">Your Playbooks</x-import>
                 <a href="#playbooks" onClick="{{ goPlaybooks }}" style="font-size: 13px;">See all</a>
               </div>
-              <div style="font-size: 13px; color: var(--color-slate); margin-bottom: 12px;">Saved days you can drop into any trip. Times shift to fit the day you drop them on.</div>
+              <div style="height: 8px;"></div>
               <sc-if value="{{ loadHomePb }}" hint-placeholder-val="{{ false }}">
                 <div data-r="grid4" role="status" aria-busy="true" aria-label="Loading your Playbooks" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
                   <sc-for list="{{ sk4 }}" as="sk" hint-placeholder-count="4">
@@ -1779,16 +1779,19 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </div>
                 </sc-if>
                 <sc-if value="{{ showTripRail }}" hint-placeholder-val="{{ true }}">
-                <div data-r="meta" style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 14px 5px 12px;">
-                  <span style="display: inline-flex; align-items: center; gap: 8px;">
-                    <span style="width: 9px; height: 9px; border-radius: 999px; background: {{ tripAccent }};"></span>
-                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink);">{{ trip.dates }}</span>
-                  </span>
-                  <span style="width: 1px; height: 14px; background: var(--color-hairline);"></span>
-                  <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ trip.stops }}</span>
-                  <span style="width: 1px; height: 14px; background: var(--color-hairline);"></span>
-                  <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ tripCities }}</span>
-                </div>
+                <x-import component-from-global-scope="TravelCollabUI.Popover" hint-size="auto,30px" open="{{ datesPopOpen }}" onOpenChange="{{ setDatesPop }}" align="start" contentClassName="w-80" trigger="{{ datesTrigger }}">
+                  <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <label for="tripStartPop" style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Start date</label>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                      <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="170px,36px" id="tripStartPop" type="date" value="{{ tripStartISO }}" onChange="{{ setTripStart }}" className="w-auto"></x-import>
+                      <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">→ {{ tripEndLabel }}</span>
+                    </div>
+                    <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Every day moves with it. Order, times and notes stay as they are.</span>
+                    <div style="display: flex; justify-content: flex-end;">
+                      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ closeDatesPop }}">Done</x-import>
+                    </div>
+                  </div>
+                </x-import>
                 </sc-if>
                 <sc-if value="{{ loadTripRail }}" hint-placeholder-val="{{ false }}">
                   <div role="status" aria-busy="true" aria-label="Loading the budget" style="display: flex; align-items: center; gap: 12px; border: 1px solid var(--color-hairline); border-radius: 999px; padding: 5px 8px 5px 14px;">
@@ -1863,57 +1866,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
                 </div>
             </div>
-            <sc-if value="{{ showChips }}" hint-placeholder-val="{{ true }}">
-            <sc-if value="{{ loadTripRail }}" hint-placeholder-val="{{ false }}">
-              <div role="status" aria-busy="true" aria-label="Loading the days" style="display: flex; align-items: stretch; gap: 6px; padding: 12px 26px 10px; overflow-x: hidden;">
-                <sc-for list="{{ skPills }}" as="sk" hint-placeholder-count="14">
-                  <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 5px; width: 92px; height: 72px; border: 1px solid var(--color-hairline); border-radius: 12px; padding: 8px 10px;">
-                    <span data-sk="1" style="display: block; width: 26px; height: 8px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
-                    <div style="display: flex; align-items: center; gap: 4px;">
-                      <span data-sk="1" style="display: block; width: 18px; height: 14px; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
-                      <span data-sk="2" style="display: block; flex: 1; height: 8px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
-                    </div>
-                    <div style="flex: 1;"></div>
-                    <div style="display: flex; gap: 2px;">
-                      <sc-for list="{{ sk.dots }}" as="d" hint-placeholder-count="4">
-                        <span data-sk="3" style="display: block; width: 8px; height: 3px; border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline);"></span>
-                      </sc-for>
-                    </div>
-                  </div>
-                </sc-for>
-              </div>
-            </sc-if>
-            <sc-if value="{{ showTripRail }}" hint-placeholder-val="{{ true }}">
-            <div style="display: flex; align-items: stretch; gap: 6px; padding: 12px 26px 10px; overflow-x: auto;">
-              <sc-for list="{{ chips }}" as="c" hint-placeholder-count="14">
-                <button onClick="{{ c.jump }}" style="flex: 0 0 auto; width: 92px; text-align: left; padding: 8px 10px; border-radius: 12px; cursor: pointer; font-family: inherit; border: 0; background: {{ c.tint }}; box-shadow: {{ c.ring }};">
-                  <div style="font-size: 11px; color: {{ c.ink }};">{{ c.dow }}</div>
-                  <div style="display: flex; align-items: baseline; gap: 4px;">
-                    <span style="font-family: var(--font-next-mono); font-size: 16px; color: {{ c.ink }};">{{ c.num }}</span>
-                    <sc-if value="{{ c.monthEdge }}" hint-placeholder-val="{{ false }}">
-                      <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; color: {{ c.ink }};">{{ c.mon }}</span>
-                    </sc-if>
-                    <span style="font-size: 10px; color: {{ c.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.city }}</span>
-                  </div>
-                  <div style="height: 14px; margin-top: 2px;">
-                  <sc-if value="{{ c.dest }}" hint-placeholder-val="{{ false }}">
-                    <div style="display: flex; align-items: center; gap: 3px; font-size: 10px; line-height: 14px; overflow: hidden; white-space: nowrap;">
-                      <span style="color: var(--color-slate);">→</span>
-                      <span style="color: {{ c.destSolid }}; overflow: hidden; text-overflow: ellipsis;">{{ c.dest }}</span>
-                    </div>
-                  </sc-if>
-                  </div>
-                  <div style="display: flex; gap: 2px; margin-top: 5px;">
-                    <sc-for list="{{ c.dots }}" as="dot" hint-placeholder-count="4">
-                      <span style="width: 8px; height: 3px; border-radius: 2px; background: {{ c.solid }};"></span>
-                    </sc-for>
-                  </div>
-                </button>
-              </sc-for>
-            </div>
-            </sc-if>
-            </sc-if>
-            <div style="display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 4px 26px 12px; overflow-x: auto;">
+            <div style="display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 12px 26px 12px; overflow-x: auto;">
               <div style="flex: 0 0 auto;">
                 <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ view }}" onValueChange="{{ setView }}" options="{{ viewOptions }}" aria-label="Plan layout"></x-import>
               </div>
@@ -1955,11 +1908,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           </sc-if>
 
           <sc-if value="{{ isTripHome }}" hint-placeholder-val="{{ true }}">
-            <div data-r="pad" data-screen-label="Overview" style="padding: 26px 26px 90px; max-width: 840px;">
-              <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 20px;">
-                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,30px" level="{{ 2 }}">Overview</x-import>
+            <div data-r="pad" data-screen-label="Overview" style="padding: 32px 20px 90px;">
+             <div style="max-width: 720px; margin: 0 auto; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 4px; box-shadow: 0 1px 2px rgba(21, 29, 46, 0.05), 0 12px 32px -18px rgba(21, 29, 46, 0.18); padding: clamp(28px, 6vw, 60px) clamp(22px, 7vw, 72px) clamp(36px, 7vw, 72px);">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; margin-bottom: 26px; border-bottom: 1px solid var(--color-hairline);">
+                <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-slate);">Overview</span>
                 <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
-                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" size="sm" onClick="{{ openTripHomeDoc }}">Edit in Notebook</x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ openTripHomeDoc }}">Edit</x-import>
                 </sc-if>
               </div>
 
@@ -2038,11 +1992,11 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <sc-for list="{{ homeBlocks }}" as="b" hint-placeholder-count="6">
                 <div style="padding-bottom: 20px;">
                   <sc-if value="{{ b.isH }}" hint-placeholder-val="{{ false }}">
-                    <div style="font-family: var(--font-next-display); font-size: 19px; font-weight: 600; color: var(--color-ink);">{{ b.text }}</div>
+                    <div style="font-family: var(--font-next-display); font-size: 18px; font-weight: 600; color: var(--color-ink); padding-top: 8px;">{{ b.text }}</div>
                   </sc-if>
 
                   <sc-if value="{{ b.isP }}" hint-placeholder-val="{{ true }}">
-                    <div style="font-size: 15.5px; line-height: 1.68; color: var(--color-ink); text-wrap: pretty;">
+                    <div style="font-size: 16px; line-height: 1.75; color: var(--color-ink); text-wrap: pretty;">
                       <sc-for list="{{ b.segs }}" as="g" hint-placeholder-count="3"><sc-if value="{{ g.isText }}" hint-placeholder-val="{{ true }}"><span>{{ g.text }}</span></sc-if><sc-if value="{{ g.isChip }}" hint-placeholder-val="{{ false }}"><span title="{{ g.macro }}" style="background: {{ g.chipBg }}; border-bottom: 1.5px solid {{ g.chipEdge }}; border-radius: 3px; padding: 0 1px;">{{ g.value }}</span></sc-if></sc-for>
                     </div>
                   </sc-if>
@@ -2109,10 +2063,62 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
               </sc-for>
               </sc-if>
+             </div>
             </div>
           </sc-if>
 
           <sc-if value="{{ isColumns }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ showChips }}" hint-placeholder-val="{{ true }}">
+            <sc-if value="{{ loadTripRail }}" hint-placeholder-val="{{ false }}">
+              <div role="status" aria-busy="true" aria-label="Loading the days" style="display: flex; align-items: stretch; gap: 6px; padding: 14px 26px 4px; overflow-x: hidden;">
+                <sc-for list="{{ skPills }}" as="sk" hint-placeholder-count="14">
+                  <div style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 5px; width: 92px; height: 72px; border: 1px solid var(--color-hairline); border-radius: 12px; padding: 8px 10px;">
+                    <span data-sk="1" style="display: block; width: 26px; height: 8px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <span data-sk="1" style="display: block; width: 18px; height: 14px; border: 1px solid var(--color-hairline); border-radius: 3px;"></span>
+                      <span data-sk="2" style="display: block; flex: 1; height: 8px; border: 1px solid var(--color-hairline); border-radius: 999px;"></span>
+                    </div>
+                    <div style="flex: 1;"></div>
+                    <div style="display: flex; gap: 2px;">
+                      <sc-for list="{{ sk.dots }}" as="d" hint-placeholder-count="4">
+                        <span data-sk="3" style="display: block; width: 8px; height: 3px; border-top: 1px solid var(--color-hairline); border-bottom: 1px solid var(--color-hairline);"></span>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ showTripRail }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; align-items: stretch; gap: 6px; padding: 14px 26px 4px; overflow-x: auto;">
+              <sc-for list="{{ chips }}" as="c" hint-placeholder-count="14">
+                <button onClick="{{ c.jump }}" style="flex: 0 0 auto; width: 92px; text-align: left; padding: 8px 10px; border-radius: 12px; cursor: pointer; font-family: inherit; border: 0; background: {{ c.tint }}; box-shadow: {{ c.ring }};">
+                  <div style="font-size: 11px; color: {{ c.ink }};">{{ c.dow }}</div>
+                  <div style="display: flex; align-items: baseline; gap: 4px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 16px; color: {{ c.ink }};">{{ c.num }}</span>
+                    <sc-if value="{{ c.monthEdge }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; color: {{ c.ink }};">{{ c.mon }}</span>
+                    </sc-if>
+                    <span style="font-size: 10px; color: {{ c.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.city }}</span>
+                  </div>
+                  <div style="height: 14px; margin-top: 2px;">
+                  <sc-if value="{{ c.dest }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; align-items: center; gap: 3px; font-size: 10px; line-height: 14px; overflow: hidden; white-space: nowrap;">
+                      <span style="color: var(--color-slate);">→</span>
+                      <span style="color: {{ c.destSolid }}; overflow: hidden; text-overflow: ellipsis;">{{ c.dest }}</span>
+                    </div>
+                  </sc-if>
+                  </div>
+                  <div style="display: flex; gap: 2px; margin-top: 5px;">
+                    <sc-for list="{{ c.dots }}" as="dot" hint-placeholder-count="4">
+                      <span style="width: 8px; height: 3px; border-radius: 2px; background: {{ c.solid }};"></span>
+                    </sc-for>
+                  </div>
+                </button>
+              </sc-for>
+            </div>
+            </sc-if>
+            </sc-if>
+
             <div id="colscroll" data-r="pad" style="overflow-x: auto; padding: 20px 26px 60px;">
               <div style="display: flex; gap: 12px; align-items: flex-start;">
                 <sc-for list="{{ days }}" as="day" hint-placeholder-count="6">
@@ -2438,7 +2444,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <div style="padding: 30px 0 70px; display: flex; flex-direction: column; gap: 18px;">
             <div>
               <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,40px" level="{{ 1 }}">Playbooks</x-import>
-              <div style="font-size: 15px; color: var(--color-slate); margin-top: 6px; max-width: 640px; text-wrap: pretty;">One good day, saved whole — the stops, the order, the timings, the notes. Search a city to find days other people have already run, read what they thought of them, and drop one into your trip.</div>
+              <div style="font-size: 15px; color: var(--color-slate); margin-top: 6px; max-width: 640px; text-wrap: pretty;">Days other people planned and rated. Find one for your city and drop it into your trip.</div>
             </div>
 
             <div role="tablist" aria-label="Whose days" style="display: flex; align-items: stretch; gap: 22px; border-bottom: 1px solid var(--color-hairline); margin-bottom: -4px;">
@@ -2634,11 +2640,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       <sc-if value="{{ pb.unrated }}" hint-placeholder-val="{{ false }}">
                         <span style="font-size: 12px; color: var(--color-slate);">No reviews yet</span>
                       </sc-if>
-                    </div>
-                    <div style="display: flex; gap: 4px; align-items: flex-end; height: 60px; background: {{ pb.tint }}; border-radius: 12px; padding: 10px;">
-                      <sc-for list="{{ pb.shape }}" as="b" hint-placeholder-count="5">
-                        <span style="flex: 1; border-radius: 3px; background: {{ pb.solid }}; height: {{ b.h }}; margin-left: {{ b.brk }};"></span>
-                      </sc-for>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 5px;">
                       <sc-for list="{{ pb.preview }}" as="s" hint-placeholder-count="3">
@@ -2931,7 +2932,6 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
             <div style="display: flex; flex-direction: column; gap: 6px;">
               <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,36px" level="{{ 2 }}">Account</x-import>
-              <span style="font-size: 14px; line-height: 1.55; color: var(--color-slate); max-width: 620px; text-wrap: pretty;">Everything true of you across every trip. Anything that belongs to one trip — who is invited, its budget, its dates — lives in that trip.</span>
             </div>
 
             <div role="tablist" aria-label="Account sections" style="display: flex; align-items: stretch; gap: 22px; border-bottom: 1px solid var(--color-hairline);">
@@ -2981,6 +2981,11 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       </span>
                     </div>
                   </div>
+                </div>
+
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 4px 2px;">
+                  <span style="flex: 1 1 280px; min-width: 0; font-size: 13px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Writing your own program against your trips? That needs an API token.</span>
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ openApiTokens }}">API tokens →</x-import>
                 </div>
 
               </div>
@@ -3057,6 +3062,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
             <sc-if value="{{ acctTabApi }}" hint-placeholder-val="{{ false }}">
               <div style="display: flex; flex-direction: column; gap: 16px; max-width: 640px;">
+          <button onClick="{{ backToProfile }}" style="align-self: flex-start; background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--color-slate); white-space: nowrap;">← Profile</button>
+          <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,28px" level="{{ 3 }}">API tokens</x-import>
           <div style="display: flex; flex-direction: column; gap: 11px;">
             <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
               <span style="flex: 1 1 320px; min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">A token lets a program you write read and change your trips. Treat one like a password: it is shown once, it always expires, and it can never do more than you can.</span>
@@ -3672,7 +3679,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
       <sc-if value="{{ isDoc }}" hint-placeholder-val="{{ false }}">
         <div style="max-width: 1420px; margin: 0 auto; padding: 22px 26px 90px;">
           <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 14px;">
-            <button onClick="{{ backToNotebook }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-size: 12px; color: var(--color-slate); font-family: inherit;">← Notebook</button>
+            <nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px;">
+              <button onClick="{{ docBackToTrip }}" style="background: none; border: 0; padding: 6px 0; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--color-brand); font-family: inherit; white-space: nowrap;">← {{ docTripCrumb }}</button>
+              <span aria-hidden="true" style="color: var(--color-border-strong);">/</span>
+              <button onClick="{{ backToNotebook }}" style="background: none; border: 0; padding: 6px 0; cursor: pointer; font-size: 13px; color: var(--color-slate); font-family: inherit; white-space: nowrap;">Notebook</button>
+              <span aria-hidden="true" style="color: var(--color-border-strong);">/</span>
+              <span aria-current="page" style="color: var(--color-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;">{{ docTitle }}</span>
+            </nav>
             <div style="flex: 1;"></div>
             <sc-if value="{{ docJustSaved }}" hint-placeholder-val="{{ false }}">
               <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">Saved · everyone on the trip sees it</span>
@@ -4021,7 +4034,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             </div>
             <div style="margin-top: 8px; font-family: var(--a-meta-font, inherit); font-size: 12px; color: var(--a-ctx-ink, var(--color-slate)); background: var(--a-ctx-bg, var(--color-surface)); border: 1px solid var(--a-hair, var(--color-hairline)); border-radius: var(--a-ctx-radius, 6px); padding: 6px 9px;">{{ asstContext }}</div>
           </div>
-          <div style="flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: var(--a-gap, 15px); background: var(--a-bg, transparent);">
+          <div ref="{{ chatBodyRef }}" style="flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: var(--a-gap, 15px); background: var(--a-bg, transparent);">
             <sc-if value="{{ chatEmpty }}" hint-placeholder-val="{{ true }}">
               <div style="font-size: 13px; color: var(--a-meta-ink, var(--color-slate)); line-height: 1.5; text-wrap: pretty;">{{ asstEmptyHint }}</div>
             </sc-if>
@@ -4044,6 +4057,28 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </sc-if>
                 <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
                   <div style="align-self: stretch; max-width: 100%; background: transparent; border: 0; border-left: {{ m.rule }}; border-radius: 0; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-wrap: pretty;">{{ m.text }}</div>
+                </sc-if>
+                <sc-if value="{{ m.offerOpen }}" hint-placeholder-val="{{ false }}">
+                  <div role="group" aria-label="Suggested change" style="align-self: stretch; border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 10px; padding: 12px;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <span aria-hidden="true" style="width: 18px; height: 18px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center; font-size: 11px; font-weight: 700;">↻</span>
+                      <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-brand-pressed);">Ready when you are</span>
+                    </div>
+                    <div style="font-size: 13.5px; font-weight: 600; color: var(--color-brand-pressed); padding-top: 7px; text-wrap: pretty;">{{ m.offerTitle }}</div>
+                    <div style="font-size: 12.5px; line-height: 1.5; color: var(--color-brand-pressed); padding-top: 2px; text-wrap: pretty;">{{ m.offerDetail }}</div>
+                    <div style="display: flex; gap: 8px; padding-top: 10px;">
+                      <button onClick="{{ m.accept }}" style="flex: 1; min-height: 34px; border: 0; border-radius: 999px; background: var(--color-brand); font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-surface); cursor: pointer;" style-hover="background: var(--color-brand-hover);">{{ m.offerYes }}</button>
+                      <button onClick="{{ m.decline }}" style="flex: 0 0 auto; min-height: 34px; padding: 0 14px; border: 1px solid var(--color-brand); border-radius: 999px; background: transparent; font-family: inherit; font-size: 13px; color: var(--color-brand-pressed); cursor: pointer;">Not now</button>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ m.offerSettled }}" hint-placeholder-val="{{ false }}">
+                  <div style="align-self: stretch; display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 12.5px; color: {{ m.settledInk }};">
+                    <span>{{ m.settledText }}</span>
+                    <sc-if value="{{ m.canUndoOffer }}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{ m.undoOffer }}" style="background: none; border: 0; padding: 0; min-height: 24px; cursor: pointer; font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--color-ink); text-decoration: underline; text-underline-offset: 2px;">Undo</button>
+                    </sc-if>
+                  </div>
                 </sc-if>
               </div>
             </sc-for>
@@ -4186,14 +4221,30 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ ntOpen }}" onOpenChange="{{ setNtOpen }}" title="New trip">
     <div style="display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 2px 2px 0;">
 
-      <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 2px 2px 14px;" ref="{{ ntThreadRef }}">
+      <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 2px 2px 14px;" ref="{{ ntThreadRef }}">
+        <span aria-hidden="true" style="flex: 1 0 0px;"></span>
         <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
-          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+          <div style="flex: none; display: flex; justify-content: {{ m.align }}; gap: 8px;">
             <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
-              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
+              <span style="flex: 0 0 auto; width: 30px; display: flex; justify-content: center; padding-top: 1px;">
+                <sc-if value="{{ m.showAvatar }}" hint-placeholder-val="{{ true }}">
+                  <span aria-hidden="true" style="position: relative; width: 30px; height: 30px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center;">
+                    <span style="display: flex; align-items: stretch; gap: 3px; height: 13px;"><span style="width: 3px; background: currentColor; border-radius: 1px;"></span><span style="width: 3px; background: currentColor; border-radius: 1px;"></span></span>
+                    <span style="position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 999px; background: var(--color-success); border: 2px solid var(--color-surface);"></span>
+                  </span>
+                </sc-if>
+              </span>
             </sc-if>
             <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
-              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.showName }}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; align-items: baseline; gap: 7px;"><span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Cass</span><span style="font-size: 12px; color: var(--color-slate);">Trip planner</span></span>
+              </sc-if>
+              <sc-if value="{{ m.isTyping }}" hint-placeholder-val="{{ false }}">
+                <span role="status" aria-label="Cass is typing" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; color: var(--color-slate);">{{ m.dots }}{{ m.typingLine }}</span>
+              </sc-if>
+              <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
+                <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              </sc-if>
               <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ m.change }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
               </sc-if>
@@ -4217,7 +4268,22 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntUseDate }}">Use this date</x-import>
             </div>
           </sc-if>
+          <sc-if value="{{ ntPbOn }}" hint-placeholder-val="{{ false }}">
+            <span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">Add any to the trip — or skip</span>
+            <div role="group" aria-label="Highly rated days" style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ ntPbCards }}" as="p" hint-placeholder-count="3">
+                <button type="button" aria-pressed="{{ p.on }}" onClick="{{ p.toggle }}" style="display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-family: inherit; background: {{ p.bg }}; border: 1px solid {{ p.edge }}; color: var(--color-ink);">
+                  <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 14px; font-weight: 600;">{{ p.name }}</span>
+                    <span style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">{{ p.meta }}</span>
+                  </span>
+                  <span style="flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: {{ p.markInk }};">{{ p.mark }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
           <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+            <sc-if value="{{ ntReplyHint }}" hint-placeholder-val="{{ true }}"><span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">{{ ntReplyHint }}</span></sc-if>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
                 <button onClick="{{ c.act }}" style="font-size: 13px; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
@@ -4226,7 +4292,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           </sc-if>
           <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="{{ ntMultiVariant }}" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
               <span style="font-size: 12px; color: var(--color-slate); min-width: 0;">{{ ntMultiCount }}</span>
             </div>
           </sc-if>
@@ -4236,10 +4302,14 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           </div>
         </div>
       </sc-if>
+    <div style="flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 10px 2px 0; font-size: 12.5px; color: var(--color-slate);">
+      <span>Or</span>
+      <button onClick="{{ ntFromPlaybook }}" style="background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-ink); text-decoration: underline; text-underline-offset: 2px;">start from a Playbook</button>
+      <button onClick="{{ ntImportFile }}" style="background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-ink); text-decoration: underline; text-underline-offset: 2px;">import a trip file</button>
+      <button onClick="{{ createBlank }}" style="background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-ink); text-decoration: underline; text-underline-offset: 2px;">create an empty one</button>
     </div>
-
+    <sc-if value="{{ ntFooterOn }}" hint-placeholder-val="{{ false }}">
     <x-import component-from-global-scope="TravelCollabUI.DialogFooter" hint-size="100%,50px">
-      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ createBlank }}">Create empty</x-import>
       <sc-if value="{{ ntHasAns }}" hint-placeholder-val="{{ false }}">
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" onClick="{{ ntCreateNow }}">{{ ntCreateNowLabel }}</x-import>
       </sc-if>
@@ -4247,7 +4317,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ ntOpenTrip }}">Open the trip</x-import>
       </sc-if>
     </x-import>
+    </sc-if>
     </div>
+    
   </x-import>
 
   <x-import component-from-global-scope="TravelCollabUI.Sheet" hint-size="0,0" open="{{ addOpenDesktop }}" onOpenChange="{{ setAddOpen }}" title="Add a stop">
@@ -4379,38 +4451,57 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
     </div>
   </x-import>
 
-  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ pbOpen }}" onOpenChange="{{ setPbOpen }}" title="Save this day as a Playbook">
+  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ pbOpen }}" onOpenChange="{{ setPbOpen }}" title="{{ pbTitle }}">
     <div style="display: flex; flex-direction: column; gap: 14px;">
       <div style="display: flex; flex-direction: column; gap: 14px; max-height: 56vh; overflow-y: auto; padding: 4px;">
-      <div style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ pbDayLabel }} becomes a standalone day. It keeps the order, the gaps between stops and the notes — but not the date, so it fits any trip.</div>
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="p1" label="Name">
-        <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="p1" value="{{ pbName }}" onChange="{{ setPbName }}"></x-import>
+        <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="p1" value="{{ pbName }}" onChange="{{ setPbName }}" placeholder="e.g. A day in Nakameguro"></x-import>
       </x-import>
-      <div>
-        <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">Include</div>
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-          <sc-for list="{{ pbIncludes }}" as="i" hint-placeholder-count="4">
-            <button onClick="{{ i.act }}" style="font-size: 13px; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; border: 1px solid var(--color-hairline); background: var(--color-surface); color: var(--color-ink);">{{ i.label }}</button>
+      <sc-if value="{{ pbMore }}" hint-placeholder-val="{{ false }}">
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <span style="font-size: 12px; color: var(--color-slate);">Days — any, not just ones in a row</span>
+          <div role="group" aria-label="Days to keep" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
+            <sc-for list="{{ pbDayChips }}" as="c" hint-placeholder-count="6">
+              <button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.toggle }}" style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; padding: 7px 10px; border-radius: 8px; cursor: pointer; font-family: inherit; border: 1px solid {{ c.edge }}; background: {{ c.bg }}; color: {{ c.ink }};">
+                <span style="font-size: 13px; font-weight: 600;">{{ c.label }} · {{ c.city }}</span>
+                <span style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;">{{ c.meta }}</span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ pbCanAskMore }}" hint-placeholder-val="{{ true }}">
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,36px" variant="secondary" className="w-full" onClick="{{ pbShowMore }}">Do you want to add more days?</x-import>
+      </sc-if>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12px; color: var(--color-slate);">What's included</span>
+        <span style="font-size: 14px; color: var(--color-ink); text-wrap: pretty;">{{ pbSummary }}</span>
+      </div>
+      <sc-if value="{{ pbHasPreview }}" hint-placeholder-val="{{ true }}">
+        <div style="border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-paper); padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+          <sc-for list="{{ pbPreviewDays }}" as="pd" hint-placeholder-count="1">
+            <div>
+              <sc-if value="{{ pd.showHead }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate); margin-bottom: 4px;">{{ pd.head }}</div>
+              </sc-if>
+              <sc-for list="{{ pd.stops }}" as="s" hint-placeholder-count="4">
+                <div style="display: flex; gap: 10px; padding: 3px 0; font-size: 13px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); padding-top: 2px; width: 84px; flex: none;">{{ s.t }}</span>
+                  <span style="color: var(--color-ink);">{{ s.n }}</span>
+                </div>
+              </sc-for>
+              <sc-if value="{{ pd.rest }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size: 13px; color: var(--color-slate); padding: 3px 0;">Rest day — no stops</div>
+              </sc-if>
+            </div>
           </sc-for>
         </div>
-      </div>
-      <div style="border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-paper); padding: 12px;">
-        <div style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate); margin-bottom: 8px;">Preview</div>
-        <sc-for list="{{ pbPreview }}" as="s" hint-placeholder-count="4">
-          <div style="display: flex; gap: 10px; padding: 3px 0; font-size: 13px;">
-            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-border-input); padding-top: 2px; width: 84px;">{{ s.t }}</span>
-            <span style="color: var(--color-ink);">{{ s.n }}</span>
-          </div>
-        </sc-for>
-      </div>
-      <div>
-        <div style="font-size: 12px; color: var(--color-slate); margin-bottom: 7px;">Who can use it</div>
-        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ pbVis }}" onValueChange="{{ setPbVis }}" options="{{ visOptions }}" aria-label="Visibility"></x-import>
-      </div>
+      </sc-if>
+      <span style="font-size: 12px; color: var(--color-slate);">Saved days are private to you. Add one to any trip you can edit.</span>
       </div>
       <x-import component-from-global-scope="TravelCollabUI.DialogFooter" hint-size="100%,50px">
         <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ closePb }}">Cancel</x-import>
-        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ savePb }}">Keep this day</x-import>
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" disabled="{{ pbNothing }}" onClick="{{ savePb }}">{{ pbCta }}</x-import>
       </x-import>
     </div>
   </x-import>
@@ -5026,6 +5117,92 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 
+<sc-if value="{{ isInvite }}" hint-placeholder-val="{{ false }}">
+  <div style="min-height: 100vh; display: flex; flex-direction: column; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-next-sans);">
+    <header style="flex: 0 0 auto; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 16px clamp(14px, 4vw, 28px);">
+      <span style="display: flex; align-items: center; gap: 9px;">
+        <span style="width: 32px; height: 32px; border-radius: 4px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center;"><span style="display: flex; align-items: stretch; gap: 4px; height: 18px;"><span style="width: 4px; background: currentColor;"></span><span style="width: 4px; background: currentColor;"></span></span></span>
+        <span style="font-family: var(--font-next-display); font-weight: 600; font-size: 16px;">Caesura</span>
+      </span>
+      <div style="flex: 1;"></div>
+      <sc-if value="{{ invShowSignin }}" hint-placeholder-val="{{ true }}">
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ invSignin }}">Sign in</x-import>
+      </sc-if>
+    </header>
+
+    <main style="flex: 1; display: flex; justify-content: center; padding: clamp(8px, 3vh, 32px) clamp(14px, 4vw, 28px) 56px;">
+      <sc-if value="{{ invValid }}" hint-placeholder-val="{{ true }}">
+        <div style="width: 100%; max-width: 1080px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: clamp(28px, 5vw, 64px); align-items: start;">
+
+          <div style="display: flex; flex-direction: column; gap: 22px; padding-top: 8px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="flex: 0 0 auto; width: 44px; height: 44px; border-radius: 999px; background: var(--color-info-tint); color: var(--color-info-ink); display: grid; place-items: center; font-size: 15px; font-weight: 600;">DR</span>
+              <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+                <span style="font-size: 15px; font-weight: 600;">Dana Reyes invited you</span>
+                <span style="font-size: 13px; color: var(--color-slate);">{{ invSentLine }}</span>
+              </span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <h1 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(30px, 5vw, 44px); line-height: 1.06; letter-spacing: -0.02em; text-wrap: balance;">{{ invTripName }}</h1>
+              <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">{{ invMeta }}</span>
+            </div>
+            <blockquote style="margin: 0; border-left: 3px solid var(--color-brand); padding: 2px 0 2px 14px; font-size: 16px; line-height: 1.55; color: var(--color-ink); text-wrap: pretty;">“Sam — you’re on Kyoto. Add anything you’d want to do there, and vote on the two dinners I can’t decide between.”</blockquote>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="display: flex;">
+                <sc-for list="{{ invCrew }}" as="p" hint-placeholder-count="4">
+                  <span title="{{ p.name }}" style="width: 30px; height: 30px; margin-left: {{ p.ml }}; border-radius: 999px; background: var(--color-moss); border: 2px solid var(--color-paper); display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--color-ink);">{{ p.initials }}</span>
+                </sc-for>
+              </span>
+              <span style="font-size: 14px; color: var(--color-slate); text-wrap: pretty;">Dana, Mei, Priya and Kenji are planning. You can add stops, vote and comment.</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; max-width: 380px;">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,44px" variant="primary" className="w-full" onClick="{{ invJoin }}">{{ invJoinLabel }}</x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="100%,44px" variant="ghost" className="w-full" onClick="{{ invPeek }}">Have a look first</x-import>
+              <span style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">Joining is free — Dana’s plan covers everyone she invites.</span>
+            </div>
+          </div>
+
+          <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,420px" raised="{{ true }}" className="p-0 overflow-hidden">
+            <div style="display: flex; flex-direction: column;">
+              <div style="padding: 18px 20px 14px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--color-hairline);">
+                <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">The plan so far</span>
+                <div aria-hidden="true" style="display: flex; gap: 2px; height: 10px;">
+                  <sc-for list="{{ invRibbon }}" as="r" hint-placeholder-count="14">
+                    <span style="flex: 1; background: {{ r.solid }}; opacity: {{ r.op }}; border-radius: 2px;"></span>
+                  </sc-for>
+                </div>
+              </div>
+              <sc-for list="{{ invLegs }}" as="g" hint-placeholder-count="3">
+                <div data-city="{{ g.city }}" style="--c: {{ g.solid }}; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px 20px; border-bottom: 1px solid var(--color-hairline);">
+                  <span style="width: 10px; height: 10px; border-radius: 999px; background: {{ g.solid }}; margin-top: 5px;"></span>
+                  <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0;">
+                    <span style="font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ g.city }}</span>
+                    <span style="font-size: 13px; color: var(--color-slate); text-wrap: pretty;">{{ g.highlights }}</span>
+                  </span>
+                  <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); white-space: nowrap; padding-top: 3px;">{{ g.span }}</span>
+                </div>
+              </sc-for>
+              <div style="padding: 12px 20px 16px; font-size: 13px; color: var(--color-slate);">{{ invFoot }}</div>
+            </div>
+          </x-import>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ invNotValid }}" hint-placeholder-val="{{ false }}">
+        <div style="width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 16px; padding-top: 6vh;">
+          <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-slate);">{{ invAltEyebrow }}</span>
+          <h1 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(26px, 4vw, 34px); line-height: 1.12; letter-spacing: -0.015em; text-wrap: balance;">{{ invAltTitle }}</h1>
+          <p style="margin: 0; font-size: 15px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">{{ invAltBody }}</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,40px" variant="primary" onClick="{{ invAltAct }}">{{ invAltCta }}</x-import>
+            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,40px" variant="ghost" onClick="{{ goLanding }}">What is Caesura?</x-import>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+</sc-if>
+
 <sc-if value="{{ isFirstRun }}" hint-placeholder-val="{{ false }}">
   <div style="height: 100vh; min-height: 0; display: flex; flex-direction: column; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-next-sans);">
     <header style="flex: 0 0 auto; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 16px clamp(14px, 4vw, 28px);">
@@ -5045,14 +5222,30 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-slate);">First trip</span>
           <h1 style="margin: 0; font-family: var(--font-next-display); font-weight: 600; font-size: clamp(24px, 5vw, 32px); line-height: 1.14; letter-spacing: -0.015em; text-wrap: pretty;">What are you planning, Sam?</h1>
         </div>
-        <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 2px 2px 12px;" ref="{{ ntThreadRef }}">
+        <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 2px 2px 12px;" ref="{{ ntThreadRef }}">
+        <span aria-hidden="true" style="flex: 1 0 0px;"></span>
         <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
-          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+          <div style="flex: none; display: flex; justify-content: {{ m.align }}; gap: 8px;">
             <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
-              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
+              <span style="flex: 0 0 auto; width: 30px; display: flex; justify-content: center; padding-top: 1px;">
+                <sc-if value="{{ m.showAvatar }}" hint-placeholder-val="{{ true }}">
+                  <span aria-hidden="true" style="position: relative; width: 30px; height: 30px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center;">
+                    <span style="display: flex; align-items: stretch; gap: 3px; height: 13px;"><span style="width: 3px; background: currentColor; border-radius: 1px;"></span><span style="width: 3px; background: currentColor; border-radius: 1px;"></span></span>
+                    <span style="position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 999px; background: var(--color-success); border: 2px solid var(--color-surface);"></span>
+                  </span>
+                </sc-if>
+              </span>
             </sc-if>
             <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
-              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.showName }}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; align-items: baseline; gap: 7px;"><span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Cass</span><span style="font-size: 12px; color: var(--color-slate);">Trip planner</span></span>
+              </sc-if>
+              <sc-if value="{{ m.isTyping }}" hint-placeholder-val="{{ false }}">
+                <span role="status" aria-label="Cass is typing" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; color: var(--color-slate);">{{ m.dots }}{{ m.typingLine }}</span>
+              </sc-if>
+              <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
+                <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              </sc-if>
               <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ m.change }}" style="min-height: 22px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
               </sc-if>
@@ -5073,7 +5266,22 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntUseDate }}">Use this date</x-import>
             </div>
           </sc-if>
+          <sc-if value="{{ ntPbOn }}" hint-placeholder-val="{{ false }}">
+            <span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">Add any to the trip — or skip</span>
+            <div role="group" aria-label="Highly rated days" style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ ntPbCards }}" as="p" hint-placeholder-count="3">
+                <button type="button" aria-pressed="{{ p.on }}" onClick="{{ p.toggle }}" style="display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-family: inherit; background: {{ p.bg }}; border: 1px solid {{ p.edge }}; color: var(--color-ink);">
+                  <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 14px; font-weight: 600;">{{ p.name }}</span>
+                    <span style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">{{ p.meta }}</span>
+                  </span>
+                  <span style="flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: {{ p.markInk }};">{{ p.mark }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
           <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+            <sc-if value="{{ ntReplyHint }}" hint-placeholder-val="{{ true }}"><span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">{{ ntReplyHint }}</span></sc-if>
             <div style="display: flex; flex-wrap: wrap; gap: 6px;">
               <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
                 <button onClick="{{ c.act }}" style="min-height: 34px; font-size: 13px; border-radius: 999px; padding: 0 13px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
@@ -5082,7 +5290,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           </sc-if>
           <sc-if value="{{ ntMultiOn }}" hint-placeholder-val="{{ false }}">
             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="secondary" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="{{ ntMultiVariant }}" size="sm" onClick="{{ ntMultiDone }}">{{ ntMultiLabel }}</x-import>
               <span style="font-size: 12px; color: var(--color-slate); min-width: 0;">{{ ntMultiCount }}</span>
             </div>
           </sc-if>
@@ -5117,14 +5325,30 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <span style="font-family: var(--font-next-mono); font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--color-slate);">First trip</span>
           <div style="font-family: var(--font-next-display); font-size: 22px; font-weight: 600; color: var(--color-ink); padding-top: 4px;">What are you planning, Sam?</div>
         </div>
-        <div style="flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 12px; min-height: 0; overflow-y: auto; padding: 16px 16px 14px;" ref="{{ ntThreadRef }}">
+        <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 16px 16px 14px;" ref="{{ ntThreadRef }}">
+        <span aria-hidden="true" style="flex: 1 0 0px;"></span>
         <sc-for list="{{ ntThread }}" as="m" hint-placeholder-count="2">
-          <div style="display: flex; justify-content: {{ m.align }}; gap: 8px;">
+          <div style="flex: none; display: flex; justify-content: {{ m.align }}; gap: 8px;">
             <sc-if value="{{ m.isA }}" hint-placeholder-val="{{ true }}">
-              <span style="flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px; background: var(--color-brand); color: var(--color-paper); display: grid; place-items: center; font-family: var(--font-next-mono); font-size: 11px; margin-top: 2px;">C</span>
+              <span style="flex: 0 0 auto; width: 30px; display: flex; justify-content: center; padding-top: 1px;">
+                <sc-if value="{{ m.showAvatar }}" hint-placeholder-val="{{ true }}">
+                  <span aria-hidden="true" style="position: relative; width: 30px; height: 30px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); display: grid; place-items: center;">
+                    <span style="display: flex; align-items: stretch; gap: 3px; height: 13px;"><span style="width: 3px; background: currentColor; border-radius: 1px;"></span><span style="width: 3px; background: currentColor; border-radius: 1px;"></span></span>
+                    <span style="position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 999px; background: var(--color-success); border: 2px solid var(--color-surface);"></span>
+                  </span>
+                </sc-if>
+              </span>
             </sc-if>
             <div style="display: flex; flex-direction: column; align-items: {{ m.align }}; gap: 4px; max-width: {{ m.max }}; min-width: 0;">
-              <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              <sc-if value="{{ m.showName }}" hint-placeholder-val="{{ false }}">
+                <span style="display: flex; align-items: baseline; gap: 7px;"><span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Cass</span><span style="font-size: 12px; color: var(--color-slate);">Trip planner</span></span>
+              </sc-if>
+              <sc-if value="{{ m.isTyping }}" hint-placeholder-val="{{ false }}">
+                <span role="status" aria-label="Cass is typing" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; color: var(--color-slate);">{{ m.dots }}{{ m.typingLine }}</span>
+              </sc-if>
+              <sc-if value="{{ m.hasText }}" hint-placeholder-val="{{ true }}">
+                <div style="background: {{ m.bg }}; border: {{ m.edge }}; border-radius: {{ m.radius }}; padding: {{ m.pad }}; font-size: {{ m.size }}; line-height: {{ m.lh }}; color: {{ m.ink }}; text-align: {{ m.ta }}; text-wrap: pretty;">{{ m.text }}</div>
+              </sc-if>
               <sc-if value="{{ m.canChange }}" hint-placeholder-val="{{ false }}">
                 <button onClick="{{ m.change }}" style="min-height: 22px; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 11.5px; color: var(--color-slate); text-decoration: underline; text-underline-offset: 2px;">Change</button>
               </sc-if>
@@ -5145,8 +5369,23 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <button onClick="{{ ntUseDate }}" style="flex: 0 0 auto; min-height: 44px; padding: 0 14px; background: var(--color-moss); border: 1px solid var(--color-border-strong); border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--color-ink); cursor: pointer;">Use</button>
                 </div>
               </sc-if>
-              <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
-                <div style="display: flex; flex-wrap: wrap; gap: 7px;">
+              <sc-if value="{{ ntPbOn }}" hint-placeholder-val="{{ false }}">
+            <span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">Add any to the trip — or skip</span>
+            <div role="group" aria-label="Highly rated days" style="display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{ ntPbCards }}" as="p" hint-placeholder-count="3">
+                <button type="button" aria-pressed="{{ p.on }}" onClick="{{ p.toggle }}" style="display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-family: inherit; background: {{ p.bg }}; border: 1px solid {{ p.edge }}; color: var(--color-ink);">
+                  <span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                    <span style="font-size: 14px; font-weight: 600;">{{ p.name }}</span>
+                    <span style="font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">{{ p.meta }}</span>
+                  </span>
+                  <span style="flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: {{ p.markInk }};">{{ p.mark }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ ntAsking }}" hint-placeholder-val="{{ true }}">
+                <sc-if value="{{ ntReplyHint }}" hint-placeholder-val="{{ true }}"><span style="display: block; font-size: 12px; font-weight: 600; color: var(--color-brand-pressed); margin-bottom: 7px;">{{ ntReplyHint }}</span></sc-if>
+            <div style="display: flex; flex-wrap: wrap; gap: 7px;">
                   <sc-for list="{{ ntChips }}" as="c" hint-placeholder-count="5">
                     <button onClick="{{ c.act }}" style="min-height: 40px; font-size: 14px; border-radius: 999px; padding: 0 15px; cursor: pointer; font-family: inherit; background: {{ c.bg }}; border: 1px solid {{ c.edge }}; color: {{ c.ink }}; font-weight: {{ c.weight }};">{{ c.label }}</button>
                   </sc-for>
@@ -5174,7 +5413,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;look&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ledger&quot;,&quot;paper&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;ledger&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;importOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;lands&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;lands&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;ledger&quot;,&quot;nightdesk&quot;,&quot;airmail&quot;],&quot;default&quot;:&quot;paper&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Look&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;invite&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;inviteState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;valid&quot;,&quot;expired&quot;,&quot;revoked&quot;,&quot;member&quot;],&quot;default&quot;:&quot;valid&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;importOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;lands&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;lands&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
@@ -5670,7 +5909,7 @@ class Component extends DCLogic {
     return {
       open: s.fOpen === 'more',
       setOpen: v => this.setState({ fOpen: v ? 'more' : null }),
-      trigger: this.filterChip('more', 'More filters', false),
+      trigger: this.filterChip('more', this.filterCount() ? 'Filters · ' + this.filterCount() : 'Filters', this.filterCount() > 0),
       groups: rest.map(d => ({ label: d.label, items: this.fOpts(d) }))
     };
   }
@@ -5688,8 +5927,8 @@ class Component extends DCLogic {
   // orders and never hides, so it rides the sentence about the list.
   // `face` = out on the bar always; the rest appear only once they are set.
   FILTER_DEFS = [
-    { key: 'fScore', label: 'Rating', idle: 'Any rating', face: true, opts: ['Any rating', '4.5 and up', '4.0 and up', '3.5 and up'] },
-    { key: 'fBudget', label: 'Budget', idle: 'Any budget', face: true, opts: ['Any budget', 'Under $50 each', '$50 to $150 each', 'Over $150 each'] },
+    { key: 'fScore', label: 'Rating', idle: 'Any rating', opts: ['Any rating', '4.5 and up', '4.0 and up', '3.5 and up'] },
+    { key: 'fBudget', label: 'Budget', idle: 'Any budget', opts: ['Any budget', 'Under $50 each', '$50 to $150 each', 'Over $150 each'] },
     { key: 'fLength', label: 'Length', idle: 'Any length', opts: ['Any length', '1 day', '2–3 days', '4–6 days', '7+ days'] }
   ];
   SORT_DEF = { key: 'fSort', label: 'Sort', idle: 'Most added', opts: ['Most added', 'Highest rated', 'Most reviewed', 'Newest'] };
@@ -6024,10 +6263,13 @@ class Component extends DCLogic {
     const dated = (a.date || '') === 'Yes';
     return [
     { id: 'where', ask: 'Where are you going?', ph: 'Type a city, or tap one above', label: 'Recent and nearby',
-      chips: ['Lisbon', 'Mexico City', 'Seoul', 'Copenhagen', 'Big Sur', 'Back to Kyoto'] },
+      chips: ['Lisbon', 'Mexico City', 'Seoul', 'Copenhagen', 'Big Sur', 'Back to Kyoto'] }
+    ].concat(this.ntPbMatches(a.where).length ? [
+    { id: 'pb', ask: '', ph: 'Or tell me what you want from the days', label: '', chips: [], pbs: true, multi: true }
+    ] : []).concat([
     { id: 'date', ask: 'Do you have a start date in mind?', ph: 'Or type the date', label: '',
       chips: ['Yes', 'Not yet'] }
-    ].concat(dated ? [
+    ]).concat(dated ? [
     { id: 'start', ask: 'When do you arrive?', ph: 'Or type it — 14 April', label: '', chips: [], dates: true }
     ] : []).concat([
     { id: 'len', ask: dated ? 'And how long are you staying?' : 'How long, roughly?', ph: 'e.g. nine nights', label: '',
@@ -6039,6 +6281,88 @@ class Component extends DCLogic {
     { id: 'feel', ask: 'What is the trip about?', ph: 'Or say what it is about in your own words', label: 'Pick as many as fit',
       chips: ['Food', 'Art', 'Hiking', 'Nightlife', 'Markets', 'Architecture', 'With kids', 'Slow mornings'], multi: true }
     ]);
+  }
+  // Highly rated Playbook days for the city just named — offered once, skipped when there are none.
+  // The screen an invite link opens. It answers, before anything else: who asked,
+  // what the trip is, who is already in it, and what you'll be able to do.
+  inviteVals() {
+    const s = this.state, P = this.props;
+    const st = s.invOv || P.inviteState || 'valid';
+    const trip = this.TRIPS.japan, days = trip.days;
+    const legs = [];
+    days.forEach((d, i) => {
+      const last = legs[legs.length - 1];
+      if (last && last.city === d[0]) { last.to = i; last.stops = last.stops.concat(d[4]); }
+      else legs.push({ city: d[0], from: i, to: i, stops: d[4].slice() });
+    });
+    const cities = legs.map(l => l.city).filter((c, i, a) => a.indexOf(c) === i);
+    const stopN = days.reduce((n, d) => n + d[4].length, 0);
+    const pickHi = stops => stops.filter(a => !/Land at|Check in|train|Shinkansen/i.test(a[2])).slice(0, 3).map(a => a[2]).join(' · ');
+    const land = { screen: 'app', route: 'trip', tripId: 'japan', focus: 0, view: 'home' };
+    const alt = {
+      expired: { e: 'Invite expired', t: 'This invite has expired', b: 'Invite links last 14 days. Dana can send you a fresh one from the trip — it takes her a click.', c: 'Ask Dana for a new link', a: () => this.flash('Sent — Dana will get a note asking for a new link') },
+      revoked: { e: 'Invite withdrawn', t: 'Dana took this invite back', b: 'Nothing about you was shared. If you think it was a mistake, it is worth asking her directly.', c: 'Start your own trip', a: () => this.setState({ screen: 'signup' }) },
+      member: { e: 'Already joined', t: 'You’re already on this trip', b: 'This link was used on this account before. Everything you added is where you left it.', c: 'Open ' + trip.name.split(':')[0], a: () => this.setState(land) }
+    }[st];
+    return {
+      isInvite: s.screen === 'invite',
+      invValid: st === 'valid',
+      invNotValid: st !== 'valid',
+      invShowSignin: st === 'valid',
+      invSignin: () => this.setState({ screen: 'signin' }),
+      invSentLine: 'Sent to sam@example.com · 2 days ago',
+      invTripName: trip.name,
+      invMeta: trip.dates + ' · ' + days.length + ' days · ' + cities.length + ' cities',
+      invCrew: [['DR', 'Dana Reyes'], ['MT', 'Mei Tanaka'], ['PR', 'Priya R'], ['KO', 'Kenji O']].map((p, i) => ({ initials: p[0], name: p[1], ml: i ? '-8px' : '0' })),
+      invJoinLabel: 'Join with Google',
+      invJoin: () => { this.setState(Object.assign({ ro: false, roDemo: false, roInvite: false }, land)); this.flash('You’re in — Dana can see you joined'); },
+      invPeek: () => this.setState(Object.assign({ ro: true, roDemo: false, roInvite: true }, land)),
+      invRibbon: days.map((d, i) => ({ solid: this.accent(d[0]).solid, op: d[4].length ? '1' : '0.35' })),
+      invLegs: legs.map(l => ({
+        city: l.city, solid: this.accent(l.city).solid,
+        span: l.from === l.to ? 'Day ' + (l.from + 1) : 'Days ' + (l.from + 1) + '–' + (l.to + 1),
+        highlights: l.stops.length ? pickHi(l.stops) || l.stops.length + ' stops' : 'Nothing planned yet — open for ideas'
+      })),
+      invFoot: stopN + ' stops so far, and plenty of room left.',
+      invAltEyebrow: alt ? alt.e : '', invAltTitle: alt ? alt.t : '', invAltBody: alt ? alt.b : '',
+      invAltCta: alt ? alt.c : '', invAltAct: alt ? alt.a : () => {}
+    };
+  }
+  doImport() {
+    if ((this.props.importOutcome || 'lands') === 'refused') {
+      this.setState({ impErr: 'That file is not a trip bundle, so nothing was changed. A file downloaded from here opens as-is.' });
+      return;
+    }
+    this.setState({ impErr: '' });
+    this.flash('Imported “Lisbon, long weekend” — 4 days, 19 stops');
+  }
+  ntPbMatches(where) {
+    const w = String(where || '').toLowerCase();
+    if (!w) return [];
+    return (this.PLAYBOOKS || [])
+      .filter(p => p.rating >= 4.5 && p.reviewCount >= 10 && p.cities.some(c => w.indexOf(c.toLowerCase()) >= 0))
+      .sort((x, y) => y.rating - x.rating || y.reviewCount - x.reviewCount)
+      .slice(0, 3);
+  }
+  ntCity(where) {
+    const w = String(where || '').replace(/^back to /i, '').trim();
+    return w || 'there';
+  }
+  // A short, specific acknowledgement before the next question — so it reads like
+  // someone listening, not a form advancing. Never gushing; one clause at most.
+  ntAck(id, v) {
+    v = String(v || '');
+    if (id === 'where') return /^back to/i.test(v) ? this.ntCity(v) + ' again — good.' : v + ', good.';
+    if (id === 'pb') return v === 'Plan it fresh' ? 'Fresh it is.' : 'I’ll build the rest around ' + (v.indexOf(',') >= 0 ? 'those.' : 'that one.');
+    if (id === 'date') return v === 'Yes' ? '' : 'No problem — dates can come later.';
+    if (id === 'len') return 'Got it.';
+    if (id === 'who') return v === 'Just me' ? 'Solo, then.' : v === 'Invite later' ? 'You can invite people once the trip exists.' : 'Good — you can invite them once the trip exists.';
+    if (id === 'pace') return v === 'Slow' ? 'Slow — fewer stops, longer lunches.' : v === 'Packed' ? 'Packed — I’ll keep the travel between stops tight.' : 'Balanced it is.';
+    return '';
+  }
+  ntType(ms) {
+    clearTimeout(this._nty);
+    this._nty = setTimeout(() => this.setState({ ntTyping: false }), ms || 750);
   }
   NT_NIGHTS = { 'Long weekend': 4, 'A week': 7, '10 days': 10, '2 weeks': 14, 'Longer': 21 };
   ntAIAccess() {
@@ -6069,8 +6393,9 @@ class Component extends DCLogic {
     // Revising "do you have a date" back to no must take the picked day with it.
     if (q.id === 'date' && ans.date !== 'Yes') delete ans.start;
     const next = turn + 1;
-    const patch = { ntAns: ans, ntTurn: next, ntInput: '', ntMulti: [] };
-    const after = this.ntQs.call({ state: { ntAns: ans } }).length;
+    const patch = { ntAns: ans, ntTurn: next, ntInput: '', ntMulti: [], ntTyping: true };
+    const after = this.ntQs.call(Object.assign(Object.create(this), { state: { ntAns: ans } })).length;
+    this.ntType(q.id === 'feel' ? 1300 : 750);
     if (next >= after) patch.ntPhase = this.ntAIAccess() ? 'live' : 'made';
     this.setState(patch);
   }
@@ -6089,66 +6414,107 @@ class Component extends DCLogic {
   // this runtime passes prevProps only — there is no prevState argument to read.
   ntPin() {
     const s = this.state;
-    const key = [s.ntTurn || 0, s.ntPhase || 'ask', (s.ntChat || []).length, !!s.ntOpen].join('/');
+    const el = this.ntThreadEl.current;
+    const key = [s.ntTurn || 0, s.ntPhase || 'ask', (s.ntChat || []).length, !!s.ntOpen, !!s.ntTyping, el ? el.scrollHeight : 0].join('/');
     if (key === this._ntPinKey) return;
     this._ntPinKey = key;
-    const el = this.ntThreadEl.current;
     if (el) el.scrollTop = el.scrollHeight;
   }
   ntSendNow() {
     const s = this.state, t = (s.ntInput || '').trim();
     if (!t) return;
     if ((s.ntPhase || 'ask') === 'ask') { this.ntCommit(t); return; }
-    this.setState(st => ({ ntInput: '', ntChat: (st.ntChat || []).concat([{ role: 'u', text: t }, { role: 'a', text: 'Redrawn. The plan reflects that — open it when you are ready.' }]) }));
+    this.setState(st => ({ ntInput: '', ntTyping: true, ntChat: (st.ntChat || []).concat([{ role: 'u', text: t }, { role: 'a', text: 'Redrawn. The plan reflects that — open it when you are ready.' }]) }));
+    this.ntType(1000);
   }
   ntFlow() {
     const s = this.state, qs = this.ntQs();
     const turn = s.ntTurn || 0, ans = s.ntAns || {}, sel = s.ntMulti || [];
     const phase = s.ntPhase || 'ask';
-    const asking = phase === 'ask' && turn < qs.length;
-    const q = asking ? qs[turn] : null;
+    const typing = !!s.ntTyping;
+    const asking = phase === 'ask' && turn < qs.length && !typing;
+    const q = phase === 'ask' && turn < qs.length ? qs[turn] : null;
+    const pbMatch = this.ntPbMatches(ans.where);
+    const askText = (qq, i) => {
+      const prev = i > 0 ? qs[i - 1] : null;
+      const ack = prev ? this.ntAck(prev.id, ans[prev.id]) : '';
+      const base = qq.id === 'pb'
+        ? 'People who went to ' + this.ntCity(ans.where) + ' rated ' + (pbMatch.length === 1 ? 'this day' : 'these days') + ' highly. Want me to build around any of them? Or skip, and I’ll plan it fresh.'
+        : qq.ask;
+      return (ack ? ack + ' ' : '') + base;
+    };
     const paid = this.ntAIAccess();
     const sum = this.ntSummary(ans);
 
     const rows = [];
     rows.push(Object.assign({ canChange: false, text: s.screen === 'firstrun'
-      ? 'Welcome. A few quick questions and I will draft your first trip — nothing is generated until the last answer lands.'
-      : 'A few quick questions and I will draft the trip. Nothing is generated until the last answer lands.' }, this.ntBub('a')));
+      ? 'Hi Sam, I’m Cass. I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.'
+      : 'Hi, it’s Cass. A few quick questions and I’ll draft the trip — nothing is made until your last answer.' }, this.ntBub('a')));
     qs.slice(0, turn).forEach((qq, i) => {
-      rows.push(Object.assign({ text: qq.ask, canChange: false }, this.ntBub('a')));
+      rows.push(Object.assign({ text: askText(qq, i), canChange: false }, this.ntBub('a')));
       rows.push(Object.assign({ text: ans[qq.id] || '—', canChange: true, change: () => this.setState({ ntTurn: i, ntPhase: 'ask', ntMulti: [], ntChat: [] }) }, this.ntBub('u')));
     });
     if (phase !== 'ask') {
-      rows.push(Object.assign({ canChange: false, text: paid
-        ? 'Here is the shape: ' + sum.n + ' days in ' + sum.where + sum.when + ' at a ' + sum.pace + ' pace, built around ' + sum.feel + '. Bookings are left to you, and I have flagged the three days that need a decision.'
-        : sum.n + ' days in ' + sum.where + sum.when + ' at a ' + sum.pace + ' pace, laid out as Day 1 to Day ' + sum.n + ' around ' + sum.feel + '. Every stop is yours to move.' }, this.ntBub('a')));
+      const pbLine = ans.pb && ans.pb !== 'Plan it fresh' ? ' ' + ans.pb + ' ' + (ans.pb.indexOf(',') >= 0 ? 'are' : 'is') + ' already in place.' : '';
+      rows.push(Object.assign({ canChange: false, pbLine, text: paid
+        ? (this.ntAck('feel', '') || 'Done. ') + 'Here is the shape: ' + sum.n + ' days in ' + sum.where + sum.when + ' at a ' + sum.pace + ' pace, built around ' + sum.feel + '. Bookings are left to you, and I have flagged the three days that need a decision.' + pbLine
+        : 'Done. ' + sum.n + ' days in ' + sum.where + sum.when + ' at a ' + sum.pace + ' pace, laid out as Day 1 to Day ' + sum.n + ' around ' + sum.feel + '.' + pbLine + ' Every stop is yours to move.' }, this.ntBub('a')));
       if (paid) rows.push(Object.assign({ canChange: false, text: 'Tell me what to change and I will redraw it before you open it.' }, this.ntBub('a')));
       (s.ntChat || []).forEach(m => rows.push(Object.assign({ text: m.text, canChange: false }, this.ntBub(m.role))));
     }
-    if (q) rows.push(Object.assign({ text: q.ask, canChange: false }, this.ntBub('a')));
+    if (q) rows.push(Object.assign({ text: askText(q, turn), canChange: false }, this.ntBub('a')));
+    // While Cass is "typing", everything after your last answer waits behind a typing row.
+    if (typing) {
+      let last = rows.length - 1;
+      while (last >= 0 && rows[last].isA) last--;
+      rows.splice(last + 1);
+      rows.push(Object.assign({ canChange: false, isTyping: true, text: '' }, this.ntBub('a')));
+    }
+    // One face and one name per run of messages, like any chat — the rest line up under it.
+    rows.forEach((r, i) => {
+      const first = r.isA && !(i > 0 && rows[i - 1].isA);
+      r.showAvatar = first; r.showName = first; r.hasText = !r.isTyping;
+      if (r.isTyping) {
+        r.typingLine = phase !== 'ask' || turn >= qs.length ? 'Drafting the trip…' : '';
+        r.dots = React.createElement('span', { style: { display: 'inline-flex', gap: '4px' } }, [0, 1, 2].map(k => React.createElement('span', { key: k, style: { width: '6px', height: '6px', borderRadius: '999px', background: 'var(--color-slate)', animation: 'tc-dot 1.1s ' + (k * 0.16) + 's infinite ease-in-out' } })));
+      }
+    });
 
     return {
       ntThreadRef: this.ntThreadEl,
       ntThread: rows,
-      ntAsking: asking,
-      ntDone: phase !== 'ask',
+      ntAsking: asking && !(q && q.pbs),
+      ntDone: phase !== 'ask' && !typing,
       ntAsk: q ? q.ask : '',
       ntChipLabel: q ? q.label : '',
-      ntChips: q ? q.chips.map(c => {
+      ntReplyHint: !q || !q.chips.length ? '' : q.multi ? 'Pick any that fit — or type your own' : 'Tap one to answer — or type your own',
+      ntMultiVariant: sel.length ? 'primary' : 'secondary',
+      ntPbOn: asking && !!(q && q.pbs),
+      ntPbCards: asking && q && q.pbs ? pbMatch.map(p => {
+        const on = sel.indexOf(p.name) >= 0;
+        return { name: p.name, on,
+          meta: '★ ' + p.rating.toFixed(1) + ' · ' + p.reviewCount + ' reviews · ' + (p.days === 1 ? '1 day' : p.days + ' days') + ' · by ' + p.author.name,
+          bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)', edge: on ? 'var(--color-brand)' : 'var(--color-hairline)',
+          mark: on ? '✓ Added' : 'Add', markInk: on ? 'var(--color-brand-pressed)' : 'var(--color-brand)',
+          toggle: () => this.setState(st => ({ ntMulti: this.toggleIn(st.ntMulti || [], p.name) })) };
+      }) : [],
+      ntChips: asking && q ? q.chips.map(c => {
         const on = !!q.multi && sel.indexOf(c) >= 0;
-        return { label: c, bg: on ? 'var(--color-moss)' : 'var(--color-surface)', ink: 'var(--color-ink)',
-          edge: on ? 'var(--color-border-strong)' : 'var(--color-hairline)', weight: on ? '600' : '400',
+        return { label: on ? '✓ ' + c : c, bg: on ? 'var(--color-brand)' : 'var(--color-brand-tint)', ink: on ? 'var(--color-surface)' : 'var(--color-brand-pressed)',
+          edge: 'var(--color-brand)', weight: '600',
           act: () => q.multi
             ? this.setState(st => ({ ntMulti: this.toggleIn(st.ntMulti || [], c) }))
             : this.ntCommit(c) };
       }) : [],
-      ntMultiOn: !!(q && q.multi),
-      ntMultiLabel: sel.length ? 'That is it — build it' : 'Nothing in particular',
-      ntMultiCount: sel.length ? sel.join(', ') : '',
-      ntMultiDone: () => this.ntCommit(sel.length ? sel.join(', ') : 'A bit of everything'),
-      ntDatesOn: !!(q && q.dates),
+      ntMultiOn: asking && !!(q && q.multi),
+      ntMultiLabel: q && q.pbs
+        ? (sel.length ? 'Build around ' + (sel.length === 1 ? 'this day' : 'these ' + sel.length) : 'Skip — plan it fresh')
+        : (sel.length ? 'That is it — build it' : 'Nothing in particular'),
+      ntMultiCount: q && q.pbs ? '' : (sel.length ? sel.join(', ') : ''),
+      ntMultiDone: () => this.ntCommit(sel.length ? sel.join(', ') : (q && q.pbs ? 'Plan it fresh' : 'A bit of everything')),
+      ntDatesOn: asking && !!(q && q.dates),
       ntUseDate: () => this.ntCommit(s.start || ''),
-      ntComposer: asking || phase === 'live',
+      ntComposer: asking || (phase === 'live' && !typing),
       ntPh: asking ? q.ph : 'Tell me what to change',
       ntSendLabel: asking ? 'Send' : 'Ask',
       ntInput: s.ntInput || '',
@@ -6160,7 +6526,7 @@ class Component extends DCLogic {
       ntCancel: () => this.setState({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [], ntInput: '' }),
       ntCreateNow: () => { this.setState(Object.assign({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }, this.ntLand())); this.flash('Trip created from what you answered'); },
       ntOpenTrip: () => { this.setState(Object.assign({ ntOpen: false, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [] }, this.ntLand())); this.flash(sum.n + ' days in ' + sum.where + sum.when + ' — open'); },
-      ntGateNote: phase === 'made'
+      ntGateNote: phase === 'made' && !typing
         ? 'The trip above is finished and yours to edit. Changing it by asking — and everything else the assistant does — is part of Plus.'
         : '',
       ntSeePlans: () => this.setState({ ntOpen: false, route: 'plans', plansFrom: s.route }),
@@ -7369,7 +7735,7 @@ class Component extends DCLogic {
     { description: 'Created the trip', when: 'Sep 14', undone: false }
   ];
   _applyTheme() {
-    const t = this.props.look || this.props.theme || 'ledger';
+    const t = 'ledger';
     document.documentElement.setAttribute('data-app-theme', t);
     document.body.setAttribute('data-app-theme', t);
     this.buildAccents();
@@ -7385,10 +7751,9 @@ class Component extends DCLogic {
       setTimeout(() => this._landPar(document.getElementById('landscroll')), 0);
     }
     this._prevScreen = this.state.screen;
-    this.ntPin();
+    this.chatPin(); this.ntPin();
     this.syncLoad();
     if (prev.startScreen !== this.props.startScreen && this.props.startScreen) this.setState({ screen: this.props.startScreen });
-    if (prev.look !== this.props.look || prev.theme !== this.props.theme) { this._applyTheme(); this.forceUpdate(); }
     if (prev.showSyncError !== this.props.showSyncError) this.setState({ syncOff: false });
     if (prev.assistantDefault !== this.props.assistantDefault) {
       this._userOpened = false;
@@ -8637,7 +9002,7 @@ class Component extends DCLogic {
         keptState: this.state.justKept === i ? '2' : (this.state.savedDays.indexOf(i) >= 0 ? '1' : '0'),
         keepTitle: this.state.savedDays.indexOf(i) >= 0 ? 'In your Playbooks — edit or share' : 'Keep this day as a Playbook',
         wave: e => { const g = e.currentTarget.querySelector('svg'); if (g && g.animate) { g.style.transformOrigin = '4px 14px'; this.anim(g, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(-11deg)', offset: 0.4 }, { transform: 'rotate(5deg)', offset: 0.7 }, { transform: 'rotate(0deg)' }], { duration: 620, easing: 'ease-in-out' }); } },
-        savePb: () => this.setState({ pbOpen: true, pbDay: i, pbName: d[0] + ' — day ' + (i + 1) }),
+        savePb: () => this.setState({ pbOpen: true, pbDay: i, pbSel: [i], pbMore: false, pbNameTouched: false, pbName: this.pbDefaultName([i]) }),
         // Overview reads; a day in it links into the surface that edits.
         goPlan: () => { this.setState({ view: 'columns' }); setTimeout(() => this.jump(i), 0); },
         add: () => { if (this.frozen()) return; this.setState({ addOpen: true, addDayV: String(i + 1), addTitle: '' }); }
@@ -8671,9 +9036,6 @@ class Component extends DCLogic {
     }, 40);
   }
 
-  // Four looks over one assistant. Every theme is CSS custom properties only — same
-  // markup, same shape, same handlers — so nothing about how it behaves can drift
-  // between them.
 
 
   // One row per turn. A turn's work (what it read, what it tried) collapses to a single
@@ -8702,6 +9064,16 @@ class Component extends DCLogic {
           ? 'Hide how it got there'
           : steps.length + (steps.length === 1 ? ' step · ' : ' steps · ') + steps[steps.length - 1],
         steps: steps.map(t => ({ text: t })),
+        // An action the assistant can take is a card with buttons, never a question buried in prose.
+        offerOpen: !!m.offer && !m.offerState,
+        offerSettled: !!m.offer && !!m.offerState,
+        offerTitle: m.offer ? m.offer.title : '', offerDetail: m.offer ? m.offer.detail : '', offerYes: m.offer ? m.offer.yes : '',
+        settledText: m.offerState === 'done' ? '✓ ' + (m.offer && m.offer.done) : 'Left as it is.',
+        settledInk: m.offerState === 'done' ? 'var(--color-success-ink)' : 'var(--color-slate)',
+        canUndoOffer: m.offerState === 'done',
+        accept: () => { if (this.frozen && this.frozen()) return; this.setOffer(i, 'done'); this.flash(m.offer.done); },
+        decline: () => this.setOffer(i, 'no'),
+        undoOffer: () => { this.setOffer(i, null); this.flash('Put back the way it was'); },
         toggleSteps: () => this.setState(st => {
           const next = Object.assign({}, st.thoughts);
           next[i] = !next[i];
@@ -8711,12 +9083,24 @@ class Component extends DCLogic {
     });
   }
 
+  chatBodyEl = React.createRef();
+  phoneChatBodyEl = React.createRef();
+  chatPin() {
+    const s = this.state;
+    const key = s.chat.length + '/' + s.chat.map(c => c.offerState || '').join(',') + '/' + !!s.asst + '/' + !!s.phoneAskOpen;
+    if (key === this._chatPinKey) return;
+    this._chatPinKey = key;
+    [this.chatBodyEl.current, this.phoneChatBodyEl.current].forEach(el => { if (el) el.scrollTop = el.scrollHeight; });
+  }
+  setOffer(i, v) {
+    this.setState(st => ({ chat: st.chat.map((c, k) => k === i ? Object.assign({}, c, { offerState: v }) : c) }));
+  }
   askAbout(title, day) {
     this.setState(s => ({
       asst: true,
       chat: s.chat.concat([
         { from: 'You', text: 'What should I know about ' + title + '?' },
-        { from: 'Assistant', steps: ['Read Day ' + (day + 1) + ' and the stop before it', 'Checked travel time between the two', 'Checked the opening hours you saved'], text: 'It sits on Day ' + (day + 1) + '. Two things worth knowing: the stop before it is 18 minutes away by metro, and they only take walk-ins after 8 pm. I can move it half an hour later so you are not rushing — say the word.' }
+        { from: 'Assistant', steps: ['Read Day ' + (day + 1) + ' and the stop before it', 'Checked travel time between the two', 'Checked the opening hours you saved'], text: 'It sits on Day ' + (day + 1) + '. Two things worth knowing: the stop before it is 18 minutes away by metro, and they only take walk-ins after 8 pm. Half an hour later and you are not rushing.', offer: { title: 'Move it 30 minutes later', detail: 'Day ' + (day + 1) + ' · the stop after it shifts too. Nothing booked moves.', yes: 'Move it', done: 'Moved 30 minutes later on Day ' + (day + 1) } }
       ])
     }));
   }
@@ -8747,6 +9131,25 @@ class Component extends DCLogic {
     return String(Math.floor(w / 60)).padStart(2, '0') + ':' + String(w % 60).padStart(2, '0');
   }
 
+  pbDefaultName(sel) {
+    const t = this.trip().name.split(':')[0];
+    return sel.length === 1 ? 'Day ' + (sel[0] + 1) + ' of ' + t : sel.length + ' days of ' + t;
+  }
+  pbSummary(sel) {
+    const days = this.trip().days;
+    const pick = sel.map(k => days[k]).filter(Boolean);
+    if (!pick.length) return 'Pick at least one day.';
+    const stops = pick.reduce((n, d) => n + d[4].length, 0);
+    if (!stops) return pick.length === 1 ? 'Nothing yet — this day has no stops.' : 'Nothing yet — none of these ' + pick.length + ' days has a stop.';
+    const count = stops + (stops === 1 ? ' stop' : ' stops');
+    if (pick.length > 1) {
+      const empty = pick.filter(d => !d[4].length).length;
+      const rest = empty ? ' ' + (empty === 1 ? 'One day has' : empty + ' days have') + ' no stops — kept as ' + (empty === 1 ? 'a rest day.' : 'rest days.') : '';
+      return pick.length + ' days, ' + count + ', in order.' + (sel[0] > 0 ? ' Day ' + (sel[0] + 1) + ' becomes day 1.' : '') + rest;
+    }
+    const r = pick[0][4];
+    return count + ', ' + this.fmt(r[0][0]) + ' – ' + this.fmt(r[r.length - 1][1]) + '.';
+  }
   daySummaryFor(idx) {
     const d = this.trip().days[idx];
     if (!d) return [];
@@ -9101,14 +9504,7 @@ class Component extends DCLogic {
       downloadTrip: () => this.flash('Downloading ' + slug + '.json'),
       downloadNote: 'One file with every day, stop, cost and note. Import reads it straight back — here, or into another account. Free on every plan.',
       downloadHistoryNote: 'History does not travel: a re-imported trip starts a fresh undo stack.',
-      importTrip: () => {
-        if ((P.importOutcome || 'lands') === 'refused') {
-          this.setState({ impErr: 'That file is not a trip bundle, so nothing was changed. A file downloaded from here opens as-is.' });
-          return;
-        }
-        this.setState({ impErr: '' });
-        this.flash('Imported “Lisbon, long weekend” — 4 days, 19 stops');
-      },
+      importTrip: () => this.doImport(),
       impErr: s.impErr || '',
       clearImpErr: () => this.setState({ impErr: '' }),
 
@@ -9277,6 +9673,7 @@ class Component extends DCLogic {
     const dayView = this.dayView(s.dayId);
     return {
       ...this.billing(),
+      ...this.inviteVals(),
       ...this.apiTokens(),
       ...LF,
       isHome: route === 'home', isTrip: route === 'trip', isPlaybooks: route === 'playbooks', isDay: route === 'day', isBoard: route === 'board', isProfile: route === 'profile',
@@ -9297,11 +9694,13 @@ class Component extends DCLogic {
       // the route's sub-state and nothing here filters.
       isAccountRoute: route === 'account',
       openAccount: () => this.setState({ acctOpen: false, route: 'account' }),
+      openApiTokens: () => this.setState({ acctTab: 'api' }),
+      backToProfile: () => this.setState({ acctTab: 'profile' }),
       acctTabs: [
         { id: 'profile', label: 'Profile' },
         { id: 'plan', label: 'Plan & usage' },
-        { id: 'api', label: 'API tokens' }
-      ].map(t => {
+        { id: 'api', label: 'API tokens', hidden: true }
+      ].filter(t => !t.hidden).map(t => {
         const on = (s.acctTab || 'profile') === t.id;
         return {
           label: t.label, on: on,
@@ -9319,13 +9718,11 @@ class Component extends DCLogic {
       units: s.units,
       setUnits: v => { this.setState({ units: v }); this.flash(v === 'mi' ? 'Distances now in miles' : 'Distances now in kilometres'); },
       unitOptions: [{ value: 'km', label: 'Kilometres' }, { value: 'mi', label: 'Miles' }],
-      unitsNote: s.units === 'mi' ? 'Walks and hops show in miles and feet.' : 'Walks and hops show in kilometres and metres.',
+      unitsNote: 'How walks and hops between stops are measured.',
       homeHover: s.homeHover ? 'on' : 'off',
       setHomeHover: v => this.setState({ homeHover: v === 'on', homeAt: null }),
       homeHoverOptions: [{ value: 'off', label: 'Off' }, { value: 'on', label: 'On' }],
-      homeHoverNote: s.homeHover
-        ? 'Hovering a stop’s time shows what it is where you live. The plan itself stays in the trip’s local time.'
-        : 'Times read in the trip’s local time only.',
+      homeHoverNote: 'Hover a stop’s time to see it in your home time zone. The plan stays in local time.',
 
       // Rule 1/4: renaming lives in Trip settings only — the title button opens it.
       // No inline rename, no pencil. (Was here until the 2026-08-25 rules pass.)
@@ -9482,12 +9879,14 @@ class Component extends DCLogic {
       crew: this.CREW,
       segments: [{ label: 'Tokyo · 5 nights' }, { label: 'Nikkō day trip' }, { label: 'Hakone · 1' }, { label: 'Kyoto · 4' }, { label: 'Osaka · 2' }, { label: 'Naoshima day trip' }],
       spark: this.TRIPS.japan.days.map((d, i) => ({ num: this.dayStamp(i, 'japan').num, dots: d[4].map((_, k) => k), solid: this.accent(d[3] || d[0]).solid, open: () => { this.setState({ route: 'trip', tripId: 'japan', view: 'timeline' }); this.jump(i); } })),
+      otherTripsLabel: 'Other trips',
       todayLabel: this.TODAY.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
       nextTripIn: 'in ' + this.daysUntil(this.TODAY, this.NEXT_TRIP_START) + ' days',
       // ── Trip lifecycle ────────────────────────────────────────────────────────
       // Delete is optimistic: the card goes on the click and comes back if you undo,
       // because the honest happy path is that it worked. Duplicate lands a real card
       // in the list rather than opening a dialog to confirm what the verb already said.
+      get homeTripCards() { return this.tripCards.filter(t => t.id !== 'japan'); },
       tripCards: [
         { id: 'japan', name: 'Japan', dates: 'Sep 20 – Oct 3, 2026', state: 'Planning', stateVariant: 'brand', summary: '14 days across 6 cities. Seven stops unbooked and two dates to lock.', people: ['SK', 'PR', 'JM', 'MT'], progress: '68 stops', budgetLine: this.money(this.spend('japan').total) + ' planned of ' + this.money(this.spend('japan').budget), solid: 'var(--color-brand)', go: () => this.setState({ route: 'trip', tripId: 'japan', focus: 0, ro: false }) },
         { id: 'nola', name: 'New Orleans', dates: 'Sep 4 – 7, 2026', state: 'Booked', stateVariant: 'success', summary: 'Long weekend, four days, everything but one dinner confirmed.', people: ['SK', 'DR'], progress: '16 stops', budgetLine: this.money(this.spend('nola').total) + ' planned of ' + this.money(this.spend('nola').budget), solid: 'var(--color-success-ink)', go: () => this.setState({ route: 'trip', tripId: 'nola', focus: 0, ro: false }) },
@@ -9570,6 +9969,15 @@ class Component extends DCLogic {
       tripEndLabel: this.endLabel(),
       datesHint: 'Pick the day you leave. The end follows the ' + trip.days.length + ' days in your plan — add or remove a day and it moves.',
       setTripStart: e => this.shiftTrip(e.target.value),
+      datesPopOpen: !!s.datesPop && !s.ro,
+      setDatesPop: v => { if (!s.ro) this.setState({ datesPop: v }); },
+      closeDatesPop: () => this.setState({ datesPop: false }),
+      datesTrigger: React.createElement('button', {
+        type: 'button', title: s.ro ? trip.dates : 'Change the start date', 'aria-label': 'Trip dates: ' + trip.dates + (s.ro ? '' : '. Change the start date'),
+        style: { display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--color-surface)', border: '1px solid var(--color-hairline)', borderRadius: 999, padding: '5px 14px 5px 12px', cursor: s.ro ? 'default' : 'pointer', fontFamily: 'inherit' }
+      }, React.createElement('span', { style: { width: 9, height: 9, borderRadius: 999, background: this.accent(trip.days[0][3] || trip.days[0][0]).solid } }),
+        React.createElement('span', { style: { fontFamily: 'var(--font-next-mono)', fontSize: 12, color: 'var(--color-ink)' } }, trip.dates),
+        s.ro ? null : this.caret('var(--color-slate)')),
       tripCrew: (s.crewBy[s.tripId] || []).map((n, k) => ({
         name: n, initials: n.split(' ').map(x => x[0]).join(''),
         role: k === 0 ? 'Owner · you' : 'Can edit',
@@ -9600,13 +10008,16 @@ class Component extends DCLogic {
       // tab — the button opens the page in the Notebook, which is where pages are
       // edited. One editor, one document, two places to read it.
       homeBlocks: this.docBlocks(days, trip, 'overview'),
-      openTripHomeDoc: () => this.setState({ route: 'doc', docId: 'overview', docMode: 'edit' }),
+      openTripHomeDoc: () => this.setState({ route: 'doc', docId: 'overview', docMode: 'edit', docFrom: 'overview' }),
       isOverview: route === 'home' || route === 'playbooks' || route === 'day' || route === 'board' || route === 'profile',
       inTripScope: route === 'trip' || route === 'notebook' || route === 'doc',
 
       isNotebook: route === 'notebook', isDoc: route === 'doc',
       backToPlan: () => this.setState({ route: 'trip' }),
-      backToNotebook: () => this.setState({ route: 'notebook' }),
+      backToNotebook: () => this.setState({ route: 'notebook', docFrom: null }),
+      // The trip is always one click away from a page, not two. Came from Overview → back to Overview.
+      docTripCrumb: s.docFrom === 'overview' ? trip.name.split(':')[0] + ' overview' : trip.name.split(':')[0],
+      docBackToTrip: () => this.setState({ route: 'trip', view: s.docFrom === 'overview' || !s.view ? 'home' : s.view, docFrom: null }),
       newDoc: () => { this.setState({ route: 'doc', docId: 'blank', docMode: 'edit', blankMade: true, nbOpen: false }); this.flash('Blank page created'); },
       // The untitled page only exists once you've made it.
       docs: this.DOCS.filter(d => !d.fresh || s.blankMade).map(d => Object.assign({}, d, this.accent(d.city || trip.days[0][0]), {
@@ -9759,13 +10170,14 @@ class Component extends DCLogic {
       // reads as a finished thing rather than a form you lack permission for.
       readOnly: !!s.ro,
       canEdit: !s.ro,
-      roTitle: s.roDemo ? 'You’re looking around a real trip' : 'Dana shared this trip with you',
+      roTitle: s.roDemo ? 'You’re looking around a real trip' : s.roInvite ? 'Dana invited you to plan this trip' : 'Dana shared this trip with you',
       roBody: s.roDemo
         ? 'Everything here is real and nothing you do can break it — the plan just can’t be changed from this view.'
+        : s.roInvite ? 'You’re having a look first. Join and you can add stops, vote and comment alongside everyone else.'
         : 'You can read every day, open the notebook and see what it costs. Dana would need to give you editing to change it.',
-      roCta: s.roDemo ? 'Start my own trip' : 'Ask Dana for editing',
-      roAct: () => { if (s.roDemo) this.setState({ screen: 'signup' }); else this.flash('Asked Dana for editing — she’ll get a notification'); },
-      leaveRo: () => this.setState({ route: 'home', ro: false, roDemo: false }),
+      roCta: s.roDemo ? 'Start my own trip' : s.roInvite ? 'Join the trip' : 'Ask Dana for editing',
+      roAct: () => { if (s.roDemo) this.setState({ screen: 'signup' }); else if (s.roInvite) { this.setState({ ro: false, roInvite: false }); this.flash('You’re in — Dana can see you joined'); } else this.flash('Asked Dana for editing — she’ll get a notification'); },
+      leaveRo: () => this.setState({ route: 'home', ro: false, roDemo: false, roInvite: false }),
       // The drawer is only for dragging activities in and out of the schedule, so it
       // does not exist in a view that cannot drag (CLAUDE.md rule 2).
       showRack: s.view === 'columns' && !s.ro,
@@ -10105,8 +10517,8 @@ class Component extends DCLogic {
         ? 'It reads the page you have open, its widgets and what they are pointed at.'
         : 'It reads the day you have open — the stops, their times, what is booked and what is not. Ask it to move something and you get a proposal to keep or discard.',
       phoneAskEmpty: !s.chat.length && !s.ghosts.length,
-      chatRows: this.chatRows(s),
-      asstThemeName: this.props.look || this.props.theme || 'ledger',
+      chatRows: this.chatRows(s), chatBodyRef: this.chatBodyEl, phoneChatBodyRef: this.phoneChatBodyEl,
+      asstThemeName: 'ledger',
       asstSheetStyle: ({
         position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 7,
         display: 'flex', flexDirection: 'column', maxHeight: '80%',
@@ -10136,7 +10548,7 @@ class Component extends DCLogic {
       send: () => {
         if (!s.ask.trim()) return;
         const q = s.ask;
-        this.setState(st => ({ ask: '', chat: st.chat.concat([{ from: 'You', text: q }, { from: 'Assistant', steps: ['Read ' + (focusDay ? focusDay.label : 'the trip') + ' and what is booked on it', 'Checked the two stops either side of the change', 'Checked nothing booked moves'], text: 'On ' + (focusDay ? focusDay.label : 'this trip') + ': I can do that. Two stops would move by 30 minutes and nothing booked is affected. Want it as a proposal you can keep or discard?' }]) }));
+        this.setState(st => ({ ask: '', chat: st.chat.concat([{ from: 'You', text: q }, { from: 'Assistant', steps: ['Read ' + (focusDay ? focusDay.label : 'the trip') + ' and what is booked on it', 'Checked the two stops either side of the change', 'Checked nothing booked moves'], text: 'On ' + (focusDay ? focusDay.label : 'this trip') + ': I can do that. Two stops would move by 30 minutes and nothing booked is affected.', offer: { title: 'Shift two stops by 30 minutes', detail: (focusDay ? focusDay.label + ' · ' : '') + 'Nothing booked is affected.', yes: 'Make the change', done: 'Two stops moved by 30 minutes' } }]) }));
       },
       quickAsks: [
         { label: 'Where am I overbooked?', act: () => this.askAbout('the pace of this trip', s.focus) },
@@ -10147,6 +10559,9 @@ class Component extends DCLogic {
       ntOpen: s.ntOpen, setNtOpen: v => this.setState({ ntOpen: v }),
       openNewTrip: () => this.setState({ ntOpen: true, step: 0, ntTurn: 0, ntAns: {}, ntPhase: 'ask', ntChat: [], ntMulti: [], ntInput: '' }),
       ...this.ntFlow(),
+      ntFooterOn: (Object.keys(s.ntAns || {}).length > 0 && (s.ntPhase || 'ask') === 'ask') || ((s.ntPhase || 'ask') !== 'ask' && !s.ntTyping),
+      ntFromPlaybook: () => this.setState({ ntOpen: false, route: 'playbooks' }),
+      ntImportFile: () => { this.setState({ ntOpen: false, route: 'home' }); this.doImport(); },
       steps: [{ label: 'Where' }, { label: 'When' }, { label: 'Who' }, { label: 'Feel' }].slice(0, s.step + 1),
       step0: s.step === 0, step1: s.step === 1, step2: s.step === 2, step3: s.step === 3,
       dest: s.dest, setDest: e => this.setState({ dest: e.target.value }),
@@ -10207,19 +10622,39 @@ class Component extends DCLogic {
       saveAdd: () => this.saveStopEdit(),
 
       pbOpen: s.pbOpen, setPbOpen: v => this.setState({ pbOpen: v }), closePb: () => this.setState({ pbOpen: false }),
-      pbDayLabel: 'Day ' + (s.pbDay + 1) + ' of ' + trip.name.split(':')[0],
-      pbName: s.pbName, setPbName: e => this.setState({ pbName: e.target.value }),
-      pbIncludes: ['Times', 'Travel between stops', 'Notes', 'Costs'].map(l => ({ label: l, act: () => this.flash(l + ' toggled') })),
-      pbPreview: this.daySummaryFor(s.pbDay),
-      pbVis: s.pbVis, setPbVis: v => this.setState({ pbVis: v }),
-      visOptions: [{ value: 'private', label: 'Just me' }, { value: 'link', label: 'Anyone with the link' }, { value: 'crew', label: 'This trip' }],
+      pbTitle: (s.pbSel || [s.pbDay]).length > 1 ? 'Keep these days' : 'Keep this day',
+      pbName: s.pbName, setPbName: e => this.setState({ pbName: e.target.value, pbNameTouched: true }),
+      pbMore: !!s.pbMore,
+      pbCanAskMore: !s.pbMore && trip.days.length > 1,
+      pbShowMore: () => this.setState({ pbMore: true }),
+      pbDayChips: trip.days.map((d, k) => {
+        const on = (s.pbSel || [s.pbDay]).indexOf(k) >= 0, st = this.dayStamp(k), n = d[4].length;
+        return {
+          on, label: 'Day ' + (k + 1), city: d[0], meta: st.dow + ', ' + st.mon + ' ' + st.num + ' · ' + (n ? n + (n === 1 ? ' stop' : ' stops') : 'no stops'),
+          bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)', edge: on ? 'var(--color-brand)' : 'var(--color-hairline)', ink: on ? 'var(--color-brand-pressed)' : 'var(--color-ink)',
+          toggle: () => this.setState(st2 => {
+            const cur = st2.pbSel || [st2.pbDay];
+            const next = (cur.indexOf(k) >= 0 ? cur.filter(x => x !== k) : cur.concat([k])).sort((x, y) => x - y);
+            return st2.pbNameTouched ? { pbSel: next } : { pbSel: next, pbName: this.pbDefaultName(next) };
+          })
+        };
+      }),
+      pbSummary: this.pbSummary(s.pbSel || [s.pbDay]),
+      pbNothing: !(s.pbSel || [s.pbDay]).some(k => trip.days[k] && trip.days[k][4].length),
+      pbHasPreview: (s.pbSel || [s.pbDay]).length > 0,
+      pbPreviewDays: (s.pbSel || [s.pbDay]).map((k, n, all) => {
+        const stops = this.daySummaryFor(k);
+        return { showHead: all.length > 1, head: 'Day ' + (n + 1) + ' · from Day ' + (k + 1) + ' · ' + trip.days[k][0], stops, rest: !stops.length };
+      }),
+      pbCta: (s.pbSel || [s.pbDay]).length > 1 ? 'Keep ' + (s.pbSel || []).length + ' days' : 'Keep this day',
       savePb: () => {
-        const day = s.pbDay;
-        this.setState(st => ({ pbOpen: false, justKept: day, savedDays: st.savedDays.indexOf(day) < 0 ? st.savedDays.concat([day]) : st.savedDays }));
+        const day = s.pbDay, sel = (s.pbSel || [day]).slice();
+        if (!s.pbName || !s.pbName.trim()) { this.flash('Give it a name you’ll recognise later'); return; }
+        this.setState(st => ({ pbOpen: false, justKept: day, savedDays: st.savedDays.concat(sel.filter(k => st.savedDays.indexOf(k) < 0)) }));
         requestAnimationFrame(() => this.celebrate(day));
         clearTimeout(this._kt);
         this._kt = setTimeout(() => this.setState({ justKept: null }), 2700);
-        this.flash('Kept in your Playbooks · link copied');
+        this.flash(sel.length > 1 ? sel.length + ' days kept in your Playbooks as one' : 'Kept in your Playbooks');
       },
 
       insOpen: s.insOpen, setInsOpen: v => this.setState({ insOpen: v }), closeIns: () => this.setState({ insOpen: false }),

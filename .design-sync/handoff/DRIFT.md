@@ -68,6 +68,23 @@ Read this before §1; it is why §1 is short now.
 - **M13 (collaboration) is the current milestone as of 2026-09-19**, by M23's gate closing.
   Its preflight — the activity-field descriptor refactor, `KI-20260905-o` — is a gate box.
 
+## 0c. What moved since 2026-09-19 — design-only pass, 2026-09-22
+
+No build read this pass; everything is design-side (SPEC §35).
+
+- **M23 keep dialog — drift closed.** The design adopted the shipped `KeepDayDialog`:
+  toggles not a range, trip order, *Do you want to add more days?*, 2-column grid, the
+  count-first summary, no Include chips, no visibility control. The design adds a per-day
+  stop preview and a `Day N · City` chip label; the build's `date · N stops` meta is kept.
+- **D13 is partly moot on Home:** Import moved from a Home header button to quiet links (new-trip
+  sheet, empty state, phone). The endpoint and refusal copy are unchanged.
+- **D14 changes shape:** Account is **two** tabs, not three — API tokens is a sub-view reached
+  from Profile. `TokensSection` is unchanged.
+- **New design ahead of build:** the invite landing (§35.6), Cass and the Playbook-day turn
+  (§35.8), assistant proposal cards (§35.9), the dates-pill popover and the doc breadcrumb
+  (§35.3). None of them has a shell in `preview-registry.ts`.
+- **Theme work retired:** anything in code for Paper / Night desk / Airmail can be deleted.
+
 ## 1. Open drift — code and design still disagree
 
 | # | Thing | Code | Design | Call |

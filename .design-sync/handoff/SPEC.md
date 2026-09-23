@@ -1846,3 +1846,192 @@ column beside the filled ones. A box that groups things is a card; a card is whi
 
 The same three rules apply to whatever Account grows next: **group in a filled card, label
 in a column, and if the rows are alike, make it a table.**
+
+
+---
+
+## 35. Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22
+
+The theme of this pass is **fewer things on screen for a new user, nothing orphaned**. Every
+change below either removes a duplicate (project rule 4), demotes a rarely used action to a
+quiet link (rule 5), or makes a frequent one obvious. Nothing here adds an endpoint.
+
+### 35.1 One look
+
+The `look` / `theme` props and the Paper, Night desk and Airmail themes are **deleted**.
+Ledger is the only look; `data-app-theme` and `data-asst-theme` are hard-set to `ledger`.
+A build carries no theme switch and no theme tokens beyond Ledger's (§28).
+
+### 35.2 Your trips
+
+| Was | Now | Why |
+|---|---|---|
+| Header: *Import a file* · *Start from a Playbook* · **New trip** | **New trip** only | Import is rare; Playbook start already lives in the new-trip sheet and the Playbooks row below |
+| Next-trip card: three stat tiles (68 stops · 7 not booked · 2 need a decision) + Share | **Open plan** + one line: `● 2 need a decision` (danger-ink, 600, opens the trip) · `7 not booked yet` (slate) | The stop count was data, not a task; Share lives in the trip header |
+| "All trips" grid includes the hero trip | **"Other trips"**, hero trip filtered out | It was shown twice |
+| Playbooks row description line | removed | |
+| Empty state: three equal buttons | **New trip** (primary) · **Start from a Playbook** (secondary) + text link *Have a trip file? Import it* | |
+| Phone: dashed full-width *Import a trip file* | centred underlined text link, 44px target | |
+
+The new-trip sheet gains one quiet row above its footer:
+`Or start from a Playbook · import a trip file · create an empty one` — 12.5px, links in ink,
+underlined, offset 2px. **Create empty is no longer a footer button.** The footer
+(`DialogFooter`) renders **only** when it has something: *Create with this* once any answer
+exists, *Open the trip* once the draft is made.
+
+### 35.3 The trip page
+
+- **The header is the same height on every tab.** The day-chip rail moved out of the sticky
+  header and into the **Plan** tab, directly above the day columns (padding `14px 26px 4px`).
+  It scrolls with the content. Overview, Calendar and Map already show every day.
+- **The meta pill shows the dates only** (stop and city counts were duplicated by the
+  Overview's first sentence). It is now a **button**: dot + dates + caret, opening a
+  `Popover` (w-80) with a `type="date"` start-date input, the derived end `→ Oct 3, 2026`,
+  the line *Every day moves with it. Order, times and notes stay as they are.* and **Done**.
+  It calls the same `shiftTrip(iso)` Trip settings uses. Read-only viewers get plain text,
+  no caret, no popover.
+- **Overview reads as a letter.** A centred sheet, `max-width: 720px`, surface ground,
+  1px hairline, radius 4px, shadow `0 1px 2px rgba(21,29,46,.05), 0 12px 32px -18px rgba(21,29,46,.18)`,
+  padding `clamp(28px,6vw,60px) clamp(22px,7vw,72px) clamp(36px,7vw,72px)` on the paper
+  page. Letterhead row: mono 11px uppercase `OVERVIEW` (0.1em tracking, slate) left, a
+  ghost sm **Edit** right, hairline rule below (18px / 26px). Body paragraphs 16px / 1.75,
+  section headings display 18px/600 with 8px extra above. **No dates in the letterhead** —
+  they are in the header pill and the letter's first sentence already.
+- **Editing a notebook page always has a way back to the trip.** The doc toolbar's
+  *← Notebook* became a breadcrumb: `← Japan / Notebook / <page title>`. The first crumb is
+  brand/600 and returns to the trip; when you arrived from Overview's **Edit** it reads
+  `← Japan overview` and returns to Overview (`docFrom: 'overview'`). All crumbs
+  `white-space: nowrap`; the title ellipsises at 260px.
+
+### 35.4 Account
+
+- The heading's explanatory paragraph is removed.
+- **Two tabs: Profile · Plan & usage.** API tokens left the tab strip: Profile ends with one
+  line — *Writing your own program against your trips? That needs an API token.* — and a
+  ghost **API tokens →**. The tokens view opens with *← Profile* and an H3 *API tokens*.
+  Nothing about the tokens surface itself changed (§34.1).
+- **Setting help text never changes with the setting.** Distance: *How walks and hops between
+  stops are measured.* Home time on hover: *Hover a stop's time to see it in your home time
+  zone. The plan stays in local time.* A control must not reflow the row it sits in.
+
+### 35.5 Playbooks (Discover)
+
+- Intro is one line: *Days other people planned and rated. Find one for your city and drop it
+  into your trip.*
+- **One *Filters* menu.** Rating, Budget and Length are no longer face chips; all three live in
+  the single menu, whose trigger reads `Filters` or `Filters · N` (brand-tint when N > 0).
+  Set filters still surface as their own chips so they can be cleared in place. Sort stays on
+  the results sentence (§33.2).
+- The decorative day-shape bars are removed from result cards; the stop preview says more.
+
+### 35.6 The invite landing — a new screen
+
+Route `screen: 'invite'` (what an invite link opens, signed out). Tweak `inviteState`
+drives its four states.
+
+**`valid`** — two columns on a fluid grid (`repeat(auto-fit, minmax(min(100%,400px),1fr))`,
+max 1080px):
+
+- *Left, in order:* inviter (44px avatar, **Dana Reyes invited you**, *Sent to
+  sam@example.com · 2 days ago*); the trip name as H1 (display 600, clamp 30–44px, balance);
+  mono meta *Sep 20 – Oct 3, 2026 · 14 days · N cities*; the inviter's note as a blockquote
+  (3px brand rule, 16px/1.55); crew avatar stack + *Dana, Mei, Priya and Kenji are planning.
+  You can add stops, vote and comment.*; **Join with Google** (primary, full width, max 380px),
+  **Have a look first** (ghost), and *Joining is free — Dana's plan covers everyone she
+  invites.*
+- *Right:* a raised Card, **The plan so far** — a 10px ribbon of one segment per day in its
+  city colour (empty days at 35% opacity), then one row per consecutive-city leg: city dot,
+  city name, up to three highlights (transit and check-in stops skipped), `Days 1–5` in mono.
+  Footer: *N stops so far, and plenty of room left.*
+
+**Join** lands in the trip's Overview, editable, with a toast *You're in — Dana can see you
+joined*. **Have a look first** lands read-only (§27) with a variant banner — *Dana invited
+you to plan this trip* / *You're having a look first…* — whose action is **Join the trip**,
+not *Ask for editing*.
+
+**`expired` · `revoked` · `member`** — one centred column (max 480px): mono eyebrow, H1,
+one paragraph, a primary action and *What is Caesura?*. Copy: *This invite has expired* →
+*Ask Dana for a new link*; *Dana took this invite back* → *Start your own trip*; *You're
+already on this trip* → *Open Japan*.
+
+### 35.7 Keeping several days as one Playbook — the dialog now matches M23
+
+The design adopts the shipped `KeepDayDialog` (M23) and supersedes the §3 dialog in
+`specs/save-a-day-as-a-playbook.md`:
+
+- Title **Keep this day** / **Keep these days** by selection count; CTA **Keep this day** /
+  **Keep N days**, disabled when nothing selected has a stop.
+- **Name** prefilled `Day N of <Trip>` / `N days of <Trip>`; follows the selection until the
+  user types, then never again.
+- **Do you want to add more days?** (secondary, full width; absent on a one-day trip) reveals a
+  **2-column grid** of toggle buttons (`aria-pressed`), label `Day N · City`, meta
+  `Tue, Sep 22 · 5 stops` — no ellipsis. Helper: *Days — any, not just ones in a row*. It never
+  collapses again. **Toggles, not a range; selection is kept in trip order, not click order.**
+- **What's included** states the count before the button acts: `3 days, 14 stops, in order.
+  Day 4 becomes day 1. One day has no stops — kept as a rest day.`; one day:
+  `6 stops, 9:00 am – 9:30 pm.`
+- A preview lists stops per day under `DAY 1 · FROM DAY 4 · KYOTO` headers when several are
+  selected; a blank day shows *Rest day — no stops*.
+- Removed to match the build: the *Include* chips and the *Who can use it* control. One line
+  replaces them: *Saved days are private to you. Add one to any trip you can edit.*
+
+### 35.8 The new-trip assistant has a name — Cass
+
+- Assistant turns carry a **30px round brand avatar** (the ‖ mark, 3px bars, with a 9px
+  success dot, 2px surface ring) and a name line **Cass** (13px/600) *Trip planner* (12px
+  slate) — **once per consecutive run**, like any chat; later turns in the run indent under it.
+- Opening line: *Hi, it's Cass. A few quick questions and I'll draft the trip — nothing is made
+  until your last answer.* (first run: *Hi Sam, I'm Cass. I plan trips here …*).
+- **Each question is prefixed by a one-clause acknowledgement of the previous answer**
+  (`Kyoto, good.` · `Solo, then.` · `Packed — I'll keep the travel between stops tight.`).
+  Never gushing; empty for the date step.
+- **A typing row** — three 6px slate dots (`tc-dot`, 1.1s, 0.16s stagger) — for 750ms after
+  each answer (1300ms before the draft, labelled *Drafting the trip…*). Everything after your
+  last answer waits behind it; chips and composer hide while it shows. This is presentation
+  over a local script — **it is not a model call** (§30.2 still holds).
+- **After the city, highly rated Playbook days are offered** — up to three matching the city,
+  rating ≥ 4.5 and ≥ 10 reviews, sorted by rating then review count. The turn is skipped
+  entirely when there are none. Cards: name, `★ 4.9 · 214 reviews · 1 day · by Mei`, and
+  **Add** / **✓ Added**; multi-select; commit button **Build around these N** or **Skip — plan it
+  fresh**. Chosen days are named in the final summary (`… is already in place.`).
+- The thread scrolls from the top of its content and pins to the newest turn **after** the
+  typing row resolves (key includes `ntTyping` and `scrollHeight`).
+
+> Open: the in-trip assistant panel is still titled *Assistant*. Whether it becomes Cass too is
+> undecided — do not rename it from this spec.
+
+### 35.9 An action in a chat is a control, not a sentence
+
+- **New-trip answers** are brand-forward pills: `--color-brand-tint` ground, 1px brand border,
+  brand-pressed 600 text; selected = solid brand, surface text, `✓` prefix. A hint above them
+  — *Tap one to answer — or type your own* / *Pick any that fit — or type your own* — shown
+  **only** when the turn has chips (not on the date turn). The multi-select commit button is
+  primary once anything is selected.
+- **Assistant proposals are cards, not questions in prose** (desktop panel and phone sheet).
+  Under the reply: 1px brand border, brand-tint ground, radius 10 (13 on phone), label
+  `↻ READY WHEN YOU ARE`, a title (`Move it 30 minutes later`), one detail line, then a solid
+  brand pill (**Move it** / **Make the change**) and an outlined **Not now**; 34px targets
+  desktop, 44px phone. Accept → `✓ Moved 30 minutes later on Day 8` in success-ink with
+  **Undo**; decline → *Left as it is.* Replies no longer end with *say the word* / *want it as
+  a proposal?*. The transcript pins to the bottom on every new message and every settle.
+
+### 35.10 What a build owes
+
+1. Delete the theme switch and non-Ledger themes (35.1).
+2. Home header, hero, *Other trips* filter, new-trip sheet links, footer-on-demand (35.2).
+3. Move the day rail into Plan; the dates-pill popover over `shiftTrip`; Overview letter
+   styling; the doc breadcrumb with `docFrom` (35.3).
+4. Account: two tabs + the tokens link; static setting help text (35.4).
+5. Discover: one Filters menu with a count; drop card shape bars (35.5).
+6. **New:** the invite landing and its four states; the read-only *having a look* variant (35.6).
+   Needs the invite's inviter, note, sent-at and recipient address on the public invite read.
+7. The keep dialog already exists in code — this design now **matches** `KeepDayDialog`; only
+   the preview block and the `Day N · City` chip label are additions (35.7).
+8. Cass persona, acknowledgements, typing row, the Playbook-day turn — the latter needs a
+   city → top-rated days query (rating ≥ 4.5, ≥ 10 reviews, limit 3) (35.8).
+9. Proposal cards in the assistant transcript: `offer {title, detail, yes, done}` +
+   `offerState` per message, with undo (35.9).
+
+**Undrawn states owed:** the invite landing offline; Join failing (account created, membership
+not); the Playbook-day turn when the query errors (skip the turn, never block the script); a
+proposal accepted while another collaborator changed the same day (the §8 conflict path).

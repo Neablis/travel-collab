@@ -4,13 +4,41 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-19, second half — a feature resync against `main`.** Four
-milestones had closed since the design last read the build (M20 ✓, M22 at 18/19, M25 ✓,
+Last substantive pass: **2026-09-22 — a simplify pass, plus four new surfaces.** New users
+were meeting too much at once. This pass removes duplicates and demotes rare actions to quiet
+links without orphaning any of them, and adds the invite landing, a named new-trip assistant
+(Cass), proposal cards in the assistant transcript, and the M23 multi-day keep dialog as
+shipped. **SPEC §35 is the whole pass; §35.10 is the build list.**
+
+### What changed on 2026-09-22, in build terms (§35)
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| One look | §35.1 | Delete the theme switch and Paper / Night desk / Airmail; Ledger only |
+| Your trips is quieter | §35.2 | Header = **New trip** only; hero loses stat tiles and Share (one actionable line instead); *Other trips* excludes the hero trip; Import and Playbook-start become links in the new-trip sheet |
+| New-trip sheet footer on demand | §35.2 | *Create empty* is a link; the footer renders only for *Create with this* / *Open the trip* |
+| Trip header never reflows | §35.3 | Day rail moves into Plan; meta pill = dates only, and opens a start-date popover over `shiftTrip` |
+| Overview is a letter | §35.3 | Centred 720px sheet, letterhead with **Edit** |
+| Notebook page → trip in one click | §35.3 | Breadcrumb `← Japan / Notebook / title`, `← Japan overview` when opened from Overview |
+| Account has two tabs | §35.4 | Profile · Plan & usage; API tokens reached from Profile; setting help text is static |
+| Discover has one Filters menu | §35.5 | Rating / Budget / Length inside `Filters · N`; no card shape bars |
+| **Invite landing** | §35.6 | New `invite` screen with `valid · expired · revoked · member`; Join / Have a look first |
+| Keep several days | §35.7 | Design now **matches** `KeepDayDialog` (M23) — drift closed |
+| **Cass** | §35.8 | Named avatar once per run, acknowledgements, typing row, a highly-rated-Playbook-day turn after the city |
+| Actions look like actions | §35.9 | Brand answer pills with a hint; assistant proposal cards with accept / Not now / Undo |
+
+New tweak props for reviewing states: `inviteState` and `startScreen: invite`. The
+`look` / `theme` props are gone.
+
+### Before that — 2026-09-19, second half: a feature resync against `main`
+
+Four milestones had closed since the design last read the build (M20 ✓, M22 at 18/19, M25 ✓,
 M23 ✓) and three of them had no design surface at all: **API tokens**, **downloading a
 trip as a file**, and **importing one back**. Designing them exposed two mobile gaps and
 one crowded container, both fixed here (§34). Earlier the same day: Playbooks learned to
 hold several days, and the Discover header was re-sorted by kind of decision — tabs for
-place, chips for questions, sort on the results sentence (§33).
+place, chips for questions, sort on the results sentence (§33). **Where §35 contradicts §34
+(Import on Home, three Account tabs), §35 wins.**
 
 ### What changed on 2026-09-19, in build terms — the resync (§34)
 
@@ -192,9 +220,9 @@ what may exist on a page — read `RULES.md` first.
 | Path | What it is |
 |---|---|
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
-| `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour. **New this pass: the `/account` route with three tabs, the API-token surface, trip download and import, and the phone's account and Plans screens** |
+| `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour. **Refreshed 2026-09-22: the simplify pass, the invite landing, Cass, proposal cards, the multi-day keep dialog (SPEC §35)** |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§30 (new-trip conversation, transcript type) is this pass**; §29 (plans route); §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§35 (simplify pass, invite landing, Cass, proposal cards) is the newest**; §30 (new-trip conversation, transcript type) is this pass**; §29 (plans route); §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
 | `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
 | **`specs/notebook-widget-framework.md`** | **The notebook widget framework** — three shape components, four states per shape, the ghost. `SPEC.md` §21 summarises it; this file is the contract |
 | `design/NotebookInline.dc.html` | Component — an inline widget: a segment list of your text, its values, and ghosts |
@@ -220,8 +248,8 @@ seed JSON in `design/` are its other siblings and are included here.
 
 **Tweak props worth driving while reading it** (they are how the undrawn states are
 reviewed): `surface` (desktop / phone), `plan` + `billingStatus` (the token gate, the
-invite gate, lapsed copy), `dataState` (live / loading / empty / failed) and — new this
-pass — `importOutcome` (lands / refused), which renders the import refusal.
+invite gate, lapsed copy), `dataState` (live / loading / empty / failed), `importOutcome` (lands / refused), and — new
+2026-09-22 — `inviteState` (valid / expired / revoked / member) with `startScreen: invite`.
 
 One caveat added this pass: the design file loads the **precompiled** `_ds_bundle.css` with
 no Tailwind JIT, so a few values are inline styles that would be utility classes in the

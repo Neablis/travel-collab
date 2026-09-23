@@ -59,6 +59,11 @@ unsaved, `In your Playbooks — edit or share` when saved. Both are on `title` *
 
 ## 3. The dialog
 
+> **Superseded 2026-09-22 by `SPEC.md` §35.7.** The dialog now matches the shipped M23
+> `KeepDayDialog` — several days, toggles not a range, no Include chips, no visibility control.
+> The text below is kept for the history of the one-day version; the entry point (§2), the
+> animation (§5) and where a kept day shows up (§6) are unchanged.
+
 `TravelCollabUI.Dialog`, title **“Save this day as a Playbook”** (line 3039). Body scrolls
 at `max-height: 56vh`; the footer does not.
 
