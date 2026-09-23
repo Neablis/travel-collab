@@ -174,6 +174,11 @@ export default defineConfig({
     env: {
       AUTH_DEV_LOGIN: "true",
       AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-secret",
+      // `||`, not `??`: an `.env.local` from an older `pnpm setup` carries
+      // `API_TOKEN_PEPPER=` blank, and the M22 token spec then failed as a
+      // missing element rather than the fail-closed throw it was
+      // (KI-2026-09-19-a). CI's own `ci-pepper` and any real value still win.
+      API_TOKEN_PEPPER: process.env.API_TOKEN_PEPPER || "e2e-pepper",
       DATABASE_URL,
       // Every e2e spec that touches the AI compose path must exercise the
       // simulated model, never a real provider (token cost) — see

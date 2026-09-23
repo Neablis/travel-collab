@@ -12,10 +12,12 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 
 // `src/server/api-tokens` refuses to mint or verify without a pepper, on purpose
 // — an empty one would still produce a stable digest, so tokens would keep
-// working while the property the key exists for silently did not hold. `??=`
-// leaves a real value alone; this one only has to be present and stable within a
-// run, because nothing here asserts a digest against a fixture.
-process.env.API_TOKEN_PEPPER ??= "test-pepper-not-a-real-key";
+// working while the property the key exists for silently did not hold. `||=`,
+// not `??=`, so a blank `API_TOKEN_PEPPER=` in `.env.local` counts as missing —
+// an empty string is not nullish (KI-2026-09-19-a). A real value is left alone;
+// this one only has to be present and stable within a run, because nothing here
+// asserts a digest against a fixture.
+process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key";
 
 // **jsdom implements no scrolling, and one dependency calls it anyway.**
 // `@atlaskit/pragmatic-drag-and-drop-auto-scroll`'s `try-scroll.js` calls
