@@ -205,6 +205,20 @@ since.**
     history, never set by the click.
   - Known limit: a notebook save after an accept hides the card's Undo, even
     though the undo itself would skip that save.
+- **Link 10's finding: the single-day map was never missing in code.**
+  - Walked in Chromium at 1280px and 390px on locally imported content:
+    - a one-day Playbook drew its map (7 pins);
+    - a three-day one drew 24;
+    - three more one-day Playbooks, opened from Discover, all drew.
+  - `m26-shared-day-map.spec.ts` already asserts a map on a one-day Playbook.
+  - The only Playbooks with no map are those with fewer than two located
+    stops: 5 of the 148 content Playbooks, and production's one 5-day row,
+    which has none. §16's list-only rule still holds for those.
+  - What did differ between one-day and multi-day was layout: a Window rail
+    row only on one-day Playbooks, and the map as a plain box. Both are gone.
+    Every Playbook now uses the design's framed map (focus card, legend,
+    dotted ride legs, *Show route* on a phone), the same stop rows, and the
+    same card. The day picker is the only structural difference.
 - Text sizes snap to existing tokens where the design uses half-pixel sizes
   (15px → `text-base`, 12.5px → `text-xs`), because the lint wall bans
   arbitrary sizes.
