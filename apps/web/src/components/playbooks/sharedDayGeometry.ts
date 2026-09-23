@@ -156,3 +156,21 @@ export function geometryKey(savedDayId: string, scope: "all" | number, geometry:
     .join("|");
   return `${savedDayId}:${scope}:${shape}`;
 }
+
+/**
+ * The geometry of whatever the reader is looking at: every day under `All
+ * days`, one day otherwise — numbered the way the LIST numbers that scope
+ * (continuous across the whole Playbook, restarting at 1 inside one day).
+ *
+ * One function because two consumers must agree on it: the map draws its pins
+ * from it and the stop list reads its leg lines from it, and a leg line keyed
+ * to stop 5 under a row the list calls 1 is the disagreement this file exists
+ * to prevent.
+ */
+export function scopedGeometry(
+  days: readonly { dayIndex: number; stops: readonly SavedStop[] }[],
+  scope: "all" | number,
+): readonly DayGeometry[] {
+  const geometry = playbookGeometry(days, { continuousNumbering: scope === "all" });
+  return scope === "all" ? geometry : geometry.filter((g) => g.dayIndex === scope);
+}

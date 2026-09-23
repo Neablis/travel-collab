@@ -6,6 +6,9 @@ import { Fragment, useCallback, useState } from "react";
 import type { SavedDay } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
+import { mapPanel } from "./sharedDayFacts";
+import { scopedGeometry } from "./sharedDayGeometry";
+import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -28,7 +31,7 @@ import {
 import { displayNameFor } from "@/lib/displayName";
 import { type PublicAuthor } from "@/lib/playbooks";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
-import { toClockRange } from "@/lib/time";
+import { toClockLabel, toClockRange } from "@/lib/time";
 import { backQuery } from "./backLink";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
@@ -108,6 +111,16 @@ export function playbookDays(day: Pick<SavedDay, "stops" | "dayCount">): readonl
   });
 }
 
+/**
+ * What the stop list is a list of (`dc.html:6875`). The one line above the
+ * list that reads the day count — because it names what is being shown, and
+ * "the day" over three days would be false.
+ */
+export function ledgerLabel(dayCount: number, scope: "all" | number): string {
+  if (dayCount <= 1) return "The day, as they ran it";
+  return scope === "all" ? `All ${dayCount} days, as they ran them` : `Day ${scope + 1}, as they ran it`;
+}
+
 /** `9:45 am – 6:30 pm · 4 stops`, or what is true instead. */
 export function dayDividerLine(group: PlaybookDay): string {
   if (group.stops.length === 0) return "Rest day";
@@ -172,6 +185,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
+  const unit = useDistanceUnit();
 
   async function setVisibility(next: "public" | "private") {
     setBusy(true);
@@ -276,6 +290,11 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   const facts = savedDayFacts(day.stops, day.dayCount);
   const length = dayLength(facts.window);
   const groups = playbookDays(day);
+  const visibleGroups = dayScope === "all" ? groups : groups.filter((g) => g.dayIndex === dayScope);
+  // The leg lines under each stop, from the very geometry the map draws — so
+  // "12 min walk" under stop 3 is the leg the map joins 3 to 4 with.
+  const panel = mapPanel(scopedGeometry(groups, dayScope), unit);
+  const scopedGroup = dayScope === "all" ? null : (visibleGroups[0] ?? null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -309,10 +328,20 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 so no number below it is stated twice. This line is why the rail
                 no longer carries Days, Stops or Kept in — it owned three facts
                 the title should have. */}
+            {/* The clock range rides this line too, as the artboard's `meta`
+                does (`dc.html:6872`) — and it is NOT gated on the day count.
+                `facts.window` is null for a Playbook over one day (ADR-048
+                decision 4: no single window spans a night), so the one line
+                reads right for both without a branch of its own. It used to
+                be a rail row shown only when `dayCount === 1`, which made the
+                two kinds of Playbook lay out differently for no reason a
+                reader could see (Mitchell, M27 link 10: "Multiday and single
+                day playbooks should mostly look the same"). */}
             <DataText size="xs" className="mt-1.5 block text-slate" data-testid="playbook-meta">
               {[
                 day.dayCount > 1 ? `${day.dayCount} days` : null,
                 `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`,
+                facts.window !== null ? toClockRange(facts.window.start, facts.window.end) : null,
                 `kept in ${keptInLine(day.createdAt)}`,
               ]
                 .filter((part) => part !== null)
@@ -323,6 +352,58 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               trip and the times reflow around it.
             </Text>
           </div>
+
+          {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
+              `All days` first and default; **no tab row at all for a one-day
+              Playbook**, because a single tab is a label pretending to be a
+              control (project rule 2).
+
+              A `TabStrip` — the moss pill — and not link 2's `UnderlineTabs`.
+              The distinction is §33.2's own: an underline says "you are on a
+              different page of this thing", and these are views of ONE
+              Playbook, which is what the pill is for. The design agrees; its
+              artboard mounts `TabStrip` here. */}
+          {day.dayCount > 1 && (
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-hairline pt-3.5">
+              <TabStrip<string>
+                aria-label="Which day of this Playbook"
+                value={dayScope === "all" ? "all" : String(dayScope)}
+                options={[
+                  { value: "all", label: "All days" },
+                  ...groups.map((g) => ({ value: String(g.dayIndex), label: `Day ${g.dayIndex + 1}` })),
+                ]}
+                onValueChange={(value) => setDayScope(value === "all" ? "all" : Number(value))}
+              />
+              {/* The scoped day's own range beside the tab that chose it
+                  (`dc.html` `dayLine`). Nothing under `All days`: the title
+                  line already speaks for the whole Playbook. */}
+              {scopedGroup !== null && (
+                <DataText size="xs" data-testid="day-scope-line">
+                  {dayDividerLine(scopedGroup)}
+                </DataText>
+              )}
+            </div>
+          )}
+
+          {/* SPEC §16 — **a shared day is a map plus a list.** It was only ever
+              the list until now; `sharedDayGeometry.ts` had been written for
+              this and had no production consumer (Mitchell, preview walk,
+              2026-09-20).
+
+              It sits ABOVE the list and BELOW the day tabs on purpose: the
+              tabs scope both surfaces at once, and a reader who taps `Day 2`
+              expects the map to follow the list rather than the two to
+              disagree. And above the author strip, where the artboard puts it
+              (`dc.html:2718`): the route is what somebody opens a Playbook to
+              judge, and who wrote it is the second question.
+
+              **Mounted for every Playbook, one day or ten** — never behind a
+              day-count check (Mitchell, M27 link 10: "Every playbook should
+              have maps for instance, not just the multi day ones"; the
+              SharedDayScreen test pins it). `SharedDayMap` renders nothing at all when fewer than
+              two stops have coordinates — §16's degrade-to-list-only — so
+              there is no empty canvas to guard against here. */}
+          <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} />
 
           {/* The author strip. One resolver for the name (M17's seam), and the
               two numbers beside it are the profile's own. */}
@@ -365,62 +446,32 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             </Banner>
           )}
 
-          {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
-              `All days` first and default; **no tab row at all for a one-day
-              Playbook**, because a single tab is a label pretending to be a
-              control (project rule 2).
-
-              A `TabStrip` — the moss pill — and not link 2's `UnderlineTabs`.
-              The distinction is §33.2's own: an underline says "you are on a
-              different page of this thing", and these are views of ONE
-              Playbook, which is what the pill is for. The design agrees; its
-              artboard mounts `TabStrip` here. */}
-          {day.dayCount > 1 && (
-            <div className="self-start">
-              <TabStrip<string>
-                aria-label="Which day of this Playbook"
-                value={dayScope === "all" ? "all" : String(dayScope)}
-                options={[
-                  { value: "all", label: "All days" },
-                  ...groups.map((g) => ({ value: String(g.dayIndex), label: `Day ${g.dayIndex + 1}` })),
-                ]}
-                onValueChange={(value) => setDayScope(value === "all" ? "all" : Number(value))}
-              />
-            </div>
-          )}
-
-          {/* SPEC §16 — **a shared day is a map plus a list.** It was only ever
-              the list until now; `sharedDayGeometry.ts` had been written for
-              this and had no production consumer (Mitchell, preview walk,
-              2026-09-20).
-
-              It sits ABOVE the list and BELOW the day tabs on purpose: the
-              tabs scope both surfaces at once, and a reader who taps `Day 2`
-              expects the map to follow the list rather than the two to
-              disagree. `SharedDayMap` renders nothing at all when fewer than
-              two stops have coordinates — §16's degrade-to-list-only — so
-              there is no empty canvas to guard against here. */}
-          <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} />
-
           {day.stops.length === 0 ? (
             <EmptyState
               title="This day has nothing on it"
               body="Every stop has been removed since it was kept."
             />
           ) : (
-            <ol className="flex flex-col gap-1" data-testid="stop-list">
-              {/* Scoped by the tab above: every day when `All days`, one day
-                  otherwise. **`All days` MERGES rather than concatenating** —
-                  one list, one running stop number — which is what the divider
-                  rows and `PlaybookDay.number` are between them for. */}
-              {(dayScope === "all" ? groups : groups.filter((g) => g.dayIndex === dayScope)).map(
-                (group) => (
+            <div>
+              {/* The ledger's label (`dc.html:6875`). The one string here that
+                  reads the day count, because it names what is being listed. */}
+              <DataText size="xs" className="block pb-2.5 text-2xs tracking-widest uppercase" data-testid="ledger-label">
+                {ledgerLabel(day.dayCount, dayScope)}
+              </DataText>
+              <ol className="flex flex-col" data-testid="stop-list">
+                {/* Scoped by the tab above: every day when `All days`, one day
+                    otherwise. **`All days` MERGES rather than concatenating** —
+                    one list, one running stop number — which is what the divider
+                    rows and `PlaybookDay.number` are between them for. */}
+                {visibleGroups.map((group) => (
                   <Fragment key={group.dayIndex}>
                     {/* A divider only in the rollup: scoped to one day the tab
                         already names it, and repeating that under it is project
-                        rule 4. A one-day Playbook has neither. */}
+                        rule 4. A one-day Playbook has no rollup to divide — the
+                        divider is part of the day picker, the one thing a
+                        one-day Playbook does not have. */}
                     {dayScope === "all" && day.dayCount > 1 && (
-                      <li className="flex items-center gap-3 pt-3.5 pb-1 first:pt-0">
+                      <li className="flex items-center gap-3 pt-4.5 pb-1 first:pt-0">
                         <Text as="span" className="font-display font-semibold text-ink">
                           Day {group.dayIndex + 1}
                         </Text>
@@ -431,46 +482,76 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                       </li>
                     )}
                     {group.stops.length === 0 && (
-                      <li>
+                      <li className="py-2">
                         <Text variant="secondary" className="text-sm">
                           Nothing planned — kept as a rest day.
                         </Text>
                       </li>
                     )}
-                    {group.stops.map((stop) => (
-                      <Card as="li" key={`${group.dayIndex}:${stop.number}`} className="flex flex-col gap-1.5 p-3">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <span className="flex min-w-0 items-baseline gap-2">
-                            {/* §33.1's continuous numbering, and the design's
-                                own 24px pin. Scoped to one day it restarts at
-                                1 — see `playbookDays`. */}
-                            <DataText size="xs" className="text-slate" data-testid="stop-number">
-                              {dayScope === "all"
-                                ? stop.number
-                                : group.stops.indexOf(stop) + 1}
+                    {group.stops.map((stop, i) => {
+                      const shown = dayScope === "all" ? stop.number : i + 1;
+                      const gap = panel.gaps.get(shown);
+                      return (
+                        <li key={`${group.dayIndex}:${stop.number}`}>
+                          {/* `dc.html:2751`: time | 24px pin | body. The pin is
+                              the map's own numbered pin, so a row and its pin
+                              read as the same thing. */}
+                          <div className="flex gap-2.5 pt-2.5 pb-0.5 md:gap-3">
+                            <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 md:w-21.5">
+                              {/* The START, as the artboard's column shows it:
+                                  a full range wraps to two lines in 86px, and
+                                  the next row's start already says when this
+                                  one gives way. */}
+                              {stop.timeWindow !== null ? toClockLabel(stop.timeWindow.start) : ""}
                             </DataText>
-                            <span className="font-semibold text-ink">{stop.title}</span>
-                          </span>
-                          {stop.timeWindow !== null && (
-                            <DataText size="xs">{toClockRange(stop.timeWindow.start, stop.timeWindow.end)}</DataText>
+                            {/* §33.1's continuous numbering. Scoped to one day
+                                it restarts at 1 — see `playbookDays`. */}
+                            <span
+                              className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-2xs font-semibold text-surface"
+                              data-testid="stop-number"
+                            >
+                              {shown}
+                            </span>
+                            <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-px">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-semibold text-ink">{stop.title}</span>
+                                {stop.location?.city !== undefined && (
+                                  <span className="rounded-full bg-moss px-2.5 py-0.5 text-2xs text-slate">
+                                    {stop.location.city}
+                                  </span>
+                                )}
+                              </div>
+                              {stop.notes !== null && stop.notes !== "" && (
+                                <Text variant="secondary" className="text-sm text-pretty">
+                                  {stop.notes}
+                                </Text>
+                              )}
+                            </div>
+                          </div>
+                          {/* The leg to the next stop, from the same geometry
+                              the map draws (`panel.gaps` was computed for this
+                              line and never had a reader until now). */}
+                          {gap !== undefined && (
+                            <div
+                              className="flex items-center gap-2.5 py-0.5 md:gap-3"
+                              data-testid="stop-gap"
+                            >
+                              <span className="w-15.5 shrink-0 md:w-21.5" />
+                              <span className="grid h-6 w-6 shrink-0 place-items-center">
+                                <span className="h-6 border-l-2 border-hairline" />
+                              </span>
+                              <DataText size="xs" className="text-2xs">
+                                {gap}
+                              </DataText>
+                            </div>
                           )}
-                        </div>
-                        {stop.location?.city !== undefined && (
-                          <span className="w-fit rounded-full bg-moss px-2.5 py-0.5 text-xs font-semibold text-slate">
-                            {stop.location.city}
-                          </span>
-                        )}
-                        {stop.notes !== null && stop.notes !== "" && (
-                          <Text variant="secondary" className="text-sm">
-                            {stop.notes}
-                          </Text>
-                        )}
-                      </Card>
-                    ))}
+                        </li>
+                      );
+                    })}
                   </Fragment>
-                ),
-              )}
-            </ol>
+                ))}
+              </ol>
+            </div>
           )}
         </div>
 
@@ -482,46 +563,22 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 twice on one screen is project rule 4. M23 link 4's requirement
                 — that this route say how many days it is about to move — is
                 met by that line rather than dropped. */}
-            {/* **Window, and only on a one-day Playbook.**
-                `facts.window` is null for two genuinely different reasons and
-                this row used to render both as "No times set" — which on a
-                three-day Playbook whose every stop shows a time is not merely
-                unhelpful, it is false. A sequence HAS no single clock window
-                (ADR-048 decision 4), so it said "Spans several days".
+            {/* **No Window row, for any Playbook** (M27 link 10). It was here
+                only when `dayCount === 1`, on the argument that a one-day
+                Playbook had nowhere else to say its range. The title line now
+                does, for every Playbook that HAS one range — the artboard's own
+                `meta` (`dc.html:6872`) — so the rail no longer lays a one-day
+                Playbook out differently from a three-day one.
 
-                §33.1 asks for the window to leave this rail, and for a
-                multi-day Playbook that is a clear improvement: the per-day
-                dividers now carry each day's real range, which "Spans several
-                days" never did. For a ONE-day Playbook there is no tab row and
-                no divider, so this row is the only place the range appears —
-                removing it there would delete a fact rather than de-duplicate
-                one. So it renders exactly where nothing else says it. */}
-            {day.dayCount === 1 && (
-              <Fact
-                label="Window"
-                value={facts.window !== null ? toClockRange(facts.window.start, facts.window.end) : "No times set"}
-              />
-            )}
-            {/* Length, as its OWN row rather than appended to the Window value
+                Length stays: its own row rather than appended to the range
                 (Mitchell, 2026-09-01: "also add length, with a tag short medium
-                long if the duration is <4h, 4-12h, 12h+" — said with the Window
-                fact selected, so this is the elapsed span of that window).
-
-                Two reasons for the extra row rather than "8:20 am – 8:30 pm ·
-                Long" in one cell. At 411px the rail is full width and either
-                fits, but the rail is `lg:w-72` on a desktop — 288px minus
-                padding, where the label column plus a 17-character range plus a
-                tag wraps the value onto a second line and the range stops
-                reading as one thing. And a day with no times has no length at
-                all (`dayLength` returns null): a separate row simply is not
-                rendered, where a combined cell would need to suppress a
-                dangling separator as well.
-
-                Withheld entirely rather than shown as "—" for that untimed
-                case, which is consistent with what `dayLength` refuses to do:
-                a day that says nothing about when it runs must not be labelled
-                "Short". The Window row above already says "No times set", so
-                the rail is not silent about why. */}
+                long if the duration is <4h, 4-12h, 12h+"), because at the
+                rail's `lg:w-72` a range plus a tag wraps and stops reading as
+                one thing. It is withheld, not shown as "—", whenever
+                `dayLength` has nothing to measure — a day with no times, or a
+                sequence with no single window (ADR-048 decision 4) — because a
+                day that says nothing about when it runs must not be labelled
+                "Short". That is a fact about the data, not a day-count branch. */}
             {length !== null && <Fact label="Length" value={DAY_LENGTH_LABELS[length]} />}
             {/* "Budget", not "Budget each" (Mitchell, 2026-09-01) — this rail
                 is the only place that string was actually VISIBLE, since

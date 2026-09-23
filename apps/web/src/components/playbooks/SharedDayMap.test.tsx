@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
+import { setViewportMatches } from "../../../vitest.setup";
 
 // MapLibre needs a WebGL context, which jsdom does not have, so the real module
 // can never run here. The fake below is deliberately thin — it records what was
@@ -239,5 +241,73 @@ describe("SharedDayMap", () => {
       data: { features: { properties: { contiguous: boolean } }[] };
     };
     expect(source.data.features.map((f) => f.properties.contiguous)).toEqual([false]);
+  });
+
+  // A ride is DOTTED, and the legend only offers "By train or taxi" when the
+  // map is drawing one — the same `isRideLeg` decides both.
+  it("draws a ride as its own layer and keys it in the legend", async () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[{ dayIndex: 0, stops: [located(35.0, 135.0), located(35.0, 135.1)] }]}
+        scope="all"
+      />,
+    );
+    await settle();
+    expect(added.layers.map((l) => l.id)).toContain("shared-day-route-ride");
+    const source = added.sources["shared-day-route"] as { data: { features: { properties: { ride: boolean } }[] } };
+    expect(source.data.features.map((f) => f.properties.ride)).toEqual([true]);
+    expect(screen.getByTestId("shared-day-map-legend").textContent).toContain("By train or taxi");
+  });
+
+  it("keys only On foot for a day walked end to end", async () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[{ dayIndex: 0, stops: [located(35.0, 135.0), located(35.0, 135.01)] }]}
+        scope="all"
+      />,
+    );
+    await settle();
+    const legend = screen.getByTestId("shared-day-map-legend");
+    expect(legend.textContent).toContain("On foot");
+    expect(legend.textContent).not.toContain("By train or taxi");
+  });
+});
+
+// `dc.html:1196-1226`: on a phone the route waits behind a "Show route" row.
+describe("SharedDayMap on a phone", () => {
+  beforeEach(() => setViewportMatches({ "(max-width: 767px)": true }));
+  afterEach(() => {
+    cleanup();
+    setViewportMatches({});
+  });
+
+  it("shows the route row closed, and builds the map only once it is opened", async () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[{ dayIndex: 0, stops: [located(35.0, 135.7), located(35.02, 135.75)] }]}
+        scope="all"
+      />,
+    );
+    const toggle = await screen.findByTestId("shared-day-route-toggle");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toContain("Show route");
+    expect(screen.queryByTestId("shared-day-map")).toBeNull();
+    expect(added.markers).toHaveLength(0);
+
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("shared-day-map")).toBeDefined();
+    await settle();
+    expect(added.markers).toHaveLength(2);
+  });
+
+  it("still degrades to nothing at all below two located stops", () => {
+    const { container } = render(
+      <SharedDayMap savedDayId={DAY_ID} days={[{ dayIndex: 0, stops: [located(35.0, 135.7), stop()] }]} scope="all" />,
+    );
+    expect(container.innerHTML).toBe("");
   });
 });
