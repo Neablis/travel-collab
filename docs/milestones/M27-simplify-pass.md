@@ -170,6 +170,20 @@ since.**
   otherwise have left first run with no way to an empty trip.
 - `ImportTripButton` is now only a quiet link; no button call site was left.
   Exactly one picker is mounted per page, and the sheet's link drives it.
+- **The invite landing's calls:**
+  - The public read is the existing `GET /api/invites/[token]`, made public,
+    not a second endpoint. Two reads of one token would mean two copies of
+    the nondisclosure rule.
+  - A link used by someone else shows *unavailable* with *This invite has
+    already been used*, not *revoked*, whose copy would be false.
+  - There is no `?join=1`: a URL that joins whoever opens it is the `?clone=1`
+    hole removed on 2026-09-01. A signed-out Join leaves a localStorage marker
+    naming the token, and the landing finishes the join on return.
+  - The inviter's avatar is initials, because the CSP's `img-src` cannot load
+    a Google photo.
+  - **What a look-first token holder can read** is what a pending viewer
+    could: the trip, and its `/access` member list (names and emails). That
+    is the D12 trade, stated so a reviewer can refuse it.
 - Text sizes snap to existing tokens where the design uses half-pixel sizes
   (15px → `text-base`, 12.5px → `text-xs`), because the lint wall bans
   arbitrary sizes.
