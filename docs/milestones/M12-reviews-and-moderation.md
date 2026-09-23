@@ -153,6 +153,44 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
    selected city are not comparable on that scale, and the rule as written does
    not say which wins. Decide it before building, not during.
 
+   **2026-09-23 — backend built; coverage measured; the data step is a person's.**
+   Decided: places are OR'd (a day matches any selected city or country), and
+   `matched_count` is matched cities plus matched countries — each selected
+   place counts one. `GET /api/places?q=` returns `{ kind: "city", city, days }`
+   or `{ kind: "country", countryCode, name, days }`, matched on the name's
+   prefix only (never the code: `De` must not offer Germany), exact name first,
+   then days, a tie going to the country. `/api/cities` is unchanged and marked
+   superseded. `geocode-content.py --apply` now writes `countryCode`.
+
+   **Coverage, measured 2026-09-23 on this branch:** the content bundles hold
+   1,375 locations, 1,091 with coordinates and **0 with `countryCode`**; of 148
+   playbook days (all public) **0** carry a country. The local dev database was
+   empty (0 `saved_days` rows). So the gate box "the filter is not shipped over
+   a column that is empty for most of the library" is **not yet met**, and
+   cannot be from a cloud container: it has no egress to LocationIQ or
+   Nominatim, no key, and no `content/.geocode-cache.sqlite`. Codes were not
+   hand-written into `content/` instead — that would be exactly the invented
+   data the geocoder exists to replace.
+
+   **The run-book, on a machine with `LOCATIONIQ_API_KEY` in
+   `apps/web/.env.local` and the geocode cache (or the patience to rebuild it):**
+
+   1. `python3 scripts/geocode-content.py --status` — the cache is present and
+      settled; if not, `python3 scripts/geocode-content.py` to work the queue
+      (`--provider nominatim` if the daily quota is spent).
+   2. `python3 scripts/geocode-content.py --apply --dry-run` — read the
+      `countryCode(s)` count, the contested-city list and any conflict lines.
+   3. `python3 scripts/geocode-content.py --apply` — writes the codes (and any
+      newly-accepted coordinates).
+   4. `pnpm content:verify` — the bundles still parse and lint.
+   5. Re-import: locally `pnpm --filter web content:import` against a running
+      `pnpm --filter web dev`; for production, the path in
+      `docs/guidelines/content-bundles.md` → *Publishing to production*. The
+      importer writes through `newSavedDayRow`, which now derives `countries`.
+   6. `pnpm --filter web db:backfill-countries` against each database (it is
+      idempotent) — it prints `coverage (>= 1 country)` for all rows and for
+      published rows. **Write those two numbers here**, then tick the box.
+
 ## Exit gate
 
 - [ ] A signed-in person rates a shared day with stars and an optional note, the

@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { pnpmMajorSkew, nodeLaneStatus, probeDeps } from "../lane-probe.mjs";
+import { pnpmMajorSkew, nodeLaneStatus, pinnedNodeMajor, probeDeps } from "../lane-probe.mjs";
 
 // --- pnpm major skew (KI-2026-09-08-b) ------------------------------------
 
@@ -47,24 +47,29 @@ test("pnpmMajorSkew returns null when it cannot tell — never a false OK", () =
   assert.equal(pnpmMajorSkew(null, null), null);
 });
 
-// --- node major vs the jsdom unit lane (KI-2026-09-02-a) ------------------
+// --- node major vs the pinned version (KI-2026-09-02-a) ------------------
 
-test("nodeLaneStatus flags Node 26, which breaks the jsdom unit lane", () => {
-  const r = nodeLaneStatus("v26.0.0");
-  assert.equal(r.status, "BLOCKED");
-  assert.equal(r.ki, "KI-2026-09-02-a");
-  assert.match(r.note, /localStorage/);
+test("nodeLaneStatus passes only the major .nvmrc pins", () => {
+  assert.equal(nodeLaneStatus("v24.21.0", 24).status, "OK");
+  for (const other of ["v22.22.2", "v26.0.0", "v20.0.0"]) {
+    const r = nodeLaneStatus(other, 24);
+    assert.equal(r.status, "BLOCKED", other);
+    assert.equal(r.ki, "KI-2026-09-02-a");
+    assert.match(r.note, /pins 24/);
+  }
 });
 
-test("nodeLaneStatus passes a supported Node and rejects one below the floor", () => {
-  assert.equal(nodeLaneStatus("v22.22.2").status, "OK");
-  assert.equal(nodeLaneStatus("v24.1.0").status, "OK");
-  assert.equal(nodeLaneStatus("v20.0.0").status, "BLOCKED");
+test("nodeLaneStatus says UNKNOWN rather than OK when either side is unreadable", () => {
+  assert.equal(nodeLaneStatus("not-a-version", 24).status, "UNKNOWN");
+  assert.equal(nodeLaneStatus(undefined, 24).status, "UNKNOWN");
+  assert.equal(nodeLaneStatus("v24.21.0", null).status, "UNKNOWN");
 });
 
-test("nodeLaneStatus says UNKNOWN rather than OK on an unreadable version", () => {
-  assert.equal(nodeLaneStatus("not-a-version").status, "UNKNOWN");
-  assert.equal(nodeLaneStatus(undefined).status, "UNKNOWN");
+test("pinnedNodeMajor reads the forms .nvmrc takes", () => {
+  assert.equal(pinnedNodeMajor("24\n"), 24);
+  assert.equal(pinnedNodeMajor("v24.21.0"), 24);
+  assert.equal(pinnedNodeMajor("lts/*"), null);
+  assert.equal(pinnedNodeMajor(null), null);
 });
 
 // --- node_modules presence (KI-2026-09-12-b) ------------------------------

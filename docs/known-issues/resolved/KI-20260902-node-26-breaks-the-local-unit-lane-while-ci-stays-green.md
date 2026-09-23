@@ -35,3 +35,32 @@
   `drizzle-kit@0.28.1` against `drizzle-orm@0.45.2`, `next-auth` floating on a
   beta, and **17 open Dependabot alerts (9 high) on `main`** that nothing in the
   repo records. Filed as KI-2026-09-05-n.
+- **Resolved 2026-09-23 — the pin (fix path, half 1), on Node 24.** Mitchell,
+  2026-09-23: *"lets make sure we use the same version across the project."*
+  The 22-vs-24 question this entry left open is answered by what production
+  runs: the Vercel project's `nodeVersion` read `24.x` (checked through the
+  Vercel API that day), so **24** it is.
+  - `.nvmrc` reads `24`. It is the one place the major is written.
+  - Every `actions/setup-node` step (`ci.yml` twice, `migrate-production.yml`,
+    `migration-pending.yml`, `import-content-production.yml`) now reads
+    `node-version-file: .nvmrc` instead of a literal `22`.
+  - `engines.node` is `24.x` in the root `package.json` and in
+    `apps/web/package.json`. The second one matters because Vercel reads
+    `engines` from the project's root directory, `apps/web`, so the dashboard
+    setting can no longer drift away from the repo on its own.
+  - `@types/node` is `^24` in every package (it was `^22` everywhere).
+  - `scripts/lane-probe.mjs` flags any major that isn't the one in `.nvmrc`,
+    not just 26. The old rule passed 22 and 24 alike, and that is how the
+    three-version spread stayed invisible.
+  - The cloud SessionStart hook (`use_pinned_node` in
+    `.claude/hooks/session-start.sh`) installs the pinned Node with the image's
+    nvm and writes the PATH to `CLAUDE_ENV_FILE`. A cloud session therefore runs
+    what CI runs, not the image's Node 22.
+
+  **Half 2 (the `localStorage` shim in `vitest.setup.ts`) was not done.** With
+  the pin in place, Node 26 is off the supported path rather than a lane that
+  has to be made to work, and the probe now says so. If a future bump to a new
+  major hits the same jsdom gap, the shim is still the answer.
+
+  **Found alongside it:** `KI-2026-09-23-e`, the production content import
+  failing to load on both 22 and 24.

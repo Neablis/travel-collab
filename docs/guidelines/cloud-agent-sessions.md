@@ -242,6 +242,21 @@ CI does not have this: the workflow sets `API_TOKEN_PEPPER: ci-pepper`
 explicitly, so a test that fails this way locally passes there — which is the
 combination most likely to be mistaken for a defect you just introduced.
 
+**For the pepper specifically this is now closed three ways (KI-2026-09-19-a,
+2026-09-23).** `setup-env.mjs` fills a blank `API_TOKEN_PEPPER=` with a freshly
+generated random key when it *creates* `.env.local` — per checkout, never
+committed; a value the example already carries is kept. It still never edits an
+`.env.local` that exists, and only prints a note if that file's pepper is
+blank. Both vitest configs default it with `||=` rather than `??=` — `??=` does
+not fire on an empty string, which is how the same blank also failed 86
+integration tests — and `playwright.config.ts` passes `API_TOKEN_PEPPER` to the
+e2e web server the same way it passes `AUTH_SECRET`. So only a hand-started
+`pnpm dev` on an **older** `.env.local` can still hit it. The app itself has no
+default and must not get one: `pepper()` fails closed, because a code default
+would key real digests with a key published in the repo and nothing would
+error.
+
+The trap is general, though — any other placeholder name lands the same way.
 Check the VALUE, not the name:
 
     v=$(grep '^API_TOKEN_PEPPER=' apps/web/.env.local | cut -d= -f2-)
@@ -356,6 +371,16 @@ Two things that follow:
 - **Do not poll as a substitute.** If no event has arrived, nothing has
   happened. Repeated `gh pr checks` was measured as a reliable time sink before
   the wake mechanism was documented at all.
+
+## Node is pinned, and the hook switches to it
+
+The image puts Node 22 on PATH. The project pins **24** in `.nvmrc`, and so do
+CI (`node-version-file: .nvmrc`), `engines`, and Vercel. The `SessionStart` hook's
+`use_pinned_node` installs the pinned version with the image's nvm (a few seconds
+the first time) and writes the PATH to `CLAUDE_ENV_FILE`, so the session's shell
+runs 24 as well. If `pnpm lanes` reports the unit lane as `BLOCKED` because of
+the Node version, that step failed, and the hook will have said why. A result
+from a different major is not a verdict (`KI-2026-09-02-a`).
 
 ## What this container can verify — run the probe
 

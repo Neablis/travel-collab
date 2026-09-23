@@ -69,7 +69,7 @@ function savedDay(over: Partial<SavedDay> = {}): SavedDay {
 
 function profile(over: Partial<PublicProfileResponse["author"]> = {}): PublicProfileResponse {
   return {
-    author: { userId: "dev-alice", displayName: "dev-alice", daysShared: 2, adds: 3, ...over },
+    author: { userId: "dev-alice", displayName: "dev-alice", daysShared: 2, adds: 3, reviewsReceived: 0, averageRating: null, ...over },
     knows: [],
     days: [],
   };

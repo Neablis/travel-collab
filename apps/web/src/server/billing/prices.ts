@@ -42,10 +42,14 @@ import {
  * gets charged one number while the page shows another.
  */
 export class PriceMismatchError extends Error {
+  readonly ref: string;
+  readonly expected: { minor: number; currency: string };
+  readonly found: { minor: number | null; currency: string; interval?: string };
+
   constructor(
-    readonly ref: string,
-    readonly expected: { minor: number; currency: string },
-    readonly found: { minor: number | null; currency: string; interval?: string },
+    ref: string,
+    expected: { minor: number; currency: string },
+    found: { minor: number | null; currency: string; interval?: string },
   ) {
     super(
       `Stripe Price for ${ref} charges ${found.minor ?? "nothing"} ${found.currency}` +
@@ -55,13 +59,19 @@ export class PriceMismatchError extends Error {
         `which changes the lookup key and therefore the Price.`,
     );
     this.name = "PriceMismatchError";
+    this.ref = ref;
+    this.expected = expected;
+    this.found = found;
   }
 }
 
 /** A version that cannot be sold was asked to be. */
 export class UnpurchasableVersionError extends Error {
-  constructor(readonly ref: string, reason: string) {
+  readonly ref: string;
+
+  constructor(ref: string, reason: string) {
     super(`${ref} cannot be bought: ${reason}`);
+    this.ref = ref;
     this.name = "UnpurchasableVersionError";
   }
 }

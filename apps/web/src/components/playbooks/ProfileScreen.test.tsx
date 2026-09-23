@@ -22,6 +22,8 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     window: { start: "07:30", end: "18:30" },
     totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
+    rating: null,
+    reviewCount: 0,
     visibility: "public",
     authorKind: "human",
     sourceTripName: "Japan",
@@ -37,7 +39,7 @@ const profile: PublicProfileResponse = {
   // server), which for `dev-alice` is "Alice" — not the raw id this fixture
   // used to carry, which the endpoint has never returned and which the page
   // now renders verbatim because it stopped re-deriving the name itself.
-  author: { userId: "dev-alice", displayName: "Alice", daysShared: 2, adds: 3 },
+  author: { userId: "dev-alice", displayName: "Alice", daysShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
   knows: [
     { city: "Kyoto", days: 2 },
     { city: "Hakone", days: 1 },
@@ -158,7 +160,7 @@ describe("a public profile", () => {
 
   it("says plainly when somebody has shared nothing", async () => {
     fetchPublicProfileMock.mockResolvedValue(
-      ok({ author: { userId: "dev-dan", displayName: "Dan", daysShared: 0, adds: 0 }, knows: [], days: [] }),
+      ok({ author: { userId: "dev-dan", displayName: "Dan", daysShared: 0, adds: 0, reviewsReceived: 0, averageRating: null }, knows: [], days: [] }),
     );
     renderProfile();
     expect(await screen.findByText("Nothing shared yet")).toBeTruthy();
@@ -174,7 +176,7 @@ describe("a public profile", () => {
   // (KI-2026-09-05-y / F-G05).
   it("heads the page with the name the endpoint resolved, not one minted from the id in the URL", async () => {
     fetchPublicProfileMock.mockResolvedValue(
-      ok({ author: { userId: "dev-alice", displayName: "A traveler", daysShared: 0, adds: 0 }, knows: [], days: [] }),
+      ok({ author: { userId: "dev-alice", displayName: "A traveler", daysShared: 0, adds: 0, reviewsReceived: 0, averageRating: null }, knows: [], days: [] }),
     );
     renderProfile();
     expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("A traveler");

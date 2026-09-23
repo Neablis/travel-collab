@@ -100,12 +100,13 @@ export async function runBatch(actor: Actor, commands: CommandInput[]): Promise<
 
 /** Throwable the wrapper turns into a response — see `PublicApiError` below. */
 export class PublicApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-    readonly code?: string,
-  ) {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(status: number, message: string, code?: string) {
     super(message);
+    this.status = status;
+    this.code = code;
     this.name = "PublicApiError";
   }
 }

@@ -75,7 +75,7 @@ apps/web/              Next.js app — UI + server, separated by a lint wall
 
 ## Getting started
 
-Prereqs: Node 22+, [pnpm](https://pnpm.io), Docker (for local Postgres).
+Prereqs: Node 24 (pinned in `.nvmrc` — `nvm use`; CI, Vercel and `engines` all read the same major), [pnpm](https://pnpm.io), Docker (for local Postgres).
 
 ```sh
 pnpm install
