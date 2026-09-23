@@ -1,0 +1,198 @@
+# M27 — The simplify pass: fewer things on screen, the invite landing, Cass, and actions that look like actions
+
+**Status: IN PROGRESS. Minted, scoped and PLACED 2026-09-23 by Mitchell ("Big
+new Design pass in the handoff … just go ahead and make all the changes and
+offer the PR when done, documenting any decisions you make"), ahead of M12.**
+M12 is unblocked by this and stays next. It's the same placement argument M26
+made: M12 adds ratings to surfaces this pass reshapes (Discover's filter menu
+and the new-trip Playbook-day turn), and it's cheaper to reshape them once.
+
+The design pass is `.design-sync/handoff/SPEC.md` §35 (commit `3363027`,
+2026-09-22), and §35.10 is its build list. This file does three things: it
+records how each §35 item maps onto the build, **every call the build made where
+the design and the code disagree**, and what is deliberately left out.
+
+---
+
+## How it was scoped
+
+Five read-only surveys (2026-09-23) compared §35 and the design-file diff with
+the working tree, one each for §35.1–2, §35.3, §35.4/5/7, §35.6 and §35.8–9. What they found that the
+spec text does not say:
+
+| Finding | Consequence |
+|---|---|
+| No theme picker exists and no look is stored anywhere. `layout.tsx` already hard-sets `data-look="ledger"` | §35.1 is CSS and comments only; no contract or migration |
+| Trips list newest-first, so a newly created trip **becomes the hero** — and §35.2 filters the hero out of *Other trips* | `createEmptyTripViaWizard` (used by ~12 e2e specs) must look for the hero, not a card link |
+| Trip lifecycle (Duplicate / Delete / Leave) lives only on `TripCard`'s menu | Filtering the hero out of the grid would orphan it on Home for a one-trip account |
+| `CreateTrip.name` is `min(1)` — the domain refuses a nameless trip | The design's *create an empty one* link has no name to send |
+| There is no `shiftTrip`; the command is `SetTripStartDate` (moves the start, keeps the day count) | The dates-pill popover dispatches that, exactly as Trip settings does |
+| The day rail shows on Plan, Calendar **and** desktop Overview today | Moving it into Plan removes it from two tabs, which is what §35.3 intends |
+| No rating or review count exists anywhere (M12's) | Discover's Filters menu cannot hold Rating; the Playbook-day turn cannot filter on rating |
+| The public invite read is not public (401 without a session) and discloses nothing about a spent or revoked link by policy (#71 review §7) | The invite landing needs a new unauthenticated read |
+| `trip_invites` has no note column and no expiry | Two of the landing's inputs do not exist |
+| `AssistantProposal` carries only `changes[].text` | A card's title / detail / button / done line must be derived, or the contract widened |
+
+---
+
+## Decisions
+
+Each one is a place where a competent engineer could reasonably have chosen
+differently. Mitchell can overturn any of them. Where there is an obvious
+alternative, it is named.
+
+**D1 — One look is a deletion, not a refold.** The `nightdesk` and `airmail`
+blocks go from `globals.css`. `@theme` stays as the base, and `data-look="ledger"`
+stays hard-set on `<html>`. *Alternative:* fold Ledger's values into `@theme` and
+drop the attribute. That changes every generated OG asset (the generator reads
+the first `--color-*` match) for no visible gain.
+
+**D2 — The hero's button stays *Open trip*.** The design says *Open plan*.
+Mitchell's review comment on #196 said *"'Open trip' not open plan"*, and it
+went to the trip, not to the Plan lens. A direct instruction outranks a label
+redrawn in a pass that did not mention it.
+
+**D3 — The hero keeps the trip's lifecycle menu.** Filtering the hero out of
+*Other trips* would leave a one-trip account with no Duplicate / Delete / Leave
+on Home. §35's own rule is *"nothing orphaned"*, so the hero carries the same
+`⋯` menu the cards do.
+
+**D4 — *create an empty one* sends a name.** It uses whatever the person typed
+or answered for *where*, otherwise **"Untitled trip"**. The domain refuses an
+empty name, and loosening `CreateTrip` would be a contract change to save one
+word.
+
+**D5 — The dates-pill popover is its own small control over `SetTripStartDate`.**
+It is not a reuse of `TripDateControl`, whose copy (*Pick the day you leave…*,
+clear-date ✕) is the settings version. The popover carries §35.3's copy and
+commits on change, the way the settings control does.
+
+**D6 — `docFrom` is a query parameter.** Overview's **Edit** links to
+`/trips/:id/pages/:pageId?from=overview`, which opens the page in edit mode. The
+breadcrumb's first crumb reads `← <Trip> overview` and returns to Overview. From
+anywhere else it reads `← <Trip>` and returns to the trip. Overview's Edit is now
+hidden for read-only viewers; before this it showed.
+
+**D7 — Account keeps `?tab=tokens` as the tokens sub-view's URL.** It is not a
+tab: two tabs render, and on the sub-view neither is selected. A deep link to
+`?tab=tokens` still lands on the tokens surface, and so does Plans' back link.
+**The *Home time on hover* row is not built.** It was amended out of M17
+because there is no home-airport timezone, so only Distance's help text changes.
+
+**D8 — Discover's Filters menu holds Budget and Length, and the intro drops
+"and rated".** Rating is M12's. The design's intro, *Days other people planned
+and rated*, would claim a rating nobody can give yet. It reads *Days other
+people planned. Find one for your city and drop it into your trip.* M12 puts
+the words back when it puts the ratings in. *There were never shape bars in
+the build*, so that half of §35.5 is already true.
+
+**D9 — The invite landing ships `valid`, `revoked` and `member`. `expired`
+waits for an expiry model.**
+- Invites have never expired: `InviteStatus`'s own comment says so. Adding a
+  14-day lifetime would kill every live link older than two weeks the day it
+  deploys. That is a product call with a migration, so it is not made from a
+  design annotation.
+- **Ask Dana for a new link** also has no channel to send on, because nothing
+  in the app sends mail.
+- `expired` is recorded as owed, not drawn half-working.
+
+**D10 — The revoked state does not name the inviter.** The design's *Dana took
+this invite back* reverses the nondisclosure rule the #71 review put on spent
+and revoked links. The screen reads *This invite was taken back*. The
+`valid` state does name the inviter and the crew: the token is the credential
+(ADR-026), and a valid holder can join and see all of it anyway.
+
+**D11 — There is no invite note.** `trip_invites` has no note column and the
+invite form has no field for one. The blockquote is drawn only when a note
+exists, and today none does. Adding a note means a migration plus a field in
+Travellers, which is wider than a design parity pass.
+
+**D12 — *Have a look first* is a token-keyed read-only view, the same shape as
+the demo.** A pending invite's token grants a synthetic **viewer** on exactly
+that trip, on the same read routes `allowDemo` opens. It never writes and never
+reaches another trip. It is carried as a request header by the one screen that
+renders it. The banner's action is **Join the trip**, which goes through sign-in
+and back to the landing.
+
+**D13 — The Playbook-day turn ranks by *adds*, not rating.**
+- There are no ratings (M12). The turn offers up to three published days for
+  the answered city, most-added first, with at least one add, and it is
+  skipped when there are none or when the read fails.
+- Its copy says what the number is: *People planning Kyoto keep adding these
+  days*, and the meta reads *Added to 12 trips*, not *★ 4.9 · 214 reviews*.
+- M12 swaps the ranking and the copy. Its file carries the note.
+- The chosen days are inserted into the trip after it is created, through the
+  existing `POST /api/trips/:id/saved-days/:savedDayId`.
+- This is the first network read inside the new-trip turns. It is a read, it
+  is never a model call, and it can never block the script, so §30.2's billing
+  argument is unaffected.
+
+**D14 — The typing row is built, and §30.2's "no fake delay" is superseded by
+§35.8.** The tests that asserted the opposite are rewritten, not worked around.
+The row is presentation over the local script; nothing waits on the network.
+Reduced motion turns the dots' animation off. It does not shorten the pause.
+
+**D15 — The design's `who` acknowledgements have no turn to attach to.**
+Mitchell dropped `who` on 2026-09-15, so they are not built.
+
+**D16 — Proposal cards derive their words from the proposal. The contract is
+not widened.**
+- **Title:** the single change's text, or *N changes*.
+- **Detail:** the remaining changes, or the skipped line.
+- **Accept:** *Make the change*.
+- **Done:** the server's apply message.
+- *Alternative:* add `title` / `yes` / `done` to `AssistantProposal` and have
+  the model write them. That is a contracts change for words the client can
+  already compose.
+
+**D17 — Undo on an accepted card is offered only while nothing has happened
+since.**
+- Undo dispatches the trip's `UndoLastChange`, which undoes the last batch.
+  Once anyone else has written, that would undo *their* change.
+- So Undo shows only while the apply is still the trip's last change. After
+  that the card says so, and points at History (§35.10's conflict path).
+
+---
+
+## Out of scope, on purpose
+
+- Rating anywhere: Discover's filter, the Playbook-day turn's threshold, and
+  *★ reviews* meta. **M12.**
+- Invite expiry and *Ask for a new link*: **D9**. The invite note: **D11**.
+- The paid half of the new-trip fork (§30.3's live redraw). It stays M9's
+  `wizard-assistant-draft` Preview.
+- Renaming the in-trip assistant panel to Cass. §35.8 says explicitly not to.
+
+---
+
+## Links
+
+| # | Link | §35 | Owner files (roughly) |
+|---|---|---|---|
+| 1 | One look | 35.1 | `globals.css`, `layout.tsx`, `transcriptLook.test.ts` |
+| 2 | Your trips quieter; new-trip sheet links and footer on demand | 35.2 | `app/(app)/page.tsx`, `components/home/*`, `e2e/helpers.ts` |
+| 3 | The trip page: rail into Plan, dates pill, Overview letter, breadcrumb | 35.3 | `TripHeader`, `TripMetaPill`, `TripBoardScreen`, `OverviewLens`, `PageScreen` |
+| 4 | Account has two tabs | 35.4 | `components/account/*` |
+| 5 | Discover has one Filters menu | 35.5 | `components/playbooks/*` |
+| 6 | The invite landing and *having a look* | 35.6 | `server/access/*`, `packages/contracts/src/access.ts`, `app/(front)/invite/**`, `proxy.ts` |
+| 7 | Keep several days: the preview and the city label | 35.7 | `KeepDayDialog`, `KeepDayFlag`, `Board` |
+| 8 | Cass, the typing row, the Playbook-day turn, answer pills | 35.8, 35.9 | `newTripScript`, `NewTripWizard`, `Transcript` |
+| 9 | Proposal cards | 35.9 | `ProposalCard`, `TripBoardScreen` |
+
+## Exit gate
+
+- [ ] Links 1–9 merged; `pnpm check` green; `test:e2e:ci-like` green (or each
+      failure named with its KI)
+- [ ] **[walk]** Home with two trips: the header has **New trip** only; the hero
+      shows one actionable line and no tiles; *Other trips* does not repeat the
+      hero
+- [ ] **[walk]** A trip's header is the same height on Overview, Plan, Calendar
+      and Map; the dates pill moves the trip's start
+- [ ] **[walk]** Overview's **Edit** opens the page, and the first crumb returns
+      to Overview
+- [ ] **[walk]** A signed-out visitor opening an invite link sees the landing;
+      **Have a look first** shows the trip read-only; **Join** lands in the trip
+- [ ] **[walk]** New trip for a city with published days offers them after the
+      city, and a chosen day is on the created trip
+- [ ] **[walk]** Asking the assistant for a change shows a card; accept, then
+      Undo, puts the trip back
