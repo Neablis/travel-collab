@@ -64,5 +64,80 @@
   A second occurrence is the thing to wait for, and the entry above says what
   to capture when it comes.
 
+- **SECOND OCCURRENCE, 2026-09-23 — and it narrows the chain from eight hops to
+  three while eliminating this entry's own named suspect.**
+
+  CI's `static-and-unit` on `e30ca61` (PR #203, run 35804997292) reported
+  **`1 failed | 3545 passed | 1 skipped`**, the only failure being the test
+  **next door in the same `describe`**:
+
+  ```
+  FAIL src/components/trip/context/TripProvider.test.tsx
+    > TripProvider broadcast (M13 link 2)
+    > bumps remoteRevision so readers of its own tables can re-read
+  AssertionError: expected '0' to be '1'
+  ```
+
+  That is `TripProvider.test.tsx:1083`, the `waitFor` on `remoteRevision`.
+  PR #203 touches a Playwright config, two Node scripts, a lint wall, a
+  CodeRabbit config and prose — **no product code at all**, and nothing it
+  changes is reachable from a jsdom unit test. That file alone passed 5/5
+  locally on the same commit.
+
+  **THE NARROWING, and it is read off the source rather than guessed.**
+  `TripProvider.onRemoteChange` opens with
+
+  ```ts
+  setRemoteRevision((n) => n + 1);
+  void (async () => { /* invalidate, two cachedReads, adoptOutcome */ })();
+  ```
+
+  The bump is the **first statement, synchronous, before any await** — and the
+  comment above it says why (*"Bumped FIRST, and outside the async body on
+  purpose"*). So `remoteRevision` still reading `0` proves **`onChanged()` was
+  never called at all**. Everything downstream of it — invalidate, the two
+  `cachedRead`s, `adoptOutcome`, the adopting render — is exonerated, because
+  none of it had started.
+
+  That leaves three hops of the eight this entry listed:
+  `visibilitychange → poll → fetchTripEvents → (resync || headSeq > before)`.
+
+  **It also retires this entry's honest suspect.** The entry names the
+  `setRemoteRevision` bump as *"one render between the poll landing and the
+  adoption"*. It cannot be: the bump is the step that did not happen, so it
+  cannot be what delayed the steps after it. And `POLL_INTERVAL_MS` does not
+  discriminate either — both 5000 and 2000 are longer than `waitFor`'s 1000ms
+  budget, so a missed immediate poll fails the assertion at either value.
+
+  **One candidate inside the surviving three is ruled out by arithmetic.** A
+  cursor already at 2 (so `headSeq > before` is false) requires a prior
+  interval poll to have already fired `onChanged` — which would itself have
+  bumped `remoteRevision` to `1` and made the test pass. So the failure is not
+  "the poll ran and found nothing".
+
+  **What is NOT established, said plainly.** Why the poll did not run. The
+  remaining candidates are the `enabled` gate (`status === "ready" && … &&
+  members.length > 1`) not yet being true when `becomeVisible()` fires, so
+  `useTripBroadcast`'s effect has not attached the `visibilitychange` listener
+  — after which the next poll is a full interval away, past the budget. Against
+  that: `setOptimistic` and `setStatus("ready")` are back-to-back in one async
+  continuation and React batches them into a single commit, so `dayCount`
+  reaching `1` and `enabled` turning true should be the same render. Not
+  proven, not disproven, and not reproducible locally — recorded as the place
+  to look, not as an answer.
+
+  **Still not fixed by raising the timeout**, for the reason below, which the
+  second occurrence strengthens rather than weakens: whatever this is, it stops
+  the poll, and a poll that does not run is the product behaviour M13 link 2
+  exists for.
+
+  **Two observations, both CI-only, both on commits that cannot have caused
+  them** (a `docs/STATUS.md` edit, then a tooling-and-prose PR). The shape is
+  now consistent enough that the next step is instrumentation rather than
+  another re-run: a temporary probe for `enabled` on `RemoteProbe`, or the
+  `waitFor` budget raised in a throwaway branch purely to read late-versus-
+  never. Deliberately not done from PR #203, which has no business touching
+  this file.
+
 - **Found by:** CI, 2026-09-22, on a docs-only commit.
 - **First noted:** 2026-09-22.
