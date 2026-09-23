@@ -249,20 +249,20 @@ against the milestone link that owns the screen before writing code
 
 | Route | Where it is drawn | Spec | Notes |
 |---|---|---|---|
-| `/` | `isHome` · line 1442 | §28, §32 | Trips, the new-trip fork and the import entry |
+| `/` | `isHome` · line 1456 | §28, §32 | Trips, the new-trip fork and the import entry |
 | `/trips/[tripId]` | `isTrip` · line 1740 | §24, §25 | The four tabs; Overview is a notebook page |
-| `/trips/[tripId]/pages` | `isNotebook` · line 3577 | §7, §18, §19 | Notebook index |
-| `/trips/[tripId]/pages/[pageId]` | `isDoc` · line 3672 | §18, §21, §26 | One page, and the widget framework |
-| `/playbooks` | `isPlaybooks` · line 2436 | §15, §33 | Discover — §33 re-sorts the header by kind of decision |
-| `/playbooks/day/[savedDayId]` | `isDay` · line 2677 | §15, §16, §33 | The shared day; §16 gives it a map, §33 gives it day scope |
-| `/playbooks/board` | `isBoard` · line 3477 | §15 | Leaderboard |
-| `/playbooks/profile/[userId]` | `isProfile` · line 3511 | §15 | Public profile |
-| `/plans` | `isPlansRoute` · line 3184 | §29, §34 | §34.3 adds the phone treatment |
-| `/account` | `isAccountRoute` · line 2928 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
-| `/admin` | `isAdminRoute` · line 3316 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
-| `/welcome` | `isDeskLanding` · line 4608 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
-| `/signin` | `isSignin` · line 5021 | §14, §28 | Inside the `isAuth` block |
-| `/signup` | `isSignup` · line 5018 | §14, §28 | Inside the `isAuth` block |
+| `/trips/[tripId]/pages` | `isNotebook` · line 3584 | §7, §18, §19 | Notebook index |
+| `/trips/[tripId]/pages/[pageId]` | `isDoc` · line 3679 | §18, §21, §26 | One page, and the widget framework |
+| `/playbooks` | `isPlaybooks` · line 2442 | §15, §33 | Discover — §33 re-sorts the header by kind of decision |
+| `/playbooks/day/[savedDayId]` | `isDay` · line 2678 | §15, §16, §33 | The shared day; §16 gives it a map, §33 gives it day scope |
+| `/playbooks/board` | `isBoard` · line 3484 | §15 | Leaderboard |
+| `/playbooks/profile/[userId]` | `isProfile` · line 3518 | §15 | Public profile |
+| `/plans` | `isPlansRoute` · line 3191 | §29, §34 | §34.3 adds the phone treatment |
+| `/account` | `isAccountRoute` · line 2929 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
+| `/admin` | `isAdminRoute` · line 3323 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
+| `/welcome` | `isDeskLanding` · line 4699 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
+| `/signin` | `isSignin` · line 5112 | §14, §28 | Inside the `isAuth` block |
+| `/signup` | `isSignup` · line 5109 | §14, §28 | Inside the `isAuth` block |
 | `/demo` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
 | `/s/[token]` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
 | `/invite/[token]` | _not drawn_ | §17 | Undrawn. The gate it leads to is §17.3, in Trip settings |
