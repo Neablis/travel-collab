@@ -535,11 +535,11 @@
             "end": "13:00"
           },
           "location": {
-            "name": "Nha Hang De Nui",
+            "name": "Tien Dat Restaurant",
             "city": "Ninh Binh",
             "area": "Tam Coc",
-            "lat": 20.55431,
-            "lng": 105.793729
+            "lat": 20.216694,
+            "lng": 105.939614
           },
           "kind": "planned",
           "tags": [

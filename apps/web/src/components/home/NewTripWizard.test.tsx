@@ -105,6 +105,8 @@ function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDay
     window: null,
     preview: [],
     totalCost: null,
+    rating: null,
+    reviewCount: 0,
     visibility: "public",
     authorKind: "human",
     sourceTripName: "Portugal",

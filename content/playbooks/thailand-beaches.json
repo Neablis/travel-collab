@@ -827,8 +827,8 @@
             "name": "Pileh Lagoon, Koh Phi Phi Leh",
             "city": "Ko Phi Phi",
             "area": "Phi Phi Leh",
-            "lat": 7.74044,
-            "lng": 98.772
+            "lat": 7.6831,
+            "lng": 98.767677
           },
           "kind": "planned",
           "tags": [
@@ -846,8 +846,8 @@
             "name": "Maya Bay, Koh Phi Phi Leh",
             "city": "Ko Phi Phi",
             "area": "Phi Phi Leh",
-            "lat": 7.74044,
-            "lng": 98.772
+            "lat": 7.676625,
+            "lng": 98.766117
           },
           "kind": "planned",
           "tags": [
@@ -892,8 +892,8 @@
             "name": "Hat Yao (Long Beach)",
             "city": "Ko Phi Phi",
             "area": "Long Beach",
-            "lat": 7.75224,
-            "lng": 98.776643
+            "lat": 7.729414,
+            "lng": 98.787048
           },
           "kind": "planned",
           "tags": [
@@ -915,8 +915,8 @@
             "name": "Hat Yao (Long Beach) beachfront",
             "city": "Ko Phi Phi",
             "area": "Long Beach",
-            "lat": 7.75224,
-            "lng": 98.776643
+            "lat": 7.729414,
+            "lng": 98.787048
           },
           "kind": "planned",
           "tags": [

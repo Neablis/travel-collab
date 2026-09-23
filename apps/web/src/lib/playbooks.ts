@@ -18,14 +18,16 @@ import { CityMatch } from "@/lib/cities";
 // so that promotion is a cut and paste.
 
 /**
- * The two sorts M11b ships, and **not** §15's four.
+ * §15's four sorts. M11b shipped the first and last; `highest-rated` and
+ * `most-reviewed` waited for M12's reviews table, because a sort over data that
+ * does not exist is a control that does nothing (project rule 2).
  *
- * `highest-rated` and `most-reviewed` need a reviews table that does not exist
- * until M12, and the milestone's own reasoning for dropping the rating floor
- * applies to them verbatim: a control over data that does not exist is a
- * control that does nothing (project rule 2). Restored with the reviews.
+ * `highest-rated` orders on `saved_days.rating` descending with unrated days
+ * LAST and `review_count` breaking ties — a 5.0 from one review should not sit
+ * above a 4.9 from forty only by accident of the tie-break. `most-reviewed` is
+ * `review_count` descending. Both after the matched-city count, like the others.
  */
-export const DiscoverSort = z.enum(["most-added", "newest"]);
+export const DiscoverSort = z.enum(["most-added", "highest-rated", "most-reviewed", "newest"]);
 export type DiscoverSort = z.infer<typeof DiscoverSort>;
 
 /**
@@ -203,6 +205,31 @@ export const LENGTH_BAND_LABELS: Record<LengthBand, string> = {
   "seven-plus": "7+ days",
 };
 
+/**
+ * §15's fourth filter: a minimum average rating (M12 D9).
+ *
+ * A real SQL predicate (`d.rating >= X`), like the length band, so it narrows
+ * before the candidate window truncates. Any floor above `any` excludes unrated
+ * days — "4+ stars" is a claim about ratings a day does not have. The values
+ * are the strings that travel in `?rating=`.
+ */
+export const RatingFloor = z.enum(["any", "3", "4", "4.5"]);
+export type RatingFloor = z.infer<typeof RatingFloor>;
+
+/** The minimum each floor admits, inclusive. One table for the predicate and the labels. */
+export const RATING_FLOOR_MIN: Record<Exclude<RatingFloor, "any">, number> = {
+  "3": 3,
+  "4": 4,
+  "4.5": 4.5,
+};
+
+export const RATING_FLOOR_LABELS: Record<RatingFloor, string> = {
+  any: "Any rating",
+  "3": "3+ stars",
+  "4": "4+ stars",
+  "4.5": "4.5+ stars",
+};
+
 export const BudgetBand = z.enum(["any", "under200", "200to500", "500to1000", "over1000"]);
 export type BudgetBand = z.infer<typeof BudgetBand>;
 
@@ -317,6 +344,12 @@ export const DiscoverDay = z.object({
    */
   totalCost: Money.nullable(),
   adds: z.number().int().nonnegative(),
+  /**
+   * The average of the day's visible reviews, or null when it has none — the
+   * denormalised `saved_days.rating` (M12 link 2), read as stored.
+   */
+  rating: z.number().min(1).max(5).nullable(),
+  reviewCount: z.number().int().nonnegative(),
   visibility: z.enum(["private", "public"]),
   /**
    * Who wrote the day — what the card's "AI starter" mark reads (see
@@ -418,6 +451,17 @@ export const PublicAuthor = z.object({
    * board ranks on the ledger and nothing else.
    */
   adds: z.number().int().nonnegative(),
+  /**
+   * Visible reviews across this person's published days (M12 link 5) — the sum
+   * of those days' `review_count`.
+   */
+  reviewsReceived: z.number().int().nonnegative(),
+  /**
+   * The average over every one of those reviews, or null with none: weighted
+   * by each day's `review_count`, so it is the mean of the reviews and not a
+   * mean of per-day means that a one-review day would skew.
+   */
+  averageRating: z.number().min(1).max(5).nullable(),
 });
 export type PublicAuthor = z.infer<typeof PublicAuthor>;
 

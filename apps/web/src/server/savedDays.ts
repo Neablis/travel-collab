@@ -9,7 +9,7 @@ import {
   type SavedDay,
   type TripDetail,
 } from "@tc/contracts";
-import { citiesOfSequence } from "@tc/domain";
+import { citiesOfSequence, countriesOfStops } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
@@ -256,6 +256,18 @@ export function newSavedDayRow(input: {
     // which writes the ledger row in the same statement pair; see the schema
     // note on `saved_days.adds`.
     adds: 0,
+    // Nobody has reviewed it either; the review write path recomputes both
+    // from `saved_day_reviews` (see the schema note on `saved_days.rating`).
+    rating: null,
+    reviewCount: 0,
+    // `cities`' sibling (M12 link 7), snapshotted here for the same reason.
+    // `countriesOfStops` rather than a per-day fold: a country set's order
+    // means nothing, and this is the exact call the backfill makes through
+    // `savedDayCountries.ts`, so the two writers agree byte-for-byte.
+    countries: countriesOfStops(input.stops),
+    // Not moderated. Only an operator action moves these.
+    moderatedAt: null,
+    moderationNote: null,
     // Moves with `visibility` and only with it (see `setSavedDayVisibility`):
     // a row that is public has a publish time, a row that is private has none.
     publishedAt: visibility === SavedDayVisibility.enum.public ? input.createdAt : null,
@@ -369,7 +381,12 @@ export async function readableSavedDay(
         isNull(savedDays.deletedAt),
         or(
           eq(savedDays.ownerId, readerId),
-          eq(savedDays.visibility, SavedDayVisibility.enum.public),
+          // Published AND not moderated (M12 link 6). The author keeps their
+          // moderated day — this is also their direct read and the insert path
+          // into their own trips — while everyone else gets the same no-row a
+          // private day produces: nobody else can open,
+          // insert or report a moderated day.
+          and(eq(savedDays.visibility, SavedDayVisibility.enum.public), isNull(savedDays.moderatedAt)),
         ),
       ),
     );

@@ -26,7 +26,7 @@ import { BASE_URL } from "@/config";
 import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { inviteLookHeaders } from "@/lib/inviteLook";
-import { CitySearchResponse, type CityMatch } from "@/lib/cities";
+import { CitySearchResponse, PlaceSearchResponse, type CityMatch, type PlaceMatch } from "@/lib/cities";
 import {
   DiscoverResponse,
   LeaderboardResponse,
@@ -713,6 +713,20 @@ export async function searchCities(q: string): Promise<ApiResult<CityMatch[]>> {
 }
 
 /**
+ * Cities AND countries whose name starts with `q`, labelled by kind (M12 link
+ * 7) — `searchCities`' successor, on its terms: the server answers a blank `q`,
+ * and the caller debounces.
+ */
+export async function searchPlaces(q: string): Promise<ApiResult<PlaceMatch[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/places?q=${encodeURIComponent(q)}`));
+    return await readJson(res, (data) => PlaceSearchResponse.parse(data).places);
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
  * Discover's day search (M11b link 5).
  *
  * `city` is repeated rather than comma-joined — a city name may contain a
@@ -721,6 +735,8 @@ export async function searchCities(q: string): Promise<ApiResult<CityMatch[]>> {
  */
 export async function searchPlaybooks(query: {
   cities?: readonly string[];
+  /** ISO alpha-2 codes, repeated as `?country=` like `city` (M12 link 7). */
+  countries?: readonly string[];
   scope?: DiscoverScope;
   sort?: DiscoverSort;
   budget?: BudgetBand;
@@ -728,6 +744,7 @@ export async function searchPlaybooks(query: {
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
+  for (const country of query.countries ?? []) params.append("country", country);
   if (query.scope) params.set("scope", query.scope);
   if (query.sort) params.set("sort", query.sort);
   if (query.budget) params.set("budget", query.budget);

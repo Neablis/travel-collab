@@ -1,4 +1,4 @@
-### KI-2026-09-19-a — a freshly bootstrapped local env has no `API_TOKEN_PEPPER`, and the M22 e2e spec fails as if the token UI were broken
+### KI-2026-09-19-a — a freshly bootstrapped local env has no `API_TOKEN_PEPPER`, and the M22 e2e spec fails as if the token UI were broken — RESOLVED
 
 > **Scope, narrowed 2026-09-19 after Mitchell's correction — read this first.**
 > **Every deployed environment already carries this variable.** Checked against
@@ -128,3 +128,30 @@
   `AI_LIVE` check is the precedent for fix 2.
 - **First noted:** 2026-09-19, running M25's Definition of Done. Scope narrowed
   the same day, by Mitchell.
+- **Resolved:** 2026-09-23. Neither option above as written: Mitchell's call was
+  to keep both the example file and the app free of any pepper value, and close
+  the gap at every local entry point instead. **`pepper()` is unchanged and
+  still fails closed** — a code default would only ever be used where the real
+  variable went missing, keying digests with a key published in the repo, and
+  nothing would error.
+  1. `scripts/setup-env.mjs` fills a blank `API_TOKEN_PEPPER=` with
+     `randomBytes(32).toString("base64")` when it **creates** `.env.local`; a
+     value the example carries is kept. An existing `.env.local` is still
+     never edited — the script only prints a note when its pepper is blank.
+  2. `apps/web/vitest.config.ts` and `vitest.setup.ts`: `??=` → `||=`, so an
+     empty value counts as missing.
+  3. `apps/web/playwright.config.ts` passes
+     `API_TOKEN_PEPPER: process.env.API_TOKEN_PEPPER || "e2e-pepper"` to the
+     web server, next to `AUTH_SECRET`.
+
+  **Proof**, each with the value blank (`API_TOKEN_PEPPER=` in env or in
+  `.env.local`): `apiTokens.int.test.ts` went `20 failed | 6 passed (26)` →
+  `26 passed (26)` on the `||=` change alone; the whole `test:int` lane is
+  `64 passed (64)`, `827 passed`. `m22-api-tokens.spec.ts` under
+  `test:e2e:ci-like` is `2 passed`; with the playwright line reverted it fails
+  with this entry's exact symptom (`getByTestId('token-revealed')` … `element(s)
+  not found`, `ApiTokenPepperMissingError` in the server log). Regression test:
+  `scripts/__tests__/setup-env.test.mjs` (blank filled, real value kept, two
+  runs never share a key, existing file untouched) — 3 of 4 red against the old
+  script, and the "kept" case red when the blank-match regex is widened to
+  any value.

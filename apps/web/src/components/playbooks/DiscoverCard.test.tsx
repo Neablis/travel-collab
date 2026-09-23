@@ -25,6 +25,8 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     ],
     totalCost: null,
     adds: 2,
+    rating: null,
+    reviewCount: 0,
     visibility: "public",
     authorKind: "human",
     sourceTripName: "Japan",

@@ -184,15 +184,17 @@ export async function previewPlanChange(input: {
 
 /** The version shown on the confirm step is no longer the version being sold. */
 export class StalePlanVersionError extends Error {
-  constructor(
-    readonly shown: string,
-    readonly live: string,
-  ) {
+  readonly shown: string;
+  readonly live: string;
+
+  constructor(shown: string, live: string) {
     super(
       `The confirm step was rendered against ${shown} and ${live} is what is published now. ` +
         `Re-render with the new numbers rather than charging the old amount (SPEC §29).`,
     );
     this.name = "StalePlanVersionError";
+    this.shown = shown;
+    this.live = live;
   }
 }
 

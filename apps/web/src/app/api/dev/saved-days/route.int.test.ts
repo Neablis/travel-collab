@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JAPAN_SAVED_DAYS, STARTER_SAVED_DAYS } from "@tc/fixtures";
 import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
+import { deleteReview, putReview } from "@/server/reviews";
+import { reviewCounterDrift } from "@/server/test-support/reviewCounters";
 
 // The cities each fixture day covers, read off its stops by hand. The seeder
 // derives these through the domain's rule; this table is the independent
@@ -200,6 +202,56 @@ describe("POST /api/dev/saved-days", () => {
         .from(savedDays)
         .where(eq(savedDays.id, fixture.savedDayId));
       expect(row[0]!.adds).toBe(fixture.addedBy.length);
+    }
+  });
+
+  // A re-seed deletes and rewrites the rows under the same ids, and
+  // `newSavedDayRow` writes them unreviewed. The reviews on them are not the
+  // seed's to delete, so the counters are recomputed from them instead —
+  // without that, every re-seed zeroed a reviewed day's rating (M12 link 2).
+  it("keeps the review counters true to the reviews across a re-seed", async () => {
+    openGate();
+    expect((await POST()).status).toBe(200);
+    const day = SEEDED.find((d) => d.visibility === "public")!;
+    const reviewer = `seed-reviewer-${randomUUID()}`;
+    expect((await putReview(day.savedDayId, reviewer, { stars: 4, note: null })).kind).toBe("saved");
+
+    expect((await POST()).status).toBe(200);
+    const [row] = await db
+      .select({ rating: savedDays.rating, reviewCount: savedDays.reviewCount })
+      .from(savedDays)
+      .where(eq(savedDays.id, day.savedDayId));
+    expect(row).toEqual({ rating: 4, reviewCount: 1 });
+    expect(await reviewCounterDrift(IDS)).toEqual([]);
+
+    await deleteReview(day.savedDayId, reviewer);
+  });
+
+  // The same rewrite would otherwise clear `moderated_at` — `newSavedDayRow`
+  // writes a fresh row with none — and republish a day an operator had hidden.
+  it("keeps a moderated day moderated across a re-seed", async () => {
+    openGate();
+    expect((await POST()).status).toBe(200);
+    const day = SEEDED.find((d) => d.visibility === "public")!;
+    const hiddenAt = new Date("2026-09-20T12:00:00.000Z");
+    await db
+      .update(savedDays)
+      .set({ moderatedAt: hiddenAt, moderationNote: "spam" })
+      .where(eq(savedDays.id, day.savedDayId));
+
+    try {
+      expect((await POST()).status).toBe(200);
+      const [row] = await db
+        .select({ moderatedAt: savedDays.moderatedAt, moderationNote: savedDays.moderationNote })
+        .from(savedDays)
+        .where(eq(savedDays.id, day.savedDayId));
+      expect(row).toEqual({ moderatedAt: hiddenAt, moderationNote: "spam" });
+    } finally {
+      // Fixed ids, shared with every other file's reads of the demo library.
+      await db
+        .update(savedDays)
+        .set({ moderatedAt: null, moderationNote: null })
+        .where(eq(savedDays.id, day.savedDayId));
     }
   });
 });

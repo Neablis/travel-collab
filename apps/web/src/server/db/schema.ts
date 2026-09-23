@@ -2,13 +2,17 @@ import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
+  check,
+  doublePrecision,
   index,
   integer,
   jsonb,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -18,6 +22,9 @@ import type {
   GrantSource,
   PlanId,
   Origin,
+  ReportReason,
+  ReportStatus,
+  ReportTargetKind,
   SavedDayAuthorKind,
   SavedDayVisibility,
   SavedStop,
@@ -523,6 +530,51 @@ export const savedDays = pgTable(
     // Nothing may increment it except the path that inserts a ledger row, or
     // the two disagree and the board's credibility goes with them.
     adds: integer("adds").notNull().default(0),
+    // The two denormalised counters over `saved_day_reviews` (M12 link 2), on
+    // `adds`' terms exactly: the review rows are the authority, these exist so
+    // Discover can sort and floor on rating without an aggregate per card, and
+    // both are RECOMPUTED from the rows (never ++/--) in the same transaction as
+    // every review write or hide. Hidden reviews count in neither.
+    //
+    // `rating` is null exactly when `review_count` is 0 — "nobody has rated
+    // this yet" is a state, and a 0.0 would rank an unrated day below a
+    // one-star one. `double precision` rather than `numeric`: it is an average
+    // for sorting and display, never money, and a JS number is what reads it.
+    rating: doublePrecision("rating"),
+    reviewCount: integer("review_count").notNull().default(0),
+    // The countries this day touches, as ISO-3166 alpha-2 codes — `cities`'
+    // sibling, derived at save time by `countriesOfStops` (M12 link 7), with
+    // `cities`' reasons for being a `text[]` column and its GIN index.
+    //
+    // Codes and never names: names are `Intl.DisplayNames`, which is
+    // locale-dependent and runs in JS, so a stored English label would be a
+    // fact that goes stale the day anyone wants another language. Defaulted to
+    // the empty array so this lands without a rewrite; the backfill fills it.
+    countries: text("countries").array().notNull().default([]),
+    // An operator took this day out of the library (M12 link 6). Null = not
+    // moderated. A moderated day leaves every non-owner surface — Discover,
+    // the board, profiles, place search, the shared-day read — and stays in
+    // its owner's library.
+    //
+    // A column of its own and NOT a third `visibility` member, although
+    // `SavedDayVisibility`'s docstring anticipated one: the author's own
+    // publish/unpublish must not undo a moderator's decision, and folding the
+    // two into one field is exactly how it would. Independent axes, so neither
+    // writer can overwrite the other. `moderation_note` is the operator's one
+    // line on why, shown to the author.
+    //
+    // **Every non-owner read filters on it, `deletedAt`'s risk exactly.** The
+    // list: `savedDays.ts` (`readableSavedDay` — the shared-day read, insert
+    // and report paths, non-owners only), `playbooks.ts` (`notModerated` in
+    // `publishedDayCount`, `review_totals`, `leaderboard`, `publicAuthor` and
+    // `citiesKnownBy`; `notModeratedUnlessMine` in `matchPredicate`, which
+    // keeps the owner's own day in Discover but not on their profile) and
+    // `cities.ts` (`searchCities`). NOT filtered, deliberately: `listSavedDays`
+    // and `getSavedDay`, the owner's library. The only writer is `reports.ts`.
+    //
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    moderatedAt: timestamp("moderated_at", { withTimezone: true, mode: "date" }),
+    moderationNote: text("moderation_note"),
     // When this day was last made public — null while it is private, set when
     // `visibility` flips to "public", cleared on unpublish. The two only ever
     // move together, in `setSavedDayVisibility` and nowhere else.
@@ -583,6 +635,11 @@ export const savedDays = pgTable(
     // pattern is known the day the column is designed, and adding it later is a
     // second migration for a table that already knew.
     index("saved_days_day_count").on(t.dayCount),
+    // Country containment, for the reason `saved_days_cities` gives.
+    index("saved_days_countries").using("gin", t.countries),
+    // No index for the rating sorts: they order a set the predicates above
+    // have already narrowed and `CANDIDATE_LIMIT` caps, the same position the
+    // unindexed `adds` sort has always been in.
   ],
 );
 
@@ -625,6 +682,92 @@ export const savedDayAdds = pgTable(
   // No separate index on `saved_day_id`: the primary key leads with it, so
   // "how many times was this day added" already has one.
   (t) => [primaryKey({ columns: [t.savedDayId, t.tripId] })],
+);
+
+// Reviews of a published Playbook (M12 link 1). One row per (saved day,
+// reviewer) — the whole sequence, not a day inside it (M12 D1).
+//
+// **An ordinary table, and it must not enter the event log.** A review is not
+// trip state: it is not versioned, not undoable and in no trip's history —
+// ADR-029's reasoning for saved days, applied one table over.
+//
+// **The composite primary key is "one review per person per day", made true
+// by construction** — `saved_day_adds`' argument. A second post is an upsert
+// on the key, not a read-then-write a caller could forget or race.
+//
+// `saved_days.rating` / `review_count` are derived from these rows and never
+// the other way round; `hidden_at` (a moderator's, M12 link 6) takes a row out
+// of both without deleting what the reviewer wrote.
+export const savedDayReviews = pgTable(
+  "saved_day_reviews",
+  {
+    savedDayId: uuid("saved_day_id").notNull(),
+    // A `users.id`, on the same no-foreign-key terms as `events.actor_id`
+    // (ADR-025).
+    reviewerId: text("reviewer_id").notNull(),
+    stars: smallint("stars").notNull(),
+    note: text("note"),
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  // The contract (`ReviewStars`, `ReviewNote`) is where a bad value is refused
+  // with a message; these are the backstop for a writer that skipped it.
+  // `char_length` counts code points, which is why `ReviewNote` does too.
+  //
+  // No index on `reviewer_id`: no query asks "which reviews did I write" yet,
+  // and `invite_codes` sets the precedent for not indexing one nobody makes.
+  // "The reviews of this day" is served by the primary key, which leads with it.
+  (t) => [
+    primaryKey({ columns: [t.savedDayId, t.reviewerId] }),
+    check("saved_day_reviews_stars", sql`${t.stars} between 1 and 5`),
+    check("saved_day_reviews_note_length", sql`char_length(${t.note}) <= 140`),
+  ],
+);
+
+// Reports against a published day or a review (M12 link 6), and the
+// operator's queue over them. Ordinary CRUD, like the reviews above.
+//
+// A review has no id of its own, so a review target is (`saved_day_id`,
+// `review_author_id`) — the reviews table's own key — and a day target leaves
+// `review_author_id` null. The CHECK holds `target_kind` and that column to
+// the same story, so no row can claim to be about a review without naming one.
+//
+// **One report per reporter per target**, by a unique constraint with NULLS
+// NOT DISTINCT: without it, Postgres treats every day target's null
+// `review_author_id` as distinct, and the same person could file the same day
+// report twice. A re-report is therefore an idempotent no-op, and "how many
+// people reported this" is a count of rows.
+export const contentReports = pgTable(
+  "content_reports",
+  {
+    id: uuid("id").primaryKey(),
+    targetKind: text("target_kind").$type<ReportTargetKind>().notNull(),
+    savedDayId: uuid("saved_day_id").notNull(),
+    reviewAuthorId: text("review_author_id"),
+    // `users.id`s, on the ADR-025 no-foreign-key terms.
+    reporterId: text("reporter_id").notNull(),
+    reason: text("reason").$type<ReportReason>().notNull(),
+    note: text("note"),
+    status: text("status").$type<ReportStatus>().notNull().default("open"),
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    resolvedBy: text("resolved_by"),
+    resolutionNote: text("resolution_note"),
+  },
+  (t) => [
+    unique("content_reports_reporter_target")
+      .on(t.reporterId, t.targetKind, t.savedDayId, t.reviewAuthorId)
+      .nullsNotDistinct(),
+    check(
+      "content_reports_target_shape",
+      sql`(${t.targetKind} = 'review') = (${t.reviewAuthorId} is not null)`,
+    ),
+    // The operator queue reads "open, oldest first" and nothing else yet.
+    index("content_reports_status").on(t.status, t.createdAt),
+  ],
 );
 
 // Single-use admission codes (M11a link 4). The invite gate's third way

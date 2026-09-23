@@ -34,6 +34,7 @@ import {
   revokeTripInvite,
   revokeTripShare,
   searchCities,
+  searchPlaces,
   searchPlaybooks,
   fetchLeaderboard,
   fetchPublicProfile,
@@ -219,6 +220,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   unpublishSavedDay: () => unpublishSavedDay(UUID),
   fetchIsAdmin: () => fetchIsAdmin(),
   searchCities: () => searchCities("Kyo"),
+  searchPlaces: () => searchPlaces("Mexic"),
   searchPlaybooks: () => searchPlaybooks({ cities: ["Kyoto"] }),
   fetchLeaderboard: () => fetchLeaderboard(),
   fetchPublicProfile: () => fetchPublicProfile("dev-alice"),
@@ -265,6 +267,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
     // would invent a city called " Japan".
     const result = await searchPlaybooks({
       cities: ["Kyoto", "Osaka, Japan"],
+      countries: ["JP", "MX"],
       scope: "everyone",
       sort: "newest",
       budget: "under200",
@@ -273,6 +276,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
     expect(result.ok).toBe(true);
     expect(seen).not.toBeNull();
     expect(seen!.searchParams.getAll("city")).toEqual(["Kyoto", "Osaka, Japan"]);
+    expect(seen!.searchParams.getAll("country")).toEqual(["JP", "MX"]);
     expect(seen!.searchParams.get("scope")).toBe("everyone");
     expect(seen!.searchParams.get("sort")).toBe("newest");
     expect(seen!.searchParams.get("budget")).toBe("under200");

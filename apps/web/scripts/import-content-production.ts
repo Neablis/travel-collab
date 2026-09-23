@@ -34,8 +34,22 @@
  *                  event stream, and re-running CreateTrip against one that
  *                  exists is rejected by the domain (`trip-already-exists`),
  *                  which is the correct answer rather than an error to work
- *                  around: rewriting it would mean discarding real history. To
- *                  publish changed trip content, change the trip's `key`.
+ *                  around: rewriting it would mean discarding real history.
+ *   stop locations the one exception, and it does not rewrite anything. For a
+ *                  trip that already exists, each stop's `location` in the file
+ *                  is compared with its activity's in the trip, and any that
+ *                  differ get an `UpdateActivity` through `executeTripCommand`
+ *                  — new events on the existing stream (KI-2026-09-23-e;
+ *                  `src/server/bundleLocationReconcile.ts` says how a stop is
+ *                  paired with its activity). A stop that pairs with nothing is
+ *                  reported and left alone. Every OTHER change to a trip —
+ *                  titles, notes, times, costs, stops added or removed — still
+ *                  does not reach an imported trip; to publish that, change the
+ *                  trip's `key`.
+ *
+ * `--dry-run` reads the target to say what it would do — which trips it would
+ * create, and each stop location it would correct, old → new — and writes
+ * nothing.
  *
  * `--prune` closes the remaining gap. Re-import replaces what a bundle
  * declares; it cannot see what a bundle has STOPPED declaring. `source_bundle`
@@ -54,18 +68,23 @@ import {
   parseBundle,
   resolvePlaybook,
   tripIdFor,
+  type BundleTrip,
   type ContentBundleV1,
   type Finding,
 } from "@tc/fixtures";
+import type { Location } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
+import { recomputeReviewCounters } from "@/server/reviews";
+import { carryModeration, restoreModeration } from "@/server/reports";
 import { executePageCommand } from "@/server/pageCommands";
 import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
+import { planBundleLocationReconcile, type PlannedLocationUpdate } from "@/server/bundleLocationReconcile";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -157,6 +176,8 @@ async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
   let pruned = 0;
 
   await db.transaction(async (tx) => {
+    // Read before the delete below erases it; put back after the re-insert.
+    const moderation = await carryModeration(tx, ids);
     // Ledger first: `saved_day_adds` has no foreign key (this schema's
     // convention), so removing the days first would orphan it.
     if (ids.length > 0) {
@@ -213,26 +234,104 @@ async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
         });
       }
     }
+    // Reviews are NOT deleted with the rows above, and the counters are
+    // recomputed from them instead. A re-import rewrites the authored content
+    // under the same ids; the stars on it were given by real people and must
+    // survive that. `newSavedDayRow` writes the counters as "unreviewed", so
+    // without this every re-import would silently zero a reviewed day's rating
+    // while its reviews still sat in `saved_day_reviews` (M12 link 2).
+    for (const id of ids) await recomputeReviewCounters(tx, id);
+    await restoreModeration(tx, moderation);
   });
 
   return { days: resolved.length, pruned };
 }
 
-/** Demo trips, through the command pipeline, create-if-absent. */
-async function importTrips(bundle: ContentBundleV1, ownerId: string) {
+/** How a location reads in the run summary: its name, and its coordinates when it has them. */
+function describeLocation(location: Location | null): string {
+  if (location === null) return "(no location)";
+  const at = location.lat === undefined ? "no coordinates" : `${location.lat}, ${location.lng}`;
+  return `${location.name} (${at})`;
+}
+
+/**
+ * Brings an existing trip's stop LOCATIONS in line with its bundle, and nothing
+ * else about it (KI-2026-09-23-e). Each correction is its own `UpdateActivity`
+ * through `executeTripCommand`, so it lands as a real event on the trip's
+ * stream — the trip's history gains an entry per corrected stop and loses
+ * nothing. Nothing is sent when nothing differs, which is what keeps a second
+ * run over an unchanged file at zero commands. A dry run prints the plan and
+ * sends none of it.
+ */
+async function reconcileLocations(
+  bundle: ContentBundleV1,
+  trip: BundleTrip,
+  tripId: string,
+  ownerId: string,
+  dryRun: boolean,
+): Promise<{ planned: PlannedLocationUpdate[]; unmatched: string[] }> {
+  const plan = await planBundleLocationReconcile(tripId, trip, bundle.activities);
+  if (plan === null) return { planned: [], unmatched: [] };
+  if (plan.deleted) {
+    console.log(`  ${trip.key}: trip is deleted — its stop locations are left alone`);
+    return { planned: [], unmatched: [] };
+  }
+  // Reported, never acted on: adding, removing or retitling a stop is not what
+  // this reconciles, and a guessed pairing would put a pin on the wrong stop.
+  const unmatched = [
+    ...plan.unmatchedStops.map((s) => `${trip.key}: stop in the file with no activity — ${s}`),
+    ...plan.unmatchedActivities.map((a) => `${trip.key}: activity with no stop in the file — ${a}`),
+  ];
+  for (const line of unmatched) console.log(`  unmatched  ${line}`);
+  for (const update of plan.updates) {
+    console.log(
+      `  ${dryRun ? "would move" : "moving"}  ${trip.key} — ${update.bucket}: ${update.title}\n`
+        + `      ${describeLocation(update.from)}  →  ${describeLocation(update.to)}`,
+    );
+    if (dryRun) continue;
+    const r = await executeTripCommand(update.command, ownerId);
+    if (!r.ok) throw new Error(`${trip.key} (${tripId}) "${update.title}": ${r.error.code} — ${r.error.message}`);
+  }
+  return { planned: plan.updates, unmatched };
+}
+
+/**
+ * Demo trips, through the command pipeline: created when absent, resumed when a
+ * previous run died before their days, and otherwise left as they are except
+ * for their stops' locations, which are reconciled with the file. A dry run
+ * reads the target and reports all of that without writing.
+ */
+export async function importTrips(bundle: ContentBundleV1, ownerId: string, { dryRun = false } = {}) {
   let created = 0;
   let skipped = 0;
   let resumed = 0;
+  const planned: PlannedLocationUpdate[] = [];
+  const unmatched: string[] = [];
   for (const trip of bundle.trips) {
     const tripId = tripIdFor(bundle.bundle.id, trip.key);
+    if (dryRun) {
+      // The same three outcomes the real run below reaches, read rather than
+      // attempted: no CreateTrip is sent to find out whether the trip exists.
+      const existing = await getTripDetail(tripId);
+      if (existing === null) created++;
+      else if (existing.days.length === 0) resumed++;
+      else {
+        skipped++;
+        const r = await reconcileLocations(bundle, trip, tripId, ownerId, true);
+        planned.push(...r.planned);
+        unmatched.push(...r.unmatched);
+      }
+      continue;
+    }
     // CreateTrip is NOT part of the command groups — `bundleTripCommandGroups`
     // starts at SetTripDates, because the dev importer gets its trip from
     // `POST /api/trips` first. Here there is no route, so the genesis command
     // is issued directly, against the DERIVED id rather than a minted one.
     //
     // The domain rejecting it with `trip-already-exists` IS the idempotency
-    // check: the trip is an event stream, and a second import has nothing to
-    // do. Rewriting it would mean discarding real history, so it does not.
+    // check: the trip is an event stream, and a second import does not build
+    // it again. Rewriting it would mean discarding real history, so it does
+    // not — the one thing it does do is `reconcileLocations`, which appends.
     const created_ = await executeTripCommand(
       { type: "CreateTrip", tripId, name: trip.name },
       ownerId,
@@ -249,6 +348,9 @@ async function importTrips(bundle: ContentBundleV1, ownerId: string) {
       const existing = await getTripDetail(tripId);
       if (existing && existing.days.length > 0) {
         skipped++;
+        const r = await reconcileLocations(bundle, trip, tripId, ownerId, false);
+        planned.push(...r.planned);
+        unmatched.push(...r.unmatched);
         continue;
       }
       resumed++;
@@ -288,7 +390,16 @@ async function importTrips(bundle: ContentBundleV1, ownerId: string) {
     }
     created++;
   }
-  return { created: created - resumed, skipped, resumed };
+  // For real, a resumed trip also passes through `created++`; on a dry run it
+  // never reaches it, so `created` already counts only the trips that would be.
+  return {
+    created: dryRun ? created : created - resumed,
+    skipped,
+    resumed,
+    reconciled: planned.length,
+    planned,
+    unmatched,
+  };
 }
 
 async function main() {
@@ -328,8 +439,22 @@ async function main() {
   console.log(`  target ${target}${options.dryRun ? "  (DRY RUN — nothing will be written)" : ""}`);
   if (options.dryRun) {
     const days = bundles.reduce((n, b) => n + b.playbooks.length, 0);
-    const trips = bundles.reduce((n, b) => n + b.trips.length, 0);
-    console.log(`  would write ${days} playbook day(s) and up to ${trips} trip(s)`);
+    if (!options.skipPlaybooks) console.log(`  would write ${days} playbook day(s)`);
+    if (options.skipTrips) return;
+    // Reads the target — which trips exist, and where their stops are — so the
+    // plan printed is the one a real run would carry out. Nothing is written.
+    let wouldCreate = 0, wouldResume = 0, present = 0, wouldMove = 0;
+    for (const bundle of bundles) {
+      const r = await importTrips(bundle, ownerId, { dryRun: true });
+      wouldCreate += r.created;
+      wouldResume += r.resumed;
+      present += r.skipped;
+      wouldMove += r.reconciled;
+    }
+    console.log(`\n  trips that would be created   ${wouldCreate}`);
+    if (wouldResume > 0) console.log(`  trips that would be resumed   ${wouldResume}`);
+    console.log(`  trips already present         ${present}`);
+    console.log(`  stop locations it would move  ${wouldMove}`);
     return;
   }
 
@@ -343,7 +468,7 @@ async function main() {
     }
   }
 
-  let days = 0, pruned = 0, created = 0, skipped = 0, resumed = 0;
+  let days = 0, pruned = 0, created = 0, skipped = 0, resumed = 0, reconciled = 0, unmatched = 0;
   for (const bundle of bundles) {
     if (!options.skipPlaybooks) {
       const r = await importPlaybooks(bundle, options.prune);
@@ -355,20 +480,34 @@ async function main() {
       created += r.created;
       skipped += r.skipped;
       resumed += r.resumed;
+      reconciled += r.reconciled;
+      unmatched += r.unmatched.length;
     }
   }
 
   console.log(`\n  playbook days written  ${days}`);
   if (options.prune) console.log(`  stale rows pruned      ${pruned}`);
+  if (options.skipTrips) return;
   console.log(`  trips created          ${created}`);
   if (resumed > 0) console.log(`  trips resumed          ${resumed}  (existed but had no days — a previous run died mid-import)`);
-  console.log(`  trips already present  ${skipped}  (change a trip's key to publish new content)`);
+  console.log(`  trips already present  ${skipped}  (stop locations reconciled; other content needs a key change)`);
+  console.log(`  stop locations moved   ${reconciled}`);
+  if (unmatched > 0) console.log(`  stops left unmatched   ${unmatched}  (listed above; nothing was done to them)`);
 }
 
-main().then(
-  () => process.exit(process.exitCode ?? 0),
-  (error) => {
-    console.error(error);
-    process.exit(1);
-  },
-);
+// Run only when this file IS the command, so `importContentProduction.int.test.ts`
+// can import `importTrips` and drive it against a real database. Without the
+// guard, importing the module runs a whole import and then `process.exit`s the
+// test runner. Same guard, and the same reason for `argv[1]` over
+// `import.meta.main`, as `geocode-japan-seed.mts`.
+const invokedDirectly =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (invokedDirectly) {
+  main().then(
+    () => process.exit(process.exitCode ?? 0),
+    (error) => {
+      console.error(error);
+      process.exit(1);
+    },
+  );
+}
