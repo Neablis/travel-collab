@@ -65,7 +65,8 @@ word.
 **D5 — The dates-pill popover is its own small control over `SetTripStartDate`.**
 It is not a reuse of `TripDateControl`, whose copy (*Pick the day you leave…*,
 clear-date ✕) is the settings version. The popover carries §35.3's copy and
-commits on change, the way the settings control does.
+commits on Enter, blur or close, not on change: Chromium emits a valid date per
+typed year digit (0002-…, 0020-…), which would each have moved the trip.
 
 **D6 — `docFrom` is a query parameter.** Overview's **Edit** links to
 `/trips/:id/pages/:pageId?from=overview`, which opens the page in edit mode. The

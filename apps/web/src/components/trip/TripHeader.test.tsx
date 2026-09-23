@@ -273,6 +273,7 @@ describe("TripHeader viewer gating", () => {
     // the same road Trip settings' Dates row takes.
     await userEvent.click(screen.getByRole("button", { name: /^Trip dates:/ }));
     fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-03-14" } });
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
     await waitFor(() =>
       expect(sendTripCommandMock).toHaveBeenCalledWith({
         type: "SetTripStartDate",
@@ -280,7 +281,6 @@ describe("TripHeader viewer gating", () => {
         startDate: "2027-03-14",
       }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
 
     await userEvent.click(screen.getByRole("button", { name: "History" }));
     expect((await screen.findAllByTestId("history-entry")).length).toBeGreaterThan(0);

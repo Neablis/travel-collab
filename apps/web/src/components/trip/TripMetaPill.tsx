@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TripCommand, TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,9 +105,13 @@ function isCalendarDate(value: string): boolean {
 // It is also the way in to moving the trip (M27 D5): a button opening a small
 // popover over `SetTripStartDate`, the command Trip settings' Dates row sends.
 // Not `TripDateControl` itself — that is the settings version, with its own
-// copy and a clear-date ✕ — but the same rule: it commits on change, so Done
-// only closes. A viewer gets the range as plain text: no caret, no popover,
-// and nothing that announces itself as a control.
+// copy and a clear-date ✕. Unlike that control it does NOT commit on change:
+// typing a year into Chromium's date input emits a valid day per keystroke
+// (0002-…, 0020-…, 0202-…, 2027-…), and each would have been a command moving
+// the trip to the year 2 on the way. The edit stays local and commits on
+// Enter, on blur, or when the popover closes (Done included). A viewer gets
+// the range as plain text: no caret, no popover, and nothing that announces
+// itself as a control.
 //
 // An undated trip still gets the button. "No dates set" is exactly the state
 // the popover fixes, so it opens on an empty input rather than withholding the
@@ -126,10 +130,16 @@ export function TripMetaPill({
   const dateRange = tripDateRange(detail);
   const start = detail.startDate ?? "";
   const [pendingStart, setPendingStart] = useState(start);
+  // Clicking Done blurs the input first (the popover focuses it on open), so
+  // one edit reaches `commitStart` twice before the new start renders back.
+  const sent = useRef<string | null>(null);
   // Re-seeded whenever the trip's start moves, from here or from anyone else —
   // `TripDateControl`'s reasoning for its own copy: fresher server data beats
   // an unsaved local value.
-  useEffect(() => setPendingStart(start), [start]);
+  useEffect(() => {
+    setPendingStart(start);
+    sent.current = null;
+  }, [start]);
 
   const body = (
     <>
@@ -141,10 +151,16 @@ export function TripMetaPill({
 
   if (readOnly) return <div className={shell}>{body}</div>;
 
-  const changeStart = (value: string) => {
-    setPendingStart(value);
-    if (!isCalendarDate(value) || value === start) return;
-    onCommand({ type: "SetTripStartDate", tripId: detail.tripId, startDate: value });
+  const commitStart = () => {
+    // Below 1900 is a year still being typed, not a trip anyone is taking.
+    if (!isCalendarDate(pendingStart) || Number(pendingStart.slice(0, 4)) < 1900) return;
+    if (pendingStart === start || pendingStart === sent.current) return;
+    sent.current = pendingStart;
+    onCommand({ type: "SetTripStartDate", tripId: detail.tripId, startDate: pendingStart });
+  };
+  const changeOpen = (next: boolean) => {
+    if (!next) commitStart();
+    setOpen(next);
   };
   // From the input, not the trip's last day, so the end moves as the date is
   // picked rather than a round-trip later. A trip with no days ends the day it
@@ -155,7 +171,7 @@ export function TripMetaPill({
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={changeOpen}
       align="start"
       contentClassName="w-80"
       trigger={
@@ -181,14 +197,24 @@ export function TripMetaPill({
           Start date
         </Label>
         <div className="flex flex-wrap items-center gap-2.5">
-          <Input id={inputId} type="date" value={pendingStart} onChange={(e) => changeStart(e.target.value)} className="w-auto" />
+          <Input
+            id={inputId}
+            type="date"
+            value={pendingStart}
+            onChange={(e) => setPendingStart(e.target.value)}
+            onBlur={commitStart}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitStart();
+            }}
+            className="w-auto"
+          />
           {end !== null && <span className="font-mono text-sm text-slate">{`→ ${formatTripDateWithYear(end)}`}</span>}
         </div>
         <span className="text-xs leading-normal text-slate">
           Every day moves with it. Order, times and notes stay as they are.
         </span>
         <div className="flex justify-end">
-          <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(false)}>
+          <Button type="button" variant="secondary" size="sm" onClick={() => changeOpen(false)}>
             Done
           </Button>
         </div>

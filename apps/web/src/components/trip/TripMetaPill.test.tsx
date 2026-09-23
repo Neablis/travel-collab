@@ -76,10 +76,9 @@ describe("TripMetaPill", () => {
     expect(screen.queryByText("DB")).toBeNull();
   });
 
-  // M27 D5: the popover sends what Trip settings' Dates row sends, on change —
-  // Done only closes. The end beside the input follows the picked start, not
-  // the trip's current last day, so it answers "and then I'm back when?"
-  // before the round-trip does.
+  // M27 D5: the popover sends what Trip settings' Dates row sends. The end
+  // beside the input follows the picked start, not the trip's current last
+  // day, so it answers "and then I'm back when?" before the round-trip does.
   it("moves the trip's start from its popover, and shows where the end lands", async () => {
     const onCommand = vi.fn();
     const detail = fixture();
@@ -87,29 +86,68 @@ describe("TripMetaPill", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Change the start date/ }));
     fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-07-10" } });
+    // Two days, so the end is the day after.
+    expect(screen.getByText("→ Jul 11, 2027")).toBeTruthy();
 
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(onCommand).toHaveBeenCalledExactlyOnceWith({
       type: "SetTripStartDate",
       tripId: detail.tripId,
       startDate: "2027-07-10",
     });
-    // Two days, so the end is the day after.
-    expect(screen.getByText("→ Jul 11, 2027")).toBeTruthy();
-
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.queryByLabelText("Start date")).toBeNull();
   });
 
-  // A string of the right shape that is not a day. The native input will not
-  // produce one, but the contract's regex accepts it, so the pill is what
-  // stops it reaching the log.
-  it("sends nothing for a date that does not exist, or the date it already has", async () => {
+  // Typing a year into Chromium's date input emits a `change` per keystroke,
+  // and every one of these is a real calendar day. Committing on change sent
+  // four commands and moved the trip to the year 2 on the way.
+  it("sends one command for a typed year, not one per keystroke", async () => {
+    const onCommand = vi.fn();
+    const detail = fixture();
+    render(<TripMetaPill detail={detail} readOnly={false} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Change the start date/ }));
+    const input = screen.getByLabelText("Start date");
+    for (const value of ["0002-07-10", "0020-07-10", "0202-07-10", "2027-07-10"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+    expect(onCommand).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onCommand).toHaveBeenCalledExactlyOnceWith({
+      type: "SetTripStartDate",
+      tripId: detail.tripId,
+      startDate: "2027-07-10",
+    });
+  });
+
+  it("commits when the input loses focus", async () => {
     const onCommand = vi.fn();
     render(<TripMetaPill detail={fixture()} readOnly={false} onCommand={onCommand} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Change the start date/ }));
-    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-02-31" } });
-    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-06-01" } });
+    const input = screen.getByLabelText("Start date");
+    fireEvent.change(input, { target: { value: "2027-08-01" } });
+    fireEvent.blur(input);
+
+    expect(onCommand).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ startDate: "2027-08-01" }));
+  });
+
+  // A string of the right shape that is not a day. The native input will not
+  // produce one, but the contract's regex accepts it, so the pill is what
+  // stops it reaching the log. A year before 1900 is a half-typed one.
+  it("sends nothing for a date that does not exist, a half-typed year, or the date it already has", async () => {
+    const onCommand = vi.fn();
+    render(<TripMetaPill detail={fixture()} readOnly={false} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Change the start date/ }));
+    const input = screen.getByLabelText("Start date");
+    for (const value of ["2027-02-31", "0202-07-10", "2027-06-01"]) {
+      fireEvent.change(input, { target: { value } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    }
+    fireEvent.change(input, { target: { value: "0202-07-10" } });
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
 
     expect(onCommand).not.toHaveBeenCalled();
   });
