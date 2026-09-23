@@ -82,3 +82,26 @@ describe("a Discover card's stop preview", () => {
     expect(screen.queryByTestId("discover-preview")).toBeNull();
   });
 });
+
+// M12 link 5: the card carries the day's rating. What the server puts in
+// `rating` and `reviewCount` is the reviews int tests'; this is that the card
+// states it — and that a day nobody has reviewed says so rather than printing
+// `0.0`, the lowest score there is, for a day nobody has judged.
+describe("a Discover card's rating", () => {
+  it("states the average and how many reviews it is over", () => {
+    render(<DiscoverCard day={day({ rating: 4.6, reviewCount: 12 })} origin={{ from: "playbooks" }} />);
+    expect(screen.getByTestId("card-rating").textContent).toBe("★ 4.6 · 12 reviews");
+  });
+
+  it("says one review, not one reviews", () => {
+    render(<DiscoverCard day={day({ rating: 5, reviewCount: 1 })} origin={{ from: "playbooks" }} />);
+    expect(screen.getByTestId("card-rating").textContent).toBe("★ 5.0 · 1 review");
+  });
+
+  it("says a day with no reviews has none, and shows no number", () => {
+    render(<DiscoverCard day={day({ rating: null, reviewCount: 0 })} origin={{ from: "playbooks" }} />);
+    const rating = screen.getByTestId("card-rating");
+    expect(rating.textContent).toBe("No reviews yet");
+    expect(rating.textContent).not.toMatch(/\d/);
+  });
+});

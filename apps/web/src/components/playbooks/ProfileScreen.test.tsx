@@ -86,6 +86,26 @@ describe("a public profile", () => {
     );
   });
 
+  // M12 link 5: the average and the count read `PublicAuthor`, which sums the
+  // same counters the cards carry. With no reviews the average is an em dash,
+  // as the design draws it — never `0.0`, which would read as a verdict.
+  it("states the average rating and the reviews received, to one decimal", async () => {
+    fetchPublicProfileMock.mockResolvedValue(
+      ok({ ...profile, author: { ...profile.author, reviewsReceived: 7, averageRating: 4.25 } }),
+    );
+    renderProfile();
+    await screen.findByTestId("profile-numbers");
+    expect(screen.getByTestId("profile-number-average-rating").textContent).toBe("4.3Average rating");
+    expect(screen.getByTestId("profile-number-reviews-received").textContent).toBe("7Reviews received");
+  });
+
+  it("shows no average for a person nobody has reviewed", async () => {
+    renderProfile();
+    await screen.findByTestId("profile-numbers");
+    expect(screen.getByTestId("profile-number-average-rating").textContent).toBe("—Average rating");
+    expect(screen.getByTestId("profile-number-reviews-received").textContent).toBe("0Reviews received");
+  });
+
   // The day list is a PAGE (`discoverDays` caps it), and `daysShared` counts
   // every published day. When they disagree the page says which it is showing
   // rather than letting the card count read as the total.
@@ -128,15 +148,13 @@ describe("a public profile", () => {
     expect(screen.getByTestId("profile-skeleton")).toBeTruthy();
   });
 
-  // §15: no bio, no follow, no avatar, no public user record — and no rating
-  // or reviews-received, which are M12's.
-  it("has no bio, follow, avatar, rating or review count", async () => {
+  // §15: no bio, no follow, no avatar, no public user record. (The rating and
+  // reviews-received this used to exclude arrived with M12 link 5 — above.)
+  it("has no bio, follow or avatar", async () => {
     renderProfile();
     await screen.findByTestId("profile-numbers");
     expect(screen.queryByRole("button", { name: /follow/i })).toBeNull();
     expect(screen.queryByRole("img")).toBeNull();
-    expect(screen.queryByText(/rating/i)).toBeNull();
-    expect(screen.queryByText(/review/i)).toBeNull();
   });
 
   // A way INTO the library rather than a dead end: the chip is a real Discover
