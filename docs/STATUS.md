@@ -45,8 +45,9 @@ gate rather than by Mitchell placing a milestone. Order:
 `M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 → M24 → M14 → M19`.
 Scope, seven links and thirteen boxes: `docs/milestones/M12-reviews-and-moderation.md`.
 It needs **two migrations** (the reviews table, and `saved_days.countries`) and
-has a data prerequisite: the content library carries `countryCode` on **none**
-of its 1,375 locations. M12 exists to delete one line from `SPEC.md` §15 —
+had a data prerequisite: the content library carried `countryCode` on **none**
+of its 1,375 locations — **now all 1,375** (2026-09-23; re-import and
+`db:backfill-countries` still to run, see the M12 file's link 7). M12 exists to delete one line from `SPEC.md` §15 —
 *"Until the reviews table exists, every rating here is fixture data"* — still
 true in `main`.
 
