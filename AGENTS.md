@@ -209,6 +209,14 @@ through the real domain and reports counts, kind/tag coverage, coordinates,
 rollups and conflicts against a recorded baseline. Runs inside `pnpm check`
 too; the standalone command is for the readable table. See ADR-030.
 
+**Architecture wall** (`pnpm arch`, inside `pnpm lint`): dependency-cruiser,
+`.dependency-cruiser.cjs`. Fails on a runtime import cycle, a cycle between
+sibling folders, and the module map's "does NOT know about" column where a
+path can state it. Leftovers are named per KI, never baselined wholesale.
+Cannot see a cycle between a folder and its own subfolder
+(`KI-2026-09-23-b`). `pnpm arch:graph` prints Mermaid on demand.
+`docs/reviews/2026-09-23-architecture-wall-first-run.md`.
+
 **Draft-PR guard** (`scripts/hooks/draft-pr-guard.mjs`, `PreToolUse` on
 `gh *`): asks before `gh pr create` without `--draft`, and before
 `gh pr ready` when no **Tier-3 stamp** covers HEAD. The rule it enforces was

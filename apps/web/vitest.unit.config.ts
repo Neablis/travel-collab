@@ -23,7 +23,7 @@ const JSDOM_TS_FILES = [
   "src/lib/pendingDemoClone.test.ts",
   // The same, for M9's conversation durability: every access is wrapped, and
   // what the wrapping is FOR is a browser that throws or has no storage at all.
-  "src/lib/askThreadStore.test.ts",
+  "src/components/assistant/askThreadStore.test.ts",
 ];
 
 // Never a unit test in either project: integration specs have their own

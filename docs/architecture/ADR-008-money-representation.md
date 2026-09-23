@@ -103,7 +103,7 @@ for JPY". **No code has ever done that**, in either direction:
 - `apps/web/src/server/ai/planningTools.ts` tells the model to "multiply a
   decimal amount by 100", with no currency condition;
 - every reader divides by 100 — `packages/domain/src/trip/conflicts.ts`,
-  `apps/web/src/components/lenses/formatMoney.ts`, `packages/pages/src/format.ts`.
+  `apps/web/src/lib/formatMoney.ts`, `packages/pages/src/format.ts`.
 
 No stored value is or was numerically wrong: the round trip is consistently
 ×100 in, ÷100 out, so the projection and the golden rebuild are unaffected. The
@@ -118,7 +118,7 @@ fraction-digit option, so `Intl` applied ISO 4217's exponent, which for JPY is
 hundredths for every currency; the ADR now says so, and
 `packages/pages/src/format.ts` passes `minimumFractionDigits: 2` so the two
 surfaces agree. `packages/pages/src/format.test.ts` pins the JPY output against
-the board's, and `apps/web/src/components/lenses/formatMoney.test.ts` pins the
+the board's, and `apps/web/src/lib/formatMoney.test.ts` pins the
 same values from the other side.
 
 **Rejected: currency-aware minor units.** Making JPY genuinely zero-exponent is

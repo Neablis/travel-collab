@@ -281,9 +281,9 @@ expectRejectedBy(
 expectClean(
   lintFixture(
     "lint_wall_kernel_allowed_fixture",
-    'import { askScopeLine } from "@/server/ai/context";\n' +
+    'import { tripRegionOf } from "@/server/geocoding/region";\n' +
       'import { newPageBuffer } from "./deps";\n' +
-      "export function allowed() { return [askScopeLine, newPageBuffer]; }\n",
+      "export function allowed() { return [tripRegionOf, newPageBuffer]; }\n",
     { dir: "src/server/assistant", ext: "ts" },
   ),
   "assistant kernel: an allowlisted module and its own sibling correctly pass",
@@ -406,11 +406,11 @@ for (const path of ["src/proxy.ts", "src/lib/authConfig.ts"]) {
     } else {
       console.log(`lint wall OK: ${path} restricts @/server outside the allowlist`);
     }
-    if (restrictedByPattern(patterns, "@/server/ai/context")) {
-      console.error(`LINT WALL TOO STRICT: ${path} cannot import the allowlisted @/server/ai/context`);
+    if (restrictedByPattern(patterns, "@/server/geocoding/region")) {
+      console.error(`LINT WALL TOO STRICT: ${path} cannot import the allowlisted @/server/geocoding/region`);
       process.exitCode = 1;
     } else {
-      console.log(`lint wall OK: ${path} may still import the allowlisted @/server/ai/context`);
+      console.log(`lint wall OK: ${path} may still import the allowlisted @/server/geocoding/region`);
     }
   }
 }
@@ -429,11 +429,20 @@ for (const path of ["src/proxy.ts", "src/lib/authConfig.ts"]) {
   if (patterns === null) {
     // already reported by noRestrictedImportPatterns
   } else {
-    // `pages-guard` and `quota` are two of the five, by name. `ai/askIntent` is
-    // the third and is the deliberate near-miss: `ai/askAnalytics` next door IS
-    // allowlisted, so this is what proves the allowlist is a list of modules
-    // and not a prefix.
-    for (const forbidden of ["@/server/pages-guard", "@/server/quota", "@/server/ai/askIntent"]) {
+    // `pages-guard` and `quota` are two of the five, by name, and `ai/askIntent`
+    // is the third. The `geocoding` barrel and its LocationIQ adapter are the
+    // deliberate near-miss: `geocoding/region` next door IS allowlisted, so
+    // this is what proves the allowlist is a list of modules and not a prefix.
+    // (Until 2026-09-23 the near-miss was `ai/askAnalytics` beside
+    // `ai/askIntent`; `askAnalytics` moved inside the kernel, see the
+    // allowlist's own comment in eslint.config.mjs.)
+    for (const forbidden of [
+      "@/server/pages-guard",
+      "@/server/quota",
+      "@/server/ai/askIntent",
+      "@/server/geocoding",
+      "@/server/geocoding/locationiq",
+    ]) {
       if (!restrictedByPattern(patterns, forbidden)) {
         console.error(`LINT WALL BREACHED: the admission pipeline may import ${forbidden} directly`);
         process.exitCode = 1;
@@ -441,11 +450,11 @@ for (const path of ["src/proxy.ts", "src/lib/authConfig.ts"]) {
         console.log(`lint wall OK: the admission pipeline must take ${forbidden} as a port`);
       }
     }
-    if (restrictedByPattern(patterns, "@/server/ai/askAnalytics")) {
-      console.error(`LINT WALL TOO STRICT: ${path} cannot import the allowlisted @/server/ai/askAnalytics`);
+    if (restrictedByPattern(patterns, "@/server/geocoding/region")) {
+      console.error(`LINT WALL TOO STRICT: ${path} cannot import the allowlisted @/server/geocoding/region`);
       process.exitCode = 1;
     } else {
-      console.log("lint wall OK: the admission pipeline may import the allowlisted @/server/ai/askAnalytics");
+      console.log("lint wall OK: the admission pipeline may import the allowlisted @/server/geocoding/region");
     }
   }
 }

@@ -7,7 +7,7 @@ import {
   tripRegionOf,
   TRIP_REGION_MARGIN_KM,
   withinBox,
-} from "./geocodeRegion";
+} from "./region";
 
 describe("plausibleCoords", () => {
   it("accepts a real coordinate pair", () => {

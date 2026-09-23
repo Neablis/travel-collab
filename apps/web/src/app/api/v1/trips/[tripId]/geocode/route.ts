@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { GeocodeCandidates, type Location } from "@tc/contracts";
-import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/geocoding/region";
 import { getGeocoder } from "@/server/geocoding";
 import { PublicApiError } from "@/server/public-api/commands";
 import { defaultResolveDeps } from "@/server/public-api/locations";

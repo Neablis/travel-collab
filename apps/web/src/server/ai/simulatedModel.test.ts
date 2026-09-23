@@ -1,7 +1,7 @@
-import { markdownToPageNodes } from "./markdownToPageNodes";
+import { markdownToPageNodes } from "@/server/assistant/markdownToPageNodes";
 import { describe, expect, it } from "vitest";
 import { simulatedModel, SIMULATED_MODEL_ID } from "@/server/ai/simulatedModel";
-import { askScopeLine, type AskScope } from "@/server/ai/context";
+import { askScopeLine, type AskScope } from "@/server/assistant/context";
 import { ASK_INTENT_INSTRUCTION, askIntentVerdictText, classifyAskIntent } from "@/server/ai/askIntent";
 
 // `simulatedModel` returns `LanguageModel`, which is `string | LanguageModelV4`

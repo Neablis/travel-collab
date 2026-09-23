@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
-import { loadAskThread, saveAskThread } from "@/lib/askThreadStore";
+import { loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
 import type { AssistantTurn } from "./Transcript";
 
 const TRIP = "11111111-2222-4333-8444-555566667777";

@@ -12,7 +12,7 @@ import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import { formatTripDate } from "@/lib/formatDate";
 import { toClockRange } from "@/lib/time";
 import { cloneSharedTrip, fetchSharedTrip } from "@/lib/apiClient";

@@ -10,7 +10,7 @@ import type { ActivityTag, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { chipModel } from "@/components/trip/DayChips";
+import { chipModel } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
 import {
   useDayScrollSpy,

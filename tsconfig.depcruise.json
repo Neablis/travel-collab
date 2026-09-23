@@ -1,0 +1,7 @@
+{
+  "//": "Read only by .dependency-cruiser.cjs. apps/web/tsconfig.json has no baseUrl, and dependency-cruiser's tsconfig-paths plugin then resolves `paths` against the working directory, so `@/*` resolved to nothing from the repo root. This file restates the one alias with an explicit baseUrl.",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["apps/web/src/*"] }
+  }
+}

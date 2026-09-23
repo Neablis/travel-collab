@@ -10,11 +10,11 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
-import { askScopeLine, parseAskScope } from "@/server/ai/context";
+import { askScopeLine, parseAskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
 import { tripDetailFactory } from "@tc/factories";
-import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
+import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 
 const ACTOR_ID = "ask-owner";
 // A second author, so a published library day belongs to SOMEONE ELSE.

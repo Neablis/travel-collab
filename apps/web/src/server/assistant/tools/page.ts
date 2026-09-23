@@ -27,7 +27,7 @@
 // click path because there is only one path.
 import { z } from "zod";
 import { MACRO_NAMES, insertWidget, type InsertError } from "@tc/pages";
-import { markdownToPageNodes } from "@/server/ai/markdownToPageNodes";
+import { markdownToPageNodes } from "@/server/assistant/markdownToPageNodes";
 import { defineTool, type AnyAssistantTool } from "@/server/assistant/defineTool";
 
 // z.enum requires a non-empty tuple; MACRO_NAMES is a readonly string[] from

@@ -14,7 +14,7 @@
 // what `onStepEnd` observed, and the difference is arithmetic. ADR-022's rule
 // for earning a tool is only enforceable if a tool nobody calls is visible,
 // and "the model probably didn't need it" is not evidence.
-import type { AskScope } from "@/server/ai/context";
+import type { AskScope } from "@/server/assistant/context";
 import type { TaskClass } from "@/server/assistant/taskClass";
 import {
   NO_METER,

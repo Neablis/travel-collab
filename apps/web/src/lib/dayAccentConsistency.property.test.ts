@@ -11,7 +11,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { tripDetailFactory } from "@tc/factories";
-import { chipModel, cityFor } from "@/components/trip/DayChips";
+import { chipModel, cityFor } from "@/lib/dayChips";
 import { shapeOf } from "@/components/trip/Sparkline";
 import { dayAccents, ACCENT_FAMILIES } from "@/lib/dayAccent";
 import { cityAccents } from "@/components/pages/cityAccents";

@@ -9,7 +9,7 @@ import {
   type AskWireMessage,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
-import { clearAskThread, loadAskThread, saveAskThread } from "@/lib/askThreadStore";
+import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 

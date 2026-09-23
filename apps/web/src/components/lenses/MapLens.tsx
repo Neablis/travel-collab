@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TripDetail } from "@tc/contracts";
-import { TAG_DIM_OPACITY, isOffTag } from "@/components/board/activityTags";
+import { TAG_DIM_OPACITY, isOffTag } from "@/lib/activityTags";
 import Link from "next/link";
 import { Button, buttonVariants } from "../ui/button";
 import { EmptyState } from "../ui/empty-state";
@@ -16,7 +16,7 @@ import { isFatalMapError } from "./mapBootstrap";
 import { startStyleLoadLadder } from "./mapRecovery";
 import { mapPaintColor } from "./mapColor";
 import { MapOfflineState } from "./MapOfflineState";
-import { useIsPhone } from "./useIsPhone";
+import { useIsPhone } from "@/lib/useIsPhone";
 import { MapFocusCard } from "./MapFocusCard";
 import { MapHoverCard, hoverCardTop } from "./MapHoverCard";
 import { MapLegend } from "./MapLegend";

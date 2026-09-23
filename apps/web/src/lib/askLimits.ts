@@ -10,7 +10,7 @@
  * Read by BOTH halves: `handleAskRequest` refuses a longer thread with a 400,
  * and `TripBoardScreen` counts against it so the rail can warn as the thread
  * fills and offer the only exit — New conversation — when it is full. It is in
- * `src/lib`, not `src/server/ai/limits.ts`, because the lint wall stops UI
+ * `src/lib`, not `src/server/assistant/limits.ts`, because the lint wall stops UI
  * importing `@/server/*`, and a second copy of the number in the rail is
  * exactly the drift that made the server 400 unreachable to explain.
  */

@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import type { DaySync } from "./context/FocusProvider";
-import { chipModel, cityFor, DayChips } from "./DayChips";
+import { chipModel, cityFor } from "@/lib/dayChips";
+import { DayChips } from "./DayChips";
 
 afterEach(cleanup);
 

@@ -9,7 +9,7 @@ import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
-import { cityFor } from "@/components/trip/DayChips";
+import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";

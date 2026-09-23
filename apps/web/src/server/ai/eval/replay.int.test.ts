@@ -25,7 +25,7 @@ import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN } from "@/server/assistant/prompt";
-import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
+import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { replayTranscript, type AskTranscript } from "./transcript";
 
 const ACTOR_ID = "replay-actor";

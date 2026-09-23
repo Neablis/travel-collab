@@ -5,7 +5,7 @@ import { aiLiveFlag } from "@/server/flags";
 import { serverConfig } from "@/server/config";
 import { aiClassifierModel, aiModel } from "@/server/ai/gateway";
 import { simulatedModel } from "@/server/ai/simulatedModel";
-import type { AiSurface } from "@/server/ai/context";
+import type { AiSurface } from "@/server/assistant/context";
 import { MODEL_TIERS, type ModelTier, type TierModels } from "@/server/assistant/taskClass";
 import {
   type EntitlementResolver,

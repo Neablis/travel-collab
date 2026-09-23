@@ -32,7 +32,7 @@ import {
   TRIP_REGION_MARGIN_KM,
   type BoundingBox,
   type LatLng,
-} from "@/server/ai/geocodeRegion";
+} from "@/server/geocoding/region";
 import { mapRateLimited, MIN_INTERVAL_MS } from "@/server/ai/rateLimit";
 
 // Serialized at 500 ms apart, every lookup is wall-clock latency added to an AI

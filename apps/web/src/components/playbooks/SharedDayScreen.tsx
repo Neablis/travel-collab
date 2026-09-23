@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { TabStrip } from "@/components/ui/tab-strip";
 import { Text } from "@/components/ui/text";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import {
   deleteSavedDay,
   fetchPublicProfile,

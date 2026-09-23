@@ -60,7 +60,7 @@
 //      real LocationIQ top result for "HND Terminal 3, Tokyo, Japan") falls
 //      outside the Tokyo box.
 //   3. Ask for up to 5 candidates and accept the first one that actually
-//      falls inside the box (`withinBox`, src/server/ai/geocodeRegion.ts) —
+//      falls inside the box (`withinBox`, src/server/geocoding/region.ts) —
 //      never the vendor's own `bounded=1`, which is a request-level cutoff
 //      LocationIQ can refuse outright: a Tokyo-bounded `bounded=1` search for
 //      "HND Terminal 3, Ōta, Tokyo, Japan" returns zero results (measured
@@ -131,7 +131,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createLocationIQGeocoder } from "../src/server/geocoding/locationiq.ts";
-import { withinBox, type BoundingBox, type LatLng } from "../src/server/ai/geocodeRegion.ts";
+import { withinBox, type BoundingBox, type LatLng } from "../src/server/geocoding/region.ts";
 import { placeNameVerdict, nameTokens, type NameVerdict } from "../src/server/ai/geocodeNameMatch.ts";
 import { mapRateLimited } from "../src/server/ai/rateLimit.ts";
 import { parseTripSeed, locationName, unscheduledLocationName, CITY_OVERRIDES } from "@tc/fixtures";

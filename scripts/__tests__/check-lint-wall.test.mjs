@@ -87,7 +87,13 @@ test("passes against the checked-in config, and every rejection names the rule t
   // because the wall is fine — without running this file. It surfaced in
   // `pnpm check`, exactly where the comment says it will. The warning is
   // correct and being correct is not the same as being read.
-  assert.equal(stdout.trim().split("\n").length, 29, `the wall's assertion count changed:\n${stdout}`);
+  //
+  // **29 → 31 on 2026-09-23**, the fourth victim: the `geocoding` barrel and
+  // `geocoding/locationiq` became the admission pipeline's near-miss checks
+  // when `ai/askAnalytics` moved inside the kernel and stopped being one.
+  // Same sequence as above — the wall run by hand exited 0, and this file
+  // caught it in the full `scripts/**/__tests__` run.
+  assert.equal(stdout.trim().split("\n").length, 31, `the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule

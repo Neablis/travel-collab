@@ -53,7 +53,7 @@
 //
 // Then add the shape assertions the run itself justifies, and commit both.
 import type { LanguageModel } from "ai";
-import type { AskScope } from "@/server/ai/context";
+import type { AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 
 /**

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Money } from "@tc/contracts";
 import { Input } from "@/components/ui/input";
-import { formatAmount } from "@/components/lenses/formatMoney";
+import { formatAmount } from "@/lib/formatMoney";
 
 // Grouped display when idle (e.g. 1,111,106.00); raw digits are still accepted
 // while typing. Uses the shared formatAmount so grouping matches the lenses.
