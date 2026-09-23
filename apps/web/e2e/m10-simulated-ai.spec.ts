@@ -272,7 +272,9 @@ test("a playbook day the assistant found reaches the board once it is approved",
     card.getByRole("button", { name: "Make the change" }).click(),
   ]);
   expect(applied.status()).toBe(200);
-  await expect(card).toContainText("✓ Done");
+  // D16: the settled line is the server's own apply message, which for a
+  // library day names the day rather than saying "Done".
+  await expect(card).toContainText(/✓ Added “.+” from the library\./);
 
   // The whole day, in order, as a new day at the end — expanded server-side
   // from the reference the proposal carried.

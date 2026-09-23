@@ -1199,7 +1199,8 @@ test("a notebook is renamed by editing its own heading, and the index follows", 
   // page it was typed on has not renamed anything. Back via the page's own
   // link, not `openNotebookIndex` — that helper starts from the trip board, and
   // the board's "Notebooks" button is not on this screen.
-  await page.getByRole("link", { name: /Notebooks/ }).click();
+  // The breadcrumb's middle crumb (SPEC §35.3), which was "← Notebooks".
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Notebook", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
   await expect(page.getByRole("link", { name: /Kyoto notes/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /^Overview/ })).toHaveCount(0);

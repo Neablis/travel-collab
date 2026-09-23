@@ -28,7 +28,7 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
   // be, and what it creates lands in the Unscheduled drawer.
   await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("What or where").fill("Colosseum");
-  await page.getByLabel("Start").fill("09:00");
+  await page.getByLabel("Start", { exact: true }).fill("09:00");
   await page.getByLabel("How long").selectOption("2 hours");
   await page.getByRole("button", { name: "Add stop" }).last().click();
 
@@ -41,7 +41,7 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("What or where").fill("Vatican Museums");
-  await page.getByLabel("Start").fill("10:00");
+  await page.getByLabel("Start", { exact: true }).fill("10:00");
   await page.getByLabel("How long").selectOption("2 hours");
   await page.getByRole("button", { name: "Add stop" }).last().click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" })).toBeVisible();
