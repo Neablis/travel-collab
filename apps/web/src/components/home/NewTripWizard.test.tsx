@@ -813,6 +813,33 @@ describe("NewTripWizard — the Playbook-day turn", () => {
     expect(screen.getByRole("log").textContent).toContain("Tram 28 morning is already in place");
   });
 
+  // Each chosen day is appended to the trip, so the closing line states the
+  // length the trip really has: two 3-day Playbooks on a Long weekend (4) are
+  // a 6-day trip, not a 4-day one — and not a 10-day one either.
+  it("states the trip's real length when the chosen days outrun the answer", async () => {
+    library.search.mockResolvedValue(
+      discover([
+        published({ savedDayId: TRAM, name: "Tram 28 morning", adds: 12, dayCount: 3 }),
+        published({ savedDayId: ALFAMA, name: "Alfama at dusk", adds: 3, dayCount: 3 }),
+      ]),
+    );
+    const { dispatch } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: /^Tram 28 morning/ }));
+    await user.click(screen.getByRole("button", { name: /^Alfama at dusk/ }));
+    await user.click(screen.getByRole("button", { name: "Build around these 2" }));
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "Use this date" }));
+    await user.click(screen.getByRole("button", { name: "Long weekend" }));
+    await user.click(screen.getByRole("button", { name: "Slow" }));
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+
+    await waitFor(() => expect(library.insert).toHaveBeenCalledTimes(2));
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "SetTripDates", newDayIds: [] }));
+    expect(screen.getByRole("log").textContent).toContain("Done. Lisbon is created, 6 days from Oct 3, 2026.");
+  });
+
   // "Never block the script": the read runs under the typing row, and when
   // the row ends without it the turn is simply not asked.
   it("skips the turn when the read has not come back by the end of the beat", async () => {

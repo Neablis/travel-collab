@@ -410,6 +410,9 @@ function Conversation({
   const pbRead = useRef<{ token: number; days: PopularDay[] }>({ token: 0, days: [] });
   /** Chosen days that could not be put into the trip, by name, for the closing line. */
   const [missed, setMissed] = useState<readonly string[]>([]);
+  /** The trip's real length once made, when the setup laid its days out —
+   *  not the answer, which the chosen days can outrun. */
+  const [madeDays, setMadeDays] = useState<number | null>(null);
   // The timer outlives nothing: an unmounted conversation has no row to end.
   useEffect(
     () => () => {
@@ -500,7 +503,7 @@ function Conversation({
         // on is not a saving.
         budget: null,
         currency: DEFAULT_CURRENCY,
-        savedDayIds: state.chosen ?? [],
+        savedDays: (state.chosen ?? []).flatMap((id) => state.offer?.find((day) => day.savedDayId === id) ?? []),
       },
       applySetup,
       latch: progress,
@@ -518,6 +521,7 @@ function Conversation({
       return null;
     }
     setMissed(namesOf(result.missedDays));
+    setMadeDays(result.dayCount);
     return result;
   }
 
@@ -679,9 +683,10 @@ function Conversation({
   // stops being true of all of them. A chosen day that did not land is named
   // too: said, not silently dropped.
   const placed = namesOf(state.chosen ?? []).filter((each) => !missed.includes(each));
+  const madeLength = madeDays ?? days;
   const closing =
     phase === "made"
-      ? `Done. ${name} is created${days === null ? "" : `, ${days} days`}` +
+      ? `Done. ${name} is created${madeLength === null ? "" : `, ${madeLength === 1 ? "1 day" : `${madeLength} days`}`}` +
         `${dated ? ` from ${formatTripDateWithYear(arrive)}` : ""}. ` +
         (placed.length === 0
           ? "The days are empty and yours to fill"

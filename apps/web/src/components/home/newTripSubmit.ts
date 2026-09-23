@@ -37,9 +37,10 @@ export interface TripSetup {
   days: number | null;
   budget: Money | null;
   currency: string;
-  /** Published days the Playbook-day turn chose (M27 D13). Optional: every
-   *  caller before that turn existed sends none. */
-  savedDayIds?: readonly string[];
+  /** Published days the Playbook-day turn chose (M27 D13), with how many
+   *  days each one appends. Optional: every caller before that turn existed
+   *  sends none. */
+  savedDays?: readonly { savedDayId: string; dayCount: number }[];
 }
 
 /**
@@ -58,7 +59,9 @@ export interface TripSetup {
  */
 export interface SetupLatch {
   tripId: string;
-  datedAs: { startDate: string; endDate: string } | null;
+  /** `endDate` is null when the chosen days fill the whole length, and the
+   *  dates command set only the start. */
+  datedAs: { startDate: string; endDate: string | null } | null;
   budgetAppliedAs: Money | null;
   currencyAppliedAs: string | null;
   /**
@@ -86,6 +89,12 @@ export type SetupResult =
        * its closing line, rather than holding the trip back over it.
        */
       missedDays: readonly string[];
+      /**
+       * How many days the trip has, when this laid them out: the empty ones
+       * plus every chosen day in it. `null` for a trip it gave no dates, whose
+       * length it did not set.
+       */
+      dayCount: number | null;
     }
   | { ok: false; error: string; latch: SetupLatch | null };
 
@@ -155,7 +164,7 @@ export async function createTripWithSetup({
     };
   }
   const tripId = applied.tripId;
-  if (!applySetup) return { ok: true, latch: applied, missedDays: [] };
+  if (!applySetup) return { ok: true, latch: applied, missedDays: [], dayCount: null };
 
   // **Dates.** What the form says NOW, which may be null because the field was
   // cleared between attempts (CodeRabbit, PR #165). Comparing a nullable
@@ -165,9 +174,17 @@ export async function createTripWithSetup({
   // reported success. Both commands take the null — `SetTripDates` is
   // start/end nullable with `newDayIds: []`, and `SetTripBudget.budget` is
   // `Money.nullable()`. "Null clears."
+  //
+  // **Only the days the chosen Playbook days do not fill** (M27 D13). Each
+  // insert below APPENDS its days, so laying out the whole answered length
+  // first made "5 days" plus a 1-day and a 3-day Playbook a 9-day trip. When
+  // the chosen days run longer than the answer, they are the trip: the end is
+  // null, which sets the start and leaves the day count alone.
+  const chosenLength = (setup.savedDays ?? []).reduce((sum, day) => sum + day.dayCount, 0);
+  const emptyDays = setup.days === null ? 0 : Math.max(setup.days - chosenLength, 0);
   const desiredDates =
     ISO_DATE.test(setup.arrive) && setup.days !== null
-      ? { startDate: setup.arrive, endDate: addDaysIso(setup.arrive, setup.days - 1) }
+      ? { startDate: setup.arrive, endDate: emptyDays === 0 ? null : addDaysIso(setup.arrive, emptyDays - 1) }
       : null;
   // A clear is only worth sending if this wizard actually set something
   // earlier — a trip created moments ago already has no dates, and asking the
@@ -179,10 +196,7 @@ export async function createTripWithSetup({
         applied.datedAs.startDate !== desiredDates.startDate ||
         applied.datedAs.endDate !== desiredDates.endDate;
   if (datesDiffer) {
-    const newDayIds =
-      desiredDates === null || setup.days === null
-        ? []
-        : Array.from({ length: setup.days }, () => newDayId());
+    const newDayIds = desiredDates === null ? [] : Array.from({ length: emptyDays }, () => newDayId());
     const result = await dispatch({
       type: "SetTripDates",
       tripId,
@@ -236,9 +250,11 @@ export async function createTripWithSetup({
   }
 
   // **The chosen Playbook days, last** (M27 D13). After the dates on purpose:
-  // the adds ledger only counts an add into a trip that has dates, and a day
-  // inserted before `SetTripDates` would be one the author never gets credit
-  // for. One insert per day, each its own undoable batch, exactly as the manual
+  // `SetTripDates` reconciles the day count to its range, so sent second it
+  // would remove the days just inserted. (Not for the adds ledger: `addCounts`
+  // asks only whether the adder wrote the day, and an add into an undated trip
+  // counts — the dates clause was dropped on 2026-09-08, `savedDayAdds.ts`.)
+  // One insert per day, each its own undoable batch, exactly as the manual
   // "Add to a trip" makes it.
   //
   // **A failed insert does not fail the setup.** Everything the reader asked
@@ -247,7 +263,7 @@ export async function createTripWithSetup({
   // "Trip created, but…" with a retry that re-sends nothing useful — would
   // cost more than it saves. It is reported, not lost.
   const missedDays: string[] = [];
-  for (const savedDayId of setup.savedDayIds ?? []) {
+  for (const { savedDayId } of setup.savedDays ?? []) {
     if (applied.insertedDays?.includes(savedDayId)) continue;
     const result = insertDay === undefined ? null : await insertDay(tripId, savedDayId);
     if (result === null || !result.ok) {
@@ -257,5 +273,10 @@ export async function createTripWithSetup({
     applied = { ...applied, insertedDays: [...(applied.insertedDays ?? []), savedDayId] };
   }
 
-  return { ok: true, latch: applied, missedDays };
+  const inserted = applied.insertedDays ?? [];
+  const placedLength = (setup.savedDays ?? [])
+    .filter((day) => inserted.includes(day.savedDayId))
+    .reduce((sum, day) => sum + day.dayCount, 0);
+  const dayCount = applied.datedAs === null ? null : emptyDays + placedLength;
+  return { ok: true, latch: applied, missedDays, dayCount };
 }
