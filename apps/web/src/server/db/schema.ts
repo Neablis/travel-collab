@@ -563,6 +563,15 @@ export const savedDays = pgTable(
     // writer can overwrite the other. `moderation_note` is the operator's one
     // line on why, shown to the author.
     //
+    // **Every non-owner read filters on it, `deletedAt`'s risk exactly.** The
+    // list: `savedDays.ts` (`readableSavedDay` — the shared-day read, insert
+    // and report paths, non-owners only), `playbooks.ts` (`notModerated` in
+    // `publishedDayCount`, `review_totals`, `leaderboard`, `publicAuthor` and
+    // `citiesKnownBy`; `notModeratedUnlessMine` in `matchPredicate`, which
+    // keeps the owner's own day in Discover but not on their profile) and
+    // `cities.ts` (`searchCities`). NOT filtered, deliberately: `listSavedDays`
+    // and `getSavedDay`, the owner's library. The only writer is `reports.ts`.
+    //
     // `mode: "date"` — see the `savedDays` note above (KI-53).
     moderatedAt: timestamp("moderated_at", { withTimezone: true, mode: "date" }),
     moderationNote: text("moderation_note"),

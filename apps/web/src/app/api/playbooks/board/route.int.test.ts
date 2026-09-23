@@ -337,9 +337,11 @@ describe("an author's review totals", () => {
     currentUserId = TAKER;
     const { body } = await board();
     const popular = body.authors.find((a) => a.userId === POPULAR)!;
-    const quiet = body.authors.find((a) => a.userId === QUIET)!;
     expect(popular).toMatchObject({ reviewsReceived: 4, averageRating: 3.5 });
-    expect(quiet).toMatchObject({ reviewsReceived: 0, averageRating: null });
+    // Moderating the quiet author's only day takes them off the board
+    // altogether (M12 link 6: "removed from ... the board"), so their totals
+    // are asserted on the profile below instead.
+    expect(body.authors.map((a) => a.userId)).not.toContain(QUIET);
 
     expect((await profile(POPULAR)).author).toMatchObject({ reviewsReceived: 4, averageRating: 3.5 });
     expect((await profile(QUIET)).author).toMatchObject({ reviewsReceived: 0, averageRating: null });

@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-23 — report and moderation response shapes (M12 link 6)
+
+- Added web-local `apps/web/src/lib/reports.ts` (not `packages/contracts`,
+  for the reason `lib/playbooks.ts` gives): **`CreateReportResponse`**
+  `{ report }`, **`AdminReportQueueItem`** `{ report, day | null, review |
+  null, reportsOnTarget }`, **`AdminReportsResponse`** `{ reports }` and
+  **`AdminReportActionResponse`** `{ report }`. Each wraps `ContentReport`
+  rather than restating it.
+- Why: the bodies of `POST /api/reports`, `GET /api/admin/reports` and
+  `POST /api/admin/reports/:reportId`. A queue row carries the day's name and
+  owner and the review's text because an operator deciding from a reason code
+  alone is deciding blind.
+- Consumers updated: `apps/web` — `server/reports.ts`, the three routes, and
+  `mocks/handlers.ts` (`makeReportHandlers`). No `apiClient` function or screen
+  reads them yet; the UI is a later step.
+- `SavedDay` gains **no** `moderatedAt` field in this change: the owner's read
+  is unchanged in shape, and whether the author's copy shows the operator's
+  note is a UI decision left open.
+- Breaking? no — new shapes only.
+
 ## 2026-09-23 — reviews, reports and place search: M12's contracts
 
 - Added `packages/contracts/src/review.ts`: **`ReviewStars`** (int 1-5),

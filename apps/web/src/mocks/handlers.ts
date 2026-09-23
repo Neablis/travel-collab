@@ -1,10 +1,14 @@
 import { HttpResponse, http } from "msw";
 import type { AccountPlanView } from "@/lib/accountPlan";
+import type { AdminReportQueueItem } from "@/lib/reports";
 import {
+  AdminReportAction,
   BatchableCommand,
   CreatePageInput,
+  CreateReportInput,
   TripCommand,
   UpdatePageInput,
+  type ContentReport,
   type Page,
   type TripDetail,
   type TripEventsPage,
@@ -375,4 +379,70 @@ export function makeAccountPlanHandler(overrides: Partial<AccountPlanView> = {})
     ...overrides,
   };
   return http.get("/api/account/plan", () => HttpResponse.json({ plan }));
+}
+
+/**
+ * Reporting and the operator queue (M12 link 6), hand-written against
+ * `CreateReportInput` / `AdminReportAction` like the rest of this file.
+ *
+ * Just enough state for a screen to walk it: a report is filed once per
+ * target (a repeat answers 200 with the same report, as the server does), a
+ * day in `ownSavedDayIds` is refused 403 `own-content`, and acting on an open
+ * report settles it — `hide-*` as actioned, anything else as dismissed. What a
+ * hide removes from Discover is the server's to prove, not this mock's.
+ */
+export function makeReportHandlers(
+  options: {
+    ownSavedDayIds?: string[];
+    queue?: AdminReportQueueItem[];
+    onAction?: (action: AdminReportAction) => void;
+  } = {},
+) {
+  const filed = new Map<string, ContentReport>();
+  const queue = structuredClone(options.queue ?? []);
+  const keyOf = (target: ContentReport["target"]) =>
+    target.kind === "review" ? `review:${target.savedDayId}:${target.reviewerId}` : `day:${target.savedDayId}`;
+  return [
+    http.post("/api/reports", async ({ request }) => {
+      const body = CreateReportInput.safeParse(await request.json().catch(() => null));
+      if (!body.success) return HttpResponse.json({ error: "invalid-report" }, { status: 400 });
+      const { target } = body.data;
+      if (target.kind === "saved_day" && options.ownSavedDayIds?.includes(target.savedDayId)) {
+        return HttpResponse.json({ error: "own-content" }, { status: 403 });
+      }
+      const existing = filed.get(keyOf(target));
+      if (existing !== undefined) return HttpResponse.json({ report: existing }, { status: 200 });
+      const report: ContentReport = {
+        reportId: crypto.randomUUID(),
+        target,
+        reporterId: "mock-reporter",
+        reason: body.data.reason,
+        note: body.data.note,
+        status: "open",
+        createdAt: new Date().toISOString(),
+        resolvedAt: null,
+        resolvedBy: null,
+        resolutionNote: null,
+      };
+      filed.set(keyOf(target), report);
+      return HttpResponse.json({ report }, { status: 201 });
+    }),
+    http.get("/api/admin/reports", ({ request }) => {
+      const status = new URL(request.url).searchParams.get("status") ?? "open";
+      return HttpResponse.json({ reports: queue.filter((item) => item.report.status === status) });
+    }),
+    http.post("/api/admin/reports/:reportId", async ({ params, request }) => {
+      const action = AdminReportAction.safeParse(await request.json().catch(() => null));
+      if (!action.success) return HttpResponse.json({ error: "invalid-action" }, { status: 400 });
+      const item = queue.find((i) => i.report.reportId === params.reportId);
+      if (item === undefined) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      options.onAction?.(action.data);
+      if (item.report.status === "open") {
+        item.report.status = action.data.action.startsWith("hide-") ? "actioned" : "dismissed";
+        item.report.resolvedAt = new Date().toISOString();
+        item.report.resolvedBy = "mock-operator";
+      }
+      return HttpResponse.json({ report: item.report });
+    }),
+  ];
 }

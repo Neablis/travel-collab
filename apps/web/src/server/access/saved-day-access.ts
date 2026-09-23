@@ -39,6 +39,10 @@ import { readableSavedDay } from "../savedDays";
  * exactly one ("you may read this day, or you may not"), and every new reason a
  * day is unreadable is spelled in the query rather than as another branch.
  *
+ * A day an operator moderated (M12 link 6) is the next such reason, and it is
+ * spelled there too — for everyone EXCEPT its author, who keeps their copy:
+ * a non-owner gets this same 404, identical to a private day's.
+ *
  * `isAuthor` rides along because every caller needs it and re-deriving
  * `day.ownerId === readerId` at each of them is how one of them eventually
  * gets it backwards.

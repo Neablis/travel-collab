@@ -379,7 +379,12 @@ export async function readableSavedDay(
         isNull(savedDays.deletedAt),
         or(
           eq(savedDays.ownerId, readerId),
-          eq(savedDays.visibility, SavedDayVisibility.enum.public),
+          // Published AND not moderated (M12 link 6). The author keeps their
+          // moderated day — this is also their direct read and the insert path
+          // into their own trips — while everyone else gets the same no-row a
+          // private day produces: nobody else can open,
+          // insert or report a moderated day.
+          and(eq(savedDays.visibility, SavedDayVisibility.enum.public), isNull(savedDays.moderatedAt)),
         ),
       ),
     );

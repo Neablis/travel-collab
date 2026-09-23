@@ -147,6 +147,34 @@ function isoOf(value: unknown): string | null {
 const notDeleted = sql`and d.deleted_at is null`;
 
 /**
+ * The moderation filter (M12 link 6, D5), spelled once on `notDeleted`'s terms
+ * and for its reason: the whole risk of `moderated_at` is a read that forgets
+ * it, and `grep notModerated` is the check.
+ *
+ * **Not `notDeleted` again, because the author keeps a moderated day.** A
+ * deleted day is gone for everyone; a moderated one leaves every surface
+ * somebody ELSE reads — the board, a profile, the shared-day count, the city
+ * index — and stays in its owner's own library. So this constant is for the
+ * surfaces that are never the owner's own, and `discoverDays`, which is both,
+ * uses `notModeratedUnlessMine` instead.
+ */
+const notModerated = sql`and d.moderated_at is null`;
+
+/**
+ * Discover's half of the rule: a moderated day is visible to its owner and to
+ * nobody else — `yours`, and `everyone` as the superset of `yours`, keep it for
+ * the author, exactly as they keep the author's private days.
+ *
+ * `publishedOnly` (the profile's rule) takes the owner exception away: a
+ * profile is what other people see, so its owner is shown the same page — the
+ * reason `publishedOnly` exists at all.
+ */
+function notModeratedUnlessMine(query: DiscoverQuery): SQL {
+  if (query.publishedOnly === true) return notModerated;
+  return sql`and (d.moderated_at is null or d.owner_id = ${query.readerId})`;
+}
+
+/**
  * Which rows this scope may see at all — the one place the segment's meaning
  * lives, shared by the day query and the sibling-chip query so the chips can
  * never describe a set the cards are drawn from a different version of.
@@ -196,6 +224,7 @@ function matchPredicate(query: DiscoverQuery): SQL {
   return sql`
     ${scopePredicate(query.scope, query.readerId)}
     ${notDeleted}
+    ${notModeratedUnlessMine(query)}
     and (${query.publishedOnly === true} = false or d.visibility = ${SavedDayVisibility.enum.public})
     and (cardinality(${cities}) = 0 or d.cities && ${cities})
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
@@ -397,6 +426,7 @@ async function publishedDayCount(): Promise<number> {
     from saved_days d
     where d.visibility = ${SavedDayVisibility.enum.public}
       ${notDeleted}
+      ${notModerated}
   `);
   return Number(rows.rows[0]?.days ?? 0);
 }
@@ -476,7 +506,7 @@ const reviewTotals = sql`review_totals as (
     sum(d.rating * d.review_count) / nullif(sum(d.review_count), 0) as average_rating
   from saved_days d
   where d.visibility = ${SavedDayVisibility.enum.public}
-    and d.moderated_at is null
+    ${notModerated}
     ${notDeleted}
   group by d.owner_id
 )`;
@@ -528,7 +558,10 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
     -- every ledger row of a day that still exists, which is the point: deleting
     -- a day drops it out of days_shared, and does NOT erase adds somebody
     -- genuinely made against the days that remain.
-    where true ${notDeleted}
+    --
+    -- A moderated day is dropped the same way, adds and all: it is off the
+    -- board, and its ledger rows come back with it on restore.
+    where true ${notDeleted} ${notModerated}
     group by d.owner_id, rt.reviews_received, rt.average_rating
     having count(a.saved_day_id) > 0
         or count(*) filter (where d.visibility = ${SavedDayVisibility.enum.public}) > 0
@@ -581,6 +614,7 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
     left join saved_day_adds a on a.saved_day_id = d.id
     where d.owner_id = ${userId}
       ${notDeleted}
+      ${notModerated}
   `);
   // Exactly one row, always. This is an ungrouped aggregate — no `group by` —
   // and SQL evaluates one of those over the whole (possibly empty) input and
@@ -624,6 +658,7 @@ export async function citiesKnownBy(userId: string): Promise<CityMatch[]> {
     from saved_days d, unnest(d.cities) as city
     where d.owner_id = ${userId} and d.visibility = ${SavedDayVisibility.enum.public}
       ${notDeleted}
+      ${notModerated}
     group by city
     order by days desc, city asc
   `);
