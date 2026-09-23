@@ -50,7 +50,8 @@ export const ROUTES = [
   // one.
   { route: "/demo", gate: "isTrip", spec: [27], note: "No artboard of its own — the trip surface in `readOnly` (§27)" },
   { route: "/s/[token]", gate: "isTrip", spec: [27], note: "No artboard of its own — the trip surface in `readOnly` (§27)" },
-  { route: "/invite/[token]", gate: null, spec: [17], note: "Undrawn. The gate it leads to is §17.3, in Trip settings" },
+  { route: "/invite/[token]", gate: "isInvite", spec: [35], note: "§35.6: `valid`, `revoked`, `member` (M27 D9 — no `expired`)" },
+  { route: "/invite/[token]/look", gate: "isTrip", spec: [27, 35], note: "No artboard of its own — the trip surface in `readOnly`, §35.6's invite banner (M27 D12)" },
 ];
 
 // A route that is deliberately outside the design. Anything not here and not

@@ -62,29 +62,36 @@ export default auth((req) => {
     if (pathname === "/") {
       return NextResponse.redirect(new URL("/welcome", req.nextUrl));
     }
-    const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
-    const response = NextResponse.redirect(
-      new URL(`/signin?callbackUrl=${callbackUrl}`, req.nextUrl),
-    );
-    // M11a link 5. `callbackUrl` alone brings them back to the invite screen,
-    // but the gate runs *during* the sign-in in between and by then the URL
-    // they arrived on is gone — so the token is banked here, on the redirect
-    // that already exists, and read out of the cookie by `recordSignIn`.
+    // M27 link 6: the invite landing is PUBLIC — it is what an invite link
+    // opens for somebody with no account (SPEC §35.6), so it is served, not
+    // bounced to /signin. It stays in the matcher for the other half of what
+    // this file did for it:
+    //
+    // M11a link 5. The gate runs *during* a sign-in, and by then the URL the
+    // person arrived on is gone — so the token is banked here and read out of
+    // the cookie by `recordSignIn`. It used to ride the /signin redirect; now
+    // it rides the landing itself (and *Have a look first*, whose Join leaves
+    // for sign-in from there). Every visit re-banks it, so the cookie's short
+    // life counts from the last page the person saw, not the first.
     const token = tripInviteToken(pathname);
     if (token !== null) {
+      const response = NextResponse.next();
       response.cookies.set(
         PENDING_ADMISSION_COOKIE,
         token,
         pendingAdmissionCookieOptions(req.headers.get("host")),
       );
+      return response;
     }
-    return response;
+    const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
+    return NextResponse.redirect(new URL(`/signin?callbackUrl=${callbackUrl}`, req.nextUrl));
   }
   return NextResponse.next();
 });
 
 /**
- * The token in `/invite/<token>`, or null for anything else this file matches.
+ * The token in `/invite/<token>` or `/invite/<token>/look`, or null for
+ * anything else this file matches.
  *
  * **Stores, never validates** — deliberately (ADR-024, and the milestone's own
  * trap list). This runs in the Edge runtime with no database, so whether the
@@ -92,19 +99,19 @@ export default auth((req) => {
  * `server/admission.ts` owns that, reached from `recordSignIn`. Importing it
  * from this file would fail lint and would be wrong before it failed.
  *
- * Exactly one path segment: `/invite` on its own and `/invite/<token>/anything`
- * are both matched by the `/invite/:path*` matcher below and neither is an
- * invite link. `normalizePendingAdmission` then applies the shared bound, so a
- * hand-crafted megabyte-long path cannot push that much into a `Set-Cookie`
- * header on an unauthenticated request.
+ * `/invite` on its own and `/invite/<token>/anything-else` are both matched by
+ * the `/invite/:path*` matcher below and neither is an invite link.
+ * `normalizePendingAdmission` then applies the shared bound, so a hand-crafted
+ * megabyte-long path cannot push that much into a `Set-Cookie` header on an
+ * unauthenticated request.
  */
 function tripInviteToken(pathname: string): string | null {
-  const segment = /^\/invite\/([^/]+)\/?$/.exec(pathname)?.[1];
+  const segment = /^\/invite\/([^/]+)(?:\/look)?\/?$/.exec(pathname)?.[1];
   if (segment === undefined) return null;
   // `pathname` keeps its percent-encoding; a real token is base64url
   // (`access/invites.ts` `mintToken`) and never carries any, so this only
   // matters for junk. `decodeURIComponent` throws on a malformed escape, and a
-  // throw here would take down the redirect for a signed-out visitor — the
+  // throw here would take down the page for a signed-out visitor — the
   // undecoded string is stored instead, which simply fails to validate later.
   try {
     return normalizePendingAdmission(decodeURIComponent(segment));
@@ -124,10 +131,9 @@ function tripInviteToken(pathname: string): string | null {
 //     prefix matches too, not just children)
 //   - `/trips/:path*`     — matches `/trips/:tripId` and the nested notebook
 //     routes under `/trips/:tripId/pages/...` for the same zero-or-more reason
-//   - `/invite/:path*`   — the M11 link 3 accept screen. Matched for exactly
-//     the reason the others are: an invite link handed to someone who is not
-//     signed in should land them on /signin and then bring them back to the
-//     invite, which `callbackUrl` already does.
+//   - `/invite/:path*`   — the invite landing and its look (M27 link 6).
+//     NOT to send anyone to /signin — both pages are public — but to bank the
+//     token for M11a's gate on the way past (see the handler above).
 export const config = {
   matcher: ["/", "/playbooks/:path*", "/trips/:path*", "/invite/:path*"],
 };

@@ -1,5 +1,6 @@
 import { UpdatePageInput } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
+import { inviteTokenOf } from "@/server/access/trip-access";
 import { isUuid } from "@/server/ids";
 import { getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
@@ -16,9 +17,9 @@ import { executePageCommand } from "@/server/pageCommands";
 // has just decided not to tell them.
 const notFound = () => Response.json({ error: "not-found" }, { status: 404 });
 
-export async function GET(_req: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {
   const { tripId, pageId } = await params;
-  const g = await guard(tripId, "viewer", { allowDemo: true });
+  const g = await guard(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(req) });
   if ("error" in g) return g.error;
   if (!isUuid(pageId)) return notFound();
   const page = await getPage(pageId);

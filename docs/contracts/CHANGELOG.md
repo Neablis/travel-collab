@@ -13,6 +13,32 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-23 — the invite landing replaces the invite preview (M27 link 6)
+
+- Added **`InviteLanding`** to `packages/contracts/src/access.ts`, a
+  discriminated union on `state`: `valid` (inviter name, recipient email,
+  sent-at, role, the trip's name/start/day/city/stop counts, a per-day
+  `InviteLandingDay[]`, per-leg `InviteLandingLeg[]`, crew first names),
+  `member` (trip id and name, `signedIn: true` only), `revoked`, and
+  `unavailable` (the server's sentence). Every member is `.strict()`.
+- **Removed `InvitePreview`.** Its one route, `GET /api/invites/:token`, now
+  answers `{ landing: InviteLanding }` and no longer requires a session.
+- Why: SPEC §35.6 draws the screen an invite link opens for somebody with no
+  account — who asked, what the trip is, who is on it — and the preview could
+  not be read signed out. The refusals stay as thin as the #71 review §7 made
+  them, and `.strict()` is what holds them there: a field spread into
+  `revoked` is a parse error at the route, not a leak (M27 D10). No user id
+  crosses (ADR-027): the crew is first names, and the name chain stops before
+  its email fallback. No `expired` state and no invite note — invites have
+  neither (M27 D9, D11).
+- Consumers updated: `apps/web` — the route, `server/inviteLanding.ts` (new;
+  composed outside Access, which does not know what a trip contains),
+  `apiClient.fetchInviteLanding` (replaces `fetchInvitePreview`), the new
+  `InviteLandingScreen` (replaces `InviteAcceptScreen`), and their tests.
+- Breaking? yes, for the BFF only — `InvitePreview` and `fetchInvitePreview`
+  are gone, and the route's body key moved from `invite` to `landing`. No
+  public-API (`/api/v1`) surface and no stored data involved.
+
 ## 2026-09-22 — notebook pages become commands and events
 
 - Added `packages/contracts/src/pageEvents.ts`: commands **`CreatePage`**,
