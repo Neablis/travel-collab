@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoverResponse } from "@/lib/playbooks";
+import { eq } from "drizzle-orm";
 import { executeTripCommand } from "@/server/commands";
+import { db } from "@/server/db/client";
+import { savedDays } from "@/server/db/schema";
+import { putReview } from "@/server/reviews";
 
 // Discover's day search (M11b link 5), against the real containment query.
 //
@@ -184,6 +188,62 @@ describe("GET /api/playbooks", () => {
     const ours = names(body).filter((n) => n === one || n === two);
     expect(ours).toEqual([two, one]);
     expect(body.days.find((d) => d.name === one)!.adds).toBe(1);
+  });
+
+  // M12 link 5: the two sorts that waited for reviews. The counters are written
+  // through the database because the review write path is not built yet. Three
+  // days whose order differs under every sort: "rated" beats "popular" on
+  // rating and loses on count, and the unrated day must come LAST on
+  // highest-rated — `desc` alone would put its null first.
+  it("sorts highest-rated with unrated days last, and most-reviewed by count", async () => {
+    const c = city("rate");
+    const rated = `Rated ${RUN}`;
+    const popular = `Popular ${RUN}`;
+    const unrated = `Unrated ${RUN}`;
+    const ids = {
+      [rated]: await saveDay(rated, [{ city: c }]),
+      [popular]: await saveDay(popular, [{ city: c }]),
+      [unrated]: await saveDay(unrated, [{ city: c }]),
+    };
+    for (const id of Object.values(ids)) await publish(id);
+    await db.update(savedDays).set({ rating: 4.8, reviewCount: 2 }).where(eq(savedDays.id, ids[rated]!));
+    await db.update(savedDays).set({ rating: 3.5, reviewCount: 9 }).where(eq(savedDays.id, ids[popular]!));
+
+    currentUserId = READER;
+    const highest = (await discover(`city=${c}&sort=highest-rated`)).body;
+    expect(names(highest)).toEqual([rated, popular, unrated]);
+    expect(highest.days.map((d) => [d.rating, d.reviewCount])).toEqual([[4.8, 2], [3.5, 9], [null, 0]]);
+    expect(names((await discover(`city=${c}&sort=most-reviewed`)).body)).toEqual([popular, rated, unrated]);
+  });
+
+  // §15's fourth filter (M12 D9). Rated through the real write path, so the
+  // floor is tested against counters the reviews produced rather than numbers
+  // written beside them. Inclusive at the boundary — a 4.0 day is "4+ stars" —
+  // and every floor above `any` drops the unrated day; an unknown floor falls
+  // back to `any`, like every other parameter here.
+  it("floors on the average rating, inclusively, and drops unrated days", async () => {
+    const c = city("floor");
+    const days: Record<string, number[]> = {
+      [`Four and a half ${RUN}`]: [5, 4],
+      [`Four ${RUN}`]: [4],
+      [`Three ${RUN}`]: [3],
+      [`Unrated ${RUN}`]: [],
+    };
+    for (const [name, stars] of Object.entries(days)) {
+      const id = await saveDay(name, [{ city: c }]);
+      await publish(id);
+      for (const [i, s] of stars.entries()) await putReview(id, `floor-reviewer-${RUN}-${i}`, { stars: s, note: null });
+    }
+
+    currentUserId = READER;
+    const floored = async (rating: string) =>
+      names((await discover(`city=${c}&sort=highest-rated&rating=${rating}`)).body);
+    const [half, four, three, unrated] = Object.keys(days);
+    expect(await floored("4.5")).toEqual([half]);
+    expect(await floored("4")).toEqual([half, four]);
+    expect(await floored("3")).toEqual([half, four, three]);
+    expect(await floored("any")).toEqual([half, four, three, unrated]);
+    expect(await floored("five-stars")).toEqual([half, four, three, unrated]);
   });
 
   // §15's sibling chips: "cities present in the current result set but absent
@@ -378,7 +438,7 @@ describe("GET /api/playbooks", () => {
 
     currentUserId = READER;
     const { status, body } = await discover(
-      `city=${only}&sort=highest-rated&scope=galaxy&budget=mid&season=harvest`,
+      `city=${only}&sort=loudest&scope=galaxy&budget=mid&season=harvest`,
     );
     expect(status).toBe(200);
     expect(names(body)).toContain(name);

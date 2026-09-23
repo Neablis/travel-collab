@@ -14,6 +14,8 @@ export * from "./pageDoc.ts";
 export * from "./access.ts";
 export * from "./share.ts";
 export * from "./saved.ts";
+export * from "./review.ts";
+export * from "./report.ts";
 export * from "./admission.ts";
 export * from "./identity.ts";
 export * from "./assistant.ts";

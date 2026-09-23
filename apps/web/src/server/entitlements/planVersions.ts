@@ -355,9 +355,6 @@ export function planVersionRefOf(entry: PlanVersion): PlanVersionRef {
  * ordered. Both are worse than an error with the reference in it.
  */
 export class UnknownPlanVersionError extends Error {
-  // A declared field, not `constructor(readonly ref)`: a parameter property is
-  // not erasable, so Node's strip-only loader refuses the whole module, and
-  // the production content importer reaches this file (KI-2026-09-23-f).
   readonly ref: string;
 
   constructor(ref: string) {

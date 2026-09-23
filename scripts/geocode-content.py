@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Fill in `location.lat` / `location.lng` for every stop in `content/**/*.json`,
-slowly, over as many sessions as it takes.
+Fill in `location.lat` / `location.lng` — and `location.countryCode` — for every
+stop in `content/**/*.json`, slowly, over as many sessions as it takes.
 
     python3 scripts/geocode-content.py --status          # what is left, no network
     python3 scripts/geocode-content.py                   # work the queue until done
@@ -1020,6 +1020,62 @@ def learned_countries(db) -> dict[str, str]:
     return {c: v.most_common(1)[0][0] for c, v in votes.items() if v}
 
 
+def stop_countries(db, excluded: set[str]) -> tuple[
+        dict[str, str], dict[tuple[str, str], str], dict[tuple[str, str], collections.Counter]]:
+    """The codes `--apply` may WRITE: per place, then per (bundle, city).
+
+    `learned_countries` above takes a majority, which is right for what it is
+    used for — scoping a lookup, where a wrong guess costs one request. Writing
+    `countryCode` into a bundle is a different bar: the code decides which
+    country filter a day appears under (M12 link 7), and a wrong one files a
+    day under a country it is not in. So:
+
+      1. A stop whose OWN place resolved (an accepted venue or area hit) takes
+         that hit's country. Nothing is better evidence about one stop.
+      2. Otherwise, UNANIMITY over the accepted hits of the other stops in the
+         same city IN THE SAME BUNDLE. Not across bundles: a city name alone is
+         globally ambiguous — Santa Cruz is in California and in Bolivia, and a
+         vote pooled over the whole library would hand one bundle's code to
+         the other's unresolved stops.
+
+    Every pin `--apply` is already withholding (`excluded`: audit disagreements
+    and outliers) is left out of both — the Fuente De case, where the pins
+    voted Mexico for a place in Spain, is a `split` city whose pins are all
+    excluded, so it gets no code at all.
+
+    Returns the per-place codes, the unanimous (bundle, city) codes, and the
+    (bundle, city) pairs whose pins disagree, with their votes, for the caller
+    to report rather than silently skip.
+    """
+    own: dict[str, str] = {}
+    for key, cc in db.execute(
+        "select key, country_code from places where status='ok' and country_code is not null "
+        "and coalesce(precision,'venue') in ('venue','area')"
+    ):
+        if key not in excluded:
+            own[key] = cc.strip().upper()
+
+    # One vote per distinct place, not per stop, as before: a venue named on
+    # five stops is still one lookup's evidence.
+    voters: dict[tuple[str, str], set[str]] = {}
+    for path in bundle_files():
+        try:
+            bundle = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue                     # `places()` already reported it
+        scope = str(path.relative_to(CONTENT))
+        for stop in stops_of(bundle):
+            loc = stop.get("location") or {}
+            name = (loc.get("name") or "").strip()
+            place = Place(name, (loc.get("area") or "").strip(), (loc.get("city") or "").strip())
+            if name and place.city and place.key in own:
+                voters.setdefault((scope, place.city), set()).add(place.key)
+    votes = {k: collections.Counter(own[key] for key in keys) for k, keys in voters.items()}
+    agreed = {k: next(iter(v)) for k, v in votes.items() if len(v) == 1}
+    contested = {k: v for k, v in votes.items() if len(v) > 1}
+    return own, agreed, contested
+
+
 def city_anchors(db, provider, args, stopping, progress, only: set[str] | None = None) -> dict:
     """Resolve a city centre once, scoped to the country its venues landed in.
 
@@ -1415,7 +1471,9 @@ def retract(db: sqlite3.Connection, dry_run: bool) -> None:
 
 
 def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> None:
-    """Writes accepted coordinates into the bundles. Never writes a rejected one.
+    """Writes accepted coordinates, and each stop's countryCode where the
+    evidence agrees (`stop_countries`), into the bundles. Never writes a
+    rejected one, and never overwrites a code already there.
 
     City-centre fallbacks are held back unless asked for. They are true — that
     IS where the city is — but pinning every stop of a day to one point draws a
@@ -1477,15 +1535,61 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
     if outlier_keys:
         print(f"  holding back {len(outlier_keys)} outlier(s) — see --review")
 
+    # `countryCode`, alongside the coordinates (M12 link 7's prerequisite). This
+    # script always KNEW each city's country — `learned_countries` uses it to
+    # scope lookups — and never wrote it, so on 2026-09-09 the library held
+    # 1,091 coordinates and zero codes, and a country filter over it would have
+    # matched nothing. See `stop_countries` for the bar a code has to clear.
+    own_codes, countries, contested = stop_countries(db, withheld | outlier_keys)
+    if contested:
+        print(f"  {len(contested)} city/ies have pins in more than one country within one bundle — "
+              f"no countryCode written for their unresolved stops:")
+        for (scope, city), votes in sorted(contested.items()):
+            print(f"    {scope}: {city}: " + ", ".join(f"{cc} x{n}" for cc, n in votes.most_common()))
+
     touched = written = held = already = 0
+    cc_written = cc_already = 0
+    cc_conflicts: list[tuple[str, str, str, str]] = []
     for path in bundle_files():
         bundle = json.loads(path.read_text(encoding="utf-8"))
+        scope = str(path.relative_to(CONTENT))
         changed = False
         for stop in stops_of(bundle):
             loc = stop.get("location") or {}
             name = (loc.get("name") or "").strip()
             if not name:
                 continue
+            place = Place(name, (loc.get("area") or "").strip(), (loc.get("city") or "").strip())
+
+            # The country pass runs BEFORE the coordinate one and independently
+            # of it, because the stops that most need a code are the ones that
+            # already carry a coordinate from an earlier run — the `lat` check
+            # below skips exactly those.
+            #
+            # Written only where absent. A code already in the file — a person's,
+            # or `address.countryCode`, which `Location` refines must equal it —
+            # always wins, the rule this function applies to coordinates; one
+            # that DIFFERS is a conflict, reported with both values and never
+            # overwritten. The stop's coordinate is held back with it: the file
+            # and the geocoder disagreeing about the country is the KI-39
+            # signal, and a pin is the last thing to write on top of it.
+            code = own_codes.get(place.key) or countries.get((scope, place.city))
+            if code:
+                address = loc.get("address") if isinstance(loc.get("address"), dict) else {}
+                existing = (loc.get("countryCode") or address.get("countryCode") or "").strip().upper()
+                if existing == code:
+                    cc_already += 1
+                elif existing:
+                    cc_conflicts.append((path.name, name, existing, code))
+                    if "lat" not in loc:
+                        held += 1
+                    continue
+                else:
+                    loc["countryCode"] = code
+                    stop["location"] = loc
+                    cc_written += 1
+                    changed = True
+
             if "lat" in loc:
                 # Already carries one — from a person, or from a previous run.
                 # Counted rather than passed over in silence: "wrote 0" with no
@@ -1493,7 +1597,6 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
                 # and read as one twice before this line existed.
                 already += 1
                 continue
-            place = Place(name, (loc.get("area") or "").strip(), (loc.get("city") or "").strip())
             if place.key in outlier_keys:
                 held += 1
                 continue
@@ -1512,14 +1615,22 @@ def apply(db: sqlite3.Connection, dry_run: bool, include_city: bool = False) -> 
             if not dry_run:
                 path.write_text(json.dumps(bundle, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     verb = "would write" if dry_run else "wrote"
-    print(f"  {verb} {written} coordinate(s) across {touched} bundle(s); {held} held back for review")
+    print(f"  {verb} {written} coordinate(s) and {cc_written} countryCode(s) across {touched} bundle(s); "
+          f"{held} held back for review")
+    if cc_already:
+        print(f"  {cc_already} stop(s) already carried the countryCode this pass agrees with")
+    if cc_conflicts:
+        print(f"  {len(cc_conflicts)} stop(s) carry a DIFFERENT countryCode from the geocoder's — "
+              f"left as they are, coordinates withheld; decide each by hand:")
+        for file, name, have, learned in cc_conflicts:
+            print(f"    {file}: {name!r} has {have}, geocoder says {learned}")
     if already:
         print(f"  {already} stop(s) already had a coordinate and were left alone — "
               f"a value already in the file always wins.")
-        if written == 0:
+        if written == 0 and cc_written == 0:
             print("  Nothing was written because everything writable is already written. "
                   "To take back\n  a coordinate this pass would now refuse, use --retract.")
-    if not dry_run and written:
+    if not dry_run and (written or cc_written):
         print("  now run `pnpm content:verify` — the schema refuses a lat without a lng.")
 
 

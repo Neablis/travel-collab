@@ -42,7 +42,7 @@ import type { TripDetail } from "@tc/contracts";
  */
 type CityBearingStop = {
   timeWindow: { start: string } | null;
-  location: { city?: string | undefined } | null;
+  location: { city?: string | undefined; countryCode?: string | null | undefined } | null;
 };
 
 /**
@@ -61,15 +61,55 @@ type CityBearingStop = {
  * same as a stop with no location.
  */
 export function citiesOfStops(stops: readonly (CityBearingStop | undefined)[]): string[] {
-  const timed: { city: string; start: string }[] = [];
+  return distinctInTimeOrder(stops, (location) => location.city);
+}
+
+/**
+ * The countries a list of stops touches, as uppercase ISO-3166 alpha-2 codes
+ * (M12 link 7) — `citiesOfStops`' sibling, and the same rule with a different
+ * field: time order, untimed after timed, duplicates collapsed to the first
+ * occurrence. Sharing `distinctInTimeOrder` is what keeps "the countries a day
+ * touches" and "the cities a day touches" from being two rules that happen to
+ * agree.
+ *
+ * `location.countryCode` only — never inferred from `city` or from the tail of
+ * `name`. A code the geocoder did not write is a code nobody knows, and a
+ * guessed one would put a day in a country filter it does not belong to; the
+ * same "a missing answer beats a wrong one" call decision 2 makes for cities.
+ *
+ * Normalised (trimmed, uppercased) and then required to BE two letters. The
+ * contract already demands `^[A-Z]{2}$`, but the backfill reads stored jsonb
+ * that no parse has run over (see `backfill-saved-day-countries.mjs`), and a
+ * `"jp"` that became a second, lowercase Japan would split one country's day
+ * count in two.
+ *
+ * Order carries no meaning for a country set — `saved_days.countries` is only
+ * ever read with `&&` and `unnest` — so, unlike `citiesOfSequence`, there is no
+ * per-day fold: over a sequence this gives the right SET, and the save path and
+ * the backfill both call this one function, so the stored arrays agree
+ * byte-for-byte whichever wrote them.
+ */
+export function countriesOfStops(stops: readonly (CityBearingStop | undefined)[]): string[] {
+  return distinctInTimeOrder(stops, (location) => {
+    const code = location.countryCode?.trim().toUpperCase();
+    return code !== undefined && /^[A-Z]{2}$/.test(code) ? code : undefined;
+  });
+}
+
+/** Decisions 1 and 3 above, over whichever field `pick` reads off a location. */
+function distinctInTimeOrder(
+  stops: readonly (CityBearingStop | undefined)[],
+  pick: (location: NonNullable<CityBearingStop["location"]>) => string | undefined,
+): string[] {
+  const timed: { value: string; start: string }[] = [];
   const untimed: string[] = [];
   for (const stop of stops) {
-    const city = stop?.location?.city;
-    if (!city) continue;
+    const value = stop?.location ? pick(stop.location) : undefined;
+    if (!value) continue;
     if (stop!.timeWindow) {
-      timed.push({ city, start: stop!.timeWindow.start });
+      timed.push({ value, start: stop!.timeWindow.start });
     } else {
-      untimed.push(city);
+      untimed.push(value);
     }
   }
   // Lexicographic order agrees with chronological order for zero-padded
@@ -78,10 +118,10 @@ export function citiesOfStops(stops: readonly (CityBearingStop | undefined)[]): 
 
   const seen = new Set<string>();
   const ordered: string[] = [];
-  for (const city of [...timed.map((t) => t.city), ...untimed]) {
-    if (seen.has(city)) continue;
-    seen.add(city);
-    ordered.push(city);
+  for (const value of [...timed.map((t) => t.value), ...untimed]) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    ordered.push(value);
   }
   return ordered;
 }

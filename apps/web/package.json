@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": "24.x"
+  },
   "type": "module",
   "scripts": {
     "dev": "node scripts/copy-maplibre-worker.mjs && next dev --turbopack -p ${WEB_PORT:-3001}",
@@ -22,6 +25,7 @@
     "db:state": "node --env-file-if-exists=.env.local scripts/check-migration-state.mjs",
     "db:reset": "node --env-file-if-exists=.env.local scripts/db-reset.mjs",
     "db:backfill-cities": "node --env-file-if-exists=.env.local scripts/backfill-saved-day-cities.mjs",
+    "db:backfill-countries": "node --env-file-if-exists=.env.local scripts/backfill-saved-day-countries.mjs",
     "db:seed": "node --env-file-if-exists=.env.local scripts/db-seed.ts",
     "db:reseed": "pnpm db:reset --yes && pnpm db:seed && pnpm content:import",
     "content:import": "node --env-file-if-exists=.env.local scripts/import-content.ts",
@@ -72,7 +76,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.6",
-    "@types/node": "^22.20.1",
+    "@types/node": "^24.0.0",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",

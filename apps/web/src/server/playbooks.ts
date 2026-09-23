@@ -4,6 +4,7 @@ import type { CityMatch } from "@/lib/cities";
 import {
   inBudgetBand,
   LENGTH_BAND_RANGE,
+  RATING_FLOOR_MIN,
   type BudgetBand,
   type LengthBand,
   type DiscoverDay,
@@ -11,6 +12,7 @@ import {
   type DiscoverScope,
   type DiscoverSort,
   type PublicAuthor,
+  type RatingFloor,
 } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { displayNameFor } from "@/lib/displayName";
@@ -54,6 +56,17 @@ const SIBLING_LIMIT = 12;
 export type DiscoverQuery = {
   /** The cities asked for. Empty is a browse, not a search for nothing. */
   cities: string[];
+  /**
+   * The countries asked for, as uppercase ISO alpha-2 codes (M12 link 7).
+   * Absent or empty adds no constraint.
+   *
+   * **Places are OR'd, cities and countries alike**: a day matches if it
+   * touches ANY selected place — the rule cities already follow ("a day
+   * matches on any city it contains"), extended rather than given a second
+   * meaning. Optional so the profile and the assistant, which never ask by
+   * country, need not say so.
+   */
+  countries?: string[];
   scope: DiscoverScope;
   sort: DiscoverSort;
   budget: BudgetBand;
@@ -65,6 +78,13 @@ export type DiscoverQuery = {
    * cannot disagree with the page below them.
    */
   length: LengthBand;
+  /**
+   * The minimum average rating (M12 D9), a SQL predicate for `length`'s
+   * reason. Optional because only Discover's own route offers it: a profile
+   * and the assistant's port browse unfloored, and "absent" meaning `any` is
+   * the same answer they would otherwise each have to spell.
+   */
+  rating?: RatingFloor;
   /**
    * Narrow to one person's days — what a public profile is.
    *
@@ -103,6 +123,8 @@ type DiscoverRow = {
   author_kind: string;
   day_count: number;
   adds: number;
+  rating: number | null;
+  review_count: number;
   source_trip_name: string;
   created_at: unknown;
   published_at: unknown;
@@ -145,6 +167,34 @@ function isoOf(value: unknown): string | null {
 const notDeleted = sql`and d.deleted_at is null`;
 
 /**
+ * The moderation filter (M12 link 6, D5), spelled once on `notDeleted`'s terms
+ * and for its reason: the whole risk of `moderated_at` is a read that forgets
+ * it, and `grep notModerated` is the check.
+ *
+ * **Not `notDeleted` again, because the author keeps a moderated day.** A
+ * deleted day is gone for everyone; a moderated one leaves every surface
+ * somebody ELSE reads — the board, a profile, the shared-day count, the city
+ * index — and stays in its owner's own library. So this constant is for the
+ * surfaces that are never the owner's own, and `discoverDays`, which is both,
+ * uses `notModeratedUnlessMine` instead.
+ */
+const notModerated = sql`and d.moderated_at is null`;
+
+/**
+ * Discover's half of the rule: a moderated day is visible to its owner and to
+ * nobody else — `yours`, and `everyone` as the superset of `yours`, keep it for
+ * the author, exactly as they keep the author's private days.
+ *
+ * `publishedOnly` (the profile's rule) takes the owner exception away: a
+ * profile is what other people see, so its owner is shown the same page — the
+ * reason `publishedOnly` exists at all.
+ */
+function notModeratedUnlessMine(query: DiscoverQuery): SQL {
+  if (query.publishedOnly === true) return notModerated;
+  return sql`and (d.moderated_at is null or d.owner_id = ${query.readerId})`;
+}
+
+/**
  * Which rows this scope may see at all — the one place the segment's meaning
  * lives, shared by the day query and the sibling-chip query so the chips can
  * never describe a set the cards are drawn from a different version of.
@@ -181,6 +231,7 @@ function matchPredicate(query: DiscoverQuery): SQL {
   // `sql.param` binds the whole array as a single `text[]` parameter, which is
   // what the containment operator and the GIN index need.
   const cities = sql`${sql.param(query.cities)}::text[]`;
+  const countries = sql`${sql.param(query.countries ?? [])}::text[]`;
   // **The season predicate is gone** (M26 link 2, SPEC §33.2): it filtered on
   // the month a day was run and nobody used it. `SEASON_MONTHS` and
   // `seasonOfMonth` stay — `pnpm content:verify` prints season occupancy and is
@@ -194,11 +245,30 @@ function matchPredicate(query: DiscoverQuery): SQL {
   return sql`
     ${scopePredicate(query.scope, query.readerId)}
     ${notDeleted}
+    ${notModeratedUnlessMine(query)}
     and (${query.publishedOnly === true} = false or d.visibility = ${SavedDayVisibility.enum.public})
-    and (cardinality(${cities}) = 0 or d.cities && ${cities})
+    and (
+      (cardinality(${cities}) = 0 and cardinality(${countries}) = 0)
+      or d.cities && ${cities}
+      or d.countries && ${countries}
+    )
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
     ${lengthPredicate(query.length)}
+    ${ratingPredicate(query.rating ?? "any")}
   `;
+}
+
+/**
+ * The rating floor, as SQL (M12 D9) — before the candidate window, like the
+ * length band, so the chips and the page are counted from one set.
+ *
+ * An unrated day's `rating` is null and `null >= 4` is not true, so any floor
+ * above `any` drops unrated days without a clause of its own — which is the
+ * rule `RatingFloor` states.
+ */
+function ratingPredicate(floor: RatingFloor): SQL {
+  if (floor === "any") return sql``;
+  return sql` and d.rating >= ${RATING_FLOOR_MIN[floor]}`;
 }
 
 /**
@@ -227,12 +297,22 @@ function lengthPredicate(band: LengthBand): SQL {
  * two of the two cities you asked for outranks a day that matches one of them
  * however many times it has been added, because the ranking answers "how well
  * does this fit what you asked for" before "how popular is it".
+ *
+ * With countries in the query (M12 link 7, decision D7) `matched_count` is
+ * matched cities PLUS matched countries: each selected place a day touches
+ * counts one, whichever kind it is. So with `Kyoto` and `Japan` both selected,
+ * a Kyoto day scores two and an Osaka day one — the day that fits more of what
+ * was asked for still leads.
  */
 function orderBy(sort: DiscoverSort): SQL {
-  const then =
-    sort === "most-added"
-      ? sql`d.adds desc, d.created_at desc`
-      : sql`coalesce(d.published_at, d.created_at) desc`;
+  // Exhaustive by the `Record`: widening `DiscoverSort` without a clause here
+  // is a type error, not a sort that silently falls through to "newest".
+  const then = {
+    "most-added": sql`d.adds desc, d.created_at desc`,
+    "highest-rated": sql`d.rating desc nulls last, d.review_count desc`,
+    "most-reviewed": sql`d.review_count desc, d.rating desc nulls last`,
+    newest: sql`coalesce(d.published_at, d.created_at) desc`,
+  }[sort];
   // `d.id` last so a page is stable when everything above it ties.
   return sql`matched_count desc, ${then}, d.id asc`;
 }
@@ -288,6 +368,8 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     window: facts.window,
     totalCost: facts.totalCost,
     adds: row.adds,
+    rating: row.rating === null ? null : Number(row.rating),
+    reviewCount: Number(row.review_count),
     visibility: parsed.visibility,
     // Falls back rather than dropping the card, for the reason `fromRow` in
     // `savedDays.ts` gives at length: this decides a label, not what the reader
@@ -389,19 +471,23 @@ async function publishedDayCount(): Promise<number> {
     from saved_days d
     where d.visibility = ${SavedDayVisibility.enum.public}
       ${notDeleted}
+      ${notModerated}
   `);
   return Number(rows.rows[0]?.days ?? 0);
 }
 
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const cities = sql`${sql.param(query.cities)}::text[]`;
+  const countries = sql`${sql.param(query.countries ?? [])}::text[]`;
   const rows = await db.execute<DiscoverRow>(sql`
     select
-      d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds,
+      d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds, d.rating, d.review_count,
       d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at,
-      cardinality(array(
+      (cardinality(array(
         select unnest(d.cities) intersect select unnest(${cities})
-      ))::int as matched_count
+      )) + cardinality(array(
+        select unnest(d.countries) intersect select unnest(${countries})
+      )))::int as matched_count
     from saved_days d
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
@@ -448,6 +534,40 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
 }
 
 /**
+ * Per author: the reviews their published days have received, and the mean of
+ * those reviews — `PublicAuthor.reviewsReceived` / `averageRating`.
+ *
+ * Read off the denormalised counters rather than `saved_day_reviews`, because
+ * those are what Discover's cards show and a profile must not disagree with
+ * them. `sum(rating * review_count) / sum(review_count)` is the mean of the
+ * REVIEWS, not a mean of per-day means. Its own CTE rather than two more
+ * aggregates in the queries below: those join `saved_day_adds`, which repeats
+ * each day once per add and would multiply every sum here by it.
+ *
+ * Published, not deleted, not moderated — what a stranger can see is what a
+ * stranger's numbers are made of.
+ */
+const reviewTotals = sql`review_totals as (
+  select
+    d.owner_id,
+    sum(d.review_count)::int as reviews_received,
+    sum(d.rating * d.review_count) / nullif(sum(d.review_count), 0) as average_rating
+  from saved_days d
+  where d.visibility = ${SavedDayVisibility.enum.public}
+    ${notModerated}
+    ${notDeleted}
+  group by d.owner_id
+)`;
+
+type AuthorRow = {
+  owner_id: string;
+  adds: number;
+  days_shared: number;
+  reviews_received: number | null;
+  average_rating: number | null;
+};
+
+/**
  * Everyone who has ever had a day taken, ranked on the ledger.
  *
  * **`count(*)` over `saved_day_adds`, never `sum(saved_days.adds)`.** The
@@ -470,20 +590,27 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
  * "and 40 others" line nobody asked for.
  */
 export async function leaderboard(): Promise<PublicAuthor[]> {
-  const rows = await db.execute<{ owner_id: string; adds: number; days_shared: number }>(sql`
+  const rows = await db.execute<AuthorRow>(sql`
+    with ${reviewTotals}
     select
       d.owner_id,
       count(a.saved_day_id)::int as adds,
-      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as days_shared
+      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as days_shared,
+      rt.reviews_received,
+      rt.average_rating
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
+    left join review_totals rt on rt.owner_id = d.owner_id
     -- "where true" so the shared filter drops in with its leading "and"; this
     -- is the only query here with no predicate of its own. The LEFT JOIN keeps
     -- every ledger row of a day that still exists, which is the point: deleting
     -- a day drops it out of days_shared, and does NOT erase adds somebody
     -- genuinely made against the days that remain.
-    where true ${notDeleted}
-    group by d.owner_id
+    --
+    -- A moderated day is dropped the same way, adds and all: it is off the
+    -- board, and its ledger rows come back with it on restore.
+    where true ${notDeleted} ${notModerated}
+    group by d.owner_id, rt.reviews_received, rt.average_rating
     having count(a.saved_day_id) > 0
         or count(*) filter (where d.visibility = ${SavedDayVisibility.enum.public}) > 0
     order by adds desc, days_shared desc, d.owner_id asc
@@ -491,7 +618,7 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
   return [...rows.rows].map(toAuthor);
 }
 
-function toAuthor(row: { owner_id: string; adds: number; days_shared: number }): PublicAuthor {
+function toAuthor(row: AuthorRow): PublicAuthor {
   return {
     userId: String(row.owner_id),
     // The M17 seam. One resolver, and today it returns the identifier — see
@@ -499,6 +626,8 @@ function toAuthor(row: { owner_id: string; adds: number; days_shared: number }):
     displayName: displayNameFor({ userId: String(row.owner_id) }),
     daysShared: Number(row.days_shared),
     adds: Number(row.adds),
+    reviewsReceived: Number(row.reviews_received ?? 0),
+    averageRating: row.average_rating === null ? null : Number(row.average_rating),
   };
 }
 
@@ -521,15 +650,19 @@ const NO_ONE_IN_PARTICULAR = "A traveler";
  * account does not exist — which would be a way to probe for accounts.
  */
 export async function publicAuthor(userId: string): Promise<PublicAuthor> {
-  const rows = await db.execute<{ owner_id: string; adds: number; days_shared: number }>(sql`
+  const rows = await db.execute<AuthorRow>(sql`
+    with ${reviewTotals}
     select
       ${userId}::text as owner_id,
       count(a.saved_day_id)::int as adds,
-      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as days_shared
+      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as days_shared,
+      (select rt.reviews_received from review_totals rt where rt.owner_id = ${userId}) as reviews_received,
+      (select rt.average_rating from review_totals rt where rt.owner_id = ${userId}) as average_rating
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
     where d.owner_id = ${userId}
       ${notDeleted}
+      ${notModerated}
   `);
   // Exactly one row, always. This is an ungrouped aggregate — no `group by` —
   // and SQL evaluates one of those over the whole (possibly empty) input and
@@ -573,6 +706,7 @@ export async function citiesKnownBy(userId: string): Promise<CityMatch[]> {
     from saved_days d, unnest(d.cities) as city
     where d.owner_id = ${userId} and d.visibility = ${SavedDayVisibility.enum.public}
       ${notDeleted}
+      ${notModerated}
     group by city
     order by days desc, city asc
   `);

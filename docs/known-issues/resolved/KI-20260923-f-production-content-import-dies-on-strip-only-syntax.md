@@ -58,6 +58,15 @@
   `server/public-api/commands.ts`. Each is valid TypeScript under Next and
   Vitest. If an importer's graph ever reaches one, the guard below names it.
 
+  **Superseded the same day by #206**, which merged first: it set
+  `erasableSyntaxOnly` in `tsconfig.base.json` and rewrote all seven
+  constructors, including this one and the five above, so `tsc` now rejects any
+  non-erasable construct everywhere. This entry's code fix therefore merged as
+  a no-op against main's identical change. The typecheck covers syntax, and the
+  guard still earns its place: it is the only check that actually loads these
+  entry points under plain node (loader flags, `.ts` resolution, a graph that
+  starts reaching a module with side effects at import).
+
   **Guard.** `scripts/__tests__/strip-only-entry-points.test.mjs`, in the root
   `node --test` lane that `pnpm test` runs on CI's Node 22. It spawns each
   entry point above with `process.execPath` and its real flags, with

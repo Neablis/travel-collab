@@ -396,6 +396,19 @@ was found is equally permanent, which is what `--retract` is for: it removes
 coordinates the audit now condemns, and only ones that still match the cache, so
 it can never delete somebody's correction.
 
+**`--apply` also writes `countryCode`** (2026-09-23, M12 link 7), because
+Discover's country filter reads `saved_days.countries`, which is derived from it
+and nothing else. A city's code is written onto every stop in that city, but
+only when every accepted pin in the city agrees on it, with the pins the audit
+withholds left out of the vote; a city whose pins disagree gets no code and is
+listed. A code already in the file wins here too: one that differs from the
+geocoder's is reported with both values, never overwritten, and that stop's
+coordinate is withheld with it. Unlike coordinates, a code is written onto stops
+that already have a `lat`, so re-running `--apply` over an already-geocoded
+library is how the codes get there. After it: `pnpm content:verify`, re-import,
+then `pnpm --filter web db:backfill-countries` for rows imported before, which
+prints its coverage.
+
 Changing how a result is JUDGED invalidates the answers already recorded, so
 `STRATEGY` in the script is bumped whenever the query or the verdict changes and
 stale rows are re-queued automatically.
