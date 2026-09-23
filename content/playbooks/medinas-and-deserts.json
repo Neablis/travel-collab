@@ -73,7 +73,8 @@
             "city": "Marrakech",
             "area": "Rahba Kedima, Medina",
             "lat": 31.629062,
-            "lng": -7.987323
+            "lng": -7.987323,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "tags": [
@@ -96,7 +97,8 @@
             "city": "Marrakech",
             "area": "Kaat Benahid, Medina",
             "lat": 31.631984,
-            "lng": -7.986036
+            "lng": -7.986036,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -119,7 +121,8 @@
             "city": "Marrakech",
             "area": "Souks, Medina",
             "lat": 31.627914,
-            "lng": -7.988092
+            "lng": -7.988092,
+            "countryCode": "MA"
           },
           "kind": "planned",
           "notes": "How to shed a faux guide: do not answer, do not say no thank you, do not slow down, and never let him name a destination for you. The ones who attach themselves are working on the fact that a polite tourist will engage. Keep walking north with the flow of handcarts and you will surface at the dyers' lane where the wool hangs to dry. If you do get lost, ask a shopkeeper standing inside his own shop - he has nowhere to lead you.",
@@ -139,7 +142,8 @@
             "city": "Marrakech",
             "area": "Rue Mouassine, Medina",
             "lat": 31.630875,
-            "lng": -7.990053
+            "lng": -7.990053,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -162,7 +166,8 @@
             "city": "Marrakech",
             "area": "Rahba Kedima, Medina",
             "lat": 31.628678,
-            "lng": -7.987438
+            "lng": -7.987438,
+            "countryCode": "MA"
           },
           "kind": "hold",
           "tags": [
@@ -185,7 +190,8 @@
             "city": "Marrakech",
             "area": "Riad Zitoun el Jdid, Mellah",
             "lat": 31.621633,
-            "lng": -7.981938
+            "lng": -7.981938,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -208,7 +214,8 @@
             "city": "Marrakech",
             "area": "Kasbah",
             "lat": 31.617259,
-            "lng": -7.988555
+            "lng": -7.988555,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "tags": [
@@ -231,7 +238,8 @@
             "city": "Marrakech",
             "area": "Jemaa el-Fna",
             "lat": 31.625831,
-            "lng": -7.98892
+            "lng": -7.98892,
+            "countryCode": "MA"
           },
           "kind": "planned",
           "tags": [
@@ -275,7 +283,8 @@
             "city": "Fes",
             "area": "Fes el-Bali",
             "lat": 34.061702,
-            "lng": -4.984021
+            "lng": -4.984021,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "notes": "Around 300 MAD for a half day through your riad, and in Fes it is worth it in a way it is not in Marrakech - 9,000 lanes, no grid, and the hills mean you cannot navigate by the sun. Agree up front: three hours, no shops, no cooperative, no carpet. A guide who resists that clause will resist it all morning. Ask for his licence card; the real ones carry a brass badge. Start at 07:30 and you get the mule deliveries, which is the medina actually working.",
@@ -295,7 +304,8 @@
             "city": "Fes",
             "area": "Talaa Kebira",
             "lat": 34.06221,
-            "lng": -4.982736
+            "lng": -4.982736,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -316,7 +326,8 @@
           "location": {
             "name": "Place Nejjarine and the Nejjarine Museum",
             "city": "Fes",
-            "area": "Talaa Kebira"
+            "area": "Talaa Kebira",
+            "countryCode": "MA"
           },
           "kind": "planned",
           "tags": [
@@ -339,7 +350,8 @@
             "city": "Fes",
             "area": "Souk el-Attarine",
             "lat": 34.065126,
-            "lng": -4.973565
+            "lng": -4.973565,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -362,7 +374,8 @@
             "city": "Fes",
             "area": "Blida",
             "lat": 34.065918,
-            "lng": -4.970992
+            "lng": -4.970992,
+            "countryCode": "MA"
           },
           "kind": "planned",
           "notes": "There is no ticket. Every terrace over the pits belongs to a leather shop, and the deal is honest if you name it: you go up, you look, you come down, you leave 50 MAD and you do not buy a jacket. They will hand you a sprig of mint at the stairs - hold it under your nose, the white pits are pigeon droppings and quicklime and it is not a joke. Late morning is when the dyers are actually in the vats; by 15:00 you are looking at coloured water.",
@@ -382,7 +395,8 @@
             "city": "Fes",
             "area": "Sidi Ahmed Chaoui",
             "lat": 34.062095,
-            "lng": -4.977465
+            "lng": -4.977465,
+            "countryCode": "MA"
           },
           "kind": "hold",
           "tags": [
@@ -405,7 +419,8 @@
             "city": "Fes",
             "area": "Adwat al-Andalus",
             "lat": 34.061472,
-            "lng": -4.983767
+            "lng": -4.983767,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "notes": "Cross the Oued Fes at Rcif and climb. This half of the old city was settled by families from Cordoba and it is residential, steeper and almost empty of visitors - no souvenir lane, no touts, just doors and children and the odd bakery oven. The Andalusian mosque's monumental gate is the landmark to climb toward. Go up until the lanes stop, then look back over the whole medina from someone's roofline.",
@@ -425,7 +440,8 @@
             "city": "Fes",
             "area": "Borj Nord hillside",
             "lat": 34.069813,
-            "lng": -4.979405
+            "lng": -4.979405,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "notes": "Red petit taxi from Bab Guissa, about 30 MAD, and tell him to wait or agree a pickup - there is nothing up there. The tombs themselves are broken walls. What you came for is the moment the light goes and the adhan comes up off the medina from every minaret at once, out of sync, from below you. Bring a layer; the hill has wind the medina does not.",
@@ -475,7 +491,8 @@
             "city": "Marrakech",
             "area": "High Atlas, N9",
             "lat": 31.626608,
-            "lng": -7.978877
+            "lng": -7.978877,
+            "countryCode": "MA"
           },
           "kind": "transit",
           "notes": "Roughly 1,400 MAD for the car for the day, not per person, and that is the difference between this day and the 300 MAD minibus: you stop where you want and you are not on someone else's schedule. Leave by 07:15 - the switchbacks above Taddert fill with trucks after 09:00 and you lose an hour behind them. The new tunnel shortens the pass; ask your driver to take the old road over the top anyway, it is twenty minutes and the whole view. Take something for motion sickness before Taddert, not after.",
@@ -495,7 +512,8 @@
             "city": "Telouet",
             "area": "Ounila valley",
             "lat": 31.287019,
-            "lng": -7.235004
+            "lng": -7.235004,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -516,7 +534,8 @@
           "location": {
             "name": "Women's argan cooperative",
             "city": "Telouet",
-            "area": "Ounila valley"
+            "area": "Ounila valley",
+            "countryCode": "MA"
           },
           "kind": "idea",
           "notes": "Every driver has one and gets a cut, so treat it as a tea stop that you may or may not spend at. The test for a real cooperative rather than a shopfront: women are actually cracking nuts on the floor, and the price of culinary versus cosmetic oil is posted. 100 MAD for a small bottle of culinary is fair. Say no comfortably; a good driver will not sulk.",
@@ -534,7 +553,8 @@
           "location": {
             "name": "Terrace restaurant opposite the ksar",
             "city": "Ait Benhaddou",
-            "area": "New village, east bank"
+            "area": "New village, east bank",
+            "countryCode": "MA"
           },
           "kind": "planned",
           "tags": [
@@ -557,7 +577,8 @@
             "city": "Ait Benhaddou",
             "area": "UNESCO ksar, west bank",
             "lat": 31.046854,
-            "lng": -7.129621
+            "lng": -7.129621,
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -581,7 +602,8 @@
             "city": "Ouarzazate",
             "area": "Route de Marrakech",
             "lat": 30.941782,
-            "lng": -6.966914
+            "lng": -6.966914,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "tags": [
@@ -604,7 +626,8 @@
             "city": "Ouarzazate",
             "area": "Avenue Mohammed V",
             "lat": 30.920124,
-            "lng": -6.899434
+            "lng": -6.899434,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "tags": [
@@ -625,7 +648,8 @@
           "location": {
             "name": "N9 over the Tizi n'Tichka",
             "city": "Marrakech",
-            "area": "High Atlas"
+            "area": "High Atlas",
+            "countryCode": "MA"
           },
           "kind": "transit",
           "notes": "Nearly three hours and it is the honest cost of doing this as a day trip rather than sleeping in Ouarzazate - say it out loud before you book. Trucks run without full lights on the descent and Moroccan drivers overtake on the bends, so this is not the leg to hire the cheapest quote. If anyone in the car is fragile, sit them in front and stop at Taddert for tea.",
@@ -669,7 +693,8 @@
             "city": "Rissani",
             "area": "Old caravan town",
             "lat": 31.280998,
-            "lng": -4.266173
+            "lng": -4.266173,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "tags": [
@@ -690,7 +715,8 @@
           "location": {
             "name": "Dayet Srji lake bed and the hamada east of the erg",
             "city": "Merzouga",
-            "area": "Erg Chebbi, north end"
+            "area": "Erg Chebbi, north end",
+            "countryCode": "MA"
           },
           "kind": "transit",
           "notes": "About 160 USD for the vehicle and driver for the day. A shared 4x4 is half that and you will spend it stopping where six other people want to stop. Dayet Srji is a seasonal lake - full of flamingos after winter rain, a cracked white pan in autumn, and worth seeing either way. The black stony ground on the way is the hamada, the real Sahara; the dunes are only about two per cent of it, which is the thing nobody tells you.",
@@ -710,7 +736,8 @@
             "city": "Merzouga",
             "area": "Khamlia",
             "lat": 31.012507,
-            "lng": -3.995596
+            "lng": -3.995596,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "notes": "A village of descendants of enslaved people brought north across the Sahara, and the Gnawa groups here play for visitors in a plain room with tea. It is short, loud, and completely unlike the hotel-lobby version. There is no ticket - leave 100 MAD per person in the box, and buy the CD if they have one, because that is the actual point of the visit.",
@@ -728,7 +755,8 @@
           "location": {
             "name": "Luxury camp in the dunes",
             "city": "Merzouga",
-            "area": "Erg Chebbi"
+            "area": "Erg Chebbi",
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -749,7 +777,8 @@
           "location": {
             "name": "The high dune behind camp",
             "city": "Merzouga",
-            "area": "Erg Chebbi"
+            "area": "Erg Chebbi",
+            "countryCode": "MA"
           },
           "kind": "booked",
           "tags": [
@@ -772,7 +801,8 @@
             "city": "Merzouga",
             "area": "Erg Chebbi",
             "lat": 31.10175,
-            "lng": -4.01366
+            "lng": -4.01366,
+            "countryCode": "MA"
           },
           "kind": "idea",
           "tags": [
@@ -793,7 +823,8 @@
           "location": {
             "name": "Camp mess tent",
             "city": "Merzouga",
-            "area": "Erg Chebbi"
+            "area": "Erg Chebbi",
+            "countryCode": "MA"
           },
           "kind": "planned",
           "tags": [
@@ -810,7 +841,8 @@
           "location": {
             "name": "The open sand beyond the camp",
             "city": "Merzouga",
-            "area": "Erg Chebbi"
+            "area": "Erg Chebbi",
+            "countryCode": "MA"
           },
           "kind": "planned",
           "tags": [
@@ -845,7 +877,8 @@
           "location": {
             "name": "Petra Visitor Centre",
             "city": "Wadi Musa",
-            "area": "Petra Visitor Centre"
+            "area": "Petra Visitor Centre",
+            "countryCode": "JO"
           },
           "kind": "booked",
           "tags": [
@@ -868,7 +901,8 @@
             "city": "Wadi Musa",
             "area": "Petra archaeological park",
             "lat": 30.32302,
-            "lng": 35.450283
+            "lng": 35.450283,
+            "countryCode": "JO"
           },
           "kind": "planned",
           "notes": "A kilometre and a bit of 100-metre walls, and until about 07:30 you will hear your own footsteps. After that the horse carriages come through at a trot in a space two metres wide and the sound never stops. Look for the carved camel caravan at knee height on the left about two thirds down, and the Nabataean water channels cut along both walls - the whole canyon was a plumbed aqueduct."
@@ -882,7 +916,8 @@
           "location": {
             "name": "Al-Khazneh (the Treasury)",
             "city": "Wadi Musa",
-            "area": "Petra archaeological park"
+            "area": "Petra archaeological park",
+            "countryCode": "JO"
           },
           "kind": "booked",
           "notes": "50 JD for a licensed guide from the desk at the Visitor Centre, for two to three hours, and it is the money that turns a photograph into a city - which tombs are Nabataean and which Roman, why the facades erode from the bottom, what the Bedouin who lived in them until 1985 used each cave for. Take the guide for the morning only and do the Monastery yourself. Sun reaches into the Treasury bowl around 09:00 in autumn; before that it is in blue shade, which most people think is worse and is actually better.",
@@ -900,7 +935,8 @@
           "location": {
             "name": "Royal Tombs and the Roman theatre",
             "city": "Wadi Musa",
-            "area": "Petra archaeological park"
+            "area": "Petra archaeological park",
+            "countryCode": "JO"
           },
           "kind": "planned",
           "notes": "Climb the stairs up to the Urn Tomb and walk the terrace along the four royal facades rather than photographing them from the valley floor - the whole basin opens up behind you. The Silk Tomb's streaked sandstone is the one worth standing in front of. This is also where you buy the last cold water at a sane price before the Monastery climb."
@@ -914,7 +950,8 @@
           "location": {
             "name": "Ad Deir (the Monastery)",
             "city": "Wadi Musa",
-            "area": "Petra archaeological park"
+            "area": "Petra archaeological park",
+            "countryCode": "JO"
           },
           "kind": "planned",
           "tags": [
@@ -935,7 +972,8 @@
           "location": {
             "name": "The Basin Restaurant",
             "city": "Wadi Musa",
-            "area": "Petra archaeological park"
+            "area": "Petra archaeological park",
+            "countryCode": "JO"
           },
           "kind": "planned",
           "tags": [
@@ -958,7 +996,8 @@
             "city": "Wadi Musa",
             "area": "Petra archaeological park",
             "lat": 30.192298,
-            "lng": 35.445123
+            "lng": 35.445123,
+            "countryCode": "JO"
           },
           "kind": "idea",
           "tags": [
@@ -975,7 +1014,8 @@
           "location": {
             "name": "The Siq and the Treasury by candlelight",
             "city": "Wadi Musa",
-            "area": "Petra Visitor Centre"
+            "area": "Petra Visitor Centre",
+            "countryCode": "JO"
           },
           "kind": "booked",
           "tags": [
@@ -1010,7 +1050,8 @@
           "location": {
             "name": "Wadi Rum Visitor Centre",
             "city": "Wadi Rum",
-            "area": "Protected area entrance"
+            "area": "Protected area entrance",
+            "countryCode": "JO"
           },
           "kind": "booked",
           "tags": [
@@ -1031,7 +1072,8 @@
           "location": {
             "name": "Lawrence's Spring and Khazali Canyon",
             "city": "Wadi Rum",
-            "area": "Wadi Rum protected area"
+            "area": "Wadi Rum protected area",
+            "countryCode": "JO"
           },
           "kind": "transit",
           "notes": "Around 60 JD a head for the afternoon run plus the overnight. Sit in the open bed, not the cab, and wear something over your face - the sand off the track is constant. Khazali is a narrow slot you can walk 100 metres into, with Thamudic and Nabataean inscriptions cut at eye height on both walls; ask your driver to point out the camel and the pair of feet before you go in or you will walk past all of them.",
@@ -1049,7 +1091,8 @@
           "location": {
             "name": "Um Fruth rock bridge",
             "city": "Wadi Rum",
-            "area": "Wadi Rum protected area"
+            "area": "Wadi Rum protected area",
+            "countryCode": "JO"
           },
           "kind": "idea",
           "tags": [
@@ -1066,7 +1109,8 @@
           "location": {
             "name": "The red dune below Jebel Umm Ishrin",
             "city": "Wadi Rum",
-            "area": "Wadi Rum protected area"
+            "area": "Wadi Rum protected area",
+            "countryCode": "JO"
           },
           "kind": "planned",
           "tags": [
@@ -1085,7 +1129,8 @@
             "city": "Wadi Rum",
             "area": "Wadi Rum protected area",
             "lat": 29.650482,
-            "lng": 35.44509
+            "lng": 35.44509,
+            "countryCode": "JO"
           },
           "kind": "booked",
           "tags": [
@@ -1106,7 +1151,8 @@
           "location": {
             "name": "Camp mess tent",
             "city": "Wadi Rum",
-            "area": "Wadi Rum protected area"
+            "area": "Wadi Rum protected area",
+            "countryCode": "JO"
           },
           "kind": "planned",
           "tags": [
@@ -1123,7 +1169,8 @@
           "location": {
             "name": "Open desert beyond the camp",
             "city": "Wadi Rum",
-            "area": "Wadi Rum protected area"
+            "area": "Wadi Rum protected area",
+            "countryCode": "JO"
           },
           "kind": "planned",
           "tags": [
@@ -1167,7 +1214,8 @@
           "location": {
             "name": "Giza Plateau Great Gate visitor centre",
             "city": "Cairo",
-            "area": "Giza plateau"
+            "area": "Giza plateau",
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1188,7 +1236,8 @@
           "location": {
             "name": "Panorama viewpoint",
             "city": "Cairo",
-            "area": "Giza plateau"
+            "area": "Giza plateau",
+            "countryCode": "EG"
           },
           "kind": "transit",
           "notes": "The shuttle is included and loops between the visitor centre, the panorama, the three pyramids and the Sphinx. Ride it to the far end first and work back - everyone else walks up to Khufu from the gate, so the panorama with all three pyramids in line is empty at 07:30 and mobbed by 10:00. Camel and horse touts work the panorama hard; the going rate if you want it is agreed before you sit down, in writing on a phone screen, and the getting-off fee is the scam."
@@ -1202,7 +1251,8 @@
           "location": {
             "name": "Great Pyramid of Khufu, interior",
             "city": "Cairo",
-            "area": "Giza plateau"
+            "area": "Giza plateau",
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1223,7 +1273,8 @@
           "location": {
             "name": "Great Sphinx and Khafre's Valley Temple",
             "city": "Cairo",
-            "area": "Giza plateau"
+            "area": "Giza plateau",
+            "countryCode": "EG"
           },
           "kind": "planned",
           "notes": "Take the shuttle down. Enter through the Valley Temple - the huge unadorned granite blocks are the oldest thing you will touch all day - and come out onto the viewing terrace beside the Sphinx's paw. Morning light is behind the Sphinx from this angle; the honest photograph is the one with the pyramid over its shoulder, taken from the terrace's far right corner."
@@ -1239,7 +1290,8 @@
             "city": "Cairo",
             "area": "Giza, Alexandria desert road",
             "lat": 29.994575,
-            "lng": 31.119074
+            "lng": 31.119074,
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1262,7 +1314,8 @@
             "city": "Cairo",
             "area": "Giza, Alexandria desert road",
             "lat": 29.992911,
-            "lng": 31.126265
+            "lng": 31.126265,
+            "countryCode": "EG"
           },
           "kind": "planned",
           "tags": [
@@ -1285,7 +1338,8 @@
             "city": "Cairo",
             "area": "Islamic Cairo",
             "lat": 30.047678,
-            "lng": 31.261982
+            "lng": 31.261982,
+            "countryCode": "EG"
           },
           "kind": "idea",
           "notes": "Allow an hour in traffic from Giza; leave at 15:00 if it is a weekday. The tourist lanes off Al-Hussein square are a gauntlet - walk one street further into the coppersmiths and the gold souk and the tone changes completely. El Fishawy has been open since the 1770s, is deliberately touristy, and is still the right place to sit for forty minutes with a mint tea while the alley works around you.",
@@ -1305,7 +1359,8 @@
             "city": "Cairo",
             "area": "Darb al-Ahmar",
             "lat": 30.0401,
-            "lng": 31.26408
+            "lng": 31.26408,
+            "countryCode": "EG"
           },
           "kind": "planned",
           "tags": [
@@ -1358,7 +1413,8 @@
             "city": "Luxor",
             "area": "East Bank corniche",
             "lat": 25.69893,
-            "lng": 32.6421
+            "lng": 32.6421,
+            "countryCode": "EG"
           },
           "kind": "transit",
           "notes": "Balloon operators collect between 04:00 and 04:30 depending on sunrise, so this shifts by an hour across the year - confirm the pickup time by WhatsApp the night before, every time. Included in the flight price. The crossing is a small motor launch, ten minutes, freezing in January; take the layer you will want at 1,000 feet."
@@ -1374,7 +1430,8 @@
             "city": "Luxor",
             "area": "Dra Abu el-Naga",
             "lat": 25.736955,
-            "lng": 32.621375
+            "lng": 32.621375,
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1398,7 +1455,8 @@
             "city": "Luxor",
             "area": "West Bank, Qurna",
             "lat": 25.724197,
-            "lng": 32.606595
+            "lng": 32.606595,
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1421,7 +1479,8 @@
             "city": "Luxor",
             "area": "West Bank, Biban el-Muluk",
             "lat": 25.74049,
-            "lng": 32.601758
+            "lng": 32.601758,
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1444,7 +1503,8 @@
             "city": "Luxor",
             "area": "West Bank, Deir el-Bahari",
             "lat": 25.73724,
-            "lng": 32.60869
+            "lng": 32.60869,
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1467,7 +1527,8 @@
             "city": "Luxor",
             "area": "West Bank, Biban el-Harim",
             "lat": 25.728146,
-            "lng": 32.592706
+            "lng": 32.592706,
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [
@@ -1488,7 +1549,8 @@
           "location": {
             "name": "Felucca landing below the Winter Palace",
             "city": "Luxor",
-            "area": "East Bank corniche"
+            "area": "East Bank corniche",
+            "countryCode": "EG"
           },
           "kind": "transit",
           "notes": "Hire the whole boat, not a seat - about 2,000 EGP for two hours with a captain, negotiated down from roughly double that, which is the opening price everywhere on the corniche. Say clearly that you want to sail up and cross, not go to Banana Island, unless you actually want the banana farm. No motor: if there is no wind you drift, and drifting is the point. The sun sets behind the Theban hills you were flying over at dawn, and the light on the west cliffs at 18:00 is the best thing in Luxor.",
@@ -1508,7 +1570,8 @@
             "city": "Luxor",
             "area": "East Bank corniche",
             "lat": 25.701941,
-            "lng": 32.633209
+            "lng": 32.633209,
+            "countryCode": "EG"
           },
           "kind": "booked",
           "tags": [

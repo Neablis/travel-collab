@@ -44,7 +44,8 @@
                 "city": "Venice",
                 "area": "Tessera",
                 "lat": 45.502896,
-                "lng": 12.327551
+                "lng": 12.327551,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [],
@@ -65,7 +66,8 @@
                 "city": "Venice",
                 "area": "Tessera",
                 "lat": 45.502896,
-                "lng": 12.327551
+                "lng": 12.327551,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -88,7 +90,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Piazza Roma",
                 "lat": 46.53779,
-                "lng": 12.135788
+                "lng": 12.135788,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [],
@@ -109,7 +112,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Centro",
                 "lat": 46.537839,
-                "lng": 12.13806
+                "lng": 12.13806,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [
@@ -132,7 +136,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Centro",
                 "lat": 46.537551,
-                "lng": 12.136783
+                "lng": 12.136783,
+                "countryCode": "IT"
               },
               "kind": "hold",
               "tags": [],
@@ -153,7 +158,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Alverà",
                 "lat": 46.544768,
-                "lng": 12.150824
+                "lng": 12.150824,
+                "countryCode": "IT"
               },
               "kind": "hold",
               "tags": [
@@ -181,7 +187,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Centro",
                 "lat": 46.537551,
-                "lng": 12.136783
+                "lng": 12.136783,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -201,7 +208,8 @@
               "location": {
                 "name": "Freccia nel Cielo ticket office",
                 "city": "Cortina d'Ampezzo",
-                "area": "Tofana base"
+                "area": "Tofana base",
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [
@@ -224,7 +232,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Tofana",
                 "lat": 46.556894,
-                "lng": 12.068364
+                "lng": 12.068364,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -243,7 +252,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Tofana",
                 "lat": 46.536962,
-                "lng": 12.08032
+                "lng": 12.08032,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -266,7 +276,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Pocol",
                 "lat": 46.524633,
-                "lng": 12.114609
+                "lng": 12.114609,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -285,7 +296,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Centro",
                 "lat": 46.537087,
-                "lng": 12.136643
+                "lng": 12.136643,
+                "countryCode": "IT"
               },
               "kind": "idea",
               "tags": [],
@@ -306,7 +318,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Fraina",
                 "lat": 46.523724,
-                "lng": 12.148209
+                "lng": 12.148209,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [
@@ -334,7 +347,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Centro",
                 "lat": 46.537839,
-                "lng": 12.13806
+                "lng": 12.13806,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [],
@@ -355,7 +369,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Falzarego",
                 "lat": 46.518985,
-                "lng": 12.008708
+                "lng": 12.008708,
+                "countryCode": "IT"
               },
               "kind": "transit",
               "tags": [],
@@ -372,7 +387,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Cinque Torri",
                 "lat": 46.509224,
-                "lng": 12.051793
+                "lng": 12.051793,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -391,7 +407,8 @@
                 "city": "Cortina d'Ampezzo",
                 "area": "Cinque Torri",
                 "lat": 46.509224,
-                "lng": 12.051793
+                "lng": 12.051793,
+                "countryCode": "IT"
               },
               "kind": "hold",
               "tags": [
@@ -412,7 +429,8 @@
               "location": {
                 "name": "Armentarola piste (Hidden Valley), Rifugio Lagazuoi to San Cassiano",
                 "city": "San Cassiano",
-                "area": "Armentarola"
+                "area": "Armentarola",
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -435,7 +453,8 @@
                 "city": "Corvara",
                 "area": "Alta Badia",
                 "lat": 46.547239,
-                "lng": 11.876729
+                "lng": 11.876729,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [
@@ -458,7 +477,8 @@
                 "city": "Badia",
                 "area": "Alta Badia",
                 "lat": 46.610861,
-                "lng": 11.888472
+                "lng": 11.888472,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [
@@ -484,7 +504,8 @@
               "location": {
                 "name": "Boè gondola base station",
                 "city": "Corvara",
-                "area": "Alta Badia"
+                "area": "Alta Badia",
+                "countryCode": "IT"
               },
               "kind": "transit",
               "tags": [],
@@ -499,7 +520,11 @@
               "location": {
                 "name": "Passo Campolongo, Arabba and Porta Vescovo",
                 "city": "Arabba",
-                "area": "Passo Pordoi"
+                "area": "Passo Pordoi",
+                "countryCode": "IT",
+                "lat": 46.487552,
+                "lng": 11.812193,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -518,7 +543,8 @@
                 "city": "Canazei",
                 "area": "Val di Fassa",
                 "lat": 46.477418,
-                "lng": 11.814706
+                "lng": 11.814706,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -539,7 +565,11 @@
               "location": {
                 "name": "Rifugio Emilio Comici, Piz Sella",
                 "city": "Selva di Val Gardena",
-                "area": "Val Gardena"
+                "area": "Val Gardena",
+                "countryCode": "IT",
+                "lat": 46.576033,
+                "lng": 11.648308,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [],
@@ -558,7 +588,8 @@
               "location": {
                 "name": "Passo Gardena and the Boè base bar",
                 "city": "Corvara",
-                "area": "Alta Badia"
+                "area": "Alta Badia",
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [],
@@ -577,7 +608,8 @@
               "location": {
                 "name": "La Stüa de Michil, Hotel La Perla",
                 "city": "Corvara",
-                "area": "Alta Badia"
+                "area": "Alta Badia",
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [
@@ -605,7 +637,8 @@
                 "city": "Corvara",
                 "area": "Alta Badia",
                 "lat": 46.535952,
-                "lng": 11.889702
+                "lng": 11.889702,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -622,7 +655,8 @@
               "location": {
                 "name": "Rifugio Bioch, Pralongià",
                 "city": "Corvara",
-                "area": "Alta Badia"
+                "area": "Alta Badia",
+                "countryCode": "IT"
               },
               "kind": "hold",
               "tags": [
@@ -645,7 +679,8 @@
                 "city": "Corvara",
                 "area": "Alta Badia",
                 "lat": 46.552502,
-                "lng": 11.87442
+                "lng": 11.87442,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [],
@@ -669,7 +704,8 @@
               "location": {
                 "name": "Piz La Ila gondola base, La Villa",
                 "city": "La Villa",
-                "area": "Alta Badia"
+                "area": "Alta Badia",
+                "countryCode": "IT"
               },
               "kind": "transit",
               "tags": [],
@@ -686,7 +722,8 @@
                 "city": "La Villa",
                 "area": "Alta Badia",
                 "lat": 46.581753,
-                "lng": 11.897026
+                "lng": 11.897026,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -705,7 +742,8 @@
                 "city": "La Villa",
                 "area": "Alta Badia",
                 "lat": 46.581753,
-                "lng": 11.897026
+                "lng": 11.897026,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -728,7 +766,8 @@
                 "city": "San Cassiano",
                 "area": "Alta Badia",
                 "lat": 46.571143,
-                "lng": 11.932094
+                "lng": 11.932094,
+                "countryCode": "IT"
               },
               "kind": "hold",
               "tags": [
@@ -751,7 +790,8 @@
                 "city": "San Cassiano",
                 "area": "Alta Badia",
                 "lat": 46.571143,
-                "lng": 11.932094
+                "lng": 11.932094,
+                "countryCode": "IT"
               },
               "kind": "idea",
               "tags": [],
@@ -772,7 +812,8 @@
                 "city": "San Cassiano",
                 "area": "Alta Badia",
                 "lat": 46.571143,
-                "lng": 11.932094
+                "lng": 11.932094,
+                "countryCode": "IT"
               },
               "kind": "idea",
               "tags": [
@@ -800,7 +841,8 @@
                 "city": "Corvara",
                 "area": "Alta Badia",
                 "lat": 46.552912,
-                "lng": 11.871442
+                "lng": 11.871442,
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -817,7 +859,8 @@
               "location": {
                 "name": "Ski rental, Strada Col Alt",
                 "city": "Corvara",
-                "area": "Alta Badia"
+                "area": "Alta Badia",
+                "countryCode": "IT"
               },
               "kind": "transit",
               "tags": [],
@@ -832,7 +875,8 @@
               "location": {
                 "name": "Corvara village centre",
                 "city": "Corvara",
-                "area": "Alta Badia"
+                "area": "Alta Badia",
+                "countryCode": "IT"
               },
               "kind": "planned",
               "tags": [
@@ -854,7 +898,8 @@
                 "city": "Venice",
                 "area": "Tessera",
                 "lat": 45.502896,
-                "lng": 12.327551
+                "lng": 12.327551,
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [],
@@ -873,7 +918,8 @@
               "location": {
                 "name": "Venice Marco Polo Airport (VCE), departures",
                 "city": "Venice",
-                "area": "Tessera"
+                "area": "Tessera",
+                "countryCode": "IT"
               },
               "kind": "booked",
               "tags": [],
@@ -892,7 +938,8 @@
           "location": {
             "name": "Armentarola toboggan run",
             "city": "San Cassiano",
-            "area": "Armentarola"
+            "area": "Armentarola",
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -907,7 +954,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Falzarego",
             "lat": 46.510694,
-            "lng": 12.06657
+            "lng": 12.06657,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -920,7 +968,8 @@
           "location": {
             "name": "Vallon, Sella group",
             "city": "Corvara",
-            "area": "Alta Badia"
+            "area": "Alta Badia",
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -935,7 +984,8 @@
             "city": "Rocca Pietore",
             "area": "Sottoguda",
             "lat": 46.425004,
-            "lng": 11.923341
+            "lng": 11.923341,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [

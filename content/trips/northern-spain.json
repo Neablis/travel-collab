@@ -45,7 +45,8 @@
                 "city": "Bilbao",
                 "area": "Loiu",
                 "lat": 43.30513,
-                "lng": -2.90657
+                "lng": -2.90657,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [],
@@ -66,7 +67,8 @@
                 "city": "Bilbao",
                 "area": "Loiu",
                 "lat": 43.262408,
-                "lng": -2.934932
+                "lng": -2.934932,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [],
@@ -87,7 +89,8 @@
                 "city": "San Sebastián",
                 "area": "Gros",
                 "lat": 43.32401,
-                "lng": -1.973196
+                "lng": -1.973196,
+                "countryCode": "ES"
               },
               "kind": "transit",
               "tags": [],
@@ -108,7 +111,8 @@
                 "city": "San Sebastián",
                 "area": "Parte Vieja",
                 "lat": 43.322291,
-                "lng": -1.986605
+                "lng": -1.986605,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -129,7 +133,8 @@
               "location": {
                 "name": "Bar Zeruko and Bar Ganbara, Calle Fermín Calbetón",
                 "city": "San Sebastián",
-                "area": "Parte Vieja"
+                "area": "Parte Vieja",
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -157,7 +162,8 @@
                 "city": "San Sebastián",
                 "area": "Parte Vieja",
                 "lat": 43.299253,
-                "lng": -1.991695
+                "lng": -1.991695,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -180,7 +186,8 @@
                 "city": "San Sebastián",
                 "area": "Ondarreta",
                 "lat": 43.31692,
-                "lng": -2.002854
+                "lng": -2.002854,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -199,7 +206,8 @@
                 "city": "San Sebastián",
                 "area": "Igueldo",
                 "lat": 43.308976,
-                "lng": -2.036057
+                "lng": -2.036057,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -222,7 +230,8 @@
                 "city": "San Sebastián",
                 "area": "Parte Vieja",
                 "lat": 43.323888,
-                "lng": -1.983707
+                "lng": -1.983707,
+                "countryCode": "ES"
               },
               "kind": "hold",
               "tags": [
@@ -245,7 +254,8 @@
                 "city": "San Sebastián",
                 "area": "Urgull",
                 "lat": 43.325038,
-                "lng": -1.988891
+                "lng": -1.988891,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -264,7 +274,8 @@
                 "city": "San Sebastián",
                 "area": "Parte Vieja",
                 "lat": 43.323785,
-                "lng": -1.983991
+                "lng": -1.983991,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -285,7 +296,8 @@
               "location": {
                 "name": "Calle 31 de Agosto and Calle Fermín Calbetón",
                 "city": "San Sebastián",
-                "area": "Parte Vieja"
+                "area": "Parte Vieja",
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -313,7 +325,8 @@
                 "city": "San Sebastián",
                 "area": "Parte Vieja",
                 "lat": 43.322291,
-                "lng": -1.986605
+                "lng": -1.986605,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -335,7 +348,8 @@
                 "city": "Getaria",
                 "area": "Old harbour",
                 "lat": 43.294743,
-                "lng": -2.213267
+                "lng": -2.213267,
+                "countryCode": "ES"
               },
               "kind": "transit",
               "tags": [],
@@ -352,7 +366,8 @@
                 "city": "Getaria",
                 "area": "Aldamar",
                 "lat": 43.303148,
-                "lng": -2.203823
+                "lng": -2.203823,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -375,7 +390,8 @@
                 "city": "Getaria",
                 "area": "Old harbour",
                 "lat": 43.302996,
-                "lng": -2.204986
+                "lng": -2.204986,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -398,7 +414,8 @@
                 "city": "Getaria",
                 "area": "Eitzaga",
                 "lat": 43.288097,
-                "lng": -2.192121
+                "lng": -2.192121,
+                "countryCode": "ES"
               },
               "kind": "hold",
               "tags": [],
@@ -419,7 +436,8 @@
                 "city": "San Sebastián",
                 "area": "Parte Vieja",
                 "lat": 43.323575,
-                "lng": -1.983383
+                "lng": -1.983383,
+                "countryCode": "ES"
               },
               "kind": "idea",
               "tags": [
@@ -447,7 +465,8 @@
                 "city": "San Sebastián",
                 "area": "Parte Vieja",
                 "lat": 43.322291,
-                "lng": -1.986605
+                "lng": -1.986605,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -469,7 +488,8 @@
                 "city": "Bilbao",
                 "area": "Abando",
                 "lat": 43.25001,
-                "lng": -2.972463
+                "lng": -2.972463,
+                "countryCode": "ES"
               },
               "kind": "transit",
               "tags": [],
@@ -490,7 +510,8 @@
                 "city": "Bilbao",
                 "area": "Abando",
                 "lat": 43.266884,
-                "lng": -2.936455
+                "lng": -2.936455,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -513,7 +534,8 @@
                 "city": "Bilbao",
                 "area": "Casco Viejo",
                 "lat": 43.259014,
-                "lng": -2.922689
+                "lng": -2.922689,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -536,7 +558,8 @@
                 "city": "Bilbao",
                 "area": "Abandoibarra",
                 "lat": 43.268555,
-                "lng": -2.933832
+                "lng": -2.933832,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -559,7 +582,8 @@
                 "city": "Bilbao",
                 "area": "Abandoibarra",
                 "lat": 43.257332,
-                "lng": -2.933681
+                "lng": -2.933681,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -578,7 +602,8 @@
                 "city": "Bilbao",
                 "area": "Bilbao la Vieja",
                 "lat": 43.254908,
-                "lng": -2.924531
+                "lng": -2.924531,
+                "countryCode": "ES"
               },
               "kind": "hold",
               "tags": [
@@ -606,7 +631,8 @@
                 "city": "Bilbao",
                 "area": "Casco Viejo",
                 "lat": 43.255551,
-                "lng": -2.924343
+                "lng": -2.924343,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -629,7 +655,8 @@
                 "city": "Bilbao",
                 "area": "Casco Viejo",
                 "lat": 43.260011,
-                "lng": -2.92265
+                "lng": -2.92265,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [],
@@ -646,7 +673,8 @@
                 "city": "Bilbao",
                 "area": "Casco Viejo",
                 "lat": 43.260011,
-                "lng": -2.92265
+                "lng": -2.92265,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -674,7 +702,8 @@
                 "city": "Bilbao",
                 "area": "Abando",
                 "lat": 43.266884,
-                "lng": -2.936455
+                "lng": -2.936455,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -696,7 +725,8 @@
                 "city": "Cangas de Onís",
                 "area": "Centro",
                 "lat": 43.352572,
-                "lng": -5.125343
+                "lng": -5.125343,
+                "countryCode": "ES"
               },
               "kind": "transit",
               "tags": [],
@@ -717,7 +747,8 @@
                 "city": "Cangas de Onís",
                 "area": "Villanueva",
                 "lat": 43.366415,
-                "lng": -5.151553
+                "lng": -5.151553,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -740,7 +771,8 @@
                 "city": "Cangas de Onís",
                 "area": "Centro",
                 "lat": 43.351551,
-                "lng": -5.129978
+                "lng": -5.129978,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -763,7 +795,8 @@
                 "city": "Cangas de Onís",
                 "area": "Covadonga",
                 "lat": 43.304205,
-                "lng": -5.061541
+                "lng": -5.061541,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -786,7 +819,8 @@
                 "city": "Cangas de Onís",
                 "area": "Villanueva",
                 "lat": 43.366415,
-                "lng": -5.151553
+                "lng": -5.151553,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -814,7 +848,8 @@
                 "city": "Cangas de Onís",
                 "area": "Villanueva",
                 "lat": 43.366415,
-                "lng": -5.151553
+                "lng": -5.151553,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -837,7 +872,8 @@
                 "city": "Cabrales",
                 "area": "Poncebos",
                 "lat": 43.233926,
-                "lng": -4.747355
+                "lng": -4.747355,
+                "countryCode": "ES"
               },
               "kind": "transit",
               "tags": [],
@@ -858,7 +894,8 @@
                 "city": "Cabrales",
                 "area": "Garganta del Cares",
                 "lat": 43.30388,
-                "lng": -4.8157
+                "lng": -4.8157,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -877,7 +914,8 @@
                 "city": "Cabrales",
                 "area": "Arenas de Cabrales",
                 "lat": 43.303379,
-                "lng": -4.814715
+                "lng": -4.814715,
+                "countryCode": "ES"
               },
               "kind": "idea",
               "tags": [],
@@ -898,7 +936,8 @@
                 "city": "Cangas de Onís",
                 "area": "Centro",
                 "lat": 43.352572,
-                "lng": -5.125343
+                "lng": -5.125343,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -926,7 +965,8 @@
                 "city": "Cangas de Onís",
                 "area": "Villanueva",
                 "lat": 43.366415,
-                "lng": -5.151553
+                "lng": -5.151553,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -948,7 +988,8 @@
                 "city": "Cudillero",
                 "area": "Castañeras",
                 "lat": 43.567394,
-                "lng": -6.294871
+                "lng": -6.294871,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -971,7 +1012,8 @@
                 "city": "Cudillero",
                 "area": "Puerto",
                 "lat": 43.586779,
-                "lng": -6.226545
+                "lng": -6.226545,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -994,7 +1036,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Ensanche",
                 "lat": 42.870734,
-                "lng": -8.544763
+                "lng": -8.544763,
+                "countryCode": "ES"
               },
               "kind": "transit",
               "tags": [],
@@ -1015,7 +1058,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.881457,
-                "lng": -8.54592
+                "lng": -8.54592,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -1038,7 +1082,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.8805,
-                "lng": -8.54576
+                "lng": -8.54576,
+                "countryCode": "ES"
               },
               "kind": "idea",
               "tags": [],
@@ -1055,7 +1100,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.879834,
-                "lng": -8.54526
+                "lng": -8.54526,
+                "countryCode": "ES"
               },
               "kind": "hold",
               "tags": [
@@ -1083,7 +1129,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.880913,
-                "lng": -8.543889
+                "lng": -8.543889,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [
@@ -1106,7 +1153,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.88054,
-                "lng": -8.545186
+                "lng": -8.545186,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [
@@ -1129,7 +1177,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.879834,
-                "lng": -8.54526
+                "lng": -8.54526,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [],
@@ -1150,7 +1199,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.8804,
-                "lng": -8.544628
+                "lng": -8.544628,
+                "countryCode": "ES"
               },
               "kind": "planned",
               "tags": [],
@@ -1167,7 +1217,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Casco Histórico",
                 "lat": 42.879834,
-                "lng": -8.54526
+                "lng": -8.54526,
+                "countryCode": "ES"
               },
               "kind": "hold",
               "tags": [
@@ -1190,7 +1241,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Lavacolla",
                 "lat": 42.900236,
-                "lng": -8.44654
+                "lng": -8.44654,
+                "countryCode": "ES"
               },
               "kind": "transit",
               "tags": [],
@@ -1207,7 +1259,8 @@
                 "city": "Santiago de Compostela",
                 "area": "Lavacolla",
                 "lat": 42.896206,
-                "lng": -8.417669
+                "lng": -8.417669,
+                "countryCode": "ES"
               },
               "kind": "booked",
               "tags": [],
@@ -1228,7 +1281,8 @@
             "city": "Atxondo",
             "area": "Axpe",
             "lat": 43.116237,
-            "lng": -2.598511
+            "lng": -2.598511,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -1243,7 +1297,8 @@
             "city": "Bermeo",
             "area": "Bakio",
             "lat": 43.447119,
-            "lng": -2.78469
+            "lng": -2.78469,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -1258,7 +1313,8 @@
             "city": "Camaleño",
             "area": "Fuente Dé",
             "lat": 43.148797,
-            "lng": -4.808756
+            "lng": -4.808756,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -1273,7 +1329,8 @@
             "city": "Fisterra",
             "area": "Cabo Fisterra",
             "lat": 42.882405,
-            "lng": -9.271992
+            "lng": -9.271992,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
@@ -1288,7 +1345,8 @@
             "city": "Nava",
             "area": "Centro",
             "lat": 43.358675,
-            "lng": -5.509274
+            "lng": -5.509274,
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [

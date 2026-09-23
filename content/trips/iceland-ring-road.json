@@ -44,7 +44,8 @@
                 "city": "Keflavík",
                 "area": "Reykjanesbær",
                 "lat": 63.999769,
-                "lng": -22.556537
+                "lng": -22.556537,
+                "countryCode": "IS"
               },
               "kind": "booked",
               "tags": [],
@@ -65,7 +66,8 @@
                 "city": "Keflavík",
                 "area": "Reykjanesbær",
                 "lat": 63.999769,
-                "lng": -22.556537
+                "lng": -22.556537,
+                "countryCode": "IS"
               },
               "kind": "booked",
               "tags": [],
@@ -86,7 +88,8 @@
                 "city": "Reykjanesbær",
                 "area": "Njarðvík",
                 "lat": 63.972765,
-                "lng": -22.543609
+                "lng": -22.543609,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [],
@@ -107,7 +110,8 @@
                 "city": "Reykjavík",
                 "area": "Miðborg",
                 "lat": 64.147008,
-                "lng": -21.938378
+                "lng": -21.938378,
+                "countryCode": "IS"
               },
               "kind": "booked",
               "tags": [
@@ -130,7 +134,8 @@
                 "city": "Reykjavík",
                 "area": "Hlemmur",
                 "lat": 64.143391,
-                "lng": -21.914154
+                "lng": -21.914154,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -158,7 +163,8 @@
                 "city": "Reykjavík",
                 "area": "Skólavörðuholt",
                 "lat": 64.14399,
-                "lng": -21.926073
+                "lng": -21.926073,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -179,7 +185,8 @@
               "location": {
                 "name": "Hallgrímskirkja, Skólavörðustígur",
                 "city": "Reykjavík",
-                "area": "Skólavörðuholt"
+                "area": "Skólavörðuholt",
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -202,7 +209,8 @@
                 "city": "Reykjavík",
                 "area": "Miðborg",
                 "lat": 64.136983,
-                "lng": -21.938396
+                "lng": -21.938396,
+                "countryCode": "IS"
               },
               "kind": "idea",
               "tags": [
@@ -225,7 +233,8 @@
                 "city": "Reykjavík",
                 "area": "Old Harbour",
                 "lat": 64.151669,
-                "lng": -21.942103
+                "lng": -21.942103,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -248,7 +257,8 @@
                 "city": "Kópavogur",
                 "area": "Kársnes",
                 "lat": 64.116465,
-                "lng": -21.946435
+                "lng": -21.946435,
+                "countryCode": "IS"
               },
               "kind": "booked",
               "tags": [
@@ -271,7 +281,8 @@
                 "city": "Reykjavík",
                 "area": "Miðborg",
                 "lat": 64.136983,
-                "lng": -21.938396
+                "lng": -21.938396,
+                "countryCode": "IS"
               },
               "kind": "hold",
               "tags": [
@@ -297,7 +308,11 @@
               "location": {
                 "name": "Route 1 (Hringvegur), Reykjavík to Seljalandsfoss",
                 "city": "Hvolsvöllur",
-                "area": "Route 1"
+                "area": "Route 1",
+                "countryCode": "IS",
+                "lat": 63.750811,
+                "lng": -20.223842,
+                "precision": "city"
               },
               "kind": "transit",
               "tags": [],
@@ -316,7 +331,11 @@
               "location": {
                 "name": "Seljalandsfoss and Gljúfrabúi",
                 "city": "Hvolsvöllur",
-                "area": "Seljalandsfoss"
+                "area": "Seljalandsfoss",
+                "countryCode": "IS",
+                "lat": 63.615457,
+                "lng": -19.988169,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -339,7 +358,8 @@
                 "city": "Skógar",
                 "area": "Skógafoss",
                 "lat": 63.525243,
-                "lng": -19.507761
+                "lng": -19.507761,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -358,7 +378,8 @@
                 "city": "Skógar",
                 "area": "Skógafoss car park",
                 "lat": 63.524315,
-                "lng": -19.504866
+                "lng": -19.504866,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -379,7 +400,8 @@
               "location": {
                 "name": "Reynisfjara black sand beach",
                 "city": "Vík í Mýrdal",
-                "area": "Reynisfjara"
+                "area": "Reynisfjara",
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -402,7 +424,8 @@
                 "city": "Vík í Mýrdal",
                 "area": "Vík",
                 "lat": 63.417719,
-                "lng": -19.001372
+                "lng": -19.001372,
+                "countryCode": "IS"
               },
               "kind": "booked",
               "tags": [
@@ -425,7 +448,8 @@
                 "city": "Vík í Mýrdal",
                 "area": "Vík",
                 "lat": 63.417719,
-                "lng": -19.001372
+                "lng": -19.001372,
+                "countryCode": "IS"
               },
               "kind": "hold",
               "tags": [
@@ -453,7 +477,8 @@
                 "city": "Vík í Mýrdal",
                 "area": "Vík",
                 "lat": 63.417719,
-                "lng": -19.001372
+                "lng": -19.001372,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -474,7 +499,8 @@
               "location": {
                 "name": "Dyrhólaey promontory and lighthouse",
                 "city": "Vík í Mýrdal",
-                "area": "Dyrhólaey"
+                "area": "Dyrhólaey",
+                "countryCode": "IS"
               },
               "kind": "idea",
               "tags": [
@@ -493,7 +519,8 @@
                 "city": "Vík í Mýrdal",
                 "area": "Vík",
                 "lat": 63.417634,
-                "lng": -19.000563
+                "lng": -19.000563,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -521,7 +548,8 @@
                 "city": "Vík í Mýrdal",
                 "area": "Vík",
                 "lat": 63.417719,
-                "lng": -19.001372
+                "lng": -19.001372,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -538,7 +566,8 @@
               "location": {
                 "name": "Fjaðrárgljúfur canyon",
                 "city": "Kirkjubæjarklaustur",
-                "area": "Fjaðrárgljúfur"
+                "area": "Fjaðrárgljúfur",
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -559,7 +588,11 @@
               "location": {
                 "name": "Skaftafell, Vatnajökull National Park",
                 "city": "Öræfi",
-                "area": "Skaftafell"
+                "area": "Skaftafell",
+                "countryCode": "IS",
+                "lat": 63.99026,
+                "lng": -16.892275,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -580,7 +613,11 @@
               "location": {
                 "name": "Jökulsárlón glacier lagoon and Breiðamerkursandur",
                 "city": "Öræfi",
-                "area": "Jökulsárlón"
+                "area": "Jökulsárlón",
+                "countryCode": "IS",
+                "lat": 64.078321,
+                "lng": -16.227421,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -597,7 +634,11 @@
               "location": {
                 "name": "Fosshotel Glacier Lagoon, Hnappavellir",
                 "city": "Öræfi",
-                "area": "Hnappavellir"
+                "area": "Hnappavellir",
+                "countryCode": "IS",
+                "lat": 63.906296,
+                "lng": -16.594427,
+                "precision": "area"
               },
               "kind": "booked",
               "tags": [
@@ -618,7 +659,11 @@
               "location": {
                 "name": "Fosshotel Glacier Lagoon restaurant",
                 "city": "Öræfi",
-                "area": "Hnappavellir"
+                "area": "Hnappavellir",
+                "countryCode": "IS",
+                "lat": 63.906296,
+                "lng": -16.594427,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -639,7 +684,11 @@
               "location": {
                 "name": "Fosshotel car park and the Jökulsárlón lagoon road",
                 "city": "Öræfi",
-                "area": "Breiðamerkursandur"
+                "area": "Breiðamerkursandur",
+                "countryCode": "IS",
+                "lat": 64.043142,
+                "lng": -16.178248,
+                "precision": "area"
               },
               "kind": "hold",
               "tags": [
@@ -661,7 +710,11 @@
               "location": {
                 "name": "Fosshotel Glacier Lagoon, Hnappavellir",
                 "city": "Öræfi",
-                "area": "Hnappavellir"
+                "area": "Hnappavellir",
+                "countryCode": "IS",
+                "lat": 63.906296,
+                "lng": -16.594427,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -677,7 +730,11 @@
               "location": {
                 "name": "Vatnajökull ice cave tour, from the Jökulsárlón car park",
                 "city": "Öræfi",
-                "area": "Breiðamerkurjökull"
+                "area": "Breiðamerkurjökull",
+                "countryCode": "IS",
+                "lat": 64.17883,
+                "lng": -16.468298,
+                "precision": "area"
               },
               "kind": "booked",
               "tags": [
@@ -700,7 +757,8 @@
                 "city": "Kirkjubæjarklaustur",
                 "area": "Klaustur",
                 "lat": 63.79038,
-                "lng": -18.047497
+                "lng": -18.047497,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -723,7 +781,8 @@
                 "city": "Hella",
                 "area": "Route 1",
                 "lat": 63.836585,
-                "lng": -20.399218
+                "lng": -20.399218,
+                "countryCode": "IS"
               },
               "kind": "transit",
               "tags": [],
@@ -744,7 +803,8 @@
                 "city": "Hella",
                 "area": "Rangárvellir",
                 "lat": 63.833935,
-                "lng": -20.401416
+                "lng": -20.401416,
+                "countryCode": "IS"
               },
               "kind": "booked",
               "tags": [
@@ -765,7 +825,8 @@
               "location": {
                 "name": "Hótel Rangá restaurant",
                 "city": "Hella",
-                "area": "Rangárvellir"
+                "area": "Rangárvellir",
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -793,7 +854,8 @@
                 "city": "Hella",
                 "area": "Rangárvellir",
                 "lat": 63.833935,
-                "lng": -20.401416
+                "lng": -20.401416,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -811,7 +873,8 @@
                 "city": "Bláskógabyggð",
                 "area": "Haukadalur",
                 "lat": 64.324134,
-                "lng": -20.285776
+                "lng": -20.285776,
+                "countryCode": "IS"
               },
               "kind": "transit",
               "tags": [],
@@ -832,7 +895,8 @@
                 "city": "Bláskógabyggð",
                 "area": "Haukadalur",
                 "lat": 64.32661,
-                "lng": -20.121682
+                "lng": -20.121682,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -851,7 +915,8 @@
                 "city": "Bláskógabyggð",
                 "area": "Haukadalur",
                 "lat": 64.324134,
-                "lng": -20.285776
+                "lng": -20.285776,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -870,7 +935,8 @@
                 "city": "Bláskógabyggð",
                 "area": "Reykholt",
                 "lat": 64.178341,
-                "lng": -20.446134
+                "lng": -20.446134,
+                "countryCode": "IS"
               },
               "kind": "hold",
               "tags": [
@@ -893,7 +959,8 @@
                 "city": "Bláskógabyggð",
                 "area": "Þingvellir",
                 "lat": 64.278608,
-                "lng": -21.081941
+                "lng": -21.081941,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -914,7 +981,8 @@
               "location": {
                 "name": "Hótel Rangá restaurant and observatory",
                 "city": "Hella",
-                "area": "Rangárvellir"
+                "area": "Rangárvellir",
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -942,7 +1010,8 @@
                 "city": "Hella",
                 "area": "Rangárvellir",
                 "lat": 63.833935,
-                "lng": -20.401416
+                "lng": -20.401416,
+                "countryCode": "IS"
               },
               "kind": "planned",
               "tags": [
@@ -960,7 +1029,8 @@
                 "city": "Reykjavík",
                 "area": "Miðborg",
                 "lat": 64.136983,
-                "lng": -21.938396
+                "lng": -21.938396,
+                "countryCode": "IS"
               },
               "kind": "transit",
               "tags": [],
@@ -981,7 +1051,8 @@
                 "city": "Reykjavík",
                 "area": "Old Harbour",
                 "lat": 64.151669,
-                "lng": -21.942103
+                "lng": -21.942103,
+                "countryCode": "IS"
               },
               "kind": "idea",
               "tags": [
@@ -1004,7 +1075,8 @@
                 "city": "Keflavík",
                 "area": "Reykjanesbær",
                 "lat": 63.999769,
-                "lng": -22.556537
+                "lng": -22.556537,
+                "countryCode": "IS"
               },
               "kind": "transit",
               "tags": [],
@@ -1025,7 +1097,8 @@
                 "city": "Keflavík",
                 "area": "Reykjanesbær",
                 "lat": 63.999769,
-                "lng": -22.556537
+                "lng": -22.556537,
+                "countryCode": "IS"
               },
               "kind": "booked",
               "tags": [],
@@ -1044,7 +1117,8 @@
           "location": {
             "name": "Sólheimasandur plane wreck",
             "city": "Vík í Mýrdal",
-            "area": "Sólheimasandur"
+            "area": "Sólheimasandur",
+            "countryCode": "IS"
           },
           "kind": "idea",
           "tags": [
@@ -1057,7 +1131,11 @@
           "location": {
             "name": "Snæfellsnes peninsula",
             "city": "Grundarfjörður",
-            "area": "Kirkjufell"
+            "area": "Kirkjufell",
+            "countryCode": "IS",
+            "lat": 64.939947,
+            "lng": -23.307478,
+            "precision": "area"
           },
           "kind": "idea",
           "tags": [
@@ -1072,7 +1150,8 @@
             "city": "Flúðir",
             "area": "Hrunamannahreppur",
             "lat": 64.130638,
-            "lng": -20.320929
+            "lng": -20.320929,
+            "countryCode": "IS"
           },
           "kind": "idea",
           "tags": [],
@@ -1085,7 +1164,8 @@
             "city": "Reykjavík",
             "area": "Old Harbour",
             "lat": 64.151669,
-            "lng": -21.942103
+            "lng": -21.942103,
+            "countryCode": "IS"
           },
           "kind": "idea",
           "tags": [
@@ -1098,7 +1178,11 @@
           "location": {
             "name": "Þórsmörk valley, road F249",
             "city": "Hvolsvöllur",
-            "area": "Þórsmörk"
+            "area": "Þórsmörk",
+            "countryCode": "IS",
+            "lat": 63.686676,
+            "lng": -19.520996,
+            "precision": "area"
           },
           "kind": "idea",
           "tags": [

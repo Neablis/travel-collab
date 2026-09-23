@@ -75,7 +75,8 @@
           "location": {
             "name": "Route 1 east via Hveragerði and Selfoss",
             "city": "Reykjavík",
-            "area": "Suðurland"
+            "area": "Suðurland",
+            "countryCode": "IS"
           },
           "kind": "transit",
           "notes": "128 km, about 80 minutes with no stops. The whole day turns on this: day-tour coaches leave Reykjavík at 08:00–09:00 and reach Seljalandsfoss at 10:00, so a 07:15 departure buys you an hour of empty waterfall. Fill the tank in Selfoss — it is the last cheap fuel before Vík. Cost here is the day's fuel for a small 2WD; no F-roads are involved, so you do not need the 4x4.",
@@ -95,7 +96,8 @@
             "city": "Hvolsvöllur",
             "area": "Rangárþing eystra",
             "lat": 63.750811,
-            "lng": -20.223842
+            "lng": -20.223842,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -118,7 +120,8 @@
             "city": "Skógar",
             "area": "Rangárþing eystra",
             "lat": 63.525243,
-            "lng": -19.507761
+            "lng": -19.507761,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -141,7 +144,8 @@
             "city": "Skógar",
             "area": "Rangárþing eystra",
             "lat": 63.526951,
-            "lng": -19.49443
+            "lng": -19.49443,
+            "countryCode": "IS"
           },
           "kind": "idea",
           "tags": [
@@ -158,7 +162,8 @@
           "location": {
             "name": "Black Beach Restaurant, Reynisfjara car park",
             "city": "Vík í Mýrdal",
-            "area": "Mýrdalur"
+            "area": "Mýrdalur",
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -179,7 +184,8 @@
           "location": {
             "name": "Reynisfjara black sand beach and Hálsanefshellir cave",
             "city": "Vík í Mýrdal",
-            "area": "Mýrdalur"
+            "area": "Mýrdalur",
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -200,7 +206,8 @@
           "location": {
             "name": "Dyrhólaey promontory",
             "city": "Vík í Mýrdal",
-            "area": "Mýrdalur"
+            "area": "Mýrdalur",
+            "countryCode": "IS"
           },
           "kind": "hold",
           "tags": [
@@ -219,7 +226,8 @@
             "city": "Vík í Mýrdal",
             "area": "Mýrdalur",
             "lat": 63.422293,
-            "lng": -19.008141
+            "lng": -19.008141,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -263,7 +271,8 @@
             "city": "Vík í Mýrdal",
             "area": "Suðurland",
             "lat": 63.418817,
-            "lng": -19.005474
+            "lng": -19.005474,
+            "countryCode": "IS"
           },
           "kind": "transit",
           "notes": "190 km, and in February you drive the first 90 minutes of it in the dark. Check road.is and vedur.is before you turn the key, every single morning — the two sand plains east of Vík are where Route 1 gets closed for wind, and gusts over 25 m/s will strip paint off a rental and void the insurance. If the wind board is orange, do not start; the tour will rebook you. Studded tyres are standard on winter rentals here and you want them.",
@@ -281,7 +290,8 @@
           "location": {
             "name": "Jökulsárlón glacier lagoon, west shore",
             "city": "Höfn í Hornafirði",
-            "area": "Vatnajökull National Park"
+            "area": "Vatnajökull National Park",
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -298,7 +308,8 @@
           "location": {
             "name": "Breiðamerkursandur / Diamond Beach",
             "city": "Höfn í Hornafirði",
-            "area": "Vatnajökull National Park"
+            "area": "Vatnajökull National Park",
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -315,7 +326,8 @@
           "location": {
             "name": "Meeting point at the Jökulsárlón café car park",
             "city": "Höfn í Hornafirði",
-            "area": "Vatnajökull National Park"
+            "area": "Vatnajökull National Park",
+            "countryCode": "IS"
           },
           "kind": "booked",
           "tags": [
@@ -337,7 +349,8 @@
           "location": {
             "name": "Stokksnes peninsula and Viking Café",
             "city": "Höfn í Hornafirði",
-            "area": "Stokksnes"
+            "area": "Stokksnes",
+            "countryCode": "IS"
           },
           "kind": "hold",
           "tags": [
@@ -360,7 +373,8 @@
             "city": "Höfn í Hornafirði",
             "area": "Höfn harbour",
             "lat": 64.250162,
-            "lng": -15.204024
+            "lng": -15.204024,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -381,7 +395,8 @@
           "location": {
             "name": "Hoffell geothermal baths",
             "city": "Höfn í Hornafirði",
-            "area": "Hoffell"
+            "area": "Hoffell",
+            "countryCode": "IS"
           },
           "kind": "idea",
           "notes": "Five concrete tubs in a field 15 minutes inland from Höfn, about 1,500 ISK, honesty-box simple. No music, no ritual, no queue — the anti-Blue Lagoon. On a clear night you are sitting in 39°C water looking at the Vatnajökull icefield, and this is as good an aurora seat as any paid tour. Bring your own towel; the changing hut is a hut.",
@@ -401,7 +416,8 @@
             "city": "Höfn í Hornafirði",
             "area": "Höfn",
             "lat": 64.254332,
-            "lng": -15.208278
+            "lng": -15.208278,
+            "countryCode": "IS"
           },
           "kind": "booked",
           "tags": [
@@ -454,7 +470,8 @@
             "city": "Reykjavík",
             "area": "Höfuðborgarsvæðið",
             "lat": 64.145981,
-            "lng": -21.942237
+            "lng": -21.942237,
+            "countryCode": "IS"
           },
           "kind": "transit",
           "notes": "48 km, half an hour. Leaving at 07:45 rather than 09:00 is the entire difference between this day and the one everyone complains about: the coach wave hits Þingvellir at 10:00, Geysir at 11:30 and Gullfoss at 13:00, and if you stay an hour and a half ahead of it you never see it."
@@ -470,7 +487,8 @@
             "city": "Þingvellir",
             "area": "Bláskógabyggð",
             "lat": 64.2591,
-            "lng": -21.121254
+            "lng": -21.121254,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -493,7 +511,8 @@
             "city": "Þingvellir",
             "area": "Bláskógabyggð",
             "lat": 64.278608,
-            "lng": -21.081941
+            "lng": -21.081941,
+            "countryCode": "IS"
           },
           "kind": "booked",
           "tags": [
@@ -517,7 +536,8 @@
             "city": "Reykholt",
             "area": "Bláskógabyggð",
             "lat": 64.178315,
-            "lng": -20.447558
+            "lng": -20.447558,
+            "countryCode": "IS"
           },
           "kind": "booked",
           "tags": [
@@ -541,7 +561,8 @@
             "city": "Geysir",
             "area": "Bláskógabyggð",
             "lat": 64.313838,
-            "lng": -20.29951
+            "lng": -20.29951,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -564,7 +585,8 @@
             "city": "Gullfoss",
             "area": "Bláskógabyggð",
             "lat": 64.314452,
-            "lng": -20.149556
+            "lng": -20.149556,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -585,7 +607,11 @@
           "location": {
             "name": "Kerið volcanic crater",
             "city": "Selfoss",
-            "area": "Grímsnes"
+            "area": "Grímsnes",
+            "countryCode": "IS",
+            "lat": 64.040959,
+            "lng": -20.884611,
+            "precision": "venue"
           },
           "kind": "idea",
           "tags": [
@@ -608,7 +634,8 @@
             "city": "Kópavogur",
             "area": "Kársnes harbour",
             "lat": 64.116465,
-            "lng": -21.946435
+            "lng": -21.946435,
+            "countryCode": "IS"
           },
           "kind": "booked",
           "tags": [
@@ -643,7 +670,8 @@
           "location": {
             "name": "Route 1 and Road 54 via the Hvalfjörður tunnel",
             "city": "Reykjavík",
-            "area": "Vesturland"
+            "area": "Vesturland",
+            "countryCode": "IS"
           },
           "kind": "transit",
           "notes": "About 170 km. Take the Hvalfjörður tunnel — it has been toll-free since 2018 and saves 45 minutes over the fjord road, though the old fjord road is the prettier drive if you have the time. Doing the peninsula clockwise (south coast first) means the afternoon light is behind you at Djúpalónssandur and the aurora spot at Kirkjufell is on the way home, not a backtrack. Fuel up in Borgarnes; there is very little on the south shore.",
@@ -661,7 +689,11 @@
           "location": {
             "name": "Búðakirkja and Búðahraun lava field",
             "city": "Búðir",
-            "area": "Staðarsveit"
+            "area": "Staðarsveit",
+            "countryCode": "IS",
+            "lat": 64.821663,
+            "lng": -23.384022,
+            "precision": "venue"
           },
           "kind": "planned",
           "tags": [
@@ -682,7 +714,11 @@
           "location": {
             "name": "Arnarstapi–Hellnar coastal trail and Gatklettur arch",
             "city": "Arnarstapi",
-            "area": "Snæfellsjökull National Park"
+            "area": "Snæfellsjökull National Park",
+            "countryCode": "IS",
+            "lat": 64.766727,
+            "lng": -23.628085,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -705,7 +741,8 @@
             "city": "Hellnar",
             "area": "Snæfellsjökull National Park",
             "lat": 64.751769,
-            "lng": -23.645506
+            "lng": -23.645506,
+            "countryCode": "IS"
           },
           "kind": "planned",
           "tags": [
@@ -726,7 +763,11 @@
           "location": {
             "name": "Vatnshellir cave",
             "city": "Hellissandur",
-            "area": "Snæfellsjökull National Park"
+            "area": "Snæfellsjökull National Park",
+            "countryCode": "IS",
+            "lat": 64.748123,
+            "lng": -23.817981,
+            "precision": "venue"
           },
           "kind": "booked",
           "tags": [
@@ -747,7 +788,11 @@
           "location": {
             "name": "Djúpalónssandur and Dritvík",
             "city": "Hellissandur",
-            "area": "Snæfellsjökull National Park"
+            "area": "Snæfellsjökull National Park",
+            "countryCode": "IS",
+            "lat": 64.752096,
+            "lng": -23.903218,
+            "precision": "venue"
           },
           "kind": "planned",
           "tags": [
@@ -770,7 +815,8 @@
             "city": "Grundarfjörður",
             "area": "Grundarfjörður harbour",
             "lat": 64.920349,
-            "lng": -23.258827
+            "lng": -23.258827,
+            "countryCode": "IS"
           },
           "kind": "booked",
           "tags": [
@@ -791,7 +837,8 @@
           "location": {
             "name": "Kirkjufellsfoss car park",
             "city": "Grundarfjörður",
-            "area": "Snæfellsnes"
+            "area": "Snæfellsnes",
+            "countryCode": "IS"
           },
           "kind": "hold",
           "tags": [
@@ -836,7 +883,11 @@
           "location": {
             "name": "Hamnøy bridge and Reine harbour",
             "city": "Reine",
-            "area": "Moskenesøy"
+            "area": "Moskenesøy",
+            "countryCode": "NO",
+            "lat": 67.932468,
+            "lng": 13.088768,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -857,7 +908,11 @@
           "location": {
             "name": "Innersand parking, Fredvang",
             "city": "Fredvang",
-            "area": "Flakstadøy"
+            "area": "Flakstadøy",
+            "countryCode": "NO",
+            "lat": 68.084056,
+            "lng": 13.166686,
+            "precision": "city"
           },
           "kind": "transit",
           "notes": "About 25 minutes from Reine over the two Fredvang bridges. The farmer's field at Innersand is the closest lot — 100 NOK, Vipps or an honesty box, and worth paying, since the free lot at Fredvang skole adds 3 km each way. It fills by 09:00 in July. Do not park on the verge; this is someone's farm.",
@@ -875,7 +930,11 @@
           "location": {
             "name": "Ryten (543 m) and Kvalvika beach",
             "city": "Fredvang",
-            "area": "Flakstadøy"
+            "area": "Flakstadøy",
+            "countryCode": "NO",
+            "lat": 68.084056,
+            "lng": 13.166686,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -896,7 +955,11 @@
           "location": {
             "name": "Anita's Sjømat, Sakrisøy",
             "city": "Reine",
-            "area": "Sakrisøy"
+            "area": "Sakrisøy",
+            "countryCode": "NO",
+            "lat": 67.941212,
+            "lng": 13.111086,
+            "precision": "area"
           },
           "kind": "planned",
           "tags": [
@@ -917,7 +980,8 @@
           "location": {
             "name": "E10 via Flakstad, Vestvågøy and Gimsøy",
             "city": "Svolvær",
-            "area": "Austvågøy"
+            "area": "Austvågøy",
+            "countryCode": "NO"
           },
           "kind": "transit",
           "notes": "About 130 km and genuinely two hours, not the 95 minutes the map claims: single-lane tunnels, campervans that will not use the pull-outs, and sheep. Stop at Flakstad church or Haukland beach if you are ahead. Fuel is expensive and stations thin out west of Leknes — fill in Leknes.",
@@ -937,7 +1001,8 @@
             "city": "Svolvær",
             "area": "Svinøya",
             "lat": 68.23349,
-            "lng": 14.578293
+            "lng": 14.578293,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -961,7 +1026,8 @@
             "city": "Svolvær",
             "area": "Svinøya",
             "lat": 68.23349,
-            "lng": 14.578293
+            "lng": 14.578293,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -984,7 +1050,8 @@
             "city": "Svolvær",
             "area": "Svinøya",
             "lat": 68.234374,
-            "lng": 14.579693
+            "lng": 14.579693,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -1025,7 +1092,8 @@
             "city": "Bergen",
             "area": "Bryggen",
             "lat": 60.397726,
-            "lng": 5.322933
+            "lng": 5.322933,
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1048,7 +1116,8 @@
             "city": "Bergen",
             "area": "Bergen sentrum",
             "lat": 60.394678,
-            "lng": 5.324236
+            "lng": 5.324236,
+            "countryCode": "NO"
           },
           "kind": "transit",
           "tags": [
@@ -1071,7 +1140,8 @@
             "city": "Voss",
             "area": "Nærøydalen",
             "lat": 48.29638,
-            "lng": -97.45536
+            "lng": -97.45536,
+            "countryCode": "US"
           },
           "kind": "transit",
           "tags": [
@@ -1094,7 +1164,8 @@
             "city": "Gudvangen",
             "area": "Aurland",
             "lat": 60.879109,
-            "lng": 6.83963
+            "lng": 6.83963,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -1118,7 +1189,8 @@
             "city": "Flåm",
             "area": "Aurlandsfjord",
             "lat": 60.863683,
-            "lng": 7.117286
+            "lng": 7.117286,
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1141,7 +1213,8 @@
             "city": "Flåm",
             "area": "Flåmsdalen",
             "lat": 60.809854,
-            "lng": 7.122814
+            "lng": 7.122814,
+            "countryCode": "NO"
           },
           "kind": "transit",
           "tags": [
@@ -1162,7 +1235,11 @@
           "location": {
             "name": "Myrdal to Bergen on the Bergen Line",
             "city": "Myrdal",
-            "area": "Hardangervidda edge"
+            "area": "Hardangervidda edge",
+            "countryCode": "NO",
+            "lat": 60.735171,
+            "lng": 7.122829,
+            "precision": "city"
           },
           "kind": "transit",
           "tags": [
@@ -1185,7 +1262,8 @@
             "city": "Bergen",
             "area": "Bryggen",
             "lat": 60.396449,
-            "lng": 5.324725
+            "lng": 5.324725,
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1229,7 +1307,8 @@
             "city": "Jørpeland",
             "area": "Ryfylke",
             "lat": 59.012998,
-            "lng": 6.05158
+            "lng": 6.05158,
+            "countryCode": "NO"
           },
           "kind": "transit",
           "tags": [
@@ -1252,7 +1331,8 @@
             "city": "Jørpeland",
             "area": "Ryfylke",
             "lat": 59.012998,
-            "lng": 6.05158
+            "lng": 6.05158,
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1273,7 +1353,8 @@
           "location": {
             "name": "Preikestolen, 604 m above Lysefjord",
             "city": "Jørpeland",
-            "area": "Lysefjord"
+            "area": "Lysefjord",
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1296,7 +1377,8 @@
             "city": "Jørpeland",
             "area": "Ryfylke",
             "lat": 59.025916,
-            "lng": 6.04255
+            "lng": 6.04255,
+            "countryCode": "NO"
           },
           "kind": "transit",
           "tags": [
@@ -1315,7 +1397,8 @@
             "city": "Jørpeland",
             "area": "Ryfylke",
             "lat": 59.012998,
-            "lng": 6.05158
+            "lng": 6.05158,
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1338,7 +1421,8 @@
             "city": "Stavanger",
             "area": "Vågen harbour",
             "lat": 58.971606,
-            "lng": 5.730111
+            "lng": 5.730111,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -1362,7 +1446,8 @@
             "city": "Stavanger",
             "area": "Vågen",
             "lat": 58.970403,
-            "lng": 5.730558
+            "lng": 5.730558,
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1385,7 +1470,8 @@
             "city": "Stavanger",
             "area": "Øvre Holmegate",
             "lat": 58.972758,
-            "lng": 5.733485
+            "lng": 5.733485,
+            "countryCode": "NO"
           },
           "kind": "idea",
           "notes": "The painted street — every timber house a different colour, the result of one hairdresser talking the whole block into it. Bøker og Børst is the bookshop-bar in the middle of it with a back courtyard. Purely optional after a 20 km day on your legs, which is why it is an idea and not a plan.",
@@ -1435,7 +1521,8 @@
             "city": "Tromsø",
             "area": "Sentrum",
             "lat": 69.647965,
-            "lng": 18.955865
+            "lng": 18.955865,
+            "countryCode": "NO"
           },
           "kind": "planned",
           "tags": [
@@ -1458,7 +1545,8 @@
             "city": "Tromsø",
             "area": "Kvaløya",
             "lat": 69.648751,
-            "lng": 18.956792
+            "lng": 18.956792,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -1482,7 +1570,8 @@
             "city": "Tromsø",
             "area": "Sentrum harbour",
             "lat": 69.652207,
-            "lng": 18.963317
+            "lng": 18.963317,
+            "countryCode": "NO"
           },
           "kind": "idea",
           "tags": [
@@ -1505,7 +1594,8 @@
             "city": "Tromsø",
             "area": "Tromsdalen",
             "lat": 69.645326,
-            "lng": 18.994043
+            "lng": 18.994043,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -1529,7 +1619,8 @@
             "city": "Tromsø",
             "area": "Sentrum",
             "lat": 69.648438,
-            "lng": 18.956047
+            "lng": 18.956047,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [
@@ -1552,7 +1643,8 @@
             "city": "Tromsø",
             "area": "Storgata",
             "lat": 69.651233,
-            "lng": 18.957669
+            "lng": 18.957669,
+            "countryCode": "NO"
           },
           "kind": "idea",
           "tags": [
@@ -1575,7 +1667,8 @@
             "city": "Tromsø",
             "area": "Troms og Finnmark",
             "lat": 69.650171,
-            "lng": 18.95326
+            "lng": 18.95326,
+            "countryCode": "NO"
           },
           "kind": "booked",
           "tags": [

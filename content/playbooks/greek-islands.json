@@ -73,7 +73,8 @@
             "city": "Fira",
             "area": "Ypapantis",
             "lat": 36.41906,
-            "lng": 25.432147
+            "lng": 25.432147,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -96,7 +97,8 @@
             "city": "Fira",
             "area": "Firostefani",
             "lat": 36.418164,
-            "lng": 25.43103
+            "lng": 25.43103,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "tags": [
@@ -119,7 +121,8 @@
             "city": "Imerovigli",
             "area": "Skaros",
             "lat": 36.431215,
-            "lng": 25.425042
+            "lng": 25.425042,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -140,7 +143,8 @@
           "location": {
             "name": "Caldera footpath, Imerovigli to Oia",
             "city": "Imerovigli",
-            "area": "Caldera path"
+            "area": "Caldera path",
+            "countryCode": "GR"
           },
           "kind": "transit",
           "tags": [
@@ -161,7 +165,8 @@
           "location": {
             "name": "Melitini",
             "city": "Oia",
-            "area": "Main Street"
+            "area": "Main Street",
+            "countryCode": "GR"
           },
           "kind": "hold",
           "tags": [
@@ -182,7 +187,8 @@
           "location": {
             "name": "Oia bus terminal",
             "city": "Oia",
-            "area": "Bus square"
+            "area": "Bus square",
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "Runs roughly every 30 minutes, cash to the conductor on board, and it is standing room after 16:00. Going back now rather than at 18:00 means you skip the sunset-bound scrum entirely.",
@@ -200,7 +206,8 @@
           "location": {
             "name": "Agios Georgios path viewpoint",
             "city": "Imerovigli",
-            "area": "Caldera path"
+            "area": "Caldera path",
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -223,7 +230,8 @@
             "city": "Imerovigli",
             "area": "Imerovigli village",
             "lat": 36.433472,
-            "lng": 25.42319
+            "lng": 25.42319,
+            "countryCode": "GR"
           },
           "kind": "hold",
           "tags": [
@@ -264,7 +272,8 @@
             "city": "Oia",
             "area": "Ammoudi",
             "lat": 36.460411,
-            "lng": 25.371071
+            "lng": 25.371071,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "You can walk the 300 steps down, but not carrying a cool bag, and the donkeys are not a serious option in July. Book the taxi the night before — Oia's rank is empty between 09:00 and 10:00 because every driver is on an airport run.",
@@ -284,7 +293,8 @@
             "city": "Oia",
             "area": "Ammoudi",
             "lat": 36.459962,
-            "lng": 25.370574
+            "lng": 25.370574,
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -307,7 +317,8 @@
             "city": "Thira",
             "area": "Caldera",
             "lat": 36.394407,
-            "lng": 25.438224
+            "lng": 25.438224,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -330,7 +341,8 @@
             "city": "Akrotiri",
             "area": "Southern caldera coast",
             "lat": 36.348835,
-            "lng": 25.394121
+            "lng": 25.394121,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -353,7 +365,8 @@
             "city": "Oia",
             "area": "Main Street",
             "lat": 36.46295,
-            "lng": 25.37773
+            "lng": 25.37773,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "Arrange the pickup with the same driver who brought you down; Ammoudi at 17:00 has thirty people and two cars.",
@@ -373,7 +386,8 @@
             "city": "Oia",
             "area": "Caldera edge, Main Street",
             "lat": 36.46295,
-            "lng": 25.37773
+            "lng": 25.37773,
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -394,7 +408,8 @@
           "location": {
             "name": "Kastro Oia terrace",
             "city": "Oia",
-            "area": "Byzantine Castle ruins"
+            "area": "Byzantine Castle ruins",
+            "countryCode": "GR"
           },
           "kind": "idea",
           "notes": "Uncommitted — but the castle ruins that were unusable at 20:30 are empty by 22:45, and Oia after the buses leave is the version of the village in the photographs.",
@@ -439,7 +454,11 @@
           "location": {
             "name": "Adamas rental strip",
             "city": "Adamas",
-            "area": "Port road"
+            "area": "Port road",
+            "countryCode": "GR",
+            "lat": 36.723457,
+            "lng": 24.444882,
+            "precision": "city"
           },
           "kind": "transit",
           "notes": "This is the trick that makes the rest of the day work. Nothing in Adamas opens before 09:00, so rent from about 18:00 the evening before on a 24-hour rate and keep the keys overnight — otherwise Sarakiniko at dawn is impossible without a taxi you cannot book.",
@@ -457,7 +476,11 @@
           "location": {
             "name": "Sarakiniko",
             "city": "Adamas",
-            "area": "Sarakiniko"
+            "area": "Sarakiniko",
+            "countryCode": "GR",
+            "lat": 36.742761,
+            "lng": 24.458312,
+            "precision": "venue"
           },
           "kind": "planned",
           "tags": [
@@ -478,7 +501,11 @@
           "location": {
             "name": "Kivotos ton Gefseon",
             "city": "Adamas",
-            "area": "Adamas waterfront"
+            "area": "Adamas waterfront",
+            "countryCode": "GR",
+            "lat": 36.723457,
+            "lng": 24.444882,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -499,7 +526,11 @@
           "location": {
             "name": "Adamas port",
             "city": "Adamas",
-            "area": "Main quay"
+            "area": "Main quay",
+            "countryCode": "GR",
+            "lat": 36.723457,
+            "lng": 24.444882,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -520,7 +551,11 @@
           "location": {
             "name": "Kleftiko",
             "city": "Adamas",
-            "area": "South-west coast"
+            "area": "South-west coast",
+            "countryCode": "GR",
+            "lat": 36.723457,
+            "lng": 24.444882,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -543,7 +578,8 @@
             "city": "Plaka",
             "area": "Kastro",
             "lat": 36.743822,
-            "lng": 24.424894
+            "lng": 24.424894,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -566,7 +602,8 @@
             "city": "Plaka",
             "area": "Plaka village",
             "lat": 36.744131,
-            "lng": 24.421575
+            "lng": 24.421575,
+            "countryCode": "GR"
           },
           "kind": "idea",
           "notes": "Same cliff edge, twenty minutes after everyone else has left it. Not a plan, just the obvious thing to do on the way back to the quad.",
@@ -584,7 +621,11 @@
           "location": {
             "name": "Medusa",
             "city": "Mandrakia",
-            "area": "Mandrakia fishing harbour"
+            "area": "Mandrakia fishing harbour",
+            "countryCode": "GR",
+            "lat": 36.750018,
+            "lng": 24.446217,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -629,7 +670,8 @@
           "location": {
             "name": "Filoti main square",
             "city": "Filoti",
-            "area": "Village square"
+            "area": "Village square",
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "Day rate for a small car — Naxos is the one Cycladic island where a car beats a quad, because the mountain road is long and cold at 07:00. The trail starts on the steps opposite Taverna Baboulas on the square. You can also drive on to the tiny Aria Spring car park and save 40 minutes of road walking, but it holds six cars and fills by 08:00.",
@@ -647,7 +689,8 @@
           "location": {
             "name": "Aria Spring",
             "city": "Filoti",
-            "area": "Aria"
+            "area": "Aria",
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -668,7 +711,8 @@
           "location": {
             "name": "Mount Zas summit",
             "city": "Filoti",
-            "area": "Mount Zas"
+            "area": "Mount Zas",
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -691,7 +735,8 @@
             "city": "Filoti",
             "area": "Agia Marina",
             "lat": 37.044701,
-            "lng": 25.507188
+            "lng": 25.507188,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "tags": [
@@ -712,7 +757,11 @@
           "location": {
             "name": "Lefteris",
             "city": "Apeiranthos",
-            "area": "Marble village"
+            "area": "Marble village",
+            "countryCode": "GR",
+            "lat": 37.071792,
+            "lng": 25.519616,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -735,7 +784,8 @@
             "city": "Halki",
             "area": "Halki village",
             "lat": 37.063013,
-            "lng": 25.482285
+            "lng": 25.482285,
+            "countryCode": "GR"
           },
           "kind": "idea",
           "notes": "Fifteen minutes, free, and still using the copper stills from 1896. Three strengths of kitron: green is the sweet one people like on the day, yellow is the one worth carrying home. Skip it if you are driving the mountain road afterwards.",
@@ -753,7 +803,8 @@
           "location": {
             "name": "Plaka Beach",
             "city": "Plaka",
-            "area": "Southern dunes"
+            "area": "Southern dunes",
+            "countryCode": "GR"
           },
           "kind": "idea",
           "tags": [
@@ -774,7 +825,11 @@
           "location": {
             "name": "Portara and the Kastro lanes",
             "city": "Naxos Town",
-            "area": "Palatia and Kastro"
+            "area": "Palatia and Kastro",
+            "countryCode": "GR",
+            "lat": 36.870658,
+            "lng": 25.521091,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -818,7 +873,8 @@
             "city": "Chania",
             "area": "Kydonias",
             "lat": 35.511836,
-            "lng": 24.01689
+            "lng": 24.01689,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "Buy this ticket the day before at the station. The 06:15 sells out in season and the next departures put you into the hottest part of the gorge; it is also the only one that comfortably makes the afternoon boat. Sit on the right for the climb onto the Omalos plateau.",
@@ -836,7 +892,11 @@
           "location": {
             "name": "Samaria National Park gate, Xyloskalo",
             "city": "Omalos",
-            "area": "Xyloskalo"
+            "area": "Xyloskalo",
+            "countryCode": "GR",
+            "lat": 35.308268,
+            "lng": 23.918234,
+            "precision": "area"
           },
           "kind": "booked",
           "tags": [
@@ -859,7 +919,8 @@
             "city": "Samaria",
             "area": "Samaria Gorge",
             "lat": 35.245342,
-            "lng": 23.966123
+            "lng": 23.966123,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -882,7 +943,8 @@
             "city": "Agia Roumeli",
             "area": "Old village road",
             "lat": 35.228447,
-            "lng": 23.952978
+            "lng": 23.952978,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "tags": [
@@ -905,7 +967,8 @@
             "city": "Agia Roumeli",
             "area": "Beachfront",
             "lat": 35.228447,
-            "lng": 23.952978
+            "lng": 23.952978,
+            "countryCode": "GR"
           },
           "kind": "idea",
           "tags": [
@@ -928,7 +991,8 @@
             "city": "Agia Roumeli",
             "area": "Ferry quay",
             "lat": 35.23027,
-            "lng": 23.95985
+            "lng": 23.95985,
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -951,7 +1015,8 @@
             "city": "Chora Sfakion",
             "area": "Harbour front",
             "lat": 35.201218,
-            "lng": 24.137343
+            "lng": 24.137343,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "It waits for the boat — the driver counts the ferry off. Sit on the left going up out of Sfakia for the drop to the sea, then sleep.",
@@ -969,7 +1034,8 @@
           "location": {
             "name": "Chrisostomos",
             "city": "Chania",
-            "area": "Splantzia and the east harbour"
+            "area": "Splantzia and the east harbour",
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -1006,7 +1072,8 @@
             "city": "Pounta",
             "area": "South-west Paros",
             "lat": 37.03832,
-            "lng": 25.10445
+            "lng": 25.10445,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "About 18 km and 25 minutes on a quad. Take the vehicle across rather than crossing on foot — Antiparos has one bus and the cave is eight kilometres from the town, so on foot the day collapses into taxis.",
@@ -1024,7 +1091,8 @@
           "location": {
             "name": "Pounta–Antiparos ferry",
             "city": "Pounta",
-            "area": "Ferry ramp"
+            "area": "Ferry ramp",
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "Every half hour through summer, no booking, no timetable to memorise: drive on, pay the deckhand, seven minutes. The crossing that matters is the last one back, which runs very late in high season and very early out of it — check the board on the ramp on the way over.",
@@ -1044,7 +1112,8 @@
             "city": "Antiparos",
             "area": "Agios Ioannis hill",
             "lat": 36.990683,
-            "lng": 25.059997
+            "lng": 25.059997,
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -1067,7 +1136,8 @@
             "city": "Antiparos",
             "area": "Soros, south end",
             "lat": 36.971402,
-            "lng": 25.059362
+            "lng": 25.059362,
+            "countryCode": "GR"
           },
           "kind": "idea",
           "tags": [
@@ -1091,7 +1161,8 @@
             "city": "Antiparos",
             "area": "Agios Georgios",
             "lat": 36.976909,
-            "lng": 25.029159
+            "lng": 25.029159,
+            "countryCode": "GR"
           },
           "kind": "idea",
           "notes": "A five-minute boat from the beach at Agios Georgios to an uninhabited island with an active excavation of an archaic Apollo sanctuary. It is not a museum — access depends on whether the dig team is working, so ask at the taverna on the Agios Georgios beach before committing the afternoon to it.",
@@ -1111,7 +1182,8 @@
             "city": "Antiparos",
             "area": "Ferry ramp",
             "lat": 37.041881,
-            "lng": 25.081787
+            "lng": 25.081787,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "cost": {
@@ -1128,7 +1200,11 @@
           "location": {
             "name": "Naoussa old harbour",
             "city": "Naoussa",
-            "area": "Old fishing harbour"
+            "area": "Old fishing harbour",
+            "countryCode": "GR",
+            "lat": 37.12352,
+            "lng": 25.238741,
+            "precision": "city"
           },
           "kind": "idea",
           "notes": "The half-sunken Venetian kastelli in the water is a thirty-second walk out along the mole and nearly everyone photographs it from the wrong side — go out on it and look back at the harbour instead.",
@@ -1146,7 +1222,11 @@
           "location": {
             "name": "Barbarossa Ouzeri",
             "city": "Naoussa",
-            "area": "Harbour quay"
+            "area": "Harbour quay",
+            "countryCode": "GR",
+            "lat": 37.12352,
+            "lng": 25.238741,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -1190,7 +1270,8 @@
             "city": "Piraeus",
             "area": "Gate E8",
             "lat": 37.945584,
-            "lng": 23.641158
+            "lng": 23.641158,
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -1213,7 +1294,8 @@
             "city": "Hydra",
             "area": "Hydra Port",
             "lat": 37.350804,
-            "lng": 23.466728
+            "lng": 23.466728,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -1234,7 +1316,8 @@
           "location": {
             "name": "Kala Pigadia",
             "city": "Hydra",
-            "area": "Kala Pigadia"
+            "area": "Kala Pigadia",
+            "countryCode": "GR"
           },
           "kind": "idea",
           "tags": [
@@ -1257,7 +1340,8 @@
             "city": "Hydra",
             "area": "Kamini",
             "lat": 37.349827,
-            "lng": 23.46508
+            "lng": 23.46508,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "tags": [
@@ -1280,7 +1364,8 @@
             "city": "Hydra",
             "area": "Kamini",
             "lat": 37.349435,
-            "lng": 23.45138
+            "lng": 23.45138,
+            "countryCode": "GR"
           },
           "kind": "hold",
           "tags": [
@@ -1303,7 +1388,8 @@
             "city": "Hydra",
             "area": "Vlychos",
             "lat": 37.332108,
-            "lng": 23.466424
+            "lng": 23.466424,
+            "countryCode": "GR"
           },
           "kind": "idea",
           "tags": [
@@ -1326,7 +1412,8 @@
             "city": "Hydra",
             "area": "Vlychos",
             "lat": 37.332108,
-            "lng": 23.466424
+            "lng": 23.466424,
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "Rates are posted on a board at the quay and are per boat, not per head — split four ways it costs less than a cold drink each and saves forty minutes of walking back into the sun with a hydrofoil to catch. Flag one from the jetty, or the taverna will call it.",
@@ -1346,7 +1433,8 @@
             "city": "Hydra",
             "area": "Ferry quay",
             "lat": 37.349827,
-            "lng": 23.46508
+            "lng": 23.46508,
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -1393,7 +1481,8 @@
             "city": "Rhodes Town",
             "area": "Mandraki",
             "lat": 36.448895,
-            "lng": 28.225924
+            "lng": 28.225924,
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -1414,7 +1503,8 @@
           "location": {
             "name": "Gate of d'Amboise",
             "city": "Rhodes Town",
-            "area": "Old Town walls"
+            "area": "Old Town walls",
+            "countryCode": "GR"
           },
           "kind": "transit",
           "notes": "This is the whole trick of the day. The north-west gates put you straight at the top of the Street of the Knights beside the palace, so you walk the medieval spine downhill and empty. Everyone arriving off a ship enters at the bottom and walks up it into you.",
@@ -1432,7 +1522,8 @@
           "location": {
             "name": "Palace of the Grand Master",
             "city": "Rhodes Town",
-            "area": "Collachium"
+            "area": "Collachium",
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -1453,7 +1544,8 @@
           "location": {
             "name": "Street of the Knights",
             "city": "Rhodes Town",
-            "area": "Ippoton"
+            "area": "Ippoton",
+            "countryCode": "GR"
           },
           "kind": "planned",
           "tags": [
@@ -1474,7 +1566,8 @@
           "location": {
             "name": "Nireas",
             "city": "Rhodes Town",
-            "area": "Sofokleous, Old Town"
+            "area": "Sofokleous, Old Town",
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [
@@ -1495,7 +1588,8 @@
           "location": {
             "name": "Kahal Shalom Synagogue",
             "city": "Rhodes Town",
-            "area": "Plateia Martyron Evraion"
+            "area": "Plateia Martyron Evraion",
+            "countryCode": "GR"
           },
           "kind": "planned",
           "notes": "The oldest synagogue still standing in Greece, with a small and very sobering museum behind it about the 1944 deportation of the island's community. The seahorse-fountain square outside is the quietest corner inside the walls in mid-afternoon. Closed Saturdays.",
@@ -1513,7 +1607,8 @@
           "location": {
             "name": "Old Town moat",
             "city": "Rhodes Town",
-            "area": "Moat walk"
+            "area": "Moat walk",
+            "countryCode": "GR"
           },
           "kind": "idea",
           "tags": [
@@ -1534,7 +1629,8 @@
           "location": {
             "name": "Marco Polo Café",
             "city": "Rhodes Town",
-            "area": "Agiou Fanouriou, Turkish quarter"
+            "area": "Agiou Fanouriou, Turkish quarter",
+            "countryCode": "GR"
           },
           "kind": "booked",
           "tags": [

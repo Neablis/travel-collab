@@ -75,7 +75,8 @@
             "city": "Paris",
             "area": "Aligre, 12e",
             "lat": 48.848875,
-            "lng": 2.378046
+            "lng": 2.378046,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -98,7 +99,8 @@
             "city": "Paris",
             "area": "Aligre, 12e",
             "lat": 48.84944,
-            "lng": 2.377381
+            "lng": 2.377381,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -121,7 +123,8 @@
             "city": "Paris",
             "area": "Le Marais",
             "lat": 48.857323,
-            "lng": 2.362473
+            "lng": 2.362473,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "The permanent collection is free and needs no booking, which is why almost no guidebook day includes it. Closed Mondays. If you only have ninety minutes, skip the chronology and go straight to the Revolution rooms, the shop signs, and Proust's bedroom rebuilt as it was on boulevard Haussmann. Verified 2026-09-06: closed Mondays, open 10:00–18:00, ticket desk closing 17:15 and rooms clearing 17:55. The permanent collection is genuinely free and needs no booking; only the temporary exhibitions are paid.",
@@ -141,7 +144,8 @@
             "city": "Paris",
             "area": "Le Marais",
             "lat": 48.862795,
-            "lng": 2.361973
+            "lng": 2.361973,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -164,7 +168,8 @@
             "city": "Paris",
             "area": "Saint-Paul, Le Marais",
             "lat": 48.855384,
-            "lng": 2.360407
+            "lng": 2.360407,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "notes": "Linked courtyards of antique dealers between rue Saint-Paul and the river; several shops keep Tuesday and Wednesday closed, so it is a weekend or Thursday walk. Pair it with rue des Rosiers — but L'As du Fallafel shuts Friday afternoon and all Saturday for Shabbat, so on a Saturday go to Jacques Genin on rue de Turenne for caramels instead.",
@@ -184,7 +189,8 @@
             "city": "Paris",
             "area": "Le Marais",
             "lat": 48.85987,
-            "lng": 2.362115
+            "lng": 2.362115,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -207,7 +213,8 @@
             "city": "Paris",
             "area": "Haut Marais",
             "lat": 48.861735,
-            "lng": 2.365003
+            "lng": 2.365003,
+            "countryCode": "FR"
           },
           "kind": "hold",
           "tags": [
@@ -230,7 +237,8 @@
             "city": "Paris",
             "area": "Rue de Charonne, 11e",
             "lat": 48.853589,
-            "lng": 2.380854
+            "lng": 2.380854,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -274,7 +282,8 @@
             "city": "Paris",
             "area": "Louvre, 1er",
             "lat": 48.862011,
-            "lng": 2.33386
+            "lng": 2.33386,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "The pyramid queue is the one in the photographs; the underground Carrousel entrance at 99 rue de Rivoli is the one to use, and Porte des Lions is the third when it is staffed. Tickets are online-only with a timed slot. The Louvre is closed Tuesdays and the Orsay is closed Mondays and open late only on Thursdays — which is why this day is a Thursday and cannot be anything else. Verified 2026-09-06: the Louvre is closed Tuesdays and open 09:00–18:00, with late nights to 21:45 on Wednesdays and Fridays and last admission an hour before closing. A timed-slot reservation is mandatory for every visitor, including anyone hoping to buy at the door, at least until 19 April 2026. The Orsay is closed Mondays and its only late night is Thursday to 21:45 — so a Thursday really is the one weekday this pairing works, exactly as claimed.",
@@ -294,7 +303,8 @@
             "city": "Paris",
             "area": "Louvre, 1er",
             "lat": 48.861147,
-            "lng": 2.338028
+            "lng": 2.338028,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -317,7 +327,8 @@
             "city": "Paris",
             "area": "Louvre, 1er",
             "lat": 48.862412,
-            "lng": 2.336589
+            "lng": 2.336589,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "Nearly everyone stays in Denon and Sully, so Richelieu is the quiet half of the same ticket. The glass-roofed Marly and Puget courts are full of light and empty of people, and the Napoleon III apartments upstairs are the closest thing to Versailles you can reach without leaving the 1st arrondissement.",
@@ -337,7 +348,8 @@
             "city": "Paris",
             "area": "Les Halles, 1er",
             "lat": 48.890587,
-            "lng": 2.349833
+            "lng": 2.349833,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -360,7 +372,8 @@
             "city": "Paris",
             "area": "Jardin des Tuileries",
             "lat": 48.863765,
-            "lng": 2.32266
+            "lng": 2.32266,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -383,7 +396,8 @@
             "city": "Paris",
             "area": "Tuileries, 1er",
             "lat": 48.863566,
-            "lng": 2.326955
+            "lng": 2.326955,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "tags": [
@@ -406,7 +420,8 @@
             "city": "Paris",
             "area": "Quai d'Orsay, 7e",
             "lat": 48.859918,
-            "lng": 2.326585
+            "lng": 2.326585,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -429,7 +444,8 @@
             "city": "Paris",
             "area": "Saint-Germain-des-Prés, 7e",
             "lat": 48.858702,
-            "lng": 2.328831
+            "lng": 2.328831,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -482,7 +498,8 @@
             "city": "Paris",
             "area": "Invalides, 7e",
             "lat": 48.862229,
-            "lng": 2.314872
+            "lng": 2.314872,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "Any RER C train whose four-letter code begins with V — VICK, VITY — runs to Versailles Château–Rive Gauche, ten minutes' walk from the gates. Since the 2025 fare reform a single out into Île-de-France is a flat fare, so buy the return at the same time: the machines at Rive Gauche at 17:30 have the only real queue of the day.",
@@ -502,7 +519,8 @@
             "city": "Versailles",
             "area": "Cour d'honneur",
             "lat": 48.804425,
-            "lng": 2.120285
+            "lng": 2.120285,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -525,7 +543,8 @@
             "city": "Versailles",
             "area": "Petit Parc",
             "lat": 48.805959,
-            "lng": 2.115864
+            "lng": 2.115864,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -548,7 +567,8 @@
             "city": "Versailles",
             "area": "Grand Canal",
             "lat": 48.811976,
-            "lng": 2.103127
+            "lng": 2.103127,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -571,7 +591,8 @@
             "city": "Versailles",
             "area": "Trianon",
             "lat": 48.81718,
-            "lng": 2.108825
+            "lng": 2.108825,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "The Trianon estate opens at 12:00 — turning up at 10:00 to a locked gate is the classic Versailles mistake and it wrecks the running order of the whole day. Petit Trianon first, the Queen's Hamlet last, and keep going to the working farm at the far end: it has actual animals and most people turn back one thatched cottage before it. Verified 2026-09-06: the Trianon estate opens at 12:00 (10:00 in July and August) and closes 18:30 April–June and September–October, 17:30 in winter. The locked-gate warning stands.",
@@ -591,7 +612,8 @@
             "city": "Versailles",
             "area": "Petit Parc",
             "lat": 48.81146,
-            "lng": 2.154504
+            "lng": 2.154504,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "tags": [
@@ -614,7 +636,8 @@
             "city": "Versailles",
             "area": "Saint-Louis",
             "lat": 48.798136,
-            "lng": 2.128567
+            "lng": 2.128567,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "notes": "The Carrés Saint-Louis and rue de Satory are a real market town five minutes from the Rive Gauche platform — bakeries, a cheesemonger, tables outside. Almost nobody who comes for the palace ever sees it, which is the entire recommendation.",
@@ -634,7 +657,8 @@
             "city": "Versailles",
             "area": "Rive Gauche",
             "lat": 48.800301,
-            "lng": 2.12904
+            "lng": 2.12904,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "Four an hour, and the ones just after the palace closes are the crush. Let the first train go and you will sit down for the whole way back.",
@@ -678,7 +702,8 @@
             "city": "Amboise",
             "area": "Centre-ville",
             "lat": 47.421466,
-            "lng": 0.981228
+            "lng": 0.981228,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "The châteaux are 30 to 70 km apart with no useful train between them, and every coach tour arrives at Chenonceau and Chambord at the same two moments each day. A private driver-guide out of Tours or Amboise runs €550–650 for the car for the day; split three or four ways it is the cheapest way to be standing somewhere at 09:00. Book the day before, and give them the running order — most will default to the coach timings otherwise.",
@@ -698,7 +723,8 @@
             "city": "Chenonceaux",
             "area": "Vallée du Cher",
             "lat": 47.324622,
-            "lng": 1.070418
+            "lng": 1.070418,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -721,7 +747,8 @@
             "city": "Vouvray",
             "area": "Le Haut-Lieu",
             "lat": 47.410411,
-            "lng": 0.80074
+            "lng": 0.80074,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "notes": "Chenin blanc from vineyards worked biodynamically since 1990, tasted in a cellar cut into the same soft limestone the châteaux are built from. Appointments only and closed Sundays — ring two days ahead, not on the morning. Ask to taste the sec and the demi-sec side by side; the second is the one people write off and then buy.",
@@ -741,7 +768,8 @@
             "city": "Chenonceaux",
             "area": "Village",
             "lat": 47.332322,
-            "lng": 1.066489
+            "lng": 1.066489,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -764,7 +792,8 @@
             "city": "Chambord",
             "area": "Domaine national",
             "lat": 47.61607,
-            "lng": 1.51705
+            "lng": 1.51705,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -787,7 +816,8 @@
             "city": "Villandry",
             "area": "Vallée du Cher",
             "lat": 47.340565,
-            "lng": 0.514606
+            "lng": 0.514606,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "tags": [
@@ -810,7 +840,8 @@
             "city": "Amboise",
             "area": "Place Michel Debré",
             "lat": 47.412648,
-            "lng": 0.985783
+            "lng": 0.985783,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -847,7 +878,8 @@
             "city": "Bayeux",
             "area": "Centre",
             "lat": 49.274347,
-            "lng": -0.699962
+            "lng": -0.699962,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "Take the guided day rather than driving it yourself. Sixty kilometres of near-empty coast, and without someone telling you where the seawall stood, Omaha is a car park and a beach. Shared full-day tours out of Bayeux run about €130 a head and book out weeks ahead in summer. One planning note: the Bayeux Tapestry museum is closed for its rebuild until 2027, so do not build the morning around it. Verified 2026-09-06: the Bayeux Tapestry has been closed to the public since 1 September 2025 for a €38m rebuild, with the new museum due to open in October 2027 — so it is out for the whole of 2026 and the warning here is correct.",
@@ -867,7 +899,8 @@
             "city": "Longues-sur-Mer",
             "area": "Falaise",
             "lat": 49.345813,
-            "lng": -0.694389
+            "lng": -0.694389,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -890,7 +923,8 @@
             "city": "Cricqueville-en-Bessin",
             "area": "Falaise",
             "lat": 49.397822,
-            "lng": -0.989409
+            "lng": -0.989409,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -913,7 +947,8 @@
             "city": "Saint-Laurent-sur-Mer",
             "area": "Omaha Beach",
             "lat": 49.365507,
-            "lng": -0.865046
+            "lng": -0.865046,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -936,7 +971,8 @@
             "city": "Colleville-sur-Mer",
             "area": "Above Omaha Beach",
             "lat": 49.358627,
-            "lng": -0.854686
+            "lng": -0.854686,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "Free, but bring photo ID for the gate. Visitor centre first, then the graves, then take the path down to the sand and walk back up — coming up off the beach towards the bluff is the only way the ground makes sense, and nobody who arrives by coach does it. Closing is 18:00 in summer and 17:00 from mid-September; the flag lowering is at the end of the day, not the middle. Verified 2026-09-06: open every day of the year except 25 December and 1 January, and last admission to both the cemetery and the visitor centre is 16:30. A 13:30 start is enough; anyone arriving after 16:30 is turned away at the gate.",
@@ -956,7 +992,8 @@
             "city": "Arromanches-les-Bains",
             "area": "Port Winston",
             "lat": 49.338173,
-            "lng": -0.623609
+            "lng": -0.623609,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "notes": "The concrete caissons out in the bay are the artificial harbour, and the visit is governed by the tide table rather than opening hours — at low water you can walk out among them. The 360° cinema on the cliff above is twenty minutes and earns its keep only if the weather has closed in.",
@@ -976,7 +1013,8 @@
             "city": "Pontorson",
             "area": "Baie du Mont-Saint-Michel",
             "lat": 48.614213,
-            "lng": -1.497825
+            "lng": -1.497825,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "About 1h45. Everything parks at the mainland lot — there is no other option and it is charged per day, not per hour. From there the free navette shuttle drops you 200 m short of the gate, or you walk the causeway in 35 minutes, which at this hour is the better half of the journey: the Mount grows for the whole walk.",
@@ -996,7 +1034,8 @@
             "city": "Le Mont-Saint-Michel",
             "area": "Intra-muros",
             "lat": 48.635954,
-            "lng": -1.51146
+            "lng": -1.51146,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -1037,7 +1076,8 @@
             "city": "Apt",
             "area": "Vallée du Calavon",
             "lat": 43.872385,
-            "lng": 5.146828
+            "lng": 5.146828,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "Every Luberon market is finished by 13:00 and the good half of it is finished by 11:00, so this day only exists if the car moves before eight. A hire car is not optional here — the villages are 10 to 20 km apart with two buses a day between them — so budget it as a line of the day, not an afterthought. Which market you get depends entirely on the weekday: Saturday is Apt, Sunday is L'Isle-sur-la-Sorgue and Coustellet, Tuesday is Gordes, Friday is Bonnieux and Lourmarin. Verified 2026-09-06: the big Apt market is Saturday 08:00–13:00, Gordes' is Tuesday morning and Bonnieux' is Friday, so the weekday table here is right. Note that this day has been REORDERED on the same date — the Sénanque visit was booked into a window in which the abbey runs no tour at all. See that stop.",
@@ -1057,7 +1097,8 @@
             "city": "Apt",
             "area": "Centre ancien",
             "lat": 43.772677,
-            "lng": 5.43888
+            "lng": 5.43888,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -1080,7 +1121,8 @@
             "city": "Gordes",
             "area": "Village",
             "lat": 43.911344,
-            "lng": 5.200699
+            "lng": 5.200699,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "The view of the village stacked up its cliff is from a lay-by on the D15 coming up from Cavaillon — not from anywhere inside the village — so stop there before you drive in or you will never see it. Parking within the walls is metered and full by 11:00 in summer; the lot below the château is the one that turns over. Moved earlier on 2026-09-06 (it was 12:30–13:40) so that Sénanque can take an afternoon tour slot; nothing at this stop is time-gated.",
@@ -1100,7 +1142,8 @@
             "city": "Gordes",
             "area": "Les Savournins",
             "lat": 43.906874,
-            "lng": 5.180135
+            "lng": 5.180135,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -1124,7 +1167,8 @@
             "city": "Gordes",
             "area": "Vallée de la Sénancole",
             "lat": 43.928455,
-            "lng": 5.18715
+            "lng": 5.18715,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -1147,7 +1191,8 @@
             "city": "Roussillon",
             "area": "Village",
             "lat": 43.899688,
-            "lng": 5.298591
+            "lng": 5.298591,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -1170,7 +1215,8 @@
             "city": "Bonnieux",
             "area": "Route du Pont Julien",
             "lat": 43.831665,
-            "lng": 5.315879
+            "lng": 5.315879,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "Organic long before anyone here was, and the house from A Good Year, which they are politely tired of being asked about. The cellar door shuts at 18:00 exactly and all day Sunday. Buy the rosé to drink tonight and the red to carry home; they will not ship it for you.",
@@ -1190,7 +1236,8 @@
             "city": "Avignon",
             "area": "Intra-muros",
             "lat": 43.950098,
-            "lng": 4.80692
+            "lng": 4.80692,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -1243,7 +1290,8 @@
             "city": "Nice",
             "area": "Vieux Nice",
             "lat": 43.69561,
-            "lng": 7.275104
+            "lng": 7.275104,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -1266,7 +1314,8 @@
             "city": "Nice",
             "area": "Vieux Nice",
             "lat": 43.696342,
-            "lng": 7.280617
+            "lng": 7.280617,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "tags": [
@@ -1289,7 +1338,8 @@
             "city": "Èze",
             "area": "Corniche",
             "lat": 43.727196,
-            "lng": 7.389797
+            "lng": 7.389797,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "Three roads run east out of Nice: the Basse is traffic lights and seafront towns, the Grande is the highest and emptiest, the Moyenne is the one that delivers you to the gate of Èze. A car and driver for the day on this coast runs €550–700 and removes the parking problem in Èze, the Monaco dress code and the wine pairing question all at once. Confirm the finish time when you book — some quote a hard eight hours and dinner is at 19:30.",
@@ -1309,7 +1359,8 @@
             "city": "Èze",
             "area": "Village médiéval",
             "lat": 43.728199,
-            "lng": 7.361245
+            "lng": 7.361245,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -1332,7 +1383,8 @@
             "city": "Èze",
             "area": "Village médiéval",
             "lat": 43.727686,
-            "lng": 7.360967
+            "lng": 7.360967,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -1355,7 +1407,8 @@
             "city": "La Turbie",
             "area": "Grande Corniche",
             "lat": 43.744827,
-            "lng": 7.402279
+            "lng": 7.402279,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "notes": "Two thousand years old, raised to mark Augustus subduing the Alpine tribes, standing 480 m directly above Monaco with almost nobody at it. Closed Mondays. Ten minutes off the Grande Corniche on the way down, and it is the best place on this coast to see how absurdly small the principality is. Verified 2026-09-06: closed Mondays, and in low season (2 January to 18 May) the hours are 10:00–13:30 and 14:30–17:00 — it shuts for lunch and closes at 17:00, so this stop has been pulled back to end at 16:45 rather than at the gate-closing minute. Also closed 1 January, 1 May, 1 and 11 November and 25 December.",
@@ -1375,7 +1428,8 @@
             "city": "Monaco",
             "area": "Monte-Carlo",
             "lat": 43.739107,
-            "lng": 7.427333
+            "lng": 7.427333,
+            "countryCode": "MC"
           },
           "kind": "booked",
           "tags": [
@@ -1398,7 +1452,8 @@
             "city": "Nice",
             "area": "Corniche",
             "lat": 43.700296,
-            "lng": 7.30564
+            "lng": 7.30564,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "Twenty-five minutes at that hour, and the reason to take the sea road back rather than the motorway is Cap-d'Ail and Villefranche reflected on the water. Included in the driver's day if you asked for it at the start, and an extra hour if you did not.",
@@ -1439,7 +1494,8 @@
             "city": "Lyon",
             "area": "Part-Dieu",
             "lat": 45.762832,
-            "lng": 4.850551
+            "lng": 4.850551,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -1462,7 +1518,8 @@
             "city": "Lyon",
             "area": "Vieux Lyon – Saint-Jean",
             "lat": 45.760056,
-            "lng": 4.82577
+            "lng": 4.82577,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "Traboules are covered passages cut through private buildings, and the city pays the residents to leave certain doors unlocked in daylight. The long one runs from 54 rue Saint-Jean through four courtyards to 27 rue du Bœuf. Push the door, close it behind you, and keep your voice down — people live up those stairs, and the access is a courtesy that gets withdrawn street by street when it is abused.",
@@ -1482,7 +1539,8 @@
             "city": "Lyon",
             "area": "Vieux Lyon",
             "lat": 45.757266,
-            "lng": 4.815131
+            "lng": 4.815131,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "notes": "The funicular leaves from inside the Vieux Lyon metro station and an ordinary TCL ticket covers it. Walking up is twenty-five minutes of steps and nobody local does it twice.",
@@ -1502,7 +1560,8 @@
             "city": "Lyon",
             "area": "Fourvière",
             "lat": 45.7624,
-            "lng": 4.822837
+            "lng": 4.822837,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "The basilica is free and gaudy in the best possible way; the terrace beside it is where you finally see how the Rhône and the Saône fit around the Presqu'île. Leave on foot through the Roman theatres rather than taking the funicular back down — they are open, free, and the path through them lands you back at the top of rue Saint-Jean.",
@@ -1522,7 +1581,8 @@
             "city": "Lyon",
             "area": "Vieux Lyon",
             "lat": 45.760312,
-            "lng": 4.825455
+            "lng": 4.825455,
+            "countryCode": "FR"
           },
           "kind": "booked",
           "tags": [
@@ -1545,7 +1605,8 @@
             "city": "Lyon",
             "area": "Croix-Rousse",
             "lat": 45.771962,
-            "lng": 4.834671
+            "lng": 4.834671,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "notes": "The other traboule quarter, and the working one. The silk weavers' six-storey open staircase at 9 place Colbert was built so a canut could carry finished cloth downhill under cover and dry. Climb the Montée Saint-Sébastien, look up at the Mur des Canuts trompe-l'œil at the top of the hill, and come back down through the Passage Thiaffait.",
@@ -1565,7 +1626,8 @@
             "city": "Lyon",
             "area": "Presqu'île",
             "lat": 45.762809,
-            "lng": 4.833194
+            "lng": 4.833194,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "tags": [
@@ -1588,7 +1650,8 @@
             "city": "Lyon",
             "area": "Presqu'île",
             "lat": 45.767492,
-            "lng": 4.833494
+            "lng": 4.833494,
+            "countryCode": "FR"
           },
           "kind": "hold",
           "tags": [
