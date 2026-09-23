@@ -1,7 +1,7 @@
 import {
   AskStreamMetadata,
   BatchableCommand,
-  InvitePreview,
+  InviteLanding,
   PageDoc,
   SIMULATED_HEADER,
   migratePageDoc,
@@ -25,6 +25,7 @@ import {
 import { BASE_URL } from "@/config";
 import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { inviteLookHeaders } from "@/lib/inviteLook";
 import { CitySearchResponse, type CityMatch } from "@/lib/cities";
 import {
   DiscoverResponse,
@@ -124,7 +125,7 @@ export async function fetchTrips(): Promise<ApiResult<TripSummary[]>> {
 
 export async function fetchTripDetail(tripId: string): Promise<ApiResult<TripDetail>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}`));
+    const res = await fetch(apiUrl(`/api/trips/${tripId}`), { headers: inviteLookHeaders(tripId) });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -138,7 +139,7 @@ export async function fetchTripDetail(tripId: string): Promise<ApiResult<TripDet
 
 export async function fetchTripHistory(tripId: string): Promise<ApiResult<TripHistory>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/history`));
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/history`), { headers: inviteLookHeaders(tripId) });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -162,7 +163,9 @@ export async function fetchTripEvents(
   after: number,
 ): Promise<ApiResult<TripEventsPage>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/events?after=${after}`));
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/events?after=${after}`), {
+      headers: inviteLookHeaders(tripId),
+    });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -175,7 +178,7 @@ export async function fetchTripEvents(
 
 export async function fetchTripDetailAt(tripId: string, seq: number): Promise<ApiResult<TripDetail>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`));
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`), { headers: inviteLookHeaders(tripId) });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -338,7 +341,7 @@ async function readJson<T>(res: Response, parse: (data: unknown) => T): Promise<
 
 export async function fetchTripAccess(tripId: string): Promise<ApiResult<TripAccess>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/access`));
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/access`), { headers: inviteLookHeaders(tripId) });
     return await readJson(res, (data) => TripAccess.parse((data as { access: unknown }).access));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
@@ -381,10 +384,23 @@ export async function revokeTripInvite(
   }
 }
 
-export async function fetchInvitePreview(token: string): Promise<ApiResult<InvitePreview>> {
+/**
+ * The invite landing's one read (M27 link 6) — public, so it works signed out.
+ *
+ * **A 404 or a 410 is an answer, not a failure.** The route puts the state the
+ * screen should draw (`revoked`, `unavailable`) in the body of those, so this
+ * resolves `ok` for them. Only a response with no landing in it — a 500, the
+ * network — is an error, and that is the one the screen offers a retry for.
+ */
+export async function fetchInviteLanding(token: string): Promise<ApiResult<InviteLanding>> {
   try {
-    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}`));
-    return await readJson(res, (data) => InvitePreview.parse((data as { invite: unknown }).invite));
+    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}`), { cache: "no-store" });
+    if (res.ok || res.status === 404 || res.status === 410) {
+      const data = (await res.json()) as { landing: unknown };
+      return { ok: true, value: InviteLanding.parse(data.landing) };
+    }
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
@@ -495,7 +511,7 @@ export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId
  */
 export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGlobals>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`));
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`), { headers: inviteLookHeaders(tripId) });
     return await readJson(res, (data) => TripGlobals.parse((data as { globals: unknown }).globals));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };

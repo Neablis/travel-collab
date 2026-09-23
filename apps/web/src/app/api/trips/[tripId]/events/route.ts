@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TripEventsPage } from "@tc/contracts";
-import { requireTripAccess } from "@/server/access/trip-access";
+import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
 import { getTripEventsAfter } from "@/server/broadcast";
 
 /**
@@ -24,7 +24,7 @@ const AfterParam = z.coerce.number().int().nonnegative();
 
 export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
   if ("error" in access) return access.error;
 
   const raw = new URL(request.url).searchParams.get("after");

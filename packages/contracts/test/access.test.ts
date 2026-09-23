@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CreateInviteInput,
-  InvitePreview,
+  InviteLanding,
   InviteRole,
   TripAccess,
   TripInvite,
@@ -141,23 +141,23 @@ describe("TripAccess", () => {
   });
 });
 
-describe("InvitePreview", () => {
-  it("says nothing about who else is on the trip, and echoes no token", () => {
-    const preview = InvitePreview.parse({
-      tripId,
-      tripName: "Kyoto",
-      role: "viewer",
-      status: "pending",
-      invitedByName: null,
-      alreadyMember: false,
-    });
-    expect(Object.keys(preview).sort()).toEqual([
-      "alreadyMember",
-      "invitedByName",
-      "role",
-      "status",
-      "tripId",
-      "tripName",
-    ]);
+describe("InviteLanding", () => {
+  // The nondisclosure rule for a refused link (#71 review §7, M27 D10) is
+  // enforced by the PARSE, not by the builder remembering to leave things out:
+  // the route parses every answer, so a trip name spread into a refusal is a
+  // thrown error rather than a leak.
+  it.each([
+    { state: "revoked", signedIn: false },
+    { state: "unavailable", signedIn: false, message: "This invite has already been used." },
+  ])("refuses a $state answer that carries anything about the trip", (refusal) => {
+    expect(InviteLanding.safeParse(refusal).success).toBe(true);
+    expect(InviteLanding.safeParse({ ...refusal, tripName: "Kyoto" }).success).toBe(false);
+    expect(InviteLanding.safeParse({ ...refusal, tripId }).success).toBe(false);
+  });
+
+  it("answers `member` only to a session", () => {
+    const member = { state: "member", tripId, tripName: "Kyoto" };
+    expect(InviteLanding.safeParse({ ...member, signedIn: true }).success).toBe(true);
+    expect(InviteLanding.safeParse({ ...member, signedIn: false }).success).toBe(false);
   });
 });
