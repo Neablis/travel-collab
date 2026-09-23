@@ -67,7 +67,7 @@ function tripDetailWithDays(tripId: string) {
 }
 
 describe("NextTripHero", () => {
-  it("renders the brand badge, trip name heading, stat tiles, open control and a sparkline sourced from real TripDetail data", async () => {
+  it("renders the brand badge, trip name heading, open control and a sparkline sourced from real TripDetail data", async () => {
     const trip = tripSummaryFixture();
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
@@ -78,12 +78,6 @@ describe("NextTripHero", () => {
     // Trip name as a level-2 heading.
     const heading = screen.getByRole("heading", { level: 2, name: trip.name });
     expect(heading).toBeTruthy();
-
-    // Three stat tiles (the third, "need a decision", lives inside its own
-    // <Preview> now — still rendered, just inert; see the dedicated test
-    // below).
-    const tiles = screen.getAllByTestId("stat-tile");
-    expect(tiles.length).toBe(3);
 
     // "Open trip" control, linking to the trip route.
     const openLink = screen.getByRole("link", { name: /open trip/i });
@@ -99,8 +93,8 @@ describe("NextTripHero", () => {
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const blocks = sparklineGroup.querySelectorAll('[aria-hidden="true"]');
     expect(blocks.length).toBe(4);
-    // "1"/"2" collide with the stat tiles' own values elsewhere on the page
-    // (travelers/days-planning/need-a-decision), so scope to the sparkline.
+    // Scoped to the sparkline: "1"/"2" are day numbers here, and a bare
+    // number anywhere else on the hero must not satisfy this.
     expect(within(sparklineGroup).getByText("1")).toBeTruthy();
     expect(within(sparklineGroup).getByText("2")).toBeTruthy();
   });
@@ -329,12 +323,11 @@ describe("NextTripHero", () => {
     expect(within(sparklineGroup).queryByText("15")).toBeNull();
   });
 
-  // Task 8.5: the third stat tile used to be a hardcoded `value="2"` behind
-  // a Preview shell — it's now driven by the trip's real, live
-  // TripDetail.conflicts array, so this asserts the tile's value matches a
-  // known conflict count from the mocked fetch, not just that some Preview
-  // region exists.
-  it("shows the trip's real, live conflict count in the third stat tile, not a hardcoded number", async () => {
+  // SPEC §35.2: the three stat tiles became one actionable line. The decision
+  // half is the trip's real, live TripDetail.conflicts count (it was a
+  // hardcoded `value="2"` behind a Preview shell once, Task 8.5), and it is a
+  // way into the trip — the place those decisions get made.
+  it("says how many decisions the trip needs, from its real conflicts, as a way into the trip", async () => {
     const trip = tripSummaryFixture();
     fetchTripDetailMock.mockResolvedValue({
       ok: true,
@@ -349,19 +342,49 @@ describe("NextTripHero", () => {
     });
     render(<NextTripHero trip={trip} />);
 
-    const tiles = await screen.findAllByTestId("stat-tile");
-    const decisionTile = tiles.find((tile) => /open conflict/i.test(tile.textContent ?? ""));
-    expect(decisionTile).toBeTruthy();
-    expect(within(decisionTile!).getByText("3")).toBeTruthy();
+    const decisions = await screen.findByRole("link", { name: "3 need a decision" });
+    expect(decisions.getAttribute("href")).toBe(`/trips/${trip.tripId}`);
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.querySelector('[data-preview-id="home-decisions"]')).toBeNull();
   });
 
-  // M18: the second tile was "days planning", a createdAt-to-now count that
-  // stood in for exactly this one. It counts stops whose kind is neither
-  // `booked` nor `transit` — the same predicate the Calendar's `N to book` flag
-  // uses, so the hero and the Calendar can never disagree about one trip.
-  it("counts the trip's unbooked stops in the second stat tile", async () => {
+  it("says one decision in the singular", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({
+        tripId: trip.tripId,
+        conflicts: [
+          { id: "c1", kind: "overlap", severity: "warn", subjects: ["a", "b"], description: "Overlap", resolutions: [] },
+        ],
+      }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    expect(await screen.findByRole("link", { name: "1 needs a decision" })).toBeTruthy();
+  });
+
+  // **Zero is not a task.** The tiles showed "0"; a line reading "0 need a
+  // decision" would be a to-do with nothing to do. Waited on the budget line,
+  // which lands in the same state update as both counts, so this cannot pass
+  // merely by asserting before the fetch has resolved.
+  it("says nothing about decisions or bookings when there are none", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({ tripId: trip.tripId, conflicts: [], activities: {}, days: [] }),
+    });
+    render(<NextTripHero trip={trip} />);
+
+    await screen.findByText(/No budget yet|planned of/);
+    expect(screen.queryByText(/a decision/)).toBeNull();
+    expect(screen.queryByText(/not booked/)).toBeNull();
+  });
+
+  // It counts stops whose kind is neither `booked` nor `transit` — the same
+  // predicate the Calendar's `N to book` flag uses, so the hero and the
+  // Calendar can never disagree about one trip (M18).
+  it("counts the trip's unbooked stops in the actionable line", async () => {
     const trip = tripSummaryFixture();
     const stop = (id: string, kind: "planned" | "booked" | "hold" | "idea" | "transit", tags: ("meal" | "lodging" | "ticketed" | "outdoors")[] = []) => ({
       activityId: id,
@@ -398,38 +421,56 @@ describe("NextTripHero", () => {
     });
     render(<NextTripHero trip={trip} />);
 
-    // The tiles exist on the FIRST render, before the fetch resolves, so
-    // findAllByTestId returns while `notBooked` is still null and the tile
-    // reads "—". Wait for the resolved count itself, not for the tile.
-    const tiles = screen.getAllByTestId("stat-tile");
-    const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
-    expect(bookingTile).toBeTruthy();
     // c (idea), e (hold) and f (planned + ticketed). Not a (booked),
     // not b (transit), and not d — a plain `planned` stop owes nothing.
-    await waitFor(() => expect(within(bookingTile!).getByText("3")).toBeTruthy());
-    expect(tiles.some((tile) => /days planning/i.test(tile.textContent ?? ""))).toBe(false);
+    expect(await screen.findByText("3 not booked yet")).toBeTruthy();
   });
 
-  it("shows an em dash, not a confident zero, before the trip detail has loaded", async () => {
+  // The tiles read "—" here rather than a confident 0. The line has no dash to
+  // show, so it shows nothing — "— need a decision" would be worse than both.
+  it("says nothing about decisions or bookings before the trip detail has loaded", () => {
     const trip = tripSummaryFixture();
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     render(<NextTripHero trip={trip} />);
 
-    const tiles = screen.getAllByTestId("stat-tile");
-    const bookingTile = tiles.find((tile) => /not booked/i.test(tile.textContent ?? ""));
-    expect(within(bookingTile!).getByText("—")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /open trip/i })).toBeTruthy();
+    expect(screen.queryByText(/a decision/)).toBeNull();
+    expect(screen.queryByText(/not booked/)).toBeNull();
   });
 
-  // Task 8.5: the visible StatTile label used to say "travelers"
-  // unconditionally, even for a solo trip — only the avatar-stack's
-  // aria-label already singularized correctly.
+  // Task 8.5: the traveler count used to say "travelers" unconditionally,
+  // even for a solo trip. It is the avatar stack's name now that the tile
+  // that printed it is gone (§35.2).
   it("says one traveler, not one travelers", async () => {
     const trip = tripSummaryFixture({ members: [{ userId: "dev-alice", role: "owner" }] });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
 
-    expect(await screen.findByText("traveler")).toBeTruthy();
-    expect(screen.queryByText("travelers")).toBeNull();
+    expect(await screen.findByRole("group", { name: "1 traveler" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: /travelers/ })).toBeNull();
+  });
+
+  // Since §35.2 filters the hero out of *Other trips*, this is the only place
+  // on Home its name appears — and on a card the name is the way in.
+  it("makes the trip's name a way into the trip", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} />);
+
+    const byName = screen.getByRole("link", { name: trip.name });
+    expect(byName.getAttribute("href")).toBe(`/trips/${trip.tripId}`);
+    await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId));
+  });
+
+  // M27 D3: the hero is not in the grid any more, so it carries the grid
+  // card's lifecycle menu — or a one-trip account has no Delete on Home.
+  it("renders the lifecycle menu it is given", async () => {
+    const trip = tripSummaryFixture();
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} menuSlot={<span>trip menu here</span>} />);
+
+    expect(screen.getByText("trip menu here")).toBeTruthy();
+    await waitFor(() => expect(fetchTripDetailMock).toHaveBeenCalledWith(trip.tripId));
   });
 
   it("does not render an Open trip link to any other trip", async () => {

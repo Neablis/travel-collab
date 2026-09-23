@@ -62,7 +62,7 @@ function pinElement(point: MapPoint): HTMLElement {
   // tokens resolve exactly as they do in JSX. The route's converted hex is
   // deliberately NOT threaded in here — a pin that took it would be the one
   // place a token reached the DOM already flattened, and it would go stale
-  // against the `data-look` overrides that re-point `--color-brand`.
+  // against Ledger's `data-look` block, which re-points `--color-brand`.
   el.className =
     "flex size-6.5 items-center justify-center rounded-full bg-brand text-xs font-semibold text-paper shadow-md";
   return el;

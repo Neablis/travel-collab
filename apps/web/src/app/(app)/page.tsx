@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import type { TripSummary } from "@tc/contracts";
@@ -9,7 +8,7 @@ import { Heading } from "@/components/ui/heading";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Toast } from "@/components/ui/toast";
 import { PageContainer } from "@/components/ui/page-container";
@@ -20,18 +19,16 @@ import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
-import { ImportTripButton } from "@/components/home/ImportTripButton";
+import { ImportTripButton, type ImportTripHandle } from "@/components/home/ImportTripButton";
 
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
 const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
-import { ShareButton } from "@/components/trip/ShareButton";
 import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
 import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
-import { cn } from "@/lib/cn";
 
 // Today's calendar date as YYYY-MM-DD in local time, so formatTripDateLong
 // (which expects a calendar date, not an instant — see lib/formatDate.ts)
@@ -96,9 +93,19 @@ export default function Home() {
   // request is in flight creates an extra trip nobody asked for (CodeRabbit,
   // pull request 104): the wizard's own `createTrip` has no idea a copy is already
   // headed for this same list. Both launchers into the wizard — the page-head
-  // "New trip" button and the first-run conversation's own "Create empty" — are disabled
+  // "New trip" button and the first-run conversation's own "create an empty one" — are disabled
   // below for the same reason.
   const [cloningDemo, setCloningDemo] = useState(false);
+  /**
+   * **The one file picker on Home, whichever link asks for it** (SPEC §35.2).
+   * Three links import a trip — the sheet's, the phone link under the grid,
+   * and the empty state's — and exactly one `ImportTripButton` is mounted at a
+   * time to own the hidden input and the refusal banner: under the grid when
+   * there are trips, in `FirstTripStart` when there are none. The sheet's link
+   * cannot own one, because it closes the sheet and so unmounts itself before
+   * the file is chosen; it reaches whichever is mounted through this.
+   */
+  const importPicker = useRef<ImportTripHandle>(null);
   const [openMenuTripId, setOpenMenuTripId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ tripId: string; name: string } | null>(null);
   // Optimistically-deleted trip ids: filtered from the render the instant the
@@ -140,8 +147,8 @@ export default function Home() {
   // sheet when `hasNoTrips` flipped (the guard CodeRabbit's round 2 produced)
   // fixed that and introduced a worse one: it threw away whatever the reader
   // had already typed INTO the sheet, leaving a permanently disabled "Create
-  // empty" over an empty inline field. `createEmptyTripViaWizard` hung on
-  // exactly that for its full 30s timeout (e2e, 2026-09-18).
+  // empty" (as it then was) over an empty inline field. `createEmptyTripViaWizard`
+  // hung on exactly that for its full 30s timeout (e2e, 2026-09-18).
   //
   // So the sheet opens whenever it is asked to, and `FirstTripStart` yields
   // its conversation while it is open (`showConversation`). Nothing latches,
@@ -366,15 +373,19 @@ export default function Home() {
   // first trip in the list instead of adding a server-side date field
   // (presentational-only rule). Revisit once TripSummary gains a start date.
   const nextTrip = visibleTrips[0] ?? null;
+  // **"Other trips", and the hero is not one of them** (SPEC §35.2). The grid
+  // was "All trips" and drew the hero's trip a second time directly under it.
+  const otherTrips = visibleTrips.slice(1);
 
-  // One TripDetail fetch per visible grid trip (keyed by a joined id string
-  // so this only refires when the actual set of visible ids changes, not on
-  // every render): TripSummary has no cost fields, and there is no batch
-  // endpoint for "cost for these N trips" — accepted N-fetch cost (Task 4.1
-  // brief), not something to cache/paginate/batch around here.
-  const visibleTripIds = visibleTrips.map((t) => t.tripId).join(",");
+  // One TripDetail fetch per grid trip (keyed by a joined id string so this
+  // only refires when the actual set of ids changes, not on every render):
+  // TripSummary has no cost fields, and there is no batch endpoint for "cost
+  // for these N trips" — accepted N-fetch cost (Task 4.1 brief), not something
+  // to cache/paginate/batch around here. The hero is not in the grid and
+  // fetches its own detail, so it is not fetched again here.
+  const gridTripIds = otherTrips.map((t) => t.tripId).join(",");
   useEffect(() => {
-    const ids = visibleTripIds === "" ? [] : visibleTripIds.split(",");
+    const ids = gridTripIds === "" ? [] : gridTripIds.split(",");
     // Clear synchronously before the async work: a trip-set change always
     // shows honest absence while its round is in flight (consistent with
     // first-load behavior), and a round that never completes (e.g. because
@@ -409,7 +420,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [visibleTripIds]);
+  }, [gridTripIds]);
 
   // M15 (ADR-023): `src/proxy.ts` now handles *arrival* — a signed-out
   // visitor hitting `/` is redirected to `/welcome` before this page ever
@@ -428,7 +439,63 @@ export default function Home() {
 
   if (unauthenticated) return null;
 
-  const tripCountLabel = `${visibleTrips.length} trip${visibleTrips.length === 1 ? "" : "s"}`;
+  const tripCountLabel = `${otherTrips.length} trip${otherTrips.length === 1 ? "" : "s"}`;
+
+  /**
+   * **A trip's lifecycle menu — one builder, for the cards and the hero** (M27
+   * D3). §35.2 takes the hero out of the grid, and the grid's cards were the
+   * only place Duplicate / Delete / Leave lived on Home; without the hero
+   * carrying the same menu, a one-trip account could not delete or leave its
+   * only trip from here.
+   */
+  function tripMenu(t: TripSummary) {
+    return (
+      <Popover
+        open={openMenuTripId === t.tripId}
+        onOpenChange={(open) => setOpenMenuTripId(open ? t.tripId : null)}
+        align="end"
+        contentClassName="w-40 p-1"
+        trigger={
+          <Button variant="ghost" size="icon" aria-label={`Trip actions for ${t.name}`}>
+            <MoreVertical className="size-3.5" aria-hidden />
+          </Button>
+        }
+      >
+        {/* **Delete OR Leave, never both, and never the wrong one** (M26 link
+            6b, SPEC §27: *"a trip someone shared with you offers Leave this
+            trip"*).
+
+            This offered Delete unconditionally, so a guest on somebody else's
+            trip was shown a verb the server refuses — `MINIMUM_ROLE.DeleteTrip`
+            is `owner` — and got a silent nothing for it. The gate is a display
+            gate only; the server still decides. */}
+        <div role="menu" className="flex flex-col">
+          <Button role="menuitem" variant="ghost" className="justify-start" onClick={() => void duplicate(t)}>
+            Duplicate
+          </Button>
+          {viewerOwnsTrip(t.members, viewer?.id) ? (
+            <Button
+              role="menuitem"
+              variant="ghost"
+              className="justify-start text-danger-ink"
+              onClick={() => void deleteTrip(t)}
+            >
+              Delete
+            </Button>
+          ) : (
+            <Button
+              role="menuitem"
+              variant="ghost"
+              className="justify-start text-danger-ink"
+              onClick={() => void leave(t)}
+            >
+              Leave this trip
+            </Button>
+          )}
+        </div>
+      </Popover>
+    );
+  }
 
   return (
     <PageContainer as="main" width="content" className="home-rhythm">
@@ -452,45 +519,15 @@ export default function Home() {
           </DataText>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
             <Heading level={1}>Your trips</Heading>
-            {/* README §1 head: "New trip" primary + "Start from a Playbook".
-                The link was already real; as of M11b so is what it opens —
-                Discover, over other people's published days. This is also the
-                home page's whole Playbooks surface now: the "Your Playbooks"
-                strip below it was a `<Preview>` shell over six fabricated
-                cards, and M11b deletes those shells rather than re-pointing
-                them. Your own days are the `Yours` scope on Discover, which is
-                where §15 puts them (a filter on that page, never a second
-                page). */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href="/playbooks" className={cn(buttonVariants({ variant: "secondary", size: "md" }))}>
-                Start from a Playbook
-              </Link>
-              {/* **Import sits beside the other two ways a trip starts** (M25
-                  link 2). A file is a third origin for a trip, not a setting,
-                  so it belongs where "New trip" and "Start from a Playbook"
-                  already are rather than behind a menu.
-
-                  **Not on the first-run screen, where `FirstTripStart` carries
-                  it instead.** Three controls is one more than this row was
-                  built for: at 375px it wrapped onto an extra line and pushed
-                  that card's composer out of the viewport, which
-                  `responsive.spec.ts:917` asserts against. It failed in CI and
-                  passed locally in both lanes — the assertion sits close enough
-                  to the fold that rendering decides it — so the fix is to give
-                  the row back its height rather than to trust the margin.
-
-                  `hasNoTrips` is what makes this exactly one control on either
-                  screen rather than two on one. */}
-              {!hasNoTrips && <ImportTripButton disabled={cloningDemo} />}
-              <Button
-                type="button"
-                variant="primary"
-                disabled={cloningDemo}
-                onClick={startNewTrip}
-              >
-                New trip
-              </Button>
-            </div>
+            {/* **"New trip", and nothing else** (SPEC §35.2). The head carried
+                *Import a file* and *Start from a Playbook* beside it. Import is
+                rare, so it is a quiet link now — in the new-trip sheet, under
+                the grid on a phone, and in the empty state. Starting from a
+                Playbook already lives in the new-trip sheet's own row and in
+                the empty state, so a third copy here was the duplicate. */}
+            <Button type="button" variant="primary" disabled={cloningDemo} onClick={startNewTrip}>
+              New trip
+            </Button>
           </div>
         </div>
 
@@ -541,12 +578,12 @@ export default function Home() {
           size={isPhone ? "full" : "rail"}
           // Only the full wizard (dates/budget applied) navigates straight to
           // the new trip, matching the phase doc's own "create... apply
-          // dates and budget... then navigate" sequence. "Create empty" is
-          // the old single-field dialog's escape hatch and keeps that
+          // dates and budget... then navigate" sequence. "create an empty one"
+          // is the old single-field dialog's escape hatch and keeps that
           // dialog's exact behavior — close, refresh the list, stay put — so
-          // e2e specs built around it can still find the new trip's own card
-          // on this page rather than having already been navigated away from
-          // it (CI, PR #32).
+          // e2e specs built around it can still find the new trip on this
+          // page (it lands as the hero: the list is newest-first) rather than
+          // having already been navigated away from it (CI, PR #32).
           onCreated={(tripId, { navigate }) => {
             if (navigate) {
               router.push(`/trips/${tripId}`);
@@ -554,6 +591,11 @@ export default function Home() {
               void load();
             }
           }}
+          // Synchronous inside the link's click, which is what keeps the
+          // browser's user gesture — see `ImportTripHandle`. Only once the list
+          // has landed: before that neither picker is mounted, and a link that
+          // closed the sheet and then did nothing would be worse than none.
+          {...(trips === null ? {} : { onImportFile: () => importPicker.current?.pick() })}
         />
 
         {/* **The two regions Home paints before its list lands** — M26 link 7,
@@ -579,11 +621,11 @@ export default function Home() {
         {loading ? (
           <NextTripHeroSkeleton />
         ) : (
-          nextTrip && <NextTripHero trip={nextTrip} shareSlot={<ShareButton tripId={nextTrip.tripId} variant="secondary" />} />
+          nextTrip && <NextTripHero trip={nextTrip} menuSlot={tripMenu(nextTrip)} />
         )}
 
         <div className="flex flex-col gap-3.5">
-          {/* The failed region, in place. The heading and the three buttons
+          {/* The failed region, in place. The heading and "New trip"
               above are untouched — that is the whole difference from the
               page-level line this replaces, and `RegionError`'s second
               sentence is what tells the reader so. */}
@@ -629,19 +671,20 @@ export default function Home() {
               composerId={FIRST_TRIP_COMPOSER_ID}
               disabled={cloningDemo}
               showConversation={!newTripOpen}
+              importHandle={importPicker}
               // **SPEC §32.1's `ntLand()` is already satisfied here, and
               // widening it would break nine e2e specs.** §32.1 says finishing
               // a first run has to land you in an app, and names the two exits
               // that do it: *Create with this* and *Open the trip*. Both pass
-              // `navigate: true`, so both already push. `Create empty` is not
-              // one of them — it is this build's own escape hatch from the old
-              // single-field dialog, and making IT navigate is the precise
-              // regression CI caught on PR #32: `createEmptyTripViaWizard`
+              // `navigate: true`, so both already push. *create an empty one*
+              // is not one of them — it is this build's own escape hatch from
+              // the old single-field dialog, and making IT navigate is the
+              // precise regression CI caught on PR #32: `createEmptyTripViaWizard`
               // reaches this component on an empty list and then asserts the
-              // new trip's link on THIS page. The prototype needs `ntLand`
-              // because its first-run screen has no app behind it; ours
-              // re-renders Home with the new trip's card on it, which is an
-              // app, and is not "staring at nothing".
+              // new trip on THIS page. The prototype needs `ntLand` because its
+              // first-run screen has no app behind it; ours re-renders Home
+              // with the new trip as its hero, which is an app, and is not
+              // "staring at nothing".
               onDone={(tripId, navigate) => {
                 if (tripId !== null && navigate) {
                   router.push(`/trips/${tripId}`);
@@ -652,72 +695,38 @@ export default function Home() {
             />
           ) : trips === null ? null : (
             <>
-              {visibleTrips.length > 0 && (
-                <div className="mb-3 flex items-baseline justify-between gap-3">
-                  <Heading level={3}>All trips</Heading>
-                  <Text variant="secondary">{tripCountLabel}</Text>
-                </div>
+              {otherTrips.length > 0 && (
+                <>
+                  <div className="mb-3 flex items-baseline justify-between gap-3">
+                    <Heading level={3}>Other trips</Heading>
+                    <Text variant="secondary">{tripCountLabel}</Text>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+                    {otherTrips.map((t) => (
+                      <TripCard
+                        key={t.tripId}
+                        trip={t}
+                        plannedOfBudget={plannedOfBudgetById[t.tripId]}
+                        menuSlot={tripMenu(t)}
+                      />
+                    ))}
+                  </div>
+                </>
               )}
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-                {visibleTrips.map((t) => (
-                  <TripCard
-                    key={t.tripId}
-                    trip={t}
-                    plannedOfBudget={plannedOfBudgetById[t.tripId]}
-                    menuSlot={
-                      <Popover
-                        open={openMenuTripId === t.tripId}
-                        onOpenChange={(open) => setOpenMenuTripId(open ? t.tripId : null)}
-                        align="end"
-                        contentClassName="w-40 p-1"
-                        trigger={
-                          <Button variant="ghost" size="icon" aria-label={`Trip actions for ${t.name}`}>
-                            <MoreVertical className="size-3.5" aria-hidden />
-                          </Button>
-                        }
-                      >
-                        {/* **Delete OR Leave, never both, and never the wrong
-                            one** (M26 link 6b, SPEC §27: *"a trip someone
-                            shared with you offers Leave this trip"*).
-
-                            This offered Delete unconditionally, so a guest on
-                            somebody else's trip was shown a verb the server
-                            refuses — `MINIMUM_ROLE.DeleteTrip` is `owner` —
-                            and got a silent nothing for it. The gate is a
-                            display gate only; the server still decides. */}
-                        <div role="menu" className="flex flex-col">
-                          <Button
-                            role="menuitem"
-                            variant="ghost"
-                            className="justify-start"
-                            onClick={() => void duplicate(t)}
-                          >
-                            Duplicate
-                          </Button>
-                          {viewerOwnsTrip(t.members, viewer?.id) ? (
-                            <Button
-                              role="menuitem"
-                              variant="ghost"
-                              className="justify-start text-danger-ink"
-                              onClick={() => void deleteTrip(t)}
-                            >
-                              Delete
-                            </Button>
-                          ) : (
-                            <Button
-                              role="menuitem"
-                              variant="ghost"
-                              className="justify-start text-danger-ink"
-                              onClick={() => void leave(t)}
-                            >
-                              Leave this trip
-                            </Button>
-                          )}
-                        </div>
-                      </Popover>
-                    }
-                  />
-                ))}
+              {/* **Import on a phone: a centred text link under the grid**
+                  (SPEC §35.2), where the head's button used to be. It was a
+                  dashed full-width button; import is rare, so it is quiet now,
+                  with §13.1's 44px target kept. `md:hidden` is on the link only
+                  — the refusal banner above it also answers the sheet's
+                  *import a trip file*, which is how a wider screen imports, so
+                  it must show at every width. */}
+              <div className="mt-1 flex flex-col items-center gap-2">
+                <ImportTripButton
+                  label="Import a trip file"
+                  disabled={cloningDemo}
+                  className="px-2 text-sm md:hidden"
+                  handle={importPicker}
+                />
               </div>
             </>
           )}

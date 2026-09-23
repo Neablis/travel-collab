@@ -61,17 +61,11 @@ export function NextTripHeroSkeleton() {
             <Skeleton circle className="h-3 w-16" delay={2} />
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2.5">
-          {[0, 1, 2].map((tile) => (
-            <div key={tile} className="flex h-16 flex-col justify-center gap-2 rounded-xl border border-hairline px-4">
-              <Skeleton className="h-4 w-9" delay={2} />
-              <Skeleton circle className="h-2 w-3/4" delay={3} />
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-2">
+        {/* *Open trip* and §35.2's one line after it — a button and a line of
+            text, so the second bone is a text line, not a second button. */}
+        <div className="flex items-center gap-4.5">
           <Skeleton className="h-9 w-26" delay={3} />
-          <Skeleton className="h-9 w-21" delay={3} />
+          <Skeleton circle className="h-3 w-32" delay={3} />
         </div>
       </div>
       <div className="flex flex-col gap-4 p-7">

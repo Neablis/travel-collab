@@ -45,8 +45,8 @@ function colorTokens(): { name: string; value: string }[] {
     value: m[2]!.trim(),
   }));
 
-  // Last declaration wins, as the cascade does — the `data-look` overrides at
-  // the end of the file re-point several of these deliberately.
+  // Last declaration wins, as the cascade does — Ledger's `data-look` block
+  // after `@theme` re-points several of these deliberately.
   const byName = new Map(declared.map((t) => [t.name, t.value]));
 
   const resolve = (value: string, seen: Set<string>): string => {
