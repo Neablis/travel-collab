@@ -716,18 +716,27 @@ export function insertCommands(saved: SavedDay, tripId: string): BatchableComman
  * unchanged. Both of the surviving clauses describe perfectly ordinary things to
  * do (adding the same day twice, reusing your own template); neither is an error
  * to report to the person doing it. What must not happen is the number moving.
+ *
+ * **A success also carries `minted`** — the ids this insert gave the new days
+ * and stops. `POST /v1/trips/:id/playbook-applications` publishes them; the
+ * internal route picks its own fields and does not.
  */
 export async function insertSavedDay(
   savedDayId: string,
   tripId: string,
   actorId: string,
   now: string = new Date().toISOString(),
-): Promise<CommandResult | { ok: false; error: AccessError }> {
+): Promise<
+  | (Extract<CommandResult, { ok: true }> & { minted: InsertedIds })
+  | Extract<CommandResult, { ok: false }>
+  | { ok: false; error: AccessError }
+> {
   const saved = await readableSavedDay(savedDayId, actorId);
   if (saved === null) {
     return { ok: false, error: { code: "not-found", message: "That saved day does not exist." } };
   }
-  return executeTripCommandBatch(insertCommands(saved, tripId), actorId, async (tx) => {
+  const commands = insertCommands(saved, tripId);
+  const result = await executeTripCommandBatch(commands, actorId, async (tx) => {
     if (!addCounts({ authorId: saved.ownerId, actorId })) return;
     await recordAdd(tx, {
       savedDayId: saved.savedDayId,
@@ -736,4 +745,25 @@ export async function insertSavedDay(
       createdAt: new Date(now),
     });
   });
+  if (!result.ok) return result;
+  // Read back out of the batch rather than minted a second time, so these are
+  // by construction the ids that landed. `insertCommands` emits every AddDay
+  // in sequence order and then one AddActivity per stop in `stops[]` order.
+  return {
+    ...result,
+    minted: {
+      dayIds: commands.flatMap((c) => (c.type === "AddDay" ? [c.dayId] : [])),
+      activityIds: commands.flatMap((c) => (c.type === "AddActivity" ? [c.activityId] : [])),
+    },
+  };
+}
+
+/**
+ * The ids an insert minted — `dayIds` in the saved sequence's day order,
+ * `activityIds` in the order of its `stops[]`. Positional because a `SavedStop`
+ * has no id of its own to key a map by (ADR-050).
+ */
+export interface InsertedIds {
+  readonly dayIds: string[];
+  readonly activityIds: string[];
 }

@@ -13,6 +13,30 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-23 — `/v1/playbooks` and applying a Playbook over `v1` (ADR-050)
+
+- **No `packages/contracts` schema changed.** This is a `v1` surface change:
+  `apps/web/src/app/api/v1/openapi.json` gains three paths and loses nothing.
+  - `GET`/`POST /v1/playbooks` and `GET`/`PATCH`/`DELETE
+    /v1/playbooks/{playbookId}` — the same `saved_days` rows `/v1/library`
+    serves, answering `SavedDay`. The `POST` body **is** `CreateSavedDayInput`
+    (`dayIds`, ordered, 1–366), not a copy of it.
+  - `POST /v1/trips/{tripId}/playbook-applications` — body `{ playbookId }`,
+    answers a route-local `{ tripId, playbookId, dayIds, activityIds,
+    historySeq }`: the minted ids in the Playbook's day order and `stops[]`
+    order, and the `toSeq` of the one history entry the apply wrote.
+- Why: `v1` could keep one day at a time and apply nothing. M23 had built both
+  halves server-side (`saveDay` over `dayIds`, `insertSavedDay`); this publishes
+  them without a new object type (ADR-048) and without touching `/v1/library`.
+- Consumers updated: `apps/web` only — the three route files, the new shared
+  `server/public-api/library.ts` (which `/v1/library`'s two route files now
+  declare through), `insertSavedDay` (returns `minted` on success; the internal
+  route's response is unchanged), `openapi.json` (regenerated), and
+  `docs/guidelines/using-the-api.md`. No MSW handler — the frontend does not
+  call these.
+- Breaking? no. `/v1/library`'s `openapi.json` entries are byte-identical, and
+  its handlers moved rather than changed.
+
 ## 2026-09-23 — `UndoLastChange` may name the batch it undoes (M27 D17)
 
 - Added optional **`undoesBatchId: uuid`** to `UndoLastChange`

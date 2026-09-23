@@ -44,7 +44,7 @@ export type WriteOutcome =
   | { ok: true; detail: TripDetail }
   | { ok: false; status: number; message: string };
 
-function refusal(error: { code: string; message: string }): WriteOutcome {
+export function refusal(error: { code: string; message: string }): WriteOutcome {
   // `forbidden` is the policy seam's word for "not a member, or not senior
   // enough". Everything else a command rejects is the caller's input — a day
   // that does not exist, a move to a position that is not there.

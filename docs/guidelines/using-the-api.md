@@ -97,7 +97,7 @@ A token is either account-wide or confined to named trips.
   you hold loses it on the next request.
 
 **A confined token is refused on any endpoint that is not about one trip**
-(`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`). Creating a new trip
+(`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`, `POST /v1/playbooks`). Creating a new trip
 from a credential restricted to two existing ones is a widening.
 
 ### Two gates, always in this order
@@ -292,6 +292,56 @@ plan. Calling these endpoints needs a token, and a token needs `api.tokens`,
 which is `premium@v2` — so `GET /v1/trips/{tripId}/export` answers 402 for an
 account that cannot hold one. That is *the API* being gated, exactly as it is
 for `GET /v1/trips`; the free path is the UI one.
+
+### Playbooks: keeping days, and applying them to a trip
+
+A Playbook is one or more days kept from a trip, in an order you choose. It is
+the same thing as a saved day in your library — `/v1/playbooks` and
+`/v1/library` list the **same items** — but `/v1/playbooks` speaks in several
+days, where `/v1/library` keeps its published singular `dayId` (ADR-050).
+
+| | Scope | Role | Notes |
+|---|---|---|---|
+| `GET /v1/playbooks` | `library:read` | — | Newest first, paged like every collection |
+| `POST /v1/playbooks` | `library:write` | `viewer` on the source trip, checked by hand | `{ tripId, name, dayIds }`. Answers the `SavedDay`, 201 |
+| `GET` / `PATCH` / `DELETE /v1/playbooks/{playbookId}` | `library:read` / `library:write` | — | Exactly `/v1/library/{savedDayId}`: `PATCH { visibility }` publishes; a published Playbook must be unpublished before it can be deleted (409) |
+| `POST /v1/trips/{tripId}/playbook-applications` | `trips:write` | `editor` on the destination | `{ playbookId }`. Answers 201 |
+
+**`dayIds` is an ordered set, not a range.** Keep days 5, 1 and 3 and you get a
+three-day Playbook whose day 0 is your day 5. The same day twice is refused, and
+so is a selection with no stops at all; an empty day among others is kept as a
+rest day.
+
+**A trip-confined token cannot keep a Playbook**, not even from a trip it
+names. The source trip is in the body, and the collection is not about one trip,
+so it is refused the way every tripless endpoint refuses one.
+
+**Applying** appends every day of the Playbook to the end of the trip, empty
+days included, with every stop on the day it belongs to:
+
+```json
+{ "tripId": "…", "playbookId": "…",
+  "dayIds": ["…", "…"], "activityIds": ["…", "…", "…"], "historySeq": 42 }
+```
+
+- **Atomic.** All of it lands or none of it does.
+- **Append-only.** Nothing already in the trip moves or changes.
+- **One undo.** The whole application is one history entry, and `historySeq` is
+  that entry's revision — while it is the trip's last change, one
+  `POST …/history/undo` takes all of it back.
+- **Fresh ids, every time.** `dayIds[i]` is the Playbook's day `i`, and
+  `activityIds[i]` is its `stops[i]`. The same Playbook applied twice gives you
+  two sets of days.
+- **Nothing of the source trip comes across** — not its dates, not its ids. A
+  stop carries its title, time window, place, notes, anchors, kind, tags and cost.
+- **Somebody else's Playbook** applies if they published it, and is a 404 if
+  they did not — the same answer as one that does not exist.
+
+**Not yet (Phase 2):** applying some of a Playbook's days, composing a Playbook
+inline in the request, editing a Playbook's content or versioning it, an
+`Idempotency-Key`, and an `expectedTripSeq` precondition. Until those last two
+exist, **a retried apply appends twice** — check the trip before resending one
+whose answer you did not see.
 
 ### What is not here, and will not be
 
