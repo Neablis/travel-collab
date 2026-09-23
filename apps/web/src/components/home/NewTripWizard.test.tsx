@@ -1,7 +1,21 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
+import type { DiscoverDay, DiscoverResponse } from "@/lib/playbooks";
+
+// The Playbook-day turn's read and its insert (M27 D13) are the component's
+// own imports, so they are replaced here. Every test starts with an empty
+// library: the turn is skipped and the walk below is the one it always was.
+const library = vi.hoisted(() => ({
+  search: vi.fn(),
+  insert: vi.fn(),
+}));
+vi.mock("@/lib/apiClient", async (orig) => ({
+  ...(await orig<typeof import("@/lib/apiClient")>()),
+  searchPlaybooks: library.search,
+  insertSavedDay: library.insert,
+}));
 // §30.3's fork reads a capability, and every test below needs to say which
 // answer it is testing. `null` is the default because that is what an
 // unresolved or failed read gives, and `useAiEntitled`'s own note requires
@@ -14,6 +28,7 @@ vi.mock("@/components/assistant/useAiEntitled", async (orig) => ({
 }));
 
 import { NewTripWizard } from "./NewTripWizard";
+import { CASS_DRAFTING_MS, CASS_TYPING_MS } from "./newTripScript";
 
 // THE SHEET IS A TRANSCRIPT NOW (SPEC §30.1, design §3), and since §32.3 its
 // question list is DERIVED: "do you have a start date" inserts a day-picker
@@ -31,12 +46,68 @@ import { NewTripWizard } from "./NewTripWizard";
 // asked, that an answer commits and appears as the reader's own words, that
 // Change goes back without losing what came after, and that nothing reaches the
 // network until an exit is pressed.
+//
+// **Cass types for a beat after every answer** (SPEC §35.8, M27 D14), and the
+// dock is gone while she does. The clock is fake so that beat costs nothing
+// here: `user` below lets it pass after every click and keystroke, and the
+// tests that are ABOUT the beat drive `raw` and the clock themselves.
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  library.search.mockResolvedValue(discover([]));
+  library.insert.mockResolvedValue({ ok: true, value: {} as CommandOutcome });
+});
+
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
+  vi.clearAllMocks();
   aiEntitled.value = null;
 });
 
-const user = userEvent.setup({ delay: null });
+const raw = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime });
+
+/** Let the longest beat Cass takes run out. */
+async function settle() {
+  await act(() => vi.advanceTimersByTimeAsync(CASS_DRAFTING_MS));
+}
+
+const user = {
+  click: async (element: Element) => {
+    await raw.click(element);
+    await settle();
+  },
+  type: async (element: Element, text: string) => {
+    await raw.type(element, text);
+    await settle();
+  },
+  clear: (element: Element) => raw.clear(element),
+};
+
+function discover(days: DiscoverDay[]): ApiResult<DiscoverResponse> {
+  return {
+    ok: true,
+    value: { days, siblings: [], budgetCurrency: null, truncated: false, sharedDayCount: days.length },
+  };
+}
+
+function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDayId" | "name" | "adds">): DiscoverDay {
+  return {
+    ownerId: "dev-mei",
+    cities: ["Lisbon"],
+    matchedCities: ["Lisbon"],
+    stopCount: 4,
+    dayCount: 1,
+    window: null,
+    totalCost: null,
+    visibility: "public",
+    authorKind: "human",
+    sourceTripName: "Portugal",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    publishedAt: "2026-09-02T00:00:00.000Z",
+    isMine: false,
+    ...overrides,
+  };
+}
 
 type NewTripCreate = (input: {
   name: string;
@@ -256,12 +327,16 @@ describe("NewTripWizard — the turns", () => {
   // was true of a fixed four-turn script and became a lie the moment the list
   // started depending on the answers. This asserts the absence, because the
   // tempting fix — updating the number — is the one that breaks again.
-  it("opens the thread by saying nothing is generated until the end", () => {
+  //
+  // §35.8 gives the line a speaker — Cass — and keeps both halves of the
+  // contract: "a few", and nothing made until the last answer.
+  it("opens the thread as Cass, saying nothing is made until the end", () => {
     renderWizard();
     const log = screen.getByRole("log", { name: "Conversation" });
     const text = log.textContent ?? "";
-    expect(text).toContain("A few quick questions");
-    expect(text).toContain("Nothing is generated until the last answer lands");
+    expect(text).toContain(
+      "Hi, it’s Cass. A few quick questions and I’ll draft the trip — nothing is made until your last answer.",
+    );
     expect(text).not.toMatch(/\b(three|four|five|six|3|4|5|6) quick questions\b/i);
   });
 
@@ -438,23 +513,122 @@ describe("NewTripWizard — the turns", () => {
     expect(log).not.toContain("laid out as Day 1");
   });
 
-  it("never renders a typing indicator or a step rail", async () => {
+  it("never renders a step rail", () => {
     renderWizard();
     // §30.1: the stepper is not replaced with a progress bar — a transcript
     // shows its own progress, and the rail was what made the sheet grow.
     expect(screen.queryAllByTestId("wizard-step")).toHaveLength(0);
-    // §30.2: there is nothing to wait for, so a typing indicator would be an
-    // animation pretending to be latency.
-    expect(screen.queryByText(/thinking/i)).toBeNull();
+  });
+
+  // **M27 D14 supersedes §30.2's "no typing indicator".** §35.8 draws one: a
+  // beat after each answer, in which everything after the reader's own words
+  // waits — the acknowledgement, the next question AND the dock. This test
+  // used to assert the opposite; it was rewritten, not worked around.
+  it("types for a beat after each answer, with the next line and the dock held behind it", async () => {
+    // A clock that moves ONLY when told to, for the one test that measures it:
+    // `shouldAdvanceTime` lets real milliseconds leak in between two lines.
+    // `fireEvent`, because user-event's own async wrapper waits on a timer
+    // that this clock never runs.
+    vi.useRealTimers();
+    vi.useFakeTimers();
+    renderWizard();
+    fireEvent.click(screen.getByRole("button", { name: "Lisbon" }));
+
+    const typingRow = screen.getByRole("status", { name: "Cass is typing" });
+    expect(typingRow).not.toBeNull();
+    const log = screen.getByRole("log");
+    expect(log.textContent).toContain("Lisbon");
+    expect(log.textContent).not.toContain("Do you have a start date in mind?");
+    // Nothing to answer with until there is something to answer.
+    expect(screen.queryByRole("button", { name: "Yes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+
+    await act(() => vi.advanceTimersByTimeAsync(CASS_TYPING_MS - 1));
+    expect(screen.getByRole("status", { name: "Cass is typing" })).not.toBeNull();
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.queryByRole("status", { name: "Cass is typing" })).toBeNull();
+    // The reply lands whole: the acknowledgement, then the question.
+    expect(log.textContent).toContain("Lisbon, good. Do you have a start date in mind?");
+    expect(screen.getByRole("button", { name: "Yes" })).not.toBeNull();
+  });
+
+  // The longer beat before the draft, and the order that matters: the create
+  // runs UNDER it — the pause is presentation and must add nothing to the wait
+  // — but the closing line only arrives once the beat is over.
+  it("drafts under a labelled beat, and describes the trip only after it", async () => {
+    const { createTrip } = renderWizard();
+    await answerThroughToFeel();
+    await raw.click(screen.getByRole("button", { name: "Nothing in particular" }));
+
+    const row = screen.getByRole("status", { name: "Cass is typing" });
+    expect(row.textContent).toContain("Drafting the trip…");
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    expect(screen.getByRole("log").textContent).not.toContain("is created");
+
+    await act(() => vi.advanceTimersByTimeAsync(CASS_DRAFTING_MS));
+    expect(screen.queryByRole("status", { name: "Cass is typing" })).toBeNull();
+    expect(screen.getByRole("log").textContent).toContain("Done. Lisbon is created, 7 days.");
+  });
+
+  it("acknowledges each answer in one clause before the next question", async () => {
+    renderWizard();
+    await user.click(screen.getByRole("button", { name: "Back to Kyoto" }));
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Packed" }));
+
+    const log = screen.getByRole("log").textContent ?? "";
+    expect(log).toContain("Kyoto again — good. Do you have a start date in mind?");
+    expect(log).toContain("No problem — dates can come later. How long, roughly?");
+    expect(log).toContain("Got it. What pace do you want?");
+    expect(log).toContain("Packed — I’ll keep the travel between stops tight. What is the trip about?");
+  });
+
+  // §35.9: the hint sits over chips and nowhere else — the arrival turn has a
+  // day picker and no chips, and "tap one" there would point at nothing.
+  it("hints at the chips only on a turn that has them", async () => {
+    renderWizard();
+    expect(screen.getByText("Tap one to answer — or type your own")).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Lisbon" }));
-    expect(screen.queryByText(/thinking/i)).toBeNull();
-    expect(screen.queryByText(/still writing/i)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+    expect(screen.queryByText(/— or type your own/)).toBeNull();
+    await user.type(screen.getByLabelText("Arrive"), "2026-10-03");
+    await user.click(screen.getByRole("button", { name: "Use this date" }));
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Slow" }));
+    expect(screen.getByText("Pick any that fit — or type your own")).not.toBeNull();
+  });
+
+  // A picked answer says so in something other than colour.
+  it("marks a picked answer pressed, and leaves its name the answer itself", async () => {
+    renderWizard();
+    await answerThroughToFeel();
+    const food = screen.getByRole("button", { name: "Food" });
+    expect(food.getAttribute("aria-pressed")).toBe("false");
+    await user.click(food);
+    expect(screen.getByRole("button", { name: "Food" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  // "Or type your own" is only honest if there is somewhere to type on the
+  // last turn too — and a typed answer there ends the flow like the button.
+  it("takes a typed answer on the last turn and makes the trip from it", async () => {
+    const { createTrip } = renderWizard();
+    await answerThroughToFeel();
+    await user.type(screen.getByLabelText("What is the trip about?"), "Tiles and custard tarts{Enter}");
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    expect(screen.getByRole("log").textContent).toContain("Tiles and custard tarts");
   });
 
   // The §30.2 property, asserted where it can actually be held — and now over
   // the LONGER walk, the one with the day picker in it, because that is the
   // path §32.3 added and the one where a date control could plausibly reach for
   // a geocoder.
+  //
+  // M27 D13 added ONE read — the city's published days — and this is where it
+  // is held to being only that: a library read, once, for the city answered,
+  // and no write until an exit is pressed.
   it("sends nothing to the network while the turns are being answered", async () => {
     const { createTrip, dispatch } = renderWizard();
     await answerThroughToFeelDated("2026-10-03");
@@ -462,6 +636,9 @@ describe("NewTripWizard — the turns", () => {
 
     expect(createTrip).not.toHaveBeenCalled();
     expect(dispatch).not.toHaveBeenCalled();
+    expect(library.insert).not.toHaveBeenCalled();
+    expect(library.search).toHaveBeenCalledTimes(1);
+    expect(library.search).toHaveBeenCalledWith({ cities: ["Lisbon"], sort: "most-added" });
   });
 
   // A length alone is not a dated trip — there is nothing to count from — and
@@ -520,6 +697,110 @@ describe("NewTripWizard — the turns", () => {
     // `navigate: false` — the old dialog closed and left you on the trip list
     // to open the card yourself, and every pre-Phase-7 e2e spec is built on it.
     expect(onCreated).toHaveBeenCalledWith(sent, { navigate: false });
+  });
+});
+
+// SPEC §35.8 + M27 D13: after the city, published days people keep adding
+// there — ranked by adds, since nothing is rated until M12.
+describe("NewTripWizard — the Playbook-day turn", () => {
+  const TRAM = "11111111-1111-4111-8111-111111111111";
+  const ALFAMA = "22222222-2222-4222-8222-222222222222";
+  const OFFERED = [
+    published({ savedDayId: ALFAMA, name: "Alfama at dusk", adds: 3, dayCount: 2 }),
+    published({ savedDayId: TRAM, name: "Tram 28 morning", adds: 12 }),
+    // Never offered: nobody has added it yet, or it is the reader's own.
+    published({ savedDayId: "33333333-3333-4333-8333-333333333333", name: "Unloved", adds: 0 }),
+    published({ savedDayId: "44444444-4444-4444-8444-444444444444", name: "Mine", adds: 50, isMine: true }),
+  ];
+
+  it("offers the most-added days for the city, and none of the reader's own", async () => {
+    library.search.mockResolvedValue(discover(OFFERED));
+    renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+
+    expect(screen.getByRole("log").textContent).toContain(
+      "Lisbon, good. People planning Lisbon keep adding these days. Want me to build around any of them? Or skip, and I’ll plan it fresh.",
+    );
+    const cards = within(screen.getByRole("group", { name: "Popular days" })).getAllByRole("button");
+    expect(cards.map((card) => card.textContent)).toEqual([
+      "Tram 28 morningAdded to 12 trips · 1 day · by MeiAdd",
+      "Alfama at duskAdded to 3 trips · 2 days · by MeiAdd",
+    ]);
+    // Nothing picked is a real answer, and the button says which.
+    expect(screen.getByRole("button", { name: "Skip — plan it fresh" })).not.toBeNull();
+  });
+
+  it("builds around a picked day, and puts it in the trip once the trip exists", async () => {
+    library.search.mockResolvedValue(discover(OFFERED));
+    const { createTrip } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    const tram = screen.getByRole("button", { name: /^Tram 28 morning/ });
+    await user.click(tram);
+    expect(screen.getByRole("button", { name: /^Tram 28 morning/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /^Tram 28 morning/ }).textContent).toContain("✓ Added");
+    await user.click(screen.getByRole("button", { name: "Build around this day" }));
+
+    expect(screen.getByRole("log").textContent).toContain(
+      "I’ll build the rest around that one. Do you have a start date in mind?",
+    );
+    // Picked, said, and still nothing sent: the trip does not exist yet.
+    expect(library.insert).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Slow" }));
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+
+    await waitFor(() => expect(library.insert).toHaveBeenCalledTimes(1));
+    const tripId = createTrip.mock.calls[0]![0].tripId;
+    expect(library.insert).toHaveBeenCalledWith(tripId, TRAM);
+    expect(screen.getByRole("log").textContent).toContain("Tram 28 morning is already in place");
+  });
+
+  // "Never block the script": the read runs under the typing row, and when
+  // the row ends without it the turn is simply not asked.
+  it("skips the turn when the read has not come back by the end of the beat", async () => {
+    library.search.mockReturnValue(new Promise(() => {}));
+    renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+
+    expect(screen.queryByRole("group", { name: "Popular days" })).toBeNull();
+    expect(screen.getByRole("log").textContent).toContain("Lisbon, good. Do you have a start date in mind?");
+  });
+
+  it("skips the turn when the read fails", async () => {
+    library.search.mockResolvedValue({ ok: false, error: { status: 500, message: "down" } });
+    renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+
+    expect(screen.queryByRole("group", { name: "Popular days" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Not yet" })).not.toBeNull();
+  });
+
+  // The trip is what the reader asked for; a day that did not land is
+  // something they can add from Playbooks. So the trip stands, and the
+  // conversation stays on screen long enough to say which day is missing.
+  it("keeps the trip and says so when a picked day cannot be added", async () => {
+    library.search.mockResolvedValue(discover(OFFERED));
+    library.insert.mockResolvedValue({ ok: false, error: { status: 404, message: "gone" } });
+    const { createTrip, onCreated } = renderWizard();
+    await user.click(screen.getByRole("button", { name: "Lisbon" }));
+    await user.click(screen.getByRole("button", { name: /^Alfama at dusk/ }));
+    await user.click(screen.getByRole("button", { name: "Build around this day" }));
+    await user.click(screen.getByRole("button", { name: "Not yet" }));
+    await user.click(screen.getByRole("button", { name: "A week" }));
+    await user.click(screen.getByRole("button", { name: "Slow" }));
+    await user.click(screen.getByRole("button", { name: "Nothing in particular" }));
+
+    await waitFor(() => expect(createTrip).toHaveBeenCalled());
+    const log = screen.getByRole("log").textContent ?? "";
+    expect(log).toContain("Done. Lisbon is created, 7 days.");
+    expect(log).toContain("Alfama at dusk could not be added — it is still in Playbooks.");
+    expect(log).not.toContain("already in place");
+    expect(screen.queryByRole("alert")).toBeNull();
+    // Not navigated past: the one line saying what is missing stays readable.
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Open the trip" })).not.toBeNull();
   });
 });
 
