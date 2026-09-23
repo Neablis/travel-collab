@@ -51,7 +51,50 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
       data-saved-day-id={day.savedDayId}
       className="flex flex-col gap-3 rounded-lg p-4"
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      {/* `dc.html:2610-2626`: the cities lead, with the card's own marks at the
+          far end of the same row; then the title, with the facts line directly
+          under it. The title used to lead and the chips sat below the badges,
+          which put the thing a reader scans a grid for — where — mid-card.
+
+          Filled = matched, outlined = the rest. The distinction is the whole
+          point of "a day matches on ANY city it contains": the card has to show
+          that the Kyoto you asked for is one of three cities this day covers,
+          or the extra cities look like a mistake rather than the offer. */}
+      <div className="flex flex-wrap items-start gap-2">
+        <ul className="flex flex-wrap gap-1.5" data-testid="city-chips">
+          {day.cities.map((city) => {
+            const matched = day.matchedCities.includes(city);
+            return (
+              <li
+                key={city}
+                data-city={city}
+                data-matched={matched}
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase",
+                  matched
+                    ? "bg-brand-tint text-brand-pressed"
+                    : "border border-hairline bg-surface text-slate",
+                )}
+              >
+                {city}
+              </li>
+            );
+          })}
+        </ul>
+        <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+          {day.isMine && <Badge variant="brand">Yours</Badge>}
+          {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+          <AuthorKindBadge authorKind={day.authorKind} />
+        </span>
+      </div>
+
+      {line !== null && (
+        <Text variant="secondary" data-testid="match-line">
+          {line}
+        </Text>
+      )}
+
+      <div>
         <Heading level={4} className="leading-snug">
           {/* §13.1's phone floor on the card's ROW ACTION — this title link is
               the only way into the day, so it is the target (M26 link 14's
@@ -66,68 +109,33 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
             {day.name}
           </Link>
         </Heading>
-        {day.isMine && <Badge variant="brand">Yours</Badge>}
-        {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
-        <AuthorKindBadge authorKind={day.authorKind} />
+        <DataText size="xs" className="mt-1 block">
+          {/* **The day count leads** (M23 link 4's gate box). It is the number
+              that changes whether somebody opens this at all, and it is the
+              number "Add to trip" is about to act on — the rule being that a
+              surface states the count it is acting on BEFORE it acts.
+              Suppressed at one day, which is still the ordinary case: "1 day ·
+              4 stops" on every card would be noise that teaches a reader to
+              stop reading the line. */}
+          {day.dayCount > 1 && `${day.dayCount} days · `}
+          {day.stopCount} stop{day.stopCount === 1 ? "" : "s"}
+          {/* Null above one day, and that is `savedDayFacts` refusing to state
+              a clock range across three midnights as if it were one day's
+              (ADR-048 decision 4) — so nothing renders here rather than
+              something false. */}
+          {day.window !== null && ` · ${toClockRange(day.window.start, day.window.end)}`}
+          {/* No trailing "each": this is the day's TOTAL. The card read
+              "$27.00 each" for a number `savedDayFacts` produces by adding up
+              stop costs and dividing by nothing — Mitchell, 2026-09-01: *"why
+              are we calculating per person in a notebook? just show total cost
+              there, any per person logic and math should go into the future
+              milestone around cost."* A real per-head figure needs a person
+              count that does not exist yet; that is M19's
+              (`docs/milestones/M19-cost-model.md`), not this line's. */}
+          {day.totalCost !== null &&
+            ` · ${formatMoney(day.totalCost.amountMinor, day.totalCost.currency)}`}
+        </DataText>
       </div>
-
-      {/* Filled = matched, outlined = the rest. The distinction is the whole
-          point of "a day matches on ANY city it contains": the card has to show
-          that the Kyoto you asked for is one of three cities this day covers,
-          or the extra cities look like a mistake rather than the offer. */}
-      <ul className="flex flex-wrap gap-1.5" data-testid="city-chips">
-        {day.cities.map((city) => {
-          const matched = day.matchedCities.includes(city);
-          return (
-            <li
-              key={city}
-              data-city={city}
-              data-matched={matched}
-              className={cn(
-                "rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                matched
-                  ? "bg-brand-tint text-brand-pressed"
-                  : "border border-hairline bg-surface text-slate",
-              )}
-            >
-              {city}
-            </li>
-          );
-        })}
-      </ul>
-
-      {line !== null && (
-        <Text variant="secondary" data-testid="match-line">
-          {line}
-        </Text>
-      )}
-
-      <DataText size="xs" className="block">
-        {/* **The day count leads** (M23 link 4's gate box). It is the number
-            that changes whether somebody opens this at all, and it is the
-            number "Add to trip" is about to act on — the rule being that a
-            surface states the count it is acting on BEFORE it acts.
-            Suppressed at one day, which is still the ordinary case: "1 day ·
-            4 stops" on every card would be noise that teaches a reader to
-            stop reading the line. */}
-        {day.dayCount > 1 && `${day.dayCount} days · `}
-        {day.stopCount} stop{day.stopCount === 1 ? "" : "s"}
-        {/* Null above one day, and that is `savedDayFacts` refusing to state
-            a clock range across three midnights as if it were one day's
-            (ADR-048 decision 4) — so nothing renders here rather than
-            something false. */}
-        {day.window !== null && ` · ${toClockRange(day.window.start, day.window.end)}`}
-        {/* No trailing "each": this is the day's TOTAL. The card read
-            "$27.00 each" for a number `savedDayFacts` produces by adding up
-            stop costs and dividing by nothing — Mitchell, 2026-09-01: *"why
-            are we calculating per person in a notebook? just show total cost
-            there, any per person logic and math should go into the future
-            milestone around cost."* A real per-head figure needs a person
-            count that does not exist yet; that is M19's
-            (`docs/milestones/M19-cost-model.md`), not this line's. */}
-        {day.totalCost !== null &&
-          ` · ${formatMoney(day.totalCost.amountMinor, day.totalCost.currency)}`}
-      </DataText>
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
         {/* The M17 seam, and the only place this card names a person. */}

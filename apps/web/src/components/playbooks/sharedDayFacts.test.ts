@@ -69,6 +69,24 @@ describe("mapPanel", () => {
     expect(panel.note).toMatch(/^Mostly transit — about .+ of the day is spent moving\.$/);
   });
 
+  // The legend's "By train or taxi" entry reads this, so it must be false for
+  // an all-walking day — a key to a line style the map is not drawing.
+  it("says whether any leg in view is a ride", () => {
+    expect(mapPanel([day([p(1, 35.0, 135.0), p(2, 35.0, 135.01)])], "km").hasRides).toBe(false);
+    expect(mapPanel([day([p(1, 35.0, 135.0), p(2, 35.0, 135.1)])], "km").hasRides).toBe(true);
+  });
+
+  // "A loop" said of three days would describe a route nobody took: no line is
+  // drawn across a night (`dc.html:7840`).
+  it("describes several days at once as separate lines, not one shape", () => {
+    const d1 = day([p(1, 35.0, 135.0), p(2, 35.0, 135.01)]);
+    const d2 = { ...day([p(3, 35.0, 135.0), p(4, 35.0, 135.01)]), dayIndex: 1 };
+    expect(mapPanel([d1, d2], "km").note).toBe(
+      "All 2 days at once. Each day is its own line — nothing is drawn across a night.",
+    );
+    expect(mapPanel([d1], "km").note).not.toMatch(/^All/);
+  });
+
   it("honours the reader's unit", () => {
     const panel = mapPanel([day([p(1, 35.0, 135.0), p(2, 35.0, 135.1)])], "mi");
     expect(panel.facts.find((f) => f.key === "By train or taxi")!.value).toMatch(/mi/);
