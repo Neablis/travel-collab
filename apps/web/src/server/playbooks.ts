@@ -4,6 +4,7 @@ import type { CityMatch } from "@/lib/cities";
 import {
   inBudgetBand,
   LENGTH_BAND_RANGE,
+  RATING_FLOOR_MIN,
   type BudgetBand,
   type LengthBand,
   type DiscoverDay,
@@ -11,6 +12,7 @@ import {
   type DiscoverScope,
   type DiscoverSort,
   type PublicAuthor,
+  type RatingFloor,
 } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { displayNameFor } from "@/lib/displayName";
@@ -65,6 +67,13 @@ export type DiscoverQuery = {
    * cannot disagree with the page below them.
    */
   length: LengthBand;
+  /**
+   * The minimum average rating (M12 D9), a SQL predicate for `length`'s
+   * reason. Optional because only Discover's own route offers it: a profile
+   * and the assistant's port browse unfloored, and "absent" meaning `any` is
+   * the same answer they would otherwise each have to spell.
+   */
+  rating?: RatingFloor;
   /**
    * Narrow to one person's days — what a public profile is.
    *
@@ -200,7 +209,21 @@ function matchPredicate(query: DiscoverQuery): SQL {
     and (cardinality(${cities}) = 0 or d.cities && ${cities})
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
     ${lengthPredicate(query.length)}
+    ${ratingPredicate(query.rating ?? "any")}
   `;
+}
+
+/**
+ * The rating floor, as SQL (M12 D9) — before the candidate window, like the
+ * length band, so the chips and the page are counted from one set.
+ *
+ * An unrated day's `rating` is null and `null >= 4` is not true, so any floor
+ * above `any` drops unrated days without a clause of its own — which is the
+ * rule `RatingFloor` states.
+ */
+function ratingPredicate(floor: RatingFloor): SQL {
+  if (floor === "any") return sql``;
+  return sql` and d.rating >= ${RATING_FLOOR_MIN[floor]}`;
 }
 
 /**

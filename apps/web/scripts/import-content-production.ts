@@ -63,6 +63,7 @@ import { savedDayAdds, savedDays } from "@/server/db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
+import { recomputeReviewCounters } from "@/server/reviews";
 import { executePageCommand } from "@/server/pageCommands";
 import { users } from "@/server/db/schema";
 import { getTripDetail } from "@/server/projections";
@@ -213,6 +214,13 @@ async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
         });
       }
     }
+    // Reviews are NOT deleted with the rows above, and the counters are
+    // recomputed from them instead. A re-import rewrites the authored content
+    // under the same ids; the stars on it were given by real people and must
+    // survive that. `newSavedDayRow` writes the counters as "unreviewed", so
+    // without this every re-import would silently zero a reviewed day's rating
+    // while its reviews still sat in `saved_day_reviews` (M12 link 2).
+    for (const id of ids) await recomputeReviewCounters(tx, id);
   });
 
   return { days: resolved.length, pruned };

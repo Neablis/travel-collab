@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { savedDays } from "@/server/db/schema";
+import { putReview } from "@/server/reviews";
 
 // Discover's day search (M11b link 5), against the real containment query.
 //
@@ -213,6 +214,36 @@ describe("GET /api/playbooks", () => {
     expect(names(highest)).toEqual([rated, popular, unrated]);
     expect(highest.days.map((d) => [d.rating, d.reviewCount])).toEqual([[4.8, 2], [3.5, 9], [null, 0]]);
     expect(names((await discover(`city=${c}&sort=most-reviewed`)).body)).toEqual([popular, rated, unrated]);
+  });
+
+  // §15's fourth filter (M12 D9). Rated through the real write path, so the
+  // floor is tested against counters the reviews produced rather than numbers
+  // written beside them. Inclusive at the boundary — a 4.0 day is "4+ stars" —
+  // and every floor above `any` drops the unrated day; an unknown floor falls
+  // back to `any`, like every other parameter here.
+  it("floors on the average rating, inclusively, and drops unrated days", async () => {
+    const c = city("floor");
+    const days: Record<string, number[]> = {
+      [`Four and a half ${RUN}`]: [5, 4],
+      [`Four ${RUN}`]: [4],
+      [`Three ${RUN}`]: [3],
+      [`Unrated ${RUN}`]: [],
+    };
+    for (const [name, stars] of Object.entries(days)) {
+      const id = await saveDay(name, [{ city: c }]);
+      await publish(id);
+      for (const [i, s] of stars.entries()) await putReview(id, `floor-reviewer-${RUN}-${i}`, { stars: s, note: null });
+    }
+
+    currentUserId = READER;
+    const floored = async (rating: string) =>
+      names((await discover(`city=${c}&sort=highest-rated&rating=${rating}`)).body);
+    const [half, four, three, unrated] = Object.keys(days);
+    expect(await floored("4.5")).toEqual([half]);
+    expect(await floored("4")).toEqual([half, four]);
+    expect(await floored("3")).toEqual([half, four, three]);
+    expect(await floored("any")).toEqual([half, four, three, unrated]);
+    expect(await floored("five-stars")).toEqual([half, four, three, unrated]);
   });
 
   // §15's sibling chips: "cities present in the current result set but absent
