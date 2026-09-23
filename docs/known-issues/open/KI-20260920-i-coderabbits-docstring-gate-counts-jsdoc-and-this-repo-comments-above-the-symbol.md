@@ -64,3 +64,18 @@
 - **What it would take:** a decision, then either a `.coderabbit.yaml` edit
   (minutes) or a convention documented in `docs/guidelines/` and applied as
   files are touched (no big-bang rewrite).
+
+- **BOTH, AS IT TURNED OUT, ON 2026-09-23.** `KI-2026-09-22-a` carries the
+  detail; what closes here is this entry's own complaint. **The red row is no
+  longer meaningless:** `.coderabbit.yaml` names the check explicitly
+  (`reviews.pre_merge_checks.docstrings`, `mode: warning`, `threshold: 80`), so
+  the 80% is a number this repo chose, and `docs/guidelines/commenting.md` is
+  the rule it scores against. The *"permanently-failing gate people learn to
+  scroll past"* this entry warned of now has a floor that moves as files are
+  touched, and a `pnpm lint` wall underneath it that is absolute on new code.
+
+  **The objection this entry raised survives the decision and is honoured in
+  the convention**, not waved away: e2e helpers are out of the wall's scope, and
+  the guideline says why in this entry's own words — converting them *"for a
+  number rather than for a reader"* would make those files internally
+  inconsistent. `//` above the symbol is not deprecated; it is given a place.

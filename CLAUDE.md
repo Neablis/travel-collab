@@ -14,6 +14,7 @@ Quick orientation:
 - Contract change log: `docs/contracts/CHANGELOG.md`
 - Known issues & tech debt (unfixed-but-known): `docs/known-issues/` (one file per entry; `open/` is the list)
 - How to write a test worth its cost: `docs/guidelines/testing.md`
+- JSDoc or `//`, and what the docstring wall demands: `docs/guidelines/commenting.md`
 - Adding trips, playbook days or notebook templates as JSON — the importer, the
   geocoder that puts coordinates on them, and how any of it reaches production:
   `docs/guidelines/content-bundles.md` (ADR-041)

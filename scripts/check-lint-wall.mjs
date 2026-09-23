@@ -1,16 +1,63 @@
 import { writeFileSync, readFileSync, rmSync, mkdtempSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+// **ESLint is invoked directly, not through `pnpm --filter web exec`**, and
+// both reasons are measured rather than stylistic.
+//
+// SPEED. This wall lints one fixture per check and its own test
+// (`scripts/__tests__/check-lint-wall.test.mjs`) runs the whole wall several
+// times over sabotaged configs — about 87 eslint invocations in all. Measured
+// 2026-09-23: linting one fixture costs 2889ms through `pnpm --filter web
+// exec` and 1600ms through the shim — ~1.3s of every call was pnpm starting up
+// and resolving a workspace it had already resolved. That test file alone ran
+// for **243 seconds**, which was 60% of `pnpm test` — more than the entire web
+// vitest suite (123s) — and every other file in `scripts/__tests__` finishes
+// in under 7s.
+//
+// IT ALSO FIXES KI-2026-09-08-b. That entry records this script being
+// unrunnable in a cloud session: it "hardcodes `pnpm --filter web exec`
+// internally and so has no way to receive the flag" that works around the
+// pnpm-major skew, so it printed thirteen `LINT WALL CANNOT RUN` lines and
+// exited 1 — which "reads exactly like thirteen wall failures and is not".
+// With no pnpm in the path there is no flag to pass.
+// `apps/web`'s own `.bin` shim, NOT the binary inside eslint's package.
+//
+// Resolving the package and running `node <eslint>/bin/eslint.js` directly is
+// the obvious move and it does not work: under pnpm's strict layout the plugins
+// are not reachable from `apps/web`, and eslint dies with *"couldn't find the
+// plugin eslint-plugin-react-hooks"* (measured, exit 2, no report). The shim is
+// what sets up that resolution — it is the same thing `pnpm exec` arranges,
+// minus pnpm's own startup.
+const ESLINT_BIN = join(process.cwd(), "apps", "web", "node_modules", ".bin", "eslint");
+
+/**
+ * Runs eslint from `apps/web` and returns its stdout.
+ *
+ * Throws exactly as `execSync` did on a non-zero exit, which both callers
+ * already depend on: eslint exits 1 for "found problems" AND for "could not
+ * start", and telling those apart is what the `-o <file>` report and the
+ * print-config parse below are for.
+ */
+function eslint(args) {
+  return execFileSync(ESLINT_BIN, args, {
+    cwd: "apps/web",
+    stdio: "pipe",
+  }).toString();
+}
 
 // KI-2026-09-05-s: this wall is itself covered by scripts/__tests__/check-lint-wall.test.mjs,
 // which runs it against deliberately sabotaged copies of apps/web/eslint.config.mjs. That test
 // needs to point eslint at a config other than the checked-in one; `LINT_WALL_ESLINT_CONFIG`
 // (a path relative to apps/web) is the only seam it uses. Unset — i.e. in `pnpm lint` — the
 // command line is exactly what it always was.
-const configFlag = process.env.LINT_WALL_ESLINT_CONFIG
-  ? `--config ${process.env.LINT_WALL_ESLINT_CONFIG} `
-  : "";
+// An ARGUMENT LIST now rather than a string fragment, because the commands
+// below are no longer built by string concatenation — a path with a space in
+// it used to be a latent bug here and cannot be one now.
+const configArgs = process.env.LINT_WALL_ESLINT_CONFIG
+  ? ["--config", process.env.LINT_WALL_ESLINT_CONFIG]
+  : [];
 
 // Which RULE rejected a fixture, not merely "eslint exited non-zero".
 //
@@ -38,9 +85,7 @@ function lintFixture(name, source, { dir = "src/app", ext = "tsx" } = {}) {
   let report;
   try {
     try {
-      execSync(`pnpm --filter web exec eslint ${configFlag}-f json -o ${reportPath} ${relative}`, {
-        stdio: "pipe",
-      });
+      eslint([...configArgs, "-f", "json", "-o", reportPath, relative]);
     } catch {
       // eslint exits 1 both when it reports an error and when it fails to start. Only the
       // former leaves a report behind; the latter is caught by the read/parse below.
@@ -302,10 +347,7 @@ expectClean(
 function noRestrictedImportPatterns(relativePath) {
   let printed;
   try {
-    printed = execSync(`pnpm --filter web exec eslint ${configFlag}--print-config ${relativePath}`, {
-      cwd: "apps/web",
-      stdio: "pipe",
-    }).toString();
+    printed = eslint([...configArgs, "--print-config", relativePath]);
     const resolvedConfig = JSON.parse(printed);
     const restrictedImports = resolvedConfig.rules?.["no-restricted-imports"];
     return Array.isArray(restrictedImports?.[1]?.patterns) ? restrictedImports[1].patterns : [];

@@ -34,9 +34,13 @@
  *      /etc/ssl/certs. Hosts the gateway inspects (github.com, most of the web)
  *      fail ERR_CERT_AUTHORITY_INVALID until the gateway's own CAs are trusted.
  *      certutil is not installed here, so the CAs are pinned by SPKI hash —
- *      computed from the certificates the environment itself installed. This
- *      trusts exactly those five certificates; it is not
- *      `--ignore-certificate-errors`, and it is not a blanket disable.
+ *      computed from the certificates the environment itself installed, so
+ *      exactly those are trusted. It is not `--ignore-certificate-errors` and
+ *      it is not a blanket disable. This half now lives in
+ *      `container-chromium.mjs`, because the e2e lane needs it too; that file
+ *      carries the full reasoning, including why the count is computed rather
+ *      than written down (this paragraph used to say "five"; the image now
+ *      installs six).
  *   b. `*.vercel.app` is on the gateway's TLS-inspection bypass list, so it is
  *      tunnelled rather than inspected — and the tunnel cannot carry Chromium's
  *      TLS 1.3 ClientHello, which runs ~1830 B once the post-quantum key share
@@ -52,38 +56,11 @@
  * Exits non-zero if any path fails to load, so it is usable as a check.
  */
 import { chromium } from "@playwright/test";
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { containerChromiumArgs } from "./container-chromium.mjs";
 
-const CA_DIR = "/usr/local/share/ca-certificates";
 const PW_BROWSERS = process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/pw-browsers";
-
-/**
- * SPKI hashes for the CAs the container installed for its egress gateway.
- * Returns "" off-container (no directory, no proxy, nothing to pin).
- */
-function gatewayCaSpkiHashes() {
-  let files;
-  try {
-    files = readdirSync(CA_DIR).filter((f) => f.endsWith(".crt"));
-  } catch {
-    return "";
-  }
-  const hashes = [];
-  for (const f of files) {
-    try {
-      const der = execFileSync("openssl", ["x509", "-in", join(CA_DIR, f), "-pubkey", "-noout"]);
-      const spki = execFileSync("openssl", ["pkey", "-pubin", "-outform", "der"], { input: der });
-      const digest = execFileSync("openssl", ["dgst", "-sha256", "-binary"], { input: spki });
-      hashes.push(digest.toString("base64"));
-    } catch {
-      // A certificate we cannot parse is one we cannot pin. Skip it rather
-      // than failing the walk — the others still get us onto the network.
-    }
-  }
-  return hashes.join(",");
-}
 
 /**
  * `undefined` when Playwright's own resolution points at a binary that exists —
@@ -135,9 +112,11 @@ if (!bypass && !isShareUrl) {
   process.exit(2);
 }
 
-const args = ["--ssl-version-max=tls1.2"];
-const spki = gatewayCaSpkiHashes();
-if (spki) args.push(`--ignore-certificate-errors-spki-list=${spki}`);
+// The CA pin is shared with the e2e lane (container-chromium.mjs, which that
+// file's header explains). The TLS 1.2 cap is NOT shared and stays here: it is
+// needed only because `*.vercel.app` is tunnelled rather than inspected, which
+// is a fact about the host this script walks and about no other.
+const args = ["--ssl-version-max=tls1.2", ...containerChromiumArgs()];
 
 const browser = await chromium.launch({
   // No `executablePath`. An earlier version of this file pinned
