@@ -8,12 +8,21 @@ import { newPageDoc } from "@tc/contracts";
 import type { PageSummary } from "@tc/contracts";
 import { createPage, fetchPages } from "@/lib/pagesClient";
 import { provenanceLabel } from "@/lib/pageScope";
+import { cn } from "@/lib/cn";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 
 type Status = "idle" | "loading" | "ready" | "error";
+
+// Shared by the list and its loading placeholder, so the popover is the same
+// size before and after the notebooks arrive (Mitchell, #205 preview: a bare
+// "Loading…" line was shorter than a row, and the menu reflowed on landing).
+const LIST_AREA = "flex min-h-11 flex-auto flex-col overflow-y-auto";
+const ROW = "flex items-center gap-2.5 rounded-md px-2.5 py-2";
+const TITLE_WIDTHS = ["w-2/5", "w-1/2", "w-1/3"];
 
 /**
  * The Notebooks menu — SPEC §11's "Notebooks is a menu, not a tab".
@@ -201,57 +210,78 @@ export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; re
             instead of scrolling inside it. The design's floor is 44px — one
             row — rather than zero, so a long list never collapses the list to
             nothing between the create row and the footer. */}
-        <ul className="flex min-h-11 flex-auto flex-col overflow-y-auto">
-          {status === "loading" && (
-            <li className="px-2.5 py-2">
-              <Text variant="secondary">Loading…</Text>
-            </li>
-          )}
-          {status === "error" && (
-            <li className="px-2.5 py-2">
-              <Text variant="secondary" role="alert">
-                Could not load your notebooks.
-              </Text>
-            </li>
-          )}
-          {status === "ready" && notebooks.length === 0 && (
-            <li className="px-2.5 py-2">
-              <Text variant="secondary">No notebooks yet.</Text>
-            </li>
-          )}
-          {status === "ready" &&
-            notebooks.map((notebook) => (
-              <li key={notebook.id}>
-                <Link
-                  href={`/trips/${tripId}/pages/${notebook.id}`}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-2.5 rounded-md px-2.5 py-2 hover:bg-moss"
-                >
-                  <span className="min-w-0 flex-1">
-                    <Text as="span" className="block truncate text-sm font-semibold">
-                      {notebook.title}
-                    </Text>
-                    {/* A real space between the two spans in this row. Without
-                        it the link's accessible name computes as
-                        "Trip OverviewComes with your trip…" — one run-together
-                        word to a screen reader. A whitespace-only text node is
-                        not rendered as a flex item, so this changes the name and
-                        not the layout. */}{" "}
-                    {/* The same second line the index route gives each notebook
-                        (`NotebookScreen`), from the same two helpers, so the two
-                        surfaces cannot drift into describing one notebook two
-                        ways. Relative rather than a wall-clock stamp: the
-                        question a person asks of a notebook is "is this stale?",
-                        not "at what second?". */}
-                    <Text as="span" variant="muted" className="mt-px block">
-                      {provenanceLabel(notebook, viewerId)} · edited{" "}
-                      {formatRelativeInstant(notebook.updatedAt) ?? "recently"}
-                    </Text>
+        {status === "loading" ? (
+          <SkeletonRegion label="Loading notebooks" className={LIST_AREA}>
+            {/* As many rows as the list this read will replace: `notebooks`
+                survives a close, and the first open assumes one, because every
+                trip is created with its Overview (SPEC §25). Capped where the
+                list would scroll anyway. */}
+            {Array.from({ length: Math.min(Math.max(notebooks.length, 1), 6) }, (_, row) => (
+              <div key={row} data-testid="notebook-row-skeleton" className={ROW}>
+                {/* Each line is a LINE BOX in the real row's type (`text-sm`
+                    title; `text-xs` + `mt-px` second line) holding an
+                    inline-block bar, so the row is as tall as a notebook's row
+                    — 51.4px in Chromium, both — rather than as tall as two
+                    guessed bar heights. */}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm">
+                    <Skeleton className={cn("inline-block h-3 align-middle", TITLE_WIDTHS[row % 3])} />
                   </span>
-                </Link>
-              </li>
+                  <span className="mt-px block text-xs">
+                    <Skeleton circle delay={2} className="inline-block h-2.5 w-2/5 align-middle" />
+                  </span>
+                </span>
+              </div>
             ))}
-        </ul>
+          </SkeletonRegion>
+        ) : (
+          <ul className={LIST_AREA}>
+            {status === "error" && (
+              <li className="px-2.5 py-2">
+                <Text variant="secondary" role="alert">
+                  Could not load your notebooks.
+                </Text>
+              </li>
+            )}
+            {status === "ready" && notebooks.length === 0 && (
+              <li className="px-2.5 py-2">
+                <Text variant="secondary">No notebooks yet.</Text>
+              </li>
+            )}
+            {status === "ready" &&
+              notebooks.map((notebook) => (
+                <li key={notebook.id}>
+                  <Link
+                    href={`/trips/${tripId}/pages/${notebook.id}`}
+                    onClick={() => setOpen(false)}
+                    className={`${ROW} hover:bg-moss`}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <Text as="span" className="block truncate text-sm font-semibold">
+                        {notebook.title}
+                      </Text>
+                      {/* A real space between the two spans in this row. Without
+                          it the link's accessible name computes as
+                          "Trip OverviewComes with your trip…" — one run-together
+                          word to a screen reader. A whitespace-only text node is
+                          not rendered as a flex item, so this changes the name and
+                          not the layout. */}{" "}
+                      {/* The same second line the index route gives each notebook
+                          (`NotebookScreen`), from the same two helpers, so the two
+                          surfaces cannot drift into describing one notebook two
+                          ways. Relative rather than a wall-clock stamp: the
+                          question a person asks of a notebook is "is this stale?",
+                          not "at what second?". */}
+                      <Text as="span" variant="muted" className="mt-px block">
+                        {provenanceLabel(notebook, viewerId)} · edited{" "}
+                        {formatRelativeInstant(notebook.updatedAt) ?? "recently"}
+                      </Text>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+          </ul>
+        )}
 
         <div className="my-1 h-px flex-none bg-hairline" />
 
