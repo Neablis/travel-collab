@@ -184,6 +184,27 @@ since.**
   - **What a look-first token holder can read** is what a pending viewer
     could: the trip, and its `/access` member list (names and emails). That
     is the D12 trade, stated so a reviewer can refuse it.
+- **Cass's calls:**
+  - A typed answer that no chip covers is acknowledged with *Got it.*, not
+    with a chip's line.
+  - With a chosen Playbook day, the closing line says *X is already in place;
+    the rest is yours to fill* mid-sentence. Appended after *The days are
+    empty*, it would contradict itself.
+  - A chosen day that fails to insert keeps the conversation on screen,
+    naming the day, instead of navigating past the only place that says so.
+  - The composer also shows on the multi-select turns, because the hint
+    promises *or type your own*.
+  - Answer pills keep the 44px phone floor; the design shows 40px.
+  - The Playbook-day cards' radius is 12px, not 10px, until `cn`'s merge
+    config learns the `a-*` tokens.
+  - The first name is read only by the first-run conversation, so the sheet
+    makes no extra session request.
+- **The proposal card's calls:**
+  - Undo compares the apply's recorded batch with the trip's history at
+    render time *and* at click time. The card's state is always read from
+    history, never set by the click.
+  - Known limit: a notebook save after an accept hides the card's Undo, even
+    though the undo itself would skip that save.
 - Text sizes snap to existing tokens where the design uses half-pixel sizes
   (15px → `text-base`, 12.5px → `text-xs`), because the lint wall bans
   arbitrary sizes.
