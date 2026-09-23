@@ -49,7 +49,7 @@ export type PlacePick = { kind: "city"; city: string } | { kind: "country"; coun
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "results"; places: PlaceMatch[] }
+  | { kind: "results"; q: string; places: PlaceMatch[] }
   | { kind: "empty" }
   | { kind: "failed"; message: string };
 
@@ -117,7 +117,7 @@ export function PlaceSearch({
       setState({ kind: "failed", message: result.error.message });
       return;
     }
-    setState(result.value.length === 0 ? { kind: "empty" } : { kind: "results", places: result.value });
+    setState(result.value.length === 0 ? { kind: "empty" } : { kind: "results", q, places: result.value });
   }, []);
 
   useEffect(() => {
@@ -144,7 +144,10 @@ export function PlaceSearch({
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={submitOnEnter(() => {
-          if (state.kind !== "results") return;
+          // Only results for the text in the box: during the debounce the list
+          // still belongs to the previous query, and `Mex` → Enter while
+          // `Mexico City` is typed would otherwise add the country.
+          if (state.kind !== "results" || state.q !== text) return;
           const firstMatch = state.places.find((match) => !isSelected(match));
           if (firstMatch === undefined) return;
           onAdd(pickOf(firstMatch));

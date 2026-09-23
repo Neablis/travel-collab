@@ -225,9 +225,9 @@ describe("offline, and the conflict it can come back to", () => {
     expect(screen.getByTestId("rating-average").textContent).toBe("4.0");
   });
 
-  // What `SharedDayScreen` does today: its read carries no `publishedAt`. The
-  // flush must then ask for NO check. A `null` would mean "I saw it
-  // unpublished", and the server would refuse every held review with a 409.
+  // A page that never learned the publish time (a read without `publishedAt`)
+  // must flush with NO check. A `null` would mean "I saw it unpublished", and
+  // the server would refuse every held review with a 409.
   it("asks for no staleness check when the page never knew the publish time", async () => {
     setOnline(false);
     server.use(...makeReviewsHandlers(DAY, [], { publishedAt: "2026-09-20T00:00:00.000Z" }));

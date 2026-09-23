@@ -688,6 +688,27 @@ describe("Discover place search", () => {
     ).toBeTruthy();
   });
 
+  // CodeRabbit on #212: the list on screen during the debounce still belongs to
+  // the PREVIOUS query. Enter must not add from it — `Mex` listed the country
+  // first, so `Mex` + `ico City` + Enter before the next search added Mexico.
+  it("does not add a match from an earlier query when Enter beats the debounce", async () => {
+    searchPlacesMock.mockResolvedValue(
+      ok([
+        { kind: "country", countryCode: "MX", name: "Mexico", days: 6 },
+        { kind: "city", city: "Mexico City", days: 4 },
+      ]),
+    );
+    render(<DiscoverScreen />);
+    await screen.findByTestId("discover-results");
+    await typeCity("Mex");
+    await screen.findByTestId("city-search-results");
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(screen.getByLabelText("Search cities and countries"), "ico City{Enter}");
+    expect(screen.queryByTestId("selected-cities")).toBeNull();
+    expect(searchPlaybooksMock).not.toHaveBeenCalledWith(expect.objectContaining({ countries: ["MX"] }));
+  });
+
   // M12 link 7's collision, and the reason every row says its kind: the
   // library holds the country Mexico and the city Mexico City, and `Mexic` must
   // offer them as two things a click can tell apart. Picking each has to send
