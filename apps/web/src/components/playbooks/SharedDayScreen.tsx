@@ -136,7 +136,13 @@ export function dayDividerLine(group: PlaybookDay): string {
     : `${toClockRange(group.window.start, group.window.end)} · ${count}`;
 }
 
-type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor; pinning: boolean };
+type DayView = {
+  day: SavedDay;
+  isAuthor: boolean;
+  author: PublicAuthor;
+  pinning: boolean;
+  publishedAt?: string | null;
+};
 
 /**
  * How often, and how many times, the page reads again while the server is
@@ -169,6 +175,7 @@ async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
       isAuthor: dayResult.value.isAuthor,
       author: authorResult.value.author,
       pinning: dayResult.value.pinning,
+      publishedAt: dayResult.value.publishedAt,
     },
   };
 }
@@ -204,12 +211,10 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
   const unit = useDistanceUnit();
-  // `undefined`: this page does not know the day's `publishedAt`. The shared-day
-  // read returns the `SavedDay` contract, which has no such field, so a review
-  // held offline flushes WITHOUT the staleness check, and §15's conflict banner
-  // cannot fire from this page until that read carries it. Passing the value in
-  // here is the whole fix on this side; see `useDayReviews`.
-  const reviews = useDayReviews(savedDayId, undefined);
+  // The day's `publishedAt` as this page read it: a review held offline sends
+  // it back as `seenPublishedAt`, so a republish in between becomes §15's
+  // conflict banner. `undefined` until the day has been read ("do not check").
+  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt);
 
   // Read again while the server is still pinning — silently, because the
   // stops gaining coordinates is not "the library moved" (the signature above

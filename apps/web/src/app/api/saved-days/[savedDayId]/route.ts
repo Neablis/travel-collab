@@ -1,7 +1,7 @@
 import { SavedDay } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { requireSavedDayRead } from "@/server/access/saved-day-access";
-import { deleteSavedDay } from "@/server/savedDays";
+import { deleteSavedDay, publishedAtOf } from "@/server/savedDays";
 import { schedulePinBackfill } from "@/server/savedDayPinBackfill";
 
 // Read one saved day: your own, or anybody's published one (M11b link 3).
@@ -17,6 +17,11 @@ import { schedulePinBackfill } from "@/server/savedDayPinBackfill";
 // response (M27 link 10, `server/savedDayPins.ts`), so the page shows the map
 // frame loading and reads again. On the envelope rather than the `SavedDay`
 // contract: it is a fact about this read, not about the day.
+//
+// `publishedAt` is on the envelope for the same reason (M12): a review held
+// offline sends it back as `seenPublishedAt`, and a republish in between turns
+// the flush into §15's conflict banner instead of stars on a day the reviewer
+// never read.
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ savedDayId: string }> },
@@ -25,7 +30,8 @@ export async function GET(
   const access = await requireSavedDayRead(savedDayId);
   if ("error" in access) return access.error;
   const pinning = schedulePinBackfill(access.day, access.readerId);
-  return Response.json({ savedDay: SavedDay.parse(access.day), isAuthor: access.isAuthor, pinning });
+  const publishedAt = await publishedAtOf(savedDayId);
+  return Response.json({ savedDay: SavedDay.parse(access.day), isAuthor: access.isAuthor, pinning, publishedAt });
 }
 
 // Owner-only, and scoped in the query rather than checked after the read: a

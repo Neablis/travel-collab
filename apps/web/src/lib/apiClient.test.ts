@@ -360,6 +360,48 @@ describe("putReview reads a 409 as the day having changed", () => {
   });
 });
 
+// A held review's `seenPublishedAt` comes from here, and the three answers mean
+// three different things to the server: a time (check against it), `null` ("I
+// saw it unpublished" — always a 409 on a public day) and absent ("do not
+// check"). Collapsing absent into `null` would turn every flush into a conflict.
+describe("fetchSavedDay carries publishedAt without inventing one", () => {
+  const day = {
+    savedDayId: UUID,
+    ownerId: "dev-alice",
+    name: "Kyoto temples",
+    stops: [],
+    dayCount: 1,
+    cities: [],
+    visibility: "public",
+    authorKind: "human",
+    adds: 0,
+    sourceTripId: TRIP_ID,
+    sourceTripName: "Japan",
+    createdAt: "2026-08-04T00:00:00.000Z",
+  };
+  const answer = (extra: Record<string, unknown>) =>
+    server.use(
+      http.get("*/api/saved-days/:id", () =>
+        HttpResponse.json({ savedDay: day, isAuthor: false, pinning: false, ...extra }),
+      ),
+    );
+
+  it("reads a time, a null and an absence as three different answers", async () => {
+    answer({ publishedAt: "2026-09-01T09:00:00.000Z" });
+    const at = await fetchSavedDay(UUID);
+    expect(at.ok && at.value.publishedAt).toBe("2026-09-01T09:00:00.000Z");
+
+    answer({ publishedAt: null });
+    const unpublished = await fetchSavedDay(UUID);
+    expect(unpublished.ok && unpublished.value.publishedAt).toBeNull();
+
+    answer({});
+    const unknown = await fetchSavedDay(UUID);
+    expect(unknown.ok).toBe(true);
+    expect(unknown.ok && unknown.value.publishedAt).toBeUndefined();
+  });
+});
+
 // *Have a look first* (M27 D12): the look screen registers its token for one
 // trip, and that trip's READS carry it. The server refuses the header on any
 // write and on any other trip regardless (`requireTripAccess`), so this is

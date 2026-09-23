@@ -671,17 +671,24 @@ export async function insertSavedDay(
  */
 export async function fetchSavedDay(
   savedDayId: string,
-): Promise<ApiResult<{ savedDay: SavedDay; isAuthor: boolean; pinning: boolean }>> {
+): Promise<
+  ApiResult<{ savedDay: SavedDay; isAuthor: boolean; pinning: boolean; publishedAt?: string | null }>
+> {
   try {
     const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`));
     return await readJson(res, (data) => {
-      const body = data as { savedDay: unknown; isAuthor: unknown; pinning: unknown };
+      const body = data as { savedDay: unknown; isAuthor: unknown; pinning: unknown; publishedAt?: unknown };
       return {
         savedDay: SavedDay.parse(body.savedDay),
         isAuthor: body.isAuthor === true,
         // True while the server is putting this day's stops on the map after
         // the response (M27 link 10) — the page reads again until it is not.
         pinning: body.pinning === true,
+        // When the day was last published — a held review's `seenPublishedAt`
+        // (M12). Absent when the server did not say, which is "do not check",
+        // never `null` ("I saw it unpublished"), so it stays `undefined`.
+        publishedAt:
+          typeof body.publishedAt === "string" ? body.publishedAt : body.publishedAt === null ? null : undefined,
       };
     });
   } catch (err) {

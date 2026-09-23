@@ -394,6 +394,24 @@ export async function readableSavedDay(
 }
 
 /**
+ * When a day was last published, as an ISO string, or null when it is not.
+ *
+ * Read beside the shared day rather than carried on the `SavedDay` contract:
+ * it is what a review held offline remembers as `seenPublishedAt`, so §15's
+ * conflict banner can say the author changed the day after the review was
+ * written (M12 D4). Callers have already passed the read seam; this answers
+ * nothing about access.
+ */
+export async function publishedAtOf(savedDayId: string): Promise<string | null> {
+  if (!isUuid(savedDayId)) return null;
+  const rows = await db
+    .select({ publishedAt: savedDays.publishedAt })
+    .from(savedDays)
+    .where(eq(savedDays.id, savedDayId));
+  return rows[0]?.publishedAt?.toISOString() ?? null;
+}
+
+/**
  * Write coordinates the server looked up into a day's stops (M27 link 10;
  * `savedDayPins.ts` decides what they are and why a reader may trigger it).
  *

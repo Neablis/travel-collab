@@ -205,9 +205,9 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   // ── …takes it into a dated trip of his own ────────────────────────────────
   await card.getByRole("link", { name: dayName }).click();
   await expect(bob.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
-  // No rating, no histogram, no reviews — M12's, and their absence is the
-  // milestone's decision rather than an oversight.
-  await expect(bob.getByText(/rating/i)).toHaveCount(0);
+  // M12 put the rating rail here. A day nobody has reviewed says so rather than
+  // showing a number; posting and reading reviews is `m12-reviews.spec.ts`'s.
+  await expect(bob.getByText(/Unrated so far/)).toBeVisible();
 
   await bob.getByRole("button", { name: "Add to a trip" }).click();
   await bob.getByLabel("Which trip").selectOption(target.tripId);

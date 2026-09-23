@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedDay, SavedDayReviewsResponse, SavedStop } from "@tc/contracts";
@@ -530,6 +530,38 @@ describe("a shared day", () => {
       reason: "spam",
       note: null,
     });
+  });
+
+  // §15's conflict state hangs on this one value crossing from the day's read
+  // into the held review. It was once passed as `undefined` because the read
+  // did not carry it, and every hook-level test still passed — the banner was
+  // unreachable from the real page. So the screen's own wiring is asserted.
+  it("holds an offline review against the publishedAt the day was read at", async () => {
+    const PUBLISHED = "2026-09-01T09:00:00.000Z";
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: false, publishedAt: PUBLISHED }));
+    putReviewMock.mockResolvedValue(
+      ok({ kind: "day-changed", changed: { error: "day-changed", changedAt: "2026-09-21T09:00:00.000Z", authorDisplayName: "Mei Tanaka" } }),
+    );
+    const onLine = vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    try {
+      window.localStorage.clear();
+      renderDay();
+      await userEvent.click(await screen.findByRole("button", { name: "4 stars" }));
+      await userEvent.click(screen.getByRole("button", { name: "Hold until online" }));
+      expect(putReviewMock).not.toHaveBeenCalled();
+
+      onLine.mockReturnValue(true);
+      await act(async () => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await waitFor(() =>
+        expect(putReviewMock).toHaveBeenCalledWith(DAY_ID, { stars: 4, note: null, seenPublishedAt: PUBLISHED }),
+      );
+      expect(await screen.findByTestId("review-conflict")).toBeTruthy();
+    } finally {
+      onLine.mockRestore();
+      window.localStorage.clear();
+    }
   });
 
   it("credits the author with the profile's own numbers, and links to it", async () => {
