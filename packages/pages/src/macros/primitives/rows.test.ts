@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
-import type { Seg, WidgetContext, RenderedRow } from "../../registry-types";
+import type { WidgetContext, RenderedRow } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
 import { formatMoney, formatDate } from "../../format";
 

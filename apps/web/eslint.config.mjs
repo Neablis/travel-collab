@@ -142,7 +142,13 @@ export default [
     // can only shrink and can never go stale silently.
     linterOptions: { reportUnusedDisableDirectives: "error" },
     rules: {
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      // **An error, not a warning, since 2026-09-23.** As a warning it never
+      // failed anything (`lint` had no `--max-warnings`), so the only thing
+      // keeping unused imports out was people noticing. It held — zero across
+      // 823 files when this flipped — which is exactly why making it binding
+      // cost nothing. `lint` also runs with `--max-warnings 0` now, so no
+      // other rule can sit at "warn" and be ignored either.
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
   {
