@@ -9,7 +9,7 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
-import { displayNameFor } from "@/lib/displayName";
+import { displayNameFor, firstNameOf } from "@/lib/displayName";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { Sheet, type SheetSize } from "@/components/ui/sheet";
@@ -41,7 +41,6 @@ import {
   cityOf,
   commitAnswer,
   commitMulti,
-  firstNameOf,
   offerDays,
   openingFor,
   pickPopularDays,

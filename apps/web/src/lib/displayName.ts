@@ -54,6 +54,29 @@ export function displayNameFor(who: NameableUser): string {
 }
 
 /**
+ * **The first word of a name** — "Dana Reyes" → "Dana" — the one copy of it.
+ *
+ * Two callers want two things, and `handle` is the difference, stated rather
+ * than hidden in a second implementation:
+ *
+ *   * **Without it** (the invite landing, its look-first view, the crew line):
+ *     the first word of whatever `displayNameFor` gave, a handle included, and
+ *     "" for a blank. Those names never carry an address — the landing resolves
+ *     them with `email: null`.
+ *   * **With it** (Cass's first-run greeting): `null` for anything that is not
+ *     a name somebody has — a blank, an address, or `handle`, which is
+ *     `displayNameFor`'s answer for the bare id. "Hi Traveler," is the app
+ *     admitting it does not know who you are while pretending to.
+ */
+export function firstNameOf(name: string): string;
+export function firstNameOf(name: string, handle: string): string | null;
+export function firstNameOf(name: string, handle?: string): string | null {
+  const trimmed = name.trim();
+  if (handle !== undefined && (trimmed === "" || trimmed === handle || trimmed.includes("@"))) return null;
+  return trimmed.split(/\s+/)[0] ?? "";
+}
+
+/**
  * The last resort: something to call a person when all we hold is their id.
  *
  * **Never the raw identifier.** Mitchell, 2026-09-01, on the shared-day

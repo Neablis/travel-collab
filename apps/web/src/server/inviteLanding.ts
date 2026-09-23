@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { InviteLanding, InviteLandingDay, InviteLandingLeg, TripDetail, TripMember } from "@tc/contracts";
 import { cityFor } from "@/lib/dayChips";
-import { displayNameFor } from "@/lib/displayName";
+import { displayNameFor, firstNameOf } from "@/lib/displayName";
 import { db } from "./db/client";
 import { users } from "./db/schema";
 import { inviteByToken } from "./access/invites";
@@ -92,7 +92,8 @@ export async function readInviteLanding(
       },
       days: plan.days,
       legs: plan.legs,
-      crew: members.map((m) => firstName(names(m.userId))),
+      // First names (SPEC §35.6).
+      crew: members.map((m) => firstNameOf(names(m.userId))),
     },
   };
 }
@@ -124,11 +125,6 @@ async function namesFor(userIds: readonly string[]): Promise<(userId: string) =>
     const row = byId.get(userId);
     return displayNameFor({ userId, displayName: row?.displayName, name: row?.name, email: null });
   };
-}
-
-/** "Dana Reyes" → "Dana". The crew line is first names (SPEC §35.6). */
-function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] ?? name;
 }
 
 export type PlanSummary = {

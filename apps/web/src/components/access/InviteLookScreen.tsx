@@ -15,6 +15,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
 import { fetchInviteLanding } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
+import { firstNameOf } from "@/lib/displayName";
 import { beginInviteLook } from "@/lib/inviteLook";
 import { invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -139,7 +140,7 @@ function LookBanner({
   token: string;
   googleAvailable: boolean;
 }) {
-  const inviter = landing.inviterName.trim().split(/\s+/)[0] ?? landing.inviterName;
+  const inviter = firstNameOf(landing.inviterName);
   const { join, joining, error } = useInviteJoin({
     token,
     signedIn: landing.signedIn,

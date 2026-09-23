@@ -11,6 +11,7 @@ import { Text } from "@/components/ui/text";
 import { fetchInviteLanding } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
+import { firstNameOf } from "@/lib/displayName";
 import { addDaysIso } from "@/lib/dates";
 import { formatRelativeInstant, formatTripDateWithYear } from "@/lib/formatDate";
 import { takeInviteJoin } from "@/lib/pendingInviteJoin";
@@ -166,7 +167,7 @@ function ValidInvite({
   const { join, joining, error } = useInviteJoin({
     token,
     signedIn: landing.signedIn,
-    inviterName: firstName(landing.inviterName),
+    inviterName: firstNameOf(landing.inviterName),
     googleAvailable,
     onRefused: () => void reload(),
   });
@@ -183,7 +184,7 @@ function ValidInvite({
   }, [landing.signedIn, token, join]);
 
   const joinLabel = landing.signedIn ? "Join the trip" : googleAvailable ? "Join with Google" : "Sign in to join";
-  const inviter = firstName(landing.inviterName);
+  const inviter = firstNameOf(landing.inviterName);
 
   return (
     <div className="grid w-full max-w-content grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-16">
@@ -328,10 +329,6 @@ function highlightLine(leg: ValidLanding["legs"][number]): string {
   if (leg.stopCount === 0) return "Nothing planned yet — open for ideas";
   if (leg.highlights.length > 0) return leg.highlights.join(" · ");
   return leg.stopCount === 1 ? "1 stop" : `${leg.stopCount} stops`;
-}
-
-function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] ?? name;
 }
 
 /** "Dana Reyes" → "DR", "Alice" → "A". From a NAME — the landing carries no ids. */

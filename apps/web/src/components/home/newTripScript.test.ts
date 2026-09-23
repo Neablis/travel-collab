@@ -10,7 +10,6 @@ import {
   daysFor,
   commitAnswer,
   commitMulti,
-  firstNameOf,
   isComplete,
   offerDays,
   openingFor,
@@ -358,12 +357,5 @@ describe("Cass's lines", () => {
       "Hi Sam, I’m Cass. I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.",
     );
     expect(openingFor(true, null)).toMatch(/^Hi, I’m Cass\. I plan trips here/);
-  });
-
-  it("takes a first name from a real name only", () => {
-    expect(firstNameOf("Sam Rivera", "Traveler 4f2a91")).toBe("Sam");
-    expect(firstNameOf("Traveler 4f2a91", "Traveler 4f2a91")).toBeNull();
-    expect(firstNameOf("sam@example.com", "Traveler 4f2a91")).toBeNull();
-    expect(firstNameOf("   ", "Traveler 4f2a91")).toBeNull();
   });
 });

@@ -129,7 +129,7 @@ export const FEEL_DEFAULT = "A bit of everything";
  *
  * First run gets its own line (§32.1), because "the trip" has no antecedent on
  * somebody's first screen. It greets them by name only when there is a name
- * worth using — see `firstNameOf`.
+ * worth using — see `firstNameOf` (lib/displayName.ts).
  */
 export function openingFor(firstRun: boolean, firstName: string | null = null): string {
   if (!firstRun) {
@@ -137,21 +137,6 @@ export function openingFor(firstRun: boolean, firstName: string | null = null): 
   }
   const hi = firstName === null ? "Hi, I’m Cass." : `Hi ${firstName}, I’m Cass.`;
   return `${hi} I plan trips here — ask me a few things and I’ll draft your first one. Nothing is made until your last answer.`;
-}
-
-/**
- * **The first word of a name somebody actually has, or `null`.**
- *
- * `shown` is `displayNameFor`'s answer for the reader and `fallback` is its
- * answer for the bare id — "Traveler 4f2a91". When the two agree there is no
- * chosen or provider name behind it, and "Hi Traveler," is the app admitting it
- * does not know who you are while pretending to. An address is refused for the
- * same reason: "Hi sam@example.com," is not a greeting.
- */
-export function firstNameOf(shown: string, fallback: string): string | null {
-  const trimmed = shown.trim();
-  if (trimmed === "" || trimmed === fallback || trimmed.includes("@")) return null;
-  return trimmed.split(/\s+/)[0] ?? null;
 }
 
 /**
