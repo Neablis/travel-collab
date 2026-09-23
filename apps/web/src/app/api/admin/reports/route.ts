@@ -6,6 +6,7 @@ import { listReports } from "@/server/reports";
 // The operator's report queue (M12 link 6). `?status=` defaults to `open`; a
 // non-admin gets `requireAdminApi`'s 404, the route-not-merely-hidden rule M20
 // set for the whole admin surface.
+/** Returns the operator's report queue for one status (default `open`); 404 for a non-admin. */
 export async function GET(request: Request) {
   const guard = await requireAdminApi();
   if ("error" in guard) return guard.error;

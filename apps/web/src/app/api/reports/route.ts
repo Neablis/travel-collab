@@ -11,6 +11,7 @@ import { createReport } from "@/server/reports";
 //     nonexistent all look alike, `requireSavedDayRead`'s rule.
 //   * 403 `own-content` — only once the target is readable, so it confirms
 //     nothing the reporter could not already open.
+/** Files a report against a readable day or review; 201 when new, 200 with the existing report on a repeat. */
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {

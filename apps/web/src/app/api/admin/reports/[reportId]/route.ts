@@ -11,6 +11,7 @@ import { actOnReport } from "@/server/reports";
 //     400 `action-mismatch` — a review action on a day report.
 //   * 404 — not an operator (`requireAdminApi`), no such report, or what it
 //     names no longer exists.
+/** Applies an operator's `AdminReportAction` to one report and returns the settled report. */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ reportId: string }> },
