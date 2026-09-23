@@ -91,7 +91,7 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
           <Elsewhere
             eyebrow="Already joined"
             title="You're already on this trip"
-            body="This link was used on this account before. Everything you added is where you left it."
+            body="You're already a member, so there's nothing to join. Everything on it is where you left it."
             action={<PrimaryLink href={`/trips/${landing.tripId}`}>Open {shortName(landing.tripName)}</PrimaryLink>}
           />
         )}

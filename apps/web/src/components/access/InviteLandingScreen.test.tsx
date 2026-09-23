@@ -151,12 +151,18 @@ describe("InviteLandingScreen — every other state", () => {
     expect(screen.getByRole("link", { name: "What is Caesura?" }).getAttribute("href")).toBe("/welcome");
   });
 
+  // The server answers `member` for ANY current member — the owner opening
+  // their own link included — so the copy may not claim this link was used.
   it("sends a member back into their trip, by its short name", async () => {
     fetchInviteLandingMock.mockResolvedValue(
       answer({ state: "member", signedIn: true, tripId, tripName: "Japan: food and temples" }),
     );
     render(<InviteLandingScreen token="tok" googleAvailable />);
     expect((await screen.findByRole("link", { name: "Open Japan" })).getAttribute("href")).toBe(`/trips/${tripId}`);
+    expect(screen.getByRole("heading", { level: 1, name: "You're already on this trip" })).toBeTruthy();
+    expect(
+      screen.getByText("You're already a member, so there's nothing to join. Everything on it is where you left it."),
+    ).toBeTruthy();
   });
 
   it("shows the server's reason for an unavailable link", async () => {
