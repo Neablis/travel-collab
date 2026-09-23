@@ -23,7 +23,7 @@ spec text does not say:
 | Finding | Consequence |
 |---|---|
 | No theme picker exists and no look is stored anywhere. `layout.tsx` already hard-sets `data-look="ledger"` | §35.1 is CSS and comments only; no contract or migration |
-| Trips list newest-first, so a newly created trip **becomes the hero** — and §35.2 filters the hero out of *Other trips* | `createEmptyTripViaWizard` (used by ~12 e2e specs) must look for the hero, not a card link |
+| Trips list newest-first, so a newly created trip **becomes the hero** — and §35.2 filters the hero out of *Other trips* | `createEmptyTripViaWizard` (used by ~12 e2e specs) waits on the trip's name link, which the hero now carries too — because parallel e2e workers share one account, whether a new trip is the hero or a card is a race |
 | Trip lifecycle (Duplicate / Delete / Leave) lives only on `TripCard`'s menu | Filtering the hero out of the grid would orphan it on Home for a one-trip account |
 | `CreateTrip.name` is `min(1)` — the domain refuses a nameless trip | The design's *create an empty one* link has no name to send |
 | There is no `shiftTrip`; the command is `SetTripStartDate` (moves the start, keeps the day count) | The dates-pill popover dispatches that, exactly as Trip settings does |
@@ -163,6 +163,13 @@ since.**
 - The keep dialog's toast reports the count (*Kept in your Playbooks*,
   *N days kept in your Playbooks as one*). A stop with no time shows an empty
   time cell in the preview.
+- The hero's trip name is a link to the trip, like a card's. With the hero out of
+  the grid, it is the only place the name appears on Home.
+- First run keeps its own Playbook and import links and adds only *Or create an
+  empty one*, so no link appears twice. Deleting the Create empty button would
+  otherwise have left first run with no way to an empty trip.
+- `ImportTripButton` is now only a quiet link; no button call site was left.
+  Exactly one picker is mounted per page, and the sheet's link drives it.
 - Text sizes snap to existing tokens where the design uses half-pixel sizes
   (15px → `text-base`, 12.5px → `text-xs`), because the lint wall bans
   arbitrary sizes.
