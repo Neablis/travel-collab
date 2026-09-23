@@ -1,4 +1,4 @@
-### KI-2026-09-23-a — Billing imports Entitlements six times, and ADR-047 says it imports it zero times
+### KI-2026-09-23-d — Billing imports Entitlements six times, and ADR-047 says it imports it zero times
 
 - **Severity:** cleanup with a design question in it. Nothing misbehaves; the
   defect is that a written decision and the code disagree, and the ADR is the

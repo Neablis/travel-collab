@@ -16,7 +16,7 @@
 // KNOWN VIOLATIONS are NOT a blanket acceptance of the first run: everything
 // cheap and uncontroversial was fixed first (55 folder-cycle reports → 9), and
 // what is left is owned by an open KI:
-//   - KI-2026-09-23-a  billing ↔ entitlements, against ADR-047 decision 1
+//   - KI-2026-09-23-d  billing ↔ entitlements, against ADR-047 decision 1
 //   - KI-2026-09-23-b  the server/ root hides module cycles from this wall
 //   - KI-2026-09-23-c  the trip-workspace UI folders (board/trip/lenses)
 // Folder cycles are named in KNOWN_CYCLE_CLUSTERS below. The six
@@ -37,7 +37,7 @@ const PLANNING_AND_ACCESS = [
 // A folder cycle wholly inside one of these warns; any other fails. Delete a
 // line when its KI resolves; never add one without filing a KI first.
 const KNOWN_CYCLE_CLUSTERS = [
-  // KI-2026-09-23-a — ADR-047 says Entitlements → Billing, one way.
+  // KI-2026-09-23-d — ADR-047 says Entitlements → Billing, one way.
   "^apps/web/src/server/(billing|entitlements)$",
   // KI-2026-09-23-c — the trip workspace is three folders that are one feature.
   "^apps/web/src/components/(board|trip|trip/editor|lenses)$",
@@ -118,7 +118,7 @@ module.exports = {
     {
       name: "billing-imports-no-entitlements",
       comment:
-        "ADR-047 decision 1: 'The dependency runs Entitlements → Billing, one way … Billing imports no plan file and no resolver, so nothing closes a cycle.' The first run found six imports the other way — KI-2026-09-23-a.",
+        "ADR-047 decision 1: 'The dependency runs Entitlements → Billing, one way … Billing imports no plan file and no resolver, so nothing closes a cycle.' The first run found six imports the other way — KI-2026-09-23-d.",
       severity: "error",
       from: { path: "^apps/web/src/server/billing/" },
       to: { path: "^apps/web/src/server/entitlements/" },

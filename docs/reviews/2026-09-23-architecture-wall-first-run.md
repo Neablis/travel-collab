@@ -63,8 +63,8 @@ the run from green to **1,164 errors**. A wall over an empty graph is the
 | 4 | `pages`, `assistant`, `home`, `lenses` → `components/trip/DayChips.tsx` for `chipModel`/`cityFor` | real — pure functions imported out of a React component file | **fixed**: extracted to `lib/dayChips.ts`; the component keeps the rendering |
 | 5 | `useIsPhone` in `components/lenses`, used by `board`, `pages`, the home page | real | **fixed**: → `lib/` (which already holds hooks, e.g. `today.ts`) |
 | 6 | `activityTags` in `components/board`, used by `lenses`, `trip` | real — constants over a contract | **fixed**: → `lib/` |
-| 7 | `server/billing` → `server/entitlements/planVersions` ×5, `→ usage` ×1 | **real, and contradicts ADR-047 decision 1** | **KI-2026-09-23-a** — three candidate fixes, a design call |
-| 8 | `entitlements/admin.ts` composes Billing's revenue into the tier panel | real, deliberate per its header | in **KI-2026-09-23-a** as option 3 |
+| 7 | `server/billing` → `server/entitlements/planVersions` ×5, `→ usage` ×1 | **real, and contradicts ADR-047 decision 1** | **KI-2026-09-23-d** — three candidate fixes, a design call |
+| 8 | `entitlements/admin.ts` composes Billing's revenue into the tier panel | real, deliberate per its header | in **KI-2026-09-23-d** as option 3 |
 | 9 | Access ↔ Planning (`access/*` → `getTripDetail`; `projections.ts`/`commands.ts` → `access/members`) and Identity ↔ Entitlements via `auth.ts` | real; Planning → Access half is deliberate and commented | **KI-2026-09-23-b** — and **the wall cannot see either** (below) |
 | 10 | `board` ↔ `trip` ↔ `lenses` | real — three folders, one feature | **KI-2026-09-23-c** — a folder-layout decision, ~40 import sites |
 | 11 | three file-level cycles (`apiClient`↔`queryCache`, `defineTool`↔`grants`↔`registry`, `pages/filters`↔`registry-types`) | **false positive** for runtime — every one passes through a type-only import | rule is `no-runtime-cycle` (type-only edges excluded), not a baseline entry |

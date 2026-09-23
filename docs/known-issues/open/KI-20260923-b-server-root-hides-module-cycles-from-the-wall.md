@@ -43,7 +43,7 @@
   `server/identity/`), at which point `no-folder-cycle` sees both cycles and
   this entry's two findings become lint failures to resolve or name.
 
-- **Cross-reference:** `KI-2026-09-23-a` (the `entitlements/admin.ts`
+- **Cross-reference:** `KI-2026-09-23-d` (the `entitlements/admin.ts`
   composition appears in both), AGENTS.md module map and invariant 6c,
   ADR-045, `docs/reviews/2026-09-23-architecture-wall-first-run.md`.
 - **First noted:** 2026-09-23, the first run of `pnpm arch`.

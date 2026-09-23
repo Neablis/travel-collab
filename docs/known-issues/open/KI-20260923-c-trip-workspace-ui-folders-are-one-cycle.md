@@ -43,6 +43,6 @@
   `board → trip → widgets`. (2) is the one that keeps the wall meaningful, and
   it touches ~40 import sites, which is a PR of its own, not a litmus pass.
 
-- **Cross-reference:** `KI-2026-09-23-a`, `KI-2026-09-23-b`,
+- **Cross-reference:** `KI-2026-09-23-d`, `KI-2026-09-23-b`,
   `docs/reviews/2026-09-23-architecture-wall-first-run.md`.
 - **First noted:** 2026-09-23, the first run of `pnpm arch`.
