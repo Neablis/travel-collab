@@ -441,8 +441,18 @@ this variable at all.
 * playbook days are deleted and rewritten by derived id, so an edited day
   updates in place and a person's saved days are never touched;
 * trips are **create-if-absent** — a trip is an event stream and re-creating one
-  would discard real history. To publish changed trip content, change that
-  trip's `key`;
+  would discard real history. The one exception is **stop locations**: for a
+  trip that already exists, each stop's `location` is compared with its
+  activity's, and any that differ get an `UpdateActivity` through the command
+  pipeline — new events on the existing trip, so a corrected coordinate ships
+  on an ordinary run and shows up in the trip's History (KI-2026-09-23-e). A
+  stop is paired with its activity by title within its own day (or the
+  backlog), because activity ids are minted at import and the file carries
+  none; a stop that pairs with nothing — renamed, added, removed — is listed
+  in the run output and left alone. `--dry-run` prints each move, old → new,
+  without writing. **Every other change to a trip** — titles, notes, times,
+  costs, stops added or removed — still does not reach an imported trip; to
+  publish that, change the trip's `key`;
 * `prune` removes rows a bundle no longer declares, which plain re-import cannot
   see. It only considers rows whose `source_bundle` is set, so a day somebody
   saved is not reachable by it. Off by default: deleting library content should
