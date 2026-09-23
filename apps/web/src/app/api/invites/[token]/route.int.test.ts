@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AddActivity, InviteLanding } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { tripDetails, users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { upsertUser } from "@/server/users";
 import { acceptInvite, createInvite, revokeInvite } from "@/server/access/invites";
@@ -217,6 +217,27 @@ describe("GET /api/invites/:token — what a refused link says", () => {
     const gone = await landing(invite.token);
     expect(gone.status).toBe(410);
     expect(gone.body.landing).toEqual({
+      state: "unavailable",
+      signedIn: false,
+      message: "This trip is no longer available.",
+    });
+  });
+
+  // `getTripDetail` THROWS on a stored doc it cannot parse. Uncaught, this
+  // public read answered 500 — the one status the landing offers Try again
+  // for, and a retry that could never succeed.
+  it("answers a trip it cannot read as unavailable, not a 500", async () => {
+    const tripId = await seedTrip("Unreadable");
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    const [row] = await db.select().from(tripDetails).where(eq(tripDetails.tripId, tripId));
+    await db
+      .update(tripDetails)
+      .set({ doc: { ...(row!.doc as object), days: "not a list" } as never })
+      .where(eq(tripDetails.tripId, tripId));
+
+    const unreadable = await landing(invite.token);
+    expect(unreadable.status).toBe(410);
+    expect(unreadable.body.landing).toEqual({
       state: "unavailable",
       signedIn: false,
       message: "This trip is no longer available.",

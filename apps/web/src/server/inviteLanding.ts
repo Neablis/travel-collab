@@ -1,5 +1,6 @@
 import { inArray } from "drizzle-orm";
-import type { InviteLanding, InviteLandingDay, InviteLandingLeg, TripDetail } from "@tc/contracts";
+import { z } from "zod";
+import type { InviteLanding, InviteLandingDay, InviteLandingLeg, TripDetail, TripMember } from "@tc/contracts";
 import { cityFor } from "@/lib/dayChips";
 import { displayNameFor } from "@/lib/displayName";
 import { db } from "./db/client";
@@ -34,15 +35,27 @@ export async function readInviteLanding(
   if (invite === null) {
     return unavailable(404, signedIn, "This invite link is not valid.");
   }
-  const detail = await getTripDetail(invite.tripId);
-  if (detail === null || detail.status === "deleted") {
-    return unavailable(410, signedIn, "This trip is no longer available.");
-  }
+  // `getTripDetail` THROWS on a stored doc it cannot parse (and logs the
+  // issues first), so the catch is `readTrip`'s (access/trip-access.ts): only
+  // the parse failure is converted. Uncaught, it was a 500 — the one answer
+  // the landing offers Try again for, on a read that could never succeed.
+  //
   // `mergeMembers` over the raw grants rather than `effectiveMembers`: the
   // question is whether the reader is ON the trip, which a lapsed owner's cap
   // (a role change, never a removal) cannot alter — so it is not worth a trip
   // to Entitlements on a public read.
-  const members = mergeMembers(detail.members, await grantedMembers(db, invite.tripId));
+  let detail: TripDetail | null;
+  let grants: TripMember[];
+  try {
+    [detail, grants] = await Promise.all([getTripDetail(invite.tripId), grantedMembers(db, invite.tripId)]);
+  } catch (error) {
+    if (error instanceof z.ZodError) return unavailable(410, signedIn, "This trip is no longer available.");
+    throw error;
+  }
+  if (detail === null || detail.status === "deleted") {
+    return unavailable(410, signedIn, "This trip is no longer available.");
+  }
+  const members = mergeMembers(detail.members, grants);
   // Before the status checks, deliberately: a person who spent this link is on
   // the trip, and "you're already here" is the useful answer to following your
   // own link twice — not "this link has been used".
