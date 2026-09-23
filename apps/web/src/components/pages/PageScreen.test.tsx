@@ -1180,13 +1180,25 @@ describe("PageScreen — the breadcrumb", () => {
   // Each test its own trip: `cachedRead` keeps a trip's access answer, and an
   // owner's answer left behind would make the viewer case below pass for the
   // wrong reason.
-  async function open(tripId: string, from: "overview" | null, role?: "owner" | "viewer") {
+  async function open(
+    tripId: string,
+    from: "overview" | null,
+    role?: "owner" | "viewer" | "unanswered" | "failed",
+  ) {
     const trip = tripDetailFixture({ tripId, name: "Japan: Tokyo → Kyoto" });
     const page = pageFixture({ tripId, title: "Packing" });
+    const access =
+      role === "unanswered"
+        ? [http.get("/api/trips/:tripId/access", () => new Promise<never>(() => {}))]
+        : role === "failed"
+          ? [http.get("/api/trips/:tripId/access", () => HttpResponse.json({ error: "boom" }, { status: 500 }))]
+          : role === undefined
+            ? []
+            : [accessAs(role)];
     server.use(
       ...makePagesHandlers([page]),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
-      ...(role === undefined ? [] : [accessAs(role)]),
+      ...access,
     );
     render(<PageScreen tripId={tripId} pageId={page.id} from={from} />);
     return screen.findByRole("navigation", { name: "Breadcrumb" });
@@ -1217,7 +1229,25 @@ describe("PageScreen — the breadcrumb", () => {
     expect(within(crumbs).getByRole("link", { name: "← Japan overview" }).getAttribute("href")).toBe(
       `/trips/${tripId}`,
     );
-    expect(screen.getByRole("button", { name: "Done editing" }).getAttribute("aria-pressed")).toBe("true");
+    expect((await screen.findByRole("button", { name: "Done editing" })).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  // The editor must not open for a viewer even for the moment before the
+  // role read lands, and a read that fails is not an answer that says "edit".
+  it("stays in Reading until the role is known, and when it cannot be known", async () => {
+    await open("ad4e5f60-7182-4d9e-8f0a-2b3c4d5e6f70", "overview", "unanswered");
+    expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false");
+    cleanup();
+
+    const failed = vi.fn();
+    server.events.on("response:mocked", ({ request }) => {
+      if (request.url.endsWith("/access")) failed();
+    });
+    await open("be5f6071-8293-4e0f-9a1b-3c4d5e6f7081", "overview", "failed");
+    await waitFor(() => expect(failed).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false");
+    server.events.removeAllListeners();
   });
 
   // Overview withholds Edit from a viewer, but a URL can be typed or shared.

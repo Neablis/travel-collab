@@ -183,17 +183,19 @@ export function PageScreen({
   //
   // **Except when Overview's Edit sent you here** (M27 D6): the button said
   // Edit, so the page it opens is being edited. Only for someone who can — the
-  // link is withheld from viewers, but a URL can be typed, so the role is read
-  // and a viewer is put back in Reading. Read only on this path: the toggle
-  // below is offered to everyone and the server is the boundary, so no other
-  // arrival needs the answer. An unknown role (the read failed) is treated as
-  // an editor, as `TripProvider`'s `readOnly` treats it.
-  const [editing, setEditing] = useState(from === "overview");
+  // link is withheld from viewers, but a URL can be typed — so it opens in
+  // Reading like any page and switches to Editing once the role read says the
+  // reader is not a viewer. Not before: opening in Editing and switching off
+  // put a viewer in the editor until the read landed. A read that fails is no
+  // answer, so it stays in Reading; the toggle is still there. Read only on
+  // this path: the toggle is offered to everyone and the server is the
+  // boundary, so no other arrival needs the answer.
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
     if (from !== "overview") return;
     let cancelled = false;
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (!cancelled && access.ok && access.value.myRole === "viewer") setEditing(false);
+      if (!cancelled && access.ok && access.value.myRole !== "viewer") setEditing(true);
     });
     return () => {
       cancelled = true;
