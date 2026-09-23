@@ -5,7 +5,7 @@ import {
   chipLabel,
   clearedFilters,
   isFilterSet,
-  moreFilters,
+  filtersLabel,
   rowFilters,
   type FilterState,
 } from "./discoverFilters";
@@ -26,14 +26,9 @@ describe("SPEC §33.2's rule, as a data structure", () => {
     expect(ids).not.toContain("sort");
   });
 
-  // §33.2 names Rating as the second face chip. It is deliberately absent:
-  // there is no reviews table (M12 owns it), so the chip would be a control
-  // over data that does not exist — project rule 2. Asserted so its absence
-  // reads as a decision rather than as an oversight, and so M12 finds this test
-  // when it adds it.
-  it("has exactly one face filter today, and it is Budget", () => {
-    expect(FILTER_DEFS.filter((d) => d.face).map((d) => d.id)).toEqual(["budget"]);
-  });
+  // §35.5 puts Rating in the menu too. It is deliberately absent (M27 D8):
+  // there is no reviews table (M12 owns it), so it would be a control over data
+  // that does not exist — project rule 2. The id list above is what M12 changes.
 
   it("counts only what is being asked", () => {
     expect(activeFilterCount(NONE)).toBe(0);
@@ -48,15 +43,20 @@ describe("SPEC §33.2's rule, as a data structure", () => {
 });
 
 describe("what appears in the row", () => {
-  // A face filter is always there; everything else earns its place by carrying
-  // a value.
-  it("shows face filters always and the rest only once asked", () => {
-    expect(rowFilters(NONE).map((d) => d.id)).toEqual(["budget"]);
-    expect(rowFilters({ ...NONE, length: "four-six" }).map((d) => d.id)).toEqual(["budget", "length"]);
+  // §35.5: no face chips. Every filter lives in the one menu, and a chip
+  // appears only for a filter that is asking something, so it can be cleared
+  // in place.
+  it("shows a chip only for a filter that is set", () => {
+    expect(rowFilters(NONE).map((d) => d.id)).toEqual([]);
+    expect(rowFilters({ ...NONE, length: "four-six" }).map((d) => d.id)).toEqual(["length"]);
+    expect(rowFilters({ budget: "under200", length: "four-six" }).map((d) => d.id)).toEqual(["budget", "length"]);
   });
 
-  it("keeps the non-face set in More filters whether or not it is set", () => {
-    expect(moreFilters().map((d) => d.id)).toEqual(["length"]);
+  // §35.5: the trigger says how many questions are asked, and nothing when none.
+  it("labels the menu Filters, with the count once anything is asked", () => {
+    expect(filtersLabel(NONE)).toBe("Filters");
+    expect(filtersLabel({ ...NONE, length: "one" })).toBe("Filters · 1");
+    expect(filtersLabel({ budget: "under200", length: "one" })).toBe("Filters · 2");
   });
 
   // §33.2: a set chip shows its VALUE. A chip still reading "Budget" once a

@@ -106,8 +106,8 @@ test.describe("Playbooks on a phone", () => {
   test("puts every filter in one sheet and leaves scope out of it", async ({ page }) => {
     await page.goto("/playbooks");
     await expect(page.getByTestId("discover-phone-filters")).toBeVisible();
-    // The desktop chip row is not on this surface at all.
-    await expect(page.getByTestId("filter-chip-budget")).toBeHidden();
+    // The desktop row — its *Filters* menu — is not on this surface at all.
+    await expect(page.getByTestId("filter-more")).toBeHidden();
 
     await page.getByTestId("discover-phone-filters").click();
     const sheet = page.getByTestId("discover-filter-sheet");

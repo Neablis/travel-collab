@@ -25,8 +25,7 @@ import {
   activeFilterCount,
   chipLabel,
   clearedFilters,
-  isFilterSet,
-  moreFilters,
+  filtersLabel,
   rowFilters,
   type FilterDef,
   type FilterOption,
@@ -45,10 +44,10 @@ import { useLibraryRead } from "./useLibraryRead";
 //
 //   * **Two sorts, not four.** `highest-rated` and `most-reviewed` need the
 //     reviews table M12 owns.
-//   * **Three filters, not four.** No rating floor, for the milestone's own
-//     stated reason: a control over data that does not exist is a control that
-//     does nothing (project rule 2), and a number the product cannot stand
-//     behind.
+//   * **Two filters, not three.** No rating floor (§35.5 draws one in the
+//     Filters menu; M27 D8): a control over data that does not exist is a
+//     control that does nothing (project rule 2), and a number the product
+//     cannot stand behind.
 //   * **`Everyone / Yours / Saved` is a scope segment, not a second page.**
 //     Your own library is a filter here (§15's R5).
 
@@ -90,7 +89,21 @@ const NO_FILTERS: Filters = {
  * overwriting them would fight the person using them.
  */
 /**
- * A face chip's menu: one row per option, the current one ticked.
+ * §35.5's chip: 32px, a full pill, 13px/600, and a trailing caret. Idle is a
+ * hairline outline in slate; asking something is brand-tint with a brand edge
+ * and `brand-pressed` ink. The *Filters* trigger and every set-filter chip wear
+ * it, so the row reads as one kind of control.
+ */
+const filterChipClass = (on: boolean) =>
+  cn(
+    "h-8 gap-1.75 rounded-full px-3.25 text-sm font-semibold whitespace-nowrap",
+    on
+      ? "border-brand bg-brand-tint text-brand-pressed hover:bg-brand-tint"
+      : "border-hairline bg-surface text-slate",
+  );
+
+/**
+ * A set filter's chip menu: one row per option, the current one ticked.
  *
  * A list of buttons rather than a `NativeSelect` inside a popover — project
  * rule 3 bans a select inside a popover that itself opens from a menu, and the
@@ -211,13 +224,13 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
     <div className="flex flex-col gap-5">
       <div>
         <Heading level={1}>Discover</Heading>
-        <Text variant="secondary" className="mt-1.5 max-w-2xl">
-          {/* Was "One good day, saved on its own ... take a day into your
-              trip". True until M23, when a Playbook became a SEQUENCE — and a
-              header promising one day above a card reading "3 days" is the
-              first thing a reader would disbelieve. */}
-          A day or a whole run of them, saved together — the stops, the order, the timings, the
-          notes. Search a city, take a playbook into your trip, and the times reflow around it.
+        {/* One line (§35.5). The design's *"planned and rated"* loses its
+            second verb until M12 gives anybody a way to rate (M27 D8) — a
+            header claiming ratings above cards that carry none is the first
+            thing a reader would disbelieve. 15px has no token; `text-base`
+            (14px) is the nearer step that keeps the type scale. */}
+        <Text className="mt-1.5 max-w-160 text-slate text-pretty">
+          Days other people planned. Find one for your city and drop it into your trip.
         </Text>
       </div>
 
@@ -254,10 +267,10 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
       />
       </div>
 
-      {/* §33.2: **the filter row is chips, and one *More filters* menu.** The
-          three `NativeSelect`s that stood here read as three of a kind while
-          being three different kinds of decision. */}
-      {/* **The desktop row: chips and a *More filters* popover.** Hidden below
+      {/* §35.5: **the filter row is ONE *Filters* menu**, preceded by a chip
+          for each filter that is set, so it can be read and cleared in place.
+          No filter has a chip of its own until it is asking something. */}
+      {/* **The desktop row.** Hidden below
           `md`, where project rule 3 forbids this shape outright — a popover
           opening from a row of popovers, on a screen where each one covers the
           list it is filtering. The phone gets ONE sheet instead, below.
@@ -272,7 +285,6 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
         {rowFilters(questions).map((def) => {
           const options = offerable(def);
           if (options === null) return null;
-          const set = isFilterSet(def, questions);
           return (
             <Popover
               key={def.id}
@@ -288,16 +300,13 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
                   size="sm"
                   aria-label={def.label}
                   data-testid={`filter-chip-${def.id}`}
-                  // §33.2: outline + slate when empty, `--color-brand-tint` +
-                  // brand border **showing its value** when set. A chip that
-                  // still reads "Budget" once a budget is chosen makes the
-                  // reader open it to find out what they asked for.
-                  className={cn(
-                    "rounded-full",
-                    set && "border-brand bg-brand-tint text-brand",
-                  )}
+                  // §33.2: a set chip **shows its value**. One still reading
+                  // "Budget" once a budget is chosen makes the reader open it
+                  // to find out what they asked for.
+                  className={filterChipClass(true)}
                 >
                   {chipLabel(def, questions, options)}
+                  <span aria-hidden>▾</span>
                 </Button>
               }
             >
@@ -314,9 +323,8 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           );
         })}
 
-        {/* Everything that is not a face filter, grouped by label. With Length
-            as the only member today this is one group — the shape is what
-            matters, because M12's rating filter lands in it. */}
+        {/* Every filter the context can offer, grouped by label. M12's rating
+            filter lands here as a third group. */}
         <Popover
           open={openMenu === "more"}
           onOpenChange={(open) => setOpenMenu(open ? "more" : null)}
@@ -324,17 +332,24 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           contentClassName="w-60 p-3"
           collisionPadding={12}
           trigger={
-            <Button type="button" variant="ghost" size="sm" data-testid="filter-more">
-              More filters
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="filter-more"
+              className={filterChipClass(activeCount > 0)}
+            >
+              {filtersLabel(questions)}
+              <span aria-hidden>▾</span>
             </Button>
           }
         >
           <div className="flex flex-col gap-3.5">
-            {moreFilters().map((def) => {
+            {FILTER_DEFS.map((def) => {
               const options = offerable(def);
               if (options === null) return null;
               return (
-                <div key={def.id} className="flex flex-col gap-1.5">
+                <div key={def.id} className="flex flex-col gap-1.75">
                   <Text as="span" variant="muted" className="font-mono text-2xs tracking-wider uppercase">
                     {def.label}
                   </Text>
@@ -349,9 +364,20 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
                           size="sm"
                           aria-pressed={on}
                           data-testid={`filter-more-${def.id}-${option.value}`}
-                          className={cn("rounded-full", on && "border-brand bg-brand-tint text-brand")}
+                          // §35.5's option pill: hairline edge, ink text, and a
+                          // brand tick when on. 12.5px in the artboard; `text-xs`
+                          // is the nearer token.
+                          className={cn(
+                            "h-auto gap-1.25 rounded-full border-hairline px-2.75 py-1.25 text-xs text-ink",
+                            on && "bg-brand-tint font-semibold hover:bg-brand-tint",
+                          )}
                           onClick={() => setQuestion(def, option.value)}
                         >
+                          {on && (
+                            <span aria-hidden className="text-brand">
+                              ✓
+                            </span>
+                          )}
                           {option.label}
                         </Button>
                       );
@@ -410,7 +436,10 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
 
           The count on the button is `activeFilterCount`, which excludes scope
           and sort: the phone badge used to count "sorted by newest" as a
-          filter, which is the defect §33.2 names. */}
+          filter, which is the defect §33.2 names.
+
+          It reads `Filters · N`, the same words as the desktop's trigger
+          (§35.5), so the two surfaces of one state do not spell it two ways. */}
       <div className="md:hidden">
         <Button
           type="button"
@@ -419,7 +448,7 @@ export function DiscoverScreen({ initialCities = [] }: { initialCities?: readonl
           data-testid="discover-phone-filters"
           onClick={() => setPhoneFiltersOpen(true)}
         >
-          Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+          {filtersLabel(questions)}
         </Button>
       </div>
 
