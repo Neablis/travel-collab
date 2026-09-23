@@ -85,9 +85,11 @@ async function inviteLinkFor(page: Page, role: "Can edit" | "Can view"): Promise
  * lands on the refusal screen. Rather than exempt them, they come in the way a
  * real invited collaborator does:
  *
- * `followInvite` opens `/invite/<token>` while signed out. `proxy.ts` banks
- * the token in the `pending_admission` cookie on the redirect to `/signin`,
- * and `recordSignIn` reads it back and admits them by link 2 — **with no code
+ * `followInvite` opens `/invite/<token>` while signed out. Since M27 link 6
+ * that is a public landing rather than a redirect, and `proxy.ts` banks the
+ * token in the `pending_admission` cookie as it serves it; the landing's
+ * *Sign in* goes to `/signin` with the invite as the way back, and
+ * `recordSignIn` reads the cookie and admits them by link 2 — **with no code
  * typed anywhere**. That is the milestone's "M11's invite→accept→edit flow
  * still works end to end for a person who has never signed in" box, walked by
  * CI instead of by hand.
@@ -105,10 +107,11 @@ async function signedInAs(
   const page = await context.newPage();
 
   if ("followInvite" in admission) {
-    // The proxy redirects to /signin?callbackUrl=/invite/<token> and banks the
-    // token on the way past, so this screen needs no code field at all.
+    // The proxy banks the token as it serves the landing, so the sign-in
+    // screen this reaches needs no code field at all.
     await page.goto(admission.followInvite);
-    await expect(page).toHaveURL(/\/signin\?/);
+    await page.getByRole("link", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Finvite%2F/);
   } else {
     // No pending invite to ride in on, so the super code it is — presented on
     // /signup, the only screen carrying the field.
@@ -165,11 +168,13 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   try {
     await bob.goto(link);
     await expect(bob.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
-    await expect(bob.getByText("You'll be able to change the plan.")).toBeVisible();
-    await bob.getByRole("button", { name: "Join this trip" }).click();
+    await expect(bob.getByText(/You can add stops, vote and comment\./)).toBeVisible();
+    await bob.getByRole("button", { name: "Join the trip" }).click();
 
-    // Lands on the trip, editable, with no "Viewer" badge.
+    // Lands on the trip, editable, with no "Viewer" badge — and told so once
+    // (SPEC §35.6's toast, carried across the navigation by `useInviteJoin`).
     await expect(bob.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+    await expect(bob.getByTestId("toast")).toContainText("can see you joined");
     await expect(bob.getByText("Viewer", { exact: true })).toHaveCount(0);
     // Joining lands him on the trip's default view — Overview since SPEC §24,
     // the one that does not edit. "One more day?" is on Plan.
@@ -226,8 +231,8 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
   const carol = await signedInAs(browser, newcomer("carol"), { followInvite: link });
   try {
     await carol.goto(link);
-    await expect(carol.getByText("You'll be able to look, but not change anything.")).toBeVisible();
-    await carol.getByRole("button", { name: "Join this trip" }).click();
+    await expect(carol.getByText(/You'll be able to look, but not change anything\./)).toBeVisible();
+    await carol.getByRole("button", { name: "Join the trip" }).click();
 
     await expect(carol.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
     // `exact` matters here and nowhere else in this file: this test's own trip
@@ -304,9 +309,64 @@ test("a revoked link stops working", async ({ page, browser }) => {
   const dan = await signedInAs(browser, newcomer("dan"), { superCode: true });
   try {
     await dan.goto(link);
-    await expect(dan.getByText("This invite has been revoked.")).toBeVisible();
-    await expect(dan.getByRole("button", { name: "Join this trip" })).toHaveCount(0);
+    await expect(dan.getByRole("heading", { name: "This invite was taken back", level: 1 })).toBeVisible();
+    await expect(dan.getByRole("button", { name: /^Join/ })).toHaveCount(0);
+    // M27 D10: a withdrawn link names nothing — not the trip, not who sent it.
+    await expect(dan.getByText(tripName)).toHaveCount(0);
   } finally {
     await dan.context().close();
+  }
+});
+
+// M27 link 6's walk, in a browser: somebody with no account opens the link,
+// reads the landing, has a look at the real trip read-only, and joins from
+// the look — through sign-in, and back to a finished join. This is the whole
+// path `useInviteJoin`'s marker and `proxy.ts`'s cookie exist for, which no
+// lower layer can walk: it leaves the site and comes back.
+test("a signed-out visitor reads the invite, has a look first, and joins from the look", async ({
+  page,
+  browser,
+}) => {
+  test.slow();
+  const tripName = e2eTripName("Look");
+  const tripId = await createMappedTrip(page, tripName, 1);
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await openTripSettings(page, tripName);
+  const link = await inviteLinkFor(page, "Can edit");
+
+  const context = await browser.newContext({ storageState: undefined });
+  const visitor = await context.newPage();
+  try {
+    await visitor.goto(link);
+    // The landing, not a sign-in redirect: who asked, and what the trip is.
+    await expect(visitor.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await expect(visitor.getByText(/ invited you$/)).toBeVisible();
+
+    await visitor.getByRole("link", { name: "Have a look first" }).click();
+    await expect(visitor).toHaveURL(/\/invite\/[^/]+\/look$/);
+    await expect(visitor.getByText(/invited you to plan this trip$/)).toBeVisible();
+    // The real board, read-only: the trip's own heading and its stop, and none
+    // of the controls that would change it (SPEC §27 — absent, not disabled).
+    await expect(visitor.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+    await openPlan(visitor);
+    await expect(visitor.locator('[data-testid^="activity-card-"]')).toHaveCount(1);
+    await expect(visitor.getByRole("button", { name: "Add stop" })).toHaveCount(0);
+    await expect(visitor.getByTestId("one-more-day-column")).toHaveCount(0);
+
+    // Join from the banner: no session, so it goes to sign in — there is no
+    // Google provider in this lane — with the invite as the way back.
+    await visitor.getByRole("button", { name: "Join the trip" }).click();
+    await expect(visitor).toHaveURL(/\/signin\?callbackUrl=%2Finvite%2F/);
+    await visitor.getByLabel("Username").fill(newcomer("erin"));
+    await visitor.getByRole("button", { name: /sign in with dev login/i }).click();
+
+    // Admitted on the banked token, back on the landing, and the Join pressed
+    // before sign-in finishes itself: the trip, editable, with the toast.
+    await expect(visitor.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+    await expect(visitor).toHaveURL(new RegExp(`/trips/${tripId}`));
+    await expect(visitor.getByTestId("toast")).toContainText("can see you joined");
+    await expect(visitor.getByText("Viewer", { exact: true })).toHaveCount(0);
+  } finally {
+    await context.close();
   }
 });
