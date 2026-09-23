@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
 import { getMacro, getPreset, insertPreset } from "@tc/pages";
-import { useIsPhone } from "@/components/lenses/useIsPhone";
+import { useIsPhone } from "@/lib/useIsPhone";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";

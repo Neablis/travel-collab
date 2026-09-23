@@ -44,7 +44,7 @@ import { z } from "zod";
 import { ActivityKind, LocationPrecision, Money, TimeWindow, type TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
-import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/ai/context";
+import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
 import { defineTool } from "@/server/assistant/defineTool";
 import type { PlaybookLibrary } from "@/server/assistant/deps";
 import { plain, untrusted, untrustedAll, untrustedOrNull } from "@/server/assistant/prompt";

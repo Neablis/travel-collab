@@ -200,6 +200,7 @@ function orderIntents(intents: RawToolIntent[]): { intent: RawToolIntent; index:
   return [...numbered.filter(isAddDay), ...numbered.filter((e) => !isAddDay(e))];
 }
 
+/** Resolves a model's human-ref tool intents ("the museum", "day 2") against the trip into real commands with minted ids, plus one error per intent it had to drop. */
 export function resolveBatch(
   intents: RawToolIntent[],
   detail: TripDetail,

@@ -59,55 +59,47 @@ const ASSISTANT_KERNEL_ALLOWED_MODULES = [
   // rather than copied, because exactly one place knows a viewer ranks below an
   // editor (AGENTS.md invariant 6c).
   "accessPolicy",
-  // `AskScope` and the conflict-ref numbering: pure functions over a TripDetail.
-  "ai/context",
-  // Caps and id-field manifests: constants and pure transforms.
-  "ai/limits",
-  "ai/idFields",
-  "ai/markdownToPageNodes",
-  // `RawToolIntent` and the resolver: `@tc/domain` plus the two above.
-  "ai/batchResolver",
-  // **Added by M9's grounding (build order 5), and both entries are one
-  // claim.** `search_places` region-biases its lookups on the trip's own
-  // geocoded activities, which is `tripRegionOf` — a pure function over a
-  // `TripDetail` — and the kernel's port signature names the box it returns.
+  // **Six entries left this list on 2026-09-23 by moving INTO the kernel.**
+  // `context`, `limits`, `idFields`, `markdownToPageNodes`, `batchResolver`
+  // and `askAnalytics` were pure modules under `ai/` that the kernel imported
+  // and that imported the kernel back (`askAnalytics` → `taskClass`/`ledger`),
+  // so `ai/` and `assistant/` were one import cycle and "the extraction is a
+  // `git mv`" (ADR-043) was not true. They now live under `assistant/`, which
+  // the subtree entry above already admits; nothing about their closures
+  // changed, and dependency-cruiser's folder-cycle rule is what keeps the
+  // direction one-way (`ai/` → `assistant/`, never back).
   //
-  // The closure was checked, and checking it moved a line: `ai/geocodeRegion`
-  // imported its two coordinate types from the `@/server/geocoding` BARREL,
-  // whose `index.ts` reads `serverConfig` and constructs the LocationIQ
+  // **`geocoding/region` and `geocoding/geocoder` are one claim** (M9's
+  // grounding, build order 5). `search_places` region-biases its lookups on
+  // the trip's own geocoded activities, which is `tripRegionOf` — a pure
+  // function over a `TripDetail` — and the kernel's port signature names the
+  // box it returns. `region` was `ai/geocodeRegion` until the move above; it
+  // went to `geocoding/` rather than into the kernel because the public API's
+  // v1 routes use it too, and a route importing the kernel would be the wrong
+  // direction.
+  //
+  // The closure was checked, and checking it once moved a line: the region
+  // module imported its two coordinate types from the `@/server/geocoding`
+  // BARREL, whose `index.ts` reads `serverConfig` and constructs the LocationIQ
   // adapter. That is the whole vendor edge, one hop down, which is exactly the
-  // shape that defeated the denylist this allowlist replaced. It now imports
-  // them from `geocoding/geocoder` — the interface file, which imports nothing
-  // at all — so the closure of both entries below is `@tc/contracts` plus
-  // arithmetic.
-  //
-  // `geocoding/geocoder` is on the list for the same reason and with the same
-  // check: it is the ADR-007 seam's TYPES. There is no implementation behind it
-  // to reach, which is what makes admitting it different from admitting the
-  // barrel that builds one.
-  "ai/geocodeRegion",
+  // shape that defeated the denylist this allowlist replaced. It imports them
+  // from `geocoding/geocoder` — the interface file, which imports nothing at
+  // all — so the closure of both entries below is `@tc/contracts` plus
+  // arithmetic. Admitting `geocoding/region` is NOT admitting the barrel.
+  "geocoding/region",
   "geocoding/geocoder",
-  // **Added by P4, when the admission pipeline moved inside the wall.** The
-  // grant carries `AskIntentRecord` — the classifier's whole record, which the
-  // per-ask analytics line also carries — and `AiGrant.taskClass` is a field of
-  // it. `askAnalytics.ts` imports exactly one thing, `ai/context`, which is
-  // already on this list; it is record types, `sanitizeForLog` and a
-  // `console.info` sink, with no database, network or session anywhere in its
-  // closure.
-  //
-  // **`ai/askIntent` is deliberately NOT here**, which is why the pipeline
+  // **`ai/askIntent` is deliberately NOT admitted**, which is why the pipeline
   // spells `AskIntent` as `AskIntentRecord["intent"]` and the classifier port's
   // context inline: that module calls `generateText`, and admitting a module
   // that can reach a provider would be the first entry on this list whose
   // closure touches the network.
-  "ai/askAnalytics",
 ];
 
 // **A regex, not a `group` of gitignore patterns, and that is not cosmetic.**
 // `no-restricted-imports` matches `group` with the `ignore` package, which
 // implements gitignore's rule that *a file cannot be re-included once a parent
-// directory is excluded*. `["@/server/**", "!@/server/ai/context"]` therefore
-// denies `@/server/ai/context` — the deny-all excludes the `@/server/ai`
+// directory is excluded*. `["@/server/**", "!@/server/assistant/context"]` therefore
+// denies `@/server/assistant/context` — the deny-all excludes the `@/server/ai`
 // directory, and the exception never fires. Measured, on this ESLint (9.39):
 // every allowlisted import was rejected. A negative lookahead has no such rule,
 // so the allowlist means what it reads as.
@@ -150,7 +142,13 @@ export default [
     // can only shrink and can never go stale silently.
     linterOptions: { reportUnusedDisableDirectives: "error" },
     rules: {
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      // **An error, not a warning, since 2026-09-23.** As a warning it never
+      // failed anything (`lint` had no `--max-warnings`), so the only thing
+      // keeping unused imports out was people noticing. It held — zero across
+      // 823 files when this flipped — which is exactly why making it binding
+      // cost nothing. `lint` also runs with `--max-warnings 0` now, so no
+      // other rule can sit at "warn" and be ignored either.
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
   {

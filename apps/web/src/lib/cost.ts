@@ -1,5 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 
 // Currency is trip-level, never per-event (decision, 2026-08-14), so every
 // amount here shares detail.currency and callers format once with it. No

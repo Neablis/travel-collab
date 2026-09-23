@@ -28,7 +28,7 @@ import { tripDetailFactory, tripMemberFactory } from "@tc/factories";
 import type { Page, TripDetail, TripRole } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
-import type { AskIntentRecord } from "@/server/ai/askAnalytics";
+import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
 import {
   ADMISSION,
   taskClassFor,

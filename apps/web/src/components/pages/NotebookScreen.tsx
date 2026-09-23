@@ -24,7 +24,7 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
-import { useIsPhone } from "@/components/lenses/useIsPhone";
+import { useIsPhone } from "@/lib/useIsPhone";
 
 type Status = "loading" | "ready" | "error";
 

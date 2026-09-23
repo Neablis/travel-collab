@@ -11,7 +11,7 @@
 // there is nothing for its schema to drift from. A hand-written write tool
 // that carried command fields from the model is still forbidden.
 import { z } from "zod";
-import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
+import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
 import { defineTool } from "@/server/assistant/defineTool";
 import { untrusted } from "@/server/assistant/prompt";
 

@@ -31,7 +31,7 @@ import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { Sheet } from "@/components/ui/sheet";
-import { useIsPhone } from "@/components/lenses/useIsPhone";
+import { useIsPhone } from "@/lib/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import type { ApiError } from "@/lib/apiClient";
 

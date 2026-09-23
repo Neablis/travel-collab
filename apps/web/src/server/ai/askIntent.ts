@@ -72,7 +72,7 @@
 // word.
 import { z } from "zod";
 import { generateText, Output, type LanguageModel } from "ai";
-import { sanitizeForLog, type AskIntentRecord, type AskUsage } from "@/server/ai/askAnalytics";
+import { sanitizeForLog, type AskIntentRecord, type AskUsage } from "@/server/assistant/askAnalytics";
 import type { TaskClass } from "@/server/assistant/taskClass";
 
 export type AskIntent = AskIntentRecord["intent"];

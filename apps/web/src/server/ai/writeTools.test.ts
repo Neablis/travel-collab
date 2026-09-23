@@ -4,7 +4,7 @@ import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
 import { witness } from "@/test-support/witness";
-import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
+import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
 import { readableSavedDay } from "@/server/savedDays";
 import {
   buildProposal,

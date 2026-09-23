@@ -56,6 +56,7 @@ export const ID_FIELDS: IdFieldManifest = {
 
 // Model-facing parameter name for a ref field — e.g. a day ref is "dayRef".
 // A command never has two refs to the same entity, so this never collides.
+/** The model-facing parameter name for a ref to `entity` (a day ref is `dayRef`). */
 export function refParamName(entity: RefEntity): string {
   return `${entity}Ref`;
 }

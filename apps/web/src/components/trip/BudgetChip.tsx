@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import type { TripSpend } from "@/lib/cost";
 
 // Handoff `current/…dc.html:255-296`: a bordered pill, left column a headline

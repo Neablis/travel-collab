@@ -5,7 +5,7 @@ import {
   type AskAnalyticsRecord,
   type AskDroppedCall,
   type AskIntentRecord,
-} from "@/server/ai/askAnalytics";
+} from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 
 const OFFERED = ["read_trip", "read_day", "find_free_time"];

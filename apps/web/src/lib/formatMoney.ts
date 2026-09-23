@@ -9,6 +9,7 @@
 // conflict description — that grouping stays the ONE thing shared between the
 // two; the symbol substitution below is UI-only (`packages/domain` is
 // off-limits, so the conflict banner still spells the code out).
+/** A minor-unit amount as a grouped two-decimal number with no currency (`1,234.00`, negative-aware). */
 export function formatAmount(amountMinor: number): string {
   const sign = amountMinor < 0 ? "-" : "";
   const grouped = (Math.abs(amountMinor) / 100).toLocaleString("en-US", {
@@ -41,6 +42,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 // symbol falls back to its code — but as a trailing suffix with a space
 // (`1,234.00 CHF`), the pre-existing convention, since gluing a 3-letter code
 // straight onto the digits (`CHF1,234.00`) reads as a typo, not a currency.
+/** A minor-unit amount with its currency: a symbol prefix for USD/EUR/GBP/JPY/CAD/AUD, else the code as a suffix (`1,234.00 CHF`). */
 export function formatMoney(amountMinor: number, currency: string): string {
   // Object.hasOwn, not a plain `CURRENCY_SYMBOLS[currency]` lookup: a
   // currency code of "constructor"/"toString"/etc. resolves through the

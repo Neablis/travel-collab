@@ -21,7 +21,7 @@ import {
   type DurationLabel,
 } from "./activityDuration";
 import { KIND_LABEL, KIND_OPTIONS } from "./activityKind";
-import { TAG_LABEL, TAG_ORDER, toggleTag } from "./activityTags";
+import { TAG_LABEL, TAG_ORDER, toggleTag } from "@/lib/activityTags";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
 

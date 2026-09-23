@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import { displayNameFor } from "@/lib/displayName";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { toClockRange } from "@/lib/time";

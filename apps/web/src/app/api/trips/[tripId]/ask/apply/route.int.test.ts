@@ -10,7 +10,7 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, savedDayAdds, savedDays, tripMemberships } from "@/server/db/schema";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { Geocoder, GeocodeResult } from "@/server/geocoding";
-import { MAX_PROPOSAL_INSERTS } from "@/server/ai/limits";
+import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
 
 const ACTOR_ID = "apply-owner";
 const VIEWER_ID = "apply-viewer";

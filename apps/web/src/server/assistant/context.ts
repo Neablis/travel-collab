@@ -60,6 +60,7 @@ export type AskScope =
 // JSON.parse catch branch they claim to cover.
 export const ASK_SCOPE_PREFIX = "Scope: ";
 
+/** The `Scope: {…}` line that carries an ask's day or trip scope into the model's instructions. */
 export function askScopeLine(scope: AskScope): string {
   return `${ASK_SCOPE_PREFIX}${JSON.stringify(scope)}`;
 }
@@ -67,6 +68,7 @@ export function askScopeLine(scope: AskScope): string {
 // Total: anything that is not a well-formed scope line reads as the whole
 // trip, which is the wider, safer reading — a narrowing that silently failed
 // would answer about one day and say nothing about having done so.
+/** The scope named by the `Scope:` line in `instructions`, or the whole trip when there is none or it does not parse. */
 export function parseAskScope(instructions: string): AskScope {
   for (const line of instructions.split("\n")) {
     if (!line.startsWith(ASK_SCOPE_PREFIX)) continue;
@@ -109,6 +111,7 @@ export interface AiConflictSummary {
 // `detail.conflicts` is already sorted deterministically by `detectConflicts`;
 // filtering by `dismissedConflictIds` preserves that order. The returned `id`
 // is for the resolver only; every caller that shows a conflict strips it.
+/** The trip's non-dismissed conflicts numbered 1..n — the one numbering both the model's view and the resolver's ref lookup use. */
 export function activeConflicts(detail: TripDetail): (AiConflictSummary & { id: string })[] {
   const dismissed = new Set(detail.dismissedConflictIds);
   return detail.conflicts

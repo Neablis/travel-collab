@@ -22,7 +22,7 @@
 // ADR-022 §4 rules out.
 import { z } from "zod";
 import { BatchableCommand, type BatchableCommand as BatchableCommandType } from "@tc/contracts";
-import { ID_FIELDS, refParamName, type IdRole } from "@/server/ai/idFields";
+import { ID_FIELDS, refParamName, type IdRole } from "@/server/assistant/idFields";
 import { defineTool, type AnyAssistantTool } from "@/server/assistant/defineTool";
 import type { TaskClass } from "@/server/assistant/taskClass";
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AskAnalyticsRecord } from "@/server/ai/askAnalytics";
+import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 
 // The module's whole job is which metric names, values and attributes get
 // emitted, and none of that is observable through a real client — so the

@@ -18,7 +18,7 @@ import type { TripCounts } from "@/components/trip/TripMetaPill";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import type { TripSpend } from "@/lib/cost";
 
 // The four category rows in the "unbacked" budget breakdown are illustrative

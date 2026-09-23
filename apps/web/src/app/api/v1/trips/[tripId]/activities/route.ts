@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AddActivity, GEOCODE_OUTCOME_HEADER, TripDetail, type Location } from "@tc/contracts";
-import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, runCommand } from "@/server/public-api/commands";
 import { GEOCODE_OUTCOME_DOC, resolveStopLocation } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";

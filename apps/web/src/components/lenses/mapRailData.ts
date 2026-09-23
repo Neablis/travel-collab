@@ -1,5 +1,5 @@
 import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
-import { chipModel } from "@/components/trip/DayChips";
+import { chipModel } from "@/lib/dayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
 

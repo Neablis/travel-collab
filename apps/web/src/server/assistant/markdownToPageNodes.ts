@@ -39,6 +39,7 @@ const para = (text: string): PageParagraphNode => ({
 
 const item = (text: string): PageListItemNode => ({ type: "listItem", content: [para(text)] });
 
+/** Page nodes for the small markdown subset `insert_text` accepts: headings, bullet and ordered lists, and paragraphs. */
 export function markdownToPageNodes(markdown: string): PageNode[] {
   const nodes: PageNode[] = [];
   // Buffers for the two things that span lines: a paragraph's wrapped lines and

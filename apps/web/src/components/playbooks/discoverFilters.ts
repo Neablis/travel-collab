@@ -1,4 +1,4 @@
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import {
   BUDGET_BAND_EDGES,
   LENGTH_BAND_LABELS,

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import type { TripSummary } from "@tc/contracts";
 import { Heading } from "@/components/ui/heading";
-import { useIsPhone } from "@/components/lenses/useIsPhone";
+import { useIsPhone } from "@/lib/useIsPhone";
 import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { Button, buttonVariants } from "@/components/ui/button";

@@ -13,10 +13,10 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { kindBadge } from "./activityKind";
-import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint, tagFocusOpacity } from "./activityTags";
+import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint, tagFocusOpacity } from "@/lib/activityTags";
 import { displayPlace } from "@/lib/place";
 
 export function ActivityCard({

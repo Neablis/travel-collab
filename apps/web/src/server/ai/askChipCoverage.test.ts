@@ -35,7 +35,7 @@ import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
-import { askScopeLine, type AskScope } from "@/server/ai/context";
+import { askScopeLine, type AskScope } from "@/server/assistant/context";
 import { findFreeTime, readDay, readTrip } from "@/server/assistant/tools/read";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { witness } from "@/test-support/witness";

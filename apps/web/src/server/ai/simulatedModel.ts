@@ -35,7 +35,7 @@ import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
 import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
-import { parseAskScope, type AskScope } from "@/server/ai/context";
+import { parseAskScope, type AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import type {
   DayReadout,

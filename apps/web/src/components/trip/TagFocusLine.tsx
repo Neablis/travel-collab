@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { TAG_CHIP_CLASS, TAG_LABEL } from "@/components/board/activityTags";
+import { TAG_CHIP_CLASS, TAG_LABEL } from "@/lib/activityTags";
 import { cn } from "@/lib/cn";
 import { useFocus } from "./context/FocusProvider";
 

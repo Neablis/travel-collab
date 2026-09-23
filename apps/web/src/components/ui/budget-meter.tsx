@@ -1,6 +1,6 @@
 import { DataText } from "./data-text";
 import { cn } from "../../lib/cn";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 
 // Read-only spent-vs-budget glance for the header (#30). Fill is brand under
 // budget, warning-amber over (over budget is a warning, not a failure).

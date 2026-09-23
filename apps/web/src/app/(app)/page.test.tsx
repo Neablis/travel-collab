@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
-import { formatMoney } from "@/components/lenses/formatMoney";
+import { formatMoney } from "@/lib/formatMoney";
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();

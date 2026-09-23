@@ -1,5 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
-import { cityFor } from "@/components/trip/DayChips";
+import { cityFor } from "@/lib/dayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 
 // Which colour a city wears **on a notebook page**, answered by the SAME

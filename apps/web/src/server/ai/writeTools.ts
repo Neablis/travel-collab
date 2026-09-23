@@ -35,7 +35,7 @@ import {
 import { getGeocoder, type Geocoder } from "@/server/geocoding";
 import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
-import { resolveBatch, type RawToolIntent } from "@/server/ai/batchResolver";
+import { resolveBatch, type RawToolIntent } from "@/server/assistant/batchResolver";
 import { flushPlanningBatch } from "@/server/ai/planningTools";
 import {
   enrichCommandLocations,
@@ -45,13 +45,13 @@ import {
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
 import { consumeQuota, geocodeQuota } from "@/server/quota";
-import { tripRegionOf } from "@/server/ai/geocodeRegion";
+import { tripRegionOf } from "@/server/geocoding/region";
 import { summarizeBatch } from "@/server/ai/planSummary";
-import { REF_PARAM_NAMES } from "@/server/ai/idFields";
-import type { AskDroppedCall } from "@/server/ai/askAnalytics";
+import { REF_PARAM_NAMES } from "@/server/assistant/idFields";
+import type { AskDroppedCall } from "@/server/assistant/askAnalytics";
 import type { CollectedInsert, PlaceCache, PlaceCandidate } from "@/server/assistant/deps";
 
-export type { RawToolIntent } from "@/server/ai/batchResolver";
+export type { RawToolIntent } from "@/server/assistant/batchResolver";
 export type { CollectedInsert } from "@/server/assistant/deps";
 
 export { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
