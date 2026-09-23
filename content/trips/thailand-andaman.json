@@ -155,8 +155,8 @@
                 "name": "Yaowarat Road and Soi Texas",
                 "city": "Bangkok",
                 "area": "Chinatown",
-                "lat": 13.881591,
-                "lng": 100.644533
+                "lat": 13.741152,
+                "lng": 100.508311
               },
               "kind": "planned",
               "tags": [
@@ -431,8 +431,8 @@
                 "name": "Ao Nang longtail pier",
                 "city": "Krabi",
                 "area": "Ao Nang",
-                "lat": 7.88998,
-                "lng": 99.028075
+                "lat": 8.031092,
+                "lng": 98.821883
               },
               "kind": "transit",
               "tags": [],

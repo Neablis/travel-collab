@@ -973,8 +973,8 @@
             "name": "TF-21 mirador above Aguamansa",
             "city": "La Orotava",
             "area": "Parque Nacional del Teide",
-            "lat": 28.392131,
-            "lng": -16.52268
+            "lat": 28.361481,
+            "lng": -16.501043
           },
           "kind": "transit",
           "notes": "Leave before seven and you climb out through the mar de nubes at sunrise, which is half the reason to do this from the north side. There is no fuel inside the park - fill up in La Orotava, not Vilaflor.",
@@ -1062,8 +1062,8 @@
             "name": "Sendero PNT-10 Telesforo Bravo",
             "city": "La Orotava",
             "area": "Pico del Teide",
-            "lat": 28.392131,
-            "lng": -16.52268
+            "lat": 28.270162,
+            "lng": -16.63872
           },
           "kind": "planned",
           "tags": [

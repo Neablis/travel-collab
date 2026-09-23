@@ -408,8 +408,8 @@
             "name": "Mercado N.º 1 de Surquillo",
             "city": "Lima",
             "area": "Surquillo",
-            "lat": -12.005216,
-            "lng": -76.997615
+            "lat": -12.11803,
+            "lng": -77.025476
           },
           "kind": "planned",
           "tags": [],
@@ -1334,8 +1334,8 @@
             "name": "Feria de San Telmo, Calle Defensa",
             "city": "Buenos Aires",
             "area": "San Telmo",
-            "lat": -34.471093,
-            "lng": -58.648893
+            "lat": -34.617062,
+            "lng": -58.371632
           },
           "kind": "planned",
           "tags": [],
@@ -1420,8 +1420,8 @@
             "name": "Doppelgänger, Av. Juan de Garay 500",
             "city": "Buenos Aires",
             "area": "San Telmo",
-            "lat": -34.773883,
-            "lng": -58.377417
+            "lat": -34.624458,
+            "lng": -58.372557
           },
           "kind": "idea",
           "tags": [],
