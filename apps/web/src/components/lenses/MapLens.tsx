@@ -952,15 +952,17 @@ export function MapLens({
                   onHoverEnd={() => setHover(null)}
                 />
                 <MapFocusCard day={focusedMapDay} />
-                {/* **Not for the day that already has a focus card.** Clicking
-                    a rail row leaves the cursor on it, so both cards would sit
-                    on screen describing the same day — and for an empty day
-                    they even said the same sentence twice ("No stops yet"),
-                    which `m10-growth.spec.ts` caught as two matching elements.
-                    On-demand detail is not owed for the day whose detail is
-                    already pinned. */}
-                {hover !== null && hover.day.index !== focusedDay && (
-                  <MapHoverCard day={hover.day} top={hover.top} />
+                {/* **The focused day gets a trimmed card, not none** (M27).
+                    It used to be suppressed: clicking a rail row leaves the
+                    cursor on it, so both cards described the same day, and
+                    for an empty day they said the same sentence twice ("No
+                    stops yet"), which `m10-growth.spec.ts` caught as two
+                    matching elements. But day 0 is focused by default, so the
+                    first row never had a hover state at all (Mitchell, preview
+                    comment on #205). `trimmed` keeps only what the focus card
+                    lacks, and drops the empty day's sentence. */}
+                {hover !== null && (
+                  <MapHoverCard day={hover.day} top={hover.top} trimmed={hover.day.index === focusedDay} />
                 )}
                 <MapLegend />
               </>

@@ -1,4 +1,4 @@
-import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityKind, ActivityTag, Location, TripDetail } from "@tc/contracts";
@@ -1429,7 +1429,7 @@ describe("MapLens on a phone", () => {
 // the hover card and the focus card both sit on screen describing one day —
 // and for an empty day they said the same sentence twice, which
 // `m10-growth.spec.ts` caught as a strict-mode violation on "No stops yet".
-describe("MapLens — the hover card and the focus card never describe one day at once", () => {
+describe("MapLens — the hover card never repeats what the focus card says", () => {
   it("shows a hover card for an unfocused day", async () => {
     renderMap(detailWithTwoDays(), { focusedDay: 0 });
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
@@ -1441,13 +1441,19 @@ describe("MapLens — the hover card and the focus card never describe one day a
     expect(screen.getByTestId("map-hover-card")).toBeDefined();
   });
 
-  it("suppresses it for the day whose detail is already pinned", async () => {
+  // M27 (Mitchell, preview comment on #205): day 0 is focused by default, so
+  // suppressing the card there left the first row with no hover state at all.
+  // The focused day gets a trimmed card instead: its label and the longest-hop
+  // note, never the city or the stops line the focus card already shows.
+  it("gives the focused day a trimmed card that repeats nothing the focus card says", async () => {
     renderMap(detailWithTwoDays(), { focusedDay: 0 });
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByLabelText("Days")).toBeTruthy());
 
     fireEvent.mouseEnter(screen.getAllByRole("button", { name: /Day 1/i })[0]!);
-    expect(screen.queryByTestId("map-hover-card")).toBeNull();
+    const card = screen.getByTestId("map-hover-card");
+    expect(within(card).queryByText(/·/)).toBeNull();
+    expect(within(card).queryByText(/\d+ stops?/)).toBeNull();
   });
 });
 

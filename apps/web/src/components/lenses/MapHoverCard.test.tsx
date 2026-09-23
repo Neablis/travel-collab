@@ -82,6 +82,16 @@ describe("MapHoverCard", () => {
     expect(screen.getByText(/Day 1 · Kyoto/)).toBeTruthy();
   });
 
+  it("says only the day and its note when trimmed, for the focused day", () => {
+    render(
+      <PreferencesProvider>
+        <MapHoverCard day={day()} top={120} trimmed />
+      </PreferencesProvider>,
+    );
+    const card = screen.getByTestId("map-hover-card");
+    expect(card.textContent).toMatch(/^Day 1Longest hop/);
+  });
+
   // **It must never eat a click.** The card overlaps the map and, low in the
   // rail, the rail itself; without this, hovering toward it from a row would
   // fire that row's `mouseleave` and tear the card down under the cursor.

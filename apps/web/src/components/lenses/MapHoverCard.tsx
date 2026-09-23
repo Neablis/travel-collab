@@ -55,10 +55,29 @@ export function hoverNote(day: MapDay, unit: Parameters<typeof kmLabel>[1]): str
   return `Longest hop ${kmLabel(day.longest.km, unit)} — ${day.longest.from} to ${day.longest.to}`;
 }
 
-export function MapHoverCard({ day, top }: { day: MapDay; top: number }) {
+export function MapHoverCard({
+  day,
+  top,
+  trimmed = false,
+}: {
+  day: MapDay;
+  top: number;
+  /**
+   * **The focused day's card says only what its focus card does not** (M27,
+   * Mitchell's preview comment "I can't seem to get the hover state on the
+   * first element"). The focus card already shows the city and the
+   * stops-and-distance line, so repeating them was why this card used to be
+   * suppressed for the focused day entirely, and day 0 is focused by default.
+   * Trimmed, it keeps the hover state and adds only `Day N` and the longest-hop
+   * note. For an empty day that note is "No stops yet", the same sentence the
+   * focus card shows, so it is dropped too.
+   */
+  trimmed?: boolean;
+}) {
   const unit = useDistanceUnit();
+  const note = trimmed && day.isEmpty ? null : hoverNote(day, unit);
   const stat =
-    day.stops.length === 0
+    trimmed || day.stops.length === 0
       ? null
       : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}${
           day.totalKm !== null ? ` · ${kmLabel(day.totalKm, unit)}` : ""
@@ -94,17 +113,19 @@ export function MapHoverCard({ day, top }: { day: MapDay; top: number }) {
             one row among many wants to know WHICH day, not only where. */}
         <span className="text-sm font-bold text-ink">
           {day.label}
-          {day.city !== null && ` · ${day.city}`}
+          {!trimmed && day.city !== null && ` · ${day.city}`}
         </span>
       </div>
       {stat !== null && <div className="font-mono text-xs text-slate">{stat}</div>}
-      <p
-        className="text-slate"
-        // eslint-disable-next-line no-restricted-syntax -- 12.5px note has no token equivalent (between text-xs/12px and text-sm/13px), matching MapFocusCard
-        style={{ fontSize: "12.5px" }}
-      >
-        {hoverNote(day, unit)}
-      </p>
+      {note !== null && (
+        <p
+          className="text-slate"
+          // eslint-disable-next-line no-restricted-syntax -- 12.5px note has no token equivalent (between text-xs/12px and text-sm/13px), matching MapFocusCard
+          style={{ fontSize: "12.5px" }}
+        >
+          {note}
+        </p>
+      )}
     </div>
   );
 }
