@@ -41,10 +41,23 @@ export async function GET(request: Request) {
   // Repeated `?city=` rather than one comma-joined value: a city name may
   // contain a comma and splitting on one would invent a city called " Japan".
   const cities = [...new Set(params.getAll("city").map((c) => c.trim()).filter((c) => c !== ""))];
-
+  // Repeated `?country=` beside it (M12 link 7), as ISO alpha-2 codes —
+  // uppercased, because the column stores them uppercase and containment is
+  // exact. A value that is not two letters is DROPPED rather than 400'd, the
+  // fallback rule above: a stale or hand-typed `?country=Japan` stops narrowing
+  // by country, and the page still shows results.
+  const countries = [
+    ...new Set(
+      params
+        .getAll("country")
+        .map((c) => c.trim().toUpperCase())
+        .filter((c) => /^[A-Z]{2}$/.test(c)),
+    ),
+  ];
 
   const result = await discoverDays({
     cities,
+    countries,
     scope: DiscoverScope.catch("everyone").parse(params.get("scope")),
     sort: DiscoverSort.catch("most-added").parse(params.get("sort")),
     budget: BudgetBand.catch("any").parse(params.get("budget")),

@@ -9,7 +9,7 @@ import {
   type SavedDay,
   type TripDetail,
 } from "@tc/contracts";
-import { citiesOfSequence } from "@tc/domain";
+import { citiesOfSequence, countriesOfStops } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
@@ -260,9 +260,11 @@ export function newSavedDayRow(input: {
     // from `saved_day_reviews` (see the schema note on `saved_days.rating`).
     rating: null,
     reviewCount: 0,
-    // M12 link 7 derives this from the stops; until then it is the column's
-    // own default and the backfill's to fill.
-    countries: [],
+    // `cities`' sibling (M12 link 7), snapshotted here for the same reason.
+    // `countriesOfStops` rather than a per-day fold: a country set's order
+    // means nothing, and this is the exact call the backfill makes through
+    // `savedDayCountries.ts`, so the two writers agree byte-for-byte.
+    countries: countriesOfStops(input.stops),
     // Not moderated. Only an operator action moves these.
     moderatedAt: null,
     moderationNote: null,

@@ -71,7 +71,12 @@ export function displayPlace(location: Location | null | undefined): string | nu
 // `Intl.DisplayNames` throws on a code it cannot map rather than returning
 // undefined, and is absent in some runtimes, so a failure falls back to the
 // raw code — "JP" is a worse label than "Japan" but a better one than nothing.
-function countryName(code: string | undefined): string | null {
+//
+// Exported for `server/places.ts` (M12 link 7), which names the countries the
+// place search returns: the database stores codes only, so the name a
+// searcher types against must be this same derivation, not a second table.
+/** The English name for an ISO alpha-2 code ("JP" → "Japan"), the code itself when unmappable, null for none. */
+export function countryName(code: string | undefined): string | null {
   if (code === undefined) return null;
   try {
     return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;

@@ -1,6 +1,7 @@
 import { HttpResponse, http } from "msw";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import type { AdminReportQueueItem } from "@/lib/reports";
+import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
 import {
   AdminReportAction,
   BatchableCommand,
@@ -533,4 +534,26 @@ export function makeReportHandlers(
       return HttpResponse.json({ report: item.report });
     }),
   ];
+}
+
+/**
+ * `GET /api/places?q=` (M12 link 7) over a fixed list of places, typed against
+ * `PlaceMatch` so a mock row that fits neither the city nor the country arm is
+ * a type error rather than a surprise in a component.
+ *
+ * Deliberately naive, like every handler here: a case-insensitive prefix match
+ * on the label, the given order kept, and the real route's empty-box
+ * short-circuit. The ranking is the server's (`server/places.ts`), and a suite
+ * that cares about it asserts it there, not through this.
+ */
+export function makePlaceSearchHandler(places: PlaceMatch[]) {
+  return http.get("/api/places", ({ request }) => {
+    const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase();
+    const body: PlaceSearchResponse = {
+      places: q
+        ? places.filter((p) => (p.kind === "city" ? p.city : p.name).toLowerCase().startsWith(q))
+        : [],
+    };
+    return HttpResponse.json(body);
+  });
 }

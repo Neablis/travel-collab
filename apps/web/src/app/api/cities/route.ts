@@ -19,6 +19,10 @@ export const runtime = "nodejs";
 //   * no matches  — 200, `cities: []` (a real answer, not a failure)
 //   * loading     — the client's own, before this resolves
 //   * failure     — a non-2xx or a dropped connection, which the client retries
+//
+// **Superseded by `GET /api/places?q=`** (M12 link 7), which returns these same
+// cities plus countries, labelled by kind. Kept unchanged because the current
+// search box still calls it; delete it once nothing does.
 export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
