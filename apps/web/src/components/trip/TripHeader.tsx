@@ -451,8 +451,15 @@ export function TripHeader({
         {/* `dispatch` straight in, as SettingsSheet's `onCommand` below does:
             the pill's popover sends the same `SetTripStartDate` its Dates row
             does, and the provider's viewer gate still refuses it for anyone
-            `readOnly` would have hidden it from. */}
-        <TripMetaPill detail={activeTrip} readOnly={readOnly} onCommand={(command) => void dispatch(command)} />
+            `readOnly` would have hidden it from. That gate knows nothing of
+            history preview, though — `runDispatch` enqueues against the live
+            trip — so the pill is text while an old seq is on screen, the same
+            `preview.seq` gate undo/redo use. */}
+        <TripMetaPill
+          detail={activeTrip}
+          readOnly={readOnly || preview.seq !== null}
+          onCommand={(command) => void dispatch(command)}
+        />
         <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
       </div>
 

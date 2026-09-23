@@ -48,7 +48,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // TripProvider (apiClient mocked, per TripProvider.test.tsx's pattern) rather
 // than a mocked context — this exercises the real dispatch -> sendTripCommand
 // path, matching how the header's SetTripName dispatch actually resolves.
-import { fetchTripDetail } from "@/lib/apiClient";
+import { fetchTripDetail, fetchTripDetailAt } from "@/lib/apiClient";
 import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 // Task 9: TripHeader's new "Add stop" button calls useEditor().openCreate(),
 // so it now needs an EditorHost ancestor (the real app tree provides one —
@@ -286,6 +286,25 @@ describe("TripHeader viewer gating", () => {
     expect((await screen.findAllByTestId("history-entry")).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Redo" })).toBeTruthy();
+  });
+
+  // `runDispatch` enqueues against the LIVE trip whatever is on screen, so a
+  // date picked while an old seq is previewed would move the present — and
+  // its no-op check would compare against the preview's start date.
+  it("gives an owner the dates as text only while previewing an old seq", async () => {
+    vi.mocked(fetchTripDetailAt).mockResolvedValueOnce({
+      ok: true,
+      value: tripDetailFixture({ tripId: "x", name: "Japan", startDate: "2027-01-05" }),
+    });
+    await renderHeader();
+    expect(screen.getByRole("button", { name: /^Trip dates:/ })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "History" }));
+    await userEvent.click((await screen.findAllByTestId("history-entry"))[0]!.querySelector("button")!);
+
+    // The preview's own range, proving the preview is what is on screen.
+    expect(await within(screen.getByTestId("trip-meta-row")).findByText("Tue, Jan 5")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Trip dates:/ })).toBeNull();
   });
 });
 
