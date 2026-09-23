@@ -300,7 +300,7 @@ describe("TripHeader viewer gating", () => {
     expect(screen.getByRole("button", { name: /^Trip dates:/ })).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "History" }));
-    await userEvent.click((await screen.findAllByTestId("history-entry"))[0]!.querySelector("button")!);
+    await userEvent.click(within((await screen.findAllByTestId("history-entry"))[0]!).getAllByRole("button")[0]!);
 
     // The preview's own range, proving the preview is what is on screen.
     expect(await within(screen.getByTestId("trip-meta-row")).findByText("Tue, Jan 5")).toBeTruthy();

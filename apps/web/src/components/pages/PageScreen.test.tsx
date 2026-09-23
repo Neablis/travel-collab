@@ -1245,7 +1245,11 @@ describe("PageScreen — the breadcrumb", () => {
     });
     await open("be5f6071-8293-4e0f-9a1b-3c4d5e6f7081", "overview", "failed");
     await waitFor(() => expect(failed).toHaveBeenCalled());
-    await act(async () => {});
+    // One task for the client's `.then` to run: without it the assertion
+    // below would read the state from BEFORE the failed read landed.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false");
     server.events.removeAllListeners();
   });
