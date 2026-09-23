@@ -155,10 +155,21 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
 
   // Contract clauses 2 and 3: a day picked in a column, a cell or the timeline
   // brings its chip back into view here, and switching lenses does the same on
-  // arrival. `inline: "center"` with `block: "nearest"` is the hook's default —
-  // this row sits in a sticky header, where a vertical scroll would move the
-  // whole page for a chip that was never off-screen.
-  useFollowFocusedDay(sync, focusedDay, days.length, (index) => chipRefs.current[index]);
+  // arrival. `inline: "center"` with `block: "nearest"` is the hook's default.
+  //
+  // **Only while the row is on screen.** It used to sit in the sticky header,
+  // where "nearest" could never move the page. Since SPEC §35.3 it scrolls away
+  // with Plan's content, and "nearest" on a row above the fold scrolls the PAGE
+  // back up to it — so a reader halfway down the columns, swiping them
+  // sideways, would be yanked to the top by their own scroll spy. No element
+  // means `jumpTo` does nothing. The price is that the row can come back into
+  // view scrolled to a day other than the selected one; the columns and the
+  // ring still agree, and nothing moves under the reader.
+  useFollowFocusedDay(sync, focusedDay, days.length, (index) => {
+    const row = rowRef.current?.getBoundingClientRect();
+    if (row && (row.top < 0 || row.bottom > window.innerHeight)) return null;
+    return chipRefs.current[index];
+  });
 
   /**
    * Left/Right walk the row — the header-bar half of "Left/Right in the days
@@ -199,10 +210,12 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
     // last chip's right half at the far end).
     //
     // `px-1` with a matching `-mx-1` rather than bare padding: padding inside
-    // a scroll container would indent the row from the header's own `px-6`
-    // gutter, so the negative margin gives the ring its gutter back without
-    // moving where the chips sit. Same pairing as `ui/sheet.tsx`, which needed
-    // it for the same reason on the vertical axis.
+    // a scroll container would indent the row from the `px-6` gutter it sits
+    // in (Plan's `PageContainer` since SPEC §35.3 moved it out of the header —
+    // the same 24px, so the chips still line up with the columns below), and
+    // the negative margin gives the ring its gutter back without moving where
+    // the chips sit. Same pairing as `ui/sheet.tsx`, which needed it for the
+    // same reason on the vertical axis, and as `Board`'s columns row.
     <div
       ref={rowRef}
       role="group"

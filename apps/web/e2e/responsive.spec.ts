@@ -564,7 +564,7 @@ test.describe("responsive (trip header on a phone)", () => {
     // are asserted so "the header hid them" and "the sheet has them" stay one
     // statement rather than two files' worth of assumption.
     await expect(sheet.getByLabel("Total for the trip")).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "Dates" })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Dates", exact: true })).toBeVisible();
 
     // Share, operated rather than merely located: this is a Radix Popover
     // opening from inside a Radix Dialog, which is the one thing about this
@@ -588,10 +588,12 @@ test.describe("responsive (trip header on a phone)", () => {
     // mobile"*. It was `hidden md:block` before — present here, absent there —
     // and this test asserted exactly that, so it is the one that had to change.
     await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
-    // The pill's own counts, where they have always been — the mirror that
-    // makes the phone assertions above statements about the BREAKPOINT rather
-    // than about a control that stopped rendering everywhere.
-    await expect(page.getByTestId("trip-meta-row").getByText(/^\d+ cities$/)).toBeVisible();
+    // The pill itself — the mirror that makes the phone assertions above
+    // statements about the BREAKPOINT rather than about a control that stopped
+    // rendering everywhere. It carried the day/stop/city counts until SPEC
+    // §35.3 made it the dates only, and a button (M27 D5); the counts are the
+    // sheet's alone now, which the phone test above already reads there.
+    await expect(page.getByTestId("trip-meta-row").getByRole("button", { name: /^Trip dates:/ })).toBeVisible();
 
     // The CONVERSE, and it had no coverage until now. The two controls SPEC
     // §23 adds are phone-only by CSS (`md:hidden`), and the unit tests that

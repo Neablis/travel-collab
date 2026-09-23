@@ -205,6 +205,40 @@ describe("PageEditor typography (KI-44)", () => {
     expect(headingCss).toContain("font-weight:");
   });
 
+  // SPEC §35.3: the Overview tab sets this same page as a letter — 16px / 1.75
+  // prose, 18px section headings — and the Notebook route must not follow it.
+  // Both halves from the one stylesheet and the one DOM, so a rule that lost
+  // its `.tc-overview-letter` scope fails the second half.
+  it("sets the page larger inside the Overview letter, and only there", async () => {
+    const detail = tripDetailFixture();
+    const overview = TEMPLATE_LIBRARY.find((t) => t.key === "trip-overview")!;
+    render(
+      <div data-testid="letter" className="tc-overview-letter">
+        <PageEditor detail={detail} context={{ tripId: detail.tripId }} value={overview.content} onChange={() => {}} />
+      </div>,
+    );
+    render(
+      <div data-testid="notebook">
+        <PageEditor detail={detail} context={{ tripId: detail.tripId }} value={overview.content} onChange={() => {}} />
+      </div>,
+    );
+
+    const rules = pageEditorRules(await compileGlobalsCss()).filter((r) => r.selector.includes(".tc-overview-letter"));
+    expect(rules.length).toBeGreaterThan(0);
+    const declarationsFor = (el: Element) =>
+      rules
+        .filter((r) => r.selector.split(",").some((s) => el.matches(s.trim())))
+        .map((r) => r.body)
+        .join(" ");
+    const paragraphIn = (id: string) => within(screen.getByTestId(id)).getAllByRole("paragraph")[0]!;
+    const headingIn = (id: string) => within(screen.getByTestId(id)).getByRole("heading", { level: 2, name: "Overview" });
+
+    expect(declarationsFor(paragraphIn("letter"))).toContain("line-height: 1.75");
+    expect(declarationsFor(headingIn("letter"))).toContain("font-size: 18px");
+    expect(declarationsFor(paragraphIn("notebook"))).toBe("");
+    expect(declarationsFor(headingIn("notebook"))).toBe("");
+  });
+
   // **The caret, and the second time Mitchell reported it.**
   //
   // A macro node is an inline atom, so a block-shaped widget is a tall inline

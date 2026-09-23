@@ -44,7 +44,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // anything behind it (tabs, board).
   // 2026-10-10 is a Saturday.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Dates" }).click();
+  await page.getByRole("button", { name: "Dates", exact: true }).click();
   // TripDateControl (Task 8b.6: the end is derived, never picked) commits
   // SetTripStartDate as soon as a complete date is selected (feedback fix,
   // 2026-08-24: "you shouldnt have to hit done") — fill() sets the whole
@@ -133,7 +133,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // close/reopen (the popover's open/closed state lives in SettingsSheet,
   // which stays mounted) — so it needs a fresh click here too, not just
   // before the very first date set above.
-  await page.getByRole("button", { name: "Dates" }).click();
+  await page.getByRole("button", { name: "Dates", exact: true }).click();
   // Task 8b.6: there is no end field to race — the end is always derived
   // from the plan's own day count, so shifting the start alone can never
   // trip a shrink-confirmation (that dialog is gone with the field).
@@ -155,7 +155,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // still lives inside the Dates row's popover (restored, M10 Phase 4), so
   // that popover needs opening first, same as every other access below.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Dates" }).click();
+  await page.getByRole("button", { name: "Dates", exact: true }).click();
   await page.getByRole("button", { name: "Clear date" }).click();
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByText("Day 1", { exact: true })).toBeVisible();
@@ -174,7 +174,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     page.getByRole("button", { name: "Undo" }).click(),
   ]);
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Dates" }).click();
+  await page.getByRole("button", { name: "Dates", exact: true }).click();
   await expect(page.getByLabel("Trip start date")).toHaveValue("2026-10-12");
   await page.getByRole("button", { name: "Close" }).click();
   // Opening the settings sheet above closed the History popover, so it has to
@@ -187,7 +187,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     page.getByRole("button", { name: "Undo" }).click(),
   ]);
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Dates" }).click();
+  await page.getByRole("button", { name: "Dates", exact: true }).click();
   await expect(page.getByLabel("Trip start date")).toHaveValue("2026-10-10");
   await page.getByRole("button", { name: "Close" }).click();
   await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();

@@ -1,5 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { TripMetaPill, tripDateRange } from "./TripMetaPill";
@@ -54,26 +55,83 @@ function fixture(): TripDetail {
 afterEach(cleanup);
 
 describe("TripMetaPill", () => {
-  it("renders the date range and the day/stop/city counts", () => {
-    render(<TripMetaPill detail={fixture()} />);
+  // SPEC §35.3: the counts were the Overview's first sentence said a second
+  // time. They live in Trip settings now (`tripCounts`, SettingsSheet).
+  it("states the dates and nothing else", () => {
+    render(<TripMetaPill detail={fixture()} readOnly={false} onCommand={() => {}} />);
 
-    expect(screen.getByText(/Jun 1/)).toBeTruthy();
-    expect(screen.getByText(/Jun 2/)).toBeTruthy();
-    expect(screen.getByText("2 days")).toBeTruthy();
-    expect(screen.getByText("2 stops")).toBeTruthy();
-    expect(screen.getByText("2 cities")).toBeTruthy();
+    const pill = screen.getByRole("button", { name: /^Trip dates:/ });
+    expect(pill.textContent).toMatch(/Jun 1.*Jun 2/);
+    expect(pill.textContent).not.toMatch(/days|stops|cities/);
   });
 
   // Mitchell, 2026-08-30 design pass: "Can we drop this ownership tile all
   // togther? DA?" The pill carried stacked member avatars that doubled as a
   // third way into Trip settings. Who is on the trip is answered in the
   // Travellers panel; this pill answers what the trip *is*.
-  it("shows no member avatars and no crew control", () => {
-    render(<TripMetaPill detail={fixture()} />);
+  it("shows no member avatars", () => {
+    render(<TripMetaPill detail={fixture()} readOnly={false} onCommand={() => {}} />);
 
     expect(screen.queryByText("DA")).toBeNull();
     expect(screen.queryByText("DB")).toBeNull();
+  });
+
+  // M27 D5: the popover sends what Trip settings' Dates row sends, on change —
+  // Done only closes. The end beside the input follows the picked start, not
+  // the trip's current last day, so it answers "and then I'm back when?"
+  // before the round-trip does.
+  it("moves the trip's start from its popover, and shows where the end lands", async () => {
+    const onCommand = vi.fn();
+    const detail = fixture();
+    render(<TripMetaPill detail={detail} readOnly={false} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Change the start date/ }));
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-07-10" } });
+
+    expect(onCommand).toHaveBeenCalledExactlyOnceWith({
+      type: "SetTripStartDate",
+      tripId: detail.tripId,
+      startDate: "2027-07-10",
+    });
+    // Two days, so the end is the day after.
+    expect(screen.getByText("→ Jul 11, 2027")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByLabelText("Start date")).toBeNull();
+  });
+
+  // A string of the right shape that is not a day. The native input will not
+  // produce one, but the contract's regex accepts it, so the pill is what
+  // stops it reaching the log.
+  it("sends nothing for a date that does not exist, or the date it already has", async () => {
+    const onCommand = vi.fn();
+    render(<TripMetaPill detail={fixture()} readOnly={false} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Change the start date/ }));
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-02-31" } });
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-06-01" } });
+
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  // A viewer cannot move the trip, so nothing here may look as if it could:
+  // no button, no caret, no popover — the dates as text.
+  it("is plain text for a read-only trip", () => {
+    render(<TripMetaPill detail={fixture()} readOnly onCommand={() => {}} />);
+
     expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText(/Jun 1.*Jun 2/)).toBeTruthy();
+  });
+
+  // An undated trip keeps the button: "No dates set" is the state the popover
+  // exists to fix, and an empty input is where it starts.
+  it("offers a start date to a trip that has none", async () => {
+    const detail = fixture();
+    const undated: TripDetail = { ...detail, startDate: null, days: detail.days.map((d) => ({ ...d, date: null })) };
+    render(<TripMetaPill detail={undated} readOnly={false} onCommand={() => {}} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Trip dates: No dates set. Change the start date" }));
+    expect((screen.getByLabelText("Start date") as HTMLInputElement).value).toBe("");
   });
 });
 
