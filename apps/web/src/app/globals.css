@@ -153,27 +153,26 @@
   --container-a-you: 78%;
   --container-a-asst: 88%;
 
-  /* **The transcript's theme contract — and why `@theme` and NOT `@theme inline`.**
+  /* **The transcript's colour contract — and why `@theme` and NOT `@theme inline`.**
 
-     §2a states it: a look may restyle `--color-a-you-rule`, `--color-a-you-ink`
-     and `--color-a-asst-ink`; both inks sit on the panel background
-     (`--color-surface`, which is what `AssistantRail` paints) and both must stay
-     legible there; and no look may reintroduce a filled message box.
-     `transcriptLook.test.ts` asserts the contrast half per look, and the
-     no-filled-box half against `Transcript.tsx`'s source.
+     §2a states it: the transcript's `--color-a-you-rule`, `--color-a-you-ink`
+     and `--color-a-asst-ink` sit on the panel background (`--color-surface`,
+     which is what `AssistantRail` paints) and both inks must stay legible
+     there; and no message may be a filled box. `transcriptLook.test.ts`
+     asserts the contrast half under Ledger — the only look since §35.1 — and
+     the no-filled-box half against `Transcript.tsx`'s source.
 
      `@theme inline` — the form the font aliases below use — would compile
-     `text-a-you-ink` down to `var(--color-slate)` at build time, and a look
-     overriding `--color-a-you-ink` would then do nothing at all. That silently
-     breaks the first clause of the contract. Plain `@theme` emits the alias as a
-     custom property and the utility reads it through `var()`, so a look can
-     retarget EITHER this token or the one it points at. The two forms look
-     interchangeable here and are not.
+     `text-a-you-ink` down to `var(--color-slate)` at build time, and Ledger's
+     retuned `--color-slate` would then never reach the transcript. Plain
+     `@theme` emits the alias as a custom property and the utility reads it
+     through `var()`, so the `html[data-look="ledger"]` block retargets the
+     token it points at. The two forms look interchangeable here and are not.
 
      Aliases rather than new literals: the color wall keeps raw colors to this
-     file, and the looks already tune `--color-slate`, `--color-ink` and
-     `--color-brand`. A transcript that did not follow them would be a fifth look
-     nobody asked for. */
+     file, and Ledger already tunes `--color-slate`, `--color-ink` and
+     `--color-brand`. A transcript that did not follow them would be a second
+     look nobody asked for. */
   --color-a-you-rule: var(--color-brand);
   --color-a-you-ink: var(--color-slate);
   --color-a-asst-ink: var(--color-ink);
@@ -192,17 +191,21 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   LOOKS — SPEC §28. Four of them, and `ledger` is the default.
+   THE LOOK — Ledger, and only Ledger. SPEC §28 drew four; §35.1 deleted three.
+
+   **There is no picker and there will not be one.** §35.1: "A build carries no
+   theme switch and no theme tokens beyond Ledger's." `layout.tsx` hard-sets
+   `data-look="ledger"` on `<html>`; nothing reads or stores a look. Night desk
+   and Airmail were deleted rather than folded into `@theme` (M27 D1): folding
+   would change every generated OG asset, whose generator reads the first
+   `--color-*` match in this file, for no visible gain.
 
    **Nothing here changes behaviour.** Every rule reassigns a token the app
-   already draws from, so the same markup, handlers, layout and hit targets
-   carry across all four. That is the design file's own framing of this layer
-   (`Trip Planner Redesign.dc.html:80-83`) and it is the property that makes a
-   look cheap: a screen never knows which one it is in.
+   already draws from, so markup, handlers, layout and hit targets are the same
+   with or without the attribute.
 
-   **The base `@theme` block above IS the `paper` look**, so `paper` has no
-   block of its own — it is what you get by overriding nothing. Naming it in
-   `data-look` still works, and renders identically.
+   **The base `@theme` block above is the fallback, not a look.** It is what
+   renders before the attribute applies and what the OG generator reads.
 
    **Selector is `html[data-look=…]`, not `[data-look=…]`.** `@theme` emits its
    variables on `:root`, which is the same element and the same specificity
@@ -213,21 +216,17 @@
    **No `oklch` anywhere, deliberately.** `DRIFT.md` build-check 2: MapLibre
    parses CSS Color 3 only and falls back to black on an `oklch()` it is
    handed, while `getComputedStyle` and canvas `fillStyle` both PRESERVE the
-   function verbatim and so look like a fix. The app has never used it; a look
-   defining its palette that way would put the trap on every map paint property
-   in one commit. Hex only.
+   function verbatim and so look like a fix. Hex only.
 
    **What is NOT here:** the design file also carries a `--a-*` family of
-   per-look assistant shape variables (bubble fills, corner radii, the
-   transcript gap). Those describe the design file's own assistant markup,
-   which is not this build's — `AssistantRail` is built from the same tokens
-   and utilities as everything else, so it re-skins with the rest of the app
-   and needs no second variable system. If a look ever needs the assistant to
-   differ in SHAPE rather than colour, that is the moment to port them.
+   assistant shape variables (bubble fills, corner radii, the transcript gap).
+   Those describe the design file's own assistant markup, which is not this
+   build's — `AssistantRail` is built from the same tokens and utilities as
+   everything else and needs no second variable system.
    ─────────────────────────────────────────────────────────────────────────── */
 
-/* Ledger — the default. Squared, ruled rather than shadowed, headings set
-   like column headers. */
+/* Ledger. Squared, ruled rather than shadowed, headings set like column
+   headers. */
 html[data-look="ledger"] {
   --color-paper: #faf8f3;
   --color-surface: #ffffff;
@@ -282,59 +281,6 @@ html[data-look="ledger"] {
      it. Flip `--font-next-sans` here if the whole-UI version is what was
      wanted — it is a one-line change, deliberately. */
   --font-next-display: var(--font-next-mono);
-}
-
-/* Nightdesk — the dark one. */
-html[data-look="nightdesk"] {
-  color-scheme: dark;
-
-  --color-paper: #0f141d;
-  --color-surface: #171e2a;
-  --color-moss: #1f2734;
-  --color-hairline: #2b3441;
-  --color-border-strong: #3b4553;
-  --color-border-input: #4d5867;
-  --color-slate: #9ba7b6;
-  --color-ink: #eef2f7;
-
-  --color-brand: #35a98d;
-  --color-brand-hover: #45b99c;
-  --color-brand-pressed: #b9e8da;
-  --color-brand-tint: #14302a;
-
-  --color-danger: #e0776d;
-  --color-danger-tint: #391e1c;
-  --color-danger-ink: #f2b6b0;
-  --color-warning: #d8a75a;
-  --color-warning-tint: #382d18;
-  --color-warning-ink: #eed296;
-  --color-success: #56b880;
-  --color-success-tint: #143020;
-  --color-success-ink: #a6dcb9;
-  --color-info: #5b9dd6;
-  --color-info-tint: #15273a;
-  --color-info-ink: #aecfec;
-}
-
-/* Airmail — warm paper, rounder than the rest. */
-html[data-look="airmail"] {
-  --color-paper: #fdf5ec;
-  --color-surface: #fffdfa;
-  --color-moss: #f6e9da;
-  --color-hairline: #ead9c5;
-  --color-border-strong: #cfb79b;
-  --color-border-input: #a8927a;
-  --color-slate: #6f6153;
-  --color-ink: #2a2018;
-
-  --color-brand: #a8532f;
-  --color-brand-hover: #954829;
-  --color-brand-pressed: #7c3b21;
-  --color-brand-tint: #f7e3d5;
-
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
 }
 
 /* Ledger's two rules that a token cannot carry on its own.

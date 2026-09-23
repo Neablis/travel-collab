@@ -246,11 +246,11 @@ export function Transcript({
           // the left of a right-aligned block points at nothing.
           //
           // The bubble was `rounded-md bg-brand-tint … text-ink`, and removing
-          // it is what the theme contract above `--color-a-you-ink` exists for:
-          // in `nightdesk` that pairing was near-white ink on a dark green
-          // fill, and ink that was legible ON the fill has to stay legible on
-          // the panel once the fill is gone. `transcriptLook.test.ts` measures
-          // that for all four looks rather than trusting this comment.
+          // it is what the colour contract above `--color-a-you-ink` exists
+          // for: ink that was legible ON the fill has to stay legible on the
+          // panel once the fill is gone. `transcriptLook.test.ts` measures
+          // that under Ledger, the only look (§35.1), rather than trusting
+          // this comment.
           //
           // No max-width utility: an arbitrary Tailwind value trips the design
           // wall (scripts/check-color-wall.mjs), and the rail is 356px wide —
