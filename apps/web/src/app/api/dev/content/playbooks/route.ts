@@ -6,6 +6,7 @@ import { db } from "@/server/db/client";
 import { savedDayAdds, savedDays } from "@/server/db/schema";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
+import { recomputeReviewCounters } from "@/server/reviews";
 
 export const runtime = "nodejs";
 
@@ -129,6 +130,13 @@ export async function POST(request: Request) {
         });
       }
     }
+    // Reviews are NOT deleted with the rows above, and the counters are
+    // recomputed from them instead. A re-import rewrites the authored content
+    // under the same ids; the stars on it were given by real people and must
+    // survive that. `newSavedDayRow` writes the counters as "unreviewed", so
+    // without this every re-import would silently zero a reviewed day's rating
+    // while its reviews still sat in `saved_day_reviews` (M12 link 2).
+    for (const id of ids) await recomputeReviewCounters(tx, id);
   });
 
   return Response.json({

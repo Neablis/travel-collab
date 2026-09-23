@@ -5,6 +5,7 @@ import {
   DiscoverResponse,
   DiscoverScope,
   DiscoverSort,
+  RatingFloor,
 } from "@/lib/playbooks";
 import { discoverDays } from "@/server/playbooks";
 
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
     // than 400ing: an unrecognised or stale `?length=` stops narrowing instead
     // of breaking the page.
     length: LengthBand.catch("any").parse(params.get("length")),
+    rating: RatingFloor.catch("any").parse(params.get("rating")),
     readerId: session.user.id,
   });
   return Response.json(DiscoverResponse.parse(result));

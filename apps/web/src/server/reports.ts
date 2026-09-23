@@ -9,9 +9,10 @@ import type {
 } from "@tc/contracts";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import { displayNameFor } from "@/lib/displayName";
-import { db, type Queryable } from "./db/client";
+import { db } from "./db/client";
 import { contentReports, savedDayReviews, savedDays } from "./db/schema";
 import { isUuid } from "./ids";
+import { lockSavedDayForReviewWrite, recomputeReviewCounters } from "./reviews";
 import { readableSavedDay } from "./savedDays";
 
 // Reports and the operator's queue over them (M12 link 6, D5/D6). Ordinary
@@ -211,32 +212,6 @@ export async function listReports(query: { status: ReportStatus }): Promise<Admi
   }));
 }
 
-/**
- * The counters over `saved_day_reviews`, recomputed from the rows — never
- * `++`/`--` — so hiding or restoring a review moves Discover's numbers in the
- * same transaction as the flag.
- *
- * merge: replace with reviews.ts recomputeReviewCounters. This is a stand-in
- * for Unit 2's function, which did not exist on this branch's base; the
- * definition (visible rows only, null rating at zero reviews) is the schema
- * note on `saved_days.rating`, so the two should be identical.
- */
-async function recomputeReviewCountersForModeration(tx: Queryable, savedDayId: string): Promise<void> {
-  await tx
-    .update(savedDays)
-    .set({
-      reviewCount: sql`(
-        select count(*)::int from saved_day_reviews r
-        where r.saved_day_id = ${savedDayId} and r.hidden_at is null
-      )`,
-      rating: sql`(
-        select avg(r.stars)::double precision from saved_day_reviews r
-        where r.saved_day_id = ${savedDayId} and r.hidden_at is null
-      )`,
-    })
-    .where(eq(savedDays.id, savedDayId));
-}
-
 /** Which reports an action settles, and what it settles them as. */
 function resolutionOf(action: AdminReportAction["action"]): ReportStatus {
   return action === "hide-day" || action === "hide-review" ? "actioned" : "dismissed";
@@ -309,6 +284,11 @@ export async function actOnReport(
         break;
       case "hide-review":
       case "restore-review":
+        // Lock BEFORE the flag write, not just before the recompute: under READ
+        // COMMITTED a waiting UPDATE does not re-run its subquery, so a review
+        // posted concurrently would be missing from the stored count
+        // (`reviews.ts`, `lockSavedDayForReviewWrite`).
+        await lockSavedDayForReviewWrite(tx, row.savedDayId);
         touched = await tx
           .update(savedDayReviews)
           .set({ hiddenAt: action.action === "hide-review" ? sql`coalesce(${savedDayReviews.hiddenAt}, ${at})` : null })
@@ -320,7 +300,7 @@ export async function actOnReport(
           )
           .returning({ savedDayId: savedDayReviews.savedDayId })
           .then((r) => r.length);
-        if (touched > 0) await recomputeReviewCountersForModeration(tx, row.savedDayId);
+        if (touched > 0) await recomputeReviewCounters(tx, row.savedDayId);
         break;
       case "dismiss":
         touched = 1;

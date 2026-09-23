@@ -6,10 +6,14 @@ import {
   BatchableCommand,
   CreatePageInput,
   CreateReportInput,
+  PutReviewInput,
   TripCommand,
   UpdatePageInput,
   type ContentReport,
   type Page,
+  type Review,
+  type ReviewSummary,
+  type SavedDayReviewsResponse,
   type TripDetail,
   type TripEventsPage,
   type TripHistory,
@@ -331,6 +335,90 @@ export function makePagesHandlers(
       options?.onDelete?.(params.pageId as string);
       pages = pages.filter((_, i) => i !== idx);
       return HttpResponse.json({ ok: true });
+    }),
+  ];
+}
+
+// Deliberately naive in-memory reviews for one shared day — just enough for the
+// rating rail and the review form against `/api/saved-days/:id/reviews` (M12).
+// The summary is recounted from the in-memory list on every call, which is the
+// same "aggregate, never ++" shape the server keeps, so a test that posts and
+// then reads sees the average move the way the real route moves it.
+//
+// `authorId` is who wrote the day, so the author posting gets the real route's
+// 403 `own-day`; `publishedAt` is the day's current publish time, so a PUT
+// carrying a different `seenPublishedAt` gets the 409 conflict body.
+/**
+ * MSW handlers for one day's reviews, seeded with `initial`, answering as
+ * `viewerId`. Mirrors the real route's status codes, not its storage.
+ */
+export function makeReviewsHandlers(
+  savedDayId: string,
+  initial: Review[],
+  options: { viewerId?: string; authorId?: string; publishedAt?: string; authorDisplayName?: string } = {},
+) {
+  const viewerId = options.viewerId ?? "dev-alice";
+  let reviews = structuredClone(initial);
+  const summary = (): ReviewSummary => {
+    const histogram = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const r of reviews) histogram[r.stars as 1 | 2 | 3 | 4 | 5] += 1;
+    const count = reviews.length;
+    return { average: count === 0 ? null : reviews.reduce((n, r) => n + r.stars, 0) / count, count, histogram };
+  };
+  const mark = (r: Review): Review => ({ ...r, isMine: r.reviewerId === viewerId });
+  const path = "/api/saved-days/:savedDayId/reviews";
+  const notFound = () => HttpResponse.json({ error: "not-found" }, { status: 404 });
+  return [
+    http.get(path, ({ params }) => {
+      if (params.savedDayId !== savedDayId) return notFound();
+      const list = [...reviews].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(mark);
+      const body: SavedDayReviewsResponse = {
+        summary: summary(),
+        reviews: list,
+        mine: list.find((r) => r.isMine) ?? null,
+      };
+      return HttpResponse.json(body);
+    }),
+    http.put(path, async ({ params, request }) => {
+      if (params.savedDayId !== savedDayId) return notFound();
+      const parsed = PutReviewInput.safeParse(await request.json().catch(() => null));
+      if (!parsed.success) return HttpResponse.json({ error: "invalid-review" }, { status: 400 });
+      if (options.authorId === viewerId) return HttpResponse.json({ error: "own-day" }, { status: 403 });
+      const { seenPublishedAt } = parsed.data;
+      if (
+        seenPublishedAt !== undefined &&
+        options.publishedAt !== undefined &&
+        seenPublishedAt !== options.publishedAt
+      ) {
+        return HttpResponse.json(
+          {
+            error: "day-changed",
+            changedAt: options.publishedAt,
+            authorDisplayName: options.authorDisplayName ?? "Mei",
+          },
+          { status: 409 },
+        );
+      }
+      const now = new Date().toISOString();
+      const existing = reviews.find((r) => r.reviewerId === viewerId);
+      const review: Review = {
+        savedDayId,
+        reviewerId: viewerId,
+        reviewerDisplayName: existing?.reviewerDisplayName ?? viewerId,
+        stars: parsed.data.stars,
+        note: parsed.data.note,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        isMine: true,
+      };
+      reviews = [...reviews.filter((r) => r.reviewerId !== viewerId), review];
+      return HttpResponse.json({ review, summary: summary() });
+    }),
+    http.delete(path, ({ params }) => {
+      if (params.savedDayId !== savedDayId) return notFound();
+      if (!reviews.some((r) => r.reviewerId === viewerId)) return notFound();
+      reviews = reviews.filter((r) => r.reviewerId !== viewerId);
+      return HttpResponse.json({ summary: summary() });
     }),
   ];
 }

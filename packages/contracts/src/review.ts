@@ -42,7 +42,7 @@ export const ReviewNote = boundedNote(REVIEW_NOTE_MAX);
 export type ReviewNote = z.infer<typeof ReviewNote>;
 
 /**
- * `PUT /api/saved-days/:id/review` — create or replace the caller's review.
+ * `PUT /api/saved-days/:id/reviews` — create or replace the caller's review.
  * One review per person per day is the table's primary key, so a second PUT is
  * an update by construction, not a second row.
  */
