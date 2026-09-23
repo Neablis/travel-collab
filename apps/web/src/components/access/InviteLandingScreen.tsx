@@ -90,7 +90,7 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
         )}
         {landing?.state === "member" && (
           <Elsewhere
-            eyebrow="Already joined"
+            eyebrow="Already a member"
             title="You're already on this trip"
             body="You're already a member, so there's nothing to join. Everything on it is where you left it."
             action={<PrimaryLink href={`/trips/${landing.tripId}`}>Open {shortName(landing.tripName)}</PrimaryLink>}
