@@ -152,6 +152,28 @@ since.**
 - So Undo shows only while the apply is still the trip's last change. After
   that the card says so, and points at History (§35.10's conflict path).
 
+**Smaller calls made during the build** (recorded so they are not rediscovered):
+- `UnderlineTabs` accepts `value: null`. With nothing selected, the first tab
+  keeps the tab stop, because Account's tokens sub-view selects no tab.
+- The tokens sub-view's `← Profile` and H3 live in `AccountScreen`, not in
+  `TokensSection`, which renders nothing until its fetch lands. The panel there
+  is a `region` labelled by the H3, not a `tabpanel`.
+- Discover's phone sheet button reads `Filters · N` too (was `Filters (N)`), so
+  one state is not worded two ways.
+- The keep dialog's toast reports the count (*Kept in your Playbooks*,
+  *N days kept in your Playbooks as one*). A stop with no time shows an empty
+  time cell in the preview.
+- Text sizes snap to existing tokens where the design uses half-pixel sizes
+  (15px → `text-base`, 12.5px → `text-xs`), because the lint wall bans
+  arbitrary sizes.
+- Plan's day rail no longer scrolls itself to follow a selection while it is off
+  screen. Now that the rail scrolls with Plan rather than sitting in the sticky
+  header, following would yank a reader halfway down the columns back up to it.
+- A trip with no dates still gets the dates pill as a button (*No dates set*),
+  and its popover opens empty.
+- The Overview letter is `.tc-overview-letter` with a `--shadow-letter` token.
+  Its 4px radius is written out because the Ledger look zeroes the radius scale.
+
 ---
 
 ## Out of scope, on purpose
@@ -178,6 +200,13 @@ since.**
 | 7 | Keep several days: the preview and the city label | 35.7 | `KeepDayDialog`, `KeepDayFlag`, `Board` |
 | 8 | Cass, the typing row, the Playbook-day turn, answer pills | 35.8, 35.9 | `newTripScript`, `NewTripWizard`, `Transcript` |
 | 9 | Proposal cards | 35.9 | `ProposalCard`, `TripBoardScreen` |
+| 10 | Every Playbook has its map; Playbooks surfaces styled to the design | §15, §16, §33 | `components/playbooks/**` |
+
+**Link 10 was added 2026-09-23 on Mitchell's request, made while the pass was
+being built:** *"make sure the playbooks get correctly styled? Every playbook
+should have maps for instance, not just the multi day ones"*. It is not in §35.
+It is the parity of the Playbooks surfaces as a whole (§15/§16/§33), plus the
+root cause of single-day Playbooks drawing no map.
 
 ## Exit gate
 
@@ -194,5 +223,7 @@ since.**
       **Have a look first** shows the trip read-only; **Join** lands in the trip
 - [ ] **[walk]** New trip for a city with published days offers them after the
       city, and a chosen day is on the created trip
+- [ ] **[walk]** A single-day Playbook from the content library shows its map
+      (desktop, and behind *Show route* on a phone)
 - [ ] **[walk]** Asking the assistant for a change shows a card; accept, then
       Undo, puts the trip back
