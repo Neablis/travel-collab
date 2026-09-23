@@ -357,6 +357,16 @@ Two things that follow:
   happened. Repeated `gh pr checks` was measured as a reliable time sink before
   the wake mechanism was documented at all.
 
+## Node is pinned, and the hook switches to it
+
+The image puts Node 22 on PATH. The project pins **24** in `.nvmrc`, and so do
+CI (`node-version-file: .nvmrc`), `engines`, and Vercel. The `SessionStart` hook's
+`use_pinned_node` installs the pinned version with the image's nvm (a few seconds
+the first time) and writes the PATH to `CLAUDE_ENV_FILE`, so the session's shell
+runs 24 as well. If `pnpm lanes` reports the unit lane as `BLOCKED` because of
+the Node version, that step failed, and the hook will have said why. A result
+from a different major is not a verdict (`KI-2026-09-02-a`).
+
 ## What this container can verify — run the probe
 
 `pnpm lanes` prints which verification lanes exist here: `pnpm --filter`
