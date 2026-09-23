@@ -3,6 +3,10 @@ import {
   BatchableCommand,
   InviteLanding,
   PageDoc,
+  Review,
+  ReviewDayChanged,
+  ReviewSummary,
+  SavedDayReviewsResponse,
   SIMULATED_HEADER,
   migratePageDoc,
   SavedDay,
@@ -18,8 +22,11 @@ import {
   UpdateUserPreferences,
   UserPreferences,
   type AssistantProposal,
+  type AdminReportAction,
   type CreateInviteInput,
+  type CreateReportInput,
   type CreateSavedDayInput,
+  type PutReviewInput,
   type TripCommand,
 } from "@tc/contracts";
 import { BASE_URL } from "@/config";
@@ -35,7 +42,15 @@ import {
   type LengthBand,
   type DiscoverScope,
   type DiscoverSort,
+  type RatingFloor,
 } from "@/lib/playbooks";
+import {
+  AdminReportActionResponse,
+  AdminReportsResponse,
+  CreateReportResponse,
+  type AdminReportQueueItem,
+} from "@/lib/reports";
+import type { ContentReport, ReportStatus } from "@tc/contracts";
 
 export type ApiError = { status: number; message: string; code?: string };
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
@@ -741,6 +756,8 @@ export async function searchPlaybooks(query: {
   sort?: DiscoverSort;
   budget?: BudgetBand;
   length?: LengthBand;
+  /** The rating floor (M12 link 5). `"any"` is sent as nothing, like every other filter's default. */
+  rating?: RatingFloor;
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
@@ -749,6 +766,7 @@ export async function searchPlaybooks(query: {
   if (query.sort) params.set("sort", query.sort);
   if (query.budget) params.set("budget", query.budget);
   if (query.length) params.set("length", query.length);
+  if (query.rating && query.rating !== "any") params.set("rating", query.rating);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
     return await readJson(res, (data) => DiscoverResponse.parse(data));
@@ -772,6 +790,114 @@ export async function fetchPublicProfile(userId: string): Promise<ApiResult<Publ
   try {
     const res = await fetch(apiUrl(`/api/playbooks/profile/${encodeURIComponent(userId)}`));
     return await readJson(res, (data) => PublicProfileResponse.parse(data));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+// ── Reviews and reports (M12 links 3-6) ─────────────────────────────────────
+
+/** A shared day's rating rail: the summary, the visible reviews, and the reader's own. */
+export async function fetchReviews(savedDayId: string): Promise<ApiResult<SavedDayReviewsResponse>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}/reviews`));
+    return await readJson(res, (data) => SavedDayReviewsResponse.parse(data));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * What posting a review can come back as. **The 409 is a state, not an error**
+ * (§15's conflict banner, M12 D4): it carries who changed the day and when,
+ * which `ApiError`'s message string cannot, so it is its own arm rather than a
+ * `code` the caller would then have to re-fetch the details for.
+ */
+export type PutReviewOutcome =
+  | { kind: "saved"; review: Review; summary: ReviewSummary }
+  | { kind: "day-changed"; changed: ReviewDayChanged };
+
+/**
+ * Create or replace the caller's review — one per person per day, so a second
+ * post is an update. A note over 140 characters is refused by the server (400
+ * `invalid-review`), never truncated here.
+ */
+export async function putReview(
+  savedDayId: string,
+  input: PutReviewInput,
+): Promise<ApiResult<PutReviewOutcome>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}/reviews`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (res.status === 409) {
+      const body = ReviewDayChanged.safeParse(await res.json().catch(() => null));
+      if (body.success) return { ok: true, value: { kind: "day-changed", changed: body.data } };
+      return { ok: false, error: { status: 409, message: "Conflict" } };
+    }
+    return await readJson(res, (data) => {
+      const body = data as { review: unknown; summary: unknown };
+      return { kind: "saved" as const, review: Review.parse(body.review), summary: ReviewSummary.parse(body.summary) };
+    });
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** Withdraw the caller's own review; answers with the fresh summary. */
+export async function deleteReview(savedDayId: string): Promise<ApiResult<ReviewSummary>> {
+  try {
+    const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}/reviews`), { method: "DELETE" });
+    return await readJson(res, (data) => ReviewSummary.parse((data as { summary: unknown }).summary));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Report a shared day or a review. Reporting the same thing twice returns the
+ * report already on file (200), so a double-click is harmless; your own
+ * content is 403 `own-content`.
+ */
+export async function createReport(input: CreateReportInput): Promise<ApiResult<ContentReport>> {
+  try {
+    const res = await fetch(apiUrl("/api/reports"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => CreateReportResponse.parse(data).report);
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** The operator's report queue, one status at a time. 404 for anyone who is not an operator. */
+export async function fetchAdminReports(
+  status: ReportStatus = "open",
+): Promise<ApiResult<AdminReportQueueItem[]>> {
+  try {
+    const res = await fetch(apiUrl(`/api/admin/reports?status=${encodeURIComponent(status)}`));
+    return await readJson(res, (data) => AdminReportsResponse.parse(data).reports);
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/** Act on one report; the decision settles every open report on the same target. */
+export async function actOnReport(
+  reportId: string,
+  action: AdminReportAction,
+): Promise<ApiResult<ContentReport>> {
+  try {
+    const res = await fetch(apiUrl(`/api/admin/reports/${reportId}`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(action),
+    });
+    return await readJson(res, (data) => AdminReportActionResponse.parse(data).report);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

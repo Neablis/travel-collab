@@ -36,6 +36,12 @@ import {
   searchCities,
   searchPlaces,
   searchPlaybooks,
+  fetchReviews,
+  putReview,
+  deleteReview,
+  createReport,
+  fetchAdminReports,
+  actOnReport,
   fetchLeaderboard,
   fetchPublicProfile,
   sendTripCommand,
@@ -224,6 +230,13 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   searchPlaybooks: () => searchPlaybooks({ cities: ["Kyoto"] }),
   fetchLeaderboard: () => fetchLeaderboard(),
   fetchPublicProfile: () => fetchPublicProfile("dev-alice"),
+  fetchReviews: () => fetchReviews(UUID),
+  putReview: () => putReview(UUID, { stars: 4, note: null }),
+  deleteReview: () => deleteReview(UUID),
+  createReport: () =>
+    createReport({ target: { kind: "saved_day", savedDayId: UUID }, reason: "spam", note: null }),
+  fetchAdminReports: () => fetchAdminReports(),
+  actOnReport: () => actOnReport(UUID, { action: "dismiss" }),
   askAssistant: () =>
     askAssistant(TRIP_ID, [{ id: "u1", role: "user", parts: [{ type: "text", text: "hi" }] }], { kind: "trip" }),
   applyAssistantProposal: () =>
@@ -272,6 +285,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
       sort: "newest",
       budget: "under200",
       length: "two-three",
+      rating: "4.5",
     });
     expect(result.ok).toBe(true);
     expect(seen).not.toBeNull();
@@ -281,6 +295,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
     expect(seen!.searchParams.get("sort")).toBe("newest");
     expect(seen!.searchParams.get("budget")).toBe("under200");
     expect(seen!.searchParams.get("length")).toBe("two-three");
+    expect(seen!.searchParams.get("rating")).toBe("4.5");
     // **No `season`.** M26 link 2 cut it (SPEC §33.2) — it filtered on the
     // month a day was run and nobody used it. Asserted as absent rather than
     // merely deleted from the call above, so a `season` that crept back into
@@ -306,10 +321,42 @@ describe("searchPlaybooks puts its filters on the wire", () => {
       }),
     );
 
-    await searchPlaybooks({ cities: ["Kyoto"] });
+    await searchPlaybooks({ cities: ["Kyoto"], rating: "any" });
+    expect(seen!.searchParams.has("rating")).toBe(false);
     expect(seen!.searchParams.has("length")).toBe(false);
     expect(seen!.searchParams.has("budget")).toBe(false);
     expect(seen!.searchParams.has("season")).toBe(false);
+  });
+});
+
+// §15's conflict banner needs WHO changed the day and WHEN. Folded into
+// `ApiError` those would be a message string the banner could not word, so the
+// 409 is its own arm of the outcome — and a 409 whose body is not the contract's
+// shape is still an error, never a banner naming nobody.
+describe("putReview reads a 409 as the day having changed", () => {
+  it("returns the day-changed arm with the author and the time", async () => {
+    server.use(
+      http.put("*/api/saved-days/:id/reviews", () =>
+        HttpResponse.json(
+          { error: "day-changed", changedAt: "2026-09-21T10:00:00.000Z", authorDisplayName: "Mei Tanaka" },
+          { status: 409 },
+        ),
+      ),
+    );
+    const result = await putReview(UUID, { stars: 5, note: null, seenPublishedAt: "2026-09-01T00:00:00.000Z" });
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        kind: "day-changed",
+        changed: { error: "day-changed", changedAt: "2026-09-21T10:00:00.000Z", authorDisplayName: "Mei Tanaka" },
+      },
+    });
+  });
+
+  it("treats a 409 without the contract's body as an error", async () => {
+    server.use(http.put("*/api/saved-days/:id/reviews", () => HttpResponse.json({}, { status: 409 })));
+    const result = await putReview(UUID, { stars: 5, note: null });
+    expect(result.ok).toBe(false);
   });
 });
 
