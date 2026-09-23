@@ -335,6 +335,47 @@ describe("one day or several, a Playbook is laid out the same", () => {
     expect(three.picker).toBe(1);
   });
 
+  // The frame is there whatever it holds (Mitchell: the page must never
+  // reflow), and it holds the same thing for one day or three. The default
+  // fixture's stops are `{ name, city }` only — exactly the preview's.
+  it.each([1, 3])("holds the map frame for a %i-day Playbook with nothing to place", async (dayCount) => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ dayCount }), isAuthor: false }));
+    renderDay();
+    await screen.findByTestId("stop-list");
+    expect(screen.getByTestId("shared-day-map-frame")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
+  });
+
+  // The read that serves this page starts the server placing the stops and
+  // says so; the page shows the frame loading and reads again until it is done.
+  it("reads again while the server is pinning, and then draws what it placed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const inKyoto = (title: string) =>
+        stop({ title, location: { name: title, city: "Kyoto", lat: 35.0116, lng: 135.7681, precision: "city" } });
+      fetchSavedDayMock
+        .mockResolvedValueOnce(ok({ savedDay: savedDay(), isAuthor: false, pinning: true }))
+        .mockResolvedValue(
+          ok({ savedDay: savedDay({ stops: [inKyoto("Fushimi Inari"), inKyoto("Tofuku-ji")] }), isAuthor: false, pinning: false }),
+        );
+      renderDay();
+      expect(await screen.findByTestId("shared-day-map-loading")).toBeTruthy();
+      expect(fetchSavedDayMock).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(4_000);
+      await waitFor(() => expect(fetchSavedDayMock).toHaveBeenCalledTimes(2));
+      expect((await screen.findByTestId("shared-day-map")).getAttribute("aria-label")).toBe("Map of Kyoto");
+      // A reader's page gaining coordinates is not "the library moved".
+      expect(screen.queryByText(/This day has changed since you opened it/)).toBeNull();
+
+      // Done: no further reads.
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(fetchSavedDayMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("names what the list is a list of, and the scoped day's own range", async () => {
     expect(ledgerLabel(1, "all")).toBe("The day, as they ran it");
     expect(ledgerLabel(3, "all")).toBe("All 3 days, as they ran them");

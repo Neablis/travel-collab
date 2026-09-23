@@ -3,8 +3,8 @@ import { MIN_POINTS_TO_DRAW } from "@tc/contracts";
 
 // SPEC §16 — the shared day is a map plus a list. This module is the map's
 // half of that, and deliberately all of it that can be decided without a
-// browser: which points exist, which legs join them, and whether there is
-// enough to draw at all.
+// browser: which points exist, which legs join them, and what the map frame
+// holds for them (`mapShape`).
 //
 // It is pure because the three rules below are the ones that have historically
 // been got wrong, and none of them needs MapLibre to be tested:
@@ -47,7 +47,7 @@ export type DayGeometry = { dayIndex: number; points: readonly MapPoint[]; legs:
 // while `@tc/contracts` stays the one place the NUMBER is written down.
 export { MIN_POINTS_TO_DRAW };
 
-function located(stop: SavedStop): stop is SavedStop & { location: { lat: number; lng: number } } {
+function hasCoords(stop: SavedStop): stop is SavedStop & { location: { lat: number; lng: number } } {
   return (
     // `Number.isFinite`, not `typeof === "number"`: `typeof NaN` is `"number"`,
     // so the weaker check called a stop located and handed NaN straight to
@@ -58,6 +58,21 @@ function located(stop: SavedStop): stop is SavedStop & { location: { lat: number
     Number.isFinite(stop.location.lat) &&
     Number.isFinite(stop.location.lng)
   );
+}
+
+/**
+ * A stop with a coordinate of ITS OWN — a pin, and a point on the route.
+ *
+ * **A city-level coordinate is not one** (M27 link 10). `precision: "city"`
+ * says "somewhere in this city" (contracts `activity.ts`), and the backfill
+ * that puts Playbooks on the map writes exactly that for every stop the vendor
+ * could not corroborate. Treated as a pin, five such stops are five numbered
+ * pins stacked on one centroid and a route of zero length between them — a
+ * picture of a walk nobody took. They are drawn as a city instead
+ * (`cityMarkers`).
+ */
+function located(stop: SavedStop): stop is SavedStop & { location: { lat: number; lng: number } } {
+  return hasCoords(stop) && stop.location.precision !== "city";
 }
 
 /**
@@ -133,14 +148,61 @@ export function allLegs(geometry: readonly DayGeometry[]): readonly MapLeg[] {
 }
 
 /**
- * Is there enough located detail for a map to say anything?
+ * Is there enough located detail for a ROUTE?
  *
- * §16: below two located stops the surface **degrades to list-only** rather
- * than rendering an empty canvas. One pin on a world map tells a reader less
- * than the city name already in the list does.
+ * Two pins or more. This used to decide whether there was a map at all — §16's
+ * degrade-to-list-only below two located stops — and that rule is gone (M27
+ * link 10, Mitchell: *"Every playbook should have maps"*). Below two, the map
+ * still draws whatever there is to place; see `mapShape`.
  */
 export function worthDrawing(geometry: readonly DayGeometry[]): boolean {
   return allPoints(geometry).length >= MIN_POINTS_TO_DRAW;
+}
+
+/** A city the stops in view happen in, at the centre the backfill stored for it. */
+export type CityMarker = { city: string; lat: number; lng: number; stops: number };
+
+/**
+ * One marker per city among the in-scope stops that are placed only at city
+ * level — the map's answer when the stops themselves are not pinned yet.
+ *
+ * Grouped by the city's NAME, and placed at the first coordinate stored for
+ * it: the backfill writes one centre per city, so every stop in a city carries
+ * the same one.
+ */
+export function cityMarkers(
+  days: readonly { dayIndex: number; stops: readonly SavedStop[] }[],
+  scope: "all" | number,
+): readonly CityMarker[] {
+  const byCity = new Map<string, CityMarker>();
+  for (const day of scope === "all" ? days : days.filter((d) => d.dayIndex === scope)) {
+    for (const stop of day.stops) {
+      if (!hasCoords(stop) || stop.location.precision !== "city") continue;
+      const city = stop.location.city ?? stop.location.name;
+      const key = city.trim().toLowerCase();
+      const marker = byCity.get(key);
+      if (marker) marker.stops += 1;
+      else byCity.set(key, { city, lat: stop.location.lat, lng: stop.location.lng, stops: 1 });
+    }
+  }
+  return [...byCity.values()];
+}
+
+/** What the map frame holds — see `mapShape`. */
+export type MapShape = "route" | "places" | "none";
+
+/**
+ * What the map frame holds for what is in view (M27 link 10).
+ *
+ *   * `route` — two pins or more: the numbered pins and the line between them.
+ *   * `places` — anything less that can still be placed: a lone pin, or the
+ *     cities the day happens in. No line, because there is no route to draw.
+ *   * `none` — nothing to place at all. The frame still renders, empty and
+ *     saying so, so the page never reflows (Mitchell).
+ */
+export function mapShape(geometry: readonly DayGeometry[], cities: readonly CityMarker[]): MapShape {
+  if (worthDrawing(geometry)) return "route";
+  return allPoints(geometry).length > 0 || cities.length > 0 ? "places" : "none";
 }
 
 /**
@@ -150,11 +212,19 @@ export function worthDrawing(geometry: readonly DayGeometry[]): boolean {
  * from `All days` to `Day 2` leaves the previous line on screen, because the
  * points it is keyed on are a subset and nothing looks changed.
  */
-export function geometryKey(savedDayId: string, scope: "all" | number, geometry: readonly DayGeometry[]): string {
+export function geometryKey(
+  savedDayId: string,
+  scope: "all" | number,
+  geometry: readonly DayGeometry[],
+  cities: readonly CityMarker[] = [],
+): string {
   const shape = allPoints(geometry)
     .map((p) => `${p.number}@${p.lat.toFixed(5)},${p.lng.toFixed(5)}`)
     .join("|");
-  return `${savedDayId}:${scope}:${shape}`;
+  // The cities too, or a backfill that lands while the page is open — cities
+  // arriving where there were none — would leave the empty frame standing.
+  const places = cities.map((c) => `${c.city}@${c.lat.toFixed(5)},${c.lng.toFixed(5)}`).join("|");
+  return `${savedDayId}:${scope}:${shape}:${places}`;
 }
 
 /**

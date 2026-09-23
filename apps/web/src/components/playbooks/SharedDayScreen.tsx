@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import type { SavedDay } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
@@ -130,7 +130,18 @@ export function dayDividerLine(group: PlaybookDay): string {
     : `${toClockRange(group.window.start, group.window.end)} · ${count}`;
 }
 
-type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor };
+type DayView = { day: SavedDay; isAuthor: boolean; author: PublicAuthor; pinning: boolean };
+
+/**
+ * How often, and how many times, the page reads again while the server is
+ * placing the day's stops on its map (M27 link 10). One server pass is at most
+ * `MAX_PIN_LOOKUPS_PER_READ` lookups at the vendor's two a second — about ten
+ * seconds — and a long Playbook takes two passes, so eight reads four seconds
+ * apart cover both with room to spare. Past that the frame stops waiting and
+ * shows what there is: a vendor that never answers must not pulse forever.
+ */
+const PIN_REREAD_MS = 4_000;
+const MAX_PIN_REREADS = 8;
 
 /**
  * One read, two requests.
@@ -151,6 +162,7 @@ async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
       day: dayResult.value.savedDay,
       isAuthor: dayResult.value.isAuthor,
       author: authorResult.value.author,
+      pinning: dayResult.value.pinning,
     },
   };
 }
@@ -186,6 +198,24 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const router = useRouter();
   const unit = useDistanceUnit();
+
+  // Read again while the server is still pinning — silently, because the
+  // stops gaining coordinates is not "the library moved" (the signature above
+  // does not look at stops, and this is not somebody else's edit either).
+  const [pinReads, setPinReads] = useState(0);
+  const pinning = feed.data?.pinning === true && pinReads < MAX_PIN_REREADS;
+  const { refreshWithoutComparing } = feed;
+  useEffect(() => {
+    if (!pinning) return;
+    const timer = setTimeout(() => {
+      setPinReads((n) => n + 1);
+      refreshWithoutComparing();
+    }, PIN_REREAD_MS);
+    return () => clearTimeout(timer);
+    // `feed.data` rather than the callback: a new answer is what restarts the
+    // wait, and `refreshWithoutComparing` is a fresh closure on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinning, feed.data]);
 
   async function setVisibility(next: "public" | "private") {
     setBusy(true);
@@ -400,10 +430,11 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               **Mounted for every Playbook, one day or ten** — never behind a
               day-count check (Mitchell, M27 link 10: "Every playbook should
               have maps for instance, not just the multi day ones"; the
-              SharedDayScreen test pins it). `SharedDayMap` renders nothing at all when fewer than
-              two stops have coordinates — §16's degrade-to-list-only — so
-              there is no empty canvas to guard against here. */}
-          <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} />
+              SharedDayScreen test pins it). And its frame is always there,
+              whatever it holds — a route, the cities, a loading ground while
+              the server pins the stops, or "Nothing to map yet" — so nothing
+              below it moves when the map arrives. */}
+          <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} pinning={pinning} />
 
           {/* The author strip. One resolver for the name (M17's seam), and the
               two numbers beside it are the profile's own. */}

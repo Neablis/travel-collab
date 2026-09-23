@@ -114,10 +114,15 @@ test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
     await expect.poll(worker.outcome, { timeout: 20_000 }).toBe("loaded");
   });
 
-  test("degrades to list-only rather than an empty canvas when one stop is located", async ({ page }) => {
+  // M27 link 10 retired §16's list-only degrade. Mitchell: a Playbook has a map
+  // whenever there is anything to place — and one located stop is something.
+  // This test used to assert the map's ABSENCE here; it now asserts the lone
+  // pin, with no line, and the note that says why there is none.
+  test("draws a lone located stop as a pin, with no route", async ({ page }) => {
     test.slow();
+    const worker = watchMapWorker(page);
     const dayName = `One pin only ${randomUUID().slice(0, 8)}`;
-    const trip = await tripWithLocatedStops(page, e2eTripName("SharedDayNoMap"), [
+    const trip = await tripWithLocatedStops(page, e2eTripName("SharedDayOnePin"), [
       { title: "Fushimi Inari at opening", at: "07:30", ...FUSHIMI },
       { title: "Lunch somewhere unrecorded", at: "12:30" },
     ]);
@@ -125,26 +130,36 @@ test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
 
     await page.goto(`/playbooks/day/${savedDayId}`);
     await expect(page.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
-    // The list is there — so this is a day that rendered, not a day that failed.
-    await expect(page.getByTestId("stop-list")).toBeVisible();
+    await expect(page.locator("canvas.maplibregl-canvas")).toBeVisible();
+    const pins = page.locator('[data-testid="shared-day-pin"]');
+    await expect(pins).toHaveCount(1);
+    await expect(pins.nth(0)).toHaveAttribute("data-stop-number", "1");
+    await expect(page.getByTestId("shared-day-map-panel")).toContainText(
+      "Only one stop is pinned so far, so there's no route to draw yet.",
+    );
+    await expect.poll(worker.outcome, { timeout: 20_000 }).toBe("loaded");
+  });
 
-    // **The absence is asserted on the CONTAINER, not on the canvas**, and that
-    // is the whole difference between this test and one that asserts nothing.
-    // `toHaveCount(0)` on a canvas is satisfied by "not yet": MapLibre creates
-    // it in an effect, so the assertion resolves before the map has had a
-    // chance to mount and passes whatever the component decided. Checked by
-    // lowering `MIN_POINTS_TO_DRAW` to 1 — which makes this day drawable — and
-    // watching the canvas version stay GREEN.
-    //
-    // `shared-day-map` is rendered in the same React commit as the list above,
-    // so once the list is visible this element either exists or the component
-    // returned `null`. That is §16's degrade-to-list-only, stated as a fact
-    // about the DOM rather than about a race.
-    await expect(page.getByTestId("shared-day-map")).toHaveCount(0);
-    await expect(page.getByTestId("shared-day-map-offline")).toHaveCount(0);
-    // And then the canvas, for the failure the container check cannot see: a
-    // map mounted somewhere else on the page. Only meaningful after the line
-    // above has established the component bailed.
+  // Nothing to place: the frame still holds its place, empty and saying so
+  // (Mitchell: the page must never reflow). This lane runs without a LocationIQ
+  // key, so the read-time backfill is skipped and the stops stay unplaced.
+  test("holds the map frame, empty, when no stop can be placed", async ({ page }) => {
+    const dayName = `Nothing located ${randomUUID().slice(0, 8)}`;
+    const trip = await tripWithLocatedStops(page, e2eTripName("SharedDayNoMap"), [
+      { title: "Somewhere unrecorded", at: "09:00" },
+      { title: "Lunch somewhere unrecorded", at: "12:30" },
+    ]);
+    const savedDayId = await keepDay(page, trip.tripId, trip.dayId, dayName);
+
+    await page.goto(`/playbooks/day/${savedDayId}`);
+    await expect(page.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
+    await expect(page.getByTestId("stop-list")).toBeVisible();
+    const frame = page.getByTestId("shared-day-map-frame");
+    await expect(frame).toBeVisible();
+    await expect(frame.getByRole("heading", { name: "Nothing to map yet" })).toBeVisible();
+    // The same height the drawn map takes, so nothing below moves if it ever
+    // arrives. h-86 is 21.5rem: 344px at the default root size.
+    expect((await frame.boundingBox())?.height).toBe(344);
     await expect(page.locator("canvas")).toHaveCount(0);
   });
 });

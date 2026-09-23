@@ -226,6 +226,58 @@ since.**
     Every Playbook now uses the design's framed map (focus card, legend,
     dotted ride legs, *Show route* on a phone), the same stop rows, and the
     same card. The day picker is the only structural difference.
+- **Link 10, second finding: §16's list-only rule is superseded.**
+  - The trigger: *"Shouldnt there be a map here?"* on the preview's "M23
+    three-day walk" (3 days, 14 stops). Every stop there is `{ name, city }`
+    with no coordinate, so the two-located-stops floor drew nothing.
+  - The rule now, from Mitchell: a Playbook has a map whenever there is
+    anything to place.
+  - His follow-up: the map frame always renders at full height, so the page
+    never reflows. The frame holds one of five things:
+    - the route (two pins or more);
+    - *places*: a lone pin, or one disc per city, with no line and a note
+      saying why;
+    - a pulsing moss ground while the server pins the stops;
+    - the offline state;
+    - *Nothing to map yet* ("None of these stops has a place pinned to it, so
+      there's no route to draw."). Only this state is left with nothing to
+      place.
+  - A stop whose coordinate is `precision: "city"` is no longer a route
+    point, because five of them are one centroid. They draw as that city's
+    disc instead.
+- **The read-time backfill** (`server/savedDayPins.ts`,
+  `savedDayPinBackfill.ts`):
+  - The shared-day read (`GET /api/saved-days/:id`) schedules a pass with
+    `after()`, so the response never waits on the vendor. It answers
+    `pinning: true` on the response envelope, not in the `SavedDay`
+    contract, which is unchanged. The page then re-reads every 4 s, at most
+    8 times.
+  - What a pass does, one city at a time:
+    - looks the city's centre up;
+    - looks each stop up as `"<name>, <city>"` inside a 50 km box around the
+      centre, accepting only a match that `placeNameVerdict` does not call a
+      mismatch (KI-39);
+    - otherwise pins the stop at the centre as `precision: "city"`.
+  - Every stop attempted leaves with a coordinate, so each is looked up once
+    and the next read has nothing to do. The exceptions are a thrown vendor
+    call (retried on a later read) and a city the vendor cannot find (its
+    stops are left alone).
+  - It never replaces the author's name or city.
+  - The write is Community CRUD (saved days are not event-sourced) and runs
+    only over the exact jsonb it read, so an overlapping pass loses as
+    `raced`. The result is parsed with `SavedStop` first.
+  - Any reader may trigger it, not only the owner: a looked-up coordinate is
+    not an authored change. The owner-only v1 API read does not trigger it.
+  - The budget:
+    - at most `MAX_PIN_LOOKUPS_PER_READ` = 12 lookups per read, paced at
+      `MIN_INTERVAL_MS` (about 8 s in the background), so a 14-stop Playbook
+      takes two reads;
+    - each lookup is charged one unit of the reader's `geocodeQuota()`, and
+      the pass stops at the first refusal;
+    - one pass per day per instance, and a day whose pass placed nothing is
+      left alone for 10 minutes.
+  - With no `LOCATIONIQ_API_KEY` (local, e2e) nothing is scheduled and the
+    page never waits.
 - Text sizes snap to existing tokens where the design uses half-pixel sizes
   (15px → `text-base`, 12.5px → `text-xs`), because the lint wall bans
   arbitrary sizes.

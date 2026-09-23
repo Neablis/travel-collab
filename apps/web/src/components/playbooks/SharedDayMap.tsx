@@ -6,16 +6,19 @@ import { createBaseMap } from "@/components/lenses/mapBootstrap";
 import { mapPaintColor } from "@/components/lenses/mapColor";
 import { MapOfflineState } from "@/components/lenses/MapOfflineState";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { useIsPhone } from "@/lib/useIsPhone";
-import { isRideLeg, mapPanel, mapTitle, type MapFact } from "./sharedDayFacts";
+import { isRideLeg, mapPanel, mapTitle, placesNote, type MapFact } from "./sharedDayFacts";
 import {
   allLegs,
   allPoints,
+  cityMarkers,
   geometryKey,
+  mapShape,
   scopedGeometry,
-  worthDrawing,
+  type CityMarker,
   type MapPoint,
 } from "./sharedDayGeometry";
 
@@ -74,15 +77,58 @@ function pinElement(point: MapPoint): HTMLElement {
   return el;
 }
 
+/**
+ * A city the day happens in: a DISC, not a numbered pin — the same shape claim
+ * `MapLens`'s `cityDiscElement` makes for a city-level stop. A pin's tip names
+ * one spot and a number names one stop; a city centre is neither.
+ */
+function cityElement(marker: CityMarker): HTMLElement {
+  const el = document.createElement("div");
+  el.dataset.testid = "shared-day-city";
+  el.dataset.city = marker.city;
+  el.title = `${marker.city} · ${marker.stops} stop${marker.stops === 1 ? "" : "s"}`;
+  el.className = "flex size-12 items-center justify-center rounded-full border-2 border-brand bg-brand/15";
+  const dot = document.createElement("span");
+  dot.className = "size-2 rounded-full bg-brand";
+  el.appendChild(dot);
+  return el;
+}
+
+/** An outline pin, for the empty frame. Inline so it takes `currentColor` — a token — and nothing else. */
+function PinGlyph() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="size-7">
+      <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" strokeLinejoin="round" />
+      <circle cx="12" cy="10" r="2.25" />
+    </svg>
+  );
+}
+
+/**
+ * The empty frame's words (M27 link 10). The heading is the Map lens's own
+ * (`MapLens.tsx`, the artboard's `emptyMapCanvas`); its body is not, because
+ * that one tells an editor to go and add a stop, and a Playbook's reader has
+ * no stop to add. This line is Mitchell's, asked for in place of "No locations
+ * in this playbook".
+ */
+const EMPTY_TITLE = "Nothing to map yet";
+const EMPTY_BODY = "None of these stops has a place pinned to it, so there's no route to draw.";
+
 export function SharedDayMap({
   savedDayId,
   days,
   scope,
+  pinning = false,
 }: {
   savedDayId: string;
   days: readonly { dayIndex: number; stops: readonly SavedStop[] }[];
   /** `"all"`, or the 0-based day the reader has scoped to (§33.1). */
   scope: "all" | number;
+  /**
+   * The server is placing this day's stops right now (`savedDayPinBackfill`),
+   * so an empty frame is loading rather than empty.
+   */
+  pinning?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Awaited<ReturnType<typeof createBaseMap>>>(null);
@@ -105,8 +151,10 @@ export function SharedDayMap({
   // own consumer. Caught by CodeRabbit on PR 196; the test that should have
   // caught it was asserting the wrong numbers.
   const scoped = useMemo(() => scopedGeometry(days, scope), [days, scope]);
-  const drawable = worthDrawing(scoped);
-  const key = geometryKey(savedDayId, scope, scoped);
+  const cities = useMemo(() => cityMarkers(days, scope), [days, scope]);
+  const shape = mapShape(scoped, cities);
+  const drawable = shape !== "none";
+  const key = geometryKey(savedDayId, scope, scoped, cities);
 
   // **The panel's words** — link 4b, `dc.html:7495-7527`. Up here with the
   // other hooks for the reason the file already gives twice: everything past
@@ -142,16 +190,17 @@ export function SharedDayMap({
     setRetryNonce((n) => n + 1);
   }, []);
 
-  // Every hook above runs unconditionally — the "nothing to draw" return is at
-  // the bottom of this component, not here. A `return null` placed before a
-  // hook is how the rules-of-hooks crash gets written, and this component has
-  // two perfectly ordinary reasons to bail (too few located stops, a dead map).
+  // Every hook above runs unconditionally, and the frame renders in every
+  // state below. It used to `return null` below two located stops (§16's
+  // list-only degrade); M27 link 10 retired that, and Mitchell's follow-up
+  // rules out any state that changes the frame's height, so the page never
+  // reflows when the map arrives, fails or has nothing to show.
   useEffect(() => {
     const el = containerRef.current;
     if (el === null || !drawable || failed || !mounted) return;
 
     let cancelled = false;
-    const first = allPoints(scoped)[0]!;
+    const first = allPoints(scoped)[0] ?? cities[0]!;
 
     void createBaseMap({
       container: el,
@@ -174,11 +223,18 @@ export function SharedDayMap({
         const legs = allLegs(scoped);
 
         markersRef.current.forEach((m) => m.remove());
-        markersRef.current = points.map((point) =>
-          new base.Marker({ element: pinElement(point) })
-            .setLngLat([point.lng, point.lat])
-            .addTo(base.map),
-        );
+        markersRef.current = [
+          // Cities only when there is no route: under a route they would be a
+          // second, vaguer answer to "where" drawn beside the precise one.
+          ...(shape === "places" ? cities : []).map((city) =>
+            new base.Marker({ element: cityElement(city) }).setLngLat([city.lng, city.lat]).addTo(base.map),
+          ),
+          ...points.map((point) =>
+            new base.Marker({ element: pinElement(point) })
+              .setLngLat([point.lng, point.lat])
+              .addTo(base.map),
+          ),
+        ];
 
         if (base.map.getLayer(ROUTE_SOLID)) base.map.removeLayer(ROUTE_SOLID);
         if (base.map.getLayer(ROUTE_GAPPED)) base.map.removeLayer(ROUTE_GAPPED);
@@ -237,14 +293,18 @@ export function SharedDayMap({
         // Unlike the trip map, fitting on load is right here: a shared day is
         // read, not edited, so "show me the whole thing" is the only camera
         // anybody wants, and there is no focus change to reserve it for.
-        const bounds = points.reduce(
+        const framed = shape === "places" ? [...points, ...cities] : points;
+        const bounds = framed.reduce(
           (acc, p) => acc.extend([p.lng, p.lat] as [number, number]),
           new base.LngLatBounds([first.lng, first.lat], [first.lng, first.lat]),
         );
         // On a desktop the focus card covers the bottom-left 252px, so the
         // route is fitted into what is left rather than drawn under the card.
         const padding = isPhone ? 40 : { top: 56, right: 56, bottom: 56, left: 56 + FOCUS_CARD_PX };
-        base.map.fitBounds(bounds, { padding, maxZoom: 15, duration: 0 });
+        // A city alone is framed as a city — street level on its centroid
+        // would be a close-up of a point that is not anywhere in particular.
+        const maxZoom = shape === "places" && points.length === 0 ? 11 : 15;
+        base.map.fitBounds(bounds, { padding, maxZoom, duration: 0 });
       };
 
       if (base.map.isStyleLoaded()) draw();
@@ -270,14 +330,36 @@ export function SharedDayMap({
     // `key` carries the scope AND the points, so switching to a day the reader
     // has already seen still redraws. Keying on `scoped` alone would compare a
     // fresh array by identity and redraw on every render instead.
-  }, [key, drawable, failed, retryNonce, scoped, mounted, isPhone]);
+  }, [key, drawable, failed, retryNonce, scoped, cities, shape, mounted, isPhone]);
 
-  // §16: below two located stops the surface degrades to LIST-ONLY. One pin on
-  // a world map tells a reader less than the city name already in the list.
-  if (!drawable) return null;
-
-  const mapLabel = `Map of ${allPoints(scoped).length} located stops`;
+  const pins = allPoints(scoped).length;
+  const mapLabel =
+    shape === "route"
+      ? `Map of ${pins} located stops`
+      : pins === 0
+        ? `Map of ${cities.map((c) => c.city).join(", ")}`
+        : "Map of 1 located stop";
   const heading = title !== "" ? title : "The route";
+  const loading = !drawable && pinning;
+  const note =
+    shape === "route" ? panel.note : shape === "places" ? placesNote(pins) : loading ? "Placing the stops on the map…" : EMPTY_TITLE;
+
+  // **What the frame holds when there is no map to draw in it** — the same box
+  // either way, so neither state moves the page. Loading is the moss ground the
+  // map itself paints on, pulsing, so the map arriving is a picture appearing
+  // rather than a box changing.
+  const placeholder = loading ? (
+    <div
+      role="status"
+      aria-label="Placing the stops on the map"
+      className="size-full animate-pulse bg-moss"
+      data-testid="shared-day-map-loading"
+    />
+  ) : (
+    <div className="flex size-full items-center justify-center bg-paper p-4" data-testid="shared-day-map-empty">
+      <EmptyState icon={<PinGlyph />} title={EMPTY_TITLE} body={EMPTY_BODY} />
+    </div>
+  );
 
   if (isPhone) {
     return (
@@ -292,84 +374,114 @@ export function SharedDayMap({
           <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand" />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-ink">{heading}</span>
-            <span className="block truncate text-2xs text-slate">{panel.note}</span>
+            <span className="block truncate text-2xs text-slate">{note}</span>
           </span>
           <span className="text-xs font-semibold text-brand">{routeOpen ? "Hide route" : "Show route"}</span>
         </Button>
-        {routeOpen &&
-          (failed ? (
-            <div className="relative h-65 border-t border-hairline" data-testid="shared-day-map-offline">
-              <MapOfflineState onRetry={retry} />
+        {/* The same one-frame rule as the desktop, at the phone's height. */}
+        {routeOpen && (
+          <>
+            <div className="relative h-65 border-t border-hairline bg-moss" data-testid="shared-day-map-frame">
+              {!drawable ? (
+                placeholder
+              ) : failed ? (
+                <div className="size-full" data-testid="shared-day-map-offline">
+                  <MapOfflineState onRetry={retry} />
+                </div>
+              ) : (
+                <div
+                  ref={containerRef}
+                  data-testid="shared-day-map"
+                  className="size-full"
+                  role="img"
+                  aria-label={mapLabel}
+                />
+              )}
             </div>
-          ) : (
-            <div className="border-t border-hairline">
-              <div
-                ref={containerRef}
-                data-testid="shared-day-map"
-                className="h-65 w-full bg-moss"
-                role="img"
-                aria-label={mapLabel}
-              />
+            {drawable && !failed && shape === "route" && (
               <MapFacts facts={panel.facts} className="border-t border-hairline px-3.5 py-3" />
-            </div>
-          ))}
-      </div>
-    );
-  }
-
-  // **The same box the map would have occupied**, and `relative` so
-  // `MapOfflineState`'s `absolute inset-0` resolves against THIS element.
-  // Without a positioning context it resolved against whatever ancestor
-  // happened to be positioned — covering unrelated page content while this
-  // wrapper collapsed to zero height. The size has to match the map's too, or
-  // the page reflows every time the map fails or recovers.
-  if (failed) {
-    return (
-      <div
-        className="relative h-86 w-full overflow-hidden rounded-xl border border-hairline bg-moss"
-        data-testid="shared-day-map-offline"
-      >
-        <MapOfflineState onRetry={retry} />
-      </div>
-    );
-  }
-
-  // `dc.html:2718-2742`: one framed box, with the focus card over its
-  // bottom-left corner and the legend over its bottom-right. The panel sits ON
-  // the map rather than under it, so the numbers are read against the line
-  // they describe.
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-hairline bg-moss">
-      {/* A plain wrapper, never a conditional around the container: a React
-          conditional here detaches the node mid-style-load and the load aborts
-          with no error (DRIFT §6 build-check 5, on its third recurrence). */}
-      <div ref={containerRef} data-testid="shared-day-map" className="h-86 w-full" role="img" aria-label={mapLabel} />
-      <div
-        className="absolute bottom-4 left-4 z-10 w-63 rounded-lg border border-hairline bg-surface px-3.5 pt-3 pb-3.5 shadow-overlay"
-        data-testid="shared-day-map-panel"
-      >
-        <div className="flex items-center gap-2">
-          <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand" />
-          <p className="text-sm font-bold text-ink">{heading}</p>
-        </div>
-        <MapFacts facts={panel.facts} className="mt-2" />
-        <p className="mt-2 text-xs text-pretty text-slate">{panel.note}</p>
-      </div>
-      <div
-        className="absolute top-4 right-4 z-10 flex items-center gap-3.5 rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-2xs text-slate"
-        data-testid="shared-day-map-legend"
-      >
-        <span className="flex items-center gap-1.5">
-          <span aria-hidden className="h-0.75 w-4 rounded-xs bg-brand" />
-          On foot
-        </span>
-        {panel.hasRides && (
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden className="w-4 border-t-3 border-dotted border-brand" />
-            By train or taxi
-          </span>
+            )}
+          </>
         )}
       </div>
+    );
+  }
+
+  // **One frame for every state** — the map, a failure, loading, or nothing to
+  // place — so no state change moves the page (Mitchell, M27 link 10). The
+  // offline state used to be its own box, sized to match "or the page reflows
+  // every time the map fails or recovers"; the loading and empty states are the
+  // same argument, so the box is now written once and they all sit inside it.
+  //
+  // `relative` so `MapOfflineState`'s `absolute inset-0` resolves against THIS
+  // element. Without a positioning context it resolved against whatever
+  // ancestor happened to be positioned — covering unrelated page content while
+  // the wrapper collapsed to zero height.
+  //
+  // `dc.html:2718-2742` for the drawn map: the focus card over the frame's
+  // bottom-left corner and the legend over its top-right. The panel sits ON the
+  // map rather than under it, so the numbers are read against the line they
+  // describe.
+  return (
+    <div
+      className="relative h-86 w-full overflow-hidden rounded-xl border border-hairline bg-moss"
+      data-testid="shared-day-map-frame"
+    >
+      {!drawable ? (
+        placeholder
+      ) : failed ? (
+        <div className="size-full" data-testid="shared-day-map-offline">
+          <MapOfflineState onRetry={retry} />
+        </div>
+      ) : (
+        <>
+          {/* No conditional between the frame and the container once it is drawn:
+              a React conditional there detaches the node mid-style-load and the
+              load aborts with no error (DRIFT §6 build-check 5, on its third
+              recurrence). */}
+          <div ref={containerRef} data-testid="shared-day-map" className="size-full" role="img" aria-label={mapLabel} />
+          <div
+            className="absolute bottom-4 left-4 z-10 w-63 rounded-lg border border-hairline bg-surface px-3.5 pt-3 pb-3.5 shadow-overlay"
+            data-testid="shared-day-map-panel"
+          >
+            <div className="flex items-center gap-2">
+              <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand" />
+              <p className="text-sm font-bold text-ink">{heading}</p>
+            </div>
+            {shape === "route" && <MapFacts facts={panel.facts} className="mt-2" />}
+            <p className="mt-2 text-xs text-pretty text-slate">{note}</p>
+          </div>
+          {/* A key only to what is drawn: "On foot" over a map with no line would
+              be a key to nothing, so a places map keys its city discs instead —
+              and a lone numbered pin needs no key at all. */}
+          {(shape === "route" || cities.length > 0) && (
+            <div
+              className="absolute top-4 right-4 z-10 flex items-center gap-3.5 rounded-full border border-hairline bg-surface px-3.5 py-1.5 text-2xs text-slate"
+              data-testid="shared-day-map-legend"
+            >
+              {shape === "route" ? (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden className="h-0.75 w-4 rounded-xs bg-brand" />
+                    On foot
+                  </span>
+                  {panel.hasRides && (
+                    <span className="flex items-center gap-1.5">
+                      <span aria-hidden className="w-4 border-t-3 border-dotted border-brand" />
+                      By train or taxi
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <span aria-hidden className="size-3 rounded-full border-2 border-brand bg-brand/15" />
+                  Somewhere in this city
+                </span>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

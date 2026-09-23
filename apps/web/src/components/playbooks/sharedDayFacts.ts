@@ -172,3 +172,14 @@ export function mapTitle(cities: readonly string[]): string {
   for (const c of cities) if (c !== "" && !seen.includes(c)) seen.push(c);
   return seen.join(" → ");
 }
+
+/**
+ * The focus card's note when the map shows places but no route (M27 link 10).
+ * Says why there is no line, rather than leaving a reader to wonder whether the
+ * map failed to draw one.
+ */
+export function placesNote(pins: number): string {
+  return pins === 0
+    ? "The stops aren't pinned on the map yet — here's where the day happens."
+    : "Only one stop is pinned so far, so there's no route to draw yet.";
+}
