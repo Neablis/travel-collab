@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { ProposalCard, type ProposalState } from "./ProposalCard";
+import { ProposalCard, type ProposalState, type ProposalUndo } from "./ProposalCard";
 
 /** One line of "showing its work" — a tool call, rendered as a sentence. */
 export type ToolNote = { id: string; label: string };
@@ -113,7 +113,7 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
   if (last.text === "") return "";
   const proposal =
     last.proposal != null && last.proposal.status === "pending"
-      ? " A proposed change is waiting for your review below."
+      ? " A suggested change is waiting below — make it, or leave it as it is."
       : "";
   return `Answer: ${last.text}${proposal}`;
 }
@@ -231,6 +231,9 @@ export function Transcript({
   onApproveProposal = () => {},
   onRejectProposal = () => {},
   approvalBlockedReason = null,
+  onUndoProposal,
+  undoFor,
+  touch = false,
   renderTurnFooter,
   look = "prose",
 }: {
@@ -245,6 +248,15 @@ export function Transcript({
    * properties of the board, not of a proposal.
    */
   approvalBlockedReason?: string | null;
+  /** Undoes an applied card's change. Keyed by turn id, like the other two. */
+  onUndoProposal?: (turnId: string) => void;
+  /**
+   * Whether an applied card may still offer Undo — a fact about the TRIP's
+   * history, which this component does not hold (`proposalUndoFor`).
+   */
+  undoFor?: (state: ProposalState) => ProposalUndo | null;
+  /** The phone sheet: the cards take §35.9's 44px targets there. */
+  touch?: boolean;
   /**
    * **An optional slot under each turn, whose contents this component never
    * learns about.** The New-trip flow needs a "Change" control under every
@@ -368,6 +380,9 @@ export function Transcript({
                 onReject={() => onRejectProposal(turn.id)}
                 disabled={approvalBlockedReason !== null}
                 disabledReason={approvalBlockedReason}
+                touch={touch}
+                undo={undoFor?.(turn.proposal) ?? null}
+                {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
               />
             )}
             {/* Visible only, and no `role` — a second live region nested

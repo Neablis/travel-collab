@@ -296,7 +296,7 @@ describe("Transcript — what a screen reader is told", () => {
         ]}
       />,
     );
-    expect(announcer()).toContain("A proposed change is waiting for your review below.");
+    expect(announcer()).toContain("A suggested change is waiting below — make it, or leave it as it is.");
   });
 
   it("says nothing at all about an empty thread", () => {
@@ -367,26 +367,26 @@ describe("Transcript proposals", () => {
 
   it("renders no card on an answer that proposed nothing", () => {
     render(<Transcript turns={THREAD} />);
-    expect(screen.queryByRole("region", { name: "Proposed change" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Suggested change" })).toBeNull();
   });
 
   it("renders one card per proposing answer, under its prose", () => {
     render(<Transcript turns={threadWithTwo} />);
-    expect(screen.getAllByLabelText("Proposed change")).toHaveLength(2);
+    expect(screen.getAllByRole("group", { name: "Suggested change" })).toHaveLength(2);
   });
 
   it("approves the turn the card belongs to, not the first one in the thread", () => {
     const onApproveProposal = vi.fn();
     render(<Transcript turns={threadWithTwo} onApproveProposal={onApproveProposal} onRejectProposal={vi.fn()} />);
     // Only the pending one offers Approve — the applied one is done.
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Make the change" }));
     expect(onApproveProposal).toHaveBeenCalledWith("a2");
   });
 
   it("rejects the turn the card belongs to", () => {
     const onRejectProposal = vi.fn();
     render(<Transcript turns={threadWithTwo} onApproveProposal={vi.fn()} onRejectProposal={onRejectProposal} />);
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(onRejectProposal).toHaveBeenCalledWith("a2");
   });
 
@@ -399,6 +399,6 @@ describe("Transcript proposals", () => {
         approvalBlockedReason="You have view-only access to this trip."
       />,
     );
-    expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Make the change" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { createMappedTrip, openAssistantRail, openHistory, signInAsDevUser } from "./helpers";
+import { createMappedTrip, openAssistantRail, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // This spec's own webServer runs with AI_LIVE=false (playwright.config.ts's
@@ -89,9 +89,9 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   // proposal and report the trip as already changed.
   const board = page.locator(".trip-board-content");
 
-  const card = page.getByRole("region", { name: "Proposed change" });
+  const card = page.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
-  await expect(card).toContainText("Not applied yet");
+  await expect(card).toContainText("Ready when you are");
   await expect(card).toContainText("Add “Sample: coffee stop” to day 1");
   await expect(card).toContainText("Add “Sample: evening stroll” to day 1");
   // The prose above it does not claim an edit either.
@@ -102,22 +102,22 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
 
   const [applied] = await Promise.all([
     page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
-    card.getByRole("button", { name: "Approve" }).click(),
+    card.getByRole("button", { name: "Make the change" }).click(),
   ]);
   expect(applied.status()).toBe(200);
 
   // The assertion M10's gate once made, restored: the plan is on the board.
   await expect(board.getByText("Sample: coffee stop")).toBeVisible();
   await expect(board.getByText("Sample: evening stroll")).toBeVisible();
-  await expect(card).toContainText("Applied");
-  await expect(card).toContainText("Done — added “Sample: coffee stop” to day 1");
+  await expect(card).toContainText("✓ Done — added “Sample: coffee stop” to day 1");
 
   // ONE atomic batch, so ONE undo takes the whole plan back off (ADR-013).
-  // Two commands committed separately would need two.
-  await openHistory(page);
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  // Two commands committed separately would need two. Taken from the card
+  // itself (M27 D17): it is offered because nothing has changed since.
+  await card.getByRole("button", { name: "Undo" }).click();
   await expect(board.getByText("Sample: coffee stop")).toHaveCount(0);
   await expect(board.getByText("Sample: evening stroll")).toHaveCount(0);
+  await expect(card).toContainText("Put back the way it was.");
 });
 
 test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) => {
@@ -135,7 +135,7 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
   await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
   await page.getByRole("button", { name: "Ask" }).click();
 
-  const card = page.getByRole("region", { name: "Proposed change" });
+  const card = page.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
   const board = page.locator(".trip-board-content");
 
@@ -145,10 +145,9 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
   page.on("request", (r) => {
     if (/\/ask\/apply$/.test(new URL(r.url()).pathname)) applyCalls += 1;
   });
-  await card.getByRole("button", { name: "Reject" }).click();
+  await card.getByRole("button", { name: "Not now" }).click();
 
-  await expect(card).toContainText("Rejected");
-  await expect(card).toContainText("Discarded — nothing on the trip changed.");
+  await expect(card).toHaveText("Left as it is.");
   await expect(board.getByText("Sample: coffee stop")).toHaveCount(0);
   expect(applyCalls).toBe(0);
   expect(await (await page.request.get(`/api/trips/${tripId}`)).text()).toBe(before);
@@ -258,22 +257,22 @@ test("a playbook day the assistant found reaches the board once it is approved",
   await finder.getByPlaceholder("Ask about this trip…").fill("find me a ready-made day");
   await finder.getByRole("button", { name: "Ask" }).click();
 
-  const card = finder.getByRole("region", { name: "Proposed change" });
+  const card = finder.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
   // Named by the row the server read, and counted from it — the card is not
   // repeating anything the model wrote.
   await expect(card).toContainText(`Add “${dayName}” from the library (2 stops) as a new day`);
-  await expect(card).toContainText("Not applied yet");
+  await expect(card).toContainText("Ready when you are");
   // Nothing has moved while the card sits there. ADR-042's insert commits at
   // the apply door and nowhere else.
   await expect(board.getByText(`Kiyomizu at dawn ${city}`)).toHaveCount(0);
 
   const [applied] = await Promise.all([
     finder.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
-    card.getByRole("button", { name: "Approve" }).click(),
+    card.getByRole("button", { name: "Make the change" }).click(),
   ]);
   expect(applied.status()).toBe(200);
-  await expect(card).toContainText("Applied");
+  await expect(card).toContainText("✓ Done");
 
   // The whole day, in order, as a new day at the end — expanded server-side
   // from the reference the proposal carried.

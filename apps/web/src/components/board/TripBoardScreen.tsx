@@ -34,6 +34,7 @@ import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
+import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
@@ -90,7 +91,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -625,17 +626,46 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // against fresh server state (`confirmHead` in TripProvider), which already
     // contains it. So the stops arrive on the board a moment later, by the
     // ordinary path, with nothing lost either way.
+    //
+    // **The batch is the head of the outcome's own history** — the apply is
+    // one batch (ADR-013), and the server reads history after committing it.
+    // Recorded so the card can tell whether its change is still the trip's
+    // last one (M27 D17); on the queued-edits path below the board has not
+    // taken this history, so the card reads "changed since" as soon as those
+    // edits land, which is true.
+    const batchId = result.value.history.entries[0]?.batchId ?? null;
     if (pendingRef.current) {
       patchProposal(turnId, (state) => ({
         ...state,
         status: "applied",
+        batchId,
         note: `${result.value.message} It will appear on your board once your other unsaved changes have saved.`,
       }));
       return;
     }
     // Authoritative server state, taken whole, the same way an undo is.
     applyOutcome({ detail: result.value.detail, history: result.value.history });
-    patchProposal(turnId, (state) => ({ ...state, status: "applied", note: result.value.message }));
+    patchProposal(turnId, (state) => ({ ...state, status: "applied", batchId, note: result.value.message }));
+  };
+
+  // **Undo, from the card — only while the change is still the last one**
+  // (M27 D17). `UndoLastChange` undoes the trip's LAST batch, whoever made it,
+  // so a card whose batch is no longer the head must not send it: that would
+  // take back somebody else's work under a button that says "Undo" beside
+  // yours. Re-checked here against the history this render holds, not only
+  // at the card, because a poll can move the head between the two.
+  //
+  // Through the provider's own `dispatch`, exactly as History's Undo is, so it
+  // shares that path's refusals (view-only, unsent edits queued) and its
+  // reconcile. The card reads "Put back the way it was." off the history that
+  // comes back — nothing is patched here, so an undo that did not happen can
+  // never be reported as one.
+  const undoFor = (state: ProposalState) => proposalUndoFor(state, history);
+  const undoProposal = (turnId: string) => {
+    const turn = thread.find((t) => t.id === turnId);
+    if (!turn || turn.role !== "assistant" || turn.proposal == null) return;
+    if (undoFor(turn.proposal) !== "available") return;
+    void dispatch({ type: "UndoLastChange", tripId });
   };
 
   // Rejecting sends nothing. There is no server-side draft to discard: the
@@ -1118,6 +1148,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             onAsk={(text) => submitAssistantAsk(text)}
             onApproveProposal={(turnId) => void approveProposal(turnId)}
             onRejectProposal={rejectProposal}
+            onUndoProposal={undoProposal}
+            undoFor={undoFor}
             approvalBlockedReason={approvalBlockedReason}
             asking={ask.asking}
             askError={ask.askError}
