@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import fc from "fast-check";
 import type { SavedStop, TripDetail } from "@tc/contracts";
-import { citiesOfDay, citiesOfStops } from "../src";
+import { citiesOfDay, citiesOfStops, countriesOfStops } from "../src";
+import { witness } from "./support/witness";
 
 const TRIP = "1c2d3e4f-0000-4000-8000-000000000002";
 const MEMBER = { userId: "u1", role: "owner" as const };
@@ -215,5 +217,95 @@ describe("citiesOfDay and citiesOfStops are the same rule", () => {
     // shape is pinned before the equality is asserted.
     expect(fromTrip).toEqual(["Kyoto", "Osaka", "Nara"]);
     expect(fromSaved).toEqual(fromTrip);
+  });
+});
+
+// M12 link 7. `countryCode` is typed `string` here rather than the contract's
+// `^[A-Z]{2}$` because the backfill hands this rule stored jsonb that no parse
+// has run over — the malformed spellings are inputs it really meets.
+function countryStop(
+  title: string,
+  timeWindow: { start: string; end: string } | null,
+  countryCode: string | undefined,
+  city?: string,
+): SavedStop {
+  return {
+    ...savedStop(title, timeWindow),
+    location: { name: title, city, countryCode } as SavedStop["location"],
+  };
+}
+
+describe("countriesOfStops", () => {
+  // The exit gate's "counted once per day however many of that country's
+  // cities the day visits" starts here: a Mexico City → Puebla day is ONE
+  // country, so `unnest(countries)` has nothing to count twice.
+  it("reports one country for a day across several of its cities", () => {
+    const stops = [
+      countryStop("zocalo", { start: "09:00", end: "10:00" }, "MX", "Mexico City"),
+      countryStop("cathedral", { start: "14:00", end: "15:00" }, "MX", "Puebla"),
+      countryStop("dinner", { start: "19:00", end: "21:00" }, "MX", "Mexico City"),
+    ];
+    expect(countriesOfStops(stops)).toEqual(["MX"]);
+  });
+
+  it("orders by time and collapses repeats to the first occurrence, as cities do", () => {
+    const stops = [
+      countryStop("untimed", null, "FR"),
+      countryStop("evening", { start: "18:00", end: "19:00" }, "MC"),
+      countryStop("morning", { start: "09:00", end: "10:00" }, "FR"),
+    ];
+    expect(countriesOfStops(stops)).toEqual(["FR", "MC"]);
+  });
+
+  it("normalises case and whitespace, so one country is never two", () => {
+    const stops = [
+      countryStop("a", { start: "09:00", end: "10:00" }, "jp"),
+      countryStop("b", { start: "11:00", end: "12:00" }, " Jp "),
+      countryStop("c", { start: "13:00", end: "14:00" }, "JP"),
+    ];
+    expect(countriesOfStops(stops)).toEqual(["JP"]);
+    expect(countriesOfStops(stops.slice(0, 2))).toEqual(["JP"]);
+  });
+
+  it("drops a code that is not two letters rather than storing it", () => {
+    const stops = ["USA", "", "1A", "J"].map((code, i) =>
+      countryStop(`s${i}`, { start: "09:00", end: "10:00" }, code),
+    );
+    expect(countriesOfStops(stops)).toEqual([]);
+  });
+
+  // Never inferred: a city with no code is a country nobody knows, and the
+  // library carried 1,375 of those on 2026-09-09. Guessing would file days
+  // under countries they may not be in.
+  it("reports no country for a stop with a city but no countryCode", () => {
+    expect(countriesOfStops([countryStop("a", null, undefined, "Kyoto")])).toEqual([]);
+  });
+
+  it("is, for any stops, exactly the distinct valid codes they carry", () => {
+    const w = witness("countriesOfStops set");
+    const code = fc.oneof(fc.constantFrom("JP", "MX", "mx", " fr ", "MC"), fc.string({ maxLength: 4 }));
+    const stop = fc.record({
+      start: fc.option(fc.constantFrom("08:00", "12:00", "18:00"), { nil: null }),
+      code: fc.option(code, { nil: undefined }),
+    });
+    fc.assert(
+      fc.property(fc.array(stop, { maxLength: 8 }), (raw) => {
+        const stops = raw.map((s, i) =>
+          countryStop(`s${i}`, s.start === null ? null : { start: s.start, end: s.start }, s.code),
+        );
+        const expected = new Set(
+          raw
+            .map((s) => s.code?.trim().toUpperCase())
+            .filter((c): c is string => c !== undefined && /^[A-Z]{2}$/.test(c)),
+        );
+        const got = countriesOfStops(stops);
+        expect(new Set(got)).toEqual(expected);
+        expect(got.length).toBe(expected.size);
+        w.tick();
+      }),
+      { numRuns: 200 },
+    );
+    // No guard clause, so every run asserts: the floor is `numRuns` exactly.
+    w.atLeast(200);
   });
 });

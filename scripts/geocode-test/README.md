@@ -34,5 +34,12 @@ command the whole script exists to end with, shipped green because the harness
 only ever exercised the geocoding loop. Reintroducing that one deleted line
 makes this report two CRASHED rows.
 
+Last, it runs one REAL `--apply` into the harness's own copy of the bundle and
+checks the `countryCode` write-back (M12 link 7): the provider's `"is"` lands as
+`"IS"` on stops that had none, a stop preset to a different code keeps it and is
+reported with its coordinate withheld, a matching preset is not counted as a
+write, and a second `--apply` writes nothing. The fake provider's `ok` response
+already carries `address.country_code`, which is all this needs.
+
 To add a mode, add a response to `fake_provider.py` and its expectation to
 `EXPECTED` in `replay.py`. A mode without an expectation is not a test.

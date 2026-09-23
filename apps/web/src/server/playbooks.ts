@@ -54,6 +54,17 @@ const SIBLING_LIMIT = 12;
 export type DiscoverQuery = {
   /** The cities asked for. Empty is a browse, not a search for nothing. */
   cities: string[];
+  /**
+   * The countries asked for, as uppercase ISO alpha-2 codes (M12 link 7).
+   * Absent or empty adds no constraint.
+   *
+   * **Places are OR'd, cities and countries alike**: a day matches if it
+   * touches ANY selected place — the rule cities already follow ("a day
+   * matches on any city it contains"), extended rather than given a second
+   * meaning. Optional so the profile and the assistant, which never ask by
+   * country, need not say so.
+   */
+  countries?: string[];
   scope: DiscoverScope;
   sort: DiscoverSort;
   budget: BudgetBand;
@@ -183,6 +194,7 @@ function matchPredicate(query: DiscoverQuery): SQL {
   // `sql.param` binds the whole array as a single `text[]` parameter, which is
   // what the containment operator and the GIN index need.
   const cities = sql`${sql.param(query.cities)}::text[]`;
+  const countries = sql`${sql.param(query.countries ?? [])}::text[]`;
   // **The season predicate is gone** (M26 link 2, SPEC §33.2): it filtered on
   // the month a day was run and nobody used it. `SEASON_MONTHS` and
   // `seasonOfMonth` stay — `pnpm content:verify` prints season occupancy and is
@@ -197,7 +209,11 @@ function matchPredicate(query: DiscoverQuery): SQL {
     ${scopePredicate(query.scope, query.readerId)}
     ${notDeleted}
     and (${query.publishedOnly === true} = false or d.visibility = ${SavedDayVisibility.enum.public})
-    and (cardinality(${cities}) = 0 or d.cities && ${cities})
+    and (
+      (cardinality(${cities}) = 0 and cardinality(${countries}) = 0)
+      or d.cities && ${cities}
+      or d.countries && ${countries}
+    )
     and (${query.authorId ?? null}::text is null or d.owner_id = ${query.authorId ?? null}::text)
     ${lengthPredicate(query.length)}
   `;
@@ -229,6 +245,12 @@ function lengthPredicate(band: LengthBand): SQL {
  * two of the two cities you asked for outranks a day that matches one of them
  * however many times it has been added, because the ranking answers "how well
  * does this fit what you asked for" before "how popular is it".
+ *
+ * With countries in the query (M12 link 7, decision D7) `matched_count` is
+ * matched cities PLUS matched countries: each selected place a day touches
+ * counts one, whichever kind it is. So with `Kyoto` and `Japan` both selected,
+ * a Kyoto day scores two and an Osaka day one — the day that fits more of what
+ * was asked for still leads.
  */
 function orderBy(sort: DiscoverSort): SQL {
   // Exhaustive by the `Record`: widening `DiscoverSort` without a clause here
@@ -403,13 +425,16 @@ async function publishedDayCount(): Promise<number> {
 
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const cities = sql`${sql.param(query.cities)}::text[]`;
+  const countries = sql`${sql.param(query.countries ?? [])}::text[]`;
   const rows = await db.execute<DiscoverRow>(sql`
     select
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds, d.rating, d.review_count,
       d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at,
-      cardinality(array(
+      (cardinality(array(
         select unnest(d.cities) intersect select unnest(${cities})
-      ))::int as matched_count
+      )) + cardinality(array(
+        select unnest(d.countries) intersect select unnest(${countries})
+      )))::int as matched_count
     from saved_days d
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
