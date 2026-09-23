@@ -353,7 +353,7 @@ test("city search shows all four states against the real endpoint", async ({ pag
   // it is asserted by holding the response rather than by racing it.
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
-  await page.route("**/api/cities?*", async (route) => {
+  await page.route("**/api/places?*", async (route) => {
     await held;
     await route.continue();
   });
@@ -361,7 +361,7 @@ test("city search shows all four states against the real endpoint", async ({ pag
   await expect(page.getByTestId("city-search-loading")).toBeVisible();
   release();
   await expect(page.getByTestId("city-search-results").getByRole("button", { name: new RegExp(`^${city} · 1`) })).toBeVisible();
-  await page.unroute("**/api/cities?*");
+  await page.unroute("**/api/places?*");
 
   // (3) "no city matches" — a real 200 with an empty list, rendered as an
   // answer rather than as a failure.
@@ -371,10 +371,10 @@ test("city search shows all four states against the real endpoint", async ({ pag
 
   // (4) failure, with a Retry that re-runs the SAME query rather than clearing
   // the box.
-  await page.route("**/api/cities?*", (route) => route.abort());
+  await page.route("**/api/places?*", (route) => route.abort());
   await page.getByLabel("Search cities").fill(city);
   await expect(page.getByTestId("city-search-failed")).toBeVisible();
-  await page.unroute("**/api/cities?*");
+  await page.unroute("**/api/places?*");
   await page.getByTestId("city-search-failed").getByRole("button", { name: "Retry" }).click();
   // The minted city itself, not merely "some results": the library is shared and
   // holds days from earlier runs, so a Retry that CLEARED the box and searched
