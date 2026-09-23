@@ -45,7 +45,8 @@
                 "city": "Bangkok",
                 "area": "Bang Phli",
                 "lat": 13.709885,
-                "lng": 100.757719
+                "lng": 100.757719,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [],
@@ -66,7 +67,8 @@
                 "city": "Bangkok",
                 "area": "Phaya Thai",
                 "lat": 13.756003,
-                "lng": 100.53652
+                "lng": 100.53652,
+                "countryCode": "TH"
               },
               "kind": "transit",
               "tags": [],
@@ -87,7 +89,8 @@
                 "city": "Bangkok",
                 "area": "Banglamphu",
                 "lat": 13.762158,
-                "lng": 100.493083
+                "lng": 100.493083,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [
@@ -110,7 +113,8 @@
                 "city": "Bangkok",
                 "area": "Phra Nakhon",
                 "lat": 13.755213,
-                "lng": 100.501545
+                "lng": 100.501545,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -133,7 +137,8 @@
                 "city": "Bangkok",
                 "area": "Phra Nakhon",
                 "lat": 13.752617,
-                "lng": 100.493363
+                "lng": 100.493363,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -156,7 +161,8 @@
                 "city": "Bangkok",
                 "area": "Chinatown",
                 "lat": 13.741152,
-                "lng": 100.508311
+                "lng": 100.508311,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -184,7 +190,8 @@
                 "city": "Bangkok",
                 "area": "Bang Rak",
                 "lat": 13.72106,
-                "lng": 100.514802
+                "lng": 100.514802,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -207,7 +214,8 @@
                 "city": "Bangkok",
                 "area": "Chao Phraya river",
                 "lat": 13.748158,
-                "lng": 100.497558
+                "lng": 100.497558,
+                "countryCode": "TH"
               },
               "kind": "transit",
               "tags": [],
@@ -228,7 +236,8 @@
                 "city": "Bangkok",
                 "area": "Phra Nakhon",
                 "lat": 13.749351,
-                "lng": 100.491864
+                "lng": 100.491864,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [
@@ -251,7 +260,8 @@
                 "city": "Bangkok",
                 "area": "Tha Tien",
                 "lat": 13.724956,
-                "lng": 100.579491
+                "lng": 100.579491,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -274,7 +284,8 @@
                 "city": "Bangkok",
                 "area": "Thonburi",
                 "lat": 13.743876,
-                "lng": 100.489941
+                "lng": 100.489941,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -297,7 +308,8 @@
                 "city": "Bangkok",
                 "area": "Tha Tien",
                 "lat": 13.744493,
-                "lng": 100.492573
+                "lng": 100.492573,
+                "countryCode": "TH"
               },
               "kind": "idea",
               "tags": [],
@@ -318,7 +330,8 @@
                 "city": "Bangkok",
                 "area": "Tha Tien",
                 "lat": 13.746481,
-                "lng": 100.490557
+                "lng": 100.490557,
+                "countryCode": "TH"
               },
               "kind": "hold",
               "tags": [
@@ -346,7 +359,8 @@
                 "city": "Bangkok",
                 "area": "Banglamphu",
                 "lat": 13.762158,
-                "lng": 100.493083
+                "lng": 100.493083,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -369,7 +383,8 @@
                 "city": "Bangkok",
                 "area": "Don Mueang",
                 "lat": 13.737507,
-                "lng": 100.560342
+                "lng": 100.560342,
+                "countryCode": "TH"
               },
               "kind": "transit",
               "tags": [],
@@ -390,7 +405,8 @@
                 "city": "Krabi",
                 "area": "Nuea Khlong",
                 "lat": 8.096408,
-                "lng": 98.985124
+                "lng": 98.985124,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [],
@@ -411,7 +427,8 @@
                 "city": "Krabi",
                 "area": "Ao Nang",
                 "lat": 8.033122,
-                "lng": 98.820331
+                "lng": 98.820331,
+                "countryCode": "TH"
               },
               "kind": "transit",
               "tags": [],
@@ -432,7 +449,8 @@
                 "city": "Krabi",
                 "area": "Ao Nang",
                 "lat": 8.031092,
-                "lng": 98.821883
+                "lng": 98.821883,
+                "countryCode": "TH"
               },
               "kind": "transit",
               "tags": [],
@@ -453,7 +471,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.009694,
-                "lng": 98.839744
+                "lng": 98.839744,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [
@@ -476,7 +495,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.012898,
-                "lng": 98.844317
+                "lng": 98.844317,
+                "countryCode": "TH"
               },
               "kind": "hold",
               "tags": [
@@ -504,7 +524,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.005561,
-                "lng": 98.838732
+                "lng": 98.838732,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -523,7 +544,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.020052,
-                "lng": 98.836403
+                "lng": 98.836403,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -546,7 +568,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.010676,
-                "lng": 98.839658
+                "lng": 98.839658,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [
@@ -569,7 +592,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.010676,
-                "lng": 98.839658
+                "lng": 98.839658,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -591,7 +615,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.048174,
-                "lng": 98.832892
+                "lng": 98.832892,
+                "countryCode": "TH"
               },
               "kind": "idea",
               "tags": [
@@ -610,7 +635,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.011297,
-                "lng": 98.837583
+                "lng": 98.837583,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [],
@@ -631,7 +657,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.011417,
-                "lng": 98.837954
+                "lng": 98.837954,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -659,7 +686,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.020052,
-                "lng": 98.836403
+                "lng": 98.836403,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -681,7 +709,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.011297,
-                "lng": 98.837583
+                "lng": 98.837583,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [],
@@ -702,7 +731,8 @@
                 "city": "Krabi",
                 "area": "Koh Tup",
                 "lat": 7.960965,
-                "lng": 98.810031
+                "lng": 98.810031,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [
@@ -725,7 +755,8 @@
                 "city": "Krabi",
                 "area": "Koh Tup",
                 "lat": 7.960965,
-                "lng": 98.810031
+                "lng": 98.810031,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -744,7 +775,8 @@
                 "city": "Krabi",
                 "area": "Koh Poda",
                 "lat": 7.971275,
-                "lng": 98.808478
+                "lng": 98.808478,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -768,7 +800,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.011297,
-                "lng": 98.837583
+                "lng": 98.837583,
+                "countryCode": "TH"
               },
               "kind": "transit",
               "tags": [],
@@ -785,7 +818,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.048174,
-                "lng": 98.832892
+                "lng": 98.832892,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -813,7 +847,8 @@
                 "city": "Krabi",
                 "area": "Railay",
                 "lat": 8.009694,
-                "lng": 98.839744
+                "lng": 98.839744,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -835,7 +870,8 @@
                 "city": "Krabi",
                 "area": "Ao Nang",
                 "lat": 8.04758,
-                "lng": 98.798494
+                "lng": 98.798494,
+                "countryCode": "TH"
               },
               "kind": "transit",
               "tags": [],
@@ -854,7 +890,11 @@
               "location": {
                 "name": "Saladan pier, Koh Lanta Yai",
                 "city": "Koh Lanta",
-                "area": "Saladan"
+                "area": "Saladan",
+                "countryCode": "TH",
+                "lat": 7.559842,
+                "lng": 99.057289,
+                "precision": "city"
               },
               "kind": "booked",
               "tags": [],
@@ -873,7 +913,11 @@
               "location": {
                 "name": "Saladan to Klong Nin beach road",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.559842,
+                "lng": 99.057289,
+                "precision": "city"
               },
               "kind": "transit",
               "tags": [],
@@ -892,7 +936,11 @@
               "location": {
                 "name": "Sri Lanta Resort, Klong Nin beach",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "booked",
               "tags": [
@@ -913,7 +961,11 @@
               "location": {
                 "name": "Klong Nin beach",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -930,7 +982,11 @@
               "location": {
                 "name": "Cook Kai Restaurant, Klong Nin beach road",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -956,7 +1012,11 @@
               "location": {
                 "name": "Sri Lanta Resort, Klong Nin beach",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -976,7 +1036,11 @@
               "location": {
                 "name": "Klong Nin beach road rental shops",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [],
@@ -995,7 +1059,11 @@
               "location": {
                 "name": "Lanta Old Town (Ban Si Raya)",
                 "city": "Koh Lanta",
-                "area": "Old Town"
+                "area": "Old Town",
+                "countryCode": "TH",
+                "lat": 7.531011,
+                "lng": 99.09434,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [],
@@ -1010,7 +1078,11 @@
               "location": {
                 "name": "Beautiful Restaurant, Lanta Old Town",
                 "city": "Koh Lanta",
-                "area": "Old Town"
+                "area": "Old Town",
+                "countryCode": "TH",
+                "lat": 7.531011,
+                "lng": 99.09434,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1031,7 +1103,11 @@
               "location": {
                 "name": "Koh Lanta Old Town Community Museum",
                 "city": "Koh Lanta",
-                "area": "Old Town"
+                "area": "Old Town",
+                "countryCode": "TH",
+                "lat": 7.531011,
+                "lng": 99.09434,
+                "precision": "area"
               },
               "kind": "idea",
               "tags": [
@@ -1052,7 +1128,11 @@
               "location": {
                 "name": "Tung Yee Peng community mangrove project",
                 "city": "Koh Lanta",
-                "area": "Tung Yee Peng"
+                "area": "Tung Yee Peng",
+                "countryCode": "TH",
+                "lat": 7.559842,
+                "lng": 99.057289,
+                "precision": "city"
               },
               "kind": "hold",
               "tags": [
@@ -1073,7 +1153,11 @@
               "location": {
                 "name": "Same Same But Different, Kantiang Bay",
                 "city": "Koh Lanta",
-                "area": "Kantiang Bay"
+                "area": "Kantiang Bay",
+                "countryCode": "TH",
+                "lat": 7.501005,
+                "lng": 99.068627,
+                "precision": "area"
               },
               "kind": "hold",
               "tags": [
@@ -1099,7 +1183,11 @@
               "location": {
                 "name": "Sri Lanta Resort, Klong Nin beach",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1120,7 +1208,11 @@
               "location": {
                 "name": "Saladan pier",
                 "city": "Koh Lanta",
-                "area": "Saladan"
+                "area": "Saladan",
+                "countryCode": "TH",
+                "lat": 7.559842,
+                "lng": 99.057289,
+                "precision": "city"
               },
               "kind": "booked",
               "tags": [],
@@ -1139,7 +1231,11 @@
               "location": {
                 "name": "Koh Rok Nai and Koh Rok Nok",
                 "city": "Koh Lanta",
-                "area": "Koh Rok"
+                "area": "Koh Rok",
+                "countryCode": "TH",
+                "lat": 7.400114,
+                "lng": 99.197795,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1156,7 +1252,11 @@
               "location": {
                 "name": "Koh Rok Nok beach",
                 "city": "Koh Lanta",
-                "area": "Koh Rok"
+                "area": "Koh Rok",
+                "countryCode": "TH",
+                "lat": 7.400114,
+                "lng": 99.197795,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1176,7 +1276,11 @@
               "location": {
                 "name": "Saladan pier",
                 "city": "Koh Lanta",
-                "area": "Saladan"
+                "area": "Saladan",
+                "countryCode": "TH",
+                "lat": 7.559842,
+                "lng": 99.057289,
+                "precision": "city"
               },
               "kind": "transit",
               "tags": [],
@@ -1191,7 +1295,11 @@
               "location": {
                 "name": "Time for Lime, Klong Dao beach",
                 "city": "Koh Lanta",
-                "area": "Klong Dao"
+                "area": "Klong Dao",
+                "countryCode": "TH",
+                "lat": 7.559842,
+                "lng": 99.057289,
+                "precision": "city"
               },
               "kind": "booked",
               "tags": [
@@ -1217,7 +1325,11 @@
               "location": {
                 "name": "Sri Lanta Resort beach kitchen, Klong Nin",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1237,7 +1349,11 @@
               "location": {
                 "name": "Klong Nin beach",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1254,7 +1370,11 @@
               "location": {
                 "name": "Ozone Bar, Klong Nin beach",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1280,7 +1400,11 @@
               "location": {
                 "name": "Sri Lanta Resort, Klong Nin beach",
                 "city": "Koh Lanta",
-                "area": "Klong Nin"
+                "area": "Klong Nin",
+                "countryCode": "TH",
+                "lat": 7.538146,
+                "lng": 99.048473,
+                "precision": "area"
               },
               "kind": "planned",
               "tags": [
@@ -1302,7 +1426,8 @@
                 "city": "Krabi",
                 "area": "Nuea Khlong",
                 "lat": 8.096408,
-                "lng": 98.985124
+                "lng": 98.985124,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [],
@@ -1323,7 +1448,8 @@
                 "city": "Bangkok",
                 "area": "Bang Phli",
                 "lat": 13.681877,
-                "lng": 100.74858
+                "lng": 100.74858,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [],
@@ -1344,7 +1470,8 @@
                 "city": "Bangkok",
                 "area": "Bang Phli",
                 "lat": 13.681877,
-                "lng": 100.74858
+                "lng": 100.74858,
+                "countryCode": "TH"
               },
               "kind": "planned",
               "tags": [
@@ -1367,7 +1494,8 @@
                 "city": "Bangkok",
                 "area": "Bang Phli",
                 "lat": 13.709885,
-                "lng": 100.757719
+                "lng": 100.757719,
+                "countryCode": "TH"
               },
               "kind": "booked",
               "tags": [],
@@ -1388,7 +1516,8 @@
             "city": "Ayutthaya",
             "area": "Old city island",
             "lat": 14.353546,
-            "lng": 100.562255
+            "lng": 100.562255,
+            "countryCode": "TH"
           },
           "kind": "idea",
           "tags": [
@@ -1401,7 +1530,11 @@
           "location": {
             "name": "Koh Haa dive sites",
             "city": "Koh Lanta",
-            "area": "Koh Haa"
+            "area": "Koh Haa",
+            "countryCode": "TH",
+            "lat": 7.559842,
+            "lng": 99.057289,
+            "precision": "city"
           },
           "kind": "idea",
           "tags": [
@@ -1416,7 +1549,8 @@
             "city": "Krabi",
             "area": "Koh Phi Phi",
             "lat": 8.034652,
-            "lng": 98.830765
+            "lng": 98.830765,
+            "countryCode": "TH"
           },
           "kind": "idea",
           "notes": "Everyone who does it as a day trip regrets it and everyone who stays a night says Maya Bay at seven in the morning is a different place. Would cost a Lanta night."
@@ -1428,7 +1562,8 @@
             "city": "Bangkok",
             "area": "Pathum Wan",
             "lat": 13.749345,
-            "lng": 100.528193
+            "lng": 100.528193,
+            "countryCode": "TH"
           },
           "kind": "idea",
           "tags": [

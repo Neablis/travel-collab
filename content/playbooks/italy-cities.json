@@ -76,7 +76,8 @@
             "city": "Rome",
             "area": "Celio",
             "lat": 41.8851,
-            "lng": 12.49582
+            "lng": 12.49582,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -99,7 +100,8 @@
             "city": "Rome",
             "area": "Celio",
             "lat": 41.891284,
-            "lng": 12.488094
+            "lng": 12.488094,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -116,7 +118,8 @@
             "city": "Rome",
             "area": "Celio",
             "lat": 41.8851,
-            "lng": 12.49582
+            "lng": 12.49582,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -135,7 +138,8 @@
             "city": "Rome",
             "area": "Testaccio",
             "lat": 41.877602,
-            "lng": 12.47358
+            "lng": 12.47358,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -158,7 +162,8 @@
             "city": "Rome",
             "area": "Testaccio",
             "lat": 41.909568,
-            "lng": 12.521549
+            "lng": 12.521549,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -181,7 +186,8 @@
             "city": "Rome",
             "area": "Testaccio",
             "lat": 41.876019,
-            "lng": 12.47928
+            "lng": 12.47928,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -204,7 +210,8 @@
             "city": "Rome",
             "area": "Trastevere",
             "lat": 41.892342,
-            "lng": 12.470748
+            "lng": 12.470748,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -221,7 +228,8 @@
             "city": "Rome",
             "area": "Trastevere",
             "lat": 41.888086,
-            "lng": 12.477807
+            "lng": 12.477807,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -268,7 +276,8 @@
             "city": "Florence",
             "area": "San Marco",
             "lat": 43.776917,
-            "lng": 11.258758
+            "lng": 11.258758,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -291,7 +300,8 @@
             "city": "Florence",
             "area": "San Marco",
             "lat": 43.791892,
-            "lng": 11.222437
+            "lng": 11.222437,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -314,7 +324,8 @@
             "city": "Florence",
             "area": "Centro Storico",
             "lat": 43.768313,
-            "lng": 11.255801
+            "lng": 11.255801,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -337,7 +348,8 @@
             "city": "Florence",
             "area": "Oltrarno",
             "lat": 43.768108,
-            "lng": 11.250023
+            "lng": 11.250023,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -360,7 +372,8 @@
             "city": "Florence",
             "area": "Oltrarno",
             "lat": 43.766103,
-            "lng": 11.250474
+            "lng": 11.250474,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [],
@@ -381,7 +394,8 @@
             "city": "Florence",
             "area": "San Frediano",
             "lat": 43.770819,
-            "lng": 11.241352
+            "lng": 11.241352,
+            "countryCode": "IT"
           },
           "kind": "hold",
           "tags": [],
@@ -398,7 +412,8 @@
             "city": "Florence",
             "area": "Oltrarno",
             "lat": 43.766993,
-            "lng": 11.252782
+            "lng": 11.252782,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -421,7 +436,8 @@
             "city": "Florence",
             "area": "San Niccolò",
             "lat": 43.762988,
-            "lng": 11.262945
+            "lng": 11.262945,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -467,7 +483,8 @@
             "city": "Venice",
             "area": "Cannaregio",
             "lat": 45.44198,
-            "lng": 12.323308
+            "lng": 12.323308,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -490,7 +507,8 @@
             "city": "Venice",
             "area": "Cannaregio",
             "lat": 45.443826,
-            "lng": 12.327037
+            "lng": 12.327037,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -513,7 +531,8 @@
             "city": "Venice",
             "area": "Torcello",
             "lat": 45.497146,
-            "lng": 12.415285
+            "lng": 12.415285,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -536,7 +555,8 @@
             "city": "Venice",
             "area": "Mazzorbo",
             "lat": 45.487854,
-            "lng": 12.414232
+            "lng": 12.414232,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -555,7 +575,8 @@
             "city": "Venice",
             "area": "Burano",
             "lat": 45.484754,
-            "lng": 12.41636
+            "lng": 12.41636,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -576,7 +597,8 @@
           "location": {
             "name": "Burano pontoon",
             "city": "Venice",
-            "area": "Burano"
+            "area": "Burano",
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -593,7 +615,8 @@
             "city": "Venice",
             "area": "Cannaregio",
             "lat": 45.445135,
-            "lng": 12.327181
+            "lng": 12.327181,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -616,7 +639,8 @@
             "city": "Venice",
             "area": "Cannaregio",
             "lat": 45.436796,
-            "lng": 12.325159
+            "lng": 12.325159,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -669,7 +693,8 @@
             "city": "Naples",
             "area": "Piazza Garibaldi",
             "lat": 40.853221,
-            "lng": 14.268933
+            "lng": 14.268933,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -692,7 +717,8 @@
             "city": "Naples",
             "area": "Porta Nolana",
             "lat": 40.849165,
-            "lng": 14.269178
+            "lng": 14.269178,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -715,7 +741,8 @@
             "city": "Pompei",
             "area": "Scavi di Pompei",
             "lat": 40.750917,
-            "lng": 14.488476
+            "lng": 14.488476,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -738,7 +765,8 @@
             "city": "Pompei",
             "area": "Piazza Bartolo Longo",
             "lat": 40.749148,
-            "lng": 14.501347
+            "lng": 14.501347,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -761,7 +789,8 @@
             "city": "Pompei",
             "area": "Piazza Bartolo Longo",
             "lat": 40.75127,
-            "lng": 14.501661
+            "lng": 14.501661,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -784,7 +813,8 @@
             "city": "Naples",
             "area": "Museo",
             "lat": 40.853606,
-            "lng": 14.25115
+            "lng": 14.25115,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -807,7 +837,8 @@
             "city": "Naples",
             "area": "Rione Sanità",
             "lat": 40.857431,
-            "lng": 14.252323
+            "lng": 14.252323,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -830,7 +861,8 @@
             "city": "Naples",
             "area": "Rione Sanità",
             "lat": 40.839058,
-            "lng": 14.24905
+            "lng": 14.24905,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -874,7 +906,8 @@
             "city": "Amalfi",
             "area": "Piazza Duomo",
             "lat": 40.634202,
-            "lng": 14.602753
+            "lng": 14.602753,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -897,7 +930,8 @@
             "city": "Amalfi",
             "area": "Porto",
             "lat": 40.632864,
-            "lng": 14.601462
+            "lng": 14.601462,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -912,7 +946,8 @@
           "location": {
             "name": "Private gozzo charter",
             "city": "Capri",
-            "area": "Around the island"
+            "area": "Around the island",
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -935,7 +970,8 @@
             "city": "Anacapri",
             "area": "Grotta Azzurra",
             "lat": 40.560861,
-            "lng": 14.204023
+            "lng": 14.204023,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -958,7 +994,8 @@
             "city": "Anacapri",
             "area": "Capodimonte",
             "lat": 40.557272,
-            "lng": 14.225045
+            "lng": 14.225045,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -981,7 +1018,8 @@
             "city": "Anacapri",
             "area": "Piazza Vittoria",
             "lat": 40.550329,
-            "lng": 14.222334
+            "lng": 14.222334,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1005,7 +1043,8 @@
             "city": "Capri",
             "area": "Marina Grande",
             "lat": 40.556249,
-            "lng": 14.238793
+            "lng": 14.238793,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -1020,7 +1059,8 @@
           "location": {
             "name": "Kiosk on Piazza Flavio Gioia",
             "city": "Amalfi",
-            "area": "Porto"
+            "area": "Porto",
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -1061,7 +1101,8 @@
             "city": "Matera",
             "area": "Murgia Materana",
             "lat": 40.664026,
-            "lng": 16.617793
+            "lng": 16.617793,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -1080,7 +1121,8 @@
             "city": "Matera",
             "area": "Sasso Caveoso",
             "lat": 40.663531,
-            "lng": 16.611301
+            "lng": 16.611301,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1103,7 +1145,8 @@
             "city": "Alberobello",
             "area": "Valle d'Itria",
             "lat": 40.785295,
-            "lng": 17.236184
+            "lng": 17.236184,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -1124,7 +1167,8 @@
             "city": "Alberobello",
             "area": "Aia Piccola",
             "lat": 40.783713,
-            "lng": 17.240714
+            "lng": 17.240714,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -1147,7 +1191,8 @@
             "city": "Alberobello",
             "area": "Centro",
             "lat": 40.785077,
-            "lng": 17.236949
+            "lng": 17.236949,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1170,7 +1215,8 @@
             "city": "Polignano a Mare",
             "area": "Costa Adriatica",
             "lat": 40.97567,
-            "lng": 17.195764
+            "lng": 17.195764,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -1187,7 +1233,8 @@
             "city": "Polignano a Mare",
             "area": "Centro Storico",
             "lat": 40.990955,
-            "lng": 17.218705
+            "lng": 17.218705,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -1206,7 +1253,8 @@
             "city": "Polignano a Mare",
             "area": "Piazza Garibaldi",
             "lat": 40.995308,
-            "lng": 17.219083
+            "lng": 17.219083,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1253,7 +1301,8 @@
             "city": "Bologna",
             "area": "Centro Storico",
             "lat": 44.493656,
-            "lng": 11.343049
+            "lng": 11.343049,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [],
@@ -1274,7 +1323,8 @@
             "city": "Parma",
             "area": "Fontevivo",
             "lat": 44.810675,
-            "lng": 10.312087
+            "lng": 10.312087,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1297,7 +1347,8 @@
             "city": "Parma",
             "area": "Langhirano",
             "lat": 44.802121,
-            "lng": 10.327277
+            "lng": 10.327277,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1320,7 +1371,8 @@
             "city": "Parma",
             "area": "Centro Storico",
             "lat": 44.803062,
-            "lng": 10.330393
+            "lng": 10.330393,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1343,7 +1395,8 @@
             "city": "Parma",
             "area": "Coloreto",
             "lat": 44.768766,
-            "lng": 10.380061
+            "lng": 10.380061,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1366,7 +1419,8 @@
             "city": "Modena",
             "area": "Villa Giusti",
             "lat": 44.645869,
-            "lng": 10.926285
+            "lng": 10.926285,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1389,7 +1443,8 @@
             "city": "Modena",
             "area": "Centro Storico",
             "lat": 44.647241,
-            "lng": 10.928201
+            "lng": 10.928201,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [],
@@ -1410,7 +1465,8 @@
             "city": "Modena",
             "area": "Via Vignolese",
             "lat": 44.6473,
-            "lng": 10.928317
+            "lng": 10.928317,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1447,7 +1503,8 @@
             "city": "Catania",
             "area": "Piazza Duomo",
             "lat": 37.501601,
-            "lng": 15.08716
+            "lng": 15.08716,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [],
@@ -1464,7 +1521,8 @@
             "city": "Catania",
             "area": "Via Etnea",
             "lat": 37.510829,
-            "lng": 15.085635
+            "lng": 15.085635,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1487,7 +1545,8 @@
             "city": "Nicolosi",
             "area": "Etna Sud",
             "lat": 37.700006,
-            "lng": 14.998821
+            "lng": 14.998821,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -1508,7 +1567,8 @@
             "city": "Nicolosi",
             "area": "Etna Sud",
             "lat": 37.700299,
-            "lng": 14.998389
+            "lng": 14.998389,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1532,7 +1592,8 @@
             "city": "Santa Venerina",
             "area": "Etna Est",
             "lat": 37.692769,
-            "lng": 15.123944
+            "lng": 15.123944,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1555,7 +1616,8 @@
             "city": "Taormina",
             "area": "Lumbi",
             "lat": 37.856775,
-            "lng": 15.287714
+            "lng": 15.287714,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [],
@@ -1576,7 +1638,8 @@
             "city": "Taormina",
             "area": "Centro Storico",
             "lat": 37.852371,
-            "lng": 15.292271
+            "lng": 15.292271,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1599,7 +1662,8 @@
             "city": "Taormina",
             "area": "Centro Storico",
             "lat": 37.850976,
-            "lng": 15.281874
+            "lng": 15.281874,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [

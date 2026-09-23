@@ -71,7 +71,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 17.058936,
-            "lng": -96.726681
+            "lng": -96.726681,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -92,7 +93,8 @@
           "location": {
             "name": "Templo y Jardín Etnobotánico de Santo Domingo de Guzmán",
             "city": "Oaxaca",
-            "area": "Centro Histórico"
+            "area": "Centro Histórico",
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -115,7 +117,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 17.060775,
-            "lng": -96.72292
+            "lng": -96.72292,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "notes": "Free, air-conditioned, and small enough to do properly in an hour. Worth it mostly as preparation: after this you can tell a cochineal red from an aniline one at a hundred paces, which changes what you buy in Teotitlán del Valle.",
@@ -135,7 +138,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 17.057987,
-            "lng": -96.727
+            "lng": -96.727,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -158,7 +162,8 @@
             "city": "Oaxaca",
             "area": "El Llano",
             "lat": 17.06823,
-            "lng": -96.719606
+            "lng": -96.719606,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "notes": "Twenty minutes uphill from the market and worth it purely because you need to walk after that lunch. Leche quemada con tuna is the local order; the sorbet carts are on the Berriozábal side.",
@@ -178,7 +183,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 17.059421,
-            "lng": -96.721359
+            "lng": -96.721359,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "notes": "Ulises Torrentera's bar on Guerrero, and probably the deepest mezcal list in Mexico. It keeps early hours — open from midday and shut long before a normal bar would start — and it is closed Sundays, so this is a pre-dinner stop, not a nightcap. Do not order by name. Say what you liked about the last thing you drank and let them pour; a flight of three wild agaves runs about twenty dollars and is the whole education.",
@@ -198,7 +204,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 17.064098,
-            "lng": -96.720806
+            "lng": -96.720806,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -221,7 +228,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 17.063047,
-            "lng": -96.723355
+            "lng": -96.723355,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "notes": "5 de Mayo 209 — mezcal cocktails rather than a tasting bar, and a room that stays lively past the point where the rest of the centro has rolled up. Balancing In Situ's seriousness with something long and cold is the reason this day ends well.",
@@ -271,7 +279,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 17.060595,
-            "lng": -96.725343
+            "lng": -96.725343,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "notes": "This is the whole reason the day works. A group van does Monte Albán at 11:00 with two hundred other people and reaches Hierve el Agua at the hottest, fullest hour. A private car with an INAH-accredited guide costs roughly what four seats on the van cost, and buys you the ordering of the day. Book direct with a local operator — Zapotrek and Coyote Aventuras both run Zapotec guides — and agree the route the night before, not in the car.",
@@ -289,7 +298,8 @@
           "location": {
             "name": "Zona Arqueológica de Monte Albán",
             "city": "Oaxaca",
-            "area": "Monte Albán"
+            "area": "Monte Albán",
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -313,7 +323,8 @@
             "city": "Teotitlán del Valle",
             "area": "Valles Centrales",
             "lat": 16.995163,
-            "lng": -96.525251
+            "lng": -96.525251,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "notes": "The demonstration — crushing cochineal off a nopal paddle, then shifting the red to purple with lime juice in front of you — is free, and ends in a sales room. That is the honest bargain, so go in knowing it. A metre-square rug in genuine natural dye is 150 to 300 dollars and takes weeks; anything at 40 dollars is aniline, which is fine, but ask which it is. Avoid the workshops with coach parking on the main road.",
@@ -333,7 +344,8 @@
             "city": "Teotitlán del Valle",
             "area": "Av. Juárez",
             "lat": 17.030916,
-            "lng": -96.520553
+            "lng": -96.520553,
+            "countryCode": "MX"
           },
           "kind": "hold",
           "tags": [
@@ -356,7 +368,8 @@
             "city": "San Lorenzo Albarradas",
             "area": "Valles Centrales",
             "lat": 16.867835,
-            "lng": -96.276384
+            "lng": -96.276384,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -379,7 +392,8 @@
             "city": "Santiago Matatlán",
             "area": "Valles Centrales",
             "lat": 16.867265,
-            "lng": -96.380837
+            "lng": -96.380837,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "notes": "Matatlán calls itself the world capital of mezcal and the highway through it is lined with places built for buses. Ask the driver for a family palenque still cooking espadín in an earth pit and distilling in clay — the difference is audible in the room, never mind the glass. Tastings are free or nearly; buy by the litre from the barrel and they will fill a bottle for you. Cash, pesos, and eat something first.",
@@ -399,7 +413,8 @@
             "city": "Oaxaca",
             "area": "Centro Histórico",
             "lat": 16.755094,
-            "lng": -96.84027
+            "lng": -96.84027,
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "An hour on the 190 with the light going. Ask to be dropped at the Llano rather than the zócalo if you want dinner without a taxi.",
@@ -449,7 +464,8 @@
             "city": "Valladolid",
             "area": "Centro",
             "lat": 20.685644,
-            "lng": -88.204553
+            "lng": -88.204553,
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "Shared vans to Pisté leave from Calle 46 a block off the plaza from about 06:00 for around 50 pesos. There is no timetable — they go when the seats fill, which before 07:00 takes a few minutes because it is mostly people going to work at the site. Ask to be let out at the ruins entrance rather than in Pisté village, or you add a hot 2 km.",
@@ -467,7 +483,11 @@
           "location": {
             "name": "Zona Arqueológica de Chichén Itzá",
             "city": "Chichén Itzá",
-            "area": "Zona Arqueológica"
+            "area": "Zona Arqueológica",
+            "countryCode": "MX",
+            "lat": 20.682876,
+            "lng": -88.568718,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -491,7 +511,8 @@
             "city": "Yokdzonot",
             "area": "Carretera Libre 180",
             "lat": 20.707001,
-            "lng": -88.730913
+            "lng": -88.730913,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -512,7 +533,8 @@
           "location": {
             "name": "Carretera Libre 180",
             "city": "Valladolid",
-            "area": "Centro"
+            "area": "Centro",
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "Flag it from the roadside outside the cenote gate; anything heading east is going to Valladolid. Have small notes — nobody breaks a 200.",
@@ -532,7 +554,8 @@
             "city": "Valladolid",
             "area": "Centro",
             "lat": 20.691064,
-            "lng": -88.201419
+            "lng": -88.201419,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -555,7 +578,8 @@
             "city": "Valladolid",
             "area": "Hacienda San Lorenzo",
             "lat": 20.676862,
-            "lng": -88.242016
+            "lng": -88.242016,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -578,7 +602,8 @@
             "city": "Valladolid",
             "area": "Sisal",
             "lat": 20.688511,
-            "lng": -88.206553
+            "lng": -88.206553,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "notes": "The pastel street everyone photographs at noon is empty and much better at dusk. Walk it to the convent at the end; the free light-and-sound projection on its facade runs at 21:00 and takes about 25 minutes if you want to come back after dinner.",
@@ -598,7 +623,8 @@
             "city": "Valladolid",
             "area": "Centro",
             "lat": 20.690953,
-            "lng": -88.187287
+            "lng": -88.187287,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -642,7 +668,8 @@
             "city": "Tulum",
             "area": "Tulum Pueblo",
             "lat": 20.252122,
-            "lng": -87.402292
+            "lng": -87.402292,
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "Twenty pesos, running from about 06:00, and they pass every few minutes — there is no reason to pay a taxi for this. From the drop-off it is 800 metres of unshaded car park to the ticket booth, or a few pesos on the trolley if the heat has already won.",
@@ -662,7 +689,8 @@
             "city": "Tulum",
             "area": "Parque del Jaguar",
             "lat": 20.214573,
-            "lng": -87.42946
+            "lng": -87.42946,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -686,7 +714,8 @@
             "city": "Tulum",
             "area": "Tulum Pueblo",
             "lat": 20.211932,
-            "lng": -87.459741
+            "lng": -87.459741,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "notes": "Cenote diving is guided-only, and the shop should ask for the physical certification card and a logbook before it takes your money — one that does not is one to walk out of. Cavern rules mean a continuous guideline, daylight always in sight, and no more than four divers to a guide. Two-tank guided cenote days with full gear run about 160 dollars; book the day before and take the later slot so the ruins morning fits in front of it.",
@@ -706,7 +735,8 @@
             "city": "Tulum",
             "area": "Jacinto Pat",
             "lat": 20.324734,
-            "lng": -87.390607
+            "lng": -87.390607,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -729,7 +759,8 @@
             "city": "Tulum",
             "area": "Jacinto Pat",
             "lat": 20.216084,
-            "lng": -87.454744
+            "lng": -87.454744,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -752,7 +783,8 @@
             "city": "Tulum",
             "area": "Tankah",
             "lat": 20.267018,
-            "lng": -87.392274
+            "lng": -87.392274,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -775,7 +807,8 @@
             "city": "Tulum",
             "area": "Tulum Pueblo",
             "lat": 20.208072,
-            "lng": -87.471474
+            "lng": -87.471474,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -798,7 +831,8 @@
             "city": "Tulum",
             "area": "Tulum Pueblo",
             "lat": 20.211932,
-            "lng": -87.459741
+            "lng": -87.459741,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "notes": "They press sugarcane through a mill built into a VW Beetle in the doorway, which is exactly as gimmicky and as good as that sounds. One drink — you have been up since half six and under water twice.",
@@ -842,7 +876,8 @@
             "city": "Mexico City",
             "area": "Xochimilco",
             "lat": 19.343382,
-            "lng": -99.140137
+            "lng": -99.140137,
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "Line 2 south to Tasqueña, then the light rail to Xochimilco — the whole run from Roma is about an hour and costs under twelve pesos, which is less than the tip on the boat. Cuemanco is the working pier next to the ecological park; Nativitas is the party pier with the beer boats and the mariachi. Pick deliberately.",
@@ -862,7 +897,8 @@
             "city": "Mexico City",
             "area": "Xochimilco",
             "lat": 19.289158,
-            "lng": -99.101753
+            "lng": -99.101753,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -885,7 +921,8 @@
             "city": "Mexico City",
             "area": "Xochimilco",
             "lat": 19.371422,
-            "lng": -99.150344
+            "lng": -99.150344,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -908,7 +945,8 @@
             "city": "Mexico City",
             "area": "Roma Norte",
             "lat": 19.418323,
-            "lng": -99.162565
+            "lng": -99.162565,
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "An hour and a quarter, and worth budgeting the full time — Tasqueña at lunchtime is not a place to make a tight connection. Change into something you would eat lunch in; Contramar is not formal but it is not damp-from-a-boat either.",
@@ -928,7 +966,8 @@
             "city": "Mexico City",
             "area": "Roma Norte",
             "lat": 19.419611,
-            "lng": -99.167226
+            "lng": -99.167226,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -951,7 +990,8 @@
             "city": "Mexico City",
             "area": "Roma Norte",
             "lat": 19.425281,
-            "lng": -99.16072
+            "lng": -99.16072,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "notes": "The Colima branch has seats and a manageable queue; the original on Havre in Juárez has a line down the street by nine in the morning. The rol de guayaba is the thing, and they do sell out — late afternoon is a gamble you take knowingly.",
@@ -971,7 +1011,8 @@
             "city": "Mexico City",
             "area": "Condesa",
             "lat": 19.371422,
-            "lng": -99.150344
+            "lng": -99.150344,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "tags": [
@@ -994,7 +1035,8 @@
             "city": "Mexico City",
             "area": "Roma Norte",
             "lat": 19.418131,
-            "lng": -99.159409
+            "lng": -99.159409,
+            "countryCode": "MX"
           },
           "kind": "planned",
           "notes": "Álvaro Obregón 106, and consistently on the world's-best lists without behaving like it. The Roma bar takes no reservations — leave your name and number, walk two blocks for a beer, they text. Ask for the Mr Pink, and if the room is full upstairs is quieter.",
@@ -1030,7 +1072,8 @@
           "location": {
             "name": "Marina de La Paz",
             "city": "La Paz",
-            "area": "Malecón"
+            "area": "Malecón",
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "Season first: whale sharks are in the bay roughly mid-October to mid-April, but it does not open on a date — CONANP opens it at half capacity only once six animals have been logged three days running, and full capacity at ten. Check the week before, and do not book flights around a guarantee. Inside the sanctuary every boat gets a two-hour window, maximum five swimmers in the water at a time, snorkel only, three metres of distance, no touching, no fins over the tail.",
@@ -1048,7 +1091,8 @@
           "location": {
             "name": "CONANP permit kiosk, Marina de La Paz",
             "city": "La Paz",
-            "area": "Malecón"
+            "area": "Malecón",
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -1071,7 +1115,8 @@
             "city": "La Paz",
             "area": "Bahía de La Paz",
             "lat": 24.099728,
-            "lng": -110.333067
+            "lng": -110.333067,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -1094,7 +1139,8 @@
             "city": "La Paz",
             "area": "Isla Espíritu Santo",
             "lat": 24.07669,
-            "lng": -110.302501
+            "lng": -110.302501,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -1115,7 +1161,8 @@
           "location": {
             "name": "Playa Ensenada Grande",
             "city": "La Paz",
-            "area": "Isla Espíritu Santo"
+            "area": "Isla Espíritu Santo",
+            "countryCode": "MX"
           },
           "kind": "planned",
           "tags": [
@@ -1138,7 +1185,8 @@
             "city": "Todos Santos",
             "area": "Centro",
             "lat": 23.447367,
-            "lng": -110.223054
+            "lng": -110.223054,
+            "countryCode": "MX"
           },
           "kind": "transit",
           "notes": "Seventy-five minutes on Highway 19, down the Pacific side. Leave La Paz by four to be on the coast for sunset. There is no Uber in Todos Santos and taxis dry up after ten, so arrange the return with the same driver before you get out.",
@@ -1158,7 +1206,8 @@
             "city": "Todos Santos",
             "area": "El Pescadero",
             "lat": 23.389696,
-            "lng": -110.196418
+            "lng": -110.196418,
+            "countryCode": "MX"
           },
           "kind": "idea",
           "tags": [
@@ -1181,7 +1230,8 @@
             "city": "Todos Santos",
             "area": "Camino a la Huerta",
             "lat": 23.442988,
-            "lng": -110.219477
+            "lng": -110.219477,
+            "countryCode": "MX"
           },
           "kind": "booked",
           "tags": [
@@ -1230,8 +1280,10 @@
             "name": "Hotel pickup, La Fortuna centro",
             "city": "La Fortuna",
             "area": "Centro",
-            "lat": 2.690715,
-            "lng": -76.718683
+            "lat": 10.471702,
+            "lng": -84.645176,
+            "countryCode": "CR",
+            "precision": "area"
           },
           "kind": "booked",
           "tags": [
@@ -1254,7 +1306,8 @@
             "city": "La Fortuna",
             "area": "Lago Arenal",
             "lat": 10.47089,
-            "lng": -84.64535
+            "lng": -84.64535,
+            "countryCode": "CR"
           },
           "kind": "transit",
           "notes": "The middle leg is a thirty-minute boat and the only part worth staying awake for — sit on the stern side, because the cone behind you is the last clear view of Arenal you will get. Monteverde is under cloud most afternoons by design. The road up from the far shore is gravel switchbacks; if you get carsick, take something in La Fortuna, not at the dock.",
@@ -1274,7 +1327,8 @@
             "city": "Monteverde",
             "area": "Santa Elena",
             "lat": 10.316507,
-            "lng": -84.824344
+            "lng": -84.824344,
+            "countryCode": "CR"
           },
           "kind": "planned",
           "tags": [
@@ -1297,7 +1351,8 @@
             "city": "Monteverde",
             "area": "Reserva Bosque Nuboso",
             "lat": 10.303651,
-            "lng": -84.787712
+            "lng": -84.787712,
+            "countryCode": "CR"
           },
           "kind": "booked",
           "tags": [
@@ -1321,7 +1376,8 @@
             "city": "Monteverde",
             "area": "Reserva Bosque Nuboso",
             "lat": 10.303651,
-            "lng": -84.787712
+            "lng": -84.787712,
+            "countryCode": "CR"
           },
           "kind": "idea",
           "notes": "Free, thirty feeders, and a dozen species including violet sabrewings hovering at arm's length. Ten minutes here gets better photographs than three hours on the trails, which is either delightful or annoying depending on your temperament.",
@@ -1341,7 +1397,8 @@
             "city": "Monteverde",
             "area": "Santa Elena",
             "lat": 10.317129,
-            "lng": -84.824165
+            "lng": -84.824165,
+            "countryCode": "CR"
           },
           "kind": "hold",
           "tags": [
@@ -1364,7 +1421,8 @@
             "city": "Monteverde",
             "area": "Santa Elena",
             "lat": 10.316507,
-            "lng": -84.824344
+            "lng": -84.824344,
+            "countryCode": "CR"
           },
           "kind": "booked",
           "tags": [
@@ -1402,7 +1460,8 @@
             "city": "Antigua Guatemala",
             "area": "Centro Histórico",
             "lat": 14.556772,
-            "lng": -90.735208
+            "lng": -90.735208,
+            "countryCode": "GT"
           },
           "kind": "booked",
           "tags": [
@@ -1425,7 +1484,8 @@
             "city": "Antigua Guatemala",
             "area": "Centro Histórico",
             "lat": 14.555497,
-            "lng": -90.732091
+            "lng": -90.732091,
+            "countryCode": "GT"
           },
           "kind": "planned",
           "tags": [
@@ -1446,7 +1506,11 @@
           "location": {
             "name": "La Soledad trailhead",
             "city": "La Soledad",
-            "area": "Acatenango"
+            "area": "Acatenango",
+            "countryCode": "GT",
+            "lat": 14.531853,
+            "lng": -90.988593,
+            "precision": "area"
           },
           "kind": "transit",
           "notes": "About an hour and a quarter of switchbacks to a village already at 2,400 metres, which is why the altitude starts working on you before you take a step. At the trailhead women sell walking sticks for five quetzales — take one — and porters offer to carry your bag to camp for around 200. If your pack is over eight kilos, hire the porter and stop pretending. Cash quetzales only, and bring small notes.",
@@ -1464,7 +1528,11 @@
           "location": {
             "name": "Acatenango park gate",
             "city": "La Soledad",
-            "area": "Acatenango"
+            "area": "Acatenango",
+            "countryCode": "GT",
+            "lat": 14.531853,
+            "lng": -90.988593,
+            "precision": "area"
           },
           "kind": "booked",
           "tags": [
@@ -1485,7 +1553,11 @@
           "location": {
             "name": "Acatenango south ridge",
             "city": "La Soledad",
-            "area": "Volcán de Acatenango"
+            "area": "Volcán de Acatenango",
+            "countryCode": "GT",
+            "lat": 14.512636,
+            "lng": -90.87178,
+            "precision": "area"
           },
           "kind": "planned",
           "tags": [
@@ -1506,7 +1578,11 @@
           "location": {
             "name": "Base camp, Acatenango",
             "city": "La Soledad",
-            "area": "Volcán de Acatenango"
+            "area": "Volcán de Acatenango",
+            "countryCode": "GT",
+            "lat": 14.496336,
+            "lng": -90.871251,
+            "precision": "venue"
           },
           "kind": "planned",
           "notes": "Camp faces Fuego straight across the saddle, close enough that the eruptions arrive as a physical thump before the ash column resolves. It goes roughly every fifteen to twenty minutes. Get into dry clothes immediately — you have sweated through everything and the temperature falls off a cliff at four o'clock.",
@@ -1524,7 +1600,11 @@
           "location": {
             "name": "Fuego saddle ridge",
             "city": "La Soledad",
-            "area": "Volcán de Fuego"
+            "area": "Volcán de Fuego",
+            "countryCode": "GT",
+            "lat": 14.474066,
+            "lng": -90.880654,
+            "precision": "area"
           },
           "kind": "hold",
           "tags": [
@@ -1545,7 +1625,11 @@
           "location": {
             "name": "Base camp, Acatenango",
             "city": "La Soledad",
-            "area": "Volcán de Acatenango"
+            "area": "Volcán de Acatenango",
+            "countryCode": "GT",
+            "lat": 14.496336,
+            "lng": -90.871251,
+            "precision": "venue"
           },
           "kind": "planned",
           "tags": [

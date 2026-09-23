@@ -68,7 +68,8 @@
             "city": "Hanoi",
             "area": "Bat Dan, Hoan Kiem",
             "lat": 21.033672,
-            "lng": 105.847427
+            "lng": 105.847427,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -91,7 +92,8 @@
             "city": "Hanoi",
             "area": "Hoan Kiem Lake",
             "lat": 21.030727,
-            "lng": 105.852376
+            "lng": 105.852376,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -114,7 +116,8 @@
             "city": "Hanoi",
             "area": "Hoan Kiem",
             "lat": 21.036859,
-            "lng": 105.85242
+            "lng": 105.85242,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [],
@@ -131,7 +134,8 @@
             "city": "Hanoi",
             "area": "Hang Manh, Hoan Kiem",
             "lat": 21.031965,
-            "lng": 105.848102
+            "lng": 105.848102,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -154,7 +158,8 @@
             "city": "Hanoi",
             "area": "Nguyen Huu Huan, Hoan Kiem",
             "lat": 21.033606,
-            "lng": 105.854622
+            "lng": 105.854622,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -177,7 +182,8 @@
             "city": "Hanoi",
             "area": "Phung Hung",
             "lat": 21.0245,
-            "lng": 105.84117
+            "lng": 105.84117,
+            "countryCode": "VN"
           },
           "kind": "idea",
           "tags": [],
@@ -198,7 +204,8 @@
             "city": "Hanoi",
             "area": "Hoan Kiem Lake",
             "lat": 21.031704,
-            "lng": 105.853455
+            "lng": 105.853455,
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [
@@ -221,7 +228,8 @@
             "city": "Hanoi",
             "area": "Ta Hien, Hoan Kiem",
             "lat": 21.035304,
-            "lng": 105.851985
+            "lng": 105.851985,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -274,7 +282,8 @@
             "city": "Hai Phong",
             "area": "Cat Hai",
             "lat": 20.85765,
-            "lng": 106.683688
+            "lng": 106.683688,
+            "countryCode": "VN"
           },
           "kind": "transit",
           "tags": [],
@@ -293,7 +302,8 @@
           "location": {
             "name": "Lan Ha Bay anchorage",
             "city": "Cat Ba",
-            "area": "Lan Ha Bay"
+            "area": "Lan Ha Bay",
+            "countryCode": "VN"
           },
           "kind": "transit",
           "tags": [],
@@ -312,7 +322,8 @@
           "location": {
             "name": "Heritage Line Ginger",
             "city": "Cat Ba",
-            "area": "Lan Ha Bay"
+            "area": "Lan Ha Bay",
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [
@@ -333,7 +344,8 @@
           "location": {
             "name": "Ginger dining room",
             "city": "Cat Ba",
-            "area": "Lan Ha Bay"
+            "area": "Lan Ha Bay",
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -350,7 +362,8 @@
           "location": {
             "name": "Hang Sang Hang Toi (Dark and Bright Cave)",
             "city": "Cat Ba",
-            "area": "Lan Ha Bay"
+            "area": "Lan Ha Bay",
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -373,7 +386,8 @@
             "city": "Cat Ba",
             "area": "Lan Ha Bay",
             "lat": 20.72457,
-            "lng": 107.052292
+            "lng": 107.052292,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -394,7 +408,8 @@
           "location": {
             "name": "Ginger chef's table",
             "city": "Cat Ba",
-            "area": "Lan Ha Bay"
+            "area": "Lan Ha Bay",
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [
@@ -415,7 +430,8 @@
           "location": {
             "name": "Ginger stern deck",
             "city": "Cat Ba",
-            "area": "Lan Ha Bay"
+            "area": "Lan Ha Bay",
+            "countryCode": "VN"
           },
           "kind": "idea",
           "tags": [],
@@ -453,7 +469,8 @@
             "city": "Ninh Binh",
             "area": "Tam Coc",
             "lat": 20.217675,
-            "lng": 105.929481
+            "lng": 105.929481,
+            "countryCode": "VN"
           },
           "kind": "transit",
           "tags": [],
@@ -474,7 +491,8 @@
             "city": "Ninh Binh",
             "area": "Tam Coc",
             "lat": 20.212075,
-            "lng": 105.936875
+            "lng": 105.936875,
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [
@@ -498,7 +516,8 @@
             "city": "Ninh Binh",
             "area": "Khe Ha, Hoa Lu",
             "lat": 20.232761,
-            "lng": 105.941985
+            "lng": 105.941985,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -522,7 +541,8 @@
             "city": "Ninh Binh",
             "area": "Ninh Hai",
             "lat": 20.217462,
-            "lng": 105.915708
+            "lng": 105.915708,
+            "countryCode": "VN"
           },
           "kind": "idea",
           "tags": [],
@@ -539,7 +559,8 @@
             "city": "Ninh Binh",
             "area": "Tam Coc",
             "lat": 20.216694,
-            "lng": 105.939614
+            "lng": 105.939614,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -562,7 +583,8 @@
             "city": "Ninh Binh",
             "area": "Trang An",
             "lat": 20.253783,
-            "lng": 105.900501
+            "lng": 105.900501,
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [
@@ -586,7 +608,8 @@
             "city": "Ninh Binh",
             "area": "Hoa Lu",
             "lat": 20.242114,
-            "lng": 105.974621
+            "lng": 105.974621,
+            "countryCode": "VN"
           },
           "kind": "idea",
           "tags": [
@@ -609,7 +632,8 @@
             "city": "Ninh Binh",
             "area": "Tam Coc",
             "lat": 20.216031,
-            "lng": 105.932078
+            "lng": 105.932078,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -662,7 +686,8 @@
             "city": "Hoi An",
             "area": "Ancient Town",
             "lat": 15.878484,
-            "lng": 108.332008
+            "lng": 108.332008,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -685,7 +710,8 @@
             "city": "Hoi An",
             "area": "Ancient Town",
             "lat": 15.877117,
-            "lng": 108.32601
+            "lng": 108.32601,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -708,7 +734,8 @@
             "city": "Hoi An",
             "area": "Nguyen Thai Hoc",
             "lat": 15.878135,
-            "lng": 108.333791
+            "lng": 108.333791,
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [],
@@ -729,7 +756,8 @@
             "city": "Hoi An",
             "area": "Bach Dang",
             "lat": 15.876004,
-            "lng": 108.329848
+            "lng": 108.329848,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -752,7 +780,8 @@
             "city": "Hoi An",
             "area": "Cam An",
             "lat": 15.877769,
-            "lng": 108.326756
+            "lng": 108.326756,
+            "countryCode": "VN"
           },
           "kind": "transit",
           "tags": [],
@@ -773,7 +802,8 @@
             "city": "Hoi An",
             "area": "An Bang Beach",
             "lat": 15.911663,
-            "lng": 108.340316
+            "lng": 108.340316,
+            "countryCode": "VN"
           },
           "kind": "planned",
           "tags": [
@@ -796,7 +826,8 @@
             "city": "Hoi An",
             "area": "Thu Bon riverfront",
             "lat": 15.87944,
-            "lng": 108.335
+            "lng": 108.335,
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [
@@ -819,7 +850,8 @@
             "city": "Hoi An",
             "area": "Nguyen Thai Hoc",
             "lat": 15.876618,
-            "lng": 108.327663
+            "lng": 108.327663,
+            "countryCode": "VN"
           },
           "kind": "booked",
           "tags": [
@@ -866,7 +898,8 @@
             "city": "Ubud",
             "area": "Ubud centre",
             "lat": -8.50769,
-            "lng": 115.264267
+            "lng": 115.264267,
+            "countryCode": "ID"
           },
           "kind": "transit",
           "tags": [],
@@ -887,7 +920,8 @@
             "city": "Tegallalang",
             "area": "Ceking",
             "lat": -8.449513,
-            "lng": 115.280135
+            "lng": 115.280135,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -910,7 +944,8 @@
             "city": "Tegallalang",
             "area": "Ceking",
             "lat": -8.449513,
-            "lng": 115.280135
+            "lng": 115.280135,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -933,7 +968,8 @@
             "city": "Tampaksiring",
             "area": "Manukaya",
             "lat": -8.414307,
-            "lng": 115.313147
+            "lng": 115.313147,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -956,7 +992,8 @@
             "city": "Tampaksiring",
             "area": "Tampaksiring",
             "lat": -8.422963,
-            "lng": 115.312533
+            "lng": 115.312533,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -980,7 +1017,8 @@
             "city": "Ubud",
             "area": "Jalan Tegal Sari",
             "lat": -8.505743,
-            "lng": 115.264068
+            "lng": 115.264068,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1003,7 +1041,8 @@
             "city": "Ubud",
             "area": "Bangkiang Sidem",
             "lat": -8.48971,
-            "lng": 115.258042
+            "lng": 115.258042,
+            "countryCode": "ID"
           },
           "kind": "hold",
           "tags": [],
@@ -1024,7 +1063,8 @@
             "city": "Ubud",
             "area": "Ubud centre",
             "lat": -8.506723,
-            "lng": 115.262707
+            "lng": 115.262707,
+            "countryCode": "ID"
           },
           "kind": "booked",
           "tags": [
@@ -1061,7 +1101,8 @@
             "city": "Uluwatu",
             "area": "Pecatu",
             "lat": -8.8352,
-            "lng": 115.096789
+            "lng": 115.096789,
+            "countryCode": "ID"
           },
           "kind": "transit",
           "tags": [],
@@ -1082,7 +1123,8 @@
             "city": "Uluwatu",
             "area": "Labuan Sait",
             "lat": -8.828008,
-            "lng": 115.086903
+            "lng": 115.086903,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1106,7 +1148,8 @@
             "city": "Uluwatu",
             "area": "Suluban",
             "lat": -8.815008,
-            "lng": 115.088921
+            "lng": 115.088921,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1129,7 +1172,8 @@
             "city": "Uluwatu",
             "area": "Balangan",
             "lat": -8.812978,
-            "lng": 115.144883
+            "lng": 115.144883,
+            "countryCode": "ID"
           },
           "kind": "idea",
           "tags": [
@@ -1152,7 +1196,8 @@
             "city": "Uluwatu",
             "area": "Pecatu",
             "lat": -8.829369,
-            "lng": 115.084343
+            "lng": 115.084343,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1175,7 +1220,8 @@
             "city": "Uluwatu",
             "area": "Pecatu",
             "lat": -8.8352,
-            "lng": 115.096789
+            "lng": 115.096789,
+            "countryCode": "ID"
           },
           "kind": "booked",
           "tags": [
@@ -1198,7 +1244,8 @@
             "city": "Jimbaran",
             "area": "Muaya Beach",
             "lat": -8.780719,
-            "lng": 115.164383
+            "lng": 115.164383,
+            "countryCode": "ID"
           },
           "kind": "booked",
           "tags": [
@@ -1239,7 +1286,8 @@
             "city": "Yogyakarta",
             "area": "Malioboro",
             "lat": -7.794167,
-            "lng": 110.36684
+            "lng": 110.36684,
+            "countryCode": "ID"
           },
           "kind": "transit",
           "tags": [],
@@ -1260,7 +1308,8 @@
             "city": "Magelang",
             "area": "Borobudur",
             "lat": -7.607958,
-            "lng": 110.203824
+            "lng": 110.203824,
+            "countryCode": "ID"
           },
           "kind": "booked",
           "tags": [
@@ -1283,7 +1332,8 @@
             "city": "Magelang",
             "area": "Borobudur",
             "lat": -7.604761,
-            "lng": 110.201343
+            "lng": 110.201343,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1302,7 +1352,8 @@
             "city": "Magelang",
             "area": "Mungkid",
             "lat": -7.606128,
-            "lng": 110.21956
+            "lng": 110.21956,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1325,7 +1376,8 @@
             "city": "Yogyakarta",
             "area": "Wijilan",
             "lat": -7.804537,
-            "lng": 110.366894
+            "lng": 110.366894,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1348,7 +1400,8 @@
             "city": "Sleman",
             "area": "Prambanan",
             "lat": -7.785388,
-            "lng": 110.496075
+            "lng": 110.496075,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1371,7 +1424,8 @@
             "city": "Sleman",
             "area": "Prambanan",
             "lat": -7.785388,
-            "lng": 110.496075
+            "lng": 110.496075,
+            "countryCode": "ID"
           },
           "kind": "booked",
           "tags": [
@@ -1394,7 +1448,8 @@
             "city": "Yogyakarta",
             "area": "Malioboro",
             "lat": -7.795292,
-            "lng": 110.365727
+            "lng": 110.365727,
+            "countryCode": "ID"
           },
           "kind": "idea",
           "tags": [
@@ -1441,7 +1496,8 @@
             "city": "Labuan Bajo",
             "area": "Waterfront",
             "lat": -8.493441,
-            "lng": 119.876308
+            "lng": 119.876308,
+            "countryCode": "ID"
           },
           "kind": "transit",
           "tags": [],
@@ -1462,7 +1518,8 @@
             "city": "Labuan Bajo",
             "area": "Komodo National Park",
             "lat": -8.498355,
-            "lng": 119.88316
+            "lng": 119.88316,
+            "countryCode": "ID"
           },
           "kind": "booked",
           "tags": [],
@@ -1481,7 +1538,8 @@
           "location": {
             "name": "Padar Island",
             "city": "Labuan Bajo",
-            "area": "Padar Island"
+            "area": "Padar Island",
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1505,7 +1563,8 @@
             "city": "Labuan Bajo",
             "area": "Komodo National Park",
             "lat": -8.498355,
-            "lng": 119.88316
+            "lng": 119.88316,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1522,7 +1581,8 @@
           "location": {
             "name": "Pantai Merah (Pink Beach)",
             "city": "Labuan Bajo",
-            "area": "Komodo Island"
+            "area": "Komodo Island",
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1544,7 +1604,8 @@
           "location": {
             "name": "Loh Liang ranger post",
             "city": "Labuan Bajo",
-            "area": "Komodo Island"
+            "area": "Komodo Island",
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1568,7 +1629,8 @@
             "city": "Labuan Bajo",
             "area": "Komodo National Park",
             "lat": -8.498355,
-            "lng": 119.88316
+            "lng": 119.88316,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [
@@ -1587,7 +1649,8 @@
             "city": "Labuan Bajo",
             "area": "Waterfront",
             "lat": -8.493441,
-            "lng": 119.876308
+            "lng": 119.876308,
+            "countryCode": "ID"
           },
           "kind": "planned",
           "tags": [

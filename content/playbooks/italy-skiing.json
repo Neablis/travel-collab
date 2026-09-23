@@ -70,7 +70,8 @@
           "location": {
             "name": "Ciampinoi cable car valley station",
             "city": "Selva di Val Gardena",
-            "area": "Val Gardena"
+            "area": "Val Gardena",
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -93,7 +94,8 @@
             "city": "Selva di Val Gardena",
             "area": "Ciampinoi",
             "lat": 46.540009,
-            "lng": 11.746622
+            "lng": 11.746622,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "Green (anticlockwise) is the direction to ride if you start from Selva: you hit Passo Sella early while the orange crowd is still stacking up at Dantercepies. Be moving before 09:00 — the whole circuit is only comfortable if the last pass is behind you by 15:30."
@@ -109,7 +111,8 @@
             "city": "Selva di Val Gardena",
             "area": "Passo Sella",
             "lat": 46.547713,
-            "lng": 11.770347
+            "lng": 11.770347,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -128,7 +131,8 @@
             "city": "Canazei",
             "area": "Val di Fassa",
             "lat": 46.48217,
-            "lng": 11.801308
+            "lng": 11.801308,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -145,7 +149,8 @@
           "location": {
             "name": "Arabba lift base",
             "city": "Arabba",
-            "area": "Arabba-Marmolada"
+            "area": "Arabba-Marmolada",
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "Arabba is the steepest ground on the circuit and the one place a nervous skier can get stuck. If anyone in the group is wobbling, take the Porta Vescovo cable car down rather than the black — it costs nothing extra on the pass."
@@ -161,7 +166,8 @@
             "city": "Arabba",
             "area": "Passo Campolongo",
             "lat": 46.512809,
-            "lng": 11.86478
+            "lng": 11.86478,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -184,7 +190,8 @@
             "city": "Corvara in Badia",
             "area": "Alta Badia",
             "lat": 46.537704,
-            "lng": 11.867085
+            "lng": 11.867085,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -201,7 +208,8 @@
           "location": {
             "name": "Dantercepies gondola top station",
             "city": "Selva di Val Gardena",
-            "area": "Passo Gardena"
+            "area": "Passo Gardena",
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -241,7 +249,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Centro",
             "lat": 46.537551,
-            "lng": 12.136783
+            "lng": 12.136783,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -264,7 +273,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Tofana",
             "lat": 46.556894,
-            "lng": 12.068364
+            "lng": 12.068364,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -287,7 +297,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Tofana di Mezzo",
             "lat": 46.55099,
-            "lng": 12.065492
+            "lng": 12.065492,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -306,7 +317,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Tofana",
             "lat": 46.539244,
-            "lng": 12.140899
+            "lng": 12.140899,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -325,7 +337,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Cinque Torri",
             "lat": 46.509224,
-            "lng": 12.051793
+            "lng": 12.051793,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "Cortina's three sectors are not linked by lift, so the ski bus is part of the day and not a failure of planning. It is free with the pass; the 12:00 departure is the one that gets you to a table on time."
@@ -341,7 +354,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Cinque Torri",
             "lat": 46.499567,
-            "lng": 12.040596
+            "lng": 12.040596,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -364,7 +378,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Cinque Torri",
             "lat": 46.508089,
-            "lng": 12.046772
+            "lng": 12.046772,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -387,7 +402,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Centro",
             "lat": 46.538388,
-            "lng": 12.13564
+            "lng": 12.13564,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -438,7 +454,8 @@
           "location": {
             "name": "Col Alt chairlift valley station",
             "city": "Corvara in Badia",
-            "area": "Alta Badia"
+            "area": "Alta Badia",
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -461,7 +478,8 @@
             "city": "Corvara in Badia",
             "area": "Alta Badia",
             "lat": 46.553006,
-            "lng": 11.874835
+            "lng": 11.874835,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "Only a named handful open early — Col Alt, Costes dal Ega, Arlara and Piz Sorega from 07:15, then the plateau lifts (Bamby, La Fraina, Ciampai, Bioch, La Brancia, Braia Fraida) at 07:30. The Piz La Ila cable car does not open early at all, so do not stand at it. Check the Alta Badia events page for the exact date; it usually falls on the Monday of Ski World Cup week."
@@ -477,7 +495,8 @@
             "city": "Corvara in Badia",
             "area": "Pralongià",
             "lat": 46.533747,
-            "lng": 11.916507
+            "lng": 11.916507,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -500,7 +519,8 @@
             "city": "Corvara in Badia",
             "area": "Pralongià",
             "lat": 46.533747,
-            "lng": 11.916507
+            "lng": 11.916507,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -517,7 +537,8 @@
           "location": {
             "name": "Gran Risa piste",
             "city": "La Villa",
-            "area": "Alta Badia"
+            "area": "Alta Badia",
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -536,7 +557,8 @@
             "city": "San Cassiano",
             "area": "Alta Badia",
             "lat": 46.571143,
-            "lng": 11.932094
+            "lng": 11.932094,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -559,7 +581,8 @@
             "city": "La Villa",
             "area": "Alta Badia",
             "lat": 46.57322,
-            "lng": 11.903573
+            "lng": 11.903573,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -578,7 +601,8 @@
             "city": "Corvara in Badia",
             "area": "Alta Badia",
             "lat": 46.553006,
-            "lng": 11.874835
+            "lng": 11.874835,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -625,7 +649,8 @@
             "city": "San Cassiano",
             "area": "Alta Badia",
             "lat": 46.571143,
-            "lng": 11.932094
+            "lng": 11.932094,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -648,7 +673,8 @@
             "city": "San Cassiano",
             "area": "Armentarola",
             "lat": 46.557918,
-            "lng": 11.949623
+            "lng": 11.949623,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "Minibuses leave when full from outside the Hotel Armentarola. Be on one of the first two of the day: by 10:30 the queue for the taxi and then again for the cable car can eat an hour, which is exactly what ruins this run.",
@@ -668,7 +694,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Passo Falzarego",
             "lat": 46.51875,
-            "lng": 12.008432
+            "lng": 12.008432,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -687,7 +714,8 @@
             "city": "Cortina d'Ampezzo",
             "area": "Piccolo Lagazuoi",
             "lat": 46.527754,
-            "lng": 12.008133
+            "lng": 12.008133,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -708,7 +736,8 @@
           "location": {
             "name": "Armentarola piste (Hidden Valley)",
             "city": "San Cassiano",
-            "area": "Val Badia"
+            "area": "Val Badia",
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -725,7 +754,8 @@
           "location": {
             "name": "Rifugio Scotoni",
             "city": "San Cassiano",
-            "area": "Lagazuoi–Armentarola"
+            "area": "Lagazuoi–Armentarola",
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -748,7 +778,8 @@
             "city": "San Cassiano",
             "area": "Armentarola",
             "lat": 46.561191,
-            "lng": 11.954125
+            "lng": 11.954125,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "The last two kilometres are dead flat, so you grab a rope and a horse pulls you out. Roughly four euros, cash in hand, coins and notes only — no card. It does not run in heavy snow or if the route is shut, in which case it is a long skate: keep some energy.",
@@ -768,7 +799,8 @@
             "city": "San Cassiano",
             "area": "Alta Badia",
             "lat": 46.561941,
-            "lng": 11.930269
+            "lng": 11.930269,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -801,7 +833,8 @@
             "city": "Madonna di Campiglio",
             "area": "Campo Carlo Magno",
             "lat": 46.23333,
-            "lng": 10.81667
+            "lng": 10.81667,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -824,7 +857,8 @@
             "city": "Madonna di Campiglio",
             "area": "Grostè",
             "lat": 46.236539,
-            "lng": 10.835847
+            "lng": 10.835847,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "Four cabin lifts leave the valley — Cinque Laghi, Pradalago, Grostè and Spinale — and they do not all serve the same snow. Grostè is the highest and holds the best morning cold; go there first every time and work back down the valley through the day."
@@ -840,7 +874,8 @@
             "city": "Madonna di Campiglio",
             "area": "Grostè",
             "lat": 46.236539,
-            "lng": 10.835847
+            "lng": 10.835847,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -859,7 +894,8 @@
             "city": "Madonna di Campiglio",
             "area": "Grostè",
             "lat": 46.236539,
-            "lng": 10.835847
+            "lng": 10.835847,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -882,7 +918,8 @@
             "city": "Madonna di Campiglio",
             "area": "Monte Spinale",
             "lat": 46.227733,
-            "lng": 10.82852
+            "lng": 10.82852,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -905,7 +942,8 @@
             "city": "Madonna di Campiglio",
             "area": "Pradalago",
             "lat": 46.233496,
-            "lng": 10.826698
+            "lng": 10.826698,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -924,7 +962,8 @@
             "city": "Madonna di Campiglio",
             "area": "Pancugolo",
             "lat": 46.231349,
-            "lng": 10.80709
+            "lng": 10.80709,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -943,7 +982,8 @@
             "city": "Madonna di Campiglio",
             "area": "Zeledria",
             "lat": 46.23333,
-            "lng": 10.81667
+            "lng": 10.81667,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -984,7 +1024,8 @@
             "city": "Bormio",
             "area": "Bormio 2000",
             "lat": 46.444321,
-            "lng": 10.389038
+            "lng": 10.389038,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1007,7 +1048,8 @@
             "city": "Bormio",
             "area": "Bormio 2000",
             "lat": 46.444321,
-            "lng": 10.389038
+            "lng": 10.389038,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "notes": "The lift starts in the town, so you can walk from the old centre in boots. Get the first or second car: the Stelvio is south-facing low down and the whole plan depends on being on it before eleven."
@@ -1023,7 +1065,8 @@
             "city": "Bormio",
             "area": "Bormio 2000",
             "lat": 46.467388,
-            "lng": 10.369857
+            "lng": 10.369857,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1042,7 +1085,8 @@
             "city": "Bormio",
             "area": "Cima Bianca",
             "lat": 46.465358,
-            "lng": 10.371322
+            "lng": 10.371322,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1061,7 +1105,8 @@
             "city": "Bormio",
             "area": "Cima Bianca",
             "lat": 46.420514,
-            "lng": 10.411162
+            "lng": 10.411162,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1084,7 +1129,8 @@
             "city": "Bormio",
             "area": "Bormio 2000",
             "lat": 46.444321,
-            "lng": 10.389038
+            "lng": 10.389038,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1103,7 +1149,8 @@
             "city": "Valdidentro",
             "area": "Bagni Vecchi",
             "lat": 46.492419,
-            "lng": 10.360927
+            "lng": 10.360927,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1126,7 +1173,8 @@
             "city": "Bormio",
             "area": "Centro Storico",
             "lat": 46.467098,
-            "lng": 10.374379
+            "lng": 10.374379,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -1179,7 +1227,8 @@
             "city": "Courmayeur",
             "area": "Dolonne",
             "lat": 45.793039,
-            "lng": 6.973188
+            "lng": 6.973188,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1202,7 +1251,8 @@
             "city": "Courmayeur",
             "area": "Punta Helbronner",
             "lat": 45.837541,
-            "lng": 6.940862
+            "lng": 6.940862,
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -1225,7 +1275,8 @@
             "city": "Courmayeur",
             "area": "Colle del Gigante",
             "lat": 45.845127,
-            "lng": 6.933716
+            "lng": 6.933716,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1246,7 +1297,8 @@
           "location": {
             "name": "Vallée Blanche glacier route",
             "city": "Courmayeur",
-            "area": "Mont Blanc massif"
+            "area": "Mont Blanc massif",
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1269,7 +1321,8 @@
             "city": "Chamonix-Mont-Blanc",
             "area": "Mer de Glace",
             "lat": 45.884663,
-            "lng": 6.929691
+            "lng": 6.929691,
+            "countryCode": "FR"
           },
           "kind": "planned",
           "tags": [
@@ -1292,7 +1345,8 @@
             "city": "Chamonix-Mont-Blanc",
             "area": "Montenvers",
             "lat": 45.932181,
-            "lng": 6.916722
+            "lng": 6.916722,
+            "countryCode": "FR"
           },
           "kind": "transit",
           "tags": [
@@ -1315,7 +1369,8 @@
             "city": "Chamonix-Mont-Blanc",
             "area": "Centre",
             "lat": 45.922183,
-            "lng": 6.86841
+            "lng": 6.86841,
+            "countryCode": "FR"
           },
           "kind": "idea",
           "tags": [
@@ -1338,7 +1393,8 @@
             "city": "Courmayeur",
             "area": "Entrèves",
             "lat": 45.794191,
-            "lng": 6.969927
+            "lng": 6.969927,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1382,7 +1438,8 @@
             "city": "Bolzano",
             "area": "Centro Storico",
             "lat": 46.499795,
-            "lng": 11.349554
+            "lng": 11.349554,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1405,7 +1462,8 @@
             "city": "Bolzano",
             "area": "Centro Storico",
             "lat": 46.500001,
-            "lng": 11.352837
+            "lng": 11.352837,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1428,7 +1486,8 @@
             "city": "Bolzano",
             "area": "Centro Storico",
             "lat": 46.499326,
-            "lng": 11.352572
+            "lng": 11.352572,
+            "countryCode": "IT"
           },
           "kind": "booked",
           "tags": [
@@ -1449,7 +1508,8 @@
           "location": {
             "name": "Renon/Ritten cable car and Rittner Bahn",
             "city": "Bolzano",
-            "area": "Renon"
+            "area": "Renon",
+            "countryCode": "IT"
           },
           "kind": "transit",
           "tags": [
@@ -1472,7 +1532,8 @@
             "city": "Bolzano",
             "area": "Centro Storico",
             "lat": 46.498097,
-            "lng": 11.354896
+            "lng": 11.354896,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1491,7 +1552,8 @@
             "city": "Bolzano",
             "area": "Centro Storico",
             "lat": 46.488959,
-            "lng": 11.335317
+            "lng": 11.335317,
+            "countryCode": "IT"
           },
           "kind": "planned",
           "tags": [
@@ -1514,7 +1576,8 @@
             "city": "Bolzano",
             "area": "Lungotalvera",
             "lat": 46.488959,
-            "lng": 11.335317
+            "lng": 11.335317,
+            "countryCode": "IT"
           },
           "kind": "idea",
           "tags": [
@@ -1537,7 +1600,8 @@
             "city": "Bolzano",
             "area": "Centro Storico",
             "lat": 46.500345,
-            "lng": 11.360624
+            "lng": 11.360624,
+            "countryCode": "IT"
           },
           "kind": "hold",
           "tags": [

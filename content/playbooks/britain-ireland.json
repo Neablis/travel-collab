@@ -75,7 +75,8 @@
             "city": "London",
             "area": "Bethnal Green",
             "lat": 51.528616,
-            "lng": -0.070691
+            "lng": -0.070691,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -94,7 +95,8 @@
             "city": "London",
             "area": "Bethnal Green",
             "lat": 51.530346,
-            "lng": -0.056163
+            "lng": -0.056163,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -117,7 +119,8 @@
             "city": "London",
             "area": "Shoreditch",
             "lat": 51.526042,
-            "lng": -0.074906
+            "lng": -0.074906,
+            "countryCode": "GB"
           },
           "kind": "idea",
           "notes": "Two minutes off Columbia Road and almost nobody makes the detour. The mound under the bandstand is the rubble of the slum that stood here, and the estate built on top of it in 1900 was the first council housing in the country. Free, takes twenty minutes, and it is the one thing on this day that explains the rest of it."
@@ -133,7 +136,8 @@
             "city": "London",
             "area": "Spitalfields",
             "lat": 51.521423,
-            "lng": -0.072605
+            "lng": -0.072605,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "notes": "Sunday is the only day all of the Brick Lane markets run together. Backyard Market is the vintage one and the Sunday UpMarket is food and makers; both are in the Truman Brewery yards on the west side, signposted badly. Skip the northern end of Brick Lane where the curry-house touts work the pavement — the good end is south of the railway bridge. Old Spitalfields Market is 400m west if this is too much of a crush.",
@@ -153,7 +157,8 @@
             "city": "London",
             "area": "Brick Lane",
             "lat": 51.524512,
-            "lng": -0.071753
+            "lng": -0.071753,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -176,7 +181,8 @@
             "city": "London",
             "area": "Spitalfields",
             "lat": 51.520943,
-            "lng": -0.07779
+            "lng": -0.07779,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -199,7 +205,8 @@
             "city": "London",
             "area": "Bethnal Green",
             "lat": 51.51477,
-            "lng": -0.160943
+            "lng": -0.160943,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "notes": "A back-street pub the Kray twins once bought for their mother, now simply a very good one — long beer list, no music loud enough to shout over. It is a five-minute walk north from Brick Lane up Cheshire Street, which on a Sunday is still half a market itself. If it is rammed, The Royal Oak on the corner of Columbia Road does the same job and puts you back where the day started.",
@@ -237,7 +244,8 @@
             "city": "London",
             "area": "Marylebone",
             "lat": 51.524371,
-            "lng": -0.163592
+            "lng": -0.163592,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "notes": "The Edwardian galleried room at the back is the reason to come, and it is shelved by country rather than by genre, so the novels, histories and guidebooks for one place stand together. Go before 10:30 and you get it nearly empty. If it is a Sunday, the Marylebone farmers market runs in the Cramer Street car park behind Waitrose — worth ten minutes.",
@@ -257,7 +265,8 @@
             "city": "London",
             "area": "Marylebone",
             "lat": 51.541225,
-            "lng": 0.067589
+            "lng": 0.067589,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "notes": "Free, open every day from 10:00, and ten minutes from Oxford Street with none of the crowd. The terms of the bequest forbid anything leaving or joining the collection, which means nothing here ever travels to a blockbuster show somewhere else — you see it in this house or not at all. Everyone stops at the Laughing Cavalier and the Fragonard and then leaves; the arms and armour in the basement is one of the best collections in Europe and is usually empty. Verified 2026-09-06: open seven days a week, 10:00–17:00, free, and no advance booking is needed for general admission; the only regular closures are 24–26 December."
@@ -273,7 +282,8 @@
             "city": "London",
             "area": "Marylebone",
             "lat": 51.524371,
-            "lng": -0.163592
+            "lng": -0.163592,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -296,7 +306,8 @@
             "city": "London",
             "area": "Covent Garden",
             "lat": 51.509648,
-            "lng": -0.099076
+            "lng": -0.099076,
+            "countryCode": "GB"
           },
           "kind": "transit",
           "notes": "Twenty-five minutes on foot down through Mayfair, or two stops on the Jubilee and Piccadilly with a change at Green Park — the walk is faster than it looks and far more pleasant. Tap in and out with the same card; there is no need for a paper ticket or an Oyster any more.",
@@ -316,7 +327,8 @@
             "city": "London",
             "area": "Covent Garden",
             "lat": 51.510004,
-            "lng": -0.126232
+            "lng": -0.126232,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -339,7 +351,8 @@
             "city": "London",
             "area": "Strand",
             "lat": 51.505873,
-            "lng": -0.13992
+            "lng": -0.13992,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "notes": "No reservations, so the trick is to arrive before 18:00 — after that there is a queue in the lobby and it does not move. One cocktail costs what a bottle costs elsewhere and you are paying for the room and the piano, which is a fair trade once. Dress is smart; no sportswear, and they mean it. Beaufort Bar across the hall takes bookings if you would rather not gamble.",
@@ -359,7 +372,8 @@
             "city": "London",
             "area": "Strand",
             "lat": 51.512429,
-            "lng": -0.115147
+            "lng": -0.115147,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -382,7 +396,8 @@
             "city": "London",
             "area": "Aldwych",
             "lat": 51.511766,
-            "lng": -0.119395
+            "lng": -0.119395,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -435,7 +450,8 @@
             "city": "Edinburgh",
             "area": "Holyrood",
             "lat": 55.94564,
-            "lng": -3.1638
+            "lng": -3.1638,
+            "countryCode": "GB"
           },
           "kind": "hold",
           "tags": [
@@ -454,7 +470,8 @@
             "city": "Edinburgh",
             "area": "Old Town",
             "lat": 55.951533,
-            "lng": -3.179198
+            "lng": -3.179198,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -477,7 +494,8 @@
             "city": "Edinburgh",
             "area": "Castlehill",
             "lat": 55.948687,
-            "lng": -3.200417
+            "lng": -3.200417,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -500,7 +518,8 @@
             "city": "Edinburgh",
             "area": "Grassmarket",
             "lat": 55.948589,
-            "lng": -3.194246
+            "lng": -3.194246,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -523,7 +542,8 @@
             "city": "Edinburgh",
             "area": "Royal Mile",
             "lat": 55.949961,
-            "lng": -3.190446
+            "lng": -3.190446,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -546,7 +566,8 @@
             "city": "Edinburgh",
             "area": "West Bow",
             "lat": 55.948461,
-            "lng": -3.194194
+            "lng": -3.194194,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "notes": "Several hundred bottles behind the bar, no music, no television and no cocktails — the room is built for conversation and the staff will talk you through a region for as long as you like if you are not in a hurry. Ask for something you cannot buy at home rather than the name you already know; the independent bottlings on the top shelves are the reason to be here. Order a half measure and water on the side. If it is full, Kay's Bar off Jamaica Street in the New Town is fifteen minutes downhill and is the other answer to the same question.",
@@ -566,7 +587,8 @@
             "city": "Edinburgh",
             "area": "Royal Terrace",
             "lat": 55.957508,
-            "lng": -3.180687
+            "lng": -3.180687,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -613,7 +635,8 @@
             "city": "Portree",
             "area": "Trotternish",
             "lat": 57.413065,
-            "lng": -6.194414
+            "lng": -6.194414,
+            "countryCode": "GB"
           },
           "kind": "transit",
           "notes": "A private driver-guide for the day is roughly the cost of the car divided by however many of you there are — split four ways it is comparable to hiring a car and cheaper than hiring one badly. What you are actually buying is the parking problem going away and somebody who knows which passing place to sit in. The one rule visitors break constantly on Skye: passing places are for passing, not for photographs, and a car parked in one on the Staffin road blocks the whole glen.",
@@ -631,7 +654,8 @@
           "location": {
             "name": "Storr car park, A855",
             "city": "Portree",
-            "area": "Trotternish"
+            "area": "Trotternish",
+            "countryCode": "GB"
           },
           "kind": "hold",
           "tags": [
@@ -654,7 +678,8 @@
             "city": "Staffin",
             "area": "Trotternish",
             "lat": 57.55758,
-            "lng": -6.265247
+            "lng": -6.265247,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "notes": "Two roadside stops fifteen minutes apart, ten minutes each, free. Kilt Rock is the one on every postcard — a waterfall going straight off a basalt cliff into the sea. Stand at the fence for thirty seconds and listen: the railings hum in the wind, which is a genuinely strange noise and the thing people remember. Lealt, just south, has the better short walk and a quarter of the people."
@@ -670,7 +695,8 @@
             "city": "Staffin",
             "area": "Trotternish",
             "lat": 57.55758,
-            "lng": -6.265247
+            "lng": -6.265247,
+            "countryCode": "GB"
           },
           "kind": "hold",
           "tags": [
@@ -693,7 +719,8 @@
             "city": "Kilmaluag",
             "area": "Trotternish",
             "lat": 57.683155,
-            "lng": -6.299274
+            "lng": -6.299274,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -716,7 +743,8 @@
             "city": "Uig",
             "area": "Trotternish",
             "lat": 57.584829,
-            "lng": -6.333017
+            "lng": -6.333017,
+            "countryCode": "GB"
           },
           "kind": "idea",
           "tags": [
@@ -735,7 +763,8 @@
             "city": "Kilmuir",
             "area": "Trotternish",
             "lat": 57.660275,
-            "lng": -6.368983
+            "lng": -6.368983,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -758,7 +787,8 @@
             "city": "Portree",
             "area": "Portree Harbour",
             "lat": 57.412984,
-            "lng": -6.191227
+            "lng": -6.191227,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -795,7 +825,8 @@
             "city": "London",
             "area": "Paddington",
             "lat": 51.517095,
-            "lng": -0.177317
+            "lng": -0.177317,
+            "countryCode": "GB"
           },
           "kind": "transit",
           "notes": "About ninety minutes on the fast service and the station is a five-minute walk from the Abbey, which is why this works as a day at all. Advance singles released twelve weeks out are a third of the walk-up fare — booking on the morning is the single most expensive mistake available in British travel. Sit on the left going down for the Avon valley. Anything later than the 08:00 puts you into the Roman Baths behind the coach parties, and the whole shape of this day depends on not being.",
@@ -815,7 +846,8 @@
             "city": "Bath",
             "area": "Abbey Church Yard",
             "lat": 51.381349,
-            "lng": -2.359801
+            "lng": -2.359801,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -838,7 +870,8 @@
             "city": "Bath",
             "area": "Abbey Church Yard",
             "lat": 51.380694,
-            "lng": -2.358343
+            "lng": -2.358343,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -861,7 +894,8 @@
             "city": "Bath",
             "area": "Royal Crescent",
             "lat": 51.386629,
-            "lng": -2.36713
+            "lng": -2.36713,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -882,7 +916,11 @@
           "location": {
             "name": "Castle Combe and Lacock",
             "city": "Castle Combe",
-            "area": "Cotswolds"
+            "area": "Cotswolds",
+            "countryCode": "GB",
+            "lat": 51.49337,
+            "lng": -2.228967,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -905,7 +943,8 @@
             "city": "Bath",
             "area": "Hot Bath Street",
             "lat": 51.380573,
-            "lng": -2.361028
+            "lng": -2.361028,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -928,7 +967,8 @@
             "city": "Bath",
             "area": "Russel Street",
             "lat": 51.387016,
-            "lng": -2.362878
+            "lng": -2.362878,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -951,7 +991,8 @@
             "city": "Bath",
             "area": "Royal Crescent",
             "lat": 51.387711,
-            "lng": -2.367938
+            "lng": -2.367938,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -995,7 +1036,8 @@
             "city": "St Erth",
             "area": "Hayle Estuary",
             "lat": 50.170572,
-            "lng": -5.443921
+            "lng": -5.443921,
+            "countryCode": "GB"
           },
           "kind": "transit",
           "notes": "St Ives in August is a town with three car parks and about four thousand cars looking for them; Trenwith fills by 09:30 and the queue down into the town does not move. The branch line from St Erth is twelve minutes along the Hayle estuary and over Carbis Bay, all-day parking at the station is a few pounds, and it is one of the best short railway rides in Britain. It runs every half hour and is the answer even in February. Cost here covers the day's car and the station parking.",
@@ -1015,7 +1057,8 @@
             "city": "St Ives",
             "area": "West Penwith",
             "lat": 50.21084,
-            "lng": -5.484393
+            "lng": -5.484393,
+            "countryCode": "GB"
           },
           "kind": "hold",
           "tags": [
@@ -1034,7 +1077,8 @@
             "city": "Zennor",
             "area": "Treen",
             "lat": 50.182637,
-            "lng": -5.593268
+            "lng": -5.593268,
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -1055,7 +1099,8 @@
           "location": {
             "name": "B3306 and the A30 to Porthcurno",
             "city": "Porthcurno",
-            "area": "West Penwith"
+            "area": "West Penwith",
+            "countryCode": "GB"
           },
           "kind": "transit",
           "notes": "Half an hour by car, or the Land's End Coaster bus, which is an open-top double decker and does the whole coast road as a sightseeing trip that happens to be public transport. The B3306 is narrow with granite hedges either side and there is nowhere to pull in — if you are driving it, go slowly and be ready to reverse.",
@@ -1075,7 +1120,8 @@
             "city": "Porthcurno",
             "area": "West Penwith",
             "lat": 50.042844,
-            "lng": -5.650433
+            "lng": -5.650433,
+            "countryCode": "GB"
           },
           "kind": "hold",
           "tags": [
@@ -1092,7 +1138,11 @@
           "location": {
             "name": "The Old Coastguard, The Parade",
             "city": "Mousehole",
-            "area": "Mount's Bay"
+            "area": "Mount's Bay",
+            "countryCode": "GB",
+            "lat": 50.084655,
+            "lng": -5.536926,
+            "precision": "venue"
           },
           "kind": "booked",
           "tags": [
@@ -1113,7 +1163,8 @@
           "location": {
             "name": "The Minack Theatre",
             "city": "Porthcurno",
-            "area": "West Penwith"
+            "area": "West Penwith",
+            "countryCode": "GB"
           },
           "kind": "booked",
           "tags": [
@@ -1160,7 +1211,8 @@
             "city": "Nant Peris",
             "area": "Eryri",
             "lat": 53.102902,
-            "lng": -4.082743
+            "lng": -4.082743,
+            "countryCode": "GB"
           },
           "kind": "transit",
           "notes": "Pen-y-Pass has about a hundred spaces, it is pre-book only, and the slots go weeks ahead in summer — driving up there on spec means driving back down again. Everyone local uses Nant Peris instead: cheap all-day parking at the bottom of the pass and the Sherpa'r Wyddfa S1 up the hill for a couple of pounds. Verified 2026-09-06: the high-season Sherpa'r Wyddfa timetable runs through to Sunday 1 November 2026, the first S1 leaves the Nant Peris Park & Ride for Pen-y-Pass at 07:15, and the last bus back down from Pen-y-Pass is 19:30. S1, S2 and S5 between them give a bus every 15 minutes at weekends and in school holidays, every 30 minutes otherwise. The Park & Ride itself cannot be pre-booked — it is Pen-y-Pass that is pre-book only. This window has been set to 06:50–07:25 to match that 07:15 departure. Verges on the A4086 are double-yellowed and actively ticketed.",
@@ -1178,7 +1230,8 @@
           "location": {
             "name": "Pyg Track from Pen-y-Pass",
             "city": "Pen-y-Pass",
-            "area": "Eryri"
+            "area": "Eryri",
+            "countryCode": "GB"
           },
           "kind": "hold",
           "tags": [
@@ -1197,7 +1250,8 @@
             "city": "Llanberis",
             "area": "Yr Wyddfa",
             "lat": 53.084444,
-            "lng": -4.042237
+            "lng": -4.042237,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -1220,7 +1274,8 @@
             "city": "Pen-y-Pass",
             "area": "Eryri",
             "lat": 53.080655,
-            "lng": -4.021024
+            "lng": -4.021024,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -1239,7 +1294,8 @@
             "city": "Pen-y-Pass",
             "area": "Eryri",
             "lat": 53.080655,
-            "lng": -4.021024
+            "lng": -4.021024,
+            "countryCode": "GB"
           },
           "kind": "transit",
           "notes": "The Sherpa runs on through to Llanberis, so you can stay on past your car, spend the afternoon in the town and pick the bus back up to Nant Peris in the evening. Buses fill from the Pen-y-Pass end in the afternoon and standing is not allowed on the mountain road — if two go past full, walking down the old road to Nant Peris takes about fifty minutes and is pleasant.",
@@ -1259,7 +1315,8 @@
             "city": "Llanberis",
             "area": "High Street",
             "lat": 53.121786,
-            "lng": -4.127351
+            "lng": -4.127351,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -1282,7 +1339,8 @@
             "city": "Llanberis",
             "area": "Padarn Country Park",
             "lat": 53.118181,
-            "lng": -4.128161
+            "lng": -4.128161,
+            "countryCode": "GB"
           },
           "kind": "idea",
           "notes": "IMPOSSIBLE AS ORIGINALLY WRITTEN — verified 2026-09-06: the National Slate Museum has been closed since November 2024 for a redevelopment now costed at about £25m, construction only started on site in November 2025, and the reopening has slipped from 2026 to 2027. There is nothing to walk into: no slate-splitting demonstration, no workshops, no cafe, no free entry, because there is no open museum. Amgueddfa Cymru is running the collection as 'Museum on the Move' out of partner venues across the slate World Heritage Site while the work goes on, so check where it is showing if the slate story is why you came. What is still here, still free and still open is Dolbadarn Castle — a single Welsh round tower from the 1200s on the knoll above Llyn Padarn, ten minutes on foot from the village — and the path round the lake below it, which is the better hour anyway with a day on the mountain behind you."
@@ -1298,7 +1356,8 @@
             "city": "Llanberis",
             "area": "High Street",
             "lat": 53.126497,
-            "lng": -4.136769
+            "lng": -4.136769,
+            "countryCode": "GB"
           },
           "kind": "planned",
           "tags": [
@@ -1351,7 +1410,8 @@
             "city": "Ballyvaughan",
             "area": "The Burren",
             "lat": 53.115503,
-            "lng": -9.149244
+            "lng": -9.149244,
+            "countryCode": "IE"
           },
           "kind": "transit",
           "notes": "The whole trick of this day is direction. Every coach out of Galway does the Cliffs of Moher first, at eleven, and then the Burren; going the other way round means empty limestone all morning and empty cliffs all evening. Corkscrew Hill climbs out of Ballyvaughan in a set of hairpins built as famine relief work, and the pull-in at the top looks back over the whole bay. Fuel up before you leave the coast — there is nothing on the R480.",
@@ -1371,7 +1431,8 @@
             "city": "Carran",
             "area": "The Burren",
             "lat": 53.043972,
-            "lng": -9.046591
+            "lng": -9.046591,
+            "countryCode": "IE"
           },
           "kind": "planned",
           "tags": [
@@ -1390,7 +1451,8 @@
             "city": "Carran",
             "area": "The Burren",
             "lat": 53.043972,
-            "lng": -9.046591
+            "lng": -9.046591,
+            "countryCode": "IE"
           },
           "kind": "booked",
           "tags": [
@@ -1413,7 +1475,8 @@
             "city": "Carran",
             "area": "The Burren",
             "lat": 53.043293,
-            "lng": -9.047301
+            "lng": -9.047301,
+            "countryCode": "IE"
           },
           "kind": "planned",
           "tags": [
@@ -1434,7 +1497,11 @@
           "location": {
             "name": "Lisdoonvarna and the road to Doolin",
             "city": "Lisdoonvarna",
-            "area": "North Clare"
+            "area": "North Clare",
+            "countryCode": "IE",
+            "lat": 53.029412,
+            "lng": -9.289511,
+            "precision": "city"
           },
           "kind": "planned",
           "tags": [
@@ -1453,7 +1520,8 @@
             "city": "Doolin",
             "area": "North Clare",
             "lat": 53.014898,
-            "lng": -9.404653
+            "lng": -9.404653,
+            "countryCode": "IE"
           },
           "kind": "hold",
           "tags": [
@@ -1477,7 +1545,8 @@
             "city": "Liscannor",
             "area": "North Clare",
             "lat": 52.979249,
-            "lng": -9.390693
+            "lng": -9.390693,
+            "countryCode": "IE"
           },
           "kind": "booked",
           "tags": [
@@ -1501,7 +1570,8 @@
             "city": "Doolin",
             "area": "Fisherstreet",
             "lat": 53.012549,
-            "lng": -9.386621
+            "lng": -9.386621,
+            "countryCode": "IE"
           },
           "kind": "planned",
           "notes": "Doolin has three session pubs within four hundred metres — O'Connor's in Fisherstreet, McGann's and McDermott's up in Roadford — and the honest advice is to look in all three. If one is a coach-party crush the other two will not be. Sessions start when the players arrive, which is nearer 21:45 than the time chalked on the board, and the first half hour is the tuning. Do not talk over a slow air; nobody will tell you to stop and everybody will notice.",

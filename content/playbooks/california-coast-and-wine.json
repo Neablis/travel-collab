@@ -125,7 +125,8 @@
             "city": "San Francisco",
             "area": "Embarcadero",
             "lat": 37.795275,
-            "lng": -122.39237
+            "lng": -122.39237,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -149,7 +150,8 @@
             "city": "San Francisco",
             "area": "Embarcadero",
             "lat": 37.7949,
-            "lng": -122.393789
+            "lng": -122.393789,
+            "countryCode": "US"
           },
           "kind": "idea",
           "notes": "Acme bread and Cowgirl Creamery are the two counters worth carrying something out of. Do not eat a proper lunch here — you want to be hungry in North Beach at 14:45, and Hog Island at noon is a 40-minute wait for the same oysters you can get at 11:00 on a weekday.",
@@ -169,7 +171,8 @@
             "city": "San Francisco",
             "area": "Embarcadero",
             "lat": 37.790136,
-            "lng": -122.389371
+            "lng": -122.389371,
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "1.4 flat miles past Pier 7 and the historic F-line. Do not drive: Pier 33 parking is $40-plus for the day and the streetcar takes as long as walking because it shares the road. Boarding closes 15 minutes before departure and they genuinely do not hold the boat — a missed sailing is a forfeited ticket."
@@ -185,7 +188,8 @@
             "city": "San Francisco",
             "area": "San Francisco Bay",
             "lat": 37.826721,
-            "lng": -122.422759
+            "lng": -122.422759,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -209,7 +213,8 @@
             "city": "San Francisco",
             "area": "North Beach",
             "lat": 37.800333,
-            "lng": -122.409051
+            "lng": -122.409051,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -232,7 +237,8 @@
             "city": "San Francisco",
             "area": "North Beach",
             "lat": 37.797652,
-            "lng": -122.406617
+            "lng": -122.406617,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [],
@@ -253,7 +259,8 @@
             "city": "San Francisco",
             "area": "Telegraph Hill",
             "lat": 37.801813,
-            "lng": -122.405544
+            "lng": -122.405544,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -276,7 +283,8 @@
             "city": "San Francisco",
             "area": "Chinatown",
             "lat": 37.794097,
-            "lng": -122.404903
+            "lng": -122.404903,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -326,7 +334,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.761455,
-            "lng": -122.423945
+            "lng": -122.423945,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -349,7 +358,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.764177,
-            "lng": -122.425403
+            "lng": -122.425403,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [],
@@ -370,7 +380,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.75972,
-            "lng": -122.427132
+            "lng": -122.427132,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -389,7 +400,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.750874,
-            "lng": -122.418158
+            "lng": -122.418158,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -412,7 +424,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.752584,
-            "lng": -122.411665
+            "lng": -122.411665,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -436,7 +449,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.751816,
-            "lng": -122.412409
+            "lng": -122.412409,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -455,7 +469,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.795727,
-            "lng": -122.393784
+            "lng": -122.393784,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [],
@@ -476,7 +491,8 @@
             "city": "San Francisco",
             "area": "Mission District",
             "lat": 37.75642,
-            "lng": -122.419137
+            "lng": -122.419137,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -520,7 +536,8 @@
             "city": "San Francisco",
             "area": "Lands End",
             "lat": 37.780252,
-            "lng": -122.513625
+            "lng": -122.513625,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -539,7 +556,8 @@
             "city": "San Francisco",
             "area": "Lands End",
             "lat": 37.78303,
-            "lng": -122.511417
+            "lng": -122.511417,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -558,7 +576,8 @@
             "city": "San Francisco",
             "area": "Lincoln Park",
             "lat": 37.784558,
-            "lng": -122.500955
+            "lng": -122.500955,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -581,7 +600,8 @@
             "city": "San Francisco",
             "area": "Presidio",
             "lat": 37.798746,
-            "lng": -122.464589
+            "lng": -122.464589,
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "The 29 Sunset runs from Lands End into the Presidio without a transfer, about 35 minutes. The free PresidiGo shuttle is only useful once you are already inside the park, and it does not come out to the ocean. Driving works too, but then you give up the parking space you queued for at 08:15."
@@ -597,7 +617,8 @@
             "city": "San Francisco",
             "area": "Presidio",
             "lat": 37.802899,
-            "lng": -122.455911
+            "lng": -122.455911,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -621,7 +642,8 @@
             "city": "San Francisco",
             "area": "Presidio",
             "lat": 37.797934,
-            "lng": -122.401137
+            "lng": -122.401137,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -640,7 +662,8 @@
             "city": "San Francisco",
             "area": "Presidio",
             "lat": 37.810486,
-            "lng": -122.476882
+            "lng": -122.476882,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -659,7 +682,8 @@
             "city": "San Francisco",
             "area": "Inner Richmond",
             "lat": 37.782913,
-            "lng": -122.462565
+            "lng": -122.462565,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -706,7 +730,8 @@
             "city": "Napa",
             "area": "Downtown Napa",
             "lat": 38.299175,
-            "lng": -122.28535
+            "lng": -122.28535,
+            "countryCode": "US"
           },
           "kind": "planned",
           "tags": [
@@ -729,7 +754,8 @@
             "city": "Napa",
             "area": "Napa Valley",
             "lat": 38.401105,
-            "lng": -122.359288
+            "lng": -122.359288,
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "This is not a luxury, it is the thing that makes the day possible. Three appointments are spread over 25 miles of Highway 29 and the Silverado Trail, and Napa County polices that exact road on that exact day extremely hard. A full-day private car runs $650-$1,500 per group — typically $85-$200 an hour with a five- or six-hour minimum, plus 18-20% gratuity — and the figure here is one seat of four in a $780 day including tip. Book two to three weeks ahead in harvest season. A driver also knows which tasting rooms will hold a case for you until the end of the day and which will not, which matters more than it sounds.",
@@ -749,7 +775,8 @@
             "city": "Calistoga",
             "area": "Napa Valley",
             "lat": 38.55024,
-            "lng": -122.537998
+            "lng": -122.537998,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -772,7 +799,8 @@
             "city": "St. Helena",
             "area": "Napa Valley",
             "lat": 38.501021,
-            "lng": -122.462739
+            "lng": -122.462739,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -795,7 +823,8 @@
             "city": "Rutherford",
             "area": "Napa Valley",
             "lat": 35.947933,
-            "lng": -86.577909
+            "lng": -86.577909,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [],
@@ -816,7 +845,8 @@
             "city": "Napa",
             "area": "Stags Leap District",
             "lat": 38.398787,
-            "lng": -122.323208
+            "lng": -122.323208,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -839,7 +869,8 @@
             "city": "Napa",
             "area": "Downtown Napa",
             "lat": 38.30174,
-            "lng": -122.28175
+            "lng": -122.28175,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -889,7 +920,8 @@
             "city": "Healdsburg",
             "area": "Healdsburg Plaza",
             "lat": 38.608176,
-            "lng": -122.869878
+            "lng": -122.869878,
+            "countryCode": "US"
           },
           "tags": [
             "meal"
@@ -911,7 +943,8 @@
             "city": "Healdsburg",
             "area": "Westside Road",
             "lat": 38.608176,
-            "lng": -122.869878
+            "lng": -122.869878,
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "The same rule as Napa and for the same reason, but a third of the cost: Russian River tasting rooms are 15 minutes apart instead of 25, so a four-hour booking covers the day. Split four ways this is $60 a head. If you are two people, the honest alternative is one taster and one driver, which nobody enjoys.",
@@ -931,7 +964,8 @@
             "city": "Healdsburg",
             "area": "Westside Road",
             "lat": 38.535173,
-            "lng": -122.867253
+            "lng": -122.867253,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -952,7 +986,11 @@
           "location": {
             "name": "Merry Edwards Winery",
             "city": "Sebastopol",
-            "area": "Russian River Valley"
+            "area": "Russian River Valley",
+            "countryCode": "US",
+            "lat": 38.402104,
+            "lng": -122.824222,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -975,7 +1013,8 @@
             "city": "Healdsburg",
             "area": "Healdsburg",
             "lat": 38.626871,
-            "lng": -122.87377
+            "lng": -122.87377,
+            "countryCode": "US"
           },
           "tags": [
             "meal"
@@ -997,7 +1036,8 @@
             "city": "Healdsburg",
             "area": "Dry Creek Valley",
             "lat": 38.610895,
-            "lng": -122.870926
+            "lng": -122.870926,
+            "countryCode": "US"
           },
           "kind": "hold",
           "tags": [
@@ -1020,7 +1060,8 @@
             "city": "Healdsburg",
             "area": "Russian River",
             "lat": 38.603305,
-            "lng": -122.859331
+            "lng": -122.859331,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -1039,7 +1080,8 @@
             "city": "Healdsburg",
             "area": "Healdsburg Plaza",
             "lat": 38.610189,
-            "lng": -122.870041
+            "lng": -122.870041,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -1083,7 +1125,8 @@
             "city": "Capitola",
             "area": "Capitola Village",
             "lat": 36.972685,
-            "lng": -121.952137
+            "lng": -121.952137,
+            "countryCode": "US"
           },
           "tags": [
             "meal"
@@ -1105,7 +1148,8 @@
             "city": "Capitola",
             "area": "Capitola Village",
             "lat": 36.969749,
-            "lng": -121.953387
+            "lng": -121.953387,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1123,7 +1167,8 @@
             "city": "Capitola",
             "area": "Capitola Village",
             "lat": 36.971398,
-            "lng": -121.951647
+            "lng": -121.951647,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1141,7 +1186,8 @@
             "city": "Capitola",
             "area": "Capitola Village",
             "lat": 36.972685,
-            "lng": -121.952137
+            "lng": -121.952137,
+            "countryCode": "US"
           },
           "tags": [
             "meal"
@@ -1163,7 +1209,8 @@
             "city": "Santa Cruz",
             "area": "West Cliff",
             "lat": 36.953044,
-            "lng": -122.037847
+            "lng": -122.037847,
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "Ten minutes up the coast. Do the drive rather than the Boardwalk unless you have children with you — West Cliff is the reason people live here and the Boardwalk is a car park with a rollercoaster attached."
@@ -1179,7 +1226,8 @@
             "city": "Santa Cruz",
             "area": "West Cliff",
             "lat": 36.953239,
-            "lng": -122.026091
+            "lng": -122.026091,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1197,7 +1245,8 @@
             "city": "Santa Cruz",
             "area": "Westside",
             "lat": 36.952084,
-            "lng": -122.057125
+            "lng": -122.057125,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1219,7 +1268,8 @@
             "city": "Capitola",
             "area": "Capitola Village",
             "lat": 36.97464,
-            "lng": -121.955442
+            "lng": -121.955442,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -1266,7 +1316,8 @@
             "city": "Monterey",
             "area": "Cannery Row",
             "lat": 36.604465,
-            "lng": -121.894363
+            "lng": -121.894363,
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "The Aquarium does not sell tickets at the door — they are online only, and the 10:00 slot is the one to hold. Park in a Cannery Row garage rather than circling: the street spots near the Aquarium are two-hour and this is a three-hour visit.",
@@ -1286,7 +1337,8 @@
             "city": "Monterey",
             "area": "Cannery Row",
             "lat": 36.618089,
-            "lng": -121.901672
+            "lng": -121.901672,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -1309,7 +1361,8 @@
             "city": "Pebble Beach",
             "area": "17-Mile Drive",
             "lat": 36.570283,
-            "lng": -121.9405
+            "lng": -121.9405,
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "$12.25 per vehicle, cash or card at the gate. Enter at Pacific Grove rather than Carmel and you drive the coast section with the ocean on your right and the pull-outs on your side of the road.",
@@ -1329,7 +1382,8 @@
             "city": "Pebble Beach",
             "area": "17-Mile Drive",
             "lat": 36.570283,
-            "lng": -121.9405
+            "lng": -121.9405,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -1352,7 +1406,8 @@
             "city": "Pebble Beach",
             "area": "17-Mile Drive",
             "lat": 36.570283,
-            "lng": -121.9405
+            "lng": -121.9405,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1370,7 +1425,8 @@
             "city": "Carmel-by-the-Sea",
             "area": "Carmel Village",
             "lat": 36.554167,
-            "lng": -121.909285
+            "lng": -121.909285,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1388,7 +1444,8 @@
             "city": "Carmel-by-the-Sea",
             "area": "Carmel Beach",
             "lat": 36.551236,
-            "lng": -121.929441
+            "lng": -121.929441,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -1405,7 +1462,8 @@
           "location": {
             "name": "Aubergine, L'Auberge Carmel",
             "city": "Carmel-by-the-Sea",
-            "area": "Carmel Village"
+            "area": "Carmel Village",
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [
@@ -1456,7 +1514,8 @@
           "location": {
             "name": "Caltrans QuickMap, from Carmel",
             "city": "Carmel-by-the-Sea",
-            "area": "Highway 1"
+            "area": "Highway 1",
+            "countryCode": "US"
           },
           "kind": "transit",
           "notes": "Not optional, and not a formality. Highway 1 reopened through Big Sur in January 2026 after years of slip closures, and by that August the Timber Fire had shut it again. WHERE THE LINE IS NOW, verified 2026-09-06: the northern closure that ran from mile marker 56 (south of the Little Sur River) down to mile marker 45 (just south of the Big Sur post office) was LIFTED IN ITS ENTIRETY at 06:00 on Thursday 3 September 2026, reopening roughly forty miles of coastal Monterey County for the Labor Day weekend. So the stretch this day uses — Bixby, the Big Sur valley, Nepenthe, Pfeiffer Beach, and south as far as McWay — is OPEN. What is still closed is the southern segment: CHP is holding a hard closure from MM 16.0 at Pacific Valley down to MM 0.0 at the Monterey/San Luis Obispo county line for the Plaskett Fire, with no reopening date. That means this day works as an out-and-back from Carmel and NOT as a through-drive to Cambria or San Simeon — if your plan was to carry on south to Hearst Castle, it does not exist today and the detour is inland via US 101. The road being open is not the same as the parks being open; see the next stops. Ten minutes on QuickMap before you turn the key still decides whether today is this day or a different one."
@@ -1472,7 +1531,8 @@
             "city": "Big Sur",
             "area": "Highway 1",
             "lat": 36.217302,
-            "lng": -121.749696
+            "lng": -121.749696,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1490,7 +1550,8 @@
             "city": "Big Sur",
             "area": "Highway 1",
             "lat": 36.25518,
-            "lng": -121.778588
+            "lng": -121.778588,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -1509,7 +1570,8 @@
             "city": "Big Sur",
             "area": "Big Sur Valley",
             "lat": 36.253306,
-            "lng": -121.783295
+            "lng": -121.783295,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -1528,7 +1590,8 @@
             "city": "Big Sur",
             "area": "Highway 1",
             "lat": 36.221812,
-            "lng": -121.759657
+            "lng": -121.759657,
+            "countryCode": "US"
           },
           "tags": [
             "meal"
@@ -1550,7 +1613,8 @@
             "city": "Big Sur",
             "area": "Julia Pfeiffer Burns State Park",
             "lat": 36.25234,
-            "lng": -121.78267
+            "lng": -121.78267,
+            "countryCode": "US"
           },
           "kind": "idea",
           "tags": [
@@ -1569,7 +1633,8 @@
             "city": "Big Sur",
             "area": "Sycamore Canyon",
             "lat": 36.23947,
-            "lng": -121.817862
+            "lng": -121.817862,
+            "countryCode": "US"
           },
           "tags": [
             "outdoors"
@@ -1591,7 +1656,8 @@
             "city": "Big Sur",
             "area": "Highway 1",
             "lat": 36.230252,
-            "lng": -121.771663
+            "lng": -121.771663,
+            "countryCode": "US"
           },
           "kind": "booked",
           "tags": [

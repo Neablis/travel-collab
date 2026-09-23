@@ -191,6 +191,22 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
       idempotent) — it prints `coverage (>= 1 country)` for all rows and for
       published rows. **Write those two numbers here**, then tick the box.
 
+   **Steps 1–4 done 2026-09-23 (`claude/country-filter-data-setup-b08e1f`):
+   1,375 of 1,375 locations now carry `countryCode`.** Neither LocationIQ nor a
+   fresh run was needed: the main checkout's `content/.geocode-cache.sqlite`
+   (2026-09-06) already held 1,333 of 1,345 places, so copying it into the
+   worktree left one lookup, done via Nominatim. `--apply` wrote **1,261** codes
+   and no coordinates. The other **114** stops sat in cities where no stop had
+   ever resolved (all 23 of Koh Lanta, Watkins Glen, Forks, Öræfi…), so the
+   geocoder had nothing to vote with. At Mitchell's call they were finished by
+   hand: `countryCode` from a city→country table (every one unambiguous), and a
+   Nominatim coordinate tried venue → area → town, stored with `precision` —
+   15 `venue`, 51 `area`, 49 `city`. Every match was read. The first pass put
+   Koh Lanta in Bangkok and Búðir in Garðabær, and those were re-pinned before
+   commit. One pre-existing pin was also wrong: *Hotel pickup, La Fortuna
+   centro* was in Colombia on `main`; it is now in Costa Rica. **Steps 5–6
+   (re-import, backfill, the two coverage numbers) are still open.**
+
 ## 2026-09-23 — the UI half: built, not yet walked
 
 Branch `claude/youthful-hopper-zgjdkv`, on top of the backend (#206). No
@@ -227,7 +243,7 @@ five partial stars.
 
 **Still open against the gate:** the three review states and the operator path
 are walked in e2e specs (`m12-reviews`, `m12-moderation`, `m12-discover`), not
-by a person; the `countries` coverage step is still the run-book above; a card
+by a person; the `countries` data is in `content/` (#213) but steps 5–6 of the run-book — re-import, backfill, the two coverage numbers — are still open; a card
 matched only by country shows no match line (`DiscoverDay` carries no
 `matchedCountries`); a held review is keyed by day, not by person, so two
 accounts on one browser share it.

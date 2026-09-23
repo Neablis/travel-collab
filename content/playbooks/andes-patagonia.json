@@ -65,7 +65,11 @@
           "location": {
             "name": "Avenida Hermanos Ayar",
             "city": "Aguas Calientes",
-            "area": "Machupicchu Pueblo"
+            "area": "Machupicchu Pueblo",
+            "countryCode": "PE",
+            "lat": -13.157723,
+            "lng": -72.532089,
+            "precision": "venue"
           },
           "kind": "transit",
           "tags": [],
@@ -80,7 +84,11 @@
           "location": {
             "name": "Consettur bus, Carretera Hiram Bingham",
             "city": "Aguas Calientes",
-            "area": "Machupicchu Pueblo"
+            "area": "Machupicchu Pueblo",
+            "countryCode": "PE",
+            "lat": -13.15585,
+            "lng": -72.523969,
+            "precision": "area"
           },
           "kind": "transit",
           "tags": [
@@ -101,7 +109,8 @@
           "location": {
             "name": "Machu Picchu control gate",
             "city": "Machu Picchu",
-            "area": "Santuario Histórico"
+            "area": "Santuario Histórico",
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [],
@@ -120,7 +129,8 @@
           "location": {
             "name": "Circuito 3 Realeza",
             "city": "Machu Picchu",
-            "area": "Santuario Histórico"
+            "area": "Santuario Histórico",
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [
@@ -143,7 +153,8 @@
             "city": "Machu Picchu",
             "area": "Santuario Histórico",
             "lat": -13.15833,
-            "lng": -72.53139
+            "lng": -72.53139,
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [
@@ -161,7 +172,8 @@
           "location": {
             "name": "Machu Picchu bus stop",
             "city": "Machu Picchu",
-            "area": "Santuario Histórico"
+            "area": "Santuario Histórico",
+            "countryCode": "PE"
           },
           "kind": "transit",
           "tags": [],
@@ -176,7 +188,11 @@
           "location": {
             "name": "Indio Feliz",
             "city": "Aguas Calientes",
-            "area": "Calle Lloque Yupanqui"
+            "area": "Calle Lloque Yupanqui",
+            "countryCode": "PE",
+            "lat": -13.154267,
+            "lng": -72.525097,
+            "precision": "venue"
           },
           "kind": "idea",
           "tags": [
@@ -197,7 +213,11 @@
           "location": {
             "name": "Estación Machupicchu",
             "city": "Aguas Calientes",
-            "area": "Riverside station"
+            "area": "Riverside station",
+            "countryCode": "PE",
+            "lat": -13.154284,
+            "lng": -72.525646,
+            "precision": "city"
           },
           "kind": "booked",
           "tags": [
@@ -244,7 +264,8 @@
             "city": "Cusco",
             "area": "Centro Histórico",
             "lat": -13.518053,
-            "lng": -71.981268
+            "lng": -71.981268,
+            "countryCode": "PE"
           },
           "kind": "transit",
           "tags": [],
@@ -265,7 +286,8 @@
             "city": "Maras",
             "area": "Valle Sagrado",
             "lat": -13.330655,
-            "lng": -72.193934
+            "lng": -72.193934,
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [
@@ -288,7 +310,8 @@
             "city": "Maras",
             "area": "Quebrada de Qaqawiñay",
             "lat": -13.300082,
-            "lng": -72.156236
+            "lng": -72.156236,
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [
@@ -311,7 +334,8 @@
             "city": "Urubamba",
             "area": "Calle Arica",
             "lat": -13.307685,
-            "lng": -72.115006
+            "lng": -72.115006,
+            "countryCode": "PE"
           },
           "kind": "idea",
           "tags": [
@@ -334,7 +358,8 @@
             "city": "Pisac",
             "area": "Plaza Constitución",
             "lat": -13.421801,
-            "lng": -71.848968
+            "lng": -71.848968,
+            "countryCode": "PE"
           },
           "kind": "planned",
           "tags": [],
@@ -351,7 +376,8 @@
             "city": "Pisac",
             "area": "Valle Sagrado",
             "lat": -13.388385,
-            "lng": -71.82642
+            "lng": -71.82642,
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [
@@ -371,7 +397,8 @@
             "city": "Cusco",
             "area": "Valle Sagrado",
             "lat": -13.535331,
-            "lng": -71.93015
+            "lng": -71.93015,
+            "countryCode": "PE"
           },
           "kind": "transit",
           "tags": [],
@@ -409,7 +436,8 @@
             "city": "Lima",
             "area": "Surquillo",
             "lat": -12.11803,
-            "lng": -77.025476
+            "lng": -77.025476,
+            "countryCode": "PE"
           },
           "kind": "planned",
           "tags": [],
@@ -430,7 +458,8 @@
             "city": "Lima",
             "area": "Barranco",
             "lat": -12.149173,
-            "lng": -77.022594
+            "lng": -77.022594,
+            "countryCode": "PE"
           },
           "kind": "planned",
           "tags": [],
@@ -447,7 +476,8 @@
             "city": "Lima",
             "area": "Barranco",
             "lat": -12.146759,
-            "lng": -77.022318
+            "lng": -77.022318,
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [
@@ -470,7 +500,8 @@
             "city": "Lima",
             "area": "Barranco",
             "lat": -12.154638,
-            "lng": -77.022642
+            "lng": -77.022642,
+            "countryCode": "PE"
           },
           "kind": "planned",
           "tags": [
@@ -493,7 +524,8 @@
             "city": "Lima",
             "area": "Barranco",
             "lat": -12.149518,
-            "lng": -77.02068
+            "lng": -77.02068,
+            "countryCode": "PE"
           },
           "kind": "idea",
           "tags": [],
@@ -514,7 +546,8 @@
             "city": "Lima",
             "area": "Barranco",
             "lat": -12.137175,
-            "lng": -77.025494
+            "lng": -77.025494,
+            "countryCode": "PE"
           },
           "kind": "planned",
           "tags": [
@@ -533,7 +566,8 @@
             "city": "Lima",
             "area": "Barranco",
             "lat": -12.152571,
-            "lng": -77.02254
+            "lng": -77.02254,
+            "countryCode": "PE"
           },
           "kind": "booked",
           "tags": [
@@ -583,7 +617,8 @@
             "city": "Puerto Natales",
             "area": "Av. España",
             "lat": -51.728525,
-            "lng": -72.488351
+            "lng": -72.488351,
+            "countryCode": "CL"
           },
           "kind": "transit",
           "tags": [
@@ -606,7 +641,8 @@
             "city": "Torres del Paine",
             "area": "Parque Nacional Torres del Paine",
             "lat": -50.972115,
-            "lng": -72.782352
+            "lng": -72.782352,
+            "countryCode": "CL"
           },
           "kind": "booked",
           "tags": [
@@ -627,7 +663,8 @@
           "location": {
             "name": "Las Torres Welcome Center",
             "city": "Torres del Paine",
-            "area": "Reserva Las Torres"
+            "area": "Reserva Las Torres",
+            "countryCode": "CL"
           },
           "kind": "transit",
           "tags": [],
@@ -648,7 +685,8 @@
             "city": "Torres del Paine",
             "area": "Parque Nacional Torres del Paine",
             "lat": -51.17886,
-            "lng": -72.956932
+            "lng": -72.956932,
+            "countryCode": "CL"
           },
           "kind": "booked",
           "tags": [
@@ -671,7 +709,8 @@
             "city": "Torres del Paine",
             "area": "Valle Ascencio",
             "lat": -50.957245,
-            "lng": -72.910648
+            "lng": -72.910648,
+            "countryCode": "CL"
           },
           "kind": "booked",
           "tags": [
@@ -694,7 +733,8 @@
             "city": "Torres del Paine",
             "area": "Parque Nacional Torres del Paine",
             "lat": -50.942668,
-            "lng": -72.949663
+            "lng": -72.949663,
+            "countryCode": "CL"
           },
           "kind": "hold",
           "tags": [
@@ -711,7 +751,8 @@
           "location": {
             "name": "Las Torres Welcome Center",
             "city": "Torres del Paine",
-            "area": "Reserva Las Torres"
+            "area": "Reserva Las Torres",
+            "countryCode": "CL"
           },
           "kind": "planned",
           "tags": [
@@ -730,7 +771,8 @@
             "city": "Puerto Natales",
             "area": "Ruta Y-150",
             "lat": -35.021857,
-            "lng": -71.21366
+            "lng": -71.21366,
+            "countryCode": "CL"
           },
           "kind": "transit",
           "tags": [],
@@ -765,7 +807,8 @@
             "city": "San Pedro de Atacama",
             "area": "Centro",
             "lat": -22.917986,
-            "lng": -68.207472
+            "lng": -68.207472,
+            "countryCode": "CL"
           },
           "kind": "transit",
           "tags": [],
@@ -782,7 +825,8 @@
             "city": "San Pedro de Atacama",
             "area": "Cordillera de la Sal",
             "lat": -22.916828,
-            "lng": -68.240612
+            "lng": -68.240612,
+            "countryCode": "CL"
           },
           "kind": "booked",
           "tags": [
@@ -805,7 +849,8 @@
             "city": "San Pedro de Atacama",
             "area": "Calle Gustavo Le Paige",
             "lat": -22.910379,
-            "lng": -68.196842
+            "lng": -68.196842,
+            "countryCode": "CL"
           },
           "kind": "idea",
           "tags": [
@@ -828,7 +873,8 @@
             "city": "San Pedro de Atacama",
             "area": "Valle de Catarpe",
             "lat": -22.891173,
-            "lng": -68.214854
+            "lng": -68.214854,
+            "countryCode": "CL"
           },
           "kind": "planned",
           "tags": [
@@ -851,7 +897,8 @@
             "city": "San Pedro de Atacama",
             "area": "Cordillera de la Sal",
             "lat": -22.912639,
-            "lng": -68.2025
+            "lng": -68.2025,
+            "countryCode": "CL"
           },
           "kind": "booked",
           "tags": [
@@ -875,7 +922,8 @@
             "city": "San Pedro de Atacama",
             "area": "Calle Domingo Atienza",
             "lat": -22.914034,
-            "lng": -68.203308
+            "lng": -68.203308,
+            "countryCode": "CL"
           },
           "kind": "booked",
           "tags": [
@@ -898,7 +946,8 @@
             "city": "San Pedro de Atacama",
             "area": "Ayllu de Solcor",
             "lat": -22.921041,
-            "lng": -68.20026
+            "lng": -68.20026,
+            "countryCode": "CL"
           },
           "kind": "hold",
           "tags": [],
@@ -949,7 +998,8 @@
             "city": "El Chaltén",
             "area": "Parque Nacional Los Glaciares, Zona Norte",
             "lat": -49.3299,
-            "lng": -72.88605
+            "lng": -72.88605,
+            "countryCode": "AR"
           },
           "kind": "booked",
           "tags": [
@@ -972,7 +1022,8 @@
             "city": "El Chaltén",
             "area": "Senda Río Blanco",
             "lat": -49.300226,
-            "lng": -72.920067
+            "lng": -72.920067,
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [
@@ -989,7 +1040,8 @@
           "location": {
             "name": "Campamento Poincenot",
             "city": "El Chaltén",
-            "area": "Senda Río Blanco"
+            "area": "Senda Río Blanco",
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [
@@ -1006,7 +1058,8 @@
           "location": {
             "name": "Subida al Río Blanco",
             "city": "El Chaltén",
-            "area": "Parque Nacional Los Glaciares, Zona Norte"
+            "area": "Parque Nacional Los Glaciares, Zona Norte",
+            "countryCode": "AR"
           },
           "kind": "hold",
           "tags": [
@@ -1023,7 +1076,8 @@
           "location": {
             "name": "Laguna de los Tres",
             "city": "El Chaltén",
-            "area": "Parque Nacional Los Glaciares, Zona Norte"
+            "area": "Parque Nacional Los Glaciares, Zona Norte",
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [
@@ -1044,7 +1098,8 @@
           "location": {
             "name": "Senda Río Blanco",
             "city": "El Chaltén",
-            "area": "Parque Nacional Los Glaciares, Zona Norte"
+            "area": "Parque Nacional Los Glaciares, Zona Norte",
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [
@@ -1063,7 +1118,8 @@
             "city": "El Chaltén",
             "area": "Av. San Martín",
             "lat": -49.327664,
-            "lng": -72.889406
+            "lng": -72.889406,
+            "countryCode": "AR"
           },
           "kind": "booked",
           "tags": [
@@ -1084,7 +1140,8 @@
           "location": {
             "name": "Centro de Visitantes Ceferino Fonzo",
             "city": "El Chaltén",
-            "area": "Av. M. M. de Güemes"
+            "area": "Av. M. M. de Güemes",
+            "countryCode": "AR"
           },
           "kind": "idea",
           "tags": [],
@@ -1115,7 +1172,8 @@
             "city": "El Calafate",
             "area": "Centro",
             "lat": -50.341974,
-            "lng": -72.249635
+            "lng": -72.249635,
+            "countryCode": "AR"
           },
           "kind": "transit",
           "tags": [],
@@ -1136,7 +1194,8 @@
             "city": "El Calafate",
             "area": "Parque Nacional Los Glaciares, Zona Sur",
             "lat": -50.34075,
-            "lng": -72.27682
+            "lng": -72.27682,
+            "countryCode": "AR"
           },
           "kind": "booked",
           "tags": [
@@ -1159,7 +1218,8 @@
             "city": "El Calafate",
             "area": "Brazo Rico",
             "lat": -50.34075,
-            "lng": -72.27682
+            "lng": -72.27682,
+            "countryCode": "AR"
           },
           "kind": "transit",
           "tags": [],
@@ -1176,7 +1236,8 @@
             "city": "El Calafate",
             "area": "Parque Nacional Los Glaciares, Zona Sur",
             "lat": -50.340548,
-            "lng": -72.245505
+            "lng": -72.245505,
+            "countryCode": "AR"
           },
           "kind": "booked",
           "tags": [
@@ -1200,7 +1261,8 @@
             "city": "El Calafate",
             "area": "Canal de los Témpanos",
             "lat": -50.34075,
-            "lng": -72.27682
+            "lng": -72.27682,
+            "countryCode": "AR"
           },
           "kind": "idea",
           "tags": [
@@ -1223,7 +1285,8 @@
             "city": "El Calafate",
             "area": "Península de Magallanes",
             "lat": -50.34075,
-            "lng": -72.27682
+            "lng": -72.27682,
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [
@@ -1242,7 +1305,8 @@
             "city": "El Calafate",
             "area": "RP11 km 6",
             "lat": -50.336603,
-            "lng": -72.339834
+            "lng": -72.339834,
+            "countryCode": "AR"
           },
           "kind": "idea",
           "tags": [
@@ -1265,7 +1329,8 @@
             "city": "El Calafate",
             "area": "Calle Gobernador Moyano",
             "lat": -50.336982,
-            "lng": -72.263549
+            "lng": -72.263549,
+            "countryCode": "AR"
           },
           "kind": "booked",
           "tags": [
@@ -1312,7 +1377,8 @@
             "city": "Buenos Aires",
             "area": "San Telmo",
             "lat": -34.619594,
-            "lng": -58.374159
+            "lng": -58.374159,
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [
@@ -1335,7 +1401,8 @@
             "city": "Buenos Aires",
             "area": "San Telmo",
             "lat": -34.617062,
-            "lng": -58.371632
+            "lng": -58.371632,
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [],
@@ -1352,7 +1419,8 @@
             "city": "Buenos Aires",
             "area": "San Telmo",
             "lat": -34.619049,
-            "lng": -58.372512
+            "lng": -58.372512,
+            "countryCode": "AR"
           },
           "kind": "idea",
           "tags": [
@@ -1375,7 +1443,8 @@
             "city": "Buenos Aires",
             "area": "San Telmo",
             "lat": -34.618444,
-            "lng": -58.372742
+            "lng": -58.372742,
+            "countryCode": "AR"
           },
           "kind": "booked",
           "tags": [
@@ -1398,7 +1467,8 @@
             "city": "Buenos Aires",
             "area": "San Telmo",
             "lat": -34.616686,
-            "lng": -58.371797
+            "lng": -58.371797,
+            "countryCode": "AR"
           },
           "kind": "booked",
           "tags": [
@@ -1421,7 +1491,8 @@
             "city": "Buenos Aires",
             "area": "San Telmo",
             "lat": -34.624458,
-            "lng": -58.372557
+            "lng": -58.372557,
+            "countryCode": "AR"
           },
           "kind": "idea",
           "tags": [],
@@ -1442,7 +1513,8 @@
             "city": "Buenos Aires",
             "area": "San Telmo",
             "lat": -34.620492,
-            "lng": -58.371781
+            "lng": -58.371781,
+            "countryCode": "AR"
           },
           "kind": "planned",
           "tags": [],
