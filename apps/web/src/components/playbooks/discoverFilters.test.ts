@@ -10,7 +10,7 @@ import {
   type FilterState,
 } from "./discoverFilters";
 
-const NONE: FilterState = { budget: "any", length: "any" };
+const NONE: FilterState = { rating: "any", budget: "any", length: "any" };
 const USD = { budgetCurrency: "USD" };
 
 const def = (id: string) => FILTER_DEFS.find((d) => d.id === id)!;
@@ -21,24 +21,22 @@ describe("SPEC §33.2's rule, as a data structure", () => {
   // one belongs here.
   it("holds the questions, and neither the place nor the ordering", () => {
     const ids = FILTER_DEFS.map((d) => d.id);
-    expect(ids).toEqual(["budget", "length"]);
+    // §35.5's three, in its order: Rating, Budget, Length.
+    expect(ids).toEqual(["rating", "budget", "length"]);
     expect(ids).not.toContain("scope");
     expect(ids).not.toContain("sort");
   });
 
-  // §35.5 puts Rating in the menu too. It is deliberately absent (M27 D8):
-  // there is no reviews table (M12 owns it), so it would be a control over data
-  // that does not exist — project rule 2. The id list above is what M12 changes.
-
   it("counts only what is being asked", () => {
     expect(activeFilterCount(NONE)).toBe(0);
     expect(activeFilterCount({ ...NONE, budget: "under200" })).toBe(1);
-    expect(activeFilterCount({ budget: "under200", length: "one" })).toBe(2);
+    expect(activeFilterCount({ ...NONE, budget: "under200", length: "one" })).toBe(2);
+    expect(activeFilterCount({ rating: "4", budget: "under200", length: "one" })).toBe(3);
   });
 
   it("clears every question and invents none", () => {
-    expect(clearedFilters({ budget: "over1000", length: "seven-plus" })).toEqual(NONE);
-    expect(activeFilterCount(clearedFilters({ budget: "over1000", length: "one" }))).toBe(0);
+    expect(clearedFilters({ rating: "4.5", budget: "over1000", length: "seven-plus" })).toEqual(NONE);
+    expect(activeFilterCount(clearedFilters({ rating: "3", budget: "over1000", length: "one" }))).toBe(0);
   });
 });
 
@@ -49,14 +47,18 @@ describe("what appears in the row", () => {
   it("shows a chip only for a filter that is set", () => {
     expect(rowFilters(NONE).map((d) => d.id)).toEqual([]);
     expect(rowFilters({ ...NONE, length: "four-six" }).map((d) => d.id)).toEqual(["length"]);
-    expect(rowFilters({ budget: "under200", length: "four-six" }).map((d) => d.id)).toEqual(["budget", "length"]);
+    expect(rowFilters({ ...NONE, budget: "under200", length: "four-six" }).map((d) => d.id)).toEqual([
+      "budget",
+      "length",
+    ]);
+    expect(rowFilters({ ...NONE, rating: "4" }).map((d) => d.id)).toEqual(["rating"]);
   });
 
   // §35.5: the trigger says how many questions are asked, and nothing when none.
   it("labels the menu Filters, with the count once anything is asked", () => {
     expect(filtersLabel(NONE)).toBe("Filters");
     expect(filtersLabel({ ...NONE, length: "one" })).toBe("Filters · 1");
-    expect(filtersLabel({ budget: "under200", length: "one" })).toBe("Filters · 2");
+    expect(filtersLabel({ ...NONE, budget: "under200", length: "one" })).toBe("Filters · 2");
   });
 
   // §33.2: a set chip shows its VALUE. A chip still reading "Budget" once a
@@ -96,6 +98,16 @@ describe("what a filter can honestly offer", () => {
       "$500.00 – $1,000.00",
       "Over $1,000.00",
     ]);
+  });
+
+  // `RATING_FLOOR_LABELS`, so the chip and the menu read what the server's
+  // floor admits. Offered with or without a shared currency — nothing about a
+  // rating depends on money, and Budget's `null` must not leak onto it.
+  it("offers the rating floors, whatever the currency", () => {
+    const labels = (ctx: { budgetCurrency: string | null }) => def("rating").options(ctx)?.map((o) => o.label);
+    expect(labels(USD)).toEqual(["Any rating", "3+ stars", "4+ stars", "4.5+ stars"]);
+    expect(labels({ budgetCurrency: null })).toEqual(labels(USD));
+    expect(chipLabel(def("rating"), { ...NONE, rating: "4" }, def("rating").options(USD)!)).toBe("4+ stars");
   });
 
   it("offers the four length bands the design names", () => {

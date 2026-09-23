@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoverDay, DiscoverResponse } from "@/lib/playbooks";
 
 const searchPlaybooksMock = vi.fn();
-const searchCitiesMock = vi.fn();
+const searchPlacesMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
   searchPlaybooks: (...args: unknown[]) => searchPlaybooksMock(...args),
-  searchCities: (...args: unknown[]) => searchCitiesMock(...args),
+  searchPlaces: (...args: unknown[]) => searchPlacesMock(...args),
 }));
 
 import { DiscoverScreen } from "./DiscoverScreen";
@@ -50,18 +50,21 @@ const chipText = (el: HTMLElement) => el.textContent?.replace("▾", "");
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   searchPlaybooksMock.mockReset().mockResolvedValue(ok(response()));
-  searchCitiesMock.mockReset().mockResolvedValue(ok([{ city: "Kyoto", days: 3 }]));
+  searchPlacesMock.mockReset().mockResolvedValue(ok([{ kind: "city", city: "Kyoto", days: 3 }]));
 });
 
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+  // The screen writes its state into the URL; a test that set `?rating=4`
+  // must not hand it to the next one.
+  window.history.replaceState(null, "", "/");
 });
 
 /** The debounce is 250ms; nothing reaches the endpoint before it elapses. */
 async function typeCity(text: string): Promise<void> {
   const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-  await user.type(screen.getByLabelText("Search cities"), text);
+  await user.type(screen.getByLabelText("Search cities and countries"), text);
   await vi.advanceTimersByTimeAsync(300);
 }
 
@@ -160,30 +163,54 @@ describe("Discover", () => {
     expect(screen.queryByRole("link", { name: /yours/i })).toBeNull();
   });
 
-  // Two sorts — §15 asks for four, and the two missing ones need review data
-  // M12 owns. **And no rating filter**, for the same reason: §35.5 puts Rating
-  // in the Filters menu, and building it over a reviews table that does not
-  // exist would be a control that does nothing (project rule 2, M27 D8). This
-  // is the assertion that stops somebody helpfully "fixing" either back.
-  it("offers exactly two sorts and no rating filter", async () => {
+  // §15's four sorts, restored by M12 link 5 now that `saved_days` carries a
+  // rating and a review count. Each one has to REACH the endpoint — a menu
+  // offering "Highest rated" that sent `most-added` would look right and order
+  // wrong — and the trigger on the results sentence reads back the choice.
+  it("offers all four sorts on the results sentence, and each one reaches the endpoint", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
-    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    await screen.findByTestId("discover-results");
 
-    // Sort rides the results sentence now, not the filter row.
-    await user.click(screen.getByTestId("discover-sort"));
-    expect(screen.getByTestId("discover-sort-most-added").textContent).toBe("Most added");
-    expect(screen.getByTestId("discover-sort-newest").textContent).toBe("Newest");
-    expect(screen.queryByTestId("discover-sort-highest-rated")).toBeNull();
+    const sorts = [
+      ["highest-rated", "Highest rated"],
+      ["most-reviewed", "Most reviewed"],
+      ["newest", "Newest"],
+      ["most-added", "Most added"],
+    ] as const;
+    for (const [value, label] of sorts) {
+      await user.click(screen.getByTestId("discover-sort"));
+      await user.click(screen.getByRole("button", { name: label }));
+      await waitFor(() =>
+        expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ sort: value })),
+      );
+      expect(screen.getByTestId("discover-sort").textContent).toBe(`${label} ▾`);
+    }
+  });
 
+  // §35.5: Rating is the first group in the one *Filters* menu. Set, it is a
+  // question like any other — it reaches the endpoint, counts toward the
+  // badge, surfaces as a chip reading its value, and *Clear filters* drops it.
+  it("reaches the rating floor through the Filters menu, counts it, chips it and clears it", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    await screen.findByTestId("discover-results");
     expect(screen.queryByTestId("filter-chip-rating")).toBeNull();
+
     await user.click(screen.getByTestId("filter-more"));
-    expect(screen.queryByText("Rating")).toBeNull();
-    expect(screen.queryByTestId("filter-more-rating-any")).toBeNull();
-    // Season is cut entirely (§33.2) — header, query and rail.
-    expect(screen.queryByTestId("filter-chip-season")).toBeNull();
-    expect(screen.queryByLabelText(/season/i)).toBeNull();
+    await user.click(screen.getByTestId("filter-more-rating-4"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ rating: "4" })),
+    );
+    expect(chipText(screen.getByTestId("filter-more"))).toBe("Filters · 1");
+    expect(chipText(screen.getByTestId("filter-chip-rating"))).toBe("4+ stars");
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("discover-clear-filters"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ rating: "any" })),
+    );
+    expect(screen.queryByTestId("filter-chip-rating")).toBeNull();
   });
 
   // Four bands over three edges (Mitchell, Vercel toolbar comment on
@@ -485,11 +512,43 @@ describe("Discover", () => {
     );
   });
 
+  // A country is a query too: "busy right now" would claim the row is the
+  // whole library's busiest when it is the rest of Japan's results.
+  it("labels the chip row Also in these results when only a country is asked for", async () => {
+    searchPlaybooksMock.mockResolvedValue(ok(response({ siblings: [{ city: "Osaka", days: 4 }] })));
+    render(<DiscoverScreen initial={{ countries: ["JP"] }} />);
+    await screen.findByTestId("sibling-cities");
+    expect(screen.getByText("Also in these results")).toBeTruthy();
+    expect(screen.queryByText("Busy right now")).toBeNull();
+  });
+
   it("seeds its cities from the URL, so a profile chip lands on a scoped search", async () => {
-    render(<DiscoverScreen initialCities={["Hakone"]} />);
+    render(<DiscoverScreen initial={{ cities: ["Hakone"] }} />);
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenCalledWith(expect.objectContaining({ cities: ["Hakone"] })),
     );
+  });
+
+  // The other direction: a changed sort or floor is written back, so a reload
+  // or a copied link lands on the same search rather than on the defaults.
+  it("seeds the sort and the floor from the URL, and writes a change back to it", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen initial={{ sort: "most-reviewed", rating: "3", countries: ["JP"] }} />);
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "most-reviewed", rating: "3", countries: ["JP"] }),
+      ),
+    );
+    expect(chipText(screen.getByTestId("filter-chip-rating"))).toBe("3+ stars");
+
+    await user.click(screen.getByTestId("filter-chip-rating"));
+    await user.click(screen.getByTestId("filter-rating-4.5"));
+    await waitFor(() =>
+      expect(new URLSearchParams(window.location.search).get("rating")).toBe("4.5"),
+    );
+    const url = new URLSearchParams(window.location.search);
+    expect(url.get("sort")).toBe("most-reviewed");
+    expect(url.getAll("country")).toEqual(["JP"]);
   });
 
   // Project rule 6, the sync-fail half. The previous results stay on screen —
@@ -556,10 +615,6 @@ describe("Discover", () => {
 
 });
 
-// The exit gate names four states for city search and asks that all four be
-// reachable against the real endpoint. These prove the component renders each
-// one distinctly; `api/cities/route.int.test.ts` proves the endpoint produces
-// them, and the e2e spec walks the pair.
 // M23. The card's multi-day branch and the length filter's wiring both shipped
 // with the fixture pinned at `dayCount: 1`, so neither was ever exercised here
 // — the single-day path asserts nothing about them. Raised by CodeRabbit on
@@ -599,24 +654,28 @@ describe("Discover, for a Playbook that is more than one day", () => {
   });
 });
 
-describe("Discover city search", () => {
+// The exit gate names four states for the search box and asks that all four be
+// reachable against the real endpoint. These prove the component renders each
+// one distinctly; `api/places/route.int.test.ts` proves the endpoint produces
+// them, and the e2e spec walks the pair.
+describe("Discover place search", () => {
   it("shows loading, then the matches, and adds one as a chip", async () => {
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    await user.type(screen.getByLabelText("Search cities"), "Kyo");
+    await user.type(screen.getByLabelText("Search cities and countries"), "Kyo");
     // Nothing has been asked yet — the debounce has not elapsed.
-    expect(searchCitiesMock).not.toHaveBeenCalled();
+    expect(searchPlacesMock).not.toHaveBeenCalled();
 
     let release: (value: unknown) => void = () => {};
-    searchCitiesMock.mockReturnValueOnce(new Promise((r) => (release = r)));
+    searchPlacesMock.mockReturnValueOnce(new Promise((r) => (release = r)));
     await vi.advanceTimersByTimeAsync(300);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-loading")).toBeTruthy());
 
-    release(ok([{ city: "Kyoto", days: 3 }]));
+    release(ok([{ kind: "city", city: "Kyoto", days: 3 }]));
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-results")).toBeTruthy());
 
@@ -624,12 +683,70 @@ describe("Discover city search", () => {
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ cities: ["Kyoto"] })),
     );
-    expect(within(screen.getByTestId("selected-cities")).getByRole("button", { name: "Remove Kyoto" })).toBeTruthy();
+    expect(
+      within(screen.getByTestId("selected-cities")).getByRole("button", { name: "Remove Kyoto (city)" }),
+    ).toBeTruthy();
   });
 
-  it("says no city matches — a real answer, not a failure", async () => {
+  // M12 link 7's collision, and the reason every row says its kind: the
+  // library holds the country Mexico and the city Mexico City, and `Mexic` must
+  // offer them as two things a click can tell apart. Picking each has to send
+  // its own parameter — a country picked as a city would search for a city
+  // called "Mexico" and find nothing.
+  it("offers Mexico the country and Mexico City the city as two things, and sends each as itself", async () => {
+    searchPlacesMock.mockResolvedValue(
+      ok([
+        { kind: "country", countryCode: "MX", name: "Mexico", days: 6 },
+        { kind: "city", city: "Mexico City", days: 4 },
+      ]),
+    );
     render(<DiscoverScreen />);
-    searchCitiesMock.mockResolvedValue(ok([]));
+    await screen.findByTestId("discover-results");
+    await typeCity("Mexic");
+    await screen.findByTestId("city-search-results");
+
+    const results = within(screen.getByTestId("city-search-results"));
+    const country = results.getByRole("button", { name: "Mexico · 6 (country)" });
+    const city = results.getByRole("button", { name: "Mexico City · 4 (city)" });
+    // Distinguishable by SIGHT too, not only to a screen reader: each row leads
+    // with its kind in words.
+    expect(within(country).getByTestId("place-kind").textContent).toBe("Country");
+    expect(within(city).getByTestId("place-kind").textContent).toBe("City");
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.click(country);
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ countries: ["MX"], cities: [] }),
+      ),
+    );
+
+    await typeCity("Mexic");
+    await user.click(
+      await within(await screen.findByTestId("city-search-results")).findByRole("button", {
+        name: "Mexico City · 4 (city)",
+      }),
+    );
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ countries: ["MX"], cities: ["Mexico City"] }),
+      ),
+    );
+
+    // Two chips, each saying what it is, and removing the country leaves the city.
+    const chips = within(screen.getByTestId("selected-cities"));
+    await user.click(chips.getByRole("button", { name: "Remove Mexico (country)" }));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ countries: [], cities: ["Mexico City"] }),
+      ),
+    );
+    expect(chips.getByRole("button", { name: "Remove Mexico City (city)" })).toBeTruthy();
+  });
+
+  it("says no place matches — a real answer, not a failure", async () => {
+    render(<DiscoverScreen />);
+    searchPlacesMock.mockResolvedValue(ok([]));
     await typeCity("Zzz");
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-empty")).toBeTruthy());
@@ -638,12 +755,12 @@ describe("Discover city search", () => {
 
   it("offers a Retry that re-runs the same query, not a cleared box", async () => {
     render(<DiscoverScreen />);
-    searchCitiesMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
+    searchPlacesMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     await typeCity("Kyo");
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("city-search-failed")).toBeTruthy());
 
-    searchCitiesMock.mockResolvedValue(ok([{ city: "Kyoto", days: 3 }]));
+    searchPlacesMock.mockResolvedValue(ok([{ kind: "city", city: "Kyoto", days: 3 }]));
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
       within(screen.getByTestId("city-search-failed")).getByRole("button", { name: "Retry" }),
     );
@@ -651,7 +768,7 @@ describe("Discover city search", () => {
     await waitFor(() => expect(screen.getByTestId("city-search-results")).toBeTruthy());
     // The same query, not a fresh one — a person who typed "Kyo" and lost their
     // connection wants "Kyo" back.
-    expect(searchCitiesMock).toHaveBeenLastCalledWith("Kyo");
+    expect(searchPlacesMock).toHaveBeenLastCalledWith("Kyo");
   });
 
   it("has no <option> city list — the dropdown is gone and must not come back", async () => {

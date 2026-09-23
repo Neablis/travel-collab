@@ -36,12 +36,26 @@ export function matchLine(day: Pick<DiscoverDay, "cities" | "matchedCities">): s
 }
 
 /**
+ * The card's rating line: `4.6 · 12 reviews`, or null for a day nobody has
+ * reviewed.
+ *
+ * Keyed on `reviewCount`, not on `rating` being non-null, because the count is
+ * the claim a reader checks: an average with nothing behind it would print as
+ * `0.0` — the lowest score there is, for a day nobody has judged at all.
+ */
+export function ratingLine(day: Pick<DiscoverDay, "rating" | "reviewCount">): string | null {
+  if (day.reviewCount === 0 || day.rating === null) return null;
+  return `${day.rating.toFixed(1)} · ${day.reviewCount} review${day.reviewCount === 1 ? "" : "s"}`;
+}
+
+/**
  * `origin` is where this card is being rendered, and it rides both links out of
  * it so the page they open knows the way back. A profile renders these cards
  * too, so "the day came from Discover" is not something the card may assume.
  */
 export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOrigin }) {
   const line = matchLine(day);
+  const rated = ratingLine(day);
   const back = backQuery(origin);
   return (
     <Card
@@ -136,6 +150,24 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
             ` · ${formatMoney(day.totalCost.amountMinor, day.totalCost.currency)}`}
         </DataText>
       </div>
+
+      {/* `dc.html:2630-2642`: the rating sits between the facts line and the
+          stop preview, and an unrated day says so in words rather than drawing
+          empty stars or a zero. One star glyph and the number, not the
+          artboard's five partially-filled stars — the number is the claim, and
+          five glyphs restate it at a precision nobody reads off a card. */}
+      <Text as="span" variant="muted" className="text-xs" data-testid="card-rating">
+        {rated === null ? (
+          "No reviews yet"
+        ) : (
+          <>
+            <span aria-hidden className="text-warning">
+              ★
+            </span>{" "}
+            <span className="font-semibold text-ink">{rated}</span>
+          </>
+        )}
+      </Text>
 
       {/* `dc.html:2644-2651`: day one's first stops, time then title — the
           same rows on a multi-day Playbook, which says "3 days" on the line

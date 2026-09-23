@@ -3,6 +3,8 @@ import {
   BUDGET_BAND_EDGES,
   LENGTH_BAND_LABELS,
   LengthBand,
+  RATING_FLOOR_LABELS,
+  RatingFloor,
   type BudgetBand,
 } from "@/lib/playbooks";
 
@@ -25,12 +27,12 @@ import {
 // A filter id that spelled a plan id or an entitlement is the trap
 // `planVersions.fourthPlan.test.ts` exists to catch.
 
-export type DiscoverFilterId = "budget" | "length";
+export type DiscoverFilterId = "rating" | "budget" | "length";
 
 export type FilterOption = { value: string; label: string };
 
 /** Just the question half of Discover's state — no scope, no sort, no cities. */
-export type FilterState = { budget: BudgetBand; length: LengthBand };
+export type FilterState = { rating: RatingFloor; budget: BudgetBand; length: LengthBand };
 
 export type FilterContext = {
   /**
@@ -54,12 +56,23 @@ export type FilterDef = {
 
 export const FILTER_DEFS: readonly FilterDef[] = [
   {
+    // §35.5's order — Rating, Budget, Length — and the design's `FILTER_DEFS`.
+    // It waited for M12 (link 5) because until `saved_days.rating` existed it
+    // would have been a control over data that did not (project rule 2).
+    //
+    // Always offerable, unlike Budget: a floor over a library with few ratings
+    // is still an honest question, and the answer — fewer days, since any floor
+    // excludes the unrated — is the true one.
+    id: "rating",
+    label: "Rating",
+    none: "any",
+    options: () => RatingFloor.options.map((value) => ({ value, label: RATING_FLOOR_LABELS[value] })),
+    value: (state) => state.rating,
+    apply: (state, value) => ({ ...state, rating: value as RatingFloor }),
+  },
+  {
     id: "budget",
     label: "Budget",
-    // §35.5 puts Rating in the *Filters* menu beside these two. **It is not
-    // built, deliberately** (M27 D8): there is no reviews table — M12 owns it —
-    // so a rating filter would be a control over data that does not exist
-    // (project rule 2). M12 adds it to this list.
     none: "any",
     options: ({ budgetCurrency }) => {
       // The bands hide rather than compare numbers that are not comparable.
