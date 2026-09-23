@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
@@ -134,6 +134,58 @@ describe("NotebooksMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
 
     expect(await screen.findByText("Packing")).toBeTruthy();
+  });
+
+  // Mitchell, on the PR 205 preview: *"When the notebooks first load it still just
+  // has a plain 'Loading' instead of a placeholder that takes up the same amount
+  // of space the real element [does] so the page doesn't reflow"*. jsdom has no
+  // layout, so the row HEIGHT was measured in Chromium (the commit has the
+  // numbers); what this pins is that the wait is drawn as rows, not as a word,
+  // and as many rows as the list is likely to have.
+  it("holds the list's space with placeholder rows while it loads, not a Loading line", async () => {
+    let release: () => void = () => {};
+    let held = Promise.resolve();
+    const hold = () => {
+      held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    };
+    const notebooks = ["Trip Overview", "Packing", "Day Sheet"].map((title, i) =>
+      pageFixture({ id: `${i + 1}${i + 1}111111-1111-4111-8111-111111111111`, tripId: TRIP_ID, title }),
+    );
+    server.use(
+      http.get("/api/trips/:tripId/pages", async () => {
+        await held;
+        return HttpResponse.json({ pages: notebooks, viewerId: "dev-alice" });
+      }),
+    );
+    const trigger = () => screen.getByRole("button", { name: "Notebooks" });
+    const placeholderRows = async () => {
+      const region = await screen.findByRole("status", { name: "Loading notebooks" });
+      expect(region.getAttribute("aria-busy")).toBe("true");
+      expect(screen.queryByText(/Loading/)).toBeNull();
+      return within(region).getAllByTestId("notebook-row-skeleton").length;
+    };
+
+    render(<NotebooksMenu tripId={TRIP_ID} />);
+
+    // First open: nothing is known yet, and every trip is created with one
+    // notebook, its Overview (SPEC §25) — so one row, the likeliest list.
+    hold();
+    fireEvent.click(trigger());
+    expect(await placeholderRows()).toBe(1);
+    release();
+    expect(await screen.findByRole("link", { name: /^Day Sheet .+/ })).toBeTruthy();
+    expect(screen.queryByRole("status", { name: "Loading notebooks" })).toBeNull();
+
+    // Every open re-reads (above). The re-read's placeholder is the size of
+    // the list it is about to replace, so a re-open does not reflow at all.
+    fireEvent.click(trigger());
+    hold();
+    fireEvent.click(trigger());
+    expect(await placeholderRows()).toBe(3);
+    release();
+    expect(await screen.findByRole("link", { name: /^Day Sheet .+/ })).toBeTruthy();
   });
 
   it("ignores a superseded response, so a slow first open cannot overwrite a newer list", async () => {

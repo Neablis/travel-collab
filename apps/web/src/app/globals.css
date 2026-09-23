@@ -102,6 +102,11 @@
      door never needs a raw shadow literal. Not for app surfaces. */
   --shadow-float: 0 4px 12px rgb(21 29 46 / 0.08);
   --shadow-lifted: 0 16px 38px rgb(21 29 46 / 0.15);
+  /* The Overview's sheet of paper (SPEC §35.3), and the one app surface that
+     is lifted rather than ruled: the tab "reads as a letter", and a letter is
+     a page lying on the desk. Read by `.tc-overview-letter`, not minted for
+     reuse — a second surface wanting it is a second design decision. */
+  --shadow-letter: 0 1px 2px rgb(21 29 46 / 0.05), 0 12px 32px -18px rgb(21 29 46 / 0.18);
 
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
@@ -143,7 +148,9 @@
   --spacing-a-bubble-y: 8px;
   /* The notch marks the side, so this is deliberately not symmetric. */
   --radius-a-bubble: 14px 14px 4px 14px;
-  --spacing-a-mark: 22px;
+  /* Cass's avatar (SPEC §35.8, M27): a 30px round mark, and the 30px column
+     the later turns in a run indent under. Was the 22px "C" square of §31.1. */
+  --spacing-a-mark: 30px;
   /* Percentages, so they belong to the `--container-*` namespace that feeds
      `max-w-*` rather than to `--spacing-*`. */
   /* The inline first-run conversation's column. In the sheet the surface
@@ -153,27 +160,38 @@
   --container-a-you: 78%;
   --container-a-asst: 88%;
 
-  /* **The transcript's theme contract — and why `@theme` and NOT `@theme inline`.**
+  /* ── M27 links 8–9: Cass, answer pills and proposal cards (SPEC §35.8–9).
+     Additions only, kept in their own block. Every one of these is an
+     arbitrary Tailwind value otherwise, for the same §2d reason as the tokens
+     above. `text-a-*` sizes are never passed through `cn`: tailwind-merge
+     reads an unknown `text-*` as a colour and would drop one of the pair. */
+  --text-a-note: 12.5px;   /* the typing row, a card's detail, a day's meta */
+  --text-a-label: 10.5px;  /* the proposal card's mono READY WHEN YOU ARE */
+  --tracking-a-label: 0.07em;
+  --radius-a-bar: 1px;     /* the two bars of Cass's ‖ mark */
+  --radius-a-card: 10px;   /* a proposal card, a Playbook-day card */
+  --radius-a-card-touch: 13px; /* the same card in the phone sheet */
 
-     §2a states it: a look may restyle `--color-a-you-rule`, `--color-a-you-ink`
-     and `--color-a-asst-ink`; both inks sit on the panel background
-     (`--color-surface`, which is what `AssistantRail` paints) and both must stay
-     legible there; and no look may reintroduce a filled message box.
-     `transcriptLook.test.ts` asserts the contrast half per look, and the
-     no-filled-box half against `Transcript.tsx`'s source.
+  /* **The transcript's colour contract — and why `@theme` and NOT `@theme inline`.**
+
+     §2a states it: the transcript's `--color-a-you-rule`, `--color-a-you-ink`
+     and `--color-a-asst-ink` sit on the panel background (`--color-surface`,
+     which is what `AssistantRail` paints) and both inks must stay legible
+     there; and no message may be a filled box. `transcriptLook.test.ts`
+     asserts the contrast half under Ledger — the only look since §35.1 — and
+     the no-filled-box half against `Transcript.tsx`'s source.
 
      `@theme inline` — the form the font aliases below use — would compile
-     `text-a-you-ink` down to `var(--color-slate)` at build time, and a look
-     overriding `--color-a-you-ink` would then do nothing at all. That silently
-     breaks the first clause of the contract. Plain `@theme` emits the alias as a
-     custom property and the utility reads it through `var()`, so a look can
-     retarget EITHER this token or the one it points at. The two forms look
-     interchangeable here and are not.
+     `text-a-you-ink` down to `var(--color-slate)` at build time, and Ledger's
+     retuned `--color-slate` would then never reach the transcript. Plain
+     `@theme` emits the alias as a custom property and the utility reads it
+     through `var()`, so the `html[data-look="ledger"]` block retargets the
+     token it points at. The two forms look interchangeable here and are not.
 
      Aliases rather than new literals: the color wall keeps raw colors to this
-     file, and the looks already tune `--color-slate`, `--color-ink` and
-     `--color-brand`. A transcript that did not follow them would be a fifth look
-     nobody asked for. */
+     file, and Ledger already tunes `--color-slate`, `--color-ink` and
+     `--color-brand`. A transcript that did not follow them would be a second
+     look nobody asked for. */
   --color-a-you-rule: var(--color-brand);
   --color-a-you-ink: var(--color-slate);
   --color-a-asst-ink: var(--color-ink);
@@ -192,17 +210,21 @@
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
-   LOOKS — SPEC §28. Four of them, and `ledger` is the default.
+   THE LOOK — Ledger, and only Ledger. SPEC §28 drew four; §35.1 deleted three.
+
+   **There is no picker and there will not be one.** §35.1: "A build carries no
+   theme switch and no theme tokens beyond Ledger's." `layout.tsx` hard-sets
+   `data-look="ledger"` on `<html>`; nothing reads or stores a look. Night desk
+   and Airmail were deleted rather than folded into `@theme` (M27 D1): folding
+   would change every generated OG asset, whose generator reads the first
+   `--color-*` match in this file, for no visible gain.
 
    **Nothing here changes behaviour.** Every rule reassigns a token the app
-   already draws from, so the same markup, handlers, layout and hit targets
-   carry across all four. That is the design file's own framing of this layer
-   (`Trip Planner Redesign.dc.html:80-83`) and it is the property that makes a
-   look cheap: a screen never knows which one it is in.
+   already draws from, so markup, handlers, layout and hit targets are the same
+   with or without the attribute.
 
-   **The base `@theme` block above IS the `paper` look**, so `paper` has no
-   block of its own — it is what you get by overriding nothing. Naming it in
-   `data-look` still works, and renders identically.
+   **The base `@theme` block above is the fallback, not a look.** It is what
+   renders before the attribute applies and what the OG generator reads.
 
    **Selector is `html[data-look=…]`, not `[data-look=…]`.** `@theme` emits its
    variables on `:root`, which is the same element and the same specificity
@@ -213,21 +235,17 @@
    **No `oklch` anywhere, deliberately.** `DRIFT.md` build-check 2: MapLibre
    parses CSS Color 3 only and falls back to black on an `oklch()` it is
    handed, while `getComputedStyle` and canvas `fillStyle` both PRESERVE the
-   function verbatim and so look like a fix. The app has never used it; a look
-   defining its palette that way would put the trap on every map paint property
-   in one commit. Hex only.
+   function verbatim and so look like a fix. Hex only.
 
    **What is NOT here:** the design file also carries a `--a-*` family of
-   per-look assistant shape variables (bubble fills, corner radii, the
-   transcript gap). Those describe the design file's own assistant markup,
-   which is not this build's — `AssistantRail` is built from the same tokens
-   and utilities as everything else, so it re-skins with the rest of the app
-   and needs no second variable system. If a look ever needs the assistant to
-   differ in SHAPE rather than colour, that is the moment to port them.
+   assistant shape variables (bubble fills, corner radii, the transcript gap).
+   Those describe the design file's own assistant markup, which is not this
+   build's — `AssistantRail` is built from the same tokens and utilities as
+   everything else and needs no second variable system.
    ─────────────────────────────────────────────────────────────────────────── */
 
-/* Ledger — the default. Squared, ruled rather than shadowed, headings set
-   like column headers. */
+/* Ledger. Squared, ruled rather than shadowed, headings set like column
+   headers. */
 html[data-look="ledger"] {
   --color-paper: #faf8f3;
   --color-surface: #ffffff;
@@ -282,59 +300,6 @@ html[data-look="ledger"] {
      it. Flip `--font-next-sans` here if the whole-UI version is what was
      wanted — it is a one-line change, deliberately. */
   --font-next-display: var(--font-next-mono);
-}
-
-/* Nightdesk — the dark one. */
-html[data-look="nightdesk"] {
-  color-scheme: dark;
-
-  --color-paper: #0f141d;
-  --color-surface: #171e2a;
-  --color-moss: #1f2734;
-  --color-hairline: #2b3441;
-  --color-border-strong: #3b4553;
-  --color-border-input: #4d5867;
-  --color-slate: #9ba7b6;
-  --color-ink: #eef2f7;
-
-  --color-brand: #35a98d;
-  --color-brand-hover: #45b99c;
-  --color-brand-pressed: #b9e8da;
-  --color-brand-tint: #14302a;
-
-  --color-danger: #e0776d;
-  --color-danger-tint: #391e1c;
-  --color-danger-ink: #f2b6b0;
-  --color-warning: #d8a75a;
-  --color-warning-tint: #382d18;
-  --color-warning-ink: #eed296;
-  --color-success: #56b880;
-  --color-success-tint: #143020;
-  --color-success-ink: #a6dcb9;
-  --color-info: #5b9dd6;
-  --color-info-tint: #15273a;
-  --color-info-ink: #aecfec;
-}
-
-/* Airmail — warm paper, rounder than the rest. */
-html[data-look="airmail"] {
-  --color-paper: #fdf5ec;
-  --color-surface: #fffdfa;
-  --color-moss: #f6e9da;
-  --color-hairline: #ead9c5;
-  --color-border-strong: #cfb79b;
-  --color-border-input: #a8927a;
-  --color-slate: #6f6153;
-  --color-ink: #2a2018;
-
-  --color-brand: #a8532f;
-  --color-brand-hover: #954829;
-  --color-brand-pressed: #7c3b21;
-  --color-brand-tint: #f7e3d5;
-
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
 }
 
 /* Ledger's two rules that a token cannot carry on its own.
@@ -1679,5 +1644,93 @@ html[data-look="ledger"] .shadow-raised {
      its leading margin would read as a gap the author didn't type. */
   .tc-page-editor .ProseMirror > :first-child {
     @apply mt-0;
+  }
+
+  /* **The Overview reads as a letter** (SPEC §35.3, M27 link 3). The same
+     page the Notebook edits, on a centred sheet with a letterhead, set a size
+     larger than a notebook page is. Scoped to this wrapper so the notebook's
+     own pages — the same `.tc-page-editor` — are unchanged.
+
+     The 4px radius is a literal, not `rounded-xs`: Ledger zeroes the radius
+     scale ("squared", §28), and the design draws this corner in Ledger on
+     purpose — paper has a corner, a panel does not. Same reason the shadow is
+     its own token rather than `shadow-raised`, which Ledger turns into a
+     hairline. The clamps are the design's own; there is no spacing token that
+     scales with the viewport. */
+  .tc-overview-letter {
+    @apply mx-auto w-full border border-hairline bg-surface;
+    max-width: 720px;
+    border-radius: 4px;
+    box-shadow: var(--shadow-letter);
+    padding: clamp(28px, 6vw, 60px) clamp(22px, 7vw, 72px) clamp(36px, 7vw, 72px);
+  }
+  /* After the `:has([data-widget-value])` rules above on purpose: equal
+     specificity, so source order decides, and 1.75 is looser than their 1.7 —
+     a chip in a letter's paragraph still clears the line above it. */
+  .tc-overview-letter .tc-page-editor p {
+    @apply text-md;
+    line-height: 1.75;
+  }
+  /* **The letter sets prose, not widgets.** A widget is an inline atom inside
+     that `<p>`, so without this a table widget inherits 16px / 1.75 into every
+     cell and reads as oversized prose in a box — Mitchell, on the PR 205
+     preview, of `open`: *"It previously had more styling"*. These are the
+     notebook's own numbers (`text-base`, and the 1.7 its `:has` rule gives a
+     paragraph holding a widget). `single` is left out on purpose: a chip is a
+     word in the letter's sentence (SPEC §7) and sets at the letter's size. */
+  .tc-overview-letter .tc-page-editor [data-macro-shape="block"],
+  .tc-overview-letter .tc-page-editor [data-macro-shape="repeat"] {
+    @apply text-base;
+    line-height: 1.7;
+  }
+  /* 18px is between the scale's 16 and 19; the design moved this heading off
+     19 in the same pass, so the step is the point rather than a rounding. The
+     extra 8px above is the design's `padding-top` on a section heading. */
+  .tc-overview-letter .tc-page-editor h2 {
+    font-size: 18px;
+    @apply mt-8;
+  }
+}
+
+/* ── M27 link 8: Cass's typing row (SPEC §35.8, D14). Its own block, apart
+   from the theme, so the look pass and this one do not edit the same lines.
+   A named rule rather than `animate-[tc-dot_1.1s…]`: the colour wall bans
+   arbitrary-value brackets. The stagger rides on `data-typing-dot`, the way
+   `data-sk` carries the skeleton's.
+
+   Under prefers-reduced-motion the dots stop, dimmed as they rest. The pause
+   itself does not shorten (D14): it is when the next line arrives, and
+   motion is not what it is for. */
+@layer components {
+  @keyframes tc-dot {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+      transform: translateY(0);
+    }
+    40% {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+  }
+
+  [data-typing-dot] {
+    animation: tc-dot 1.1s 0s infinite ease-in-out;
+  }
+
+  [data-typing-dot="1"] {
+    animation-delay: 0.16s;
+  }
+
+  [data-typing-dot="2"] {
+    animation-delay: 0.32s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-typing-dot] {
+      animation: none;
+      opacity: 0.6;
+    }
   }
 }

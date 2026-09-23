@@ -252,6 +252,10 @@ test.describe("responsive (narrow viewport)", () => {
       for (const command of commandsFor("threeDayTrip", tripId)) {
         await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
       }
+      // A newer trip after it, so there is a CARD to measure even on an
+      // otherwise empty account: the newest trip is the hero, and since SPEC
+      // §35.2 the hero is not in the grid.
+      await page.request.post("/api/trips", { data: { name: e2eTripName("Narrow cost hero") } });
 
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/");
@@ -564,7 +568,7 @@ test.describe("responsive (trip header on a phone)", () => {
     // are asserted so "the header hid them" and "the sheet has them" stay one
     // statement rather than two files' worth of assumption.
     await expect(sheet.getByLabel("Total for the trip")).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "Dates" })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: "Dates", exact: true })).toBeVisible();
 
     // Share, operated rather than merely located: this is a Radix Popover
     // opening from inside a Radix Dialog, which is the one thing about this
@@ -588,10 +592,12 @@ test.describe("responsive (trip header on a phone)", () => {
     // mobile"*. It was `hidden md:block` before — present here, absent there —
     // and this test asserted exactly that, so it is the one that had to change.
     await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
-    // The pill's own counts, where they have always been — the mirror that
-    // makes the phone assertions above statements about the BREAKPOINT rather
-    // than about a control that stopped rendering everywhere.
-    await expect(page.getByTestId("trip-meta-row").getByText(/^\d+ cities$/)).toBeVisible();
+    // The pill itself — the mirror that makes the phone assertions above
+    // statements about the BREAKPOINT rather than about a control that stopped
+    // rendering everywhere. It carried the day/stop/city counts until SPEC
+    // §35.3 made it the dates only, and a button (M27 D5); the counts are the
+    // sheet's alone now, which the phone test above already reads there.
+    await expect(page.getByTestId("trip-meta-row").getByRole("button", { name: /^Trip dates:/ })).toBeVisible();
 
     // The CONVERSE, and it had no coverage until now. The two controls SPEC
     // §23 adds are phone-only by CSS (`md:hidden`), and the unit tests that
@@ -889,8 +895,12 @@ test.describe("responsive (new trip sheet, short viewport)", () => {
     const thread = sheet.getByRole("log", { name: "Conversation" });
 
     // Answer the long path — the six-turn one, with the day picker in it — so
-    // the thread is as tall as this flow ever gets.
-    await sheet.getByLabel("Where are you going?").fill("Lisbon");
+    // the thread is as tall as this flow ever gets. A place nobody has
+    // published a day for: a city with Playbook days gets an extra turn after
+    // it (M27 D13), which would make this walk depend on the shared library.
+    // Each click below waits out Cass's typing beat by auto-waiting for the
+    // next control to appear — never on a timer.
+    await sheet.getByLabel("Where are you going?").fill("Nowhere Bay");
     await sheet.getByRole("button", { name: "Send" }).click();
     await sheet.getByRole("button", { name: "Yes" }).click();
     // `exact`, because Playwright's `getByLabel` is a substring match and the
@@ -950,28 +960,35 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     await expect(composer).toBeVisible();
     await expect(composer).toBeInViewport();
 
-    // The three actions, scoped to the card: `FirstTripStart`'s own file
-    // header says the library link used to live at the page head too (M11b),
-    // and it still does — an unscoped `getByRole("link", { name: "Start
-    // from a Playbook" })` here resolves two elements and trips Playwright's
-    // strict mode. The two links are checked for their real destination
-    // rather than clicked — clicking either would navigate away from this
-    // screen, which is what the composer is checked by doing below instead.
-    const createEmpty = card.getByRole("button", { name: "Create empty" });
+    // The actions, scoped to the card. Since SPEC §35.2 the page head carries
+    // only "New trip", but scoping still says which surface is being measured.
+    // The two links are checked for their real destination rather than
+    // clicked — clicking either would navigate away from this screen, which is
+    // what the composer is checked by doing below instead.
+    //
+    // *create an empty one* is §35.2's quiet link where the "Create empty"
+    // button was, and the empty state's import is its quiet *Have a trip file?
+    // Import it*.
+    const createEmpty = card.getByRole("button", { name: "create an empty one" });
+    const importLink = card.getByRole("button", { name: "Have a trip file? Import it" });
     const playbookLink = card.getByRole("link", { name: "Start from a Playbook" });
     const demoLink = card.getByRole("link", { name: "Look around an example trip" });
     await expect(createEmpty).toBeVisible();
+    await expect(importLink).toBeVisible();
     await expect(playbookLink).toBeVisible();
     await expect(playbookLink).toHaveAttribute("href", "/playbooks");
     await expect(demoLink).toBeVisible();
     await expect(demoLink).toHaveAttribute("href", "/demo");
 
     // Operable, not just visible. Typing an answer at this width has to reach
-    // the field and commit — the exit only becomes usable once there is a name,
-    // which is also what proves the conversation is live rather than painted.
-    await expect(createEmpty).toBeDisabled();
+    // the field — Send only becomes usable once there is something to send,
+    // which is what proves the conversation is live rather than painted.
+    // (*create an empty one* is live from turn one since M27 D4, and so is no
+    // longer the thing that can say so.)
+    const send = card.getByRole("button", { name: "Send" });
+    await expect(send).toBeDisabled();
     await composer.fill("Reykjavik");
-    await expect(createEmpty).toBeEnabled();
+    await expect(send).toBeEnabled();
 
     // **44px targets at phone width** — SPEC §32.2 draws the new-trip dock with
     // phone-sized controls, and §13.1 is the standing rule they answer to:
@@ -980,7 +997,8 @@ test.describe("responsive (narrow viewport, first trip)", () => {
     // for, and `toHaveClass` is banned in this suite for exactly that reason.
     for (const [label, control] of [
       ["the answer field", composer],
-      ["Create empty", createEmpty],
+      ["create an empty one", createEmpty],
+      ["the import link", importLink],
       ["a destination chip", card.getByRole("button", { name: "Lisbon" })],
       // The two exits belong in this loop as much as the dock does
       // (CodeRabbit, PR #188). They are `size: "sm"`, which is 28px, and

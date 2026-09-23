@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import Link from "next/link";
 import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
-import { fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
+import { fetchTripAccess, fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
+import { cachedRead } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
@@ -63,6 +65,56 @@ function LockedNotice({ children }: { children: ReactNode }) {
   return <Banner variant="warning" className="mb-3">{children}</Banner>;
 }
 
+// SPEC §35.3: *"Editing a notebook page always has a way back to the trip."*
+// It used to be "← Notebooks", which went one level up and left the trip two
+// clicks away. Now `← Japan / Notebook / <page>`: the first crumb is the way
+// out and is drawn like it (brand, 600); the page is where you are, so it is
+// `aria-current` and not a link.
+//
+// The trip's name up to its first ':' — "[Seed] Japan: Tokyo → Kyoto" is a
+// title and a subtitle, and a crumb only has room for the title. From
+// Overview's Edit it says "overview" too, and both go to `/trips/:id` because
+// Overview is what a bare trip URL opens on. Before the trip has loaded (only
+// the error branch can be reached that way) it says "Trip", which is true and
+// still leads out.
+function PageBreadcrumb({
+  tripId,
+  tripName,
+  from,
+  title,
+}: {
+  tripId: string;
+  tripName: string | null;
+  from: "overview" | null;
+  title: string | null;
+}) {
+  const name = tripName === null ? "Trip" : (tripName.split(":")[0] ?? tripName).trim();
+  const first = from === "overview" && tripName !== null ? `${name} overview` : name;
+  return (
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
+      <Link href={`/trips/${tripId}`} className="py-1.5 font-semibold whitespace-nowrap text-brand no-underline">
+        {`← ${first}`}
+      </Link>
+      <span aria-hidden className="text-border-strong">
+        /
+      </span>
+      <Link href={`/trips/${tripId}/pages`} className="whitespace-nowrap text-slate no-underline hover:text-ink">
+        Notebook
+      </Link>
+      {title !== null && (
+        <>
+          <span aria-hidden className="text-border-strong">
+            /
+          </span>
+          <span aria-current="page" className="max-w-65 truncate whitespace-nowrap text-ink">
+            {title}
+          </span>
+        </>
+      )}
+    </nav>
+  );
+}
+
 // Renders one page's editor. Fetches the page + the trip's detail (the same
 // `fetchTripDetail` the board/lens system uses — pages don't need
 // `TripProvider`'s optimistic-update machinery, they never write planning
@@ -73,7 +125,22 @@ function LockedNotice({ children }: { children: ReactNode }) {
  * @param tripId - Identifier of the trip containing the page
  * @param pageId - Identifier of the page to display
  */
-export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string }) {
+export function PageScreen({
+  tripId,
+  pageId,
+  from = null,
+}: {
+  tripId: string;
+  pageId: string;
+  /**
+   * Where the reader came from, off the route's `?from=` (M27 D6). Only
+   * `"overview"` means anything: Overview's **Edit** sent them, so the page
+   * opens in Editing and the first crumb goes back to Overview by name. A
+   * prop rather than `useSearchParams` so the route decides what it trusts
+   * and this component stays renderable without a router.
+   */
+  from?: "overview" | null;
+}) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);
   // The account, for account-scope widgets (ADR-037 open question 2), READ FROM
@@ -113,7 +180,27 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // into the page and types. That spec now clicks "Edit page" first — the right
   // fix, since a test that walks authoring should say so, rather than the
   // default silently being whatever an old spec assumed.
+  //
+  // **Except when Overview's Edit sent you here** (M27 D6): the button said
+  // Edit, so the page it opens is being edited. Only for someone who can — the
+  // link is withheld from viewers, but a URL can be typed — so it opens in
+  // Reading like any page and switches to Editing once the role read says the
+  // reader is not a viewer. Not before: opening in Editing and switching off
+  // put a viewer in the editor until the read landed. A read that fails is no
+  // answer, so it stays in Reading; the toggle is still there. Read only on
+  // this path: the toggle is offered to everyone and the server is the
+  // boundary, so no other arrival needs the answer.
   const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (from !== "overview") return;
+    let cancelled = false;
+    void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
+      if (!cancelled && access.ok && access.value.myRole !== "viewer") setEditing(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [from, tripId]);
   // **The rail's filter lives here because the rail does not.** §26 gives the
   // right column two states, and selecting a widget swaps the insert rail out
   // for that widget's settings — unmounting the picker. Owned inside it, the
@@ -439,7 +526,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
     return (
       <PageContainer>
         <p role="alert">{error ?? "Something went wrong"}</p>
-        <Link href={`/trips/${tripId}/pages`}>← Notebooks</Link>
+        <PageBreadcrumb tripId={tripId} tripName={trip?.name ?? null} from={from} title={page?.title ?? null} />
       </PageContainer>
     );
   }
@@ -555,11 +642,7 @@ export function PageScreen({ tripId, pageId }: { tripId: string; pageId: string 
   // container, and a bottom margin there pushes it off the toggle's baseline.
   // The locked branch below, where it is the first block in normal flow,
   // supplies its own.
-  const backLink = (
-    <Link href={`/trips/${tripId}/pages`} className="text-sm text-slate hover:text-ink">
-      ← Notebooks
-    </Link>
-  );
+  const backLink = <PageBreadcrumb tripId={tripId} tripName={trip.name} from={from} title={page.title} />;
 
   // Read-only, and every write path off: no autosave (nothing calls
   // `saveContent`), and no ComposePanel — it inserts into an editor this

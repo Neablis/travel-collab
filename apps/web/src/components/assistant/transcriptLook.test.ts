@@ -2,15 +2,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// THE TRANSCRIPT'S THEME CONTRACT, measured rather than described.
+// THE TRANSCRIPT'S COLOUR CONTRACT, measured rather than described.
 //
-// Design §2a removes the user turn's filled bubble. That is a type change on
-// three looks and a LEGIBILITY change on one: `nightdesk` paired near-white
-// `--color-ink` with a dark green `--color-brand-tint` fill, so the ink that
-// was legible *on the fill* has to stay legible on the panel once the fill is
-// gone. The design's own words: "The theme hazard needs a test, not care."
+// Design §2a removes the user turn's filled bubble, so ink that was legible
+// *on the fill* has to stay legible on the panel once the fill is gone. The
+// design's own words: "The theme hazard needs a test, not care." Since §35.1
+// Ledger is the only look (the dark one that made this a real hazard is
+// deleted), so the measurements below run against Ledger alone — which is
+// still the palette every user sees, and still retunes the tokens involved.
 //
-// What this file asserts, per look:
+// What this file asserts:
 //
 //   1. Both transcript inks clear WCAG AA (4.5:1) against the panel the rail
 //      actually paints — `--color-surface`, not `--color-paper`.
@@ -74,8 +75,8 @@ function lookScopedRules(): { look: string; selector: string; body: string }[] {
   return out;
 }
 
-/** The `@theme` block IS the `paper` look — it is what you get by overriding
- *  nothing, which is why `paper` has no block of its own in globals.css. */
+/** The base `@theme` block, which Ledger's `html[data-look="ledger"]` block
+ *  overlays. */
 function themeBlock(): string {
   const start = CSS_BARE.indexOf("@theme {");
   if (start < 0) throw new Error("no @theme block in globals.css");
@@ -147,62 +148,56 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// `paper` is the base block; the other three have blocks of their own.
-const LOOKS = ["paper", "ledger", "nightdesk", "airmail"] as const;
+// The only look (§35.1). `layout.tsx` hard-sets it on `<html>`.
+const LOOK = "ledger";
 
-describe("the transcript's theme contract", () => {
+describe("the transcript's colour contract", () => {
   // WITNESS FLOOR. Every assertion below is driven off a parse, and a parse
   // that quietly returned nothing would make all of them vacuous — the exact
   // failure mode `preview-registry.test.ts` and the eval harness both keep a
   // floor for. If globals.css is restructured so these regexes stop matching,
   // this is the test that says so.
-  it("finds all four looks, and the tokens the transcript draws from", () => {
-    expect(lookBlocks().size).toBe(3); // paper has no block: it IS @theme
-    for (const look of LOOKS) {
-      const tokens = tokensFor(look);
-      for (const name of [
-        "--color-surface",
-        "--color-a-you-rule",
-        "--color-a-you-ink",
-        "--color-a-asst-ink",
-      ]) {
-        expect(tokens.get(name), `${look} is missing ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
-      }
+  //
+  // Exactly one token block, too: a second look reappearing is §35.1 undone.
+  it("finds the one look, and the tokens the transcript draws from", () => {
+    expect([...lookBlocks().keys()]).toEqual([LOOK]);
+    const tokens = tokensFor(LOOK);
+    for (const name of [
+      "--color-surface",
+      "--color-a-you-rule",
+      "--color-a-you-ink",
+      "--color-a-asst-ink",
+    ]) {
+      expect(tokens.get(name), `${LOOK} is missing ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
 
   // The design names `--color-surface` as the ground because that is what
   // `AssistantRail` paints (`bg-surface`). Measuring against `--color-paper`
   // would pass while the real pairing failed.
-  it.each(LOOKS)("keeps both voices legible on the panel in %s", (look) => {
-    const tokens = tokensFor(look);
+  it("keeps both voices legible on the panel", () => {
+    const tokens = tokensFor(LOOK);
     const panel = tokens.get("--color-surface")!;
     expect(contrast(tokens.get("--color-a-you-ink")!, panel)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tokens.get("--color-a-asst-ink")!, panel)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each(LOOKS)("keeps the user rule visible against the panel in %s", (look) => {
-    const tokens = tokensFor(look);
+  it("keeps the user rule visible against the panel", () => {
+    const tokens = tokensFor(LOOK);
     expect(
       contrast(tokens.get("--color-a-you-rule")!, tokens.get("--color-surface")!),
     ).toBeGreaterThanOrEqual(3);
   });
 
   // The aliases must stay aliases. Freezing one to a literal pins the
-  // transcript to `paper`'s colours in every look.
+  // transcript to the base `@theme` colours instead of Ledger's.
   //
-  // **What this catches, measured rather than assumed.** The first version of
-  // this comment claimed the contrast assertions above "would still pass", so
-  // that this test was the only guard against a frozen alias. Running the
-  // mutation disproved it: pinning `--color-a-you-ink` to paper's slate value
-  // drops `nightdesk` to 2.79:1, because a light-look slate on a dark panel is
-  // illegible, and the contrast test fires on its own.
-  //
-  // So the real division of labour is: `nightdesk` is caught above, and
-  // `ledger` and `airmail` are caught HERE — both are light, both stay over
-  // 4.5:1 with paper's slate, and both would go silently wrong. A smaller
-  // claim than the one written here first, and the true one.
-  it("draws its colours from tokens the looks already tune", () => {
+  // **This is the only guard against that.** Ledger is light, and pinning
+  // `--color-a-you-ink` to the base slate still clears 4.5:1 on Ledger's
+  // surface, so the contrast tests above stay green while the transcript
+  // silently stops following the look. (While a dark look existed the
+  // contrast test caught this too; §35.1 deleted it.)
+  it("draws its colours from tokens Ledger already tunes", () => {
     const theme = declarationsIn(themeBlock());
     expect(theme.get("--color-a-you-rule")).toBe("var(--color-brand)");
     expect(theme.get("--color-a-you-ink")).toBe("var(--color-slate)");
@@ -210,7 +205,7 @@ describe("the transcript's theme contract", () => {
   });
 
   // `@theme inline` would compile the utility down to `var(--color-slate)` and
-  // a look overriding `--color-a-you-ink` would do nothing — the first clause
+  // Ledger's retuned tokens would never reach it — the first clause
   // of §2a's contract, broken silently. The two forms are one word apart.
   //
   // **Checking only the FIRST occurrence was not enough** (CodeRabbit, PR

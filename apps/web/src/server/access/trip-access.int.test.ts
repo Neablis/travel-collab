@@ -8,7 +8,9 @@ import { executeTripCommand } from "../commands";
 import { getTripDetail } from "../projections";
 import { saveDay } from "../savedDays";
 import { grantMembership } from "./members";
+import { acceptInvite, createInvite, revokeInvite } from "./invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
 
 const OWNER = "trip-access-owner";
 const STRANGER = "trip-access-stranger";
@@ -21,6 +23,8 @@ vi.mock("../auth", () => ({
 }));
 
 const { requireTripAccess, withEffectiveMembers } = await import("./trip-access");
+const { GET: GET_TRIP } = await import("@/app/api/trips/[tripId]/route");
+const { POST: POST_COMMAND } = await import("@/app/api/trips/[tripId]/commands/route");
 
 // No DB truncation: every test seeds its own randomUUID() trip and reads back
 // through it — the convention the sibling route int tests use.
@@ -193,5 +197,101 @@ describe("withEffectiveMembers", () => {
       { userId: OWNER, role: "owner" },
       { userId: GUEST, role: "editor" },
     ]);
+  });
+});
+
+// *Have a look first* (M27 D12). A pending invite's token reads the trip it was
+// minted for, as a viewer, with no session — and nothing else.
+describe("requireTripAccess with an invite token", () => {
+  it("reads the invite's own trip as a viewer, signed out", async () => {
+    const { tripId } = await seedDay();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    currentUserId = "";
+
+    const access = await requireTripAccess(tripId, "viewer", { inviteToken: invite.token });
+    if ("error" in access) throw new Error(`refused: ${access.error.status}`);
+    // A viewer even for an EDITOR invite: looking is not joining.
+    expect(access.role).toBe("viewer");
+    expect(access.detail.tripId).toBe(tripId);
+  });
+
+  it("reads nothing but that trip", async () => {
+    const { tripId } = await seedDay();
+    const { tripId: other } = await seedDay();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    currentUserId = "";
+
+    const access = await requireTripAccess(other, "viewer", { inviteToken: invite.token });
+    expect("error" in access && access.error.status).toBe(403);
+  });
+
+  it("stops working the moment the invite is spent or revoked", async () => {
+    const { tripId } = await seedDay();
+    const spent = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    const revoked = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    expect((await acceptInvite(spent.token, GUEST)).ok).toBe(true);
+    expect((await revokeInvite(tripId, revoked.inviteId)).ok).toBe(true);
+    currentUserId = "";
+
+    for (const token of [spent.token, revoked.token, "no-such-token"]) {
+      const access = await requireTripAccess(tripId, "viewer", { inviteToken: token });
+      expect("error" in access && access.error.status).toBe(403);
+    }
+  });
+
+  it("never grants more than viewer — every write asks for editor or owner", async () => {
+    const { tripId } = await seedDay();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    currentUserId = "";
+
+    for (const minimum of ["editor", "owner"] as const) {
+      const access = await requireTripAccess(tripId, minimum, { inviteToken: invite.token });
+      expect("error" in access && access.error.status).toBe(403);
+    }
+  });
+
+  // The header, when present, is the only thing consulted: a surface built to
+  // be read-only must not be handed the reader's own editor role.
+  it("answers with the token even for a signed-in owner, never their own role", async () => {
+    const { tripId } = await seedDay();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    currentUserId = OWNER;
+
+    const access = await requireTripAccess(tripId, "viewer", { inviteToken: invite.token });
+    if ("error" in access) throw new Error(`refused: ${access.error.status}`);
+    expect(access.role).toBe("viewer");
+  });
+
+  it("does not serve a deleted trip to somebody who is not on it", async () => {
+    const { tripId } = await seedDay();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    expect((await executeTripCommand({ type: "DeleteTrip", tripId }, OWNER)).ok).toBe(true);
+    currentUserId = "";
+
+    const access = await requireTripAccess(tripId, "viewer", { inviteToken: invite.token });
+    expect("error" in access && access.error.status).toBe(404);
+  });
+
+  // The route half: the header reaches the seam through `inviteTokenOf`, and a
+  // write route — which never passes it — answers as if it were not there.
+  it("is read from the request by the trip route, and ignored by the command route", async () => {
+    const { tripId, dayId } = await seedDay();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    currentUserId = "";
+    const headers = { [INVITE_TOKEN_HEADER]: invite.token };
+    const params = { params: Promise.resolve({ tripId }) };
+
+    const read = await GET_TRIP(new Request("http://test/x", { headers }), params);
+    expect(read.status).toBe(200);
+
+    const write = await POST_COMMAND(
+      new Request("http://test/x", {
+        method: "POST",
+        headers: { ...headers, "content-type": "application/json" },
+        body: JSON.stringify({ type: "AddActivity", tripId, dayId, activityId: randomUUID(), title: "Sneaked in" }),
+      }),
+      params,
+    );
+    expect(write.status).toBe(401);
   });
 });

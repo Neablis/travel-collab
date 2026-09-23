@@ -1,5 +1,5 @@
 import { TripGlobals } from "@tc/contracts";
-import { requireTripAccess } from "@/server/access/trip-access";
+import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
 import { buildTripGlobals } from "@/server/tripGlobals";
 
 // The trip's addressable collections (ADR-037 open question 4).
@@ -13,9 +13,9 @@ import { buildTripGlobals } from "@/server/tripGlobals";
 // Same guard as the detail route, deliberately: this is derived entirely from
 // `TripDetail`, so anyone who may read the trip may read this, and anyone who
 // may not must not be able to count its cities either.
-export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
   if ("error" in access) return access.error;
   // Contract-honest response, matching the detail route next door: validate
   // against the schema before returning rather than trusting the builder.

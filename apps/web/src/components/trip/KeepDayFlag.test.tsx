@@ -9,6 +9,7 @@ vi.mock("@/lib/apiClient", () => ({
 }));
 
 import { KeepDayFlag } from "./KeepDayFlag";
+import type { KeepDayCandidate } from "./KeepDayDialog";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const dayId = "11111111-1111-4111-8111-111111111111";
@@ -27,7 +28,7 @@ const stops: SavedStop[] = [
   },
 ];
 
-function renderFlag(overrides: { stops?: SavedStop[] } = {}) {
+function renderFlag(overrides: { stops?: SavedStop[]; days?: KeepDayCandidate[] } = {}) {
   render(
     <KeepDayFlag
       dayIndex={0}
@@ -35,7 +36,7 @@ function renderFlag(overrides: { stops?: SavedStop[] } = {}) {
       tripId={tripId}
       dayId={dayId}
       tripName="Kyoto"
-      days={[{ dayId, date: null, stops: overrides.stops ?? stops }]}
+      days={overrides.days ?? [{ dayId, date: null, city: "Kyoto", stops: overrides.stops ?? stops }]}
     />,
   );
 }
@@ -70,8 +71,24 @@ describe("KeepDayFlag", () => {
   it("confirms what was kept once the save lands", async () => {
     renderFlag();
     await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Save" }));
-    expect(await screen.findByText('Kept "Day 1 of Kyoto"')).toBeTruthy();
+    await userEvent.click(await screen.findByRole("button", { name: "Keep this day" }));
+    expect(await screen.findByText("Kept in your Playbooks")).toBeTruthy();
+  });
+
+  // §35.7: a sequence is said to be ONE Playbook — the thing a reader who
+  // picked several days might otherwise doubt.
+  it("says several days were kept as one", async () => {
+    renderFlag({
+      days: [
+        { dayId, date: null, city: "Kyoto", stops },
+        { dayId: "22222222-2222-4222-8222-222222222222", date: null, city: "Nara", stops },
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Do you want to add more days?" }));
+    await userEvent.click(screen.getByRole("button", { name: /Day 2/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep 2 days" }));
+    expect(await screen.findByText("2 days kept in your Playbooks as one")).toBeTruthy();
   });
 });
 
@@ -164,14 +181,14 @@ describe("the keep-day celebration", () => {
   it("does not celebrate before the save lands", async () => {
     renderFlag();
     await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
-    await screen.findByRole("button", { name: "Save" });
+    await screen.findByRole("button", { name: "Keep this day" });
     expect(screen.queryByTestId("keep-day-celebration")).toBeNull();
   });
 
   it("celebrates on the pennant once the save lands", async () => {
     renderFlag();
     await userEvent.click(screen.getByRole("button", { name: "Keep day 1" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Keep this day" }));
     expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
   });
 
@@ -189,7 +206,7 @@ describe("the keep-day celebration", () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderFlag();
       await user.click(screen.getByRole("button", { name: "Keep day 1" }));
-      await user.click(await screen.findByRole("button", { name: "Save" }));
+      await user.click(await screen.findByRole("button", { name: "Keep this day" }));
       expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
 
       await act(async () => {
@@ -212,7 +229,7 @@ describe("the keep-day celebration", () => {
       const flag = screen.getByRole("button", { name: "Keep day 1" });
 
       await user.click(flag);
-      await user.click(await screen.findByRole("button", { name: "Save" }));
+      await user.click(await screen.findByRole("button", { name: "Keep this day" }));
       expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
 
       // Halfway through the first run, save again.
@@ -220,7 +237,7 @@ describe("the keep-day celebration", () => {
         vi.advanceTimersByTime(1300);
       });
       await user.click(flag);
-      await user.click(await screen.findByRole("button", { name: "Save" }));
+      await user.click(await screen.findByRole("button", { name: "Keep this day" }));
 
       // The first run's deadline passes. If its timer were still the one in
       // charge, the label would vanish here.
@@ -265,7 +282,7 @@ describe("the pennant keeps one size", () => {
       expect(size.height).toBe(size.width);
 
       await user.click(flag);
-      await user.click(await screen.findByRole("button", { name: "Save" }));
+      await user.click(await screen.findByRole("button", { name: "Keep this day" }));
       expect(await screen.findByTestId("keep-day-celebration")).toBeTruthy();
 
       expect(flag.textContent).toBe("");

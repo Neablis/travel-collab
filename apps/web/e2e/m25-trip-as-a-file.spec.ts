@@ -189,14 +189,21 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     // produced the file asserted above.
     await expect(page.getByRole("link", { name: "Download Trip" })).toBeEnabled();
 
-    // **Now import it back, by clicking.** Home, beside "New trip".
+    // **Now import it back, by clicking.** Since SPEC §35.2 that is the
+    // new-trip sheet's quiet *import a trip file* on a wide screen — the head
+    // carries "New trip" alone. The sheet closes on the click and the picker
+    // is the page's, so this also proves the picker opens from a link whose
+    // own surface has just gone.
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+    await page.getByRole("button", { name: "New trip" }).click();
+    const sheet = page.getByRole("dialog", { name: "New trip" });
 
     const chooser = await Promise.all([
       page.waitForEvent("filechooser"),
-      page.getByRole("button", { name: "Import a file" }).click(),
+      sheet.getByRole("button", { name: "import a trip file" }).click(),
     ]).then(([event]) => event);
+    await expect(sheet).toBeHidden();
     await chooser.setFiles({
       name: "trip.json",
       mimeType: "application/json",
@@ -220,9 +227,10 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
 
+    // A newcomer has no trips, so it is the empty state's quiet line (§35.2).
     const chooser = await Promise.all([
       page.waitForEvent("filechooser"),
-      page.getByRole("button", { name: "Import a file" }).click(),
+      page.getByRole("button", { name: "Have a trip file? Import it" }).click(),
     ]).then(([event]) => event);
     await chooser.setFiles({
       name: "notes.json",

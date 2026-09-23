@@ -256,8 +256,13 @@ test("the proxy banks an invite token in a short-lived httpOnly cookie, and a re
   const token = `e2e-not-a-token-${randomUUID()}`;
   const username = freshUsername();
 
+  // Since M27 link 6 the invite page is PUBLIC — no redirect to /signin — and
+  // the proxy banks the token as it serves it. An unknown token lands on the
+  // landing's unavailable state, which is the landing validating (it has a
+  // database) what the proxy only stored.
   await page.goto(`/invite/${token}`);
-  await expect(page).toHaveURL(/\/signin\?callbackUrl=/);
+  await expect(page).toHaveURL(new RegExp(`/invite/${token}$`));
+  await expect(page.getByRole("heading", { name: "This invite doesn't work", level: 1 })).toBeVisible();
 
   const banked = await pendingAdmissionCookie(context);
   // This assertion is also the guard for the `secure` flag being keyed on the
@@ -275,6 +280,8 @@ test("the proxy banks an invite token in a short-lived httpOnly cookie, and a re
 
   // No code typed anywhere — the banked token is the whole credential, which
   // is what makes an invite link a one-step arrival for a new collaborator.
+  // `/signin`, the screen with no code field, is where a landing's sign-in goes.
+  await page.goto(`/signin?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`);
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([

@@ -3,8 +3,10 @@ import type { SavedStop } from "@tc/contracts";
 import {
   allLegs,
   allPoints,
+  cityMarkers,
   dayGeometry,
   geometryKey,
+  mapShape,
   playbookGeometry,
   worthDrawing,
 } from "./sharedDayGeometry";
@@ -26,6 +28,9 @@ function stop(over: Partial<SavedStop> = {}): SavedStop {
 
 const at = (lat: number, lng: number, title = "x") => stop({ title, location: { name: title, lat, lng } });
 const nowhere = (title = "unlocated") => stop({ title, location: null });
+/** Placed only at its city's centre — what the read-time backfill writes when a venue cannot be corroborated. */
+const inCity = (city: string, lat: number, lng: number, title = "x") =>
+  stop({ title, location: { name: title, city, lat, lng, precision: "city" } });
 
 describe("one day's geometry", () => {
   it("draws a leg between each consecutive pair, and none before the first", () => {
@@ -115,10 +120,10 @@ describe("All days merges rather than concatenating", () => {
   });
 });
 
-describe("when the map is worth drawing at all", () => {
-  // §16: below two located stops the surface degrades to list-only rather than
-  // rendering an empty canvas. One pin on a world map tells a reader less than
-  // the city name already in the list.
+describe("when there is a route to draw", () => {
+  // Two pins make a route. This was once "whether there is a map at all" —
+  // §16's list-only degrade — and M27 link 10 retired that: see `mapShape`
+  // below for what the frame holds when there are fewer.
   it("needs two located stops", () => {
     expect(worthDrawing(playbookGeometry([{ dayIndex: 0, stops: [at(1, 1)] }]))).toBe(false);
     expect(worthDrawing(playbookGeometry([{ dayIndex: 0, stops: [at(1, 1), at(2, 2)] }]))).toBe(true);
@@ -137,6 +142,47 @@ describe("when the map is worth drawing at all", () => {
 
   it("does not count a stop with no coordinates", () => {
     expect(worthDrawing(playbookGeometry([{ dayIndex: 0, stops: [at(1, 1), nowhere()] }]))).toBe(false);
+  });
+
+  // Five stops on one centroid are not five places and a walk between them.
+  it("does not count a stop placed only at its city's centre, and draws no leg to it", () => {
+    const g = playbookGeometry([{ dayIndex: 0, stops: [inCity("Kyoto", 35, 135.7), inCity("Kyoto", 35, 135.7)] }]);
+    expect(allPoints(g)).toEqual([]);
+    expect(allLegs(g)).toEqual([]);
+    expect(worthDrawing(g)).toBe(false);
+  });
+});
+
+describe("what the map frame holds (M27 link 10)", () => {
+  const shapeOf = (stops: SavedStop[], scope: "all" | number = "all") => {
+    const days = [{ dayIndex: 0, stops }];
+    return mapShape(playbookGeometry(days), cityMarkers(days, scope));
+  };
+
+  it("is a route from two pins", () => {
+    expect(shapeOf([at(1, 1), at(2, 2)])).toBe("route");
+  });
+
+  // Mitchell: a Playbook has a map whenever there is anything to place.
+  it("is places, not nothing, for a lone pin or a city-level day", () => {
+    expect(shapeOf([at(1, 1), nowhere()])).toBe("places");
+    expect(shapeOf([inCity("Kyoto", 35, 135.7), inCity("Kyoto", 35, 135.7)])).toBe("places");
+  });
+
+  it("is none only when nothing in view can be placed", () => {
+    expect(shapeOf([nowhere(), stop({ location: { name: "Named only", city: "Kyoto" } })])).toBe("none");
+  });
+
+  it("puts one marker on each city, counting its stops", () => {
+    const days = [
+      { dayIndex: 0, stops: [inCity("Kyoto", 35, 135.7, "a"), inCity("Kyoto", 35, 135.7, "b"), at(1, 1)] },
+      { dayIndex: 1, stops: [inCity("Nara", 34.7, 135.8, "c")] },
+    ];
+    expect(cityMarkers(days, "all")).toEqual([
+      { city: "Kyoto", lat: 35, lng: 135.7, stops: 2 },
+      { city: "Nara", lat: 34.7, lng: 135.8, stops: 1 },
+    ]);
+    expect(cityMarkers(days, 1).map((c) => c.city)).toEqual(["Nara"]);
   });
 });
 
@@ -163,6 +209,15 @@ describe("the cache key", () => {
   it("is stable for the same scope and the same points", () => {
     expect(geometryKey("d1", "all", playbookGeometry(days))).toBe(
       geometryKey("d1", "all", playbookGeometry(days)),
+    );
+  });
+
+  // A backfill landing while the page is open brings cities where there were
+  // none, and the frame has to redraw for it.
+  it("changes when cities arrive", () => {
+    const geometry = playbookGeometry(days);
+    expect(geometryKey("d1", "all", geometry, [])).not.toBe(
+      geometryKey("d1", "all", geometry, [{ city: "Kyoto", lat: 35, lng: 135.7, stops: 2 }]),
     );
   });
 

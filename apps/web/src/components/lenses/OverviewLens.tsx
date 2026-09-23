@@ -49,9 +49,17 @@ export function OverviewLens({
   detail,
   tripId,
   remoteRevision = 0,
+  readOnly = false,
 }: {
   detail: TripDetail;
   tripId: string;
+  /**
+   * Withholds **Edit** (M27 D6). A prop for `remoteRevision`'s reason below.
+   * Before this a viewer was shown an Edit that led to a page they could only
+   * read — the notebook route refuses their writes, but the button had already
+   * promised one.
+   */
+  readOnly?: boolean;
   /**
    * Bumped by `TripProvider` when the poll reports the trip's log moved.
    *
@@ -197,11 +205,16 @@ export function OverviewLens({
   // click further away and never wrong. The label is true of both — this is
   // not the placeholder §3b forbids, it is a real control whose destination
   // sharpens as the read lands.
+  //
+  // **`?from=overview`** (M27 D6, SPEC §35.3's `docFrom`): the page opens in
+  // edit mode, and its breadcrumb's first crumb reads "← <Trip> overview" and
+  // comes back here. A query parameter rather than state, because the page is
+  // a different route and a reload must not forget how you got there.
   const pageId = state.status === "ready" || state.status === "unreadable" ? state.page.id : null;
-  const openInNotebook = (
+  const openInNotebook = readOnly ? null : (
     <Link
-      href={pageId === null ? `/trips/${tripId}/pages` : `/trips/${tripId}/pages/${pageId}`}
-      className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "no-underline")}
+      href={pageId === null ? `/trips/${tripId}/pages` : `/trips/${tripId}/pages/${pageId}?from=overview`}
+      className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}
     >
       Edit
     </Link>
@@ -291,10 +304,20 @@ export function OverviewLens({
     );
   };
 
+  // SPEC §35.3: a sheet of paper with a letterhead — the label on the left,
+  // Edit on the right, a hairline under both. No dates in the letterhead: they
+  // are in the header's pill and in the letter's own first sentence already.
+  // `min-h-7` holds the letterhead's height for a viewer, who has no Edit, so
+  // the rule sits in the same place for everyone.
   return (
-    <div className="flex flex-col gap-4 py-4">
-      <div className="flex justify-end">{openInNotebook}</div>
-      {body()}
+    <div className="pt-8 pb-22">
+      <div className="tc-overview-letter">
+        <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
+          <span className="font-mono text-2xs tracking-widest text-slate uppercase">Overview</span>
+          {openInNotebook}
+        </div>
+        {body()}
+      </div>
     </div>
   );
 }

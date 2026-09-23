@@ -29,11 +29,13 @@ import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { isInviteLook } from "@/lib/inviteLook";
 import { dayLabel } from "@/lib/dates";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
+import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { suggestedQuestions } from "@/components/assistant/suggestedQuestions";
@@ -90,12 +92,12 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
-  // returns below — the day chips (Task 8) below the tab strip both read and
+  // returns below — the day chips (Task 8) above Plan's columns both read and
   // set it.
   const { focusedDay, setFocusedDay, focusedTag, toggleFocusedTag } = useFocus();
   // The two day containers this screen owns, per the day-sync contract in
@@ -203,8 +205,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // work: `/api/trips/:id/ask` refuses the demo trip outright with a 403
   // `demo-trip-unsupported` (KI-79), so a launcher offered to a signed-out
   // visitor has no outcome but an error. This is the one control on the board
-  // with no read-only half to fall back to.
-  const isDemo = isDemoTripId(tripId);
+  // with no read-only half to fall back to. An invite's *Have a look first*
+  // (M27 D12) is the same case: a signed-out visitor, and Ask answers 401.
+  const isDemo = isDemoTripId(tripId) || isInviteLook(tripId);
   // The conversation lives in `useAskThread` now — it is the same machinery a
   // notebook page needs (M14 link 8), and two copies would have meant two
   // thread ceilings and two definitions of "this turn was abandoned". What
@@ -625,17 +628,52 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // against fresh server state (`confirmHead` in TripProvider), which already
     // contains it. So the stops arrive on the board a moment later, by the
     // ordinary path, with nothing lost either way.
+    //
+    // **The batch is the head of the outcome's own history** — the apply is
+    // one batch (ADR-013), and the server reads history after committing it.
+    // Recorded so the card can tell whether its change is still the trip's
+    // last one (M27 D17); on the queued-edits path below the board has not
+    // taken this history, so the card reads "changed since" as soon as those
+    // edits land, which is true.
+    const batchId = result.value.history.entries[0]?.batchId ?? null;
     if (pendingRef.current) {
       patchProposal(turnId, (state) => ({
         ...state,
         status: "applied",
+        batchId,
         note: `${result.value.message} It will appear on your board once your other unsaved changes have saved.`,
       }));
       return;
     }
     // Authoritative server state, taken whole, the same way an undo is.
     applyOutcome({ detail: result.value.detail, history: result.value.history });
-    patchProposal(turnId, (state) => ({ ...state, status: "applied", note: result.value.message }));
+    patchProposal(turnId, (state) => ({ ...state, status: "applied", batchId, note: result.value.message }));
+  };
+
+  // **Undo, from the card — only while the change is still the last one**
+  // (M27 D17). `UndoLastChange` undoes the trip's LAST batch, whoever made it,
+  // so a card whose batch is no longer the head must not send it: that would
+  // take back somebody else's work under a button that says "Undo" beside
+  // yours. Re-checked here against the history this render holds, not only
+  // at the card, because a poll can move the head between the two.
+  //
+  // **Neither check is the guarantee** — both read a history up to a poll
+  // interval old. The command names its batch (`undoesBatchId`) and the server
+  // refuses `undo-target-changed` if anything else is on top by the time it
+  // decides; the provider then refetches, and this card reads "Changed since".
+  //
+  // Through the provider's own `dispatch`, exactly as History's Undo is, so it
+  // shares that path's refusals (view-only, unsent edits queued) and its
+  // reconcile. The card reads "Put back the way it was." off the history that
+  // comes back — nothing is patched here, so an undo that did not happen can
+  // never be reported as one.
+  const undoFor = (state: ProposalState) => proposalUndoFor(state, history);
+  const undoProposal = (turnId: string) => {
+    const turn = thread.find((t) => t.id === turnId);
+    if (!turn || turn.role !== "assistant" || turn.proposal == null) return;
+    const undoesBatchId = turn.proposal.batchId;
+    if (undoesBatchId == null || undoFor(turn.proposal) !== "available") return;
+    void dispatch({ type: "UndoLastChange", tripId, undoesBatchId });
   };
 
   // Rejecting sends nothing. There is no server-side draft to discard: the
@@ -881,38 +919,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 needs no wrapper and gets none. `clearTagFilter` is unchanged;
                 this link is one JSX move, exactly as §33.3 says it is. */}
             <TagFocusLine />
-            {/* Task 2.3: MapRail replaces the chips row's job in map view — the
-                two side by side would be redundant, and the chips row's own
-                horizontal scroll makes no sense floating over a full-bleed map. */}
-            {/* **And not on the phone's Overview** — Mitchell, on the preview:
-                *"in mobile, hide the day bar here, leave on desktop"*.
-
-                The row narrows the OTHER views: it picks the day the columns
-                scroll to, the day the calendar centres, the day the assistant
-                takes as its scope. The Overview is a notebook page whose
-                widgets carry their own bindings (ADR-035 decision 1 — two
-                widgets on one page can read two different days), so nothing on
-                that screen answers to it. On a desktop it costs a strip of a
-                wide header and keeps the four views' chrome identical, which is
-                worth more than the strip; at 411px it is a scrolling row of
-                fourteen chips above a page that ignores every one of them.
-
-                `isPhone`, not `md:hidden`, for `DayChips`' own reason: the row
-                renders fourteen focusable buttons, and hiding them in CSS
-                leaves fourteen controls in the tree for a screen reader to walk
-                past on a page where none of them does anything. */}
-            {view !== "Map" && !(isPhone && view === "Overview") && (
-              <DayChips
-                days={chipModel(activeTrip)}
-                focusedDay={focusedDay}
-                // Named so the chips row knows a day was picked HERE rather
-                // than handed to it — which is what lets its own scroll spy be
-                // held off a pick it cannot centre. See `jumpTo`.
-                onSelect={(index) => setFocusedDay(index, "chips")}
-                readOnly={readOnly}
-                sync={chipsSync}
-              />
-            )}
           </TripHeader>
           {error !== null && (
             <PageContainer width="full">
@@ -941,6 +947,33 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               </PageContainer>
             ) : (
               <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
+                {/* **The day rail belongs to Plan, and scrolls with it** (SPEC
+                    §35.3, M27 link 3). It used to sit in the sticky header on
+                    every view but Map (and phone Overview), which made the
+                    header a different height depending on the tab. Overview,
+                    Calendar and Map each already show every day in their own
+                    terms, so the row only does work above the columns it
+                    scrolls. Rendered, not CSS-hidden, off Plan: fourteen
+                    focusable chips on a view that ignores them is fourteen
+                    controls for a screen reader to walk past for nothing.
+
+                    `pt-2.5` rather than the design's 14px because the row's own
+                    `pt-1` (ring clearance, see `DayChips`) makes up the rest;
+                    its `pb-1` is the design's 4px below. */}
+                {view === "Plan" && (
+                  <div className="pt-2.5">
+                    <DayChips
+                      days={chipModel(activeTrip)}
+                      focusedDay={focusedDay}
+                      // Named so the chips row knows a day was picked HERE rather
+                      // than handed to it — which is what lets its own scroll spy
+                      // be held off a pick it cannot centre. See `jumpTo`.
+                      onSelect={(index) => setFocusedDay(index, "chips")}
+                      readOnly={readOnly}
+                      sync={chipsSync}
+                    />
+                  </div>
+                )}
                 {view === "Plan" && (
                   <Board
                     trip={activeTrip}
@@ -1001,7 +1034,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     }}
                   />
                 )}
-                {view === "Overview" && <OverviewLens detail={activeTrip} tripId={tripId} remoteRevision={remoteRevision} />}
+                {view === "Overview" && (
+                  <OverviewLens detail={activeTrip} tripId={tripId} remoteRevision={remoteRevision} readOnly={readOnly} />
+                )}
                 {view === "Calendar" && (
                   <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
                 )}
@@ -1118,6 +1153,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             onAsk={(text) => submitAssistantAsk(text)}
             onApproveProposal={(turnId) => void approveProposal(turnId)}
             onRejectProposal={rejectProposal}
+            onUndoProposal={undoProposal}
+            undoFor={undoFor}
             approvalBlockedReason={approvalBlockedReason}
             asking={ask.asking}
             askError={ask.askError}

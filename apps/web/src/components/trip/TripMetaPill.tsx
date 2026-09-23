@@ -1,10 +1,23 @@
-import type { TripDetail } from "@tc/contracts";
-import { formatTripDate } from "@/lib/formatDate";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import type { TripCommand, TripDetail } from "@tc/contracts";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover } from "@/components/ui/popover";
+import { cn } from "@/lib/cn";
+import { addDaysIso, parseIsoDateUtc } from "@/lib/dates";
+import { formatTripDate, formatTripDateWithYear } from "@/lib/formatDate";
 import { chipModel } from "@/lib/dayChips";
 
-/** The three figures this pill states beside the date range. */
+/** The three figures Trip settings states under "Trip overview". */
 export type TripCounts = { days: number; stops: number; cities: number };
 
+// The pill itself stopped stating these in SPEC §35.3 (see below); Trip
+// settings is now their only reader, and the history that follows is why they
+// were there first.
+//
 // Exported because this pill is HIDDEN below 768px now (TripHeader), and the
 // same three counts have to stay readable in Trip settings or hiding it would
 // silently cost them. Mitchell, Vercel toolbar comment on
@@ -70,41 +83,142 @@ export function tripDateRange(detail: TripDetail): string {
   return `${formatTripDate(start)} – ${formatTripDate(end)}`;
 }
 
-// Handoff `current/…dc.html:255-296`: a bordered pill — accent dot, date
-// range, then (each separated by a divider) day/stop/city counts. The
-// handoff also put a crew control here (stacked avatars + label, opening
-// Trip settings); it was dropped in the 2026-08-30 design pass — see the
-// comment where it used to sit.
-export function TripMetaPill({ detail }: { detail: TripDetail }) {
-  const days = detail.days;
-  const { stops, cities } = tripCounts(detail);
+// A native date input's value is "" or a whole date, but "2027-02-31" still
+// passes the contract's shape-only regex, and `parseIsoDateUtc` throws on it
+// rather than rolling it over (lib/dates.ts). So "is this a day" is asked of
+// the parser that `addDaysIso` below will use, not of a second regex.
+function isCalendarDate(value: string): boolean {
+  try {
+    parseIsoDateUtc(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// SPEC §35.3: the pill is the dates and nothing else. The day, stop and city
+// counts it used to carry are the Overview's first sentence, so they were said
+// twice; `tripCounts` above stays for Trip settings, which still states them.
+// No member avatars either — dropped in the 2026-08-30 pass ("Can we drop this
+// ownership tile all togther? DA?"); who is on the trip is Travellers' answer.
+//
+// It is also the way in to moving the trip (M27 D5): a button opening a small
+// popover over `SetTripStartDate`, the command Trip settings' Dates row sends.
+// Not `TripDateControl` itself — that is the settings version, with its own
+// copy and a clear-date ✕. Unlike that control it does NOT commit on change:
+// typing a year into Chromium's date input emits a valid day per keystroke
+// (0002-…, 0020-…, 0202-…, 2027-…), and each would have been a command moving
+// the trip to the year 2 on the way. The edit stays local and commits on
+// Enter, on blur, or when the popover closes (Done included). A viewer gets
+// the range as plain text: no caret, no popover, and nothing that announces
+// itself as a control.
+//
+// An undated trip still gets the button. "No dates set" is exactly the state
+// the popover fixes, so it opens on an empty input rather than withholding the
+// one control in the header that can set a date.
+export function TripMetaPill({
+  detail,
+  readOnly,
+  onCommand,
+}: {
+  detail: TripDetail;
+  readOnly: boolean;
+  /** The one command this pill sends — narrowed so it cannot grow a second. */
+  onCommand: (command: Extract<TripCommand, { type: "SetTripStartDate" }>) => void;
+}) {
+  const [open, setOpen] = useState(false);
   const dateRange = tripDateRange(detail);
+  const start = detail.startDate ?? "";
+  const [pendingStart, setPendingStart] = useState(start);
+  // Clicking Done blurs the input first (the popover focuses it on open), so
+  // one edit reaches `commitStart` twice before the new start renders back.
+  const sent = useRef<string | null>(null);
+  // Re-seeded whenever the trip's start moves, from here or from anyone else —
+  // `TripDateControl`'s reasoning for its own copy: fresher server data beats
+  // an unsaved local value.
+  useEffect(() => {
+    setPendingStart(start);
+    sent.current = null;
+  }, [start]);
+
+  const body = (
+    <>
+      <span aria-hidden className="size-2.25 shrink-0 rounded-full bg-brand" />
+      <span className="font-mono text-xs text-ink">{dateRange}</span>
+    </>
+  );
+  const shell = "inline-flex items-center gap-2 rounded-full border border-hairline bg-surface py-1.25 pl-3 pr-3.5";
+
+  if (readOnly) return <div className={shell}>{body}</div>;
+
+  const commitStart = () => {
+    // Below 1900 is a year still being typed, not a trip anyone is taking.
+    if (!isCalendarDate(pendingStart) || Number(pendingStart.slice(0, 4)) < 1900) return;
+    if (pendingStart === start || pendingStart === sent.current) return;
+    sent.current = pendingStart;
+    onCommand({ type: "SetTripStartDate", tripId: detail.tripId, startDate: pendingStart });
+  };
+  const changeOpen = (next: boolean) => {
+    if (!next) commitStart();
+    setOpen(next);
+  };
+  // From the input, not the trip's last day, so the end moves as the date is
+  // picked rather than a round-trip later. A trip with no days ends the day it
+  // starts.
+  const end = isCalendarDate(pendingStart) ? addDaysIso(pendingStart, Math.max(detail.days.length - 1, 0)) : null;
+  const inputId = `trip-start-${detail.tripId}`;
 
   return (
-    <div className="inline-flex items-center gap-3 rounded-full border border-hairline bg-surface py-1.5 pl-3 pr-3.5">
-      <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-brand" />
-      <span className="font-mono text-xs text-ink">{dateRange}</span>
-
-      <span aria-hidden className="h-3.5 w-px shrink-0 bg-hairline" />
-      <span className="font-mono text-xs text-slate">{days.length} days</span>
-
-      <span aria-hidden className="h-3.5 w-px shrink-0 bg-hairline" />
-      <span className="font-mono text-xs text-slate">{stops} stops</span>
-
-      <span aria-hidden className="h-3.5 w-px shrink-0 bg-hairline" />
-      <span className="font-mono text-xs text-slate">{cities} cities</span>
-
-      {/* No member avatars, and no crew control at all: "Can we drop this
-          ownership tile all togther? DA?" (Mitchell, 2026-08-30 design pass —
-          the "DA?" is him reading a member's initials and not knowing what
-          they were for, which is the whole argument). This pill answers "what
-          is this trip" — dates, days, stops, cities — and who is on it is a
-          different question, answered properly in Trip settings' Travellers
-          panel rather than by two grey initials.
-
-          Nothing is stranded by removing it. It used to be one of three ways
-          into Trip settings; the other two — the trip title and the header's
-          own ghost "Trip settings" button — are untouched. */}
-    </div>
+    <Popover
+      open={open}
+      onOpenChange={changeOpen}
+      align="start"
+      contentClassName="w-80"
+      trigger={
+        // `Button` restyled to the pill, the same way `BudgetChip`'s "Set a
+        // budget" beside it is: the pill's own shape wins over the variant's
+        // height and radius, and the variant keeps the focus ring.
+        <Button
+          type="button"
+          variant="secondary"
+          title="Change the start date"
+          aria-label={`Trip dates: ${dateRange}. Change the start date`}
+          className={cn(shell, "h-auto font-normal hover:border-border-strong hover:bg-surface")}
+        >
+          {body}
+          <svg aria-hidden width="10" height="10" viewBox="0 0 10 6" fill="none" className="shrink-0 text-slate">
+            <path d="M1 1.5 5 5 9 1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-2.5">
+        <Label htmlFor={inputId} className="font-semibold text-ink">
+          Start date
+        </Label>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Input
+            id={inputId}
+            type="date"
+            value={pendingStart}
+            onChange={(e) => setPendingStart(e.target.value)}
+            onBlur={commitStart}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitStart();
+            }}
+            className="w-auto"
+          />
+          {end !== null && <span className="font-mono text-sm text-slate">{`→ ${formatTripDateWithYear(end)}`}</span>}
+        </div>
+        <span className="text-xs leading-normal text-slate">
+          Every day moves with it. Order, times and notes stay as they are.
+        </span>
+        <div className="flex justify-end">
+          <Button type="button" variant="secondary" size="sm" onClick={() => changeOpen(false)}>
+            Done
+          </Button>
+        </div>
+      </div>
+    </Popover>
   );
 }

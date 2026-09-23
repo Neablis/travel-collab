@@ -50,9 +50,18 @@ const LOADER = ["--import", "./scripts/lib/ts-resolve-register.mjs"];
  */
 const ENTRY_POINTS = {
   // .github/workflows/import-content-production.yml, the Import step.
+  //
+  // **Its dry run reads the database**, so it cannot exit 0 against nothing.
+  // #207 made the import re-runnable: it reconciles hand-corrected coordinates
+  // into trips that already exist, and the dry run reports which trips it
+  // would create, resume or reconcile by reading them first. So it prints its
+  // banner (the proof it got past module load, which is all this test is
+  // for) and then fails on its first query, like `db-seed` fails on its first
+  // fetch. Written as status 0 by #209 and correct on that branch; the two
+  // PRs merged within minutes and `main` went red on the combination.
   "scripts/import-content-production.ts": {
     args: [...LOADER, "scripts/import-content-production.ts", "--dry-run"],
-    expect: { status: 0, output: /DRY RUN — nothing will be written/ },
+    expect: { status: 1, output: /DRY RUN — nothing will be written[\s\S]*ECONNREFUSED/ },
   },
   // `content:verify` (and `content:import`, which is the same file).
   "scripts/import-content.ts": {

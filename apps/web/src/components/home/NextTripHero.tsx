@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
-import { buttonVariants } from "@/components/ui/button";
+import { PHONE_TOUCH, buttonVariants } from "@/components/ui/button";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
@@ -22,28 +22,15 @@ import { cn } from "@/lib/cn";
 
 export type NextTripHeroProps = {
   trip: TripSummary;
-  // Filled by the caller (app/page.tsx, Task 18) with a secondary-variant
-  // <ShareButton> (components/trip/ShareButton.tsx) — the hero itself stays
-  // behavior-free about sharing (brief, Interfaces).
-  shareSlot?: ReactNode;
+  /**
+   * **The trip's lifecycle menu — Duplicate, Delete or Leave** (M27 D3). The
+   * same `⋯` the trip cards carry, built by the caller for both. §35.2 filters
+   * the hero out of *Other trips*, so without it a one-trip account would have
+   * no way to delete or leave its only trip from Home — and §35's own rule is
+   * "nothing orphaned".
+   */
+  menuSlot?: ReactNode;
 };
-
-const STAT_TILE_TONE_CLASSES = {
-  brand: "bg-brand-tint text-brand-pressed",
-  warning: "bg-warning-tint text-warning-ink",
-  danger: "bg-danger-tint text-danger-ink",
-} as const;
-
-type StatTileTone = keyof typeof STAT_TILE_TONE_CLASSES;
-
-function StatTile({ tone, value, label }: { tone: StatTileTone; value: string; label: string }) {
-  return (
-    <div data-testid="stat-tile" className={cn("rounded-xl p-3.5", STAT_TILE_TONE_CLASSES[tone])}>
-      <DataText className="block text-2xl leading-none">{value}</DataText>
-      <div className="mt-1 text-xs">{label}</div>
-    </div>
-  );
-}
 
 // Sparkline needs each day's real stop count and real city, but TripSummary
 // (what the trips list fetches) carries no day/activity/city data at all
@@ -62,16 +49,16 @@ type SparklineFetchState =
   | { status: "error" };
 
 // README §1 "Next-trip hero": Card raised, two columns 1.15fr 1fr. Left:
-// brand Badge, trip name heading, meta row, avatar stack, three stat tiles,
-// primary Open trip + secondary Share (via shareSlot). Right: --color-moss
+// brand Badge, trip name heading, meta row, avatar stack, then Open trip and
+// §35.2's one actionable line. Right: --color-moss
 /**
- * Displays a trip overview with key statistics, budget information, and a trip-shape sparkline.
+ * Displays the next trip: what needs doing on it, its budget line, and a trip-shape sparkline.
  *
  * @param trip - Summary data for the trip and its travelers
- * @param shareSlot - Optional sharing control rendered beside the plan link
+ * @param menuSlot - The trip's lifecycle menu, the same one a trip card carries
  * @returns The rendered trip overview hero
  */
-export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
+export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
   const created = new Date(trip.createdAt);
   const createdLabel = Number.isNaN(created.getTime())
     ? null
@@ -107,20 +94,17 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   // line or the literal "No budget yet" (a real, known fact about that
   // trip, not a stand-in for "unknown").
   const [plannedOfBudget, setPlannedOfBudget] = useState<string | null>(null);
-  // The third stat tile's real, live count of the trip's open conflicts —
-  // TripDetail.conflicts (packages/contracts/src/detail.ts), the same array
-  // ConflictBanner/ConflictList already read elsewhere. `null` follows the
-  // exact same "nothing honest to say yet" pattern as startDate/
-  // plannedOfBudget above: still loading, or the fetch failed. This used to
-  // be a hardcoded `value="2"` behind a Preview (id "home-decisions") shell
-  // (Task 6) — now that it's backed by real data, it renders for real, not
-  // as a preview.
+  // The live count of the trip's open conflicts — TripDetail.conflicts
+  // (packages/contracts/src/detail.ts), the same array ConflictBanner/
+  // ConflictList already read elsewhere. `null` follows the exact same
+  // "nothing honest to say yet" pattern as startDate/plannedOfBudget above:
+  // still loading, or the fetch failed.
   const [conflictCount, setConflictCount] = useState<number | null>(null);
-  // The second stat tile's "not booked" count, off the same TripDetail fetch,
-  // via the one shared `needsBooking` predicate the Calendar's per-day
-  // `N to book` flag also uses — so the two never disagree about the same trip.
-  // That predicate is narrower than SPEC §12's literal wording and says why.
-  // `null` is the same "nothing honest to say yet" as its neighbours above.
+  // The "not booked" count, off the same TripDetail fetch, via the one shared
+  // `needsBooking` predicate the Calendar's per-day `N to book` flag also uses
+  // — so the two never disagree about the same trip. That predicate is
+  // narrower than SPEC §12's literal wording and says why. `null` is the same
+  // "nothing honest to say yet" as its neighbours above.
   const [notBooked, setNotBooked] = useState<number | null>(null);
 
   useEffect(() => {
@@ -160,7 +144,11 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
   }, [trip.tripId]);
 
   return (
-    <Card raised className="overflow-hidden p-0">
+    // `data-testid` for the same reason TripCard carries one: KI-28's e2e waits
+    // for THIS trip's cost line before opening its menu, and since §35.2 a
+    // trip is either the hero or a card, never both — which one depends on
+    // what else the shared e2e account made first.
+    <Card raised className="overflow-hidden p-0" data-testid="next-trip-hero">
       <div className="grid hero-grid">
         <div className="flex flex-col gap-5 border-b border-hairline p-6 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2.5">
@@ -184,10 +172,22 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
                 effect, and `startDate`'s for why this hero never invents a
                 date it has not been given. */}
             {countdown !== null && <DataText size="sm">{countdown}</DataText>}
+            {menuSlot !== undefined && <div className="ml-auto">{menuSlot}</div>}
           </div>
 
           <div>
-            <Heading level={2}>{trip.name}</Heading>
+            {/* **The name is the way in, as it is on a card.** Since §35.2 the
+                hero is filtered out of *Other trips*, so this is the only place
+                on Home the trip's name appears — and a card's name is a link
+                (TripCard.tsx). Leaving it plain text here would make the one
+                trip you are most likely to open the one whose name you cannot
+                click. Same shape as the card's: the link wraps the heading. */}
+            <Link
+              href={`/trips/${trip.tripId}`}
+              className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
+            >
+              <Heading level={2}>{trip.name}</Heading>
+            </Link>
             {/* Meta row (README: "dates · length · cities") — TripSummary
                 itself carries none of those (no start date, no day/city
                 data), but TripDetail (fetched above, for the sparkline)
@@ -254,49 +254,46 @@ export function NextTripHero({ trip, shareSlot }: NextTripHeroProps) {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5 pt-0.5">
-            <StatTile
-              tone="brand"
-              value={String(trip.members.length)}
-              label={trip.members.length === 1 ? "traveler" : "travelers"}
-            />
-            {/* The design's "not booked" tile (M18). This was "days planning"
-                — a createdAt-to-now count that stood in for exactly this tile,
-                on the grounds that TripSummary carries no booking data. It
-                doesn't, but the tile beside it had already beaten that same
-                objection: the hero fetches the whole TripDetail on mount for
-                the sparkline, so the count is free and needs no contract
-                change. "—" while loading or after a failed fetch, matching the
-                conflict tile's convention rather than showing a confident 0. */}
-            <StatTile
-              tone="warning"
-              value={notBooked === null ? "—" : String(notBooked)}
-              label="not booked"
-            />
-            {/* Real, live conflict count off the same TripDetail.conflicts
-                fetch above — no longer a hardcoded fabrication behind a
-                Preview shell (Task 8.5; see the conflictCount comment
-                above). "—" while still loading/failed, matching the "days
-                planning" tile's own loading convention. */}
-            <StatTile
-              tone="danger"
-              value={conflictCount === null ? "—" : String(conflictCount)}
-              label={conflictCount === 1 ? "open conflict" : "open conflicts"}
-            />
-          </div>
+          {/* **One actionable line, not three stat tiles** (SPEC §35.2). The
+              stop count was data, not a task, and Share lives in the trip
+              header — so what is left is what someone should DO: decide the
+              conflicts, book what is unbooked.
 
-          <div className="mt-0.5 flex items-center gap-2">
+              Each half renders only when its count is known AND above zero.
+              While the detail is loading, or after it failed, there is nothing
+              honest to say — the tiles said "—" there, and a line reading
+              "— need a decision" would be worse. And "0 need a decision" is not
+              a task. */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-4.5 gap-y-3">
             {/* **`Open trip`, and it was `Open plan`** — Mitchell, Vercel
                 Toolbar comment on the PR #196 preview, 2026-09-20, with this
                 link selected: *"'Open trip' not open plan"*. The href goes to
                 the trip, not to its Plan lens, so the old label named a
                 destination the link does not have: it lands on whichever lens
                 the trip was last left on. `Open trip` is what it actually
-                does. */}
+                does. §35.2 redraws it as *Open plan*; M27 D2 keeps this. */}
             <Link href={`/trips/${trip.tripId}`} className={cn(buttonVariants({ variant: "primary", size: "md" }))}>
               Open trip
             </Link>
-            {shareSlot}
+            {/* A link, where the artboard draws a button with the same
+                handler as *Open plan*: it goes to the trip, and a navigation is
+                a link — middle-clickable, and read as one. The trip's own
+                conflict banner is where the decisions are made. */}
+            {conflictCount !== null && conflictCount > 0 && (
+              <Link
+                href={`/trips/${trip.tripId}`}
+                className={cn(
+                  "inline-flex items-center gap-2 py-1.5 text-sm font-semibold text-danger-ink no-underline hover:underline",
+                  PHONE_TOUCH,
+                )}
+              >
+                <span aria-hidden className="size-1.75 shrink-0 rounded-full bg-danger" />
+                {conflictCount} {conflictCount === 1 ? "needs" : "need"} a decision
+              </Link>
+            )}
+            {notBooked !== null && notBooked > 0 && (
+              <span className="text-sm text-slate">{notBooked} not booked yet</span>
+            )}
           </div>
         </div>
 

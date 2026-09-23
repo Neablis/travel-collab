@@ -6,7 +6,14 @@ import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { tripInvites, users } from "../db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "../commands";
 import { getTripDetail } from "../projections";
-import { acceptInvite, createInvite, listInvites, previewInvite, revokeInvite } from "./invites";
+import {
+  acceptInvite,
+  createInvite,
+  inviteByToken,
+  isPendingInviteFor,
+  listInvites,
+  revokeInvite,
+} from "./invites";
 import { effectiveMembers, grantMembership, sharedTripIds, withProfiles } from "./members";
 
 // Fresh identities per TEST (KI-69), replacing the fixed "dev-alice"/"dev-bob".
@@ -526,92 +533,35 @@ describe("invites — create, accept, revoke", () => {
   });
 });
 
-describe("invite preview", () => {
-  it("shows the trip name and the role on offer to someone who is not a member", async () => {
-    const tripId = await seedTrip("Kyoto");
-    const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
-    const preview = await previewInvite(invite.token, GUEST);
-    expect(preview).toEqual({
-      ok: true,
-      value: {
-        tripId,
-        tripName: "Kyoto",
-        role: "viewer",
-        status: "pending",
-        invitedByName: null,
-        alreadyMember: false,
-      },
-    });
-  });
-
-  it("tells an existing member they are already on the trip", async () => {
+describe("an invite by its token", () => {
+  // The landing's read (`server/inviteLanding.ts`) is built on this, and the
+  // look's authorization on the one after it. Both are Access's half only —
+  // the row — and the tests of what the landing SAYS live beside the landing.
+  it("returns the row without echoing the token back", async () => {
     const tripId = await seedTrip();
-    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
-    const preview = await previewInvite(invite.token, OWNER);
-    expect(preview.ok && preview.value.alreadyMember).toBe(true);
-  });
-
-  // PR #71 review §7. The preview never gated on status, so a revoked link
-  // stopped WORKING but kept answering with the trip name, the role and the
-  // inviter's name to whoever still held the token.
-  it("tells the holder of a revoked token nothing about the trip", async () => {
-    const tripId = await seedTrip("Kyoto");
     const invite = await createInvite(tripId, OWNER, { email: "bob@example.com", role: "editor" });
-    await revokeInvite(tripId, invite.inviteId);
-
-    const preview = await previewInvite(invite.token, GUEST);
-    expect(preview).toEqual({
-      ok: false,
-      error: { code: "gone", message: "This invite has been revoked." },
-    });
-    // The finding was the metadata, not the refusal: assert none of it travels.
-    expect(JSON.stringify(preview)).not.toContain("Kyoto");
-    expect(JSON.stringify(preview)).not.toContain(tripId);
+    const found = await inviteByToken(invite.token);
+    expect(found).toMatchObject({ tripId, role: "editor", status: "pending", email: "bob@example.com" });
+    expect(found).not.toHaveProperty("token");
+    expect(await inviteByToken("no-such-token")).toBeNull();
   });
 
-  it("tells the holder of a spent token nothing about the trip either", async () => {
-    const tripId = await seedTrip("Kyoto");
-    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
-    await acceptInvite(invite.token, GUEST);
-
-    const preview = await previewInvite(invite.token, CARA);
-    expect(preview).toEqual({
-      ok: false,
-      error: { code: "gone", message: "This invite has already been used." },
-    });
-    expect(JSON.stringify(preview)).not.toContain("Kyoto");
-  });
-
-  // The one exception, and why it is not a leak: the person who SPENT the link
-  // is on the trip, so the name and the roles are already theirs to read.
-  // Gating them too would turn "follow your own link twice" — which the accept
-  // screen answers with "Open the trip" — into a dead end.
-  it("still answers the person who spent the link, who is already on the trip", async () => {
-    const tripId = await seedTrip("Kyoto");
-    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
-    await acceptInvite(invite.token, GUEST);
-
-    const preview = await previewInvite(invite.token, GUEST);
-    expect(preview.ok && preview.value).toMatchObject({
-      tripName: "Kyoto",
-      status: "accepted",
-      alreadyMember: true,
-    });
-  });
-
-  it("names the inviter when Identity knows them", async () => {
+  it("is pending for exactly its own trip, and stops being pending once spent or revoked", async () => {
     const tripId = await seedTrip();
-    // An UPDATE, not an insert: since M20 the suite's `beforeEach` gives this
-    // owner a `users` row so the collaboration gate lets them invite at all, so
-    // an insert here is a primary-key conflict. What this test is about is the
-    // profile fields, which is what it now sets.
-    await db
-      .update(users)
-      .set({ email: "alice@example.com", name: "Alice", image: null })
-      .where(eq(users.id, OWNER));
-    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
-    const preview = await previewInvite(invite.token, GUEST);
-    expect(preview.ok && preview.value.invitedByName).toBe("Alice");
+    const other = await seedTrip("Elsewhere");
+    const spent = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    const revoked = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    const live = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+
+    expect(await isPendingInviteFor(live.token, tripId)).toBe(true);
+    expect(await isPendingInviteFor(live.token, other)).toBe(false);
+    // A malformed trip id is a refusal, not a `22P02` out of the driver.
+    expect(await isPendingInviteFor(live.token, "not-a-uuid")).toBe(false);
+
+    await acceptInvite(spent.token, GUEST);
+    await revokeInvite(tripId, revoked.inviteId);
+    expect(await isPendingInviteFor(spent.token, tripId)).toBe(false);
+    expect(await isPendingInviteFor(revoked.token, tripId)).toBe(false);
   });
 });
 

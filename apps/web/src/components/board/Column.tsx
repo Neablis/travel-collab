@@ -156,9 +156,8 @@ export function Column({
       // In Ledger a pale tint reads as grey on cream, so anything city-coded
       // also gets a 3px solid rule in its own city's colour. The rule itself
       // lives in the look layer (`globals.css`, `html[data-look="ledger"]
-      // [data-city-accent]`) because it exists in exactly one look; this names
-      // the family so that layer has something to colour it with. Every other
-      // look ignores the attribute entirely.
+      // [data-city-accent]`) because it is Ledger's, not a token; this names
+      // the family so that layer has something to colour it with.
       data-city-accent={accent}
       className={cn(
         "flex min-h-44 flex-col rounded-2xl p-2",

@@ -1,5 +1,5 @@
 import { TripAccess } from "@tc/contracts";
-import { requireTripAccess } from "@/server/access/trip-access";
+import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
 import { withProfiles } from "@/server/access/members";
 import { listInvites } from "@/server/access/invites";
 import { demoTripMembers } from "@/server/demoTrip";
@@ -8,9 +8,9 @@ import { accountCan } from "@/server/entitlements/resolver";
 
 // The Travelers panel's one read: who is on this trip, what am I, and (owner
 // only) which links are outstanding.
-export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
   if ("error" in access) return access.error;
   // Any member may see who else is here. Only the owner sees invites, because
   // a `TripInvite` carries its token — an editor who could list them could

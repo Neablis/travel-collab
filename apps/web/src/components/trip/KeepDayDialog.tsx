@@ -10,7 +10,7 @@ import { ToggleChip } from "@/components/ui/toggle-chip";
 import { Text } from "@/components/ui/text";
 import { createSavedDay } from "@/lib/apiClient";
 import { submitOnEnter } from "@/lib/submitOnEnter";
-import { toClockRange } from "@/lib/time";
+import { toClockLabel, toClockRange } from "@/lib/time";
 import { formatTripDate } from "@/lib/formatDate";
 
 // Handoff README §"Keep this day": the pennant flag opens this dialog. Real as
@@ -64,6 +64,12 @@ import { formatTripDate } from "@/lib/formatDate";
 // one is the failure that rule exists to prevent, and the same honesty is owed
 // at the keeping end.
 //
+// **M27 (SPEC §35.7): the design now matches this dialog**, and adds three
+// things to it: the CTA says what it keeps (*Keep this day* / *Keep N days*,
+// never a bare *Save*), each day toggle is labelled with its city, and a
+// preview lists the stops of every selected day before the button acts — the
+// same "say it before it happens" rule the summary follows, one level down.
+//
 // The prototype's celebrate() choreography — spring, ring burst, sparks, the
 // "Kept" pill — is built as of this branch, and fires off `onSaved` below:
 // see `KeepDayFlag`. What is still NOT built is where that choreography lands
@@ -77,6 +83,11 @@ export type KeepDayCandidate = {
   dayId: string;
   /** The derived calendar date, or null when the trip has no start date. */
   date: string | null;
+  /**
+   * The day's city as its chip names it (`cityFor`), or null when none of its
+   * stops says — the toggle then reads `Day N` alone (§35.7).
+   */
+  city: string | null;
   stops: SavedStop[];
 };
 
@@ -88,6 +99,10 @@ export type KeepDayCandidate = {
  * sequence has no one window, and "09:00–22:00" over three days would be read
  * as a single day's span — the same falsehood `savedDayFacts` now refuses to
  * state for a multi-day Playbook (ADR-048 decision 4).
+ *
+ * **A sequence that does not start on the trip's day 1 says which day does**
+ * (§35.7: *"Day 4 becomes day 1."*). The Playbook renumbers from one, and a
+ * reader who picked days 4 and 6 should not have to infer that.
  *
  * **An empty day among several is named, not hidden.** "3 days · 9 stops" is
  * true and still conceals that one of them is blank, and a rest day is a thing
@@ -102,7 +117,7 @@ export type KeepDayCandidate = {
  * thing being kept. What is left is only what varies — how many days, how many
  * stops, the clock range when there is one, and which days are rest days.
  */
-function includedSummary(selected: KeepDayCandidate[]): string {
+function includedSummary(selected: KeepDayCandidate[], all: KeepDayCandidate[]): string {
   const stops = selected.flatMap((d) => d.stops);
   if (selected.length === 0) return "Pick at least one day.";
   if (stops.length === 0) {
@@ -117,7 +132,9 @@ function includedSummary(selected: KeepDayCandidate[]): string {
       empty === 0
         ? ""
         : ` ${empty === 1 ? "One day has" : `${empty} days have`} no stops — kept as ${empty === 1 ? "a rest day" : "rest days"}.`;
-    return `${selected.length} days, ${count}, in order.${rest}`;
+    const firstIndex = all.findIndex((d) => d.dayId === selected[0]!.dayId);
+    const renumbered = firstIndex > 0 ? ` Day ${firstIndex + 1} becomes day 1.` : "";
+    return `${selected.length} days, ${count}, in order.${renumbered}${rest}`;
   }
   const windows = stops.map((s) => s.timeWindow).filter((w) => w !== null);
   const first = windows[0];
@@ -141,6 +158,48 @@ function defaultName(selected: KeepDayCandidate[], all: KeepDayCandidate[], trip
   return `${selected.length} days of ${tripName}`;
 }
 
+/**
+ * The stops about to be kept, per selected day (§35.7).
+ *
+ * A day header only when there is more than one day: it carries the
+ * renumbering (`Day 1 · from Day 4 · Kyoto`), which is noise when nothing is
+ * renumbered. A blank day says so rather than rendering as a gap, for the same
+ * reason the summary names rest days.
+ */
+function KeepPreview({ selected, all }: { selected: KeepDayCandidate[]; all: KeepDayCandidate[] }) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded-md border border-hairline bg-paper p-3" data-testid="keep-day-preview">
+      {selected.map((day, i) => {
+        const from = all.findIndex((d) => d.dayId === day.dayId) + 1;
+        return (
+          <div key={day.dayId}>
+            {selected.length > 1 && (
+              <Text as="span" className="mb-1 block text-2xs tracking-wider text-slate uppercase">
+                Day {i + 1} · from Day {from}
+                {day.city === null ? "" : ` · ${day.city}`}
+              </Text>
+            )}
+            {day.stops.length === 0 ? (
+              <Text as="span" className="block py-0.75 text-sm text-slate">
+                Rest day — no stops
+              </Text>
+            ) : (
+              day.stops.map((stop, k) => (
+                <div key={k} className="flex gap-2.5 py-0.75 text-sm">
+                  <span className="w-21 flex-none pt-0.5 font-mono text-2xs text-slate">
+                    {stop.timeWindow === null ? "" : toClockLabel(stop.timeWindow.start)}
+                  </span>
+                  <span className="text-ink">{stop.title}</span>
+                </div>
+              ))
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function KeepDayDialog({
   open,
   onOpenChange,
@@ -158,11 +217,11 @@ export function KeepDayDialog({
   tripName: string;
   /** Every day of the trip, in trip order — what the picker offers. */
   days: KeepDayCandidate[];
-  onSaved?: (name: string) => void;
+  /** Called once the keep lands, with how many days went into it. */
+  onSaved?: (dayCount: number) => void;
 }) {
   const nameId = useId();
   const includedId = useId();
-  const daysId = useId();
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -230,7 +289,7 @@ export function KeepDayDialog({
       return;
     }
     onOpenChange(false);
-    onSaved?.(result.value.name);
+    onSaved?.(selected.length);
   }
 
   return (
@@ -248,7 +307,7 @@ export function KeepDayDialog({
               recorded as `KI-2026-09-19-d` rather than fixed on the way past —
               focusing the field changes a shipped dialog's behaviour and is
               not this milestone's to change.
-              Guarded the same way the Save button is: a selection with nothing
+              Guarded the same way the Keep button is: a selection with nothing
               in it cannot be kept, and `save()` itself refuses a blank name
               with the same message either way. */}
           <Input
@@ -266,7 +325,13 @@ export function KeepDayDialog({
           />
         </FormField>
         {showDays ? (
-          <FormField id={daysId} label="Days">
+          <div className="flex flex-col gap-1.75">
+            {/* §35.7's helper, in place of a "Days" label: it answers the one
+                question the grid raises — do they have to be consecutive? —
+                before anybody has to find out by trying. */}
+            <Text as="span" variant="muted">
+              Days — any, not just ones in a row
+            </Text>
             {/* A strip of the trip's days, each one a toggle. NOT a range — see
                 the header. The anchor day arrives selected, so the one-day keep
                 is untouched; every other day is one click away and they need not
@@ -316,9 +381,13 @@ export function KeepDayDialog({
                 Equal `1fr` columns give the width half of the ask; grid items
                 stretch by default, so the heights agree without being asked —
                 and that half was already correct, at 132.00px × 12 and
-                42.38px × 12 before this change. */}
+                42.38px × 12 before this change.
+                **The `Day N · City` label (M27, §35.7) may wrap; the meta
+                may not.** A city name has no length bound, so the label
+                is the one line allowed to break — and grid items stretch,
+                so a two-line chip makes its whole row taller rather than
+                misaligning it. */}
             <div
-              id={daysId}
               className="grid grid-cols-2 gap-1.5"
               role="group"
               aria-label="Days to keep"
@@ -327,7 +396,10 @@ export function KeepDayDialog({
                 const on = selectedIds.includes(day.dayId);
                 return (
                   <ToggleChip key={day.dayId} pressed={on} onClick={() => toggle(day.dayId)}>
-                    <span className="font-medium whitespace-nowrap">Day {index + 1}</span>
+                    <span className="text-sm font-semibold">
+                      Day {index + 1}
+                      {day.city === null ? "" : ` · ${day.city}`}
+                    </span>
                     <span className="whitespace-nowrap opacity-80">
                       {day.date === null ? "" : `${formatTripDate(day.date)} · `}
                       {day.stops.length === 0
@@ -338,7 +410,7 @@ export function KeepDayDialog({
                 );
               })}
             </div>
-          </FormField>
+          </div>
         ) : (
           days.length > 1 && (
             /* **The ask, not a disclosure triangle.** It reads as a question
@@ -360,9 +432,10 @@ export function KeepDayDialog({
         )}
         <FormField id={includedId} label="What's included">
           <Text as="span" id={includedId} className="text-sm text-ink">
-            {includedSummary(selected)}
+            {includedSummary(selected, days)}
           </Text>
         </FormField>
+        {selected.length > 0 && <KeepPreview selected={selected} all={days} />}
         <Text as="span" className="text-xs text-slate">
           Saved days are private to you. Add one to any trip you can edit.
         </Text>
@@ -382,7 +455,7 @@ export function KeepDayDialog({
           disabled={busy || nothingToSave}
           onClick={() => void save()}
         >
-          Save
+          {selected.length > 1 ? `Keep ${selected.length} days` : "Keep this day"}
         </Button>
       </DialogFooter>
     </Dialog>

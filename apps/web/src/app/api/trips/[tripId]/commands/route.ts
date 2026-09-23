@@ -7,6 +7,10 @@ const STATUS: Record<string, number> = {
   forbidden: 403,
   "trip-not-found": 404,
   "concurrency-conflict": 409,
+  // An undo whose `undoesBatchId` is no longer on top (M27 D17): the request
+  // was well-formed, the trip moved under it. Unlike `concurrency-conflict`,
+  // retrying the same request cannot succeed.
+  "undo-target-changed": 409,
 };
 
 export async function POST(request: Request, { params }: { params: Promise<{ tripId: string }> }) {

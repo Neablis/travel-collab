@@ -1,5 +1,6 @@
 "use client";
 
+import type { Ref } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Text } from "@/components/ui/text";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 import { NewTripConversation, TOUCH, type NewTripWizardProps } from "./NewTripWizard";
-import { ImportTripButton } from "./ImportTripButton";
+import { ImportTripButton, type ImportTripHandle } from "./ImportTripButton";
 
 // Somebody's first authenticated screen, and the answer to two pieces of
 // feedback that turned out to be the same one (Mitchell, 2026-09-01):
@@ -40,7 +41,7 @@ import { ImportTripButton } from "./ImportTripButton";
 // that can disagree with the script.
 
 /**
- * Somebody's first screen: the new-trip conversation itself, and the two routes
+ * Somebody's first screen: the new-trip conversation itself, and the routes
  * that are not "start from nothing".
  *
  * @param createTrip - Mints the trip; carries the client-minted `tripId`.
@@ -49,6 +50,7 @@ import { ImportTripButton } from "./ImportTripButton";
  * @param composerId - Lets the page head's "New trip" button focus the answer field.
  * @param disabled - Holds the exits while a demo clone is still in flight.
  * @param showConversation - False while the sheet owns the conversation.
+ * @param importHandle - Lets the page open this card's file picker.
  * @returns The first-trip screen.
  */
 export function FirstTripStart({
@@ -58,6 +60,7 @@ export function FirstTripStart({
   composerId,
   disabled = false,
   showConversation = true,
+  importHandle,
 }: {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
@@ -81,6 +84,8 @@ export function FirstTripStart({
    * one to take away.
    */
   showConversation?: boolean;
+  /** Where the page reaches this card's file picker — see `ImportTripHandle`. */
+  importHandle?: Ref<ImportTripHandle>;
 }) {
   return (
     <Card raised className="flex flex-col gap-5 p-6" data-testid="first-trip-start">
@@ -143,40 +148,24 @@ export function FirstTripStart({
         >
           Look around an example trip
         </Link>
-        {/* **The fourth route in, and the one that costs the least of all**
-            (M25): a person arriving with a trip already planned somewhere else
-            uploads the file and is done.
+        {/* **The fourth route in, as a quiet link** (M25; SPEC §35.2): a
+            person arriving with a trip already planned somewhere else uploads
+            the file and is done. It was a third equal button, with a sentence
+            under it explaining what a trip file is; §35.2 demotes it to one
+            line whose own words say it — *Have a trip file? Import it* — and
+            drops the sentence.
 
-            **It lives here rather than in the page head on this screen, and
-            that is a fix rather than a preference.** It was in the head, which
-            on a 375px viewport wrapped the head's action row onto an extra line
-            and pushed this card's composer out of the viewport —
-            `responsive.spec.ts:917` caught it, in CI and not locally, because
-            the assertion sits close enough to the fold that rendering
-            differences decide it. Below the composer rather than above it, it
-            costs that assertion nothing.
-
-            One control, never two: the page head renders it only when there
-            ARE trips, which is exactly when this card is not on screen. */}
-        <ImportTripButton disabled={disabled} size="sm" className={TOUCH} />
-        {/* **What a trip file IS, said where §34.2 puts it** — M26 link 9c:
-            *"Import is on Home beside New trip, and again in the empty state,
-            where the sentence about what a file is belongs."* The control was
-            in both places already and the sentence was in neither, so the
-            fourth route in was a button whose label ("Import a file") assumed
-            the reader already knew this app had files.
-
-            **"or from another account" is the load-bearing half.** A download
-            is portable — the endpoint takes any `content-bundle/v1`, from any
-            account — and without saying so this reads as a backup of your own
-            trips, which is the narrower and less useful thing.
-
-            `w-full` and its own line: it explains the control above it rather
-            than sitting in the row of alternatives as a fifth one. */}
-        <Text as="p" variant="secondary" className="w-full text-sm text-pretty">
-          A trip you downloaded from here — or from another account — comes back whole from its
-          file.
-        </Text>
+            `w-full` so it takes its own line under the two real alternatives
+            rather than sitting among them. `handle` lets the new-trip sheet's
+            own *import a trip file* reach this picker when the sheet is open
+            over an empty list, so there is only ever one on the page. */}
+        <div className="flex w-full flex-col items-start gap-2">
+          <ImportTripButton
+            label="Have a trip file? Import it"
+            disabled={disabled}
+            {...(importHandle === undefined ? {} : { handle: importHandle })}
+          />
+        </div>
       </div>
     </Card>
   );

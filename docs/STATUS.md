@@ -30,10 +30,17 @@ general setup.
 
 ## Where the work is right now
 
-**M12 — REVIEWS AND MODERATION — IS THE CURRENT MILESTONE AS OF 2026-09-22**,
+**M27 — THE SIMPLIFY PASS — IS THE CURRENT MILESTONE AS OF 2026-09-23**, placed
+by Mitchell ahead of M12 to build the 2026-09-22 design pass (SPEC §35). All
+ten links are built on `claude/admiring-goodall-librbf`; the gate's `[walk]`
+boxes are open. Scope and the seventeen decisions:
+`docs/milestones/M27-simplify-pass.md`. **M12 is next**, and what follows is
+its placement, unchanged:
+
+**M12 — REVIEWS AND MODERATION — WAS THE CURRENT MILESTONE FROM 2026-09-22**,
 by **M13's gate closing at 10 of 10** — the second consecutive move made by a
 gate rather than by Mitchell placing a milestone. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M12 → M24 → M14 → M19`.
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 → M12 → M24 → M14 → M19`.
 Scope, seven links and thirteen boxes: `docs/milestones/M12-reviews-and-moderation.md`.
 It needs **two migrations** (the reviews table, and `saved_days.countries`) and
 has a data prerequisite: the content library carries `countryCode` on **none**

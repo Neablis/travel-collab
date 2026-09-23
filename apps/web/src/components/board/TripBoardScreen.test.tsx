@@ -1,4 +1,5 @@
 import { useSyncExternalStore, type ComponentProps } from "react";
+import { beginInviteLook } from "@/lib/inviteLook";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -599,6 +600,19 @@ describe("TripBoardScreen", () => {
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     expect(screen.queryByLabelText(/ask ai to plan/i)).toBeNull();
+  });
+
+  it("offers no assistant on an invite's look screen, where a signed-out visitor's Ask would answer 401 (M27 D12)", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const end = beginInviteLook(fixture.tripId, "look-token");
+    try {
+      renderScreen(fixture.tripId);
+      expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+      expect(screen.queryByTestId("assistant-launcher")).toBeNull();
+    } finally {
+      end();
+    }
   });
 
   it("the Ask box holds a real conversation: the question, the tool call and the streamed answer all land in the transcript", async () => {
@@ -1336,19 +1350,30 @@ describe("TripBoardScreen", () => {
   });
 });
 
-describe("map view hides the day-chips row", () => {
-  it("hides the day-chips row in map view", async () => {
+// SPEC §35.3: the rail is Plan's, above the day columns, and nowhere else — the
+// header is the same height on every tab. It used to sit in the header on all
+// four views but Map. Asserted by absence from the TREE, not by visibility,
+// because the reason it is gone elsewhere is fourteen focusable chips on a view
+// none of them drives.
+describe("the day-chips row belongs to Plan", () => {
+  it("renders on Plan, below the header, and on no other view", async () => {
     setViewportMatches({ "(min-width: 1180px)": true });
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
 
-    await userEvent.click(await screen.findByRole("tab", { name: "Map" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "Plan" }));
+    const chips = screen.getByRole("group", { name: "Days" });
+    // Out of the sticky header: it scrolls with the columns now.
+    expect(screen.getByRole("banner", { name: "Trip" }).contains(chips)).toBe(false);
 
-    expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
+    for (const name of ["Overview", "Calendar", "Map"]) {
+      await userEvent.click(screen.getByRole("tab", { name }));
+      expect(screen.getByRole("tab", { name, selected: true })).toBeTruthy();
+      expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
+    }
 
     await userEvent.click(screen.getByRole("tab", { name: "Plan" }));
     expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
@@ -1590,7 +1615,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     // Deliberately the BUTTON, not Enter: the Ask control has been covered by
     // the fixed rack before, and every keyboard-driven test missed it.
     fireEvent.click(askButton());
-    return screen.findByLabelText("Proposed change");
+    return screen.findByRole("group", { name: "Suggested change" });
   }
 
   it("renders the proposal, applies NOTHING, and offers the two buttons", async () => {
@@ -1599,12 +1624,12 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     const card = await askForAChange(fixture);
 
     expect(card.textContent).toContain("Add “Coffee at Fuglen” to day 1");
-    expect(card.textContent).toContain("Not applied yet");
+    expect(card.textContent).toContain("Ready when you are");
     expect(applyProposalMock).not.toHaveBeenCalled();
     // The board is untouched while it sits there.
     expect(screen.queryByText("Coffee at Fuglen")).toBeNull();
-    expect(within(card).getByRole("button", { name: "Approve" })).toBeTruthy();
-    expect(within(card).getByRole("button", { name: "Reject" })).toBeTruthy();
+    expect(within(card).getByRole("button", { name: "Make the change" })).toBeTruthy();
+    expect(within(card).getByRole("button", { name: "Not now" })).toBeTruthy();
   });
 
   it("approving commits ONE batch and the stop really lands on the board", async () => {
@@ -1621,7 +1646,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
         simulated: false,
       },
     });
-    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Make the change" }));
 
     // The board, not just the card: this is the assertion Ruling A is about.
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
@@ -1631,10 +1656,136 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     expect(tripIdArg).toBe(fixture.tripId);
     // ONE batch for the whole proposal (ADR-013) — not one call per change.
     expect(proposalArg.commands).toHaveLength(1);
-    expect(screen.getByLabelText("Proposed change").textContent).toContain(
+    expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toContain(
       "Done — added “Coffee at Fuglen” to day 1.",
     );
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Make the change" })).toBeNull();
+  });
+
+  // M27 D17, end to end on the board: the card's Undo is the trip's own
+  // `UndoLastChange`, sent through the provider, and the card's "put back"
+  // is read off the history that comes BACK — not patched in on the click.
+  it("undoes an applied change from its card while it is still the last one", async () => {
+    const fixture = costedTripDetailFixture();
+    const APPLIED = "55555555-5555-4555-8555-555555555555";
+    const appliedEntry = {
+      batchId: APPLIED,
+      fromSeq: 3,
+      toSeq: 3,
+      actorId: "dev-alice",
+      occurredAt: "2026-09-23T10:00:00.000Z",
+      origin: { kind: "user" as const },
+      description: 'Added "Coffee at Fuglen"',
+      undone: false,
+    };
+    const sent: string[] = [];
+    server.use(
+      http.post("*/api/trips/:tripId/commands", async ({ request }) => {
+        const command = TripCommand.parse(await request.json());
+        sent.push(command.type);
+        return HttpResponse.json({
+          ok: true,
+          tripId: fixture.tripId,
+          detail: fixture,
+          history: {
+            tripId: fixture.tripId,
+            entries: [
+              { ...appliedEntry, batchId: "66666666-6666-4666-8666-666666666666", fromSeq: 4, toSeq: 4, origin: { kind: "undo", undoesBatchId: APPLIED } },
+              { ...appliedEntry, undone: true },
+            ],
+            canUndo: false,
+            canRedo: true,
+          },
+        });
+      }),
+      ...makeTripHandlers(fixture),
+    );
+    const card = await askForAChange(fixture);
+    applyProposalMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        detail: afterApproval(fixture),
+        history: { tripId: fixture.tripId, entries: [appliedEntry], canUndo: true, canRedo: false },
+        message: "Done — added “Coffee at Fuglen” to day 1.",
+        simulated: false,
+      },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Make the change" }));
+
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    fireEvent.click(undo);
+
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toBe("Put back the way it was."),
+    );
+    expect(sent).toEqual(["UndoLastChange"]);
+  });
+
+  // The race D17 exists for, closed where it is decided: the board still
+  // shows the card's batch on top, but a collaborator's write reached the
+  // server first. The Undo names its batch, the server refuses, and the card
+  // says so — nothing is undone and no banner repeats it.
+  it("an Undo the server refuses as stale reads 'Changed since' and undoes nothing", async () => {
+    const fixture = costedTripDetailFixture();
+    const APPLIED = "55555555-5555-4555-8555-555555555555";
+    const appliedEntry = {
+      batchId: APPLIED,
+      fromSeq: 3,
+      toSeq: 3,
+      actorId: "dev-alice",
+      occurredAt: "2026-09-23T10:00:00.000Z",
+      origin: { kind: "user" as const },
+      description: 'Added "Coffee at Fuglen"',
+      undone: false,
+    };
+    const REFUSAL = "This trip has changed since. Undo it from History instead.";
+    const sent: unknown[] = [];
+    let collaboratorWrote = false;
+    server.use(
+      http.post("*/api/trips/:tripId/commands", async ({ request }) => {
+        sent.push(TripCommand.parse(await request.json()));
+        collaboratorWrote = true;
+        return HttpResponse.json({ error: REFUSAL, code: "undo-target-changed" }, { status: 409 });
+      }),
+      http.get("*/api/trips/:tripId/history", () =>
+        HttpResponse.json({
+          history: {
+            tripId: fixture.tripId,
+            entries: collaboratorWrote
+              ? [
+                  { ...appliedEntry, batchId: "77777777-7777-4777-8777-777777777777", fromSeq: 4, toSeq: 4, actorId: "dev-bob", description: "Added Day 3" },
+                  appliedEntry,
+                ]
+              : [],
+            canUndo: collaboratorWrote,
+            canRedo: false,
+          },
+        }),
+      ),
+      ...makeTripHandlers(fixture),
+    );
+    const card = await askForAChange(fixture);
+    applyProposalMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        detail: afterApproval(fixture),
+        history: { tripId: fixture.tripId, entries: [appliedEntry], canUndo: true, canRedo: false },
+        message: "Done — added “Coffee at Fuglen” to day 1.",
+        simulated: false,
+      },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Make the change" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toContain(
+        "Changed since — undo it from History.",
+      ),
+    );
+    expect(sent).toEqual([{ type: "UndoLastChange", tripId: fixture.tripId, undoesBatchId: APPLIED }]);
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(screen.queryByText(REFUSAL)).toBeNull();
   });
 
   // The requirement in its own test: rejection is not an operation.
@@ -1644,13 +1795,15 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     const card = await askForAChange(fixture);
     const boardBefore = screen.getByTestId("day-column").textContent;
 
-    fireEvent.click(within(card).getByRole("button", { name: "Reject" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Not now" }));
 
-    await waitFor(() => expect(screen.getByLabelText("Proposed change").textContent).toContain("Rejected"));
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toBe("Left as it is."),
+    );
     expect(applyProposalMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("day-column").textContent).toBe(boardBefore);
     expect(screen.queryByText("Coffee at Fuglen")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Make the change" })).toBeNull();
   });
 
   it("a refused batch changes nothing and says why, and Approve stays available", async () => {
@@ -1663,14 +1816,14 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
       ok: false,
       error: { status: 409, message: "someone else changed this trip", code: "concurrency-conflict" },
     });
-    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Make the change" }));
 
     await waitFor(() =>
-      expect(screen.getByLabelText("Proposed change").textContent).toContain("someone else changed this trip"),
+      expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toContain("someone else changed this trip"),
     );
     // Atomic: nothing applied, so retrying is the honest affordance.
     expect(screen.getByTestId("day-column").textContent).toBe(boardBefore);
-    expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Make the change" })).toBeTruthy();
   });
 
   // IMPORTANT 2 (review round 1). The refusal below covers a `pending` queue
@@ -1708,7 +1861,7 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
         },
       };
     });
-    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Make the change" }));
     await waitFor(() => expect(applyProposalMock).toHaveBeenCalledTimes(1));
 
     // …and queue an edit while it is in the air.
@@ -1719,14 +1872,14 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
 
     // Wait on the state BOTH branches reach, so the two assertions below are
     // each load-bearing rather than one of them short-circuiting the other.
-    await waitFor(() => expect(screen.getByLabelText("Proposed change").textContent).toContain("Applied"));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toContain("✓ Done"));
 
     // The queued day is STILL THERE. Before the fix, `applyOutcome` took the
     // server's outcome whole and this column vanished — the data loss.
     expect(screen.getAllByTestId("day-column")).toHaveLength(2);
     // …and the user is told why the approved stop is not on the board yet,
     // rather than watching a receipt describe something they cannot see.
-    expect(screen.getByLabelText("Proposed change").textContent).toContain(
+    expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toContain(
       "It will appear on your board once your other unsaved changes have saved.",
     );
   });
@@ -1752,12 +1905,12 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     // Both assertions inside the same `waitFor`, so a transient `pending`
     // window cannot satisfy one and then close before the other.
     await waitFor(() => {
-      expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
-      expect(screen.getByLabelText("Proposed change").textContent).toContain(
+      expect((screen.getByRole("button", { name: "Make the change" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toContain(
         "Finish saving your changes before applying this.",
       );
     });
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Make the change" }));
     expect(applyProposalMock).not.toHaveBeenCalled();
   });
 });

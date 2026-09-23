@@ -23,6 +23,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     stopCount: 4,
     dayCount: 1,
     window: { start: "07:30", end: "18:30" },
+    preview: [],
     totalCost: { amountMinor: 2_700, currency: "USD" },
     adds: 2,
     rating: null,
@@ -42,6 +43,9 @@ function response(over: Partial<DiscoverResponse> = {}): DiscoverResponse {
 }
 
 const ok = <T,>(value: T) => ({ ok: true as const, value });
+
+/** A filter chip's words, without the trailing caret every chip carries (§35.5). */
+const chipText = (el: HTMLElement) => el.textContent?.replace("▾", "");
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -157,10 +161,10 @@ describe("Discover", () => {
   });
 
   // Two sorts — §15 asks for four, and the two missing ones need review data
-  // M12 owns. **And no rating filter**, for the same reason: §33.2 names Rating
-  // as the second face chip, and building it over a reviews table that does not
-  // exist would be a control that does nothing (project rule 2). This is the
-  // assertion that stops somebody helpfully "fixing" either back.
+  // M12 owns. **And no rating filter**, for the same reason: §35.5 puts Rating
+  // in the Filters menu, and building it over a reviews table that does not
+  // exist would be a control that does nothing (project rule 2, M27 D8). This
+  // is the assertion that stops somebody helpfully "fixing" either back.
   it("offers exactly two sorts and no rating filter", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
@@ -174,7 +178,9 @@ describe("Discover", () => {
     expect(screen.queryByTestId("discover-sort-highest-rated")).toBeNull();
 
     expect(screen.queryByTestId("filter-chip-rating")).toBeNull();
-    expect(screen.getByTestId("filter-chip-budget")).toBeTruthy();
+    await user.click(screen.getByTestId("filter-more"));
+    expect(screen.queryByText("Rating")).toBeNull();
+    expect(screen.queryByTestId("filter-more-rating-any")).toBeNull();
     // Season is cut entirely (§33.2) — header, query and rail.
     expect(screen.queryByTestId("filter-chip-season")).toBeNull();
     expect(screen.queryByLabelText(/season/i)).toBeNull();
@@ -192,7 +198,7 @@ describe("Discover", () => {
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(
-      screen.getByTestId("filter-chip-budget"),
+      screen.getByTestId("filter-more"),
     );
     for (const label of [
       "Any budget",
@@ -205,28 +211,56 @@ describe("Discover", () => {
     }
   });
 
-  // §33.2: a face chip shows **its value** when set, not its own label. A chip
-  // still reading "Budget" once a budget is chosen makes the reader open it to
-  // find out what they asked for — the thing the chip was meant to save them.
-  it("a set chip reads its value, and an unset one reads its name", async () => {
+  // §35.5: one *Filters* menu holds every filter, and there are no face chips.
+  // A set filter surfaces as its own chip reading **its value** — one still
+  // reading "Budget" once a budget is chosen makes the reader open it to find
+  // out what they asked for — and that chip clears it in place.
+  it("reaches Budget through the Filters menu, then shows it as a chip that clears in place", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    expect(screen.getByTestId("filter-chip-budget").textContent).toBe("Budget");
+    expect(screen.queryByTestId("filter-chip-budget")).toBeNull();
 
-    await user.click(screen.getByTestId("filter-chip-budget"));
-    await user.click(screen.getByTestId("filter-budget-under200"));
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-budget-under200"));
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
         expect.objectContaining({ budget: "under200" }),
       ),
     );
-    expect(screen.getByTestId("filter-chip-budget").textContent).toBe("Under $200.00");
+    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00");
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("filter-chip-budget"));
+    await user.click(screen.getByTestId("filter-budget-any"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ budget: "any" })),
+    );
+    expect(screen.queryByTestId("filter-chip-budget")).toBeNull();
   });
 
-  // §33.2: everything that is not a face filter appears in the row only once it
-  // carries a value, and lives in *More filters* until then.
+  // §35.5: the trigger says how many questions are being asked — never the
+  // scope or the sort — and wears the brand tint once it is more than none.
+  it("labels the trigger Filters, then Filters · N as questions are asked", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<DiscoverScreen />);
+    // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
+    await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
+    expect(chipText(screen.getByTestId("filter-more"))).toBe("Filters");
+
+    await user.click(screen.getByTestId("discover-sort"));
+    await user.click(screen.getByTestId("discover-sort-newest"));
+    expect(chipText(screen.getByTestId("filter-more"))).toBe("Filters");
+
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-budget-under200"));
+    await user.click(screen.getByTestId("filter-more-length-one"));
+    expect(chipText(screen.getByTestId("filter-more"))).toBe("Filters · 2");
+  });
+
+  // Length appears in the row only once it carries a value, and lives in the
+  // *Filters* menu until then.
   it("keeps Length out of the row until it is asked, then shows it as a chip", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<DiscoverScreen />);
@@ -241,7 +275,7 @@ describe("Discover", () => {
         expect.objectContaining({ length: "two-three" }),
       ),
     );
-    expect(screen.getByTestId("filter-chip-length").textContent).toBe("2-3 days");
+    expect(chipText(screen.getByTestId("filter-chip-length"))).toBe("2-3 days");
   });
 
   // **The season filter is cut** (§33.2 — it filtered on the month a day was
@@ -276,7 +310,10 @@ describe("Discover", () => {
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
-    expect(screen.queryByTestId("filter-chip-budget")).toBeNull();
+    await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByTestId("filter-more"));
+    expect(screen.queryByText("Budget")).toBeNull();
+    expect(screen.queryByTestId("filter-more-budget-any")).toBeNull();
+    expect(screen.getByTestId("filter-more-length-any")).toBeTruthy();
   });
 
   // ONE way out of the empty state, not two. "Drop the filters" and "Search
@@ -347,8 +384,9 @@ describe("Discover", () => {
     expect(screen.queryByTestId("discover-clear-filters")).toBeNull();
 
     // A question is.
-    await user.click(screen.getByTestId("filter-chip-budget"));
-    await user.click(screen.getByTestId("filter-budget-over1000"));
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-budget-over1000"));
+    await user.keyboard("{Escape}");
     expect(screen.getByTestId("discover-clear-filters").textContent).toContain("(1)");
 
     // And clearing them leaves the place and the ordering where they were.
@@ -667,9 +705,10 @@ describe("the phone's one filter sheet", () => {
   it("counts the questions on the button once they are asked", async () => {
     const user = await openSheet();
     await user.click(screen.getByTestId("sheet-budget-under200"));
-    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters (1)");
+    // The desktop trigger's words (§35.5), so one state is not spelt two ways.
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters · 1");
     await user.click(screen.getByTestId("sheet-length-one"));
-    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters (2)");
+    expect(screen.getByTestId("discover-phone-filters").textContent).toBe("Filters · 2");
   });
 
   // **Scope is deliberately outside the sheet.** A place is not a sheet
@@ -708,6 +747,6 @@ describe("the phone's one filter sheet", () => {
   it("shares its state with the desktop chips rather than keeping a second copy", async () => {
     const user = await openSheet();
     await user.click(screen.getByTestId("sheet-budget-under200"));
-    expect(screen.getByTestId("filter-chip-budget").textContent).toBe("Under $200.00");
+    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00");
   });
 });

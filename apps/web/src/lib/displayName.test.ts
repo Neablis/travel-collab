@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayNameFor } from "./displayName";
+import { displayNameFor, firstNameOf } from "./displayName";
 
 // The M17 seam, and — since 2026-09-01 — the guarantee that no raw identifier
 // reaches a reader. Mitchell, on the shared-day screen: "Dont show the UUID in
@@ -81,5 +81,26 @@ describe("displayNameFor", () => {
 
   it("says something rather than nothing for an id with no readable characters", () => {
     expect(displayNameFor({ userId: "---" })).toBe("A traveler");
+  });
+});
+
+// One "first word of a name" for the invite landing, its look-first view and
+// Cass's greeting — four copies of the same split until M27's review.
+describe("firstNameOf", () => {
+  it("is the first word of whatever it is given", () => {
+    expect(firstNameOf("  Dana   Reyes ")).toBe("Dana");
+    // The landing's crew line has no handle to refuse, so a handle is a name
+    // to it — the behaviour those callers had before the helper.
+    expect(firstNameOf("Traveler 4f2a91")).toBe("Traveler");
+    expect(firstNameOf("   ")).toBe("");
+  });
+
+  // Given the handle, a greeting refuses what is not a name somebody has:
+  // "Hi Traveler," and "Hi sam@example.com," are not greetings.
+  it("takes a first name from a real name only, when told the handle", () => {
+    expect(firstNameOf("Sam Rivera", "Traveler 4f2a91")).toBe("Sam");
+    expect(firstNameOf("Traveler 4f2a91", "Traveler 4f2a91")).toBeNull();
+    expect(firstNameOf("sam@example.com", "Traveler 4f2a91")).toBeNull();
+    expect(firstNameOf("   ", "Traveler 4f2a91")).toBeNull();
   });
 });

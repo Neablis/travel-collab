@@ -266,6 +266,9 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
   return amountMinor >= BUDGET_BAND_EDGES.oneThousand; // over1000, the only band left standing
 }
 
+/** How many stop rows a Discover card shows — `dc.html:5795`'s `slice(0, 3)`. */
+export const DISCOVER_PREVIEW_STOPS = 3;
+
 /**
  * One Discover card. Deliberately NOT a `SavedDay`.
  *
@@ -273,7 +276,9 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
  * whole day costs, which of its cities the query matched — and never the stops
  * themselves, which are the heavy half of a `SavedDay` and are what the shared
  * day route exists to show. Sending 30 days' stop arrays to render 30 summary
- * cards would be sending the whole library on every keystroke.
+ * cards would be sending the whole library on every keystroke. The one
+ * exception is `preview`: at most `DISCOVER_PREVIEW_STOPS` stops, each cut
+ * down to the two strings the card draws.
  */
 export const DiscoverDay = z.object({
   savedDayId: z.string().uuid(),
@@ -301,6 +306,25 @@ export const DiscoverDay = z.object({
   dayCount: z.number().int().min(1),
   /** First stop's start to last stop's end; null when no stop carries a time, and null for any Playbook over one day (ADR-048). */
   window: TimeWindow.nullable(),
+  /**
+   * The card's stop rows (M27 link 10; `dc.html:2645`, built at `dc.html:5795`):
+   * the first `DISCOVER_PREVIEW_STOPS` stops of the Playbook's FIRST day, each
+   * as its start time and title — nothing else, because nothing else is drawn.
+   *
+   * Day one for every Playbook, one day or several — the design's own rule
+   * (*"Previews everywhere else show one day — for a multi-day Playbook that is
+   * day one"*) and Mitchell's for link 10: the two kinds look the same. The
+   * card already says "3 days" on its facts line; the rows do not re-say it.
+   * No "+N more" line either: the design draws none, and `stopCount` is on
+   * the line above.
+   *
+   * `start` is the stored 24-hour `HH:MM`, formatted at render
+   * (`toClockLabel`); null for a stop with no time, which renders an empty
+   * time cell as the shared-day list does.
+   */
+  preview: z
+    .array(z.object({ title: z.string(), start: z.string().nullable() }))
+    .max(DISCOVER_PREVIEW_STOPS),
   /**
    * Sum of the day's priced stops; null when nothing is priced or currencies
    * disagree. The day's TOTAL — nothing divides it by a traveller count,

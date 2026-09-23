@@ -58,5 +58,7 @@ test("sign in, create a trip, see it in the list", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
   await createEmptyTripViaWizard(page, tripName);
 
-  await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
+  // No `level`: since SPEC §35.2 a new trip is the hero's level-2 heading, or
+  // a card's level-3 one if another spec's trip landed after it — never both.
+  await expect(page.getByRole("heading", { name: tripName })).toBeVisible();
 });

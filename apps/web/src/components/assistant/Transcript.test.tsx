@@ -154,20 +154,51 @@ describe("Transcript", () => {
   // mark is the observable difference a test can hold without touching class
   // names — the wall bans `toHaveClass` and `.className` in tests, and it is
   // right to: a class assertion passes on markup nobody can see.
-  it("marks the assistant's turns in the chat look, and leaves prose unmarked", () => {
-    const { unmount } = render(<Transcript turns={THREAD} />);
-    // Default: no mark anywhere. Passing nothing is what the panel does.
-    expect(screen.queryByText("C")).toBeNull();
+  //
+  // §35.8 gave the chat look a speaker: Cass's face and name, **once per run**
+  // of assistant turns, the way any chat lines a burst of messages up under
+  // one avatar. Two runs here — the opening pair, and the answer after the
+  // reader's question — so two faces and two names, not three.
+  it("names Cass once per run of turns in the chat look, and leaves prose unmarked", () => {
+    const runs: AssistantTurn[] = [
+      { id: "a0", role: "assistant", text: "Hi, it’s Cass.", tools: [], pending: false },
+      { id: "a1", role: "assistant", text: "Where are you going?", tools: [], pending: false },
+      { id: "u1", role: "user", text: "Lisbon" },
+      { id: "a2", role: "assistant", text: "Lisbon, good.", tools: [], pending: false },
+    ];
+    const { unmount } = render(<Transcript turns={runs} />);
+    // Default: no mark and no name. Passing nothing is what the panel does,
+    // and §35.8 says in as many words not to rename the panel's assistant.
+    expect(screen.queryAllByTestId("cass-mark")).toHaveLength(0);
+    expect(screen.queryByText("Cass")).toBeNull();
     unmount();
 
-    render(<Transcript turns={THREAD} look="chat" />);
-    // One per assistant turn, and `aria-hidden` so it is not read aloud before
-    // every line — the log's turn order already carries who is speaking.
-    const marks = screen.getAllByText("C");
+    render(<Transcript turns={runs} look="chat" />);
+    const marks = screen.getAllByTestId("cass-mark");
     expect(marks).toHaveLength(2);
+    // `aria-hidden`: the name beside it is text, and says it better.
     for (const mark of marks) expect(mark.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getAllByText("Cass")).toHaveLength(2);
+    expect(screen.getAllByText("Trip planner")).toHaveLength(2);
     // The words are unchanged: this is a presentation change, not a content one.
-    expect(screen.getByRole("log").textContent).toContain("What's planned for day 3?");
+    expect(screen.getByRole("log").textContent).toContain("Where are you going?");
+  });
+
+  // The typing row (§35.8, M27 D14) is the chat look's pending turn: a
+  // labelled status in place of "Thinking…", saying why the dock went away.
+  it("draws a pending chat turn as Cass typing, with its line if it has one", () => {
+    render(
+      <Transcript
+        look="chat"
+        turns={[
+          { id: "u1", role: "user", text: "Slow" },
+          { id: "typing", role: "assistant", text: "Drafting the trip…", tools: [], pending: true },
+        ]}
+      />,
+    );
+    const row = screen.getByRole("status", { name: "Cass is typing" });
+    expect(row.textContent).toBe("Drafting the trip…");
+    expect(screen.queryByText("Thinking…")).toBeNull();
   });
 
   it("renders a consumer's footer under each turn, and nothing when none is given", () => {
@@ -265,7 +296,7 @@ describe("Transcript — what a screen reader is told", () => {
         ]}
       />,
     );
-    expect(announcer()).toContain("A proposed change is waiting for your review below.");
+    expect(announcer()).toContain("A suggested change is waiting below — make it, or leave it as it is.");
   });
 
   it("says nothing at all about an empty thread", () => {
@@ -336,26 +367,26 @@ describe("Transcript proposals", () => {
 
   it("renders no card on an answer that proposed nothing", () => {
     render(<Transcript turns={THREAD} />);
-    expect(screen.queryByRole("region", { name: "Proposed change" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Suggested change" })).toBeNull();
   });
 
   it("renders one card per proposing answer, under its prose", () => {
     render(<Transcript turns={threadWithTwo} />);
-    expect(screen.getAllByLabelText("Proposed change")).toHaveLength(2);
+    expect(screen.getAllByRole("group", { name: "Suggested change" })).toHaveLength(2);
   });
 
   it("approves the turn the card belongs to, not the first one in the thread", () => {
     const onApproveProposal = vi.fn();
     render(<Transcript turns={threadWithTwo} onApproveProposal={onApproveProposal} onRejectProposal={vi.fn()} />);
     // Only the pending one offers Approve — the applied one is done.
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Make the change" }));
     expect(onApproveProposal).toHaveBeenCalledWith("a2");
   });
 
   it("rejects the turn the card belongs to", () => {
     const onRejectProposal = vi.fn();
     render(<Transcript turns={threadWithTwo} onApproveProposal={vi.fn()} onRejectProposal={onRejectProposal} />);
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(onRejectProposal).toHaveBeenCalledWith("a2");
   });
 
@@ -368,6 +399,6 @@ describe("Transcript proposals", () => {
         approvalBlockedReason="You have view-only access to this trip."
       />,
     );
-    expect((screen.getByRole("button", { name: "Approve" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Make the change" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

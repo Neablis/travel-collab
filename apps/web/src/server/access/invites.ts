@@ -3,13 +3,12 @@ import { and, eq, ne } from "drizzle-orm";
 import type {
   CreateInviteInput,
   TripDetail,
-  InvitePreview,
   InviteRole,
   InviteStatus,
   TripInvite,
 } from "@tc/contracts";
 import { db } from "../db/client";
-import { tripInvites, users } from "../db/schema";
+import { tripInvites } from "../db/schema";
 import { isUuid } from "../ids";
 import { getTripDetail } from "../projections";
 import { grantMembership, grantedMembers, mergeMembers, revokeMembership } from "./members";
@@ -183,67 +182,50 @@ async function findByToken(token: string): Promise<InviteRow | undefined> {
 }
 
 /**
- * What the accept screen renders. Deliberately readable by someone who is not
- * a member — that is the entire point of an invite — and deliberately thin:
- * a trip name, the role on offer, and nothing about who else is on the trip.
+ * An invite as its token names it, for the landing (M27 link 6) — or null.
  *
- * A spent or revoked token now discloses nothing at all. This never gated on
- * `status`, so revoking a link stopped it being *usable* but left it
- * answering with the trip's name, the role and the inviter's name forever, to
- * whoever still held it (PR #71 review §7).
- *
- * The refusal borrows `acceptInvite`'s wording for the same two situations
- * rather than the unknown-token wording. Accept already tells a holder which
- * of the two happened, so repeating it here reveals nothing new, and the
- * accept screen has no other way to explain why the Join button went away —
- * `e2e/m11-invites.spec.ts` ("a revoked link stops working") asserts exactly
- * that sentence.
- *
- * The one exception is a viewer who is already on the trip: the name and the
- * roles are readable through the trip itself, so there is nothing left to
- * withhold, and gating them would turn "follow your own link twice" — which
- * this screen answers with "Open the trip" — into a dead end.
+ * Just the row: whether the reader may see anything about the TRIP is decided
+ * by the caller, `server/inviteLanding.ts`, because this module does not know
+ * what a trip contains (AGENTS.md module map). The `token` is deliberately not
+ * echoed back — the caller already holds it, and the owner's `TripInvite` is
+ * the only DTO that carries one.
  */
-export async function previewInvite(
+export async function inviteByToken(
   token: string,
-  viewerId: string,
-): Promise<AccessResult<InvitePreview>> {
+): Promise<Pick<TripInvite, "tripId" | "role" | "status" | "email" | "invitedBy" | "createdAt"> | null> {
   const row = await findByToken(token);
-  if (row === undefined) {
-    return { ok: false, error: { code: "not-found", message: "This invite link is not valid." } };
-  }
-  const detail = await getTripDetail(row.tripId);
-  if (detail === null || detail.status === "deleted") {
-    return { ok: false, error: { code: "gone", message: "This trip is no longer available." } };
-  }
-  const granted = await grantedMembers(db, row.tripId);
-  const alreadyMember =
-    detail.members.some((m) => m.userId === viewerId) || granted.some((m) => m.userId === viewerId);
-  if (row.status !== "pending" && !alreadyMember) {
-    return {
-      ok: false,
-      error: {
-        code: "gone",
-        message:
-          row.status === "revoked"
-            ? "This invite has been revoked."
-            : "This invite has already been used.",
-      },
-    };
-  }
-  const inviter = await db.select().from(users).where(eq(users.id, row.invitedBy));
-  return {
-    ok: true,
-    value: {
-      tripId: row.tripId,
-      tripName: detail.name,
-      role: row.role as InviteRole,
-      status: row.status as InviteStatus,
-      invitedByName: inviter[0]?.name ?? null,
-      alreadyMember,
-    },
-  };
+  if (row === undefined) return null;
+  const { tripId, role, status, email, invitedBy, createdAt } = toDto(row);
+  return { tripId, role, status, email, invitedBy, createdAt };
 }
+
+/**
+ * Whether `token` is a PENDING invite to exactly `tripId` — the whole of the
+ * check behind *Have a look first* (M27 D12, `requireTripAccess`'s
+ * `inviteToken`).
+ *
+ * All three conditions are in the one WHERE, so there is no row to misread: an
+ * accepted or revoked token, or a pending token for a different trip, simply
+ * matches nothing. A token longer than any this module mints is refused before
+ * the query — it arrives in a request header anyone can set.
+ */
+export async function isPendingInviteFor(token: string, tripId: string): Promise<boolean> {
+  if (token.length === 0 || token.length > MAX_TOKEN_LENGTH || !isUuid(tripId)) return false;
+  const rows = await db
+    .select({ id: tripInvites.id })
+    .from(tripInvites)
+    .where(
+      and(
+        eq(tripInvites.token, token),
+        eq(tripInvites.tripId, tripId),
+        eq(tripInvites.status, "pending"),
+      ),
+    );
+  return rows.length > 0;
+}
+
+/** `mintToken`'s 32 bytes are 43 base64url characters; this is generous headroom. */
+const MAX_TOKEN_LENGTH = 256;
 
 /**
  * Single-use by construction: the status flip and the membership grant happen

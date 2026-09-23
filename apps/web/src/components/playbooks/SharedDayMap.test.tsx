@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
+import { setViewportMatches } from "../../../vitest.setup";
 
 // MapLibre needs a WebGL context, which jsdom does not have, so the real module
 // can never run here. The fake below is deliberately thin — it records what was
@@ -119,25 +121,127 @@ async function settle() {
   await vi.waitFor(() => expect(added.markers.length + added.layers.length).toBeGreaterThan(0));
 }
 
+/** Placed only at its city's centre — what the read-time backfill writes when a venue is not corroborated. */
+function inCity(city: string, lat: number, lng: number, over: Partial<SavedStop> = {}): SavedStop {
+  return stop({ ...over, location: { name: "Somewhere", city, lat, lng, precision: "city" } });
+}
+
 describe("SharedDayMap", () => {
-  // SPEC §16: below two located stops the surface degrades to LIST-ONLY. One
-  // pin on a world map tells a reader less than the city name in the list does.
-  it("draws nothing when only one stop has coordinates", () => {
-    const { container } = render(
+  // **The frame is always there** (M27 link 10). SPEC §16 had this component
+  // render nothing below two located stops; Mitchell retired that — "Every
+  // playbook should have maps" — and then ruled out any state that changes the
+  // frame's height, so the page never reflows. These replace the two tests
+  // that asserted `innerHTML === ""`.
+  it("holds the full-height frame, empty and saying so, when nothing can be placed", () => {
+    render(<SharedDayMap savedDayId={DAY_ID} days={[{ dayIndex: 0, stops: [stop(), stop()] }]} scope="all" />);
+    expect(screen.getByTestId("shared-day-map-frame")).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeDefined();
+    expect(
+      screen.getByText("None of these stops has a place pinned to it, so there's no route to draw."),
+    ).toBeDefined();
+    expect(screen.queryByTestId("shared-day-map")).toBeNull();
+  });
+
+  it("holds the same frame, loading, while the server is pinning the stops", () => {
+    render(
+      <SharedDayMap savedDayId={DAY_ID} days={[{ dayIndex: 0, stops: [stop(), stop()] }]} scope="all" pinning />,
+    );
+    expect(screen.getByTestId("shared-day-map-frame")).toBeDefined();
+    expect(screen.getByTestId("shared-day-map-loading")).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Nothing to map yet" })).toBeNull();
+  });
+
+  // **No reflow, as jsdom can see it.** jsdom has no layout, so the height
+  // itself is measured in the browser lane (`m26-shared-day-map.spec.ts`
+  // asserts the empty frame's 344px). What can be asserted here is the thing
+  // that makes one height possible: the page keeps ONE frame element while
+  // the state inside it changes — loading, then the map arriving, then the
+  // scope moving to a day with nothing to place.
+  it("keeps one frame element while its contents go from loading to a map to empty", async () => {
+    const unplaced = [{ dayIndex: 0, stops: [stop(), stop()] }];
+    const placed = [
+      { dayIndex: 0, stops: [located(35.0, 135.7), located(35.02, 135.75)] },
+      { dayIndex: 1, stops: [stop({ dayIndex: 1 })] },
+    ];
+    const { rerender } = render(<SharedDayMap savedDayId={DAY_ID} days={unplaced} scope="all" pinning />);
+    const frame = screen.getByTestId("shared-day-map-frame");
+
+    rerender(<SharedDayMap savedDayId={DAY_ID} days={placed} scope="all" />);
+    expect(screen.getByTestId("shared-day-map-frame")).toBe(frame);
+    expect(within(frame).getByTestId("shared-day-map")).toBeDefined();
+    await settle();
+
+    rerender(<SharedDayMap savedDayId={DAY_ID} days={placed} scope={1} />);
+    expect(screen.getByTestId("shared-day-map-frame")).toBe(frame);
+    expect(within(frame).getByRole("heading", { name: "Nothing to map yet" })).toBeDefined();
+  });
+
+  // A lone pin is something to place, so it is placed — with no line, and a
+  // note that says why there is none.
+  it("draws a lone located stop as a pin, with no route", async () => {
+    render(
       <SharedDayMap
         savedDayId={DAY_ID}
         days={[{ dayIndex: 0, stops: [located(35.0, 135.7), stop()] }]}
         scope="all"
       />,
     );
-    expect(container.innerHTML).toBe("");
+    expect(screen.getByTestId("shared-day-map").getAttribute("aria-label")).toBe("Map of 1 located stop");
+    await settle();
+    expect(added.markers.map((m) => m.dataset.testid)).toEqual(["shared-day-pin"]);
+    const geojson = added.sources["shared-day-route"] as { data: { features: unknown[] } };
+    expect(geojson.data.features).toEqual([]);
+    expect(
+      within(screen.getByTestId("shared-day-map-panel")).getByText(
+        "Only one stop is pinned so far, so there's no route to draw yet.",
+      ),
+    ).toBeDefined();
+    expect(screen.queryByTestId("shared-day-map-legend")).toBeNull();
   });
 
-  it("draws nothing when no stop has coordinates at all", () => {
-    const { container } = render(
-      <SharedDayMap savedDayId={DAY_ID} days={[{ dayIndex: 0, stops: [stop(), stop()] }]} scope="all" />,
+  // **The city-level fallback.** Mitchell's own Playbook, after the backfill
+  // could corroborate none of its venues: every stop at Kyoto's centre. One
+  // disc for the city, no numbered pins stacked on it, no route.
+  it("frames the city when the stops are placed only at its centre", async () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[
+          { dayIndex: 0, stops: [inCity("Kyoto", 35.01, 135.77), inCity("Kyoto", 35.01, 135.77)] },
+          { dayIndex: 1, stops: [inCity("Nara", 34.68, 135.8)] },
+        ]}
+        scope="all"
+      />,
     );
-    expect(container.innerHTML).toBe("");
+    expect(screen.getByTestId("shared-day-map").getAttribute("aria-label")).toBe("Map of Kyoto, Nara");
+    await settle();
+    expect(added.markers.map((m) => [m.dataset.testid, m.dataset.city])).toEqual([
+      ["shared-day-city", "Kyoto"],
+      ["shared-day-city", "Nara"],
+    ]);
+    const geojson = added.sources["shared-day-route"] as { data: { features: unknown[] } };
+    expect(geojson.data.features).toEqual([]);
+    const panel = screen.getByTestId("shared-day-map-panel");
+    expect(
+      within(panel).getByText("The stops aren't pinned on the map yet — here's where the day happens."),
+    ).toBeDefined();
+    // No walking facts: there is no walk to measure.
+    expect(within(panel).queryByText("Widest point to point")).toBeNull();
+    expect(within(screen.getByTestId("shared-day-map-legend")).getByText("Somewhere in this city")).toBeDefined();
+  });
+
+  it("follows the day tabs: a day with nothing placeable shows the empty frame", () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[
+          { dayIndex: 0, stops: [inCity("Kyoto", 35.01, 135.77)] },
+          { dayIndex: 1, stops: [stop({ location: null, dayIndex: 1 })] },
+        ]}
+        scope={1}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeDefined();
   });
 
   it("renders a map once two stops are located", async () => {
@@ -239,5 +343,76 @@ describe("SharedDayMap", () => {
       data: { features: { properties: { contiguous: boolean } }[] };
     };
     expect(source.data.features.map((f) => f.properties.contiguous)).toEqual([false]);
+  });
+
+  // A ride is DOTTED, and the legend only offers "By train or taxi" when the
+  // map is drawing one — the same `isRideLeg` decides both.
+  it("draws a ride as its own layer and keys it in the legend", async () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[{ dayIndex: 0, stops: [located(35.0, 135.0), located(35.0, 135.1)] }]}
+        scope="all"
+      />,
+    );
+    await settle();
+    expect(added.layers.map((l) => l.id)).toContain("shared-day-route-ride");
+    const source = added.sources["shared-day-route"] as { data: { features: { properties: { ride: boolean } }[] } };
+    expect(source.data.features.map((f) => f.properties.ride)).toEqual([true]);
+    expect(screen.getByTestId("shared-day-map-legend").textContent).toContain("By train or taxi");
+  });
+
+  it("keys only On foot for a day walked end to end", async () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[{ dayIndex: 0, stops: [located(35.0, 135.0), located(35.0, 135.01)] }]}
+        scope="all"
+      />,
+    );
+    await settle();
+    const legend = screen.getByTestId("shared-day-map-legend");
+    expect(legend.textContent).toContain("On foot");
+    expect(legend.textContent).not.toContain("By train or taxi");
+  });
+});
+
+// `dc.html:1196-1226`: on a phone the route waits behind a "Show route" row.
+describe("SharedDayMap on a phone", () => {
+  beforeEach(() => setViewportMatches({ "(max-width: 767px)": true }));
+  afterEach(() => {
+    cleanup();
+    setViewportMatches({});
+  });
+
+  it("shows the route row closed, and builds the map only once it is opened", async () => {
+    render(
+      <SharedDayMap
+        savedDayId={DAY_ID}
+        days={[{ dayIndex: 0, stops: [located(35.0, 135.7), located(35.02, 135.75)] }]}
+        scope="all"
+      />,
+    );
+    const toggle = await screen.findByTestId("shared-day-route-toggle");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toContain("Show route");
+    expect(screen.queryByTestId("shared-day-map")).toBeNull();
+    expect(added.markers).toHaveLength(0);
+
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("shared-day-map")).toBeDefined();
+    await settle();
+    expect(added.markers).toHaveLength(2);
+  });
+
+  // The phone keeps its "Show route" row in every state (Mitchell), and opening
+  // it shows the same fixed-height frame the map would fill.
+  it("keeps the route row with nothing to place, and opens onto the empty frame", async () => {
+    render(<SharedDayMap savedDayId={DAY_ID} days={[{ dayIndex: 0, stops: [stop(), stop()] }]} scope="all" />);
+    const toggle = await screen.findByTestId("shared-day-route-toggle");
+    expect(toggle.textContent).toContain("Nothing to map yet");
+    await userEvent.click(toggle);
+    expect(within(screen.getByTestId("shared-day-map-frame")).getByRole("heading", { name: "Nothing to map yet" })).toBeDefined();
   });
 });

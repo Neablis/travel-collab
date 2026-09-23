@@ -46,6 +46,19 @@ describe("M2 history contracts", () => {
     expect(TripEvent.parse({ type: "ConflictUndismissed", version: 1, payload: { tripId, conflictId: "x:y:z" } }).type).toBe("ConflictUndismissed");
   });
 
+  // Optional, so every existing `{ type, tripId }` caller is unchanged; when
+  // present it must be a batch id, or the domain's comparison is meaningless.
+  it("UndoLastChange carries an optional undoesBatchId precondition", () => {
+    const tripId = "7d9a1f8e-0000-4000-8000-00000000000a";
+    const batchId = "7d9a1f8e-0000-4000-8000-00000000000b";
+    expect(TripCommand.parse({ type: "UndoLastChange", tripId, undoesBatchId: batchId })).toEqual({
+      type: "UndoLastChange",
+      tripId,
+      undoesBatchId: batchId,
+    });
+    expect(() => TripCommand.parse({ type: "UndoLastChange", tripId, undoesBatchId: "head" })).toThrow();
+  });
+
   it("TripHistory round-trips", () => {
     const tripId = "7d9a1f8e-0000-4000-8000-00000000000a";
     const history = {

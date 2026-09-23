@@ -139,7 +139,7 @@ const arbitraryValue = /className={?["'`][^"'`]*\[/;
 const globalsCss = readFileSync("apps/web/src/app/globals.css", "utf8");
 
 // Only `@theme` mints a utility. `globals.css` also restates many of the same
-// `--color-*` names inside `html[data-look=…]` blocks, and those are look
+// `--color-*` names inside the `html[data-look="ledger"]` block, and those are
 // overrides of a token that already exists — a name that appeared ONLY there
 // would yield no utility, so parsing the whole file would accept a class that
 // renders nothing. Braces are matched rather than regexed because `@theme`

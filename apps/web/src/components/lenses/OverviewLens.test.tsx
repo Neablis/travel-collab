@@ -138,6 +138,42 @@ describe("OverviewLens — the chrome does not wait for the data", () => {
   });
 });
 
+// M27 D6. A trip of its own, because `cachedRead` keeps an ok answer and the
+// re-read suite below counts reads against `TRIP_ID`'s cache.
+describe("OverviewLens — Edit, once the page is known", () => {
+  const OWN_TRIP = "0b1c2d3e-4f50-4617-8a9b-0c1d2e3f4a5b";
+  const ownPages = {
+    ...okPages,
+    value: { ...okPages.value, pages: okPages.value.pages.map((p) => ({ ...p, tripId: OWN_TRIP })) },
+  };
+
+  // The page opens in Editing and its first crumb comes back here by name —
+  // both read `?from=overview` (PageScreen). Without it the Edit button would
+  // land the reader in Reading, one more click from what they asked for.
+  it("opens the page for editing, saying it came from Overview", async () => {
+    fetchPagesMock.mockResolvedValue(ownPages);
+    fetchPageMock.mockResolvedValue(okPageDoc("Dear crew"));
+    render(<OverviewLens detail={tripDetailFixture()} tripId={OWN_TRIP} />);
+
+    expect(await screen.findByText("Dear crew")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Edit" }).getAttribute("href")).toBe(
+      `/trips/${OWN_TRIP}/pages/${OVERVIEW_PAGE_ID}?from=overview`,
+    );
+  });
+
+  // Before M27 a viewer saw Edit too, and it led to a page they could only
+  // read. The letter is still theirs to read; only the action goes.
+  it("offers no Edit to a viewer", async () => {
+    fetchPagesMock.mockResolvedValue(ownPages);
+    fetchPageMock.mockResolvedValue(okPageDoc("Dear crew"));
+    render(<OverviewLens detail={tripDetailFixture()} tripId={OWN_TRIP} readOnly />);
+
+    expect(await screen.findByText("Dear crew")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Edit" })).toBeNull();
+    expect(screen.getByText("Overview")).toBeTruthy();
+  });
+});
+
 // **The reported bug's last mile.** Mitchell, 2026-09-22: two devices, one
 // editing the Overview notebook, the other sat on this tab and never seeing it
 // until a refresh. Three things were wrong; the first two were server-side

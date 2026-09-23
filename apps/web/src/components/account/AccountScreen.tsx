@@ -6,7 +6,6 @@ import { signOut } from "next-auth/react";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
-import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { UnderlineTabs, tabId, tabPanelId } from "@/components/ui/underline-tabs";
 import { SETTINGS_MEASURE } from "@/components/ui/settings-card";
@@ -27,30 +26,38 @@ import { TokensSection } from "./TokensSection";
 // back button walks, a link somebody can send, and the target `/plans` returns
 // to (`?tab=plan`). Component state would give none of the three.
 //
-// **A tab's label is the section's heading.** `PlanSection` and `TokensSection`
-// dropped their own `<Heading>` and the `aria-labelledby` that pointed at it
-// when they moved here: the tab panel does the labelling now, and keeping both
-// is project rule 4 twice on one screen.
+// **A tab's label is the section's heading.** `PlanSection` dropped its own
+// `<Heading>` and the `aria-labelledby` that pointed at it when it moved here:
+// the tab panel does the labelling now, and keeping both is project rule 4
+// twice on one screen.
+//
+// **Two tabs; API tokens is a sub-view of Profile, not a third tab** (SPEC
+// §35.4, M27 D7). Most people never write a program against their trips, so
+// the strip stops advertising it; Profile ends with a quiet link instead.
+// `?tab=tokens` stays the sub-view's URL — deep links and bookmarks from when
+// it was a tab still land on it — and while it is showing, NEITHER tab is
+// selected. It carries its own `← Profile` and H3, because no tab names it.
 const TABS = [
   { value: "profile", label: "Profile" },
   { value: "plan", label: "Plan & usage" },
-  { value: "tokens", label: "API tokens" },
 ] as const;
 
-type AccountTab = (typeof TABS)[number]["value"];
+type AccountView = (typeof TABS)[number]["value"] | "tokens";
 
 const ID_PREFIX = "account";
+const TOKENS_HEADING_ID = "account-tokens-heading";
 
 /**
- * Which tab a query parameter names.
+ * Which view a query parameter names: one of the two tabs, or the tokens
+ * sub-view.
  *
  * Anything unrecognised — absent, misspelt, or an old link from before a tab
  * was renamed — resolves to Profile rather than rendering an empty page. A
  * settings URL someone bookmarked should not be able to rot into a blank
  * screen.
  */
-export function accountTabFrom(raw: string | null): AccountTab {
-  return TABS.some((t) => t.value === raw) ? (raw as AccountTab) : "profile";
+export function accountTabFrom(raw: string | null): AccountView {
+  return raw === "tokens" || TABS.some((t) => t.value === raw) ? (raw as AccountView) : "profile";
 }
 
 export function AccountScreen() {
@@ -83,16 +90,11 @@ export function AccountScreen() {
           &lsaquo; Trips
         </Link>
 
-        <div className="flex flex-col gap-1.5">
-          <Heading level={1}>Account</Heading>
-          <Text variant="secondary" className="max-w-155 text-pretty">
-            Everything true of you across every trip. Anything that belongs to one trip — who is
-            invited, its budget, its dates — lives in that trip&rsquo;s own settings.
-          </Text>
-        </div>
+        {/* No explanatory paragraph under the heading (SPEC §35.4). */}
+        <Heading level={1}>Account</Heading>
 
         <UnderlineTabs
-          value={tab}
+          value={tab === "tokens" ? null : tab}
           onValueChange={(next) => {
             // `push`, not `replace`: the gate asks for a URL the browser back
             // button walks, and `replace` would make the tabs a dead end you
@@ -111,12 +113,15 @@ export function AccountScreen() {
             The cost is a fetch per tab visit, which is what a route is. */}
         {/* **The 580px measure is the panel's, not each section's** (§34.5:
             *"every panel on Account sits on a 580px measure"*; the artboard
-            puts it on each tab's content div). One place, so a fourth tab
-            cannot arrive a little wider than the other three. */}
+            puts it on each tab's content div). One place, so a third view
+            cannot arrive a little wider than the other two. */}
+        {/* The tokens sub-view is not a tab's panel — no tab controls it — so
+            it is a region named by its own H3 rather than a `tabpanel`
+            pointing at a tab that does not exist. */}
         <div
-          role="tabpanel"
+          role={tab === "tokens" ? "region" : "tabpanel"}
           id={tabPanelId(ID_PREFIX, tab)}
-          aria-labelledby={tabId(ID_PREFIX, tab)}
+          aria-labelledby={tab === "tokens" ? TOKENS_HEADING_ID : tabId(ID_PREFIX, tab)}
           tabIndex={-1}
           className={SETTINGS_MEASURE}
         >
@@ -126,10 +131,36 @@ export function AccountScreen() {
               resolves tells a signed-in reader something false about their own
               account. */}
           {tab === "profile" && (
-            <ProfileSection email={user === undefined ? undefined : (user?.email ?? "")} />
+            <ProfileSection
+              email={user === undefined ? undefined : (user?.email ?? "")}
+              onOpenTokens={() => router.push("/account?tab=tokens")}
+            />
           )}
           {tab === "plan" && <PlanSection />}
-          {tab === "tokens" && <TokensSection />}
+          {/* The way back and the heading live HERE rather than inside
+              `TokensSection`, which renders nothing until its fetches resolve:
+              the region's `aria-labelledby` has to name something that exists
+              from the first paint, and the way back must not wait on a fetch. */}
+          {tab === "tokens" && (
+            <div className="flex flex-col gap-4">
+              {/* The artboard's bare text button, as a ghost `sm`: the same
+                  slate 13px at rest, and the primitive brings §13.1's 44px
+                  phone floor. `-ml-2.5` cancels `sm`'s padding so the arrow
+                  lines up with the heading, as `account-done` does above. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/account")}
+                className="-ml-2.5 self-start whitespace-nowrap"
+              >
+                &larr; Profile
+              </Button>
+              <Heading level={3} id={TOKENS_HEADING_ID}>
+                API tokens
+              </Heading>
+              <TokensSection />
+            </div>
+          )}
         </div>
 
         {/* **Sign out, on the phone only, below the tabs** — and this is the

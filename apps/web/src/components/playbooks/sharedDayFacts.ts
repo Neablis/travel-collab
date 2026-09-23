@@ -1,6 +1,6 @@
 import { kmLabel } from "@/lib/units";
 import { haversineKm } from "@/lib/geo";
-import type { DayGeometry } from "./sharedDayGeometry";
+import type { DayGeometry, MapLeg } from "./sharedDayGeometry";
 import { allPoints } from "./sharedDayGeometry";
 
 /** `MapHoverCard`'s idiom: take the unit off `kmLabel` rather than widening
@@ -57,7 +57,22 @@ export type MapPanel = {
   note: string;
   /** Keyed by the stop NUMBER the list shows, for the line under that stop. */
   gaps: ReadonlyMap<number, string>;
+  /**
+   * Whether any leg in view is a ride — what decides if the legend says "By
+   * train or taxi" at all (`dc.html` `hasRides`). A legend entry for a line
+   * style the map is not drawing would be a key to nothing.
+   */
+  hasRides: boolean;
 };
+
+/**
+ * A leg is a ride when it is longer than a walk anybody would take — the one
+ * rule both the panel's numbers and the map's dotted line read, so the legend
+ * and the facts beside it cannot disagree about which legs were ridden.
+ */
+export function isRideLeg(leg: Pick<MapLeg, "from" | "to">): boolean {
+  return haversineKm(leg.from, leg.to) > RIDE_ABOVE_KM;
+}
 
 /** A ride's minutes, at a pace that rises with its length. */
 function rideMinutes(km: number): number {
@@ -97,7 +112,7 @@ export function mapPanel(geometry: readonly DayGeometry[], unit: DistanceUnit): 
       if (!leg.contiguous) continue;
 
       const km = haversineKm(leg.from, leg.to);
-      const ride = km > RIDE_ABOVE_KM;
+      const ride = isRideLeg(leg);
       const mins = ride ? rideMinutes(km) : Math.max(MIN_WALK_MINS, Math.round(km / WALK_KM_PER_MIN));
       if (ride) {
         rideKm += km;
@@ -126,8 +141,14 @@ export function mapPanel(geometry: readonly DayGeometry[], unit: DistanceUnit): 
   const wander = span > SPAN_FLOOR_KM ? total / span : 1;
   const transitShare = total > 0 ? rideKm / total : 0;
 
+  // Several days at once (`All days` on a multi-day Playbook) get the
+  // artboard's own sentence (`dc.html:7840`): "a loop" or "one clean line"
+  // describes ONE day's walk, and said of three days it would describe a route
+  // nobody took, since no line is drawn across a night.
   const note =
-    transitShare > TRANSIT_SHARE && rideMins > TRANSIT_MINS
+    geometry.length > 1
+      ? `All ${geometry.length} days at once. Each day is its own line — nothing is drawn across a night.`
+      : transitShare > TRANSIT_SHARE && rideMins > TRANSIT_MINS
       ? `Mostly transit — about ${minutesLabel(rideMins)} of the day is spent moving.`
       : wander < WANDER_LINE
         ? "One clean line. It never doubles back on itself."
@@ -142,7 +163,7 @@ export function mapPanel(geometry: readonly DayGeometry[], unit: DistanceUnit): 
   }
   facts.push({ key: "Widest point to point", value: kmLabel(span, unit) });
 
-  return { facts, note, gaps };
+  return { facts, note, gaps, hasRides: rideKm > FACT_FLOOR_KM };
 }
 
 /** `Kyoto → Osaka`, or the single city. Empty when no stop names one. */
@@ -150,4 +171,15 @@ export function mapTitle(cities: readonly string[]): string {
   const seen: string[] = [];
   for (const c of cities) if (c !== "" && !seen.includes(c)) seen.push(c);
   return seen.join(" → ");
+}
+
+/**
+ * The focus card's note when the map shows places but no route (M27 link 10).
+ * Says why there is no line, rather than leaving a reader to wonder whether the
+ * map failed to draw one.
+ */
+export function placesNote(pins: number): string {
+  return pins === 0
+    ? "The stops aren't pinned on the map yet — here's where the day happens."
+    : "Only one stop is pinned so far, so there's no route to draw yet.";
 }

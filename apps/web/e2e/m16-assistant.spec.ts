@@ -163,7 +163,7 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // A draft, not "the trip runs to 0 days and has no open time" — which is what
   // it said before, and which is the assistant refusing the question it offered.
   await expect(log).toContainText("Nothing is applied yet");
-  const card = page.getByRole("region", { name: "Proposed change" });
+  const card = page.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
   await expect(card).toContainText("Sample: coffee stop");
   // The trip starts at 0 days — day 1 only exists once /ask/apply has landed
@@ -173,10 +173,10 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // ai.spec.ts's Approve already waits for this response for the same reason).
   const [applied] = await Promise.all([
     page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
-    page.getByRole("button", { name: "Approve" }).click(),
+    page.getByRole("button", { name: "Make the change" }).click(),
   ]);
   expect(applied.status()).toBe(200);
-  await expect(card).toContainText("Applied");
+  await expect(card).toContainText("✓ Done");
 
   // M18 landed on `main` while this spec was in flight: a freshly-added
   // stop's default `kind` is `planned`, and `needsBooking` (KI-86) does not

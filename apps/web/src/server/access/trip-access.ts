@@ -7,6 +7,8 @@ import { getTripDetail } from "../projections";
 import { effectiveMembers } from "./members";
 import { demoTripDetail } from "../demoTrip";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
+import { isPendingInviteFor } from "./invites";
 
 /**
  * "May this session read/act on this trip, and what is the trip?" — the single
@@ -94,12 +96,30 @@ export type TripAccessResult =
 export type TripAccessOptions = {
   /** Serve the built-in demo trip to an anonymous visitor. Reads only. */
   allowDemo?: boolean;
+  /**
+   * The `x-invite-token` header, for *Have a look first* (M27 D12) — pass
+   * {@link inviteTokenOf}`(request)`. OPT-IN for exactly the reason `allowDemo`
+   * is: a route that does not pass it cannot be reached with one, so a write
+   * route is closed by forgetting rather than by remembering.
+   */
+  inviteToken?: string | null;
 };
+
+/**
+ * Who a *Have a look first* reader is, as far as this seam is concerned — the
+ * `DEMO_VISITOR_ID` of an invite. Never an account, never authenticated as one.
+ */
+const INVITE_VISITOR_ID = "invite-visitor";
+
+/** The invite token a *Have a look first* screen sent, or null. */
+export function inviteTokenOf(request: Request): string | null {
+  return request.headers.get(INVITE_TOKEN_HEADER);
+}
 
 export async function requireTripAccess(
   tripId: string,
   minimum: TripRole,
-  { allowDemo = false }: TripAccessOptions = {},
+  { allowDemo = false, inviteToken = null }: TripAccessOptions = {},
 ): Promise<TripAccessResult> {
   // The built-in demo trip (ADR-031), answered here and nowhere else.
   //
@@ -121,6 +141,29 @@ export async function requireTripAccess(
     }
     const detail = demoTripDetail();
     return { userId: DEMO_VISITOR_ID, role: "viewer", detail };
+  }
+  // *Have a look first* (M27 D12): a pending invite's token reads the trip it
+  // was minted for, as a viewer, with or without a session.
+  //
+  // When the header is present it is the ONLY thing consulted — no fallback to
+  // the session. The screen that sends it is a look at somebody else's trip,
+  // and answering it with the reader's own role (were they, say, an editor
+  // there already) would hand a surface built to be read-only a writable board.
+  //
+  // What makes it narrow is `isPendingInviteFor`: token, trip and `pending` in
+  // one WHERE, so an accepted or revoked token, or a live token for a
+  // different trip, is a stranger's 403. The viewer rank does the rest, by the
+  // same rule as the demo above — a viewer executes no planning command.
+  if (inviteToken !== null) {
+    if (RANK_VIEWER_IS_ENOUGH !== minimum || !(await isPendingInviteFor(inviteToken, tripId))) {
+      return { error: DENIAL_RESPONSES.forbidden(tripId) };
+    }
+    const read = await readTrip(tripId, () => true);
+    if (!read.ok) return { error: DENIAL_RESPONSES[read.denial](tripId) };
+    // A deleted trip is served to its MEMBERS (so they can restore it) and to
+    // nobody else; the landing already calls it unavailable.
+    if (read.detail.status === "deleted") return { error: DENIAL_RESPONSES["not-found"](tripId) };
+    return { userId: INVITE_VISITOR_ID, role: "viewer", detail: read.detail };
   }
   const session = await auth();
   if (!session?.user?.id) {
@@ -186,6 +229,24 @@ export async function tripAccessFor(
   tripId: string,
   minimum: TripRole,
 ): Promise<TripAccessOutcome> {
+  const read = await readTrip(tripId, (members) => hasAtLeast(userId, members, minimum));
+  if (!read.ok) return read;
+  return { ok: true, userId, role: memberRole(userId, read.detail.members)!, detail: read.detail };
+}
+
+/**
+ * The trip with its effective member list, parsed — the half of
+ * {@link tripAccessFor} that is not about who is asking, shared with the
+ * invite-token read above.
+ *
+ * `mayRead` is asked BEFORE the parse, and the order is the point: a stranger
+ * asking for a trip whose stored doc is malformed is told `forbidden`, not
+ * `malformed-trip`, which would confirm the trip exists.
+ */
+async function readTrip(
+  tripId: string,
+  mayRead: (members: TripDetail["members"]) => boolean,
+): Promise<{ ok: true; detail: TripDetail } | { ok: false; denial: TripAccessDenial }> {
   // **`getTripDetail` THROWS on a stored doc it cannot parse**, so until this
   // catch existed the `malformed-trip` denial below could only ever fire for
   // the member overlay — the stored-document case it was written for escaped
@@ -207,7 +268,7 @@ export async function tripAccessFor(
   }
   if (projected === null) return { ok: false, denial: "not-found" };
   const members = await effectiveMembers(db, tripId, projected.members);
-  if (!hasAtLeast(userId, members, minimum)) return { ok: false, denial: "forbidden" };
+  if (!mayRead(members)) return { ok: false, denial: "forbidden" };
   const parsed = TripDetail.safeParse({ ...projected, members });
   if (!parsed.success) {
     // The issues are logged because the response deliberately does not carry
@@ -219,7 +280,7 @@ export async function tripAccessFor(
     });
     return { ok: false, denial: "malformed-trip" };
   }
-  return { ok: true, userId, role: memberRole(userId, members)!, detail: parsed.data };
+  return { ok: true, detail: parsed.data };
 }
 
 /**

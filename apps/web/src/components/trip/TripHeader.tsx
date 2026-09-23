@@ -12,6 +12,7 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { isInviteLook } from "@/lib/inviteLook";
 import { cn } from "@/lib/cn";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
@@ -121,10 +122,11 @@ export function TripHeader({
       // FrontDoorHeader instead, which does not stick — so there, offsetting by
       // 56px pins this header 56px down from the top and leaves a see-through
       // strip of scrolled content above it (Mitchell, preview comment on
-      // `/demo`). Nothing is sticky above it there, so it pins to the top.
+      // `/demo`). Nothing is sticky above it there, so it pins to the top. The
+      // same holds for an invite's look screen (M27 D12).
       className={cn(
         "sticky z-10 border-b border-hairline bg-surface px-6 pt-3.5",
-        isDemoTripId(tripId) ? "top-0" : "top-14",
+        isDemoTripId(tripId) || isInviteLook(tripId) ? "top-0" : "top-14",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -146,7 +148,7 @@ export function TripHeader({
               have an account. `DemoTripScreen` renders the front door's own
               header above this one, which is where a signed-out reader's way
               onward belongs. */}
-          {!isDemoTripId(tripId) && (
+          {!isDemoTripId(tripId) && !isInviteLook(tripId) && (
             <nav className="flex w-full items-center justify-between gap-3">
               {/* `min-h-11` and the inline-flex that makes it apply: §22 made
                   this link load-bearing on a phone. Scoping the tab bar removed
@@ -436,8 +438,7 @@ export function TripHeader({
           actions with no equivalent in Trip settings (History is a different
           surface entirely, and re-homing the primary write into a sheet would
           make adding a stop a three-tap operation on the device most likely to
-          be adding one), and the tab strip and day chips are the phone's
-          primary navigation — the chips row is now its main day control.
+          be adding one), and the tab bar is the phone's primary navigation.
 
           Nothing here becomes unreachable. Dates and budget were already
           editable in the sheet (its Dates row and TripMoneySettings); the day,
@@ -447,14 +448,30 @@ export function TripHeader({
           door to it, so the one affordance that disappears on a phone is a
           second doorbell on the same door. */}
       <div data-testid="trip-meta-row" className="mt-2 hidden flex-wrap items-stretch justify-between gap-3 md:flex">
-        <TripMetaPill detail={activeTrip} />
+        {/* `dispatch` straight in, as SettingsSheet's `onCommand` below does:
+            the pill's popover sends the same `SetTripStartDate` its Dates row
+            does, and the provider's viewer gate still refuses it for anyone
+            `readOnly` would have hidden it from. That gate knows nothing of
+            history preview, though — `runDispatch` enqueues against the live
+            trip — so the pill is text while an old seq is on screen, the same
+            `preview.seq` gate undo/redo use. */}
+        <TripMetaPill
+          detail={activeTrip}
+          readOnly={readOnly || preview.seq !== null}
+          onCommand={(command) => void dispatch(command)}
+        />
         <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
       </div>
 
-      {/* Handoff `current/…dc.html:249`: the tab strip and the day-chips row
-          live INSIDE the sticky container, not after it. Before this they
-          scrolled away while the header kept 147px of chrome pinned, so the two
-          rows you actually navigate with were the first things to disappear. */}
+      {/* Handoff `current/…dc.html:249`: the tab strip lives INSIDE the sticky
+          container, not after it. Before this it scrolled away while the header
+          kept 147px of chrome pinned.
+
+          The day-chips row used to sit here too, above the tabs. SPEC §35.3
+          moved it into the Plan tab's body (TripBoardScreen) so that this
+          header is the same height on every tab; with nothing above the tabs,
+          this wrapper's 12px top and bottom are the design's `12px 26px 12px`
+          on its own. */}
       {children !== undefined && <div className="flex flex-col gap-3 pt-3 pb-3">{children}</div>}
 
       <SettingsSheet

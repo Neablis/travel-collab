@@ -27,8 +27,24 @@ vi.mock("@/lib/apiClient", () => ({
   deleteSavedDay: (...a: unknown[]) => deleteSavedDayMock(...a),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+// jsdom has no WebGL, so the real MapLibre cannot run. This screen's tests only
+// ask whether the map is MOUNTED — what it draws is `SharedDayMap.test.tsx`'s —
+// so the fake's style never finishes loading and nothing is ever drawn.
+vi.mock("maplibre-gl", () => {
+  class NeverLoadedMap {
+    on() {}
+    once() {}
+    isStyleLoaded() {
+      return false;
+    }
+    resize() {}
+    remove() {}
+  }
+  class Unused {}
+  return { Map: NeverLoadedMap, Marker: Unused, LngLatBounds: Unused, setWorkerUrl: () => {} };
+});
 
-import { SharedDayScreen } from "./SharedDayScreen";
+import { SharedDayScreen, ledgerLabel } from "./SharedDayScreen";
 
 const DAY_ID = "aa000000-0000-4000-8000-000000000001";
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -92,7 +108,21 @@ beforeEach(() => {
   pushMock.mockReset();
 });
 
-afterEach(cleanup);
+beforeEach(() => {
+  // `createBaseMap` installs one for its 0×0-tile-cover fix; jsdom has none.
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 const renderDay = () =>
   render(<SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks" backLabel="Discover" />);
@@ -217,8 +247,10 @@ describe("a shared day that is a sequence", () => {
     expect(dividers.map((d) => d.textContent)).toContain("Rest day");
   });
 
-  // The one-day case is the ordinary one and must be untouched: no headings, no
-  // rest-day line, and the real clock range back.
+  // The one-day case is the ordinary one: no headings, no rest-day line, and
+  // the SAME rail a sequence gets. It kept a Window row of its own until M27
+  // link 10 (Mitchell: "Multiday and single day playbooks should mostly look the
+  // same other than the day picker") — the range now reads in the title line.
   it("leaves a one-day Playbook with no day headings at all", async () => {
     renderDay();
     const list = await screen.findByTestId("stop-list");
@@ -226,10 +258,7 @@ describe("a shared day that is a sequence", () => {
     const facts = await screen.findByTestId("day-facts");
     expect(within(facts).queryByText("Days")).toBeNull();
     expect(within(facts).queryByText("Spans several days")).toBeNull();
-    // A one-day Playbook keeps its Window row: there is no tab row and no
-    // divider, so this is the only place its clock range appears. Removing it
-    // here would delete a fact rather than de-duplicate one.
-    expect(within(facts).getByText("Window")).toBeTruthy();
+    expect(within(facts).queryByText("Window")).toBeNull();
   });
 
   // **The positive half of the same claim.** The test above only says what is
@@ -238,10 +267,127 @@ describe("a shared day that is a sequence", () => {
   // states its real clock range, and never offers a rest-day line.
   it("still shows a one-day Playbook's own clock range, and no rest-day line", async () => {
     renderDay();
-    const facts = await screen.findByTestId("day-facts");
-    expect(within(facts).getByText("7:30 am – 11:30 am")).toBeTruthy();
+    await screen.findByTestId("day-facts");
+    expect(screen.getByTestId("playbook-meta").textContent).toBe("2 stops · 7:30 am – 11:30 am · kept in August 2026");
     const list = await screen.findByTestId("stop-list");
     expect(within(list).queryByText("Nothing planned — kept as a rest day.")).toBeNull();
+  });
+});
+
+// M27 link 10 — Mitchell: "Every playbook should have maps for instance, not
+// just the multi day ones", and "Multiday and single day playbooks should
+// mostly look the same other than the day picker". So the SAME fixture is
+// rendered as one day and as three, and everything but the picker must match.
+describe("one day or several, a Playbook is laid out the same", () => {
+  const at = (lat: number, lng: number, over: Partial<SavedStop> = {}) =>
+    stop({ ...over, location: { name: "Somewhere", city: "Kyoto", lat, lng } });
+  const located = (dayCount: number) =>
+    savedDay({
+      dayCount,
+      stops: [
+        at(34.9671, 135.7727, { title: "Fushimi Inari", dayIndex: 0 }),
+        at(34.9949, 135.785, { title: "Kiyomizu-dera", dayIndex: 0 }),
+        at(35.0116, 135.7681, { title: "Nishiki market", dayIndex: dayCount > 1 ? 1 : 0 }),
+        at(35.0394, 135.7292, { title: "Kinkaku-ji", dayIndex: dayCount > 1 ? 2 : 0 }),
+      ],
+    });
+
+  it.each([1, 3])("mounts the map for a %i-day Playbook with located stops", async (dayCount) => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: located(dayCount), isAuthor: false }));
+    renderDay();
+    await screen.findByTestId("stop-list");
+    // The container, not the canvas: it renders in the same commit as the list,
+    // so its absence here is the component having decided not to draw.
+    expect(screen.getByTestId("shared-day-map").getAttribute("aria-label")).toBe("Map of 4 located stops");
+    expect(within(screen.getByTestId("shared-day-map-panel")).getByText("Kyoto")).toBeTruthy();
+  });
+
+  it("differs only by the day picker and the count it states", async () => {
+    const shape = async (dayCount: number) => {
+      fetchSavedDayMock.mockResolvedValue(ok({ savedDay: located(dayCount), isAuthor: false }));
+      const view = renderDay();
+      await screen.findByTestId("stop-list");
+      const out = {
+        map: screen.queryAllByTestId("shared-day-map").length,
+        legend: screen.queryAllByTestId("shared-day-map-legend").length,
+        rail: within(screen.getByTestId("day-facts"))
+          .getAllByText(/^(Window|Length|Budget|Added to)$/)
+          .map((el) => el.textContent),
+        pins: screen.getAllByTestId("stop-number").length,
+        picker: screen.queryAllByRole("tablist").length,
+      };
+      view.unmount();
+      return out;
+    };
+    const one = await shape(1);
+    const three = await shape(3);
+    expect(one.map).toBe(1);
+    expect(three.map).toBe(1);
+    expect(one.legend).toBe(three.legend);
+    expect(one.pins).toBe(three.pins);
+    // The rail carries the same rows for both. Length is the one row that
+    // reads the DATA (a sequence has no single window to measure), so it is
+    // compared on what remains once it is set aside.
+    expect(one.rail.filter((r) => r !== "Length")).toEqual(three.rail.filter((r) => r !== "Length"));
+    expect(one.rail).not.toContain("Window");
+    // …and the picker is the difference.
+    expect(one.picker).toBe(0);
+    expect(three.picker).toBe(1);
+  });
+
+  // The frame is there whatever it holds (Mitchell: the page must never
+  // reflow), and it holds the same thing for one day or three. The default
+  // fixture's stops are `{ name, city }` only — exactly the preview's.
+  it.each([1, 3])("holds the map frame for a %i-day Playbook with nothing to place", async (dayCount) => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ dayCount }), isAuthor: false }));
+    renderDay();
+    await screen.findByTestId("stop-list");
+    expect(screen.getByTestId("shared-day-map-frame")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Nothing to map yet" })).toBeTruthy();
+  });
+
+  // The read that serves this page starts the server placing the stops and
+  // says so; the page shows the frame loading and reads again until it is done.
+  it("reads again while the server is pinning, and then draws what it placed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const inKyoto = (title: string) =>
+        stop({ title, location: { name: title, city: "Kyoto", lat: 35.0116, lng: 135.7681, precision: "city" } });
+      fetchSavedDayMock
+        .mockResolvedValueOnce(ok({ savedDay: savedDay(), isAuthor: false, pinning: true }))
+        .mockResolvedValue(
+          ok({ savedDay: savedDay({ stops: [inKyoto("Fushimi Inari"), inKyoto("Tofuku-ji")] }), isAuthor: false, pinning: false }),
+        );
+      renderDay();
+      expect(await screen.findByTestId("shared-day-map-loading")).toBeTruthy();
+      expect(fetchSavedDayMock).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(4_000);
+      await waitFor(() => expect(fetchSavedDayMock).toHaveBeenCalledTimes(2));
+      expect((await screen.findByTestId("shared-day-map")).getAttribute("aria-label")).toBe("Map of Kyoto");
+      // A reader's page gaining coordinates is not "the library moved".
+      expect(screen.queryByText(/This day has changed since you opened it/)).toBeNull();
+
+      // Done: no further reads.
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(fetchSavedDayMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("names what the list is a list of, and the scoped day's own range", async () => {
+    expect(ledgerLabel(1, "all")).toBe("The day, as they ran it");
+    expect(ledgerLabel(3, "all")).toBe("All 3 days, as they ran them");
+    expect(ledgerLabel(3, 1)).toBe("Day 2, as they ran it");
+
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: located(3), isAuthor: false }));
+    renderDay();
+    await screen.findByTestId("stop-list");
+    expect(screen.queryByTestId("day-scope-line")).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "Day 1" }));
+    expect(screen.getByTestId("day-scope-line").textContent).toBe("7:30 am – 9:30 am · 2 stops");
+    expect(screen.getByTestId("ledger-label").textContent).toBe("Day 1, as they ran it");
   });
 });
 
@@ -307,8 +453,8 @@ describe("a shared day", () => {
     expect(within(rail).getByText("Medium")).toBeTruthy();
   });
 
-  // A day with no times has no window and therefore no length. The Window row
-  // still explains itself; the Length row is simply not there, rather than
+  // A day with no times has no window and therefore no length. The title line
+  // simply carries no range, and the Length row is not there, rather than
   // claiming a day that says nothing about when it runs is "Short".
   it("shows no Length at all for a day with no times", async () => {
     fetchSavedDayMock.mockResolvedValue(
@@ -319,7 +465,7 @@ describe("a shared day", () => {
     );
     renderDay();
     const rail = await screen.findByTestId("day-facts");
-    expect(within(rail).getByText("No times set")).toBeTruthy();
+    expect(screen.getByTestId("playbook-meta").textContent).toBe("2 stops · kept in August 2026");
     expect(within(rail).queryByText("Length")).toBeNull();
   });
 

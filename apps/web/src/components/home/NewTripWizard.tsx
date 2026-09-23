@@ -1,7 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
-import type { ApiResult, BoardCommand, CommandOutcome } from "@/lib/apiClient";
+import { useEffect, useRef, useState } from "react";
+import {
+  insertSavedDay,
+  searchCities,
+  searchPlaybooks,
+  type ApiResult,
+  type BoardCommand,
+  type CommandOutcome,
+} from "@/lib/apiClient";
+import { displayNameFor, firstNameOf } from "@/lib/displayName";
+import { usePreferences } from "@/components/account/PreferencesProvider";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { Sheet, type SheetSize } from "@/components/ui/sheet";
 import { DialogFooter } from "@/components/ui/dialog";
 import Link from "next/link";
@@ -10,6 +20,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
+import { ToggleChip } from "@/components/ui/toggle-chip";
 import { Transcript, type AssistantTurn } from "@/components/assistant/Transcript";
 import { usePinToBottom } from "@/components/assistant/usePinToBottom";
 import { useAiEntitled } from "@/components/assistant/useAiEntitled";
@@ -21,24 +32,35 @@ import { submitOnEnter } from "@/lib/submitOnEnter";
 // "when do you arrive".
 import { formatTripDateWithYear } from "@/lib/formatDate";
 import {
+  CASS_DRAFTING_LINE,
+  CASS_DRAFTING_MS,
+  CASS_TYPING_MS,
   daysFor,
-  NEW_TRIP_OPENING,
-  NEW_TRIP_OPENING_FIRST_RUN,
   NEW_TRIP_START,
   changeTo,
+  cityOf,
   commitAnswer,
   commitMulti,
+  offerDays,
+  openingFor,
+  pickPopularDays,
   questionAt,
-  questionsFor,
+  questionsOf,
+  spokenAsk,
   togglePick,
   type NewTripState,
+  type PopularDay,
 } from "./newTripScript";
 import {
   DEFAULT_CURRENCY,
   ISO_DATE,
   createTripWithSetup,
   type SetupLatch,
+  type SetupResult,
 } from "./newTripSubmit";
+import { cn } from "@/lib/cn";
+import { QUIET_LINK } from "./quietLink";
+import { AnswerPill } from "./AnswerPill";
 
 /**
  * **44px on a phone, this app's own size on a pointer** (SPEC §32.2, §13.1).
@@ -90,14 +112,22 @@ export type NewTripWizardProps = {
   dispatch: (command: BoardCommand) => Promise<ApiResult<CommandOutcome>>;
   // Called once the trip exists AND every dispatched command it needed has
   // confirmed. `navigate` is true only for the paths that finish the
-  // conversation — "Create empty" is the old single-field dialog's escape
-  // hatch, and that dialog never navigated: it closed and left the user on the
-  // trip list to open the new card themselves. Every pre-Phase-7 e2e spec is
-  // built on that, and a version of this that always navigated broke every one
-  // of them (CI, PR #32) by leaving the home page before the click ever ran.
+  // conversation — "create an empty one" is the old single-field dialog's
+  // escape hatch, and that dialog never navigated: it closed and left the user
+  // on the trip list to open the new trip themselves. Every pre-Phase-7 e2e
+  // spec is built on that, and a version of this that always navigated broke
+  // every one of them (CI, PR #32) by leaving the home page before the click
+  // ever ran.
   onCreated?: (tripId: string, opts: { navigate: boolean }) => void;
   /** See `SheetSize`. The caller decides how much of the window this takes. */
   size?: SheetSize;
+  /**
+   * The sheet's *import a trip file* link (SPEC §35.2). The sheet closes
+   * first, so the picker and any refusal must belong to the page, which
+   * outlives it. Called synchronously inside the click — see
+   * `ImportTripHandle.pick`. Absent, the link is not drawn.
+   */
+  onImportFile?: () => void;
 };
 
 export function NewTripWizard({
@@ -107,6 +137,7 @@ export function NewTripWizard({
   dispatch,
   onCreated,
   size = "rail",
+  onImportFile,
 }: NewTripWizardProps) {
   return (
     // The title stays "New trip" on both paths. It is the dialog's accessible
@@ -127,6 +158,17 @@ export function NewTripWizard({
             onOpenChange(false);
             if (tripId !== null) onCreated?.(tripId, { navigate });
           }}
+          otherStarts={{
+            onStartFromPlaybook: () => onOpenChange(false),
+            ...(onImportFile === undefined
+              ? {}
+              : {
+                  onImportFile: () => {
+                    onOpenChange(false);
+                    onImportFile();
+                  },
+                }),
+          }}
         />
       )}
     </Sheet>
@@ -140,29 +182,37 @@ export function NewTripWizard({
  * the same `Transcript` the assistant rail uses renders this. It is a third
  * consumer of that component rather than a fourth implementation of one.
  *
- * `pending: false` and `tools: []` on every assistant turn: there is nothing to
- * wait for. SPEC §30.2 — the turns make **zero model calls and zero network
- * calls**, so a typing indicator here would be an animation pretending to be
- * latency.
+ * `tools: []` on every assistant turn, and `pending: false` on every one but
+ * the typing row. SPEC §30.2 — the turns make **zero model calls** — still
+ * holds; what §35.8 changed (M27 D14) is that Cass takes a visible beat after
+ * each answer. **Everything after the reader's last answer waits behind that
+ * row**: the acknowledgement and the next question arrive together when it
+ * ends, which is what makes it read as a reply rather than as a form that
+ * happens to animate.
  *
- * The list comes from `questionsFor(state.answers)` rather than a constant,
- * because §32.3's flow is five turns or six depending on the date answer, and a
- * thread built from a stale list would print a question the reader is no longer
- * being asked.
+ * The list comes from `questionsOf(state)` rather than a constant, because
+ * §32.3's flow grows by the day picker and §35.8's by the Playbook-day turn,
+ * and a thread built from a stale list would print a question the reader is
+ * no longer being asked.
  */
-function threadFor(state: NewTripState, closing: string | null, opening: string): AssistantTurn[] {
+function threadFor(
+  state: NewTripState,
+  closing: string | null,
+  opening: string,
+  typing: "answer" | "draft" | null,
+): AssistantTurn[] {
   const turns: AssistantTurn[] = [
     // **§31.2 — one line before any question.** It states §30.2's contract in
     // the reader's own reading order, and it means turn one is never an empty
     // pane with a dock under it.
     { id: "opening", role: "assistant", text: opening, tools: [], pending: false },
   ];
-  questionsFor(state.answers).forEach((question, index) => {
+  questionsOf(state).forEach((question, index) => {
     if (index > state.turn) return;
     turns.push({
       id: `ask-${question.id}`,
       role: "assistant",
-      text: question.ask,
+      text: spokenAsk(state, index),
       tools: [],
       pending: false,
     });
@@ -174,7 +224,47 @@ function threadFor(state: NewTripState, closing: string | null, opening: string)
   if (closing !== null) {
     turns.push({ id: "made", role: "assistant", text: closing, tools: [], pending: false });
   }
-  return turns;
+  if (typing === null) return turns;
+  const lastAnswer = turns.map((turn) => turn.role).lastIndexOf("user");
+  return [
+    ...turns.slice(0, lastAnswer + 1),
+    {
+      id: "typing",
+      role: "assistant",
+      text: typing === "draft" ? CASS_DRAFTING_LINE : "",
+      tools: [],
+      pending: true,
+    },
+  ];
+}
+
+/**
+ * **Who the first run greets.** A chosen name, else the one the sign-in gave,
+ * first word only; never an address and never the "Traveler 4f2a91" handle
+ * the app invents when it has neither (`firstNameOf`).
+ *
+ * A hook of its own, called only on first run, so the sheet — which opens
+ * without a name — does not read the session to throw the answer away.
+ */
+function useFirstName(): string | null {
+  const { displayName } = usePreferences();
+  const user = useSessionUser();
+  if (user === undefined || user === null) return displayName === null ? null : firstNameOf(displayName, "");
+  const userId = user.id ?? "";
+  return firstNameOf(displayNameFor({ userId, displayName, name: user.name }), displayNameFor({ userId }));
+}
+
+/** What a published day's card says under its name (M27 D13: adds, not stars). */
+function metaFor(day: PopularDay): string {
+  const trips = day.adds === 1 ? "1 trip" : `${day.adds} trips`;
+  const days = day.dayCount === 1 ? "1 day" : `${day.dayCount} days`;
+  return `Added to ${trips} · ${days} · by ${day.author}`;
+}
+
+/** "Tram 28 morning", or "Tram 28 morning and Alfama at dusk", for a sentence. */
+function listed(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /**
@@ -223,21 +313,23 @@ function NewTripPlusNote() {
   );
 }
 
-export function NewTripConversation({
-  createTrip,
-  dispatch,
-  onDone,
-  firstRun = false,
-  composerId,
-  disabled = false,
-}: {
+/**
+ * **What *create an empty one* names a trip nobody named** (M27 D4). The link
+ * is live from turn one, before anything is typed, and `CreateTrip.name` is
+ * `min(1)` — the domain refuses a nameless trip. Loosening that would be a
+ * contract change to save one word, and it is renamed from the trip header.
+ */
+const UNTITLED_TRIP = "Untitled trip";
+
+type ConversationProps = {
   createTrip: NewTripWizardProps["createTrip"];
   dispatch: NewTripWizardProps["dispatch"];
   onDone: (tripId: string | null, navigate: boolean) => void;
   /**
-   * Somebody's first trip, which changes exactly one thing here: the line the
-   * thread opens with (SPEC §32.1). "I will draft the trip" has no antecedent
-   * on a screen with no trips behind it.
+   * Somebody's first trip, which changes the line the thread opens with (SPEC
+   * §32.1, §35.8) — "I'll draft the trip" has no antecedent on a screen with
+   * no trips behind it — and the answer pills' size, which is the page's
+   * rather than the sheet's (§35.9).
    */
   firstRun?: boolean;
   /**
@@ -259,9 +351,76 @@ export function NewTripConversation({
    * controls that write are held.
    */
   disabled?: boolean;
-}) {
+  /**
+   * **The sheet's other ways in** — *start from a Playbook* and *import a trip
+   * file* in §35.2's quiet row. Only the sheet passes them: the first-run card
+   * already draws both routes in its own row, and a second row of the same
+   * links one block above it would be the duplicate §35 exists to remove. So
+   * on first run the row is *Or create an empty one* alone — which has to stay,
+   * because it is the only way to a trip with no answers at all.
+   */
+  otherStarts?: {
+    /** Runs on the click, alongside the link's own navigation — the sheet closes. */
+    onStartFromPlaybook: () => void;
+    onImportFile?: () => void;
+  };
+};
+
+export function NewTripConversation(props: ConversationProps) {
+  // Two components rather than a conditional hook: only the first run reads
+  // the session, and `firstRun` never changes across one mount.
+  return props.firstRun === true ? <FirstRunConversation {...props} /> : <Conversation {...props} firstName={null} />;
+}
+
+function FirstRunConversation(props: ConversationProps) {
+  return <Conversation {...props} firstName={useFirstName()} />;
+}
+
+function Conversation({
+  createTrip,
+  dispatch,
+  onDone,
+  firstRun = false,
+  composerId,
+  disabled = false,
+  otherStarts,
+  firstName,
+}: ConversationProps & { firstName: string | null }) {
   const [state, setState] = useState<NewTripState>(NEW_TRIP_START);
   const [phase, setPhase] = useState<"asking" | "made">("asking");
+  /**
+   * **Cass is "typing"** (SPEC §35.8, M27 D14): `answer` for the beat after
+   * each committed answer, `draft` for the longer one before the trip is made.
+   * While it is set, the thread ends at the reader's last answer and the dock
+   * is hidden — there is nothing to answer until the next line has arrived.
+   */
+  const [typing, setTyping] = useState<"answer" | "draft" | null>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const endTyping = useRef<(() => void) | null>(null);
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const refocus = useRef(false);
+  /**
+   * **The Playbook-day read for the last `where` answer** (M27 D13). A ref,
+   * not state: nothing renders from it. The typing row's end reads whatever it
+   * holds at that moment and freezes it into the script with `offerDays` —
+   * found, failed, or still in flight all come out as "offer these" or "offer
+   * nothing", and the script never waits on the network for longer than the
+   * row it was going to show anyway.
+   */
+  const pbRead = useRef<{ token: number; days: PopularDay[] }>({ token: 0, days: [] });
+  /** Chosen days that could not be put into the trip, by name, for the closing line. */
+  const [missed, setMissed] = useState<readonly string[]>([]);
+  /** The trip's real length once made, when the setup laid its days out —
+   *  not the answer, which the chosen days can outrun. */
+  const [madeDays, setMadeDays] = useState<number | null>(null);
+  // The timer outlives nothing: an unmounted conversation has no row to end.
+  useEffect(
+    () => () => {
+      if (typingTimer.current !== null) clearTimeout(typingTimer.current);
+      pbRead.current = { token: pbRead.current.token + 1, days: [] };
+    },
+    [],
+  );
   const [draft, setDraft] = useState("");
   /**
    * **The ISO behind the arrival answer**, and only ever set by the day picker.
@@ -286,21 +445,24 @@ export function NewTripConversation({
   // SPEC §30.6 bans it repo-wide because it moves every scrollable ancestor,
   // and KI-2026-09-13-a is an open bug in that family.
   const threadRef = useRef<HTMLDivElement | null>(null);
-  usePinToBottom(threadRef, [state.turn, phase]);
+  // `typing` too: the thread pins to the newest line AFTER the row resolves
+  // (§35.8), which is when the acknowledgement and the question arrive.
+  usePinToBottom(threadRef, [state.turn, phase, typing]);
 
-  const questions = questionsFor(state.answers);
+  const questions = questionsOf(state);
   const question = questionAt(state);
   const where = state.answers.where;
   // The trip's name is the destination answer, or whatever is in the composer
   // before it has been committed — which is what preserves "type a name, press
-  // Create empty" exactly as the old single-field dialog worked.
+  // create an empty one" exactly as the old single-field dialog worked.
   //
   // **While `where` is the live question, the composer wins** (CodeRabbit, PR
   // #188). `changeTo` keeps the answers rather than clearing them, so pressing
   // Change back to turn one leaves the OLD destination committed; typing a new
   // one and pressing Create empty then made a trip named the thing on screen a
   // moment ago, not the thing in the field. An uncommitted edit to the question
-  // being asked is the more recent intent.
+  // being asked is the more recent intent. `UNTITLED_TRIP` covers the one
+  // path that may have neither.
   const composing = question?.id === "where" && draft.trim() !== "";
   const name = (composing ? draft : (where ?? draft)).trim();
   // **Only a length chip gives a day count.** Free text like "nine nights"
@@ -317,14 +479,19 @@ export function NewTripConversation({
   // machine-readable half of that same answer.
   const dated = state.answers.start !== undefined && ISO_DATE.test(arrive) && days !== null;
 
-  async function submit(applySetup: boolean): Promise<boolean> {
-    if (name === "" || submitting) return false;
+  /** The names of these offered days, in the order given. */
+  const namesOf = (ids: readonly string[]) =>
+    ids.flatMap((id) => state.offer?.find((day) => day.savedDayId === id)?.name ?? []);
+
+  /** Make the trip and apply what was answered. `null` when nothing was made. */
+  async function run(applySetup: boolean, tripName = name): Promise<Extract<SetupResult, { ok: true }> | null> {
+    if (tripName === "" || submitting) return null;
     setError(null);
     setSubmitting(true);
 
     const result = await createTripWithSetup({
       setup: {
-        name,
+        name: tripName,
         // Never the raw picker value on its own: `dated` is what says this ISO
         // is still the live answer, so a replaced arrival cannot date the trip.
         arrive: dated ? arrive : "",
@@ -336,11 +503,13 @@ export function NewTripConversation({
         // on is not a saving.
         budget: null,
         currency: DEFAULT_CURRENCY,
+        savedDays: (state.chosen ?? []).flatMap((id) => state.offer?.find((day) => day.savedDayId === id) ?? []),
       },
       applySetup,
       latch: progress,
       createTrip,
       dispatch,
+      insertDay: insertSavedDay,
     });
 
     // Stored on BOTH outcomes: dropping the latch on failure is the defect
@@ -349,10 +518,83 @@ export function NewTripConversation({
     setSubmitting(false);
     if (!result.ok) {
       setError(result.error);
-      return false;
+      return null;
+    }
+    setMissed(namesOf(result.missedDays));
+    setMadeDays(result.dayCount);
+    return result;
+  }
+
+  async function submit(applySetup: boolean, tripName = name): Promise<boolean> {
+    const result = await run(applySetup, tripName);
+    if (result === null) return false;
+    // **A chosen day that did not land keeps the conversation on screen**, so
+    // the closing line can say which — navigating straight past it would lose
+    // the only place that is said. "Open the trip" is one click away.
+    if (result.missedDays.length > 0) {
+      setPhase("made");
+      return true;
     }
     onDone(result.latch.tripId, applySetup);
     return true;
+  }
+
+  /**
+   * **Show the typing row for `ms`**, resolving when it ends. A second call
+   * ends the first one early rather than leaving its caller waiting forever.
+   */
+  function pause(kind: "answer" | "draft", ms: number): Promise<void> {
+    if (typingTimer.current !== null) clearTimeout(typingTimer.current);
+    endTyping.current?.();
+    setTyping(kind);
+    return new Promise((resolve) => {
+      const end = () => {
+        typingTimer.current = null;
+        endTyping.current = null;
+        resolve();
+      };
+      endTyping.current = end;
+      typingTimer.current = setTimeout(() => {
+        setTyping(null);
+        end();
+      }, ms);
+    });
+  }
+
+  /**
+   * **Ask the library for this city's published days** (M27 D13). Fired on the
+   * `where` commit, so it runs while the typing row shows; what it has found
+   * when the row ends is what is offered. A failed read and a slow one both
+   * leave `days` empty, which skips the turn — it never blocks the script.
+   *
+   * **The answer goes through the city index first.** Discover matches a city
+   * by its exact stored name, so "lisbon" or "Lisbon, Portugal" found nothing
+   * and the turn was skipped in silence. The index matches case-insensitively
+   * by prefix, so it is asked for the part before any comma and only a match
+   * naming the whole answer, or that part, is taken: "Lis" is not the reader
+   * saying Lisbon.
+   */
+  function lookUp(where: string): number {
+    const token = pbRead.current.token + 1;
+    pbRead.current = { token, days: [] };
+    const typed = cityOf(where);
+    const head = typed.split(",")[0]!.trim();
+    if (head !== "") {
+      void (async () => {
+        const index = await searchCities(head);
+        if (pbRead.current.token !== token || !index.ok) return;
+        const named = (name: string) => index.value.find((match) => match.city.toLowerCase() === name.toLowerCase());
+        const city = (named(typed) ?? named(head))?.city;
+        if (city === undefined) return;
+        const result = await searchPlaybooks({ cities: [city], sort: "most-added" });
+        if (pbRead.current.token !== token || !result.ok) return;
+        pbRead.current = {
+          token,
+          days: pickPopularDays(result.value.days, (ownerId) => displayNameFor({ userId: ownerId })),
+        };
+      })();
+    }
+    return token;
   }
 
   /**
@@ -364,14 +606,44 @@ export function NewTripConversation({
    * was `createTrip` itself that failed, `progress` was still null, so that
    * button closed the sheet without ever calling `onCreated`. The error was
    * on screen the whole time, underneath a sentence contradicting it.
+   *
+   * **The create runs under the *Drafting the trip…* row, not after it** (M27
+   * D14), and the trip is described only once BOTH are done: the pause is
+   * presentation, so it must never add to the wait, and the summary must never
+   * arrive before the beat that introduces it.
+   *
+   * `typed` is the words from the composer on the `feel` turn — the one turn
+   * whose answer ends the flow, so it has to go through here rather than
+   * through `commit`.
    */
-  async function finish() {
-    const committed = commitMulti(state);
-    setState(committed);
-    if (await submit(true)) setPhase("made");
+  async function finish(typed?: string) {
+    setState(typed === undefined ? commitMulti(state) : commitAnswer(state, typed));
+    setDraft("");
+    const [result] = await Promise.all([run(true), pause("draft", CASS_DRAFTING_MS)]);
+    if (result === null) return;
+    setPhase("made");
+    if (result.missedDays.length === 0) onDone(result.latch.tripId, true);
+  }
+
+  /** The beat after an answer; after `where` it also freezes the offer. */
+  function reply(readToken: number | null) {
+    void pause("answer", CASS_TYPING_MS).then(() => {
+      if (readToken === null) return;
+      const found = pbRead.current.token === readToken ? pbRead.current.days : [];
+      setState((current) => offerDays(current, found));
+    });
   }
 
   function commit(value: string) {
+    if (value.trim() === "") return;
+    // Refocus the dock when it comes back, if that is where the reader was:
+    // the typing row unmounts it, and a keyboard user's focus would otherwise
+    // fall to the page and stay there.
+    refocus.current = dockRef.current?.contains(document.activeElement) ?? false;
+    if (question?.id === "feel") {
+      if (!disabled && !submitting) void finish(value);
+      return;
+    }
     // **Typing over the arrival replaces a fixed day with prose**, so the ISO
     // behind it goes too — otherwise "early October" reads as the answer while
     // a day the reader overwrote is still dating the trip (SPEC §32.3).
@@ -386,6 +658,14 @@ export function NewTripConversation({
     if (question?.id === "start") setArrive("");
     setState((current) => commitAnswer(current, value));
     setDraft("");
+    reply(question?.id === "where" ? lookUp(value.trim()) : null);
+  }
+
+  /** The Playbook-day turn's commit: the picked days, or a fresh plan. */
+  function commitPicks() {
+    refocus.current = dockRef.current?.contains(document.activeElement) ?? false;
+    setState((current) => commitMulti(current));
+    reply(null);
   }
 
   /**
@@ -399,8 +679,10 @@ export function NewTripConversation({
    */
   function commitArrival() {
     if (!ISO_DATE.test(arrive)) return;
+    refocus.current = dockRef.current?.contains(document.activeElement) ?? false;
     setState((current) => commitAnswer(current, formatTripDateWithYear(arrive)));
     setDraft("");
+    reply(null);
   }
 
   // **D-C, answered 2026-09-16.** The design's `made` copy says the trip was
@@ -408,12 +690,25 @@ export function NewTripConversation({
   // collected and stored nowhere, and nothing consumes them until the theme
   // pass and the fork land. A closing turn claiming otherwise would be a
   // fabricated note in a repo that keeps a registry to mark exactly those.
+  //
+  // §35.8 adds two things and D-C survives both. The line opens with "Done." —
+  // it is Cass's reply now, not a receipt — and a day chosen on the
+  // Playbook-day turn IS in the trip, so it is named, and "the days are empty"
+  // stops being true of all of them. A chosen day that did not land is named
+  // too: said, not silently dropped.
+  const placed = namesOf(state.chosen ?? []).filter((each) => !missed.includes(each));
+  const madeLength = madeDays ?? days;
   const closing =
     phase === "made"
-      ? `${name} is created${days === null ? "" : `, ${days} days`}` +
+      ? `Done. ${name} is created${madeLength === null ? "" : `, ${madeLength === 1 ? "1 day" : `${madeLength} days`}`}` +
         `${dated ? ` from ${formatTripDateWithYear(arrive)}` : ""}. ` +
-        "The days are empty and yours to fill — what you said about pace and what the trip is " +
-        "about is not built in yet."
+        (placed.length === 0
+          ? "The days are empty and yours to fill"
+          : `${listed(placed)} ${placed.length === 1 ? "is" : "are"} already in place; the rest is yours to fill`) +
+        " — what you said about pace and what the trip is about is not built in yet." +
+        (missed.length === 0
+          ? ""
+          : ` ${listed(missed)} could not be added — ${missed.length === 1 ? "it is" : "they are"} still in Playbooks.`)
       : null;
 
   // §30.3's fork reads the account's CAPABILITY, not its plan. Asked here
@@ -423,12 +718,30 @@ export function NewTripConversation({
   // common case.
   const aiEntitled = useAiEntitled();
 
-  const thread = threadFor(
-    state,
-    closing,
-    firstRun ? NEW_TRIP_OPENING_FIRST_RUN : NEW_TRIP_OPENING,
-  );
+  // The draft row stays up for as long as the create itself takes, not only
+  // for its own 1300ms — a slow create otherwise leaves the thread ending on
+  // the reader's answer with nothing to say what is happening.
+  const shownTyping =
+    typing ?? (submitting && phase === "asking" && question === undefined ? "draft" : null);
+  const thread = threadFor(state, closing, openingFor(firstRun, firstName), shownTyping);
   const answered = Object.keys(state.answers).length > 0;
+  // The dock waits behind the typing row with everything else (§35.8).
+  const asking = phase === "asking" && question !== undefined && shownTyping === null;
+  const pickedCount = state.picked.length;
+  // §35.9: *"A hint above them … shown only when the turn has chips."*
+  const hint =
+    question === undefined || question.chips.length === 0
+      ? null
+      : question.multi === true
+        ? "Pick any that fit — or type your own"
+        : "Tap one to answer — or type your own";
+  const place = firstRun ? "page" : "sheet";
+
+  useEffect(() => {
+    if (!asking || !refocus.current) return;
+    refocus.current = false;
+    dockRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+  }, [asking]);
 
   return (
     // **`h-full`, and it is the whole reason this reads as a chat box** — the
@@ -465,7 +778,9 @@ export function NewTripConversation({
           look="chat"
           turns={thread}
           renderTurnFooter={(turn) => {
-            if (turn.role !== "user" || phase === "made") return null;
+            // Not while Cass is typing: going back mid-reply would leave the
+            // row resolving into a question that is no longer being asked.
+            if (turn.role !== "user" || phase === "made" || shownTyping !== null) return null;
             const index = questions.findIndex((q) => `said-${q.id}` === turn.id);
             if (index < 0 || index === state.turn) return null;
             return (
@@ -539,8 +854,8 @@ export function NewTripConversation({
           per-question chip label is gone: with the chips inside the composer's
           own frame it was captioning the obvious. A chip and a typed sentence
           fill the same answer and commit the same turn. */}
-      {phase === "asking" && question !== undefined && (
-        <div className="flex flex-col gap-2.5">
+      {asking && (
+        <div ref={dockRef} className="flex flex-col gap-2.5">
           {/* **One day, not a range** (§32.3). The turn before this one asked
               whether there is a date at all, so this control only ever appears
               for a reader who said yes — and it asks for the single thing the
@@ -570,40 +885,101 @@ export function NewTripConversation({
             </div>
           )}
 
-          <div className="flex flex-wrap gap-1.5">
-            {question.chips.map((chip) => (
-              <Button
-                key={chip}
-                type="button"
-                // Buttons, never a `<select>`: `preview-registry.test.ts` has a
-                // wall against a static city `<option>` list anywhere in src.
-                variant={
-                  question.multi === true && state.picked.includes(chip) ? "primary" : "secondary"
-                }
-                size="sm"
-                className={`rounded-full ${TOUCH}`}
-                onClick={() =>
-                  question.multi === true
-                    ? setState((current) => togglePick(current, chip))
-                    : commit(chip)
-                }
-              >
-                {chip}
-              </Button>
-            ))}
-          </div>
+          {/* **The Playbook-day turn** (§35.8, M27 D13): published days for
+              the answered city, as cards rather than chips because each one
+              carries a name, a count and an author. Multi-select, and each
+              card says what it is — `aria-pressed` plus the visible
+              "✓ Added" / "Add" — so the state is never colour alone. */}
+          {question.offer !== undefined && (
+            <div>
+              <p className="mb-1.75 text-xs font-semibold text-brand-pressed">
+                Add any to the trip — or skip
+              </p>
+              <div role="group" aria-label="Popular days" className="flex flex-col gap-1.5">
+                {question.offer.map((day) => {
+                  const on = state.picked.includes(day.savedDayId);
+                  return (
+                    // `rounded-lg`, 12px, where the design draws 10: the
+                    // card's own `rounded-a-card` cannot win through
+                    // `ToggleChip`'s `cn` — tailwind-merge does not know the
+                    // token, so it keeps both radii and lets CSS order pick.
+                    <ToggleChip
+                      key={day.savedDayId}
+                      pressed={on}
+                      onClick={() => setState((current) => togglePick(current, day.savedDayId))}
+                      className={`flex-row items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-ink ${
+                        on ? "" : "border-hairline hover:border-border-strong"
+                      }`}
+                    >
+                      <span className="flex min-w-0 flex-auto flex-col gap-0.5">
+                        <span className="text-base font-semibold">{day.name}</span>
+                        <span className="text-a-note text-pretty text-slate">{metaFor(day)}</span>
+                      </span>
+                      <span
+                        className={`shrink-0 text-a-note font-semibold ${on ? "text-brand-pressed" : "text-brand"}`}
+                      >
+                        {on ? "✓ Added" : "Add"}
+                      </span>
+                    </ToggleChip>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-          {question.multi === true ? (
+          {question.chips.length > 0 && (
+            <div>
+              {hint !== null && (
+                <p className="mb-1.75 text-xs font-semibold text-brand-pressed">{hint}</p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {question.chips.map((chip) => (
+                  // Buttons, never a `<select>`: `preview-registry.test.ts` has
+                  // a wall against a static city `<option>` list anywhere in src.
+                  <AnswerPill
+                    key={chip}
+                    place={place}
+                    {...(question.multi === true ? { pressed: state.picked.includes(chip) } : {})}
+                    onClick={() =>
+                      question.multi === true
+                        ? setState((current) => togglePick(current, chip))
+                        : commit(chip)
+                    }
+                  >
+                    {chip}
+                  </AnswerPill>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* The multi commit is secondary until something is picked, then the
+              primary (§35.9) — "Nothing in particular" is a real answer, but not
+              the one the dock should be pushing. */}
+          {question.multi === true && (
             <Button
               type="button"
-              variant="primary"
+              variant={pickedCount > 0 ? "primary" : "secondary"}
               className={TOUCH}
-              disabled={disabled || submitting}
-              onClick={() => void finish()}
+              disabled={question.offer === undefined && (disabled || submitting)}
+              onClick={() => (question.offer === undefined ? void finish() : commitPicks())}
             >
-              {state.picked.length > 0 ? "That is it — build it" : "Nothing in particular"}
+              {question.offer !== undefined
+                ? pickedCount === 0
+                  ? "Skip — plan it fresh"
+                  : pickedCount === 1
+                    ? "Build around this day"
+                    : `Build around these ${pickedCount}`
+                : pickedCount > 0
+                  ? "That is it — build it"
+                  : "Nothing in particular"}
             </Button>
-          ) : (
+          )}
+
+          {/* The composer is on every turn, the multi ones included: §35.9's
+              hint says "or type your own", and a hint promising a field that
+              is not there would be a lie told in the one place a reader is
+              looking for what to do. */}
             <div className="flex items-end gap-2">
               <div className="flex-1">
                 {/* **The composer's accessible name is the QUESTION**, not
@@ -631,7 +1007,6 @@ export function NewTripConversation({
                 Send
               </Button>
             </div>
-          )}
         </div>
       )}
 
@@ -641,42 +1016,83 @@ export function NewTripConversation({
         </Text>
       )}
 
-      <DialogFooter>
-        {phase === "made" ? (
+      {/* **The rare ways in, as one quiet row** (SPEC §35.2). *Create empty*
+          was a footer button beside *Create with this*, from turn one — so the
+          first thing the sheet offered, before a single answer, was a
+          full-weight way to skip it. It is a link now, with the other two
+          routes that do not start from a conversation.
+
+          Gone once the trip is made: there is nothing left to start. */}
+      {phase === "asking" && (
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 px-0.5 text-xs text-slate">
+          <span>Or</span>
+          {otherStarts !== undefined && (
+            <>
+              {/* A link, because it is a navigation; the click also closes the
+                  sheet, which would otherwise ride along over Discover. */}
+              <Link
+                href="/playbooks"
+                onClick={otherStarts.onStartFromPlaybook}
+                className={cn(buttonVariants({ variant: "ghost" }), QUIET_LINK, "text-ink")}
+              >
+                start from a Playbook
+              </Link>
+              {otherStarts.onImportFile !== undefined && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(QUIET_LINK, "text-ink")}
+                  disabled={disabled || submitting}
+                  onClick={otherStarts.onImportFile}
+                >
+                  import a trip file
+                </Button>
+              )}
+            </>
+          )}
           <Button
             type="button"
-            variant="primary"
-            className={TOUCH}
-            disabled={submitting}
-            onClick={() => onDone(progress?.tripId ?? null, true)}
+            variant="ghost"
+            className={cn(QUIET_LINK, "text-ink")}
+            disabled={disabled || submitting}
+            onClick={() => void submit(false, name === "" ? UNTITLED_TRIP : name)}
           >
-            Open the trip
+            create an empty one
           </Button>
-        ) : (
-          <>
+        </div>
+      )}
+
+      {/* **Drawn only when it has something in it** (§35.2): *Create with
+          this* once there is an answer to create with, *Open the trip* once it
+          is made. An empty footer is a rule and a band of padding under
+          nothing. *Open the trip* also waits out Cass's drafting beat, as the
+          design's `ntFooterOn` does, so it never arrives before the line that
+          says what was made. */}
+      {((phase === "made" && typing === null) || (phase === "asking" && answered)) && (
+        <DialogFooter>
+          {phase === "made" ? (
             <Button
               type="button"
-              variant="secondary"
+              variant="primary"
               className={TOUCH}
-              disabled={disabled || name === "" || submitting}
-              onClick={() => void submit(false)}
+              disabled={submitting}
+              onClick={() => onDone(progress?.tripId ?? null, true)}
             >
-              Create empty
+              Open the trip
             </Button>
-            {answered && (
-              <Button
-                type="button"
-                variant="primary"
-                className={TOUCH}
-                disabled={disabled || submitting}
-                onClick={() => void submit(true)}
-              >
-                Create with this
-              </Button>
-            )}
-          </>
-        )}
-      </DialogFooter>
+          ) : (
+            <Button
+              type="button"
+              variant="primary"
+              className={TOUCH}
+              disabled={disabled || submitting}
+              onClick={() => void submit(true)}
+            >
+              Create with this
+            </Button>
+          )}
+        </DialogFooter>
+      )}
       </div>
     </div>
   );

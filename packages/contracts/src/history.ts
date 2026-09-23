@@ -16,6 +16,17 @@ export type Origin = z.infer<typeof Origin>;
 export const UndoLastChange = z.object({
   type: z.literal("UndoLastChange"),
   tripId: z.string().uuid(),
+  /**
+   * **A precondition: undo THIS batch, or nothing.** Without it the server
+   * undoes whichever batch is on top when the command arrives — right for the
+   * header's Undo, wrong for a control bound to one change (an assistant
+   * card's), where a collaborator's write landing first would be taken back
+   * instead (M27 D17). When it no longer names the undo target the command is
+   * refused `undo-target-changed` and appends nothing.
+   *
+   * Optional, so every existing `{ type, tripId }` caller is unchanged.
+   */
+  undoesBatchId: z.string().uuid().optional(),
 });
 export type UndoLastChange = z.infer<typeof UndoLastChange>;
 

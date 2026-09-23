@@ -265,7 +265,8 @@ against the milestone link that owns the screen before writing code
 | `/signup` | `isSignup` · line 5109 | §14, §28 | Inside the `isAuth` block |
 | `/demo` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
 | `/s/[token]` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
-| `/invite/[token]` | _not drawn_ | §17 | Undrawn. The gate it leads to is §17.3, in Trip settings |
+| `/invite/[token]` | `isInvite` · line 5120 | §35 | §35.6: `valid`, `revoked`, `member` (M27 D9 — no `expired`) |
+| `/invite/[token]/look` | `isTrip` · line 1740 | §27, §35 | No artboard of its own — the trip surface in `readOnly`, §35.6's invite banner (M27 D12) |
 
 <!-- ROUTE-ARTBOARD-INDEX:END -->
 

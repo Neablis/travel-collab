@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
@@ -48,7 +48,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // TripProvider (apiClient mocked, per TripProvider.test.tsx's pattern) rather
 // than a mocked context — this exercises the real dispatch -> sendTripCommand
 // path, matching how the header's SetTripName dispatch actually resolves.
-import { fetchTripDetail } from "@/lib/apiClient";
+import { fetchTripDetail, fetchTripDetailAt } from "@/lib/apiClient";
 import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 // Task 9: TripHeader's new "Add stop" button calls useEditor().openCreate(),
 // so it now needs an EditorHost ancestor (the real app tree provides one —
@@ -57,6 +57,7 @@ import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 // openCreate's effect on EditorHost's state without mocking useEditor.
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
+import { tripCounts } from "./TripMetaPill";
 
 // A15-fix regression probe: mounted alongside TripHeader under the same
 // TripProvider so the test can observe trip.status directly (there's no
@@ -217,17 +218,13 @@ describe("TripHeader restyle (Task 9)", () => {
     expect(screen.getByRole("button", { name: "History" })).toBeTruthy();
   });
 
-  it("keeps the view tabs and day chips inside the sticky header", async () => {
-    await renderHeader(
-      <>
-        <div role="tablist" aria-label="Trip view" />
-        <div role="group" aria-label="Days" />
-      </>,
-    );
+  // The day chips used to be asserted here too. SPEC §35.3 moved them into the
+  // Plan tab's body, and `TripBoardScreen.test.tsx` owns where they render now.
+  it("keeps the view tabs inside the sticky header", async () => {
+    await renderHeader(<div role="tablist" aria-label="Trip view" />);
 
     const header = screen.getByRole("banner", { name: "Trip" });
     expect(header.contains(screen.getByRole("tablist", { name: "Trip view" }))).toBe(true);
-    expect(header.contains(screen.getByRole("group", { name: "Days" }))).toBe(true);
   });
 });
 
@@ -252,6 +249,9 @@ describe("TripHeader viewer gating", () => {
     // gone quiet: same reasoning as Share one line up, applied to the button
     // beside it.
     expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
+    // The dates pill moves the trip (M27 D5), so a viewer gets its text only.
+    expect(screen.queryByRole("button", { name: /^Trip dates:/ })).toBeNull();
+    expect(within(screen.getByTestId("trip-meta-row")).getByText("No dates set")).toBeTruthy();
 
     // Undo/redo and Revert live inside the History popover. Assert the panel
     // actually OPENED first: `queryByRole` returns null for a popover that
@@ -269,10 +269,42 @@ describe("TripHeader viewer gating", () => {
     expect(screen.queryByText("Viewer")).toBeNull();
     expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
 
+    // And the pill's popover reaches the log through the provider's dispatch,
+    // the same road Trip settings' Dates row takes.
+    await userEvent.click(screen.getByRole("button", { name: /^Trip dates:/ }));
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2027-03-14" } });
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(sendTripCommandMock).toHaveBeenCalledWith({
+        type: "SetTripStartDate",
+        tripId: "x",
+        startDate: "2027-03-14",
+      }),
+    );
+
     await userEvent.click(screen.getByRole("button", { name: "History" }));
     expect((await screen.findAllByTestId("history-entry")).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Redo" })).toBeTruthy();
+  });
+
+  // `runDispatch` enqueues against the LIVE trip whatever is on screen, so a
+  // date picked while an old seq is previewed would move the present — and
+  // its no-op check would compare against the preview's start date.
+  it("gives an owner the dates as text only while previewing an old seq", async () => {
+    vi.mocked(fetchTripDetailAt).mockResolvedValueOnce({
+      ok: true,
+      value: tripDetailFixture({ tripId: "x", name: "Japan", startDate: "2027-01-05" }),
+    });
+    await renderHeader();
+    expect(screen.getByRole("button", { name: /^Trip dates:/ })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "History" }));
+    await userEvent.click(within((await screen.findAllByTestId("history-entry"))[0]!).getAllByRole("button")[0]!);
+
+    // The preview's own range, proving the preview is what is on screen.
+    expect(await within(screen.getByTestId("trip-meta-row")).findByText("Tue, Jan 5")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Trip dates:/ })).toBeNull();
   });
 });
 
@@ -314,12 +346,7 @@ describe("TripHeader — the access read failed", () => {
 // breakpoint itself, which a browser test would not tell you the number of.
 describe("TripHeader on a phone", () => {
   it("puts the meta/budget row behind the 768px breakpoint, and nothing else", async () => {
-    await renderHeader(
-      <>
-        <div role="tablist" aria-label="Trip view" />
-        <div role="group" aria-label="Days" />
-      </>,
-    );
+    await renderHeader(<div role="tablist" aria-label="Trip view" />);
 
     // `md:` IS 768px — the line globals.css already draws between "narrow but
     // still a shrinkable plan" and "phone" (`.assistant-rail`,
@@ -335,16 +362,14 @@ describe("TripHeader on a phone", () => {
 
     // The other half of the decision, and the half a "hide it all" regression
     // would quietly break: actions and navigation are NOT in the cut. "Add
-    // stop" and History have no home in Trip settings, and the tab strip and
-    // day chips are the phone's primary navigation.
+    // stop" and History have no home in Trip settings, and the tab strip is
+    // navigation. (The day chips are no longer the header's — SPEC §35.3.)
     for (const name of ["Add stop", "History"]) {
       // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       expect(screen.getByRole("button", { name }).closest("[class*='hidden']")).toBeNull();
     }
     // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("tablist", { name: "Trip view" }).closest("[class*='hidden']")).toBeNull();
-    // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(screen.getByRole("group", { name: "Days" }).closest("[class*='hidden']")).toBeNull();
     // And the door to everything that IS hidden.
     // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("button", { name: /trip settings/i }).closest("[class*='hidden']")).toBeNull();
@@ -360,13 +385,13 @@ describe("TripHeader on a phone", () => {
     const sheet = screen.getByRole("dialog", { name: /trip settings/i });
 
     expect(within(sheet).getByRole("button", { name: "Share" })).toBeTruthy();
-    // The same figures the hidden pill states, from the same `tripCounts`
-    // call — asserted against the pill's own rendering rather than against a
-    // hardcoded number, so the fixture can change without this going stale.
-    const pill = screen.getByTestId("trip-meta-row");
+    // The counts, from `tripCounts` over the trip this header was given —
+    // derived rather than hardcoded, so the fixture can change without this
+    // going stale. The pill used to be the other side of this comparison; it
+    // states only the dates since SPEC §35.3, so the sheet is their one home.
+    const counts = tripCounts(tripDetailFixture({ tripId: "x", name: "Japan" }));
     for (const unit of ["days", "stops", "cities"] as const) {
-      const inPill = within(pill).getByText(new RegExp(`\\d+ ${unit}$`)).textContent!;
-      expect(within(sheet).getByText(inPill)).toBeTruthy();
+      expect(within(sheet).getByText(`${counts[unit]} ${unit}`)).toBeTruthy();
     }
     // Budget was already fully editable in the sheet before this change; the
     // chip is a shortcut to it, not the only way in.

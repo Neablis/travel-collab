@@ -4,6 +4,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
+import { JoinedToast } from "@/components/access/JoinedToast";
 
 // "Trip plan — Caesura" via the layout's title template. Deliberately not a
 // per-trip generateMetadata: the lint wall keeps `@/server/*` out of page
@@ -33,6 +34,7 @@ export default async function TripPage({ params }: { params: Promise<{ tripId: s
           </EditorHost>
         </FocusProvider>
       </TripProvider>
+      <JoinedToast tripId={tripId} />
     </PageContainer>
   );
 }

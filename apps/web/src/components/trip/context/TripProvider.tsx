@@ -334,92 +334,6 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     setOptimistic(result.state);
   }, [readOnly, refusal]);
 
-  const dispatch = useCallback(
-    async (command: BoardCommand) => {
-      if (readOnly) {
-        setError(refusal);
-        return;
-      }
-      if (HISTORY_TYPES.has(command.type)) {
-        // The REF, not the render-time `pending` (KI-70). This used to be the
-        // only thing that made the reconcile below safe; since M13 link 3 that
-        // reconcile re-predicts rather than clearing, so the guard no longer
-        // carries correctness — it is now a PRODUCT rule, and the one KI-90
-        // declined to decide: a history command does not start while unsent
-        // work is queued. Whether it should (and whether the silent `return`
-        // should say so) is still open, and is a decision, not a bug.
-        //
-        // It used to read a value derived during render — so an undo/redo/revert
-        // fired in the same tick as an accepted enqueue saw the PRE-enqueue
-        // `false`, passed, and reconciled away the unit that had been queued a
-        // moment earlier. One user edit gone, with no error and no count.
-        //
-        // `runDispatch` advances `optimisticRef.current` synchronously for
-        // exactly this hazard ("anything dispatched later in this same tick
-        // predicts against this result rather than the pre-dispatch queue");
-        // the history branch now guards on the same value it is guarding.
-        if ((optimisticRef.current?.pending.length ?? 0) > 0) return;
-        setError(null);
-        const result = await sendTripCommand(command);
-        if (!result.ok) {
-          if (result.error.code !== "no-op") setError(result.error.message);
-          return;
-        }
-        // KI-90: this was `{ confirmed: result.value, pending: [] }`. The guard
-        // above runs BEFORE the await, so a unit enqueued while the undo was in
-        // flight — a window measured in network latency — was discarded here on
-        // arrival. `adoptOutcome` re-predicts the queue onto the authoritative
-        // result instead of clearing it, so the reconcile is non-lossy whatever
-        // the queue holds by the time it lands.
-        setOptimistic((prev) => (prev ? adoptOutcome(prev, result.value) : prev));
-        exit();
-        return;
-      }
-      runDispatch([command as BatchableCommand]);
-    },
-    // No `pending` here any more: the guard above reads the ref instead, so
-    // this callback no longer has to be rebuilt on every queue change — and
-    // one fewer render-time value closed over is one fewer way to read a
-    // stale one.
-    [runDispatch, exit, readOnly, refusal],
-  );
-
-  // KI-36: the manual retry. Clearing the failure is all it takes — the
-  // sequential sender's effect re-runs on the new state and picks the retained
-  // head back up. No re-enqueue, no re-prediction: the queue never left.
-  const retry = useCallback(() => {
-    setError(null);
-    setOptimistic((prev) => (prev ? clearFailure(prev) : prev));
-  }, []);
-
-  const dispatchBatch = useCallback(
-    async (commands: BatchableCommand[]) => {
-      runDispatch(commands);
-    },
-    [runDispatch],
-  );
-
-  const applyOutcome = useCallback((outcome: CommandOutcome) => {
-    // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
-    //
-    // This used to clear `pending` and carry a PRECONDITION on the caller:
-    // only apply an outcome when the queue is empty, because the server decided
-    // this outcome without seeing anything still queued here. That precondition
-    // was unenforceable — it lived in this comment, and a third caller would
-    // have inherited it by reading it — and it is KI-5's ledger row of the same
-    // name. `adoptOutcome` re-predicts the queue onto the outcome instead, so
-    // an ungated caller no longer costs the user their unsent work.
-    //
-    // The existing callers still gate their own affordance, and should: being
-    // TOLD why a control is unavailable beats watching it silently do something
-    // subtler than expected. AddSavedDayButton disables the button and
-    // TripBoardScreen's assistant ask reports it in the rail
-    // (docs/reviews/2026-08-28-m11-pr71-review.md §4). That is now a UX choice
-    // rather than the only thing standing between a caller and data loss.
-    setOptimistic((prev) => (prev ? adoptOutcome(prev, outcome) : prev));
-    setError(null);
-  }, []);
-
   // ---- M13 link 2: a co-traveller's edits arrive ------------------------
   //
   // The poll says only "the trip moved"; the authoritative detail comes from
@@ -463,6 +377,102 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       );
     })();
   }, [tripId]);
+
+  const dispatch = useCallback(
+    async (command: BoardCommand) => {
+      if (readOnly) {
+        setError(refusal);
+        return;
+      }
+      if (HISTORY_TYPES.has(command.type)) {
+        // The REF, not the render-time `pending` (KI-70). This used to be the
+        // only thing that made the reconcile below safe; since M13 link 3 that
+        // reconcile re-predicts rather than clearing, so the guard no longer
+        // carries correctness — it is now a PRODUCT rule, and the one KI-90
+        // declined to decide: a history command does not start while unsent
+        // work is queued. Whether it should (and whether the silent `return`
+        // should say so) is still open, and is a decision, not a bug.
+        //
+        // It used to read a value derived during render — so an undo/redo/revert
+        // fired in the same tick as an accepted enqueue saw the PRE-enqueue
+        // `false`, passed, and reconciled away the unit that had been queued a
+        // moment earlier. One user edit gone, with no error and no count.
+        //
+        // `runDispatch` advances `optimisticRef.current` synchronously for
+        // exactly this hazard ("anything dispatched later in this same tick
+        // predicts against this result rather than the pre-dispatch queue");
+        // the history branch now guards on the same value it is guarding.
+        if ((optimisticRef.current?.pending.length ?? 0) > 0) return;
+        setError(null);
+        const result = await sendTripCommand(command);
+        if (!result.ok) {
+          // An undo that named its batch (an assistant card's, M27 D17) and
+          // found another change on top. Nothing was appended, and the refusal
+          // itself proves the log moved — so this is remote news, fetched the
+          // same way a poll's is. The card that sent it derives "Changed
+          // since" from the history that comes back; a banner would say the
+          // same thing a second time, somewhere else.
+          if (result.error.code === "undo-target-changed") {
+            onRemoteChange();
+            return;
+          }
+          if (result.error.code !== "no-op") setError(result.error.message);
+          return;
+        }
+        // KI-90: this was `{ confirmed: result.value, pending: [] }`. The guard
+        // above runs BEFORE the await, so a unit enqueued while the undo was in
+        // flight — a window measured in network latency — was discarded here on
+        // arrival. `adoptOutcome` re-predicts the queue onto the authoritative
+        // result instead of clearing it, so the reconcile is non-lossy whatever
+        // the queue holds by the time it lands.
+        setOptimistic((prev) => (prev ? adoptOutcome(prev, result.value) : prev));
+        exit();
+        return;
+      }
+      runDispatch([command as BatchableCommand]);
+    },
+    // No `pending` here any more: the guard above reads the ref instead, so
+    // this callback no longer has to be rebuilt on every queue change — and
+    // one fewer render-time value closed over is one fewer way to read a
+    // stale one.
+    [runDispatch, exit, readOnly, refusal, onRemoteChange],
+  );
+
+  // KI-36: the manual retry. Clearing the failure is all it takes — the
+  // sequential sender's effect re-runs on the new state and picks the retained
+  // head back up. No re-enqueue, no re-prediction: the queue never left.
+  const retry = useCallback(() => {
+    setError(null);
+    setOptimistic((prev) => (prev ? clearFailure(prev) : prev));
+  }, []);
+
+  const dispatchBatch = useCallback(
+    async (commands: BatchableCommand[]) => {
+      runDispatch(commands);
+    },
+    [runDispatch],
+  );
+
+  const applyOutcome = useCallback((outcome: CommandOutcome) => {
+    // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
+    //
+    // This used to clear `pending` and carry a PRECONDITION on the caller:
+    // only apply an outcome when the queue is empty, because the server decided
+    // this outcome without seeing anything still queued here. That precondition
+    // was unenforceable — it lived in this comment, and a third caller would
+    // have inherited it by reading it — and it is KI-5's ledger row of the same
+    // name. `adoptOutcome` re-predicts the queue onto the outcome instead, so
+    // an ungated caller no longer costs the user their unsent work.
+    //
+    // The existing callers still gate their own affordance, and should: being
+    // TOLD why a control is unavailable beats watching it silently do something
+    // subtler than expected. AddSavedDayButton disables the button and
+    // TripBoardScreen's assistant ask reports it in the rail
+    // (docs/reviews/2026-08-28-m11-pr71-review.md §4). That is now a UX choice
+    // rather than the only thing standing between a caller and data loss.
+    setOptimistic((prev) => (prev ? adoptOutcome(prev, outcome) : prev));
+    setError(null);
+  }, []);
 
   useTripBroadcast({
     tripId,

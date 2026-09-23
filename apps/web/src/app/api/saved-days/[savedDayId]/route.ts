@@ -2,6 +2,7 @@ import { SavedDay } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { requireSavedDayRead } from "@/server/access/saved-day-access";
 import { deleteSavedDay } from "@/server/savedDays";
+import { schedulePinBackfill } from "@/server/savedDayPinBackfill";
 
 // Read one saved day: your own, or anybody's published one (M11b link 3).
 // The rule and its reasoning live in the seam, not here — see
@@ -11,6 +12,11 @@ import { deleteSavedDay } from "@/server/savedDays";
 // `isAuthor` is on the response because PR3's shared-day route needs it to
 // decide whether to offer Unpublish, and the client cannot derive it: the
 // signed-in id is not something the browser is handed to compare against.
+//
+// `pinning` says a pass is putting this day's stops on its map after the
+// response (M27 link 10, `server/savedDayPins.ts`), so the page shows the map
+// frame loading and reads again. On the envelope rather than the `SavedDay`
+// contract: it is a fact about this read, not about the day.
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ savedDayId: string }> },
@@ -18,7 +24,8 @@ export async function GET(
   const { savedDayId } = await params;
   const access = await requireSavedDayRead(savedDayId);
   if ("error" in access) return access.error;
-  return Response.json({ savedDay: SavedDay.parse(access.day), isAuthor: access.isAuthor });
+  const pinning = schedulePinBackfill(access.day, access.readerId);
+  return Response.json({ savedDay: SavedDay.parse(access.day), isAuthor: access.isAuthor, pinning });
 }
 
 // Owner-only, and scoped in the query rather than checked after the read: a

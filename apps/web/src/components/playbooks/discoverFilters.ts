@@ -10,8 +10,8 @@ import {
 // rides the sentence about the list.** This module holds the questions.
 //
 // One list, because four things have to agree about it and did not before: the
-// chip row, the *More filters* menu, the active-filter count, and what *Clear
-// filters* resets. Keeping them as four hand-written places is how the phone
+// set-filter chips, the *Filters* menu, the active-filter count, and what
+// *Clear filters* resets. Keeping them as four hand-written places is how the phone
 // badge came to count "sorted by newest" as a filter — sort is a property of
 // the list, not a question, and it is deliberately NOT in here.
 //
@@ -42,13 +42,8 @@ export type FilterContext = {
 
 export type FilterDef = {
   id: DiscoverFilterId;
-  /** The chip's label when it carries no value, and its group heading in *More filters*. */
+  /** The group heading in the *Filters* menu, and a chip's fallback label. */
   label: string;
-  /**
-   * §33.2's `face: true` — always present in the row, whether or not it carries
-   * a value. Everything else appears only once it has one.
-   */
-  face: boolean;
   /** The value meaning "not asked" — a filter on this value is not active. */
   none: string;
   /** `null` when the filter cannot honestly be offered right now. */
@@ -61,13 +56,10 @@ export const FILTER_DEFS: readonly FilterDef[] = [
   {
     id: "budget",
     label: "Budget",
-    // §33.2 names Rating and Budget as the two face filters. **Rating is not
-    // built here and that is deliberate, not an omission**: there is no reviews
-    // table — M12 owns it — so a rating chip would be a control over data that
-    // does not exist (project rule 2) and a number this product cannot stand
-    // behind. Budget is the only face filter until M12 lands, and M12's own
-    // work is where the second one arrives.
-    face: true,
+    // §35.5 puts Rating in the *Filters* menu beside these two. **It is not
+    // built, deliberately** (M27 D8): there is no reviews table — M12 owns it —
+    // so a rating filter would be a control over data that does not exist
+    // (project rule 2). M12 adds it to this list.
     none: "any",
     options: ({ budgetCurrency }) => {
       // The bands hide rather than compare numbers that are not comparable.
@@ -102,10 +94,6 @@ export const FILTER_DEFS: readonly FilterDef[] = [
   {
     id: "length",
     label: "Length",
-    // Not a face filter: most people are looking for a city, not for a
-    // four-to-six-day run, so it earns its place in the row only once somebody
-    // has asked the question (§33.2).
-    face: false,
     none: "any",
     options: () =>
       LengthBand.options.map((value) => ({ value, label: LENGTH_BAND_LABELS[value] })),
@@ -136,7 +124,8 @@ export function clearedFilters(state: FilterState): FilterState {
 }
 
 /**
- * What a chip reads: its own label when empty, **its value** when set (§33.2).
+ * What a set filter's chip reads: **its value** (§33.2), falling back to the
+ * filter's name if the value has no option.
  *
  * A chip reading "Budget" when a budget is chosen makes the reader open it to
  * find out what they asked for, which is the thing the chip was supposed to
@@ -148,12 +137,17 @@ export function chipLabel(def: FilterDef, state: FilterState, options: readonly 
   return options.find((o) => o.value === current)?.label ?? def.label;
 }
 
-/** The chips in the row: every face filter, plus anything carrying a value. */
+/**
+ * The chips in the row: only the filters that are asking something (§35.5).
+ * Every filter is offered in the one *Filters* menu; a set one ALSO surfaces
+ * as its own chip, so it can be read and cleared in place without opening it.
+ */
 export function rowFilters(state: FilterState): readonly FilterDef[] {
-  return FILTER_DEFS.filter((def) => def.face || isFilterSet(def, state));
+  return FILTER_DEFS.filter((def) => isFilterSet(def, state));
 }
 
-/** What *More filters* holds — the non-face set, whether or not it is set. */
-export function moreFilters(): readonly FilterDef[] {
-  return FILTER_DEFS.filter((def) => !def.face);
+/** The *Filters* trigger: `Filters`, or `Filters · N` once N questions are asked (§35.5). */
+export function filtersLabel(state: FilterState): string {
+  const count = activeFilterCount(state);
+  return count > 0 ? `Filters · ${count}` : "Filters";
 }

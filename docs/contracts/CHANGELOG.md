@@ -13,6 +13,52 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-23 — `UndoLastChange` may name the batch it undoes (M27 D17)
+
+- Added optional **`undoesBatchId: uuid`** to `UndoLastChange`
+  (`packages/contracts/src/history.ts`). When present and it is not the batch
+  the undo would take, `decideHistoryCommand` refuses with the new domain
+  rejection code **`undo-target-changed`** and appends nothing;
+  `POST /api/trips/:id/commands` answers it **409**. Rejection codes are free
+  strings in the domain, not a contract schema, so no schema was added for it.
+- Why: an assistant card's Undo checked "still the trip's last change?" only
+  against the client's history, which can be a poll interval old, then sent a
+  plain undo — so a collaborator's write landing first was the change undone.
+  The precondition moves the check to where the decision is made.
+- Consumers updated: `packages/domain` (`decideHistoryCommand`), `apps/web`
+  (the commands route's status map; `TripBoardScreen`'s card Undo sends the
+  applied batch; `TripProvider.dispatch` refetches on `undo-target-changed`
+  rather than raising a banner, so the card derives "Changed since"). The
+  header/keyboard Undo, the public API's `POST …/history/undo`, the MSW mock
+  and every other `{ type, tripId }` caller are unchanged.
+- Breaking? no — the field is optional and absent means exactly what it did.
+
+## 2026-09-23 — the invite landing replaces the invite preview (M27 link 6)
+
+- Added **`InviteLanding`** to `packages/contracts/src/access.ts`, a
+  discriminated union on `state`: `valid` (inviter name, recipient email,
+  sent-at, role, the trip's name/start/day/city/stop counts, a per-day
+  `InviteLandingDay[]`, per-leg `InviteLandingLeg[]`, crew first names),
+  `member` (trip id and name, `signedIn: true` only), `revoked`, and
+  `unavailable` (the server's sentence). Every member is `.strict()`.
+- **Removed `InvitePreview`.** Its one route, `GET /api/invites/:token`, now
+  answers `{ landing: InviteLanding }` and no longer requires a session.
+- Why: SPEC §35.6 draws the screen an invite link opens for somebody with no
+  account — who asked, what the trip is, who is on it — and the preview could
+  not be read signed out. The refusals stay as thin as the #71 review §7 made
+  them, and `.strict()` is what holds them there: a field spread into
+  `revoked` is a parse error at the route, not a leak (M27 D10). No user id
+  crosses (ADR-027): the crew is first names, and the name chain stops before
+  its email fallback. No `expired` state and no invite note — invites have
+  neither (M27 D9, D11).
+- Consumers updated: `apps/web` — the route, `server/inviteLanding.ts` (new;
+  composed outside Access, which does not know what a trip contains),
+  `apiClient.fetchInviteLanding` (replaces `fetchInvitePreview`), the new
+  `InviteLandingScreen` (replaces `InviteAcceptScreen`), and their tests.
+- Breaking? yes, for the BFF only — `InvitePreview` and `fetchInvitePreview`
+  are gone, and the route's body key moved from `invite` to `landing`. No
+  public-API (`/api/v1`) surface and no stored data involved.
+
 ## 2026-09-23 — report and moderation response shapes (M12 link 6)
 
 - Added web-local `apps/web/src/lib/reports.ts` (not `packages/contracts`,

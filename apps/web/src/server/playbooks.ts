@@ -2,6 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
+  DISCOVER_PREVIEW_STOPS,
   inBudgetBand,
   LENGTH_BAND_RANGE,
   RATING_FLOOR_MIN,
@@ -366,6 +367,13 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     // surprise "add to trip" would spring later.
     dayCount: parsed.dayCount,
     window: facts.window,
+    // Day one's first stops, in stored order — `dayIndex` 0 exactly, so a
+    // Playbook whose first day was kept as a rest day previews nothing rather
+    // than passing day two off as day one (a gap is an empty day, ADR-048).
+    preview: parsed.stops
+      .filter((stop) => stop.dayIndex === 0)
+      .slice(0, DISCOVER_PREVIEW_STOPS)
+      .map((stop) => ({ title: stop.title, start: stop.timeWindow?.start ?? null })),
     totalCost: facts.totalCost,
     adds: row.adds,
     rating: row.rating === null ? null : Number(row.rating),

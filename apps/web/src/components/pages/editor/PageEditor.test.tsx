@@ -205,6 +205,92 @@ describe("PageEditor typography (KI-44)", () => {
     expect(headingCss).toContain("font-weight:");
   });
 
+  // SPEC §35.3: the Overview tab sets this same page as a letter — 16px / 1.75
+  // prose, 18px section headings — and the Notebook route must not follow it.
+  // Both halves from the one stylesheet and the one DOM, so a rule that lost
+  // its `.tc-overview-letter` scope fails the second half.
+  it("sets the page larger inside the Overview letter, and only there", async () => {
+    const detail = tripDetailFixture();
+    const overview = TEMPLATE_LIBRARY.find((t) => t.key === "trip-overview")!;
+    render(
+      <div data-testid="letter" className="tc-overview-letter">
+        <PageEditor detail={detail} context={{ tripId: detail.tripId }} value={overview.content} onChange={() => {}} />
+      </div>,
+    );
+    render(
+      <div data-testid="notebook">
+        <PageEditor detail={detail} context={{ tripId: detail.tripId }} value={overview.content} onChange={() => {}} />
+      </div>,
+    );
+
+    const rules = pageEditorRules(await compileGlobalsCss()).filter((r) => r.selector.includes(".tc-overview-letter"));
+    expect(rules.length).toBeGreaterThan(0);
+    const declarationsFor = (el: Element) =>
+      rules
+        .filter((r) => r.selector.split(",").some((s) => el.matches(s.trim())))
+        .map((r) => r.body)
+        .join(" ");
+    const paragraphIn = (id: string) => within(screen.getByTestId(id)).getAllByRole("paragraph")[0]!;
+    const headingIn = (id: string) => within(screen.getByTestId(id)).getByRole("heading", { level: 2, name: "Overview" });
+
+    expect(declarationsFor(paragraphIn("letter"))).toContain("line-height: 1.75");
+    expect(declarationsFor(headingIn("letter"))).toContain("font-size: 18px");
+    expect(declarationsFor(paragraphIn("notebook"))).toBe("");
+    expect(declarationsFor(headingIn("notebook"))).toBe("");
+  });
+
+  // Mitchell, on the PR 205 preview, pointing at `open` in the Overview letter:
+  // *"the warning UI … widget here is broken? It previously had more
+  // styling"*. A widget node is an inline atom inside a `<p>`, so the letter's
+  // 16px / 1.75 paragraph rule was INHERITED by every cell of the table — the
+  // widget read as oversized prose in a box (measured: 16px / 28px cells where
+  // the notebook draws 14px / 23.8px). The letter sets prose, not widgets.
+  it("keeps the letter's prose size out of block-shaped widgets, and leaves chips in the sentence", async () => {
+    render(
+      <div data-testid="letter" className="tc-overview-letter">
+        <PageEditor
+          detail={tripDetailFixture()}
+          context={{ tripId: tripDetailFixture().tripId }}
+          value={newPageDoc([
+            {
+              type: "paragraph",
+              content: [
+                { type: "macro", attrs: { name: "open", params: {} } },
+                { type: "macro", attrs: { name: "day.detail", params: {} } },
+                { type: "macro", attrs: { name: "cost", params: {} } },
+              ],
+            },
+          ])}
+          onChange={() => {}}
+        />
+      </div>,
+    );
+    const letter = screen.getByTestId("letter");
+    // eslint-disable-next-line testing-library/no-node-access -- the claim is about a CSS selector matching a DOM node; no role or label stands in for the shape attribute.
+    const shaped = (shape: string) => letter.querySelector(`[data-macro-shape="${shape}"]`);
+    // Not vacuous: each shape has to have been written for the rules below to
+    // be asked about it at all.
+    expect(shaped("repeat")).not.toBeNull();
+    expect(shaped("block")).not.toBeNull();
+    expect(shaped("single")).not.toBeNull();
+
+    const rules = pageEditorRules(await compileGlobalsCss()).filter((r) => r.selector.includes(".tc-overview-letter"));
+    const declarationsFor = (el: Element) =>
+      rules
+        .filter((r) => r.selector.split(",").some((s) => el.matches(s.trim())))
+        .map((r) => r.body)
+        .join(" ");
+
+    // The notebook's own numbers: `.tc-page-editor p`'s `text-base`, and the
+    // 1.7 its `:has([data-widget-value])` rule gives a paragraph with a widget.
+    for (const shape of ["repeat", "block"]) {
+      expect(declarationsFor(shaped(shape)!)).toContain("font-size: var(--text-base)");
+      expect(declarationsFor(shaped(shape)!)).toContain("line-height: 1.7");
+    }
+    // A chip is a word in the letter's sentence (SPEC §7) and sets at its size.
+    expect(declarationsFor(shaped("single")!)).toBe("");
+  });
+
   // **The caret, and the second time Mitchell reported it.**
   //
   // A macro node is an inline atom, so a block-shaped widget is a tall inline
