@@ -30,17 +30,19 @@ general setup.
 
 ## Where the work is right now
 
-**M27 — THE SIMPLIFY PASS — IS THE CURRENT MILESTONE AS OF 2026-09-23**, placed
-by Mitchell ahead of M12 to build the 2026-09-22 design pass (SPEC §35). All
-ten links are built on `claude/admiring-goodall-librbf`; the gate's `[walk]`
-boxes are open. Scope and the seventeen decisions:
-`docs/milestones/M27-simplify-pass.md`. **M12 is next**, and what follows is
-its placement, unchanged:
+**M12 — REVIEWS AND MODERATION — IS THE CURRENT MILESTONE AGAIN AS OF
+2026-09-23**, by **M27's gate closing at 8 of 8**. M27 (the simplify pass,
+SPEC §35) merged as #205 and was walked by Mitchell on production. Its retro,
+and what shipping it took (the migration and the content import), are at the
+end of `docs/milestones/M27-simplify-pass.md`. **Production is current:**
+all 26 migrations are applied, including M12's `0025_reviews_and_moderation`,
+and #207's corrected coordinates are imported. M12's own placement follows,
+unchanged except that its backend (#206) is already merged:
 
 **M12 — REVIEWS AND MODERATION — WAS THE CURRENT MILESTONE FROM 2026-09-22**,
 by **M13's gate closing at 10 of 10** — the second consecutive move made by a
 gate rather than by Mitchell placing a milestone. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 → M12 → M24 → M14 → M19`.
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 → M24 → M14 → M19`.
 Scope, seven links and thirteen boxes: `docs/milestones/M12-reviews-and-moderation.md`.
 It needs **two migrations** (the reviews table, and `saved_days.countries`) and
 has a data prerequisite: the content library carries `countryCode` on **none**
@@ -215,7 +217,14 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M13 is the current milestone** (M26's gate closed 2026-09-21, 22 of 22). Read
+**M12 is the current milestone** (M27's gate closed 2026-09-23, 8 of 8). Read
+`docs/milestones/M12-reviews-and-moderation.md` before planning anything. Its
+backend (#206) is merged and migrated on production, so what is left is the UI
+and the gate. **One operator item from M27 may still be open:** the Playbook
+pin backfill does nothing without `LOCATIONIQ_API_KEY` on Vercel (Production
+and Preview).
+
+*Older, kept for the record:* **M13 was the current milestone** (M26's gate closed 2026-09-21, 22 of 22). Read
 `docs/milestones/M13-collaboration.md` before planning anything. M21's and
 M22's gates closed 2026-09-19 on Mitchell's attestation — nothing of either is
 owed.

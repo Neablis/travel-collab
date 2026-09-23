@@ -63,3 +63,10 @@
   placeholder UI for four surfaces is milestone work with its own red-first
   tests, not cleanup, and adding it is how the branch reached 163 files in the
   first place.
+- **2026-09-23, after M27:** the Notebooks menu's string is **gone** too. It now
+  shows placeholder rows sized to the real rows, with `role="status"` named
+  *Loading notebooks*, pinned by `NotebooksMenu.test.tsx`. `PageScreen.tsx`
+  (now `:524`) and `PlansScreen.tsx:687` remain. The notebook page's is the one
+  a walk hits: it paints `Loading…` alone where M26 §3b wants real chrome from
+  the first frame. The Home hero's sparkline `Loading…` is a separate problem
+  with its own measurement: `KI-2026-09-23-e`.

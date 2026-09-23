@@ -1,6 +1,7 @@
 # M27 — The simplify pass: fewer things on screen, the invite landing, Cass, and actions that look like actions
 
-**Status: IN PROGRESS. Minted, scoped and PLACED 2026-09-23 by Mitchell ("Big
+**Status: GATE CLOSED 2026-09-23, 8 of 8 (walked by Mitchell on production after
+#205 merged). Minted, scoped and PLACED 2026-09-23 by Mitchell ("Big
 new Design pass in the handoff … just go ahead and make all the changes and
 offer the PR when done, documenting any decisions you make"), ahead of M12.**
 M12 is unblocked by this and stays next. It's the same placement argument M26
@@ -330,20 +331,59 @@ that is genuinely about the count (*Add all 3 days to a trip*).
 
 ## Exit gate
 
-- [ ] Links 1–9 merged; `pnpm check` green; `test:e2e:ci-like` green (or each
+- [x] Links 1–9 merged; `pnpm check` green; `test:e2e:ci-like` green (or each
       failure named with its KI)
-- [ ] **[walk]** Home with two trips: the header has **New trip** only; the hero
+- [x] **[walk]** Home with two trips: the header has **New trip** only; the hero
       shows one actionable line and no tiles; *Other trips* does not repeat the
       hero
-- [ ] **[walk]** A trip's header is the same height on Overview, Plan, Calendar
+- [x] **[walk]** A trip's header is the same height on Overview, Plan, Calendar
       and Map; the dates pill moves the trip's start
-- [ ] **[walk]** Overview's **Edit** opens the page, and the first crumb returns
+- [x] **[walk]** Overview's **Edit** opens the page, and the first crumb returns
       to Overview
-- [ ] **[walk]** A signed-out visitor opening an invite link sees the landing;
+- [x] **[walk]** A signed-out visitor opening an invite link sees the landing;
       **Have a look first** shows the trip read-only; **Join** lands in the trip
-- [ ] **[walk]** New trip for a city with published days offers them after the
+- [x] **[walk]** New trip for a city with published days offers them after the
       city, and a chosen day is on the created trip
-- [ ] **[walk]** A single-day Playbook from the content library shows its map
+- [x] **[walk]** A single-day Playbook from the content library shows its map
       (desktop, and behind *Show route* on a phone)
-- [ ] **[walk]** Asking the assistant for a change shows a card; accept, then
+- [x] **[walk]** Asking the assistant for a change shows a card; accept, then
       Undo, puts the trip back
+
+## Retro — 2026-09-23
+
+**Closed the day it opened.** Merged as #205 (`57922bd`) with CI green, walked by
+Mitchell on production, gate ticked 8 of 8 on that walk.
+
+**What shipping it took beyond the merge** (the operator steps are not part of
+the merge, so they are written down here):
+- `migrate-production` applied `0025_reviews_and_moderation`. That migration is
+  M12's backend (#206) and came in with main, not from this milestone; production
+  showed 25 of 26 applied beforehand, checked by hash.
+- `import-content-production` dry run, then the real run: 0 trips created, 4
+  already present, 2 stop locations moved, 148 Playbook days written. That
+  delivers #207's 16 hand-corrected coordinates: 2 in the Thailand demo trip,
+  14 across 8 Playbook files. Both moves and a Playbook fix were then read back
+  from the production database.
+- **Expect 2 moves, not 16.** The dry run's *stop locations it would move* counts
+  only stops in already-imported **trips**. The Playbook corrections are inside
+  *would write N playbook day(s)*, because each run rewrites every Playbook day
+  from its file.
+
+**What was found and filed, not fixed:**
+- the Home hero's reflow on phones (`KI-2026-09-23-e`);
+- the card's Undo is hidden by a notebook save and can record the wrong batch
+  (`KI-2026-09-23-f`);
+- the wall tests write fixtures into `apps/web/src` (`KI-2026-09-23-g`);
+- the Playbook pin backfill joins the unpaced LocationIQ callers (added to
+  `KI-2026-09-17-b`);
+- `PageScreen`'s bare `Loading…` is still there after this pass (already
+  `KI-2026-09-20-e`).
+
+The *Buenos Aires Sunday* stop geocoded about 30 km off was **Feria de San
+Telmo**, and #207 corrected it. There is nothing to file.
+
+**Lesson:** a fan-out of five read-only surveys before writing a line was what
+made seventeen decisions recordable instead of discovered in review. Every
+place where the design and the code disagreed was found before the build rather
+than during it.
+

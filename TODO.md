@@ -205,11 +205,11 @@ reorder and the one place a reorder updates.
 - [x] **M11 Sharing, invites, and a trip you can hand to someone** — gate closed 2026-08-28 → `docs/milestones/M11-sharing-and-invites.md`
 - [x] **M11a An invite gate on the front door** — gate closed 2026-08-31 → `docs/milestones/M11a-invite-gate.md`
 - [x] **M11b Playbooks becomes a public library** — gate closed 2026-08-31 → `docs/milestones/M11b-playbooks-public-library.md`
-- [ ] **M27 The simplify pass** ← **current milestone** (2026-09-23, **placed by Mitchell** ahead
+- [x] **M27 The simplify pass** (2026-09-23, **placed by Mitchell** ahead
       of M12: *"Big new Design pass in the handoff … just go ahead and make all
       the changes"*). SPEC §35, plus link 10 (every Playbook has its map).
       → `docs/milestones/M27-simplify-pass.md`
-- [ ] **M12 Reviews and moderation** — next, after M27 (was current from
+- [ ] **M12 Reviews and moderation** ← **current milestone** (again from 2026-09-23, by M27's gate closing; was current from
       2026-09-22, **by M13's gate closing**, until M27 was placed ahead of it). All trust & safety scope
       lives here, nowhere earlier.
       → `docs/milestones/M12-reviews-and-moderation.md`
