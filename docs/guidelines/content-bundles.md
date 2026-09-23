@@ -423,12 +423,16 @@ attempt, three times over.
 
 `pnpm content:import` talks to a dev server through the dev-login route, which
 fails closed to a 404 in production. Production goes through a dispatched
-workflow instead, in two steps from `main`:
+workflow instead, in up to three steps from `main`:
 
 1. **`migrate-production`** — `confirm: migrate`. Only when a migration is
    pending; `source_bundle` (0018) is one.
 2. **`import-content-production`** — `confirm: import`, `dry_run` **on** first.
    Re-dispatch with it off once the plan looks right.
+3. **`backfill-countries-production`** — `confirm: backfill`. Only after a
+   change to `countryCode`s. The import already derives `countries` for the
+   playbook days it rewrites; this fills the rows it does not (days people
+   saved) and prints the coverage numbers M12's gate asks for.
 
 Needs one secret: `PRODUCTION_DATABASE_URL`, which the migration workflow
 already uses.

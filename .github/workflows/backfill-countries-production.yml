@@ -1,0 +1,62 @@
+name: backfill-countries-production
+
+# Runs `db:backfill-countries` (M12 link 7) against production. Dispatched by
+# hand, never on a push — the same posture as `import-content-production.yml`,
+# and for the same reason: the connection string stays a repo secret and never
+# lands in a shell that also has a `.env.local` in scope.
+#
+# Order: after `import-content-production`. The import already derives
+# `countries` for every playbook day it rewrites; this fills the rows it does
+# not touch (days people saved before migration 0025) and prints the two
+# coverage numbers M12's gate box asks for.
+#
+# SAFE TO RE-RUN. The script compares before it writes, and refuses to empty a
+# column that already has countries. It exits non-zero if it left any row
+# alone, and lists them.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "backfill" to confirm writing saved_days.countries in production'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backfill-countries-production
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Guard the dispatch
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Refusing to write production from ${{ github.ref }} — dispatch this from main."
+            exit 1
+          fi
+          if [ "$CONFIRM" != "backfill" ]; then
+            echo '::error::Type "backfill" in the confirm field to proceed.'
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Backfill
+        run: |
+          cd apps/web
+          node scripts/backfill-saved-day-countries.mjs
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
