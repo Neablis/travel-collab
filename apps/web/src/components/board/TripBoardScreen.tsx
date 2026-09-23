@@ -657,6 +657,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // yours. Re-checked here against the history this render holds, not only
   // at the card, because a poll can move the head between the two.
   //
+  // **Neither check is the guarantee** — both read a history up to a poll
+  // interval old. The command names its batch (`undoesBatchId`) and the server
+  // refuses `undo-target-changed` if anything else is on top by the time it
+  // decides; the provider then refetches, and this card reads "Changed since".
+  //
   // Through the provider's own `dispatch`, exactly as History's Undo is, so it
   // shares that path's refusals (view-only, unsent edits queued) and its
   // reconcile. The card reads "Put back the way it was." off the history that
@@ -666,8 +671,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const undoProposal = (turnId: string) => {
     const turn = thread.find((t) => t.id === turnId);
     if (!turn || turn.role !== "assistant" || turn.proposal == null) return;
-    if (undoFor(turn.proposal) !== "available") return;
-    void dispatch({ type: "UndoLastChange", tripId });
+    const undoesBatchId = turn.proposal.batchId;
+    if (undoesBatchId == null || undoFor(turn.proposal) !== "available") return;
+    void dispatch({ type: "UndoLastChange", tripId, undoesBatchId });
   };
 
   // Rejecting sends nothing. There is no server-side draft to discard: the

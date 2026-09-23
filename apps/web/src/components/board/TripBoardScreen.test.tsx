@@ -1721,6 +1721,73 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
     expect(sent).toEqual(["UndoLastChange"]);
   });
 
+  // The race D17 exists for, closed where it is decided: the board still
+  // shows the card's batch on top, but a collaborator's write reached the
+  // server first. The Undo names its batch, the server refuses, and the card
+  // says so — nothing is undone and no banner repeats it.
+  it("an Undo the server refuses as stale reads 'Changed since' and undoes nothing", async () => {
+    const fixture = costedTripDetailFixture();
+    const APPLIED = "55555555-5555-4555-8555-555555555555";
+    const appliedEntry = {
+      batchId: APPLIED,
+      fromSeq: 3,
+      toSeq: 3,
+      actorId: "dev-alice",
+      occurredAt: "2026-09-23T10:00:00.000Z",
+      origin: { kind: "user" as const },
+      description: 'Added "Coffee at Fuglen"',
+      undone: false,
+    };
+    const REFUSAL = "This trip has changed since. Undo it from History instead.";
+    const sent: unknown[] = [];
+    let collaboratorWrote = false;
+    server.use(
+      http.post("*/api/trips/:tripId/commands", async ({ request }) => {
+        sent.push(TripCommand.parse(await request.json()));
+        collaboratorWrote = true;
+        return HttpResponse.json({ error: REFUSAL, code: "undo-target-changed" }, { status: 409 });
+      }),
+      http.get("*/api/trips/:tripId/history", () =>
+        HttpResponse.json({
+          history: {
+            tripId: fixture.tripId,
+            entries: collaboratorWrote
+              ? [
+                  { ...appliedEntry, batchId: "77777777-7777-4777-8777-777777777777", fromSeq: 4, toSeq: 4, actorId: "dev-bob", description: "Added Day 3" },
+                  appliedEntry,
+                ]
+              : [],
+            canUndo: collaboratorWrote,
+            canRedo: false,
+          },
+        }),
+      ),
+      ...makeTripHandlers(fixture),
+    );
+    const card = await askForAChange(fixture);
+    applyProposalMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        detail: afterApproval(fixture),
+        history: { tripId: fixture.tripId, entries: [appliedEntry], canUndo: true, canRedo: false },
+        message: "Done — added “Coffee at Fuglen” to day 1.",
+        simulated: false,
+      },
+    });
+    fireEvent.click(within(card).getByRole("button", { name: "Make the change" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "Suggested change" }).textContent).toContain(
+        "Changed since — undo it from History.",
+      ),
+    );
+    expect(sent).toEqual([{ type: "UndoLastChange", tripId: fixture.tripId, undoesBatchId: APPLIED }]);
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(screen.queryByText(REFUSAL)).toBeNull();
+  });
+
   // The requirement in its own test: rejection is not an operation.
   it("rejecting sends nothing and leaves the trip byte-identical", async () => {
     const fixture = costedTripDetailFixture();

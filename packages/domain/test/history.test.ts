@@ -131,6 +131,50 @@ describe("decideHistoryCommand rejections", () => {
   });
 });
 
+// M27 D17: an assistant card's Undo names the batch it means. Without the
+// precondition, a collaborator's write landing between the card's render and
+// the server's decision would make "Undo" take back THEIR change.
+describe("UndoLastChange with undoesBatchId", () => {
+  const headBatch = (log: Log) => log[log.length - 1]!.batchId;
+
+  it("undoes when the named batch is still the undo target", () => {
+    const log = freshTrip();
+    const mine = headBatch(log);
+    const decision = decideHistoryCommand(log, { type: "UndoLastChange", tripId: TRIP, undoesBatchId: mine });
+    expect(decision.ok).toBe(true);
+    if (decision.ok) expect(decision.origin).toEqual({ kind: "undo", undoesBatchId: mine });
+  });
+
+  it("refuses, deciding no events, once someone else's change is on top", () => {
+    let log = freshTrip();
+    const mine = headBatch(log);
+    log = run(log, { type: "AddDay", tripId: TRIP, dayId: uuid(901) }); // the collaborator
+    const decision = decideHistoryCommand(log, { type: "UndoLastChange", tripId: TRIP, undoesBatchId: mine });
+    expect(decision).toEqual({
+      ok: false,
+      rejection: { code: "undo-target-changed", message: expect.any(String) },
+    });
+  });
+
+  it("refuses when the named batch was already undone, rather than undoing the one beneath", () => {
+    let log = freshTrip();
+    const mine = headBatch(log);
+    log = run(log, { type: "UndoLastChange", tripId: TRIP }); // from History, or by someone else
+    const decision = decideHistoryCommand(log, { type: "UndoLastChange", tripId: TRIP, undoesBatchId: mine });
+    expect(decision.ok).toBe(false);
+    if (!decision.ok) expect(decision.rejection.code).toBe("undo-target-changed");
+  });
+
+  it("without it, undo still takes whatever is on top", () => {
+    let log = freshTrip();
+    log = run(log, { type: "AddDay", tripId: TRIP, dayId: uuid(902) });
+    const top = headBatch(log);
+    const decision = decideHistoryCommand(log, { type: "UndoLastChange", tripId: TRIP });
+    expect(decision.ok).toBe(true);
+    if (decision.ok) expect(decision.origin).toEqual({ kind: "undo", undoesBatchId: top });
+  });
+});
+
 describe("buildHistoryEntries", () => {
   it("groups per batch, describes in domain language, marks undone entries", () => {
     let log = freshTrip();

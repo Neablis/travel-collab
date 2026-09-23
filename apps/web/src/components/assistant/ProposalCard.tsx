@@ -42,6 +42,10 @@ export type ProposalUndo = "available" | "changed" | "undone";
  * head of the trip's history. Once anyone has written since, pressing it would
  * undo *their* change, and the card points at History instead.
  *
+ * This is the affordance, not the guarantee: the history can be a poll
+ * interval old. The Undo it sends names this card's batch (`undoesBatchId`),
+ * and the server refuses `undo-target-changed` rather than undo anything else.
+ *
  * Derived from the history the board already holds, never stored: an undo
  * made from History, or by a collaborator, reads correctly here too.
  *

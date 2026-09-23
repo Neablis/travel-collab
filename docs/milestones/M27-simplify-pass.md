@@ -152,6 +152,12 @@ since.**
   Once anyone else has written, that would undo *their* change.
 - So Undo shows only while the apply is still the trip's last change. After
   that the card says so, and points at History (§35.10's conflict path).
+- **Enforced server-side, not only at render** (#205 review). The client's
+  history can be a poll interval old, so the card's Undo sends
+  `UndoLastChange { undoesBatchId }` naming its apply batch. If anything else
+  is on top when the server decides, it refuses **`undo-target-changed`**
+  (409), appends nothing, and the provider refetches; the card then reads
+  *Changed since — undo it from History.* Contracts changelog, 2026-09-23.
 
 **Smaller calls made during the build** (recorded so they are not rediscovered):
 - `UnderlineTabs` accepts `value: null`. With nothing selected, the first tab

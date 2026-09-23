@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-23 — `UndoLastChange` may name the batch it undoes (M27 D17)
+
+- Added optional **`undoesBatchId: uuid`** to `UndoLastChange`
+  (`packages/contracts/src/history.ts`). When present and it is not the batch
+  the undo would take, `decideHistoryCommand` refuses with the new domain
+  rejection code **`undo-target-changed`** and appends nothing;
+  `POST /api/trips/:id/commands` answers it **409**. Rejection codes are free
+  strings in the domain, not a contract schema, so no schema was added for it.
+- Why: an assistant card's Undo checked "still the trip's last change?" only
+  against the client's history, which can be a poll interval old, then sent a
+  plain undo — so a collaborator's write landing first was the change undone.
+  The precondition moves the check to where the decision is made.
+- Consumers updated: `packages/domain` (`decideHistoryCommand`), `apps/web`
+  (the commands route's status map; `TripBoardScreen`'s card Undo sends the
+  applied batch; `TripProvider.dispatch` refetches on `undo-target-changed`
+  rather than raising a banner, so the card derives "Changed since"). The
+  header/keyboard Undo, the public API's `POST …/history/undo`, the MSW mock
+  and every other `{ type, tripId }` caller are unchanged.
+- Breaking? no — the field is optional and absent means exactly what it did.
+
 ## 2026-09-23 — the invite landing replaces the invite preview (M27 link 6)
 
 - Added **`InviteLanding`** to `packages/contracts/src/access.ts`, a

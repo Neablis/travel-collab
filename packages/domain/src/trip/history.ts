@@ -172,6 +172,15 @@ export function decideHistoryCommand(
 
   switch (command.type) {
     case "UndoLastChange": {
+      // Checked before `nothing-to-undo`: a caller that named a batch is told
+      // its batch is no longer on top — including when it was already undone
+      // — not that the trip as a whole has nothing left.
+      if (command.undoesBatchId !== undefined && targets.undo?.batchId !== command.undoesBatchId) {
+        return rejectHistory(
+          "undo-target-changed",
+          "This trip has changed since. Undo it from History instead.",
+        );
+      }
       if (targets.undo === null) return rejectHistory("nothing-to-undo", "There is nothing to undo.");
       const target = foldEnvelopes(envelopes, targets.undo.targetSeq);
       if (target === null) return rejectHistory("nothing-to-undo", "There is nothing to undo.");
