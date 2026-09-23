@@ -239,7 +239,7 @@ describe("PageEditor typography (KI-44)", () => {
     expect(declarationsFor(headingIn("notebook"))).toBe("");
   });
 
-  // Mitchell, on the #205 preview, pointing at `open` in the Overview letter:
+  // Mitchell, on the PR 205 preview, pointing at `open` in the Overview letter:
   // *"the warning UI … widget here is broken? It previously had more
   // styling"*. A widget node is an inline atom inside a `<p>`, so the letter's
   // 16px / 1.75 paragraph rule was INHERITED by every cell of the table — the

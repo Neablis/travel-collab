@@ -1441,7 +1441,7 @@ describe("MapLens — the hover card never repeats what the focus card says", ()
     expect(screen.getByTestId("map-hover-card")).toBeDefined();
   });
 
-  // M27 (Mitchell, preview comment on #205): day 0 is focused by default, so
+  // M27 (Mitchell, preview comment on PR 205): day 0 is focused by default, so
   // suppressing the card there left the first row with no hover state at all.
   // The focused day gets a trimmed card instead: its label and the longest-hop
   // note, never the city or the stops line the focus card already shows.

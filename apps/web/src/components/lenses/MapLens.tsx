@@ -959,7 +959,7 @@ export function MapLens({
                     stops yet"), which `m10-growth.spec.ts` caught as two
                     matching elements. But day 0 is focused by default, so the
                     first row never had a hover state at all (Mitchell, preview
-                    comment on #205). `trimmed` keeps only what the focus card
+                    comment on PR 205). `trimmed` keeps only what the focus card
                     lacks, and drops the empty day's sentence. */}
                 {hover !== null && (
                   <MapHoverCard day={hover.day} top={hover.top} trimmed={hover.day.index === focusedDay} />

@@ -136,7 +136,7 @@ describe("NotebooksMenu", () => {
     expect(await screen.findByText("Packing")).toBeTruthy();
   });
 
-  // Mitchell, on the #205 preview: *"When the notebooks first load it still just
+  // Mitchell, on the PR 205 preview: *"When the notebooks first load it still just
   // has a plain 'Loading' instead of a placeholder that takes up the same amount
   // of space the real element [does] so the page doesn't reflow"*. jsdom has no
   // layout, so the row HEIGHT was measured in Chromium (the commit has the

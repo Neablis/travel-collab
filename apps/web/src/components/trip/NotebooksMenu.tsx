@@ -18,7 +18,7 @@ import { Text } from "@/components/ui/text";
 type Status = "idle" | "loading" | "ready" | "error";
 
 // Shared by the list and its loading placeholder, so the popover is the same
-// size before and after the notebooks arrive (Mitchell, #205 preview: a bare
+// size before and after the notebooks arrive (Mitchell, PR 205 preview: a bare
 // "Loading…" line was shorter than a row, and the menu reflowed on landing).
 const LIST_AREA = "flex min-h-11 flex-auto flex-col overflow-y-auto";
 const ROW = "flex items-center gap-2.5 rounded-md px-2.5 py-2";

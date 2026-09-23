@@ -1673,7 +1673,7 @@ html[data-look="ledger"] .shadow-raised {
   }
   /* **The letter sets prose, not widgets.** A widget is an inline atom inside
      that `<p>`, so without this a table widget inherits 16px / 1.75 into every
-     cell and reads as oversized prose in a box — Mitchell, on the #205
+     cell and reads as oversized prose in a box — Mitchell, on the PR 205
      preview, of `open`: *"It previously had more styling"*. These are the
      notebook's own numbers (`text-base`, and the 1.7 its `:has` rule gives a
      paragraph holding a widget). `single` is left out on purpose: a chip is a
