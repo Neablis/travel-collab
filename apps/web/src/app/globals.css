@@ -102,6 +102,11 @@
      door never needs a raw shadow literal. Not for app surfaces. */
   --shadow-float: 0 4px 12px rgb(21 29 46 / 0.08);
   --shadow-lifted: 0 16px 38px rgb(21 29 46 / 0.15);
+  /* The Overview's sheet of paper (SPEC §35.3), and the one app surface that
+     is lifted rather than ruled: the tab "reads as a letter", and a letter is
+     a page lying on the desk. Read by `.tc-overview-letter`, not minted for
+     reuse — a second surface wanting it is a second design decision. */
+  --shadow-letter: 0 1px 2px rgb(21 29 46 / 0.05), 0 12px 32px -18px rgb(21 29 46 / 0.18);
 
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
@@ -1679,5 +1684,38 @@ html[data-look="ledger"] .shadow-raised {
      its leading margin would read as a gap the author didn't type. */
   .tc-page-editor .ProseMirror > :first-child {
     @apply mt-0;
+  }
+
+  /* **The Overview reads as a letter** (SPEC §35.3, M27 link 3). The same
+     page the Notebook edits, on a centred sheet with a letterhead, set a size
+     larger than a notebook page is. Scoped to this wrapper so the notebook's
+     own pages — the same `.tc-page-editor` — are unchanged.
+
+     The 4px radius is a literal, not `rounded-xs`: Ledger zeroes the radius
+     scale ("squared", §28), and the design draws this corner in Ledger on
+     purpose — paper has a corner, a panel does not. Same reason the shadow is
+     its own token rather than `shadow-raised`, which Ledger turns into a
+     hairline. The clamps are the design's own; there is no spacing token that
+     scales with the viewport. */
+  .tc-overview-letter {
+    @apply mx-auto w-full border border-hairline bg-surface;
+    max-width: 720px;
+    border-radius: 4px;
+    box-shadow: var(--shadow-letter);
+    padding: clamp(28px, 6vw, 60px) clamp(22px, 7vw, 72px) clamp(36px, 7vw, 72px);
+  }
+  /* After the `:has([data-widget-value])` rules above on purpose: equal
+     specificity, so source order decides, and 1.75 is looser than their 1.7 —
+     a chip in a letter's paragraph still clears the line above it. */
+  .tc-overview-letter .tc-page-editor p {
+    @apply text-md;
+    line-height: 1.75;
+  }
+  /* 18px is between the scale's 16 and 19; the design moved this heading off
+     19 in the same pass, so the step is the point rather than a rounding. The
+     extra 8px above is the design's `padding-top` on a section heading. */
+  .tc-overview-letter .tc-page-editor h2 {
+    font-size: 18px;
+    @apply mt-8;
   }
 }

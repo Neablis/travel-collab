@@ -95,7 +95,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
-  // returns below — the day chips (Task 8) below the tab strip both read and
+  // returns below — the day chips (Task 8) above Plan's columns both read and
   // set it.
   const { focusedDay, setFocusedDay, focusedTag, toggleFocusedTag } = useFocus();
   // The two day containers this screen owns, per the day-sync contract in
@@ -881,38 +881,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 needs no wrapper and gets none. `clearTagFilter` is unchanged;
                 this link is one JSX move, exactly as §33.3 says it is. */}
             <TagFocusLine />
-            {/* Task 2.3: MapRail replaces the chips row's job in map view — the
-                two side by side would be redundant, and the chips row's own
-                horizontal scroll makes no sense floating over a full-bleed map. */}
-            {/* **And not on the phone's Overview** — Mitchell, on the preview:
-                *"in mobile, hide the day bar here, leave on desktop"*.
-
-                The row narrows the OTHER views: it picks the day the columns
-                scroll to, the day the calendar centres, the day the assistant
-                takes as its scope. The Overview is a notebook page whose
-                widgets carry their own bindings (ADR-035 decision 1 — two
-                widgets on one page can read two different days), so nothing on
-                that screen answers to it. On a desktop it costs a strip of a
-                wide header and keeps the four views' chrome identical, which is
-                worth more than the strip; at 411px it is a scrolling row of
-                fourteen chips above a page that ignores every one of them.
-
-                `isPhone`, not `md:hidden`, for `DayChips`' own reason: the row
-                renders fourteen focusable buttons, and hiding them in CSS
-                leaves fourteen controls in the tree for a screen reader to walk
-                past on a page where none of them does anything. */}
-            {view !== "Map" && !(isPhone && view === "Overview") && (
-              <DayChips
-                days={chipModel(activeTrip)}
-                focusedDay={focusedDay}
-                // Named so the chips row knows a day was picked HERE rather
-                // than handed to it — which is what lets its own scroll spy be
-                // held off a pick it cannot centre. See `jumpTo`.
-                onSelect={(index) => setFocusedDay(index, "chips")}
-                readOnly={readOnly}
-                sync={chipsSync}
-              />
-            )}
           </TripHeader>
           {error !== null && (
             <PageContainer width="full">
@@ -941,6 +909,33 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               </PageContainer>
             ) : (
               <PageContainer width={boardUsesFullWidth ? "full" : "content"}>
+                {/* **The day rail belongs to Plan, and scrolls with it** (SPEC
+                    §35.3, M27 link 3). It used to sit in the sticky header on
+                    every view but Map (and phone Overview), which made the
+                    header a different height depending on the tab. Overview,
+                    Calendar and Map each already show every day in their own
+                    terms, so the row only does work above the columns it
+                    scrolls. Rendered, not CSS-hidden, off Plan: fourteen
+                    focusable chips on a view that ignores them is fourteen
+                    controls for a screen reader to walk past for nothing.
+
+                    `pt-2.5` rather than the design's 14px because the row's own
+                    `pt-1` (ring clearance, see `DayChips`) makes up the rest;
+                    its `pb-1` is the design's 4px below. */}
+                {view === "Plan" && (
+                  <div className="pt-2.5">
+                    <DayChips
+                      days={chipModel(activeTrip)}
+                      focusedDay={focusedDay}
+                      // Named so the chips row knows a day was picked HERE rather
+                      // than handed to it — which is what lets its own scroll spy
+                      // be held off a pick it cannot centre. See `jumpTo`.
+                      onSelect={(index) => setFocusedDay(index, "chips")}
+                      readOnly={readOnly}
+                      sync={chipsSync}
+                    />
+                  </div>
+                )}
                 {view === "Plan" && (
                   <Board
                     trip={activeTrip}
@@ -1001,7 +996,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     }}
                   />
                 )}
-                {view === "Overview" && <OverviewLens detail={activeTrip} tripId={tripId} remoteRevision={remoteRevision} />}
+                {view === "Overview" && (
+                  <OverviewLens detail={activeTrip} tripId={tripId} remoteRevision={remoteRevision} readOnly={readOnly} />
+                )}
                 {view === "Calendar" && (
                   <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
                 )}

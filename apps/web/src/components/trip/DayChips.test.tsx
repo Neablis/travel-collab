@@ -588,6 +588,19 @@ describe("DayChips day-sync", () => {
     expect(jumped).toHaveLength(1);
   });
 
+  // SPEC §35.3 moved the row out of the sticky header into Plan's body, where
+  // it scrolls away. `block: "nearest"` on a row above the fold scrolls the
+  // page, so following from there would drag a reader halfway down the columns
+  // back to the top. jsdom has no layout, so the row's box is stated here.
+  it("does not ask to be scrolled while the row itself is off screen", () => {
+    const { sync, jumped } = stubSync(true);
+    const { rerender } = render(<DayChips days={chips} focusedDay={null} onSelect={() => {}} sync={sync} />);
+    const row = screen.getByRole("group", { name: "Days" });
+    vi.spyOn(row, "getBoundingClientRect").mockReturnValue({ top: -300, bottom: -200 } as DOMRect);
+    rerender(<DayChips days={chips} focusedDay={2} onSelect={() => {}} sync={sync} />);
+    expect(jumped).toEqual([null]);
+  });
+
   it("renders and selects with no sync at all", async () => {
     // The prop is optional so the row stays renderable outside the provider —
     // this whole file does exactly that.

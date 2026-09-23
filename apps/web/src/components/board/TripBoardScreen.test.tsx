@@ -1336,19 +1336,30 @@ describe("TripBoardScreen", () => {
   });
 });
 
-describe("map view hides the day-chips row", () => {
-  it("hides the day-chips row in map view", async () => {
+// SPEC §35.3: the rail is Plan's, above the day columns, and nowhere else — the
+// header is the same height on every tab. It used to sit in the header on all
+// four views but Map. Asserted by absence from the TREE, not by visibility,
+// because the reason it is gone elsewhere is fourteen focusable chips on a view
+// none of them drives.
+describe("the day-chips row belongs to Plan", () => {
+  it("renders on Plan, below the header, and on no other view", async () => {
     setViewportMatches({ "(min-width: 1180px)": true });
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
 
-    await userEvent.click(await screen.findByRole("tab", { name: "Map" }));
+    await userEvent.click(await screen.findByRole("tab", { name: "Plan" }));
+    const chips = screen.getByRole("group", { name: "Days" });
+    // Out of the sticky header: it scrolls with the columns now.
+    expect(screen.getByRole("banner", { name: "Trip" }).contains(chips)).toBe(false);
 
-    expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
+    for (const name of ["Overview", "Calendar", "Map"]) {
+      await userEvent.click(screen.getByRole("tab", { name }));
+      expect(screen.getByRole("tab", { name, selected: true })).toBeTruthy();
+      expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
+    }
 
     await userEvent.click(screen.getByRole("tab", { name: "Plan" }));
     expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();

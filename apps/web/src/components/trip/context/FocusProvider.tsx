@@ -389,12 +389,13 @@ export function useDaySync(container: DayContainer): DaySync {
         // See DAY_JUMP_LOCK_MS for why every sync scroll is instant.
         behavior: "auto",
         // `block: "nearest"` is load-bearing on the horizontal rows, not a
-        // default: the chips row lives inside a STICKY header, and
-        // `scrollIntoView` scrolls every scrollable ancestor — with `"center"`
-        // it would drag the whole PAGE vertically to centre a chip that was
-        // never off-screen. `"nearest"` moves nothing on an axis that already
-        // shows the element. The callers that genuinely want a page scroll (the
-        // timeline, the calendar) pass their own `block`.
+        // default: `scrollIntoView` scrolls every scrollable ancestor — with
+        // `"center"` it would drag the whole PAGE vertically to centre a chip
+        // that was never off-screen. `"nearest"` moves nothing on an axis that
+        // already shows the element; a row that is NOT showing it (the chips
+        // row once scrolled above the fold, SPEC §35.3) declines to follow
+        // instead — see `DayChips`. The callers that genuinely want a page
+        // scroll (the timeline, the calendar) pass their own `block`.
         block: "nearest",
         inline: "center",
         ...options,

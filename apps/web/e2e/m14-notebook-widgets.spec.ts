@@ -77,7 +77,7 @@ async function tripWithTwoDays(page: Page): Promise<string> {
   // header's gear, and the sheet is a full-height overlay that has to be closed
   // again before anything behind it is clickable — same dance `m3` documents.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Dates" }).click();
+  await page.getByRole("button", { name: "Dates", exact: true }).click();
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/commands") && r.request().method() === "POST" && r.ok()),
     page.getByLabel("Trip start date").fill("2027-06-01"),

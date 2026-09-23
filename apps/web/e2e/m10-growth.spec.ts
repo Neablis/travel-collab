@@ -294,18 +294,26 @@ test("switching to Plan lands at the top of the columns, not part-way down them"
   }
 
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto(`/trips/${tripId}`);
+  await page.goto(`/trips/${tripId}?view=Plan`);
 
-  // Pick a day somewhere down the trip from the chips row, exactly as he did —
-  // the row is inside the sticky header, so this pick has nowhere to scroll the
-  // page to and the page is still at the top when the Plan tab is clicked.
+  // Pick a day somewhere down the trip from the chips row, then arrive at Plan
+  // with it selected. He picked from the header on another tab; SPEC §35.3
+  // moved the row into Plan itself (M27 link 3), so the pick happens here and
+  // the ARRIVAL comes from a round trip through Calendar — which is the state
+  // the defect needs: Plan mounting with a day already chosen.
   const chips = page.getByRole("group", { name: "Days" });
   // By index, not by name: a chip is labelled with its weekday, city and stop
   // count, and this trip's dates are relative to today. Same reason the walk
   // above reads `data-day-index` rather than parsing a label.
   await chips.locator('[data-day-index="7"]').click();
   await expect(chips.locator('button[aria-pressed="true"]')).toHaveAttribute("data-day-index", "7");
-  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  await page.getByRole("tab", { name: "Calendar" }).click();
+  await expect(page.locator('[data-testid="calendar-cell"][data-day-index="7"]')).toBeVisible();
+  // The calendar follows the pick too, and may have moved the page to do it;
+  // the claim is about where PLAN lands, so it starts from the top.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 
   await page.getByRole("tab", { name: "Plan" }).click();
   const columns = page.getByTestId("day-column");

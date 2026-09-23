@@ -102,9 +102,10 @@ export function SettingsSheet({
   startDate: string | null;
   endDate: string | null;
   dayCount: number;
-  // Days, stops and cities — the same three figures TripMetaPill states, from
-  // `tripCounts`, the one function that derives them (TripMetaPill.tsx). They
-  // are here because that pill is hidden below 768px: Mitchell asked whether
+  // Days, stops and cities, from `tripCounts`, the one function that derives
+  // them (TripMetaPill.tsx). The pill itself states only the dates since SPEC
+  // §35.3, so this is now the one place they are shown. They came here
+  // because that pill is hidden below 768px: Mitchell asked whether
   // the header's three crowded columns would "still be accessible in trip
   // settings" if hidden, and these two counts were the part of the answer that
   // was no. Passed in already-derived rather than handing this sheet the whole
@@ -258,10 +259,10 @@ export function SettingsSheet({
             into settings — so this is a statement, not a form field, and it
             renders as text rather than as three disabled inputs.
 
-            The strings are the pill's own ("3 days", "12 stops", "2 cities"),
-            not re-worded: this is meant to be recognisable as the thing that
-            is no longer on screen, and a test that asserts one wording in two
-            places is cheaper than two vocabularies drifting. */}
+            The strings are the ones the pill used to carry ("3 days",
+            "12 stops", "2 cities"). Since SPEC §35.3 the pill shows only
+            the dates at every width, so this section is where the counts
+            live, not a phone-only mirror of them. */}
         <div>
           <SectionHeading>Trip overview</SectionHeading>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">

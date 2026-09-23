@@ -185,7 +185,7 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // "Day overview" used to be walked here as the second seeded page. It is a
   // gallery template now, so the assertion that means something is that the
   // index carries exactly one page rather than that a second one renders.
-  await page.getByRole("link", { name: "← Notebooks" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Notebook", exact: true }).click();
   await expectNotebookIndex(page);
   // **Counted off the LIST, not off the title.** "One link matches Overview"
   // is true of an index carrying Overview and anything else beside it, which
@@ -231,7 +231,7 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   // The gallery still offers the pages a trip is no longer seeded with, and
   // this is where that is checked: "Day overview" exists to CHOOSE now (SPEC
   // §25), so a new trip does not have one until someone asks for it.
-  await page.getByRole("link", { name: "← Notebooks" }).click();
+  await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Notebook", exact: true }).click();
   await expectNotebookIndex(page);
   await expect(page.getByRole("link", { name: /Day overview/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Start from Day overview" }).click();

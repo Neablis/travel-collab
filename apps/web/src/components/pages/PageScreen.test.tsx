@@ -1159,3 +1159,74 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     expect(onUpdate.mock.calls[0]![1].content.v).toBe(CURRENT_PAGE_DOC_VERSION);
   });
 });
+
+// SPEC §35.3 / M27 D6: *"Editing a notebook page always has a way back to the
+// trip."* It was "← Notebooks", one level up, with the trip two clicks away.
+describe("PageScreen — the breadcrumb", () => {
+  function accessAs(myRole: "owner" | "viewer") {
+    return http.get("/api/trips/:tripId/access", ({ params }) =>
+      HttpResponse.json({
+        access: {
+          tripId: params.tripId,
+          myRole,
+          members: [{ userId: "u1", role: myRole, name: null, email: null, image: null }],
+          invites: [],
+          collaboratorsEntitled: true,
+        },
+      }),
+    );
+  }
+
+  // Each test its own trip: `cachedRead` keeps a trip's access answer, and an
+  // owner's answer left behind would make the viewer case below pass for the
+  // wrong reason.
+  async function open(tripId: string, from: "overview" | null, role?: "owner" | "viewer") {
+    const trip = tripDetailFixture({ tripId, name: "Japan: Tokyo → Kyoto" });
+    const page = pageFixture({ tripId, title: "Packing" });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      ...(role === undefined ? [] : [accessAs(role)]),
+    );
+    render(<PageScreen tripId={tripId} pageId={page.id} from={from} />);
+    return screen.findByRole("navigation", { name: "Breadcrumb" });
+  }
+
+  it("leads back to the trip by its short name, then the Notebook, then says where you are", async () => {
+    const tripId = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    const crumbs = await open(tripId, null);
+
+    // Up to the first ':' — the rest of the name is a subtitle.
+    expect(within(crumbs).getByRole("link", { name: "← Japan" }).getAttribute("href")).toBe(`/trips/${tripId}`);
+    expect(within(crumbs).getByRole("link", { name: "Notebook" }).getAttribute("href")).toBe(
+      `/trips/${tripId}/pages`,
+    );
+    const here = within(crumbs).getByText("Packing");
+    expect(here.getAttribute("aria-current")).toBe("page");
+    expect(here.tagName).not.toBe("A");
+    // And it opened as every page does, in Reading.
+    expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  // Overview's Edit sent the reader: the page is open for editing, and the way
+  // back names where they were.
+  it("from Overview's Edit, opens for editing and goes back to the Overview", async () => {
+    const tripId = "8b2c3d4e-5f60-4b7c-9d8e-0f1a2b3c4d5e";
+    const crumbs = await open(tripId, "overview", "owner");
+
+    expect(within(crumbs).getByRole("link", { name: "← Japan overview" }).getAttribute("href")).toBe(
+      `/trips/${tripId}`,
+    );
+    expect(screen.getByRole("button", { name: "Done editing" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  // Overview withholds Edit from a viewer, but a URL can be typed or shared.
+  it("puts a viewer who arrives that way back in Reading", async () => {
+    const tripId = "9c3d4e5f-6071-4c8d-8e9f-1a2b3c4d5e6f";
+    await open(tripId, "overview", "viewer");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false"),
+    );
+  });
+});
