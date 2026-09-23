@@ -10,7 +10,7 @@ import type { ActivityTag, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { chipModel } from "@/lib/dayChips";
+import { chipModel, cityFor } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
 import {
   useDayScrollSpy,
@@ -360,6 +360,9 @@ export function Board({
       trip.days.map((day) => ({
         dayId: day.dayId,
         date: day.date,
+        // The same derivation as the day's chip, so the picker's `Day N ·
+        // City` (§35.7) never names a different city than the chip above it.
+        city: cityFor(day, trip.activities),
         stops: stopsForDay(trip, day.dayId) ?? [],
       })),
     [trip],

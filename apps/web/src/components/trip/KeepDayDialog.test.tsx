@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
@@ -8,7 +8,7 @@ vi.mock("@/lib/apiClient", () => ({
   createSavedDay: (...args: unknown[]) => createSavedDayMock(...args),
 }));
 
-import { KeepDayDialog } from "./KeepDayDialog";
+import { KeepDayDialog, type KeepDayCandidate } from "./KeepDayDialog";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const dayId = "11111111-1111-4111-8111-111111111111";
@@ -32,17 +32,18 @@ const stops = [stop("Fushimi Inari", "09:00", "11:00"), stop("Nishiki", "13:00",
 // day is deliberately EMPTY: a rest day is selectable and the summary names it.
 const DAY_1 = "22222222-2222-4222-8222-222222222222";
 const DAY_2 = "33333333-3333-4333-8333-333333333333";
-const tripDays = [
-  { dayId: DAY_1, date: null, stops: [] },
-  { dayId: DAY_2, date: null, stops: [stop("Arashiyama", "10:00", "12:00")] },
-  { dayId, date: null, stops },
+// Day 1 names no city — it has no stops for `cityFor` to read one from.
+const tripDays: KeepDayCandidate[] = [
+  { dayId: DAY_1, date: null, city: null, stops: [] },
+  { dayId: DAY_2, date: null, city: "Arashiyama", stops: [stop("Bamboo grove", "10:00", "12:00")] },
+  { dayId, date: null, city: "Kyoto", stops },
 ];
 
 function renderDialog(
   overrides: {
     stops?: SavedStop[];
-    days?: { dayId: string; date: string | null; stops: SavedStop[] }[];
-    onSaved?: (name: string) => void;
+    days?: KeepDayCandidate[];
+    onSaved?: (dayCount: number) => void;
   } = {},
 ) {
   const onOpenChange = vi.fn();
@@ -58,7 +59,7 @@ function renderDialog(
         overrides.days ??
         (overrides.stops === undefined
           ? tripDays
-          : [{ dayId, date: null, stops: overrides.stops }])
+          : [{ dayId, date: null, city: "Kyoto", stops: overrides.stops }])
       }
       onSaved={onSaved}
     />
@@ -130,7 +131,7 @@ describe("KeepDayDialog", () => {
     const { onOpenChange, onSaved } = renderDialog();
     await userEvent.clear(screen.getByLabelText("Name"));
     await userEvent.type(screen.getByLabelText("Name"), "A day in Nakameguro");
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep this day" }));
 
     await waitFor(() =>
       expect(createSavedDayMock).toHaveBeenCalledWith({
@@ -140,7 +141,77 @@ describe("KeepDayDialog", () => {
       }),
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(onSaved).toHaveBeenCalledWith("Day 3 of Kyoto");
+    expect(onSaved).toHaveBeenCalledWith(1);
+  });
+
+  // §35.7: the button says what it keeps, not "Save" — and counts once there
+  // is more than one day, so the number is on the control that acts on it.
+  it("names the button for what it keeps", async () => {
+    renderDialog();
+    expect(screen.getByRole("button", { name: "Keep this day" })).toBeTruthy();
+    await openPicker();
+    await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Day 2/ }));
+    expect(screen.getByRole("button", { name: "Keep 3 days" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Save$/ })).toBeNull();
+  });
+
+  // §35.7: `Day N · City`, the same city the day's chip names — and `Day N`
+  // alone when the day has none, never a dangling separator.
+  it("labels each day with its city, when it has one", async () => {
+    renderDialog();
+    await openPicker();
+    const group = screen.getByRole("group", { name: "Days to keep" });
+    expect(within(group).getByText("Day 2 · Arashiyama")).toBeTruthy();
+    expect(within(group).getByText("Day 3 · Kyoto")).toBeTruthy();
+    expect(within(group).getByText("Day 1")).toBeTruthy();
+    expect(screen.getByText("Days — any, not just ones in a row")).toBeTruthy();
+  });
+
+  // §35.7: the Playbook renumbers from one, and a sequence that does not start
+  // on the trip's first day says which day becomes its first.
+  it("says which day becomes day 1 when the sequence starts later in the trip", async () => {
+    renderDialog();
+    await openPicker();
+    await userEvent.click(screen.getByRole("button", { name: /Day 2/ }));
+    expect(screen.getByText("2 days, 3 stops, in order. Day 2 becomes day 1.")).toBeTruthy();
+  });
+
+  describe("the preview", () => {
+    // One day: its stops, with no header — nothing is renumbered, so a
+    // "Day 1 · from Day 3" line would be noise.
+    it("lists one day's stops with their start times and no day header", () => {
+      renderDialog();
+      const preview = screen.getByTestId("keep-day-preview");
+      expect(within(preview).getByText("Fushimi Inari")).toBeTruthy();
+      expect(within(preview).getByText("9 am")).toBeTruthy();
+      expect(within(preview).getByText("1 pm")).toBeTruthy();
+      expect(within(preview).queryByText(/from Day/)).toBeNull();
+    });
+
+    // Several days: a header per day carrying the renumbering, in trip order,
+    // and a blank day says so rather than rendering as a gap.
+    it("heads each of several days with where it came from, and names a rest day", async () => {
+      renderDialog();
+      await openPicker();
+      await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
+      await userEvent.click(screen.getByRole("button", { name: /Day 2/ }));
+      const preview = screen.getByTestId("keep-day-preview");
+      expect(within(preview).getAllByText(/from Day/).map((h) => h.textContent)).toEqual([
+        "Day 1 · from Day 1",
+        "Day 2 · from Day 2 · Arashiyama",
+        "Day 3 · from Day 3 · Kyoto",
+      ]);
+      expect(within(preview).getByText("Rest day — no stops")).toBeTruthy();
+      expect(within(preview).getByText("Bamboo grove")).toBeTruthy();
+    });
+
+    it("is not drawn when nothing is selected", async () => {
+      renderDialog();
+      await openPicker();
+      await userEvent.click(screen.getByRole("button", { name: /Day 3/ }));
+      expect(screen.queryByTestId("keep-day-preview")).toBeNull();
+    });
   });
 
   // M23 link 4. The pennant still opens on one day; the picker adds others, and
@@ -161,7 +232,7 @@ describe("KeepDayDialog", () => {
     // sequence, or a Playbook would depend on the order somebody happened to
     // tap two chips a calendar cannot show the order of.
     await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep 2 days" }));
     await waitFor(() =>
       expect(createSavedDayMock).toHaveBeenCalledWith({
         name: "2 days of Kyoto",
@@ -223,14 +294,14 @@ describe("KeepDayDialog", () => {
   it("refuses a blank name rather than saving something unfindable", async () => {
     renderDialog();
     await userEvent.clear(screen.getByLabelText("Name"));
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep this day" }));
     expect(await screen.findByText("Give it a name you'll recognise later.")).toBeTruthy();
     expect(createSavedDayMock).not.toHaveBeenCalled();
   });
 
   it("cannot save an empty day", () => {
     renderDialog({ stops: [] });
-    expect(screen.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Keep this day" }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByText("Nothing yet — this day has no stops.")).toBeTruthy();
   });
 
@@ -244,7 +315,7 @@ describe("KeepDayDialog", () => {
   it("surfaces a refused save rather than closing as if it worked", async () => {
     createSavedDayMock.mockResolvedValue({ ok: false, error: { status: 403, message: "forbidden" } });
     const { onOpenChange } = renderDialog();
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep this day" }));
     expect(await screen.findByText("forbidden")).toBeTruthy();
     expect(onOpenChange).not.toHaveBeenCalled();
   });

@@ -62,9 +62,9 @@ test("keep a day out of one trip, and drop it into another", async ({ page }) =>
     page.waitForResponse(
       (r) => new URL(r.url()).pathname === "/api/saved-days" && r.request().method() === "POST",
     ),
-    page.getByRole("button", { name: "Save" }).click(),
+    page.getByRole("button", { name: "Keep this day", exact: true }).click(),
   ]);
-  await expect(page.getByText(`Kept "${savedName}"`)).toBeVisible();
+  await expect(page.getByText("Kept in your Playbooks")).toBeVisible();
 
   // -- Drop it into the other trip --
   await openPlanView(page, targetId, targetName);
