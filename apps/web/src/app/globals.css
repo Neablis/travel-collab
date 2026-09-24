@@ -1056,8 +1056,22 @@ html[data-look="ledger"] .shadow-raised {
      expressible without an arbitrary value the color wall bans. */
   .activity-editor-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    /* `minmax(0, 1fr)`, not `1fr`: a bare `1fr` track cannot shrink below its
+       content's min width, and a native select plus two time inputs need
+       ~407px — so on a phone this row widened the whole form past the 358px
+       sheet and pushed Save off-screen (2026-09-24 mobile check). */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
+  }
+  /* Below the tablet breakpoint the three do not fit side by side at a
+     readable size: Day takes its own row, Start and End/How-long share one. */
+  @media (max-width: 767.98px) {
+    .activity-editor-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .activity-editor-grid > :first-child {
+      grid-column: 1 / -1;
+    }
   }
 
   /* Home page rhythm (Task 8.5): the design's 30px top / 60px bottom outer

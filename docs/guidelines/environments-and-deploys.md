@@ -65,10 +65,10 @@ coordination between worktrees.
 
 Rules (ADR-004 + M1 retro):
 - Preview and Production `DATABASE_URL` are **never** the same value.
-  **This rule was silently violated from 2026-07-21 to 2026-09-06** — the Neon
+  **This rule was silently violated from 2026-07-21 to 2026-09-06** (fixed since; KI resolved 2026-09-24) — the Neon
   Vercel integration injects one `DATABASE_URL` scoped "Production and Preview",
   which is one value for both, and nothing checked. Read
-  `docs/known-issues/open/KI-2026-09-06-h-preview-and-production-shared-one-database.md`
+  `docs/known-issues/resolved/KI-20260906-h-preview-and-production-shared-one-database.md`
   before changing anything in this section; the rail below is what now enforces
   the half of it that automation can enforce.
 - Migrations are applied by automation only (see below), never `drizzle-kit migrate`

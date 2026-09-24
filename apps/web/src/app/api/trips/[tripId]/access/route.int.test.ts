@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/server/db/client";
 import { tripInvites, tripMemberships } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { acceptInvite, createInvite } from "@/server/access/invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { upsertUser } from "@/server/users";
+import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
 
 const OWNER = "access-owner";
 const GUEST = "access-guest";
@@ -89,6 +92,63 @@ describe("GET /api/trips/:id/access", () => {
     expect(body.access.myRole).toBe("editor");
     expect(body.access.members.map((m) => m.userId)).toEqual([OWNER, GUEST]);
     expect(body.access.invites).toEqual([]);
+  });
+});
+
+// KI-2026-09-05-f item 3 (F-A04). A viewer can be a stranger — an invite link
+// is a bearer token (ADR-026) and the look-first view serves the trip before
+// anyone joins — so a member's email is the OWNER's to see (they invited
+// people by it) and each person's own, and nobody else's.
+describe("member emails in GET /access", () => {
+  type Body = { access: { members: { userId: string; email: string | null }[] } };
+  const emailsIn = (body: Body) => Object.fromEntries(body.access.members.map((m) => [m.userId, m.email]));
+
+  async function seedNamedTrip(): Promise<string> {
+    await upsertUser({ id: OWNER, email: "owner@example.com", name: "Olive", image: null });
+    await upsertUser({ id: GUEST, email: "guest@example.com", name: "Gus", image: null });
+    const tripId = await seedTrip();
+    await join(tripId, "editor");
+    return tripId;
+  }
+
+  it("shows the owner every member's email", async () => {
+    const tripId = await seedNamedTrip();
+    const body = (await (await GET(new Request("http://test/x"), params(tripId))).json()) as Body;
+    expect(emailsIn(body)).toEqual({ [OWNER]: "owner@example.com", [GUEST]: "guest@example.com" });
+  });
+
+  it("shows another member only their own email", async () => {
+    const tripId = await seedNamedTrip();
+    currentUserId = GUEST;
+    const body = (await (await GET(new Request("http://test/x"), params(tripId))).json()) as Body;
+    expect(emailsIn(body)).toEqual({ [OWNER]: null, [GUEST]: "guest@example.com" });
+  });
+
+  // PR #220 review: the merged member list keeps a member's HIGHEST role, so a
+  // stray granted `owner` row would make `access.role` "owner" for someone who
+  // is not. Emails follow the trip's real owner — the projection's head.
+  it("does not treat a stray granted owner row as the owner", async () => {
+    const tripId = await seedNamedTrip();
+    await db
+      .update(tripMemberships)
+      .set({ role: "owner" })
+      .where(and(eq(tripMemberships.tripId, tripId), eq(tripMemberships.userId, GUEST)));
+    currentUserId = GUEST;
+    const body = (await (await GET(new Request("http://test/x"), params(tripId))).json()) as Body;
+    expect(emailsIn(body)).toEqual({ [OWNER]: null, [GUEST]: "guest@example.com" });
+  });
+
+  it("shows a stranger holding an invite link no email at all", async () => {
+    const tripId = await seedNamedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    currentUserId = STRANGER;
+    const response = await GET(
+      new Request("http://test/x", { headers: { [INVITE_TOKEN_HEADER]: invite.token } }),
+      params(tripId),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Body;
+    expect(Object.values(emailsIn(body))).toEqual([null, null]);
   });
 });
 

@@ -1,7 +1,8 @@
-### KI-2026-09-06-h — preview and production shared one database, and both production workflows wrote to a different one nobody read
+### KI-2026-09-06-h — preview and production shared one database, and both production workflows wrote to a different one nobody read — RESOLVED
 
 - **Severity:** correctness — the highest-impact configuration defect found so far. No code was wrong; every rail was pointed at the wrong target.
 - **Area:** Vercel environment variables (Neon integration), `PRODUCTION_DATABASE_URL` repo secret, `.github/workflows/{migrate-production,import-content-production}.yml`, `apps/web/scripts/vercel-build-migrate.mjs`, `docs/guidelines/environments-and-deploys.md`
+- **Resolved 2026-09-24 — confirmed fixed by Mitchell.** Preview and Production no longer share a database; the "still open" items below (a separate Preview `DATABASE_URL`, `PREVIEW_DB_IS_DISPOSABLE` on the Preview scope, and production workflows writing to the served database) were completed out of band in the Vercel/Neon and GitHub settings, not in repo code, so there is no diff to cite. Corroborating signal from this repo: every PR #218 preview build on 2026-09-24 succeeded, which `vercel-build-migrate.mjs` refuses to allow on Preview without `PREVIEW_DB_IS_DISPOSABLE=true`.
 - **Symptom / What happens:** two Neon projects existed with connection strings differing **only in host**, both using database `neondb` and role `neondb_owner`:
   - `spring-river-40823685` (Neon org "Vercel: neablis' projects", `managed_by: vercel`, branch **`main`**, endpoint `ep-steep-rice-afhxw55b`, us-west-2) — **what caesura.today actually read and wrote.** 30 users, 59 trips, 3,375 events.
   - `sweet-poetry-62369474` ("travel-collabe", personal Neon org, branch **`production`**, endpoint `ep-nameless-brook-ad7v04r6`, us-east-1) — **what `secrets.PRODUCTION_DATABASE_URL` pointed at.** Nothing read it.
