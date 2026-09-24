@@ -13,7 +13,7 @@ import type { WeatherSource } from "@tc/contracts";
  * Which of decision 3's rows a (day, city) landed on.
  *
  * `past` and `no-forecast` are both "typical" (the month's average), told
- * apart because their words differ: a day already gone is *"(past day)"*, and
+ * apart because their words differ: a day already gone is *"Past day · …"*, and
  * a forecast that did not answer inside the horizon is the average rather than
  * nothing (review point 4).
  */
