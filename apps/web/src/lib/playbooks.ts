@@ -400,6 +400,21 @@ export const DiscoverResponse = z.object({
    */
   truncated: z.boolean(),
   /**
+   * How many days THIS query matches — every filter applied — as opposed to
+   * how many fit on the page (`days.length`, at most 24). The results sentence
+   * states this number (§33.2, `128 shared days`); it read `days.length` until
+   * KI-2026-09-23-h, so a library of 148 said "24 shared days".
+   *
+   * Exact whenever `matchCountExact` is true. It is false in exactly one case:
+   * the candidate window was full AND a budget band is on. The band is applied
+   * in application code over that window (a day's total is a sum over jsonb
+   * stops, ADR-029), so the in-band days past it cannot be counted, and this
+   * is then a floor — the in-band days within the window — not a total.
+   */
+  matchCount: z.number().int().nonnegative(),
+  /** False when `matchCount` is a floor rather than a total — see above. */
+  matchCountExact: z.boolean(),
+  /**
    * How many days are published across the WHOLE library, ignoring every filter
    * on this query.
    *

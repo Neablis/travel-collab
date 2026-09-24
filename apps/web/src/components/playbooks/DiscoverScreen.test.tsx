@@ -39,7 +39,18 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
 }
 
 function response(over: Partial<DiscoverResponse> = {}): DiscoverResponse {
-  return { days: [day()], siblings: [], budgetCurrency: "USD", truncated: false, sharedDayCount: 1, ...over };
+  const days = over.days ?? [day()];
+  return {
+    days,
+    siblings: [],
+    budgetCurrency: "USD",
+    truncated: false,
+    // A complete answer unless a test says otherwise: the match IS the page.
+    matchCount: days.length,
+    matchCountExact: true,
+    sharedDayCount: 1,
+    ...over,
+  };
 }
 
 const ok = <T,>(value: T) => ({ ok: true as const, value });
@@ -456,6 +467,28 @@ describe("Discover", () => {
     // "middot" here would be reading the layout out loud.
     expect(sep.getAttribute("aria-hidden")).toBe("true");
     expect((await screen.findByTestId("discover-results-line")).textContent).not.toContain("·");
+  });
+
+  // KI-2026-09-23-h: the sentence read `days.length`, so with 148 published
+  // days and no place chosen it said "24 shared days" — the page, not the
+  // match. A truncated answer states both numbers.
+  it("states how many days match, not how many fit on the page", async () => {
+    const page = Array.from({ length: 24 }, (_, i) =>
+      day({ savedDayId: `aa000000-0000-4000-8000-${String(i).padStart(12, "0")}` }),
+    );
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: page, truncated: true, matchCount: 148 })));
+    render(<DiscoverScreen />);
+    expect((await screen.findByTestId("discover-results-line")).textContent).toBe("24 of 148 shared days");
+  });
+
+  // Past the candidate window with a budget band on, the count is a floor and
+  // the sentence must not state it as a total.
+  it("marks a count that is only a floor", async () => {
+    searchPlaybooksMock.mockResolvedValue(
+      ok(response({ days: [day()], truncated: true, matchCount: 1, matchCountExact: false })),
+    );
+    render(<DiscoverScreen />);
+    expect((await screen.findByTestId("discover-results-line")).textContent).toBe("1+ shared days");
   });
 
   it("says one shared day rather than 1 shared days", async () => {
