@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
+import { PAGE_CHANGED_CODE, type Page, type PageDoc, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
@@ -309,11 +309,19 @@ export function PageScreen({
   // can emit again in the gap, and that document must not reach the session.
   const unstorableRef = useRef(false);
   // The server's `updatedAt` for the version this screen last knew, which a
-  // browser-local draft records as its base (`pageDraft.ts`).
+  // browser-local draft records as its base (`pageDraft.ts`) and every
+  // ordinary commit names as `expectedUpdatedAt`. `baseDocRef` is that
+  // version's document, which is how a refusal caused only by a rename is told
+  // apart from one caused by somebody else's words.
   const baseRef = useRef<string | null>(null);
-  // A draft from an earlier visit that cannot simply be applied, because the
-  // page has been written since it was typed. Offered, never applied unasked.
-  const [offeredDraft, setOfferedDraft] = useState<PageDraft | null>(null);
+  const baseDocRef = useRef<unknown>(null);
+  // The newest document handed to the session, so a refused save keeps what
+  // was typed while it was in flight as well as what it sent.
+  const latestDocRef = useRef<PageDoc | null>(null);
+  // A draft that cannot simply be applied, because the page has been written
+  // since it was typed: from an earlier visit, or `refused` by the server just
+  // now. Offered, never applied unasked.
+  const [offeredDraft, setOfferedDraft] = useState<(PageDraft & { refused?: boolean }) | null>(null);
   // The edit session, for the load effect below, which is declared before it.
   const sessionRef = useRef<{ change: (doc: PageDoc) => void; flush: () => void } | null>(null);
 
@@ -347,6 +355,8 @@ export function PageScreen({
       const loaded = pageResult.value;
       const inspected = inspectStoredPageDoc(loaded.content);
       baseRef.current = loaded.updatedAt;
+      baseDocRef.current = loaded.content;
+      latestDocRef.current = null;
       // A draft only ever meets an editable page: a locked one is locked
       // precisely so nothing gets written over it.
       let draft = inspected.status === "mountable" ? readPageDraft(pageId) : null;
@@ -360,6 +370,7 @@ export function PageScreen({
         // open on it and send it, as the session it came from would have.
         setPage({ ...loaded, content: draft.doc });
         setStored(inspectStoredPageDoc(draft.doc));
+        latestDocRef.current = draft.doc;
         sessionRef.current?.change(draft.doc);
         sessionRef.current?.flush();
       } else {
@@ -441,23 +452,86 @@ export function PageScreen({
   // session sends one ordinary commit at a time, but the unload one goes past
   // it, so an older answer can arrive last; its draft or its `updatedAt` would
   // be written over a newer state.
+  //
+  // **Every commit names the revision it was typed against** (`expectedUpdatedAt`),
+  // so of two saves racing from this screen the OLDER is refused rather than
+  // landing last and winning (CodeRabbit, PR #222). The exception is a
+  // keepalive `overtaking` an ordinary commit still in flight: the revision it
+  // would name is about to be moved by that commit, so it names none and wins
+  // by arriving, while the commit it passed still names its own and is refused
+  // if it arrives second. The server answers a no-op before it looks at the
+  // revision, so a commit repeating what a keepalive already landed is not a
+  // conflict.
   const commitSeq = useRef(0);
-  const session = useEditSession(editing, (content, { keepalive }) => {
+  const session = useEditSession(editing, (content, { keepalive, overtaking }) => {
     const seq = ++commitSeq.current;
     const draft = { base: baseRef.current ?? "", doc: content };
     if (keepalive) rememberPageDraft(pageId, draft);
-    return updatePage(tripId, pageId, { content }, { keepalive }).then((result) => {
-      if (seq !== commitSeq.current) return result.ok;
-      if (!result.ok) {
-        rememberPageDraft(pageId, draft);
-        return false;
-      }
-      baseRef.current = result.value.updatedAt;
-      forgetPageDraft(pageId);
-      return true;
-    });
+    const send = (attempt: number): Promise<boolean | "superseded"> => {
+      const expected = overtaking ? null : baseRef.current;
+      const patch = expected === null ? { content } : { content, expectedUpdatedAt: expected };
+      return updatePage(tripId, pageId, patch, { keepalive }).then(async (result) => {
+        if (seq !== commitSeq.current) return result.ok;
+        if (!result.ok && result.error.code === PAGE_CHANGED_CODE) {
+          const next = await pageChanged(seq, draft);
+          return next === "rebased" ? (attempt < 3 ? send(attempt + 1) : false) : next;
+        }
+        if (!result.ok) {
+          rememberPageDraft(pageId, draft);
+          return false;
+        }
+        baseRef.current = result.value.updatedAt;
+        baseDocRef.current = result.value.content;
+        forgetPageDraft(pageId);
+        return true;
+      });
+    };
+    return send(1);
   });
   sessionRef.current = session;
+
+  // A save refused as typed against an older page. What the page says NOW
+  // decides what that means:
+  //
+  // - **the same document as the base**: only the title moved (a rename, ours
+  //   or anyone's, landed between send and arrival). Nothing to choose between,
+  //   so the save is `rebased` and sent again against the new revision;
+  // - **a different document**: someone else's words. They are data, not
+  //   something to overwrite unasked (invariant 3), so the page shows them and
+  //   the author's are kept and offered, the offer a reload makes. `superseded`
+  //   tells the session not to retry them as they stand: the same send would be
+  //   refused again, and it would be the older document.
+  //
+  // A page that cannot be re-read says nothing either way, so it is an ordinary
+  // failure: kept, reported, and tried again on the next idle.
+  const pageChanged = async (seq: number, draft: PageDraft): Promise<"rebased" | "superseded" | false> => {
+    const fresh = await fetchPage(tripId, pageId);
+    if (seq !== commitSeq.current) return false;
+    // Read after the refetch, not before: the commit is still in flight until
+    // this returns, so anything typed meanwhile is pending behind it, and
+    // `superseded` is about to drop it from the session.
+    const mine: PageDraft = { base: draft.base, doc: latestDocRef.current ?? draft.doc };
+    if (!fresh.ok) {
+      rememberPageDraft(pageId, mine);
+      return false;
+    }
+    const was = baseDocRef.current;
+    baseRef.current = fresh.value.updatedAt;
+    baseDocRef.current = fresh.value.content;
+    if (sameDocument(toStoredPageDoc(fresh.value.content), toStoredPageDoc(was))) {
+      setPage((prev) => (prev === null ? prev : { ...prev, title: fresh.value.title, updatedAt: fresh.value.updatedAt }));
+      return "rebased";
+    }
+    rememberPageDraft(pageId, mine);
+    const inspected = inspectStoredPageDoc(fresh.value.content);
+    setStored(inspected);
+    setPage(fresh.value);
+    editorRef.current?.commands.setContent(fresh.value.content as never, false);
+    latestDocRef.current = null;
+    // As on load: a draft only ever meets an editable page.
+    if (inspected.status === "mountable") setOfferedDraft({ ...mine, refused: true });
+    return "superseded";
+  };
 
   // Puts an earlier visit's draft back, over what the page now says: only ever
   // from the reader pressing Restore. `setContent` directly as well as the
@@ -467,6 +541,7 @@ export function PageScreen({
     setStored(inspectStoredPageDoc(draft.doc));
     setPage((prev) => (prev === null ? prev : { ...prev, content: draft.doc }));
     editorRef.current?.commands.setContent(draft.doc as never, false);
+    latestDocRef.current = draft.doc;
     session.change(draft.doc);
     session.flush();
   };
@@ -644,6 +719,7 @@ export function PageScreen({
         return;
       }
       baseRef.current = result.value.updatedAt;
+      baseDocRef.current = result.value.content;
       setPage((prev) => (prev === null ? prev : { ...prev, title: result.value.title, updatedAt: result.value.updatedAt }));
     });
   };
@@ -678,6 +754,7 @@ export function PageScreen({
       return;
     }
     setPage((prev) => (prev === null ? prev : { ...prev, content: storable }));
+    latestDocRef.current = storable;
     session.change(storable);
   };
 
@@ -940,7 +1017,9 @@ export function PageScreen({
             </>
           }
         >
-          Changes you made here last time didn&apos;t reach the server, and the page has changed since.
+          {offeredDraft.refused
+            ? "Your latest changes weren't saved: this page changed since you opened it. It now shows the saved version."
+            : "Changes you made here last time didn't reach the server, and the page has changed since."}
         </Banner>
       ) : null}
       {/* **The document sits on a page, not on the app's background.**

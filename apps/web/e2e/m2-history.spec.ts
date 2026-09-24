@@ -1,4 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard } from "./helpers";
 import { e2eTripName } from "./tripNames";
 

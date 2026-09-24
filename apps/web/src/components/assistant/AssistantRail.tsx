@@ -842,7 +842,7 @@ export function AssistantRail({
                   failure from before the plan finished loading (the model
                   unavailable, a dropped connection) leaves `askError` set with
                   `askUpgrade` false, and reading it here would print "The
-                  model is unavailable right now" above a See plans button —
+                  assistant couldn't answer just now" above a See plans button —
                   a network blip dressed as a paywall. */}
               <p className="text-xs text-ink">
                 {askUpgrade && askError !== null ? askError : UPGRADE_LEAD}

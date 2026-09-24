@@ -1,6 +1,13 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { clearQueryCache } from "./src/lib/queryCache";
+// **No automated test may reach a third party** (Mitchell, 2026-09-24): the
+// fetch guard, and Sentry's DSN forced empty. Shared with the integration lane
+// so the two cannot drift — the why is in the file. A setup file runs before
+// any test file's `server.listen()`, so MSW captures the guarded fetch as its
+// passthrough: so a request with a handler is still answered by MSW and
+// an unhandled one lands on the guard rather than on the network.
+import "./src/test-support/networkGuard.setup";
 
 // `src/server/config.ts` throws at import time if DATABASE_URL is unset (main's
 // "fail loudly, no silent localhost fallback" change). Unit tests run in jsdom

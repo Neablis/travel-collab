@@ -8,6 +8,7 @@ import {
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
+  PAGE_CHANGED_CODE,
   PutReviewInput,
   TripCommand,
   TripWeatherResponse,
@@ -331,6 +332,21 @@ export function makePagesHandlers(
       const patch = UpdatePageInput.parse(await request.json());
       options?.onUpdate?.(params.pageId as string, patch);
       const existing = pages[idx]!;
+      // The stale-save guard, as `executePageCommand` applies it: a save typed
+      // against an older revision is refused, unless it would change nothing.
+      const changes =
+        (patch.title !== undefined && patch.title !== existing.title) ||
+        (patch.content !== undefined && JSON.stringify(patch.content) !== JSON.stringify(existing.content));
+      if (
+        changes &&
+        patch.expectedUpdatedAt !== undefined &&
+        Date.parse(patch.expectedUpdatedAt) !== Date.parse(existing.updatedAt)
+      ) {
+        return HttpResponse.json(
+          { error: "This page changed since you opened it.", code: PAGE_CHANGED_CODE },
+          { status: 409 },
+        );
+      }
       const updated: Page = {
         ...existing,
         ...(patch.title !== undefined ? { title: patch.title } : {}),

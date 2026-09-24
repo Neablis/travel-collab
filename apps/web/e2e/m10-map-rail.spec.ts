@@ -1,8 +1,11 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
+import { blockMapTiles } from "./fixtures/mapTiles";
 import { createMappedTrip, watchMapWorker } from "./helpers";
 import { e2eTripName } from "./tripNames";
 import { gearedTravel } from "../src/components/lenses/mapRailFocus";
 import { readMapRailTuning } from "../src/components/lenses/mapRailTuning";
+import { STYLE_LOAD_LADDER_MS } from "../src/components/lenses/mapRecovery";
 
 const DAY_COUNT = 14;
 
@@ -49,7 +52,7 @@ async function scrollRailTo(page: Page, scrollTop: number): Promise<void> {
   }, scrollTop);
 }
 
-test("map rail: scrolling tracks focus through every day", async ({ page }) => {
+test("map rail: scrolling tracks focus through every day", async ({ page, network }) => {
   // Fixture setup through the command API plus the full-rail scan exceeds
   // Playwright's default 30s per-test budget; this is a slow-but-worthwhile
   // browser test, not a hung one. Deliberately left generous rather than
@@ -219,6 +222,8 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
       }),
     )
     .toEqual({ clippedAbovePx: 0, clippedBelowPx: 0 });
+
+  expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
 });
 
 // Mitchell, 2026-09-01: *"When navigating to map view, always use the current
@@ -233,7 +238,7 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
 // and the camera are all driven by the same one selection — which is the point
 // of fixing it by giving that selection a value rather than teaching the camera
 // a second mode.
-test("map: opens on the current day, and on the first one when none is chosen", async ({ page }) => {
+test("map: opens on the current day, and on the first one when none is chosen", async ({ page, network }) => {
   test.setTimeout(90_000);
   const tripName = e2eTripName("MapDefault");
   const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
@@ -254,6 +259,8 @@ test("map: opens on the current day, and on the first one when none is chosen", 
   await page.getByRole("tab", { name: "Map" }).click();
   await expect(rail).toBeVisible();
   await expect.poll(async () => dayNumberOf(await focusedDayLabel(page))).toBe(5);
+
+  expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
 });
 
 
@@ -268,7 +275,7 @@ test("map: opens on the current day, and on the first one when none is chosen", 
  * assert on chrome that renders perfectly well over a map that never drew a
  * tile.
  */
-test("map lens: loads its tile-decoding worker", async ({ page }) => {
+test("map lens: loads its tile-decoding worker", async ({ page, network }) => {
   // Armed before the navigation that triggers it.
   const worker = watchMapWorker(page);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
@@ -291,4 +298,50 @@ test("map lens: loads its tile-decoding worker", async ({ page }) => {
   await expect
     .poll(worker.outcome, { timeout: 20_000 })
     .toBe("loaded");
+
+  // Asserted last, after the map has loaded, so it covers everything the
+  // basemap would have fetched on the way.
+  expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
+});
+
+/**
+ * The map's offline state, against a basemap host that cannot be reached.
+ *
+ * Every other map test in this suite serves the basemap from a fixture
+ * (`e2e/fixtures/mapTiles.ts`), so this is the one place the failure half is
+ * walked in a browser: the host refuses every request, as it does on a train,
+ * and the reader must be told the map could not load and offered Plan — not
+ * left looking at a paper-coloured rectangle.
+ *
+ * **Which path shows the panel: `isFatalMapError`, at once, not the ladder.**
+ * The refused style fetch reaches MapLibre as `AJAXError: Failed to fetch (0):
+ * https://tiles.openfreemap.org/styles/positron`. The message carries the
+ * style's URL, whose `/styles/` matches the predicate's `/style/i`, so the map's
+ * first `error` event is fatal and the panel is up about half a second after
+ * the navigation (497-573ms over three ci-like runs, 2026-09-24). This doc
+ * used to say the opposite: that the error named no style, and that only the
+ * style-load ladder's last deadline (`mapRecovery.ts`, 11s) produced the panel.
+ *
+ * The timeout still allows for that deadline, deliberately. The fatal match
+ * rides on the URL's path, so a `STYLE_URL` without "style" in it would drop
+ * the map back onto the ladder. The reader would then wait 11s, and this test
+ * should still pass, because they would still be told. It asserts that they
+ * are told, not how fast. The bound is read from the ladder rather than
+ * written down twice.
+ */
+test("map lens: says the map could not load when the basemap host is unreachable", async ({ page }) => {
+  const blocked = await blockMapTiles(page);
+  const tripName = e2eTripName("MapOffline");
+  await page.goto("/");
+  const tripId = await createMappedTrip(page, tripName, 2);
+
+  await page.goto(`/trips/${tripId}?view=Map`);
+
+  const giveUpMs = STYLE_LOAD_LADDER_MS[STYLE_LOAD_LADDER_MS.length - 1]!;
+  const offline = page.getByTestId("map-offline");
+  await expect(offline).toBeVisible({ timeout: giveUpMs + 10_000 });
+  await expect(offline.getByRole("heading", { name: "The map could not load" })).toBeVisible();
+  await expect(offline.getByRole("link", { name: "Open Plan" })).toBeVisible();
+  // The panel is there because the host was refused, not for some other reason.
+  expect(blocked.refused()).toBeGreaterThan(0);
 });

@@ -467,22 +467,45 @@ describe("a published field never disappears silently", () => {
     expect(missing, "add these to test/fixtures/publishedFieldPaths.ts").toEqual([]);
   });
 
-  it("only renames to a field that exists, and only removes one that is gone", () => {
-    const live = new Set(livePaths());
-    for (const [index, change] of FIELD_CHANGES.entries()) {
-      if (change.kind === "remove") {
-        expect(live.has(change.path), `${change.path} is removed but still published`).toBe(false);
-        continue;
-      }
+  // Returns violations rather than asserting in a loop: `FIELD_CHANGES` is
+  // empty today, and a loop over it asserts nothing (CodeRabbit, PR #226).
+  const badChanges = (changes: readonly FieldChange[], live: ReadonlySet<string>): string[] =>
+    changes.flatMap((change, index) => {
+      if (change.kind === "remove") return live.has(change.path) ? [`${change.path} is removed but still published`] : [];
       // Follow the rename through later entries: it may itself be renamed or
       // removed again, and only where it ends up has to be live.
       let path: string | undefined = change.to;
-      for (const later of FIELD_CHANGES.slice(index + 1)) {
+      for (const later of changes.slice(index + 1)) {
         if (later.kind === "rename" && later.from === path) path = later.to;
         if (later.kind === "remove" && later.path === path) path = undefined;
       }
-      if (path !== undefined) expect(live, `${change.from} → ${path}`).toContain(path);
-    }
+      return path !== undefined && !live.has(path) ? [`${change.from} → ${path}`] : [];
+    });
+
+  it("can say no: a rename onto a dead field, or a remove of a live one", () => {
+    const live = new Set(["stop.title", "stop.price"]);
+    expect(badChanges([{ kind: "rename", from: "stop.cost", to: "stop.gone", since: 3 }], live)).toEqual([
+      "stop.cost → stop.gone",
+    ]);
+    expect(badChanges([{ kind: "remove", path: "stop.title", label: "Title", since: 3 }], live)).toEqual([
+      "stop.title is removed but still published",
+    ]);
+    // A chain is judged where it ends, and a rename later removed owes nothing.
+    expect(
+      badChanges(
+        [
+          { kind: "rename", from: "stop.cost", to: "stop.tmp", since: 3 },
+          { kind: "rename", from: "stop.tmp", to: "stop.price", since: 4 },
+          { kind: "rename", from: "stop.old", to: "stop.gone", since: 4 },
+          { kind: "remove", path: "stop.gone", label: "Gone", since: 5 },
+        ],
+        live,
+      ),
+    ).toEqual([]);
+  });
+
+  it("only renames to a field that exists, and only removes one that is gone", () => {
+    expect(badChanges(FIELD_CHANGES, new Set(livePaths()))).toEqual([]);
   });
 
   it("names only live fields in the widget-name migration's fields", () => {

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { dragCardTo, createEmptyTripViaWizard } from "./helpers";
 import { e2eTripName } from "./tripNames";
 

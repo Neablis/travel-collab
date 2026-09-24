@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
 import type { ItemScope, WidgetContext } from "./registry-types";
 import { REPEAT_SCOPE_ORDER, SENTENCE_TEMPLATE_MAX, parseSentenceTemplate } from "@tc/contracts";
-import { DEFAULT_SENTENCES, REPEAT_WIDGETS, insertRepeat, repeatLabel, rescopeRepeat, resolveRepeat, type RepeatOver } from "./repeat";
+import { DEFAULT_SENTENCES, REPEAT_WIDGETS, insertRepeat, repeatLabel, repeatOver, rescopeRepeat, resolveRepeat, type RepeatOver } from "./repeat";
 import { sentenceFieldAt, sentenceFields } from "./sentence";
 import { findWidgetError } from "./writeCheck";
 import { PRESETS, insertPreset, presetCatalog } from "./presets";
@@ -71,6 +71,16 @@ describe("resolveRepeat — which items a repeat yields", () => {
     expect(resolveRepeat(ctx, "stop.rows", { day: { kind: "index", index: 40 } })).toMatchObject({ status: "unbound", needs: "day" });
     expect(resolveRepeat(ctx, "cost", {})).toMatchObject({ status: "invalid" });
     expect(resolveRepeat(ctx, "day.rows", { day: "Tuesday" })).toMatchObject({ status: "invalid" });
+  });
+
+  it("is not fooled by a name every object inherits", () => {
+    // A stored name is any string; `toString` on a plain lookup table is a
+    // function, and the read-only fallback then threw rendering it.
+    expect(repeatOver("day.rows")).toBe("day");
+    for (const name of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+      expect(repeatOver(name), name).toBeNull();
+      expect(resolveRepeat(ctxOf().ctx, name, {}), name).toMatchObject({ status: "invalid" });
+    }
   });
 });
 

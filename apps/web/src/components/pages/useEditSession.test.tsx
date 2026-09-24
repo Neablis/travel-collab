@@ -35,7 +35,7 @@ describe("useEditSession", () => {
       result.current.change(doc("ab"));
     });
     rerender({ editing: false, commit });
-    expect(commit.mock.calls).toEqual([[doc("ab"), { keepalive: false }]]);
+    expect(commit.mock.calls).toEqual([[doc("ab"), { keepalive: false, overtaking: false }]]);
   });
 
   it("writes nothing when a session changed nothing", () => {
@@ -52,7 +52,7 @@ describe("useEditSession", () => {
     const { result, unmount, commit } = mount();
     act(() => result.current.change(doc("a")));
     unmount();
-    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: false }]]);
+    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: false, overtaking: false }]]);
   });
 
   // ...and a reload never unmounts at all. `keepalive` is what lets the
@@ -62,7 +62,7 @@ describe("useEditSession", () => {
     act(() => result.current.change(doc("a")));
     window.dispatchEvent(new Event("pagehide"));
     unmount();
-    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true }]]);
+    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true, overtaking: false }]]);
   });
 
   // Mobile Safari does not reliably fire pagehide when a tab is swiped away or
@@ -90,10 +90,51 @@ describe("useEditSession", () => {
       const { result, unmount, commit } = mount();
       act(() => result.current.change(doc("a")));
       setVisibility("hidden");
-      expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true }]]);
+      expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true, overtaking: false }]]);
       window.dispatchEvent(new Event("pagehide"));
       unmount();
       expect(commit).toHaveBeenCalledTimes(1);
+    });
+
+    // The tab came back while its hidden-page write was still on the wire.
+    // The next ordinary commit names the same revision that write is about to
+    // move, so racing it would get one of the two refused as stale, and the
+    // author would be shown a conflict with their own words (CodeRabbit, PR
+    // #226). It waits instead, and goes once the keepalive has answered.
+    it("holds an ordinary commit until a keepalive in flight has answered", async () => {
+      let land: (ok: boolean) => void = () => {};
+      const commit = vi
+        .fn<CommitSession>()
+        .mockImplementationOnce(() => new Promise((r) => (land = r)))
+        .mockResolvedValue(true);
+      const { result } = mount(true, commit);
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      setVisibility("visible");
+      act(() => result.current.change(doc("ab")));
+      act(() => result.current.flush());
+      expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
+      await act(async () => land(true));
+      expect(commit.mock.calls).toEqual([
+        [doc("a"), { keepalive: true, overtaking: false }],
+        [doc("ab"), { keepalive: false, overtaking: false }],
+      ]);
+    });
+
+    // A second unload write cannot wait either, and the revision it would
+    // name is the one the first is about to move: it overtakes the first.
+    it("calls a keepalive that passes another keepalive overtaking", () => {
+      const commit = vi.fn<CommitSession>().mockImplementation(() => new Promise(() => {}));
+      const { result } = mount(true, commit);
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      setVisibility("visible");
+      act(() => result.current.change(doc("ab")));
+      window.dispatchEvent(new Event("pagehide"));
+      expect(commit.mock.calls).toEqual([
+        [doc("a"), { keepalive: true, overtaking: false }],
+        [doc("ab"), { keepalive: true, overtaking: true }],
+      ]);
     });
 
     it("does not commit when the page becomes visible", () => {
@@ -112,7 +153,7 @@ describe("useEditSession", () => {
     act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS - 1));
     expect(commit).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1));
-    expect(commit.mock.calls).toEqual([[doc("ab"), { keepalive: false }]]);
+    expect(commit.mock.calls).toEqual([[doc("ab"), { keepalive: false, overtaking: false }]]);
   });
 
   // A document belongs to the page it was typed on. `commit` closes over the
@@ -142,8 +183,8 @@ describe("useEditSession", () => {
     act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
     await act(() => Promise.resolve());
     expect(commit.mock.calls).toEqual([
-      [doc("a"), { keepalive: false }],
-      [doc("a"), { keepalive: false }],
+      [doc("a"), { keepalive: false, overtaking: false }],
+      [doc("a"), { keepalive: false, overtaking: false }],
     ]);
     expect(result.current.failed).toBe(false);
   });
@@ -182,8 +223,8 @@ describe("useEditSession", () => {
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
     await act(async () => land(true));
     expect(commit.mock.calls).toEqual([
-      [doc("a"), { keepalive: false }],
-      [doc("abc"), { keepalive: false }],
+      [doc("a"), { keepalive: false, overtaking: false }],
+      [doc("abc"), { keepalive: false, overtaking: false }],
     ]);
   });
 
@@ -220,6 +261,8 @@ describe("useEditSession", () => {
 
   // The unload write cannot wait for anything: the page is going. `PageScreen`
   // keeps a draft of it, which is what makes firing it past the queue safe.
+  // It is told it is `overtaking`: the revision it would name is about to be
+  // moved by the commit it passed, so it must name none (CodeRabbit, PR #222).
   it("sends a keepalive settle at once, even with a commit in flight", () => {
     const commit = vi.fn<CommitSession>().mockImplementationOnce(() => new Promise(() => {}));
     const { result } = mount(true, commit);
@@ -228,8 +271,8 @@ describe("useEditSession", () => {
     act(() => result.current.change(doc("ab")));
     window.dispatchEvent(new Event("pagehide"));
     expect(commit.mock.calls).toEqual([
-      [doc("a"), { keepalive: false }],
-      [doc("ab"), { keepalive: true }],
+      [doc("a"), { keepalive: false, overtaking: false }],
+      [doc("ab"), { keepalive: true, overtaking: true }],
     ]);
   });
 
@@ -255,10 +298,52 @@ describe("useEditSession", () => {
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
   });
 
+  // A document the server refused as typed against an older page is not a
+  // failure to retry: the same send would be refused again, and it is the
+  // OLDER document. Neither it nor anything typed on top of it is sent under
+  // this session again; `PageScreen` has already kept and offered it.
+  it("drops a superseded document and what was typed over it, without failing or retrying", async () => {
+    let land: (outcome: "superseded") => void = () => {};
+    const commit = vi
+      .fn<CommitSession>()
+      .mockImplementationOnce(() => new Promise((r) => (land = r)))
+      .mockResolvedValue(true);
+    const { result, unmount } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    act(() => result.current.change(doc("ab")));
+    act(() => result.current.flush());
+    await act(async () => land("superseded"));
+    expect(result.current.failed).toBe(false);
+    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
+    unmount();
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
+  });
+
+  // ...but the session goes on: what is typed AFTER the refusal is typed on
+  // the page as it now stands, and is sent as usual.
+  it("sends a change made after a superseded commit", async () => {
+    const commit = vi.fn<CommitSession>().mockResolvedValueOnce("superseded").mockResolvedValue(true);
+    const { result } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    await act(() => Promise.resolve());
+    act(() => result.current.change(doc("b")));
+    act(() => result.current.flush());
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("b")]);
+  });
+
+  it("does not call a keepalive overtaking when nothing is in flight", () => {
+    const { result, commit } = mount();
+    act(() => result.current.change(doc("a")));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true, overtaking: false }]]);
+  });
+
   it("commits on flush, the manual retry", () => {
     const { result, commit } = mount();
     act(() => result.current.change(doc("a")));
     act(() => result.current.flush());
-    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: false }]]);
+    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: false, overtaking: false }]]);
   });
 });

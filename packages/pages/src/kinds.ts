@@ -192,9 +192,18 @@ export function formatKind<K extends ValueKind>(kind: K, value: KindValues[K], c
  * A `list: true` field: `valueKind` names the element (contracts CHANGELOG,
  * 2026-09-24), so a list prints as its elements' formats, joined.
  */
-export function formatKindList<K extends ValueKind>(kind: K, values: readonly KindValues[K][], ctx: KindContext): string {
-  const { format } = VALUE_KIND_FORMATS[kind];
-  return values.map((v) => format(v, ctx)).join(LIST_SEPARATOR);
+export function formatKindList<K extends ValueKind>(
+  kind: K,
+  values: readonly KindValues[K][],
+  ctx: KindContext,
+  opts?: CollapseOptions,
+): string {
+  const { format, distinct } = VALUE_KIND_FORMATS[kind];
+  const printed = values.map((v) => format(v, ctx));
+  // One stop's list can repeat itself (`tags` is an array, not a set), and
+  // "Remove duplicates" is offered for it, so it has to mean the same here as
+  // across stops (CodeRabbit, PR #226).
+  return (opts?.distinct && distinct ? [...new Set(printed)] : printed).join(LIST_SEPARATOR);
 }
 
 /**

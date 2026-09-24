@@ -319,9 +319,32 @@ export const CreatePageInput = z.object({
 });
 export type CreatePageInput = z.infer<typeof CreatePageInput>;
 
+/**
+ * The page revision a save was typed against: the `Page.updatedAt` the client
+ * last read, echoed back verbatim.
+ *
+ * Not `.datetime()`: `updatedAt` is Postgres's own timestamp text
+ * (`2026-09-24 10:00:00.123+00`), not ISO, and a client must be able to send
+ * back exactly what it was given. It must still be a time, because the server
+ * compares it as an instant rather than as a string.
+ */
+export const PageRevision = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Not a timestamp");
+
+/**
+ * The refusal code for a save whose `expectedUpdatedAt` is no longer the
+ * page's. Read on both sides of the server/UI wall, so it lives here.
+ */
+export const PAGE_CHANGED_CODE = "page-changed";
+
 export const UpdatePageInput = z.object({
   title: z.string().min(1).optional(),
   context: PageContext.optional(),
   content: PageDoc.optional(),
+  /**
+   * Optional, and absent means last write wins, as before. Present, a save
+   * typed against an older revision is refused (409 `page-changed`) instead of
+   * landing over a newer one. The editor sends it; see `EditPage`.
+   */
+  expectedUpdatedAt: PageRevision.optional(),
 });
 export type UpdatePageInput = z.infer<typeof UpdatePageInput>;

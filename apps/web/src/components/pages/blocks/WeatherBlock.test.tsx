@@ -37,7 +37,9 @@ const forecast = (asOf: string) => ({
   hours: [{ at: `${TODAY}T15:00:00Z`, tempC: 12.4, precipitationMm: 0.2, symbol: "cloudy" }],
 });
 const point = (date: string, over: Partial<TripWeatherPoint> = {}): TripWeatherPoint => ({
-  date, city: "Kyoto", forecast: forecast(`${TODAY}T09:10:00Z`), typical: TYPICAL, ...over,
+  // Built from local time like the clock: a fixed UTC instant is the day
+  // before in a zone west of UTC-9, and the as-of line then prints a date.
+  date, city: "Kyoto", forecast: forecast(new Date(2026, 10, 10, 9, 10).toISOString()), typical: TYPICAL, ...over,
 });
 
 const view = (
