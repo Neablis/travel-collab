@@ -498,6 +498,13 @@ participants: [],
   });
 
   it("renders no block-level element inside a paragraph, for any widget in the registry", async () => {
+    // Loaded before the sweep, not inside it. Cold, this import is the chart's
+    // first transform of Recharts — 550-650ms idle, measured — and the
+    // `waitFor` below has 1000ms; on a saturated box it ran out and the sweep
+    // failed on the placeholder (KI-13's mechanism). Once the module is in the
+    // registry, `lazy` resolves it in a tick, so the wait is for React, not
+    // for the machine.
+    await import("./blocks/SpendByDayChart");
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));

@@ -129,15 +129,44 @@ describe("useEditSession", () => {
     expect(second).not.toHaveBeenCalled();
   });
 
-  it("drops a discarded document on every trigger", () => {
-    const { result, unmount, commit } = mount();
-    act(() => {
-      result.current.change(doc("a"));
-      result.current.discard();
-    });
+  // A failed write must not lose the session: with one write per session there
+  // is no 800ms re-send behind it. The document stays pending, the failure is
+  // reported, and the next idle retries it.
+  it("keeps a document whose commit failed, reports it, and retries it on idle", async () => {
+    const commit = vi.fn<CommitSession>().mockResolvedValueOnce(false).mockResolvedValue(true);
+    const { result, rerender } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    rerender({ editing: false, commit });
+    await act(() => Promise.resolve());
+    expect(result.current.failed).toBe(true);
     act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
-    window.dispatchEvent(new Event("pagehide"));
+    await act(() => Promise.resolve());
+    expect(commit.mock.calls).toEqual([
+      [doc("a"), { keepalive: false }],
+      [doc("a"), { keepalive: false }],
+    ]);
+    expect(result.current.failed).toBe(false);
+  });
+
+  // ...and a failure never puts an OLDER document back over a newer one typed
+  // while it was in flight: every document is the whole page, so the newer one
+  // already carries everything the failed one did.
+  it("does not restore a failed document over a newer change", async () => {
+    let fail: (ok: boolean) => void = () => {};
+    const commit = vi.fn<CommitSession>().mockImplementationOnce(() => new Promise((r) => (fail = r)));
+    const { result, unmount } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    act(() => result.current.change(doc("ab")));
+    await act(async () => fail(false));
     unmount();
-    expect(commit).not.toHaveBeenCalled();
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
+  });
+
+  it("commits on flush, the manual retry", () => {
+    const { result, commit } = mount();
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: false }]]);
   });
 });

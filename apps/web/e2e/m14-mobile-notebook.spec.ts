@@ -389,4 +389,29 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     expect(geometry!.handleHeight).toBeGreaterThan(0);
     expect(geometry!.pointerEvents).toBe("none");
   });
+
+  // The field picker's list drops BELOW its box (`FieldPicker`, `top-full`),
+  // and the stop list's "add a column" box is the last control in the insert
+  // sheet's bind step — so on a phone it is the one most likely to open into
+  // the sheet's bottom edge. jsdom has no layout, so only this layer can say
+  // the list is reachable there (CodeRabbit, PR #222).
+  test("the last field picker in the bind step opens a list you can pick from", async ({ page }) => {
+    await openTripOverview(page);
+
+    await page.getByRole("button", { name: "Insert a widget" }).click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByRole("searchbox", { name: "Search widgets" }).fill("every stop");
+    await sheet.getByRole("button", { name: /A line for every stop/ }).click();
+
+    const addColumn = sheet.getByRole("combobox", { name: /add a column/i });
+    await addColumn.click();
+    const option = page.getByRole("option", { name: "Status", exact: true });
+    await expect(option).toBeInViewport();
+    await option.click();
+    await expect(sheet.getByRole("combobox", { name: /column 1/i })).toHaveValue("Status");
+
+    await sheet.getByRole("button", { name: "Insert it" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
+  });
 });

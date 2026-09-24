@@ -115,8 +115,20 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     });
 
     const others = collapseKind("money", otherCurrencies, { currency: trip.currency });
+    const left = [
+      others === null ? null : `${others} in other currencies`,
+      unscheduled === 0 ? null : `${formatMoney(unscheduled, trip.currency)} unscheduled`,
+    ].filter((part): part is string => part !== null);
+
+    // Nothing to draw is only "no costs yet" when nothing is priced at all:
+    // trip-currency money on no day is still money, and saying otherwise would
+    // contradict the `notCharted` line the same stops earn beside a chart.
     const chartedTotal = costOfStops(charted);
-    if (chartedTotal === 0) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
+    if (chartedTotal === 0) {
+      if (left.length === 0) return empty();
+      if (unscheduled === 0) return empty(`only priced in other currencies: ${others}`);
+      return empty(`nothing priced on a day yet: ${left.join("; ")}`);
+    }
 
     // Per TRIP day, not per selected day: the line is the pace the whole budget
     // allows, and narrowing the chart to a weekend does not make a weekend's
@@ -131,11 +143,6 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     const series = SERIES.filter((key) => bars.some((bar) => bar.amounts[key] > 0)).map((key) => ({
       key, label: SERIES_LABEL[key],
     }));
-
-    const left = [
-      others === null ? null : `${others} in other currencies`,
-      unscheduled === 0 ? null : `${formatMoney(unscheduled, trip.currency)} unscheduled`,
-    ].filter((part): part is string => part !== null);
 
     const priced = bars.filter((bar) => bar.total !== null).length;
     const summary =
