@@ -14,6 +14,7 @@ import { countryFactsWidget } from "./macros/primitives/countryFacts";
 import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
 import { field } from "./macros/primitives/field";
+import { daySun, dayFromHome } from "./macros/primitives/time";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -48,6 +49,9 @@ const DEFS: AnyMacroDef[] = [
   // The field widget (M14 build step 6): `stop` + filters + a reader-chosen
   // manifest field. The first registered widget with a `field` input.
   field,
+  // The clock pair (M14 link 11): day primitives over the zone and place the
+  // server put on each day of the globals projection. See `time.ts`.
+  daySun, dayFromHome,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

@@ -311,6 +311,22 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "Spend by day",
     keywords: ["spend", "spending", "chart", "graph", "bar", "costs", "money", "budget", "daily", "per day"],
   },
+  // ---- the clock pair -----------------------------------------------------
+  // M14 link 11. Unbound, so every located day; a day binding narrows either.
+  {
+    id: "sunrise-and-sunset",
+    widget: "day.sun",
+    params: {},
+    title: "Sunrise and sunset",
+    keywords: ["sun", "sunrise", "sunset", "golden hour", "daylight", "dawn", "dusk", "light", "photo", "photography"],
+  },
+  {
+    id: "time-difference-from-home",
+    widget: "day.fromHome",
+    params: {},
+    title: "Time difference from home",
+    keywords: ["time", "time zone", "timezone", "difference", "jet lag", "home", "clock", "hours ahead", "behind", "call home"],
+  },
   {
     id: "costs.table",
     widget: "cost.rows",

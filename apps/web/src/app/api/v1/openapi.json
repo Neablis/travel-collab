@@ -12113,7 +12113,7 @@
     },
     "/v1/trips/{tripId}/globals": {
       "get": {
-        "summary": "Summarise a trip: its days, the cities and tags it uses, and how many stops are booked",
+        "summary": "Summarise a trip: its days and their time zones, the cities and tags it uses, and how many stops are booked",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
@@ -12170,6 +12170,36 @@
                           "costSubtotal": {
                             "type": "integer",
                             "description": "What this day costs"
+                          },
+                          "place": {
+                            "type": "object",
+                            "properties": {
+                              "lat": {
+                                "type": "number",
+                                "minimum": -90,
+                                "maximum": 90
+                              },
+                              "lng": {
+                                "type": "number",
+                                "minimum": -180,
+                                "maximum": 180
+                              }
+                            },
+                            "required": [
+                              "lat",
+                              "lng"
+                            ],
+                            "additionalProperties": false,
+                            "nullable": true,
+                            "default": null,
+                            "description": "Where the day is: its earliest stop with coordinates. Null when no stop on the day has any."
+                          },
+                          "timeZone": {
+                            "type": "string",
+                            "minLength": 1,
+                            "nullable": true,
+                            "description": "The day's time zone",
+                            "default": null
                           }
                         },
                         "required": [
@@ -12248,6 +12278,13 @@
                       "type": "integer",
                       "minimum": 0,
                       "description": "How many stops are booked"
+                    },
+                    "homeTimeZone": {
+                      "type": "string",
+                      "minLength": 1,
+                      "nullable": true,
+                      "default": null,
+                      "description": "The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown."
                     }
                   },
                   "required": [
