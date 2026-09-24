@@ -167,6 +167,24 @@ describe("insertPreset", () => {
     expect(insertWidget("stop.rows", null).ok).toBe(false);
   });
 
+  it("inserts Still to book as `stop.rows` narrowed by the booking rule, and it renders that list", () => {
+    // M14 link 11: the widget reads `needsBooking`, not a second rule — so the
+    // preset is the primitive plus the one param that applies the rule, and
+    // what it renders is exactly the stops the rule flags. On the selection
+    // trip those are the two `idea` stops; every other stop is booked,
+    // transit, or an untagged `planned`.
+    const result = insertPreset("still-to-book");
+    expect(result).toEqual({
+      ok: true,
+      node: { type: "macro", attrs: { name: "stop.rows", params: { only: "needsBooking" } } },
+    });
+    const outcome = renderMacro(contextOf(selectionTrip()), "stop.rows", result.ok ? result.node.attrs.params : {});
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") throw new Error(`not rows: ${outcome.status}`);
+    expect(outcome.rendered.rows.map((row) => row.lead.map((s) => s.text).join(""))).toEqual([
+      "Day 3", "Maybe a hike", "Unscheduled", "Souvenirs",
+    ]);
+  });
+
   it("refuses an unknown preset id with the same typed reason", () => {
     expect(insertPreset("nope.nope")).toEqual({
       ok: false,
