@@ -177,6 +177,28 @@ export interface AdminUnderwaterView {
   windowDays: number;
 }
 
+/**
+ * Mirrors `PriceCheckRow` (`@/server/billing/prices`) — one published version,
+ * the plan file's price beside Stripe's. `minor` here is the plan file's own
+ * cents, not a micro-dollar count: it is what the version says it charges.
+ */
+export interface AdminPriceCheckRow {
+  ref: string;
+  committed: { minor: number; currency: string } | null;
+  stripe: { id: string; minor: number | null; currency: string } | null;
+  verdict: "ok" | "missing" | "mismatch" | "unpriced";
+}
+
+/**
+ * Mirrors `PriceConsistencyReport` — M21 link 2's gate box, as the console
+ * reads it (KI-2026-09-16-c). Not an array, so "never asked" cannot look like
+ * "nothing disagrees".
+ */
+export type AdminPriceConsistencyView =
+  | { status: "checked"; rows: AdminPriceCheckRow[] }
+  | { status: "unconfigured" }
+  | { status: "unavailable"; reason: string };
+
 export interface AdminOverview {
   plans: AdminPlanPanelRow[];
   grantSources: AdminGrantSourceRow[];
@@ -185,4 +207,5 @@ export interface AdminOverview {
   windowDays: number;
   revenue: AdminRevenueView;
   underwater: AdminUnderwaterView;
+  prices: AdminPriceConsistencyView;
 }

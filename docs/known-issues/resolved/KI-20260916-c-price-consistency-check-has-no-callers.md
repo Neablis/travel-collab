@@ -1,4 +1,23 @@
-### KI-2026-09-16-c — `checkPriceConsistency` is "the gate box, as a function" and nothing ever calls it
+### KI-2026-09-16-c — `checkPriceConsistency` is "the gate box, as a function" and nothing ever calls it — RESOLVED
+
+**Resolved 2026-09-24 — the operator-console row shape, not the deploy check.**
+`adminOverview()` (`server/entitlements/admin.ts`) now carries
+`prices: PriceConsistencyReport`, produced by a new non-throwing wrapper in
+`prices.ts`, `priceConsistencyReport()`: `unconfigured` when
+`billingConfigured()` is false (Stripe is not asked at all — the state every
+local, CI and e2e run is in), `unavailable` with Stripe's error message when
+the sweep throws, and `checked` with `checkPriceConsistency()`'s rows otherwise.
+`/admin` renders it as `PriceCheckPanel`; `lib/adminOverview.ts` mirrors the
+type, pinned by the existing `adminWireShape.test.ts` identity check. The
+console shape was chosen because the function *reports* by design (`missing` is
+ordinary) and a deploy gate against a live vendor would make every deploy
+depend on Stripe answering. It is read-only: `createPrice` is never reached.
+**Proof:** `adminPrices.int.test.ts` failed 3/3 before the fix
+(`TypeError: Cannot read properties of undefined (reading 'status')` — the
+console never asked) and passes 3/3 after; with the caller unwired back to a
+constant it goes red again (`expected 'unconfigured' to be 'checked'`).
+`PriceCheckPanel.test.tsx` goes red when the mismatch row stops saying so.
+Stripe is mocked and `fetch` stubbed to throw, so no test reaches the vendor.
 
 - **Severity:** correctness, latent — the check is written, correct, and dead.
   The failure it exists to catch is one its own header calls *"the worst class

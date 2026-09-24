@@ -30,6 +30,7 @@ import {
   StripeApiError,
   type StripePrice,
 } from "./stripeApi";
+import { billingConfigured } from "./config";
 
 /**
  * The plan file and Stripe disagree about what something costs.
@@ -222,4 +223,35 @@ export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
     });
   }
   return rows;
+}
+
+/**
+ * What the operator console shows for the sweep above (KI-2026-09-16-c).
+ *
+ * `checked` carries the rows. The other two are why this is a union and not a
+ * bare array: an EMPTY table would read as "nothing disagrees", which is the
+ * one thing this cannot say when it never asked.
+ */
+export type PriceConsistencyReport =
+  | { status: "checked"; rows: PriceCheckRow[] }
+  /** No Stripe keys on this deployment — a supported state, and nothing to ask. */
+  | { status: "unconfigured" }
+  /** Stripe was asked and did not answer; `reason` is its error's message. */
+  | { status: "unavailable"; reason: string };
+
+/**
+ * **`checkPriceConsistency` for a caller that must not fail: it never throws.**
+ *
+ * The console is where an operator reads this, so a Stripe outage must cost
+ * that one panel rather than the whole page — and a deployment with no billing
+ * (local, CI, every e2e run) is not asked at all, because its first
+ * `stripeRequest` would throw `BillingNotConfiguredError`.
+ */
+export async function priceConsistencyReport(): Promise<PriceConsistencyReport> {
+  if (!billingConfigured()) return { status: "unconfigured" };
+  try {
+    return { status: "checked", rows: await checkPriceConsistency() };
+  } catch (error) {
+    return { status: "unavailable", reason: error instanceof Error ? error.message : String(error) };
+  }
 }

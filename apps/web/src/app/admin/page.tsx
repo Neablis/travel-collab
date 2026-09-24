@@ -5,6 +5,7 @@ import { TierPanel } from "@/components/admin/TierPanel";
 import { GrantSourcePanel } from "@/components/admin/GrantSourcePanel";
 import { RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
+import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
 import { ReportsPanel } from "@/components/admin/ReportsPanel";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
@@ -143,6 +144,11 @@ export default async function AdminPage() {
         <GrantSourcePanel sources={overview.grantSources} />
         <TierPanel plans={overview.plans} />
       </div>
+
+      {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
+          version's Stripe Price against the plan file, not only the one being
+          bought at the till. Reports; never creates a Price. */}
+      <PriceCheckPanel report={overview.prices} />
     </main>
   );
 }
