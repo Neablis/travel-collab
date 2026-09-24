@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
@@ -16,14 +16,29 @@ import { setViewportMatches } from "../../../vitest.setup";
 // written for, now that they finally reach a screen.
 
 type AddedLayer = { id: string; filter?: unknown };
-const added: { sources: Record<string, unknown>; layers: AddedLayer[]; markers: HTMLElement[] } = {
+const added: {
+  sources: Record<string, unknown>;
+  layers: AddedLayer[];
+  markers: HTMLElement[];
+  handlers: Map<string, (event: unknown) => void>;
+} = {
   sources: {},
   layers: [],
   markers: [],
+  handlers: new Map(),
 };
+// Set to make the next `new Map(...)` throw, the way maplibre does when there
+// is no WebGL context — the failure that happens before any map exists.
+const construction = { failNext: false };
 
 vi.mock("maplibre-gl", () => {
   class FakeMap {
+    constructor() {
+      if (construction.failNext) {
+        construction.failNext = false;
+        throw new Error("Failed to initialize WebGL");
+      }
+    }
     addSource(id: string, source: unknown) {
       added.sources[id] = source;
     }
@@ -41,7 +56,9 @@ vi.mock("maplibre-gl", () => {
     isStyleLoaded() {
       return true;
     }
-    on() {}
+    on(event: string, handler: (event: unknown) => void) {
+      added.handlers.set(event, handler);
+    }
     once() {}
     resize() {}
     remove() {}
@@ -99,6 +116,8 @@ beforeEach(() => {
   added.sources = {};
   added.layers = [];
   added.markers = [];
+  added.handlers = new Map();
+  construction.failNext = false;
   // jsdom has no ResizeObserver, and `createBaseMap` installs one for the
   // 0×0-tile-cover fix. Without this stub the component throws on mount — and
   // it threw silently the first time this file was run, which is why the stub
@@ -378,6 +397,44 @@ describe("SharedDayMap", () => {
 });
 
 // `dc.html:1196-1226`: on a phone the route waits behind a "Show route" row.
+// **The map's tiles and style come from a third party**, and no test may reach
+// it — so what this file can hold is what a reader sees when it is down: the
+// same offline panel the trip map uses, inside the same frame, with a way back.
+// There are two ways in, and they are separate code: a LIVE map reporting a
+// fatal error (`onFatalError`), and a map that never got built because the
+// constructor threw (the effect's `.catch`).
+describe("SharedDayMap when the map cannot load", () => {
+  const placed = [{ dayIndex: 0, stops: [located(35.0, 135.7), located(35.02, 135.75)] }];
+
+  it("swaps the map for the offline panel when the live map reports a fatal error, and Try again brings it back", async () => {
+    const user = userEvent.setup({ delay: null });
+    render(<SharedDayMap savedDayId={DAY_ID} days={placed} scope="all" />);
+    await settle();
+    expect(screen.queryByTestId("map-offline")).toBeNull();
+
+    // A style failure, shaped the way maplibre delivers one (no `sourceId`,
+    // a message naming the style) — `isFatalMapError` treats it as fatal.
+    act(() => {
+      added.handlers.get("error")!({ error: { message: "Failed to parse style" } });
+    });
+
+    const frame = screen.getByTestId("shared-day-map-frame");
+    expect(within(frame).getByRole("heading", { name: "The map could not load" })).toBeDefined();
+    expect(within(frame).queryByTestId("shared-day-map")).toBeNull();
+
+    await user.click(within(frame).getByRole("button", { name: "Try again" }));
+    expect(within(frame).getByTestId("shared-day-map")).toBeDefined();
+    expect(within(frame).queryByTestId("map-offline")).toBeNull();
+  });
+
+  it("shows the offline panel, not a blank frame, when the map cannot even be built", async () => {
+    construction.failNext = true;
+    render(<SharedDayMap savedDayId={DAY_ID} days={placed} scope="all" />);
+    expect(await screen.findByRole("heading", { name: "The map could not load" })).toBeDefined();
+    expect(screen.queryByTestId("shared-day-map")).toBeNull();
+  });
+});
+
 describe("SharedDayMap on a phone", () => {
   beforeEach(() => setViewportMatches({ "(max-width: 767px)": true }));
   afterEach(() => {

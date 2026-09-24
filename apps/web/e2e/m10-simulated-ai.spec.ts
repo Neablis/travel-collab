@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { createMappedTrip, openAssistantRail, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 

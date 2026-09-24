@@ -560,6 +560,29 @@ export default [
     ),
   },
   {
+    // No automated test talks to a real third party (Mitchell, 2026-09-24).
+    // The e2e half of that is `e2e/fixtures/test.ts`, whose `test` serves the
+    // map's basemap locally on every browser context — but only for specs that
+    // import it. When it was a call each map spec had to make, three forgot.
+    // `auth.setup.ts` is not a spec and opens no map.
+    files: ["e2e/**/*.spec.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@playwright/test",
+              importNames: ["test", "expect"],
+              message:
+                'Import `test` and `expect` from "./fixtures/test" — it serves the map basemap locally on every context (e2e/fixtures/mapTiles.ts). Types still come from "@playwright/test".',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // THE TEST-QUALITY WALL, part 3: never assert presentation.
     //
     // A class name is not a contract. It changes on every re-skin, it says

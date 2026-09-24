@@ -36,9 +36,10 @@
  *      certutil is not installed here, so the CAs are pinned by SPKI hash —
  *      computed from the certificates the environment itself installed, so
  *      exactly those are trusted. It is not `--ignore-certificate-errors` and
- *      it is not a blanket disable. This half now lives in
- *      `container-chromium.mjs`, because the e2e lane needs it too; that file
- *      carries the full reasoning, including why the count is computed rather
+ *      it is not a blanket disable. This half lives in
+ *      `container-chromium.mjs` (the e2e lane shared it until 2026-09-24,
+ *      when it stopped fetching from any third party); that file carries the
+ *      full reasoning, including why the count is computed rather
  *      than written down (this paragraph used to say "five"; the image now
  *      installs six).
  *   b. `*.vercel.app` is on the gateway's TLS-inspection bypass list, so it is
@@ -112,8 +113,8 @@ if (!bypass && !isShareUrl) {
   process.exit(2);
 }
 
-// The CA pin is shared with the e2e lane (container-chromium.mjs, which that
-// file's header explains). The TLS 1.2 cap is NOT shared and stays here: it is
+// The CA pin lives in container-chromium.mjs, whose header explains it. The
+// TLS 1.2 cap is kept here rather than there: it is
 // needed only because `*.vercel.app` is tunnelled rather than inspected, which
 // is a fact about the host this script walks and about no other.
 const args = ["--ssl-version-max=tls1.2", ...containerChromiumArgs()];
