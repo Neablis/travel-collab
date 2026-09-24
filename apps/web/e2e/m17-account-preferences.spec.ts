@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { serveMapTilesLocally } from "./fixtures/mapTiles";
 import { openAccountPage, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -12,6 +13,14 @@ import { e2eTripName } from "./tripNames";
 // other spec signs in as, which several of them render). Same reasoning
 // m11-clone.spec.ts records for its own second actor.
 test.use({ storageState: undefined });
+
+// The Map lens loads its basemap from a third party; e2e serves it from a
+// fixture instead (e2e/fixtures/mapTiles.ts). Without this the lane's
+// resolver backstop (playwright.config.ts) fails the style and the map shows
+// its offline panel over the chrome these tests click.
+test.beforeEach(async ({ page }) => {
+  await serveMapTilesLocally(page);
+});
 
 const HOME_AIRPORT = "SFO";
 const DISPLAY_NAME = "Mitchell M17";

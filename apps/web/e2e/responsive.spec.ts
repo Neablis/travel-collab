@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
+import { serveMapTilesLocally } from "./fixtures/mapTiles";
 import { createMappedTrip, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -437,6 +438,14 @@ test.describe("responsive (Home hero below 1024px, fresh account)", () => {
 // set-your-own-width pattern (the hero-art and money-figure tests below do
 // the same). The width is his: 411px.
 test.describe("responsive (Map lens on a phone)", () => {
+  // The Map lens loads its basemap from a third party; e2e serves it from a
+  // fixture instead (e2e/fixtures/mapTiles.ts). Without this the lane's
+  // resolver backstop (playwright.config.ts) fails the style and the map shows
+  // its offline panel over the chrome these tests click.
+  test.beforeEach(async ({ page }) => {
+    await serveMapTilesLocally(page);
+  });
+
   test("swaps the rail, focus card and legend for one day strip, and keeps map jumping", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("MapPhone"), 3);
     await page.setViewportSize({ width: 411, height: 760 });

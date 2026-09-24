@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+import { serveMapTilesLocally } from "./fixtures/mapTiles";
 import { watchMapWorker } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -73,6 +74,7 @@ test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
   test("draws the located stops, numbered as the list numbers them", async ({ page }) => {
     test.slow();
     const worker = watchMapWorker(page);
+    const network = await serveMapTilesLocally(page);
     const dayName = `Kyoto on foot ${randomUUID().slice(0, 8)}`;
     const trip = await tripWithLocatedStops(page, e2eTripName("SharedDayMap"), [
       { title: "Fushimi Inari at opening", at: "07:30", ...FUSHIMI },
@@ -112,6 +114,7 @@ test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
     // is not. The helper's doc says to poll it and `m10-map-rail.spec.ts`
     // already did; this did not, and the lane said so within a run.
     await expect.poll(worker.outcome, { timeout: 20_000 }).toBe("loaded");
+    expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
   });
 
   // M27 link 10 retired §16's list-only degrade. Mitchell: a Playbook has a map
@@ -121,6 +124,7 @@ test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
   test("draws a lone located stop as a pin, with no route", async ({ page }) => {
     test.slow();
     const worker = watchMapWorker(page);
+    const network = await serveMapTilesLocally(page);
     const dayName = `One pin only ${randomUUID().slice(0, 8)}`;
     const trip = await tripWithLocatedStops(page, e2eTripName("SharedDayOnePin"), [
       { title: "Fushimi Inari at opening", at: "07:30", ...FUSHIMI },
@@ -138,6 +142,7 @@ test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
       "Only one stop is pinned so far, so there's no route to draw yet.",
     );
     await expect.poll(worker.outcome, { timeout: 20_000 }).toBe("loaded");
+    expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
   });
 
   // Nothing to place: the frame still holds its place, empty and saying so

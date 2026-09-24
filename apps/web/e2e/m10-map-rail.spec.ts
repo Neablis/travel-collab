@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { blockMapTiles, serveMapTilesLocally } from "./fixtures/mapTiles";
 import { createMappedTrip, watchMapWorker } from "./helpers";
 import { e2eTripName } from "./tripNames";
 import { gearedTravel } from "../src/components/lenses/mapRailFocus";
 import { readMapRailTuning } from "../src/components/lenses/mapRailTuning";
+import { STYLE_LOAD_LADDER_MS } from "../src/components/lenses/mapRecovery";
 
 const DAY_COUNT = 14;
 
@@ -56,6 +58,7 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
   // trimmed to the new (much cheaper) scan: an unhit ceiling costs nothing,
   // and a tight one buys flakes on a loaded machine.
   test.setTimeout(90_000);
+  const network = await serveMapTilesLocally(page);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("MapRail");
   await page.goto("/");
@@ -219,6 +222,8 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
       }),
     )
     .toEqual({ clippedAbovePx: 0, clippedBelowPx: 0 });
+
+  expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
 });
 
 // Mitchell, 2026-09-01: *"When navigating to map view, always use the current
@@ -235,6 +240,7 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
 // a second mode.
 test("map: opens on the current day, and on the first one when none is chosen", async ({ page }) => {
   test.setTimeout(90_000);
+  const network = await serveMapTilesLocally(page);
   const tripName = e2eTripName("MapDefault");
   const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
 
@@ -254,6 +260,8 @@ test("map: opens on the current day, and on the first one when none is chosen", 
   await page.getByRole("tab", { name: "Map" }).click();
   await expect(rail).toBeVisible();
   await expect.poll(async () => dayNumberOf(await focusedDayLabel(page))).toBe(5);
+
+  expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
 });
 
 
@@ -271,6 +279,7 @@ test("map: opens on the current day, and on the first one when none is chosen", 
 test("map lens: loads its tile-decoding worker", async ({ page }) => {
   // Armed before the navigation that triggers it.
   const worker = watchMapWorker(page);
+  const network = await serveMapTilesLocally(page);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("MapWorker");
   await page.goto("/");
@@ -291,4 +300,41 @@ test("map lens: loads its tile-decoding worker", async ({ page }) => {
   await expect
     .poll(worker.outcome, { timeout: 20_000 })
     .toBe("loaded");
+
+  // Asserted last, after the map has loaded, so it covers everything the
+  // basemap would have fetched on the way.
+  expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
+});
+
+/**
+ * The map's offline state, against a basemap host that cannot be reached.
+ *
+ * Every other map test in this suite serves the basemap from a fixture
+ * (`e2e/fixtures/mapTiles.ts`), so this is the one place the failure half is
+ * walked in a browser: the host refuses every request, as it does on a train,
+ * and the reader must be told the map could not load and offered Plan — not
+ * left looking at a paper-coloured rectangle.
+ *
+ * `route.abort()` produces MapLibre's "Failed to fetch", which names no style
+ * and no source, so `isFatalMapError` rightly does not treat it as fatal on
+ * its own. What turns it into the panel is the style-load ladder
+ * (`mapRecovery.ts`): two rebuilds, then a fall-back at its last deadline. The
+ * timeout is that deadline plus room, read from the ladder rather than
+ * written down twice.
+ */
+test("map lens: says the map could not load when the basemap host is unreachable", async ({ page }) => {
+  const blocked = await blockMapTiles(page);
+  const tripName = e2eTripName("MapOffline");
+  await page.goto("/");
+  const tripId = await createMappedTrip(page, tripName, 2);
+
+  await page.goto(`/trips/${tripId}?view=Map`);
+
+  const giveUpMs = STYLE_LOAD_LADDER_MS[STYLE_LOAD_LADDER_MS.length - 1]!;
+  const offline = page.getByTestId("map-offline");
+  await expect(offline).toBeVisible({ timeout: giveUpMs + 10_000 });
+  await expect(offline.getByRole("heading", { name: "The map could not load" })).toBeVisible();
+  await expect(offline.getByRole("link", { name: "Open Plan" })).toBeVisible();
+  // The panel is there because the host was refused, not for some other reason.
+  expect(blocked.refused()).toBeGreaterThan(0);
 });

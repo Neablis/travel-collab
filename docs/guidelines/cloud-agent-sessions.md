@@ -93,35 +93,31 @@ all enforced or visible only in a renderer — "no browser available" is the
 one excuse that turns a verifiable claim into an unverified one, and it was
 false both times it was used.
 
-**The e2e lane's Chromium reaches the tile host, as of 2026-09-23.** It did not
-before, and the two map specs (`m10-map-rail`, `m26-shared-day-map`) failed
-here with *"The map could not load"* in every cloud session — which is what
-left M26's gate box at 153 passed / 2 failed. The cause was never egress
-policy: the host was always allowed, and Chromium simply did not trust the
-certificate the proxy re-terminates TLS with (KI-49 has the four-line proof,
-including why `curl` succeeding tells you nothing about the browser).
+**The e2e lane does not reach the tile host at all, as of 2026-09-24** — nor
+any other third party. Mitchell's rule: no automated test talks to a real
+third-party service. The map specs serve the basemap style from a committed
+fixture (`apps/web/e2e/fixtures/mapTiles.ts`) and assert nothing else left the
+machine, and `playwright.config.ts` resolves every hostname but the app's own
+to nothing, so a request no route answered fails in the browser instead of
+reaching the network. So the proxy and its certificate are irrelevant to e2e
+here: the map specs pass in a container for the same reason they pass on a
+laptop.
 
-`apps/web/scripts/container-chromium.mjs` now pins the gateway's own CAs by
-SPKI hash, and `playwright.config.ts` passes them as `launchOptions.args`. It
-is **empty off-container** — the detector is an egress proxy in the environment
-plus certificates in `/usr/local/share/ca-certificates`, which a GitHub Actions
-runner has neither of.
-
-Two things about it worth knowing before you touch it:
+History, because the files still carry it: from 2026-09-23 to 2026-09-24 the
+lane DID fetch real tiles, and passed in a container only because
+`apps/web/scripts/container-chromium.mjs` pinned the gateway's CAs by SPKI hash
+into its Chromium (KI-49 has the diagnosis — the host was always allowed;
+Chromium did not trust the proxy's re-terminated TLS). The e2e lane no longer
+uses that pin. `walk-preview.mjs` still does, because walking a real preview is
+exactly where the real service belongs, and the two things it records stay
+true there:
 
 - **It adds trust for specific public keys; it does not disable verification.**
   `--ignore-certificate-errors` and `ignoreHTTPSErrors: true` are not the
-  alternative — `/root/.ccr/README.md` forbids them, and a map spec that passes
+  alternative — `/root/.ccr/README.md` forbids them, and a map that renders
   because the browser stopped checking proves nothing while looking exactly
   like a pass.
-- **The detector is deliberately not `process.env.CI`.** `test:e2e:ci-like`
-  sets that locally, and it is the only lane whose result counts — gating on it
-  would withhold the fix from the exact run you would act on.
-
-`--ssl-version-max=tls1.2` is NOT part of this and stays in `walk-preview.mjs`.
-It is needed only for `*.vercel.app`, which the gateway tunnels rather than
-inspects; the tile host is inspected and completes a TLS 1.3 handshake
-normally. So the e2e lane keeps TLS 1.3 here as well as in CI.
+- **The detector is the container, not `process.env.CI`.**
 
 **The Vercel preview IS reachable from here.** This paragraph used to say the
 opposite, and stopped three runs from testing where the bug was. Deployment
@@ -335,11 +331,13 @@ Outbound HTTPS uses the agent proxy (CA bundle at `/root/.ccr/ca-bundle.crt`).
 failure; `curl -sS "$HTTPS_PROXY/__agentproxy/status"` explains what is actually
 happening.
 
-What this costs us, concretely: **`tiles.openfreemap.org` is blocked, so the Map
-lens cannot be visually verified in this container** — the rail, focus card and
-legend render against a blank canvas. Map work has to be checked on the Vercel
-preview, and a local "looks fine" is not evidence about the map. Say so
-explicitly rather than letting a blank canvas read as a pass.
+What this used to cost us: the Map lens's tiles could not be seen from a
+container's browser. That is no longer a limit on e2e (see *the e2e lane does
+not reach the tile host*, above), and the real basemap is checked by hand on a
+Vercel preview — `docs/guidelines/third-party-services-on-a-preview.md` has
+the steps, and `walk:preview` can drive them from here. A local map with a
+plain background is the fixture working, not evidence about the real tiles;
+say which one you looked at.
 
 ## Secrets
 

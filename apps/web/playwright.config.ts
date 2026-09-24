@@ -1,5 +1,4 @@
 import { defineConfig, devices } from "@playwright/test";
-import { containerChromiumArgs } from "./scripts/container-chromium.mjs";
 import { BASE_URL } from "./src/config";
 import { DATABASE_URL } from "./src/server/config";
 import { E2E_SUPER_CODE } from "./e2e/admission";
@@ -71,25 +70,33 @@ export default defineConfig({
     // failure.
     trace: "on-first-retry",
     video: "off",
-    // KI-49, the actionable half. Empty everywhere except inside a Claude Code
-    // cloud container, where it pins the egress gateway's own CAs by SPKI hash
-    // so Chromium will complete a TLS handshake the proxy re-terminated.
+    // **No automated test talks to a real third party** (Mitchell,
+    // 2026-09-24). The map was the one place this suite's pages did: both maps
+    // load their basemap from `tiles.openfreemap.org`. The map specs now serve
+    // that style from a committed fixture (`e2e/fixtures/mapTiles.ts`) and
+    // assert nothing else left the machine; whether the REAL service renders
+    // is a manual check on a Vercel preview
+    // (`docs/guidelines/third-party-services-on-a-preview.md`).
     //
-    // Only two specs care — `m10-map-rail` and `m26-shared-day-map` — because
-    // `tiles.openfreemap.org` is the single third-party host this suite's pages
-    // fetch from; everything else is localhost, which the proxy never sees.
-    // Without this they fail with "The map could not load" in every cloud
-    // session, which is what left M26's Definition-of-Done gate at 153 passed /
-    // 2 failed rather than green.
+    // This flag is the backstop that makes the rule hold for every spec, not
+    // just the ones that remember it: every hostname except the app's own
+    // resolves to nothing, so a request no route answered fails in the browser
+    // instead of reaching the network. Playwright's routes are consulted before
+    // a request is sent, so a fulfilled route never resolves a name and the
+    // fixture is unaffected. **A spec that opens a map must call
+    // `serveMapTilesLocally`**; one that forgets gets the map's offline panel
+    // over its chrome — a loud failure, where before it silently depended on
+    // a third party being up. Measured 2026-09-24: m10-growth,
+    // m17-account-preferences and responsive's phone-map case all did.
     //
-    // `container-chromium.mjs` carries the reasoning, and two things it says
-    // are worth repeating at the call site: this ADDS trust for specific public
-    // keys rather than disabling verification (which the proxy README forbids,
-    // and which would make a green map run prove nothing), and the detector is
-    // deliberately NOT `process.env.CI` — `test:e2e:ci-like` sets that locally
-    // and is the only lane whose result counts, so gating on it would withhold
-    // the fix from the exact run anyone would act on.
-    launchOptions: { args: containerChromiumArgs() },
+    // It is also why `scripts/container-chromium.mjs`'s CA pin (KI-49) is no
+    // longer passed here: that existed so a cloud container's Chromium would
+    // trust the egress proxy on the way to the tile host, and nothing in this
+    // lane goes to the tile host any more. `walk-preview.mjs` still uses it,
+    // because walking a real preview is exactly where the real host belongs.
+    launchOptions: {
+      args: [`--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE ${new URL(BASE_URL).hostname}`],
+    },
   },
   // One retry in CI only. NOT a flake-suppression tool: a test that passes
   // on retry is reported as flaky and must be treated as a bug, not waved

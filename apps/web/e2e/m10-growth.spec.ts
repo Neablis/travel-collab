@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
+import { serveMapTilesLocally } from "./fixtures/mapTiles";
 import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -13,6 +14,14 @@ import { e2eTripName } from "./tripNames";
 // day after the last, that all four views agree about it — is a claim about the
 // whole stack, and the empty-day copy is only honest if the day really is empty
 // in the projection rather than in a fixture.
+
+// The Map lens loads its basemap from a third party; e2e serves it from a
+// fixture instead (e2e/fixtures/mapTiles.ts). Without this the lane's
+// resolver backstop (playwright.config.ts) fails the style and the map shows
+// its offline panel over the chrome these tests click.
+test.beforeEach(async ({ page }) => {
+  await serveMapTilesLocally(page);
+});
 
 test("adding a day appends it and every view renders it as an empty day", async ({ page }) => {
   // Distinct prefix from other specs' trip names — parallel workers share a DB.

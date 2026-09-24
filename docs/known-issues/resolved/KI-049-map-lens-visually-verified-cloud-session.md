@@ -1,4 +1,4 @@
-### KI-49 — The Map lens cannot be visually verified in a cloud session: the egress proxy blocks the tile host
+### KI-49 — The Map lens cannot be visually verified in a cloud session: the egress proxy blocks the tile host — RESOLVED
 - **Severity:** process/verification (no user-facing defect; it removes a whole lens from local review)
 - **Area:** `MapLens` / MapLibre's tile fetches to `tiles.openfreemap.org`; the Claude Code remote container's agent proxy.
 - **Symptom:** in a cloud session the Map lens renders its **chrome** — day rail, focus card, legend, leg labels — over a **blank canvas**, because MapLibre's tile requests to `tiles.openfreemap.org` do not survive the container's egress proxy. Nothing errors visibly; the map simply has no basemap under it.
@@ -85,3 +85,35 @@
 
 - **Not yet investigated.** The first two are now moot for the e2e lane — the browser trusts the hop and the specs are green, so neither an egress-policy change nor an offline tile fixture is needed to make the suite pass; they would only matter if the lane had to run with no proxy at all. Left listed because the third has not moved: whether the tile host can be allowed through the proxy for cloud sessions; whether a locally-served offline tile fixture would be worth it for e2e; and, new as of the above, whether a screenshot pipeline that captures WebGL (`preserveDrawingBuffer`, or a headless Chromium screenshot taken outside this browser tooling) would close the pixels half from a laptop. None has been attempted; this entry exists so the choice is made deliberately rather than rediscovered by the next agent to touch the map.
 - **First noted:** 2026-08-26 (design-sync UI audit; recorded after the audit shipped, PR #55 retrospective).
+- **RESOLVED 2026-09-24 — both halves, by different routes.** Mitchell's rule
+  that day: *no automated test talks to a real third party*, with a UI
+  placeholder covered by a stubbed test plus a manual preview check instead.
+  - **The e2e half no longer touches the tile host at all.** The map specs
+    serve a background-only style from `apps/web/e2e/fixtures/map-style.json`
+    at the real style URL (`e2e/fixtures/mapTiles.ts`, via `page.route`, so the
+    CSP stays in the path) and assert that no request left for a third party;
+    `playwright.config.ts` resolves every hostname but the app's own to nothing
+    as a backstop for the specs that do not ask for the fixture; and
+    `containerChromiumArgs()` is no longer passed to the lane (it stays in
+    `walk-preview.mjs`). A new test blocks the host and asserts *"The map could
+    not load"*. So the proxy, its certificate and this entry's diagnosis are
+    now irrelevant to e2e: the specs pass for the same reason in a container
+    and on a laptop.
+  - **The "real tiles render" half is a manual check** in
+    `docs/guidelines/third-party-services-on-a-preview.md`, which is where this
+    entry's working practice ("verify map work on the preview; a blank canvas is
+    not a pass") now lives as numbered steps. It is satisfiable from a
+    container with `walk:preview`, per the 2026-09-21 measurement above.
+  - **Proof:** `pnpm --filter web test:e2e:ci-like e2e/m10-map-rail.spec.ts
+    e2e/m26-shared-day-map.spec.ts` — 8 passed (setup + 7), including the new
+    offline test; the whole lane, `pnpm --filter web test:e2e:ci-like`, 164
+    passed with the resolver backstop on (the first run of it failed three
+    specs that opened a map without the fixture — the backstop doing its job;
+    they now ask for it). Red-first: with the fixture's `page.route` disabled, the
+    no-network assertion failed listing
+    `https://tiles.openfreemap.org/styles/positron`; with MapLens's offline
+    branch rendering nothing, the offline test failed on
+    `getByTestId('map-offline')` not found.
+  - **Left open, deliberately not re-filed:** a screenshot pipeline that
+    captures WebGL from a laptop. The manual check has a person look at the
+    page itself, which is the thing that pipeline would have stood in for.
