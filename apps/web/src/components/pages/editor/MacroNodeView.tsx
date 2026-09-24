@@ -5,6 +5,7 @@ import type { WidgetShape } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
 import { MacroView } from "../MacroView";
 import { useMacroEditorContext } from "./MacroEditorContext";
+import type { WidgetMarkSpec } from "./widgetMarkPlugin";
 
 // The shape a widget renders as, with the one default both readers of it must
 // agree on. `MacroNodeExtension` puts this on the DOM for the stylesheet; the
@@ -54,9 +55,8 @@ const EDIT_OUTLINE = "tc-widget-edit relative";
  * The rendering is the smaller half. This node view is also the only thing that
  * knows a widget is selected, and SPEC §26 puts every widget control in a side
  * channel that has to be told: so a selected node reports its params and its
- * updater up through the editor context, a param change reselects the node so
- * the panel it opened does not close under the person using it, and a selected
- * node that UNMOUNTS reports its own release — deleting a widget destroys this
+ * editor up through the editor context, and a selected node that UNMOUNTS
+ * reports its own release — deleting a widget destroys this
  * view without `selected` ever going false, which would otherwise leave the
  * panel holding a node that is gone (CodeRabbit, PR 170).
  *
@@ -64,7 +64,7 @@ const EDIT_OUTLINE = "tc-widget-edit relative";
  * `updateAttributes` and said of each what its own name says. None of the above
  * is visible in the signature, which is what a docstring here is for.
  */
-export function MacroNodeView({ node, selected, updateAttributes, editor, getPos }: ReactNodeViewProps) {
+export function MacroNodeView({ node, selected, editor, decorations }: ReactNodeViewProps) {
   const { detail, context, user, globals, external, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
   const name = node.attrs.name as string;
   // **Memoised on its VALUE, not its identity.** `node.attrs.params ?? {}` is a
@@ -117,50 +117,44 @@ export function MacroNodeView({ node, selected, updateAttributes, editor, getPos
     [key],
   );
 
+  const claimedRef = useRef(false);
   useEffect(() => {
     if (!editing || onWidgetSelected === undefined) return;
     if (selected) {
-      onWidgetSelected(
-        {
-          key,
-          name,
-          params,
-          onChange: (next) => {
-            updateAttributes({ params: next });
-            // **Re-select this node afterwards, or the panel closes on the
-            // first thing you do in it.**
-            //
-            // `updateAttributes` replaces the node in the document, and a
-            // `NodeSelection` pointing at the old one does not survive that —
-            // ProseMirror maps the selection to a text position beside it. So
-            // `selected` went false, this view reported null, and the settings
-            // panel unmounted the moment a binding was picked. That was
-            // invisible while the controls lived in the flow (SPEC §26 moved
-            // them out) because nothing there depended on the selection.
-            //
-            // Deferred a tick: the re-selection has to run against the document
-            // the update produced, not the one it was dispatched from.
-            queueMicrotask(() => {
-              const pos = getPos();
-              if (pos === undefined) return;
-              const at = editor.state.doc.nodeAt(pos);
-              if (at?.type.name !== "macro") return;
-              editor.commands.setNodeSelection(pos);
-            });
-          },
-        },
-        key,
-      );
+      claimedRef.current = true;
+      // The panel writes through `editor` with an attribute step
+      // (`blockWidgets.ts`), which keeps this node selected across a rebind.
+      // This used to hand up an `updateAttributes` closure, which REPLACES a
+      // leaf node, and had to re-select it in a microtask or the panel closed
+      // on the first thing you did in it.
+      onWidgetSelected({ key, name, params, editor }, key);
       // Deliberately no cleanup that clears: see `PageScreen`, which drops the
       // selection only when the reporting key matches. A cleanup here would run
       // on every params change too, closing the panel the user is typing into.
       return;
     }
+    // **Release only what this view claimed.** A view that was never selected
+    // has nothing to give up, and saying so is not harmless: since the panel
+    // holds every widget of a sentence (§26), rebinding entry 1 changes widget
+    // 1's params and re-runs this effect while widget 2 holds the selection —
+    // and a flush holding only that "not me" closed the panel under the person
+    // using it. Found by the e2e walk for the gate sentence.
+    if (!claimedRef.current) return;
+    claimedRef.current = false;
     onWidgetSelected(null, key);
     // `params` is in the deps because the panel edits them: a rebind has to
     // reach the open panel, or its selects would show the value from before the
     // change and write it back on the next edit.
-  }, [editing, selected, key, name, params, updateAttributes, onWidgetSelected, editor, getPos]);
+  }, [editing, selected, key, name, params, onWidgetSelected, editor]);
+
+  // The number that ties this widget to its entry in the settings panel (§26:
+  // *"numbered to match the marks in the text"*). It arrives as a decoration
+  // from `widgetMarkPlugin`, not from reading the document here: a node view
+  // is only re-rendered when ITS node or decorations change, so a sibling
+  // inserted earlier in the sentence would leave a number computed here stale.
+  const mark = decorations.find((d) => typeof (d.spec as WidgetMarkSpec).widgetMark === "number")?.spec as
+    | WidgetMarkSpec
+    | undefined;
 
   const className = [
     macroShape(name) === "single" ? null : "block",
@@ -183,10 +177,19 @@ export function MacroNodeView({ node, selected, updateAttributes, editor, getPos
           a focusable control inside a ProseMirror atom competes with the node
           selection that is the actual click target, and §26 makes "the block
           itself" the target. The name lives in the `title`, which is what §26
-          asks for — a bare ▸ on the handle, the name as its tooltip. */}
+          asks for — a bare ▸ on the handle, the name as its tooltip.
+
+          The handle is also where the widget's NUMBER goes, when its block
+          holds more than one. The design draws it as a superscript after the
+          value; in the flow, that would move the prose on entering Editing,
+          which is the one thing §26 says Editing must never do. The handle is
+          already out of the flow. As bare text rather than a nested span: a
+          span in here is one more element for anything looking for the
+          widget's own output to trip over (`m14-mobile-notebook`'s `widget()`
+          locator is exactly that). */}
       {editing ? (
         <span className="tc-widget-handle" title={def?.title ?? name} aria-hidden data-testid="widget-handle">
-          ▸
+          ▸{mark?.widgetMark}
         </span>
       ) : null}
       <MacroView detail={detail} context={context} user={user} globals={globals} external={external} name={name} params={params} onBindDay={onBindDay} />

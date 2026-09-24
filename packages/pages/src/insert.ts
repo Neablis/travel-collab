@@ -1,7 +1,7 @@
 import type { MacroNode } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
 import type { AnyMacroDef } from "./registry-types";
-import { getMacro } from "./registry";
+import { MACRO_NAMES, getMacro } from "./registry";
 
 // ADR-037 decision 4: **insert is one derived command, not a UI action per
 // widget.**
@@ -41,14 +41,25 @@ export type InsertError =
  * Only the closed filter vocabulary is checked. A key outside it is either a
  * primitive's own non-filter param (`count`'s `of`, `attribute`'s `field`) —
  * which its schema validates — or ordinary junk, and junk has always stripped.
+ *
+ * **A dimension no registered widget declares is retired, and strips like
+ * junk.** `person` is one (Mitchell, 2026-09-24: *"person is removed for
+ * now"*): the contract enum keeps it, but nothing selects by it. Refusing it
+ * would refuse every page stored while `cost` and `stop.rows` still offered it
+ * — and `findWidgetError` judges stored pages through this door, so the whole
+ * page would stop saving over one filter no build can honour. The day a widget
+ * declares it again, it is refused on the others as before.
  */
 function illegalFilters(def: AnyMacroDef, params: unknown): string[] {
   if (!def.selection || typeof params !== "object" || params === null || Array.isArray(params)) return [];
   const declared = new Set<string>(def.selection.filters);
   return Object.keys(params).filter(
-    (key) => (FilterDimension.options as readonly string[]).includes(key) && !declared.has(key),
+    (key) => (FilterDimension.options as readonly string[]).includes(key) && !declared.has(key) && !isRetired(key),
   );
 }
+
+const isRetired = (dimension: string): boolean =>
+  !MACRO_NAMES.some((name) => (getMacro(name)!.selection?.filters as readonly string[] | undefined)?.includes(dimension));
 
 export type InsertResult =
   | { ok: true; node: MacroNode }

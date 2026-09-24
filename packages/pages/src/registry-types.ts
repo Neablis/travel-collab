@@ -78,6 +78,14 @@ export interface CostsTablePayload { kind: "costs-table"; rows: CostRow[]; total
 // be a fourth city palette).
 export interface CityDetailEntry { name: string; dayOrdinals: number[]; activityCount: number; }
 export interface CityDetailPayload { kind: "city-detail"; cities: CityDetailEntry[]; }
+// "Know before you go" (`country.facts`): one card per country, every field
+// display-ready. `emergency` and `tipping` are `null` where the table is not
+// sure, and the card prints "—" rather than a guess (`data/countries.ts`).
+export interface CountryFactsCard {
+  code: string; name: string; plugs: string; power: string; drives: string;
+  emergency: string | null; currency: string; callingCode: string; tipping: string | null;
+}
+export interface CountryFactsPayload { kind: "country-facts"; countries: CountryFactsCard[]; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
 // no longer switches on a widget's name.
@@ -94,7 +102,8 @@ export interface CityDetailPayload { kind: "city-detail"; cities: CityDetailEntr
 //
 // This is an implementation decision the ADR did not make; it is recorded in
 // ADR-037 under decision 3 rather than only here.
-export type BlockPayload = ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload;
+export type BlockPayload =
+  | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose

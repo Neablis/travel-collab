@@ -23,9 +23,11 @@ describe("registry", () => {
     // narrow — it is the trip's whole open list by definition. So it is in
     // `MACRO_NAMES` and deliberately NOT in `PRIMITIVE_NAMES`, and the sweep
     // below that once equated the two is what caught it.
+    // `country.facts` ("Know before you go", M14 link 11) is registered on
+    // `open`'s terms: no selection, so not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.rows",
-      "count", "dates", "day.detail", "day.rows", "hours", "open", "stop.rows",
+      "count", "country.facts", "dates", "day.detail", "day.rows", "hours", "open", "stop.rows",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -148,11 +150,15 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   const populated: TripDetail = {
     ...detail,
     startDate: "2026-08-01",
-    days: [{ dayId: "d0", activityIds: ["a1"], date: "2026-08-01", costSubtotal: 5000 }],
+    // `a3` is a `hold` on the day: "Still to book" is bound to this day below
+    // and resolved to `empty` without one — the floor refusing a fourth time.
+    days: [{ dayId: "d0", activityIds: ["a1", "a3"], date: "2026-08-01", costSubtotal: 5000 }],
     activities: {
       a1: {
         activityId: "a1", tripId: detail.tripId, title: "Museum", dayId: "d0", position: 0,
-        timeWindow: { start: "09:00", end: "17:00" }, location: null,
+        // Located, so "Know before you go" has a country to card rather than
+        // resolving to `empty` — the witness floor below, once more.
+        timeWindow: { start: "09:00", end: "17:00" }, location: { name: "Tokyo National Museum", countryCode: "JP" },
         cost: { amountMinor: 5000, currency: "USD" },
         // `booked`, not `null`: `booking.line` resolves to `empty` for a day
         // whose stops are all merely planned, so with a null kind it never
@@ -183,6 +189,10 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     a2: {
       activityId: "a2", tripId: detail.tripId, title: "Ghibli Museum", dayId: null, position: 0,
       timeWindow: null, location: null, cost: null, notes: null, kind: "idea", tags: [],
+    },
+    a3: {
+      activityId: "a3", tripId: detail.tripId, title: "Tea ceremony", dayId: "d0", position: 1,
+      timeWindow: null, location: null, cost: null, notes: null, kind: "hold", tags: [],
     },
   } as unknown as TripDetail["activities"];
 
@@ -332,7 +342,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // containment it always meant: every primitive is registered, and a
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
-    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined)).toEqual(["open"]);
+    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual(["country.facts", "open"]);
   });
 
   it("declares only dimensions its entity permits", () => {
@@ -386,6 +396,23 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect(checked, "every primitive declared every dimension, so nothing was checked").toBeGreaterThan(0);
   });
 
+  it("declares no `person` input anywhere — the M14 gate box", () => {
+    // *"No `w-person` or `w-personline` … nothing in the registry declares a
+    // `person` input."* Mitchell, 2026-09-24: *"person is removed for now"*.
+    // Swept over every registered widget, not the three that used to carry it,
+    // so one added later cannot bring the control back unnoticed. The contract
+    // enum keeps the member; this is about what the registry offers.
+    let checked = 0;
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      expect(def.inputs.map((i) => i.type), `${name} declares a person input`).not.toContain("person");
+      expect(def.selection?.filters ?? [], `${name} selects by person`).not.toContain("person");
+      checked += 1;
+    }
+    expect(checked).toBe(MACRO_NAMES.length);
+    expect(checked).toBeGreaterThanOrEqual(13);
+  });
+
   it("derives one control per declared dimension, and no others", () => {
     // SPEC §5: *"the chrome row is generated from the primitive's declared
     // filters — one control per dimension, including the ones you have not
@@ -412,6 +439,9 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
       field: ["trip.name", "trip.budgetRemaining", "trip.countdown", "account.name", "account.homeAirport"],
     });
     expect(paramsOf("count")).toEqual({ of: ["stop", "day", "city"] });
+    // "Still to book" is `stop.rows` plus this param, so a model can compose it
+    // without the preset list — with no edit to the catalogue to get there.
+    expect(paramsOf("stop.rows")).toEqual({ only: ["needsBooking"] });
     // And a primitive that takes only filters says so with an empty object
     // rather than by omission, so "no extra params" is a statement.
     expect(paramsOf("cost")).toEqual({});

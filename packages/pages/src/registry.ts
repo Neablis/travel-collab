@@ -8,6 +8,7 @@ import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
 import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows";
 import { open } from "./macros/primitives/open";
+import { countryFactsWidget } from "./macros/primitives/countryFacts";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -32,6 +33,9 @@ const DEFS: AnyMacroDef[] = [
   // an empty day or the backlog, so there is no primitive for it to be a
   // preset OF. ADR-039's count in the comment above is amended, not ignored.
   open,
+  // "Know before you go" (M14 link 11) — registered and not a primitive, for
+  // `open`'s reason: it has no entity to narrow. See `countryFacts.ts`.
+  countryFactsWidget,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

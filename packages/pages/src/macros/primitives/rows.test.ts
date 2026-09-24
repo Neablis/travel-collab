@@ -226,6 +226,38 @@ describe("stop.rows", () => {
     const ctx = contextOf(selectionTrip());
     expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 } })).toHaveLength(2);
   });
+
+  it("keeps only what `needsBooking` flags when asked — the Still to book list", () => {
+    // Every branch of the rule has a stop to bite on: Lunch is `planned` and
+    // made ticketed here, Free morning is made a `hold`, Maybe a hike and the
+    // backlog's Souvenirs are `idea`. The Colosseum is ticketed too but
+    // `booked`, and the Ryokan and the train are settled, so the list is the
+    // rule's answer rather than the fixture's.
+    const fixture = selectionTrip();
+    const { s1, s4 } = fixture.ids;
+    fixture.trip.activities[s1] = { ...fixture.trip.activities[s1]!, tags: ["meal", "ticketed"] };
+    fixture.trip.activities[s4] = { ...fixture.trip.activities[s4]!, kind: "hold" };
+    const ctx = contextOf(fixture);
+    expect(lines(ctx, "stop.rows", { only: "needsBooking" }).map((r) => r.split(" ")[0])).toEqual([
+      "Day", "Lunch",
+      "Day", "Free", "Maybe",
+      "Unscheduled", "Souvenirs",
+    ]);
+    // It composes with the filters rather than replacing them.
+    expect(lines(ctx, "stop.rows", { only: "needsBooking", day: { kind: "index", index: 0 } }).map((r) => r.split(" ")[0])).toEqual([
+      "Lunch",
+    ]);
+  });
+
+  it("says nothing is left to book when the rule is what emptied it", () => {
+    // Day 2 is a train and a booked ryokan. "no stops to show" under a Still
+    // to book heading reads as a fault; this reads as the good news it is.
+    const ctx = contextOf(selectionTrip());
+    expect(renderMacro(ctx, "stop.rows", { only: "needsBooking", day: { kind: "index", index: 1 } })).toEqual({
+      status: "empty",
+      because: "nothing left to book",
+    });
+  });
 });
 
 describe("cost.rows", () => {

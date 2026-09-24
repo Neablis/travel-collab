@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext } from "react";
+import type { Editor } from "@tiptap/react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import type { ExternalInputs } from "@tc/pages";
 
@@ -35,12 +36,11 @@ export interface MacroEditorContextValue {
    * > The document reads identically in both modes. No widget control is ever
    * > in the document flow.
    *
-   * The callback carries the widget's own `onChange` rather than an id the
-   * panel would have to resolve back to a node: the writer is
-   * `updateAttributes` on that specific ProseMirror node, which only the node
-   * view holds. Passing the closure keeps the "rebind writes straight onto the
-   * node's attrs" property that made the chrome row the whole flow — one
-   * document update, `onUpdate`, autosave, no second save path.
+   * The callback carries the EDITOR, because the panel is about the selected
+   * widget's whole block — every widget in the sentence gets its own entry
+   * (§26, `blockWidgets.ts`) — and only the editor can address the others.
+   * Every write is still a transaction on this document: one update,
+   * `onUpdate`, autosave, no second save path.
    *
    * **The reporter always names itself, including when it is clearing.** Every
    * mounted node view runs the same effect, so a click moving the selection
@@ -62,7 +62,8 @@ export interface SelectedWidget {
   key: string;
   name: string;
   params: Record<string, unknown>;
-  onChange: (params: Record<string, unknown>) => void;
+  /** The editor the widget lives in; the panel reads the block and writes through it. */
+  editor: Editor;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ActivityTag } from "./activity.ts";
-import { described, type ValueKind } from "./valueKind.ts";
+import { described, describedCollection, type ValueKind } from "./valueKind.ts";
 
 // The trip's addressable collections — ADR-037 open question 4's "trip globals",
 // and the prerequisite that makes half the widget catalogue cheap.
@@ -40,10 +40,11 @@ import { described, type ValueKind } from "./valueKind.ts";
 //
 // For an array the kind names the ELEMENT, and the manifest adds `list: true`
 // from the schema itself — so `cities` below is `text`, not a list-kind. The
-// collections on `TripGlobals` take a bare `.describe()`: a collection is walked
-// for its members' fields and never printed, so a kind on it has nothing to
-// mean. All three were once `described("text", …)`, a kind the manifest dropped
-// without a word (M14 field-widget review, 2026-09-24).
+// collections on `TripGlobals` take `describedCollection(label, …)`: a
+// collection is walked for its members' fields and never printed, so a kind on
+// it has nothing to mean. All three were once `described("text", …)`, a kind
+// the manifest dropped without a word (M14 field-widget review, 2026-09-24),
+// and then a bare `.describe()`, until T06 stopped `.describe()` publishing.
 
 export const TripGlobalsDay = z.object({
   index: described("count", "Day number, counting from 0", z.number().int().nonnegative()),
@@ -77,9 +78,9 @@ export type TripGlobalsTag = z.infer<typeof TripGlobalsTag>;
 // empty `people: []` here would be worse than its absence — it would read as
 // "this trip has nobody on it" rather than "this build cannot answer that".
 export const TripGlobals = z.object({
-  days: z.array(TripGlobalsDay).describe("Every day of the trip"),
-  cities: z.array(TripGlobalsCity).describe("Every city the trip touches"),
-  tags: z.array(TripGlobalsTag).describe("Every tag in use on this trip"),
+  days: describedCollection("Every day of the trip", z.array(TripGlobalsDay)),
+  cities: describedCollection("Every city the trip touches", z.array(TripGlobalsCity)),
+  tags: describedCollection("Every tag in use on this trip", z.array(TripGlobalsTag)),
   bookedCount: described("count", "How many stops are booked", z.number().int().nonnegative()),
 });
 export type TripGlobals = z.infer<typeof TripGlobals>;
