@@ -3,6 +3,7 @@
 - **Severity:** cosmetic (unusable rather than wrong — nothing is lost, but the
   trip header alone exceeds the viewport)
 - **Area:** `apps/web/src/components/trip/TripHeader.tsx`,
+- **Re-measured 2026-09-24 (production build of `0c45caf`, 390/820/1024px) — the claims below no longer reproduce; keep open only until a real-phone walk confirms, then resolve.** At 390px Plan shows one day at full width, stop Edit/Remove are 44×44, only 3 of 44 phone Plan controls are under 44px, and no page scrolls sideways at any width. The one broken thing the check found — the stop editor wider than its sheet, Save off-screen — was fixed the same day (`.activity-editor-grid` stacks below 768px; `m26-phone-plan.spec.ts` *"fits the stop editor inside the phone, with Save on screen"*). What remains is filed separately and is not this entry's claim: KI-2026-09-24-i (phone header height), -j (tablets get the desktop layout with mouse-sized targets — the 768–1100px band this entry called fine), -k (Calendar clips), -l (tab bar marks Plan on Overview), -m (20px tag chips).
   `TripMetaPill.tsx`, `lenses/TimelineLens.tsx`, `AppHeader.tsx`
 - **Symptom (measured at 402×844):** the trip header consumes ~1130px of an
   844px viewport before any plan content — the meta pill wraps

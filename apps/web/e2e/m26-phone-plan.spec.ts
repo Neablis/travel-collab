@@ -102,6 +102,41 @@ test.describe("M26 link 13 — Plan on a phone", () => {
     expect(box!.width).toBeGreaterThanOrEqual(44);
   });
 
+  // Found by the 2026-09-24 mobile check: the Day / Start / End row needed
+  // ~407px, and a bare `1fr` grid track cannot shrink below its content, so on
+  // a phone it widened the whole form past the 358px sheet — every field ran
+  // ~50px off the right edge and Save sat at x 368–427 on a 390px screen.
+  // Measured, because jsdom has no layout.
+  test("fits the stop editor inside the phone, with Save on screen", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await planWithALongStop(page);
+    await page.getByRole("button", { name: `Edit ${LONG_TITLE}` }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor();
+
+    // Measured in the page with every sideways scroll reset to 0, NOT via
+    // `scrollIntoViewIfNeeded` + `boundingBox`: that scrolls the sheet
+    // SIDEWAYS to reach an off-screen field, which then measures as on screen
+    // — the first version of this test passed against the broken layout for
+    // exactly that reason. A field's x does not depend on vertical scroll, so
+    // nothing needs scrolling at all (PR #220 review: measure the fields this
+    // test is about, not "no scroller overflows", which an empty list passes).
+    const rights = await dialog.evaluate((d) => {
+      for (const el of [d, ...d.querySelectorAll<HTMLElement>("*")]) el.scrollLeft = 0;
+      const right = (el: Element | null | undefined) => (el ? el.getBoundingClientRect().right : null);
+      return {
+        Day: right(d.querySelector("#activity-day")),
+        Start: right(d.querySelector("#activity-start")),
+        "End time": right(d.querySelector("#activity-end-time")),
+        Save: right([...d.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Save")),
+      };
+    });
+    for (const [name, right] of Object.entries(rights)) {
+      expect(right, `${name} is rendered`).not.toBeNull();
+      expect(right!, `${name} ends inside the 390px screen`).toBeLessThanOrEqual(390);
+    }
+  });
+
   // The desktop is unchanged, which is the other half of "a variant layer, not
   // a second design system": same component, different density.
   test("still shows every day side by side on a desktop", async ({ page }) => {

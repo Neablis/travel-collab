@@ -588,10 +588,13 @@ describe("member profiles", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
-    const profiles = await withProfiles([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "editor" },
-    ]);
+    const profiles = await withProfiles(
+      [
+        { userId: OWNER, role: "owner" },
+        { userId: GUEST, role: "editor" },
+      ],
+      OWNER,
+    );
     expect(profiles).toEqual([
       { userId: OWNER, role: "owner", name: null, email: null, image: null },
       { userId: GUEST, role: "editor", name: "Bob", email: "bob@example.com", image: null },

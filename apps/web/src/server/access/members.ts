@@ -325,18 +325,38 @@ export async function removeMember(
  * A member with no `users` row (an actor id from before M11 link 1, or the
  * non-person `'system'` actor) still appears, with null profile fields — the
  * list showing a bare id is much better than a traveler silently vanishing.
+ *
+ * **An email goes only to the OWNER, and to each person for their own row**
+ * (KI-2026-09-05-f item 3, F-A04). A viewer can be a stranger: an invite link
+ * is a bearer token (ADR-026) and the look-first view serves the trip to
+ * whoever holds one, so sending every traveller's address to every reader was a
+ * leak. The owner invited people by address and needs it to tell two unnamed
+ * travellers apart; everyone else gets `null`, which `displayNameFor` already
+ * falls through to the name or the handle. `viewerId` is required so no caller
+ * can forget to decide.
+ *
+ * **"The owner" is `members[0]`, the projection's head — never the viewer's
+ * ROLE** (PR #220 review). `mergeMembers` keeps a member's highest role and
+ * leaves the projection's owner at the head, so a stray granted `owner` row
+ * would make `requireTripAccess` report "owner" for someone who is not; keying
+ * on the role would hand them every address. Same head `billingSubject` reads.
  */
-export async function withProfiles(members: readonly TripMember[]): Promise<TripMemberProfile[]> {
+export async function withProfiles(
+  members: readonly TripMember[],
+  viewerId: string,
+): Promise<TripMemberProfile[]> {
   const ids = members.map((m) => m.userId);
   const rows = ids.length === 0 ? [] : await db.select().from(users).where(inArray(users.id, ids));
   const byId = new Map(rows.map((r) => [r.id, r]));
+  const viewerIsOwner = members[0]?.userId === viewerId;
   return members.map((m) => {
     const profile = byId.get(m.userId);
+    const mayReadEmail = viewerIsOwner || viewerId === m.userId;
     return {
       userId: m.userId,
       role: m.role,
       name: profile?.name ?? null,
-      email: profile?.email ?? null,
+      email: mayReadEmail ? (profile?.email ?? null) : null,
       image: profile?.image ?? null,
     };
   });
