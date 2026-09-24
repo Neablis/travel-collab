@@ -1,9 +1,16 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { renderMacro, type SpendByDayPayload } from "@tc/pages";
 import type { ActivityTag, Money, TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { SpendByDayBlock } from "./SpendByDayBlock";
+
+// The chart's code is lazy. Loaded here so `findByRole`'s 1s wait is for React
+// to draw it, not for a cold transform of Recharts — which alone is 550-650ms
+// idle and ran out under full-suite load (`MacroView.test.tsx` has the numbers).
+beforeAll(async () => {
+  await import("./SpendByDayChart");
+});
 
 // What a reader takes from "Spend by day" without hovering anything: each
 // day's total printed over its bar, the numbers again in a table for a screen

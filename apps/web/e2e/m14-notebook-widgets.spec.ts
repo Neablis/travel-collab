@@ -1620,7 +1620,8 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   await expect(settingsPanel(page).getByRole("combobox", { name: "Column 1" })).toHaveValue("Status");
 
   const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) });
-  await expect(table.getByRole("row").filter({ hasText: "Tram tour" })).toContainText("booked");
+  // The board's word for the value (`KIND_LABEL`), not the stored enum.
+  await expect(table.getByRole("row").filter({ hasText: "Tram tour" })).toContainText("Booked");
 
   // And both survive the round trip, read in Reading where no control exists.
   await finishEditing(page);
@@ -1629,7 +1630,7 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   await expect(page.locator('[data-macro-name="field"]')).toHaveText("$42.00");
   await expect(
     page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) }).getByRole("row").filter({ hasText: "Tram tour" }),
-  ).toContainText("booked");
+  ).toContainText("Booked");
 });
 
 // **The M14 gate box, walked: *"moving a day or a stop changes the page with
