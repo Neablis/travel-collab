@@ -1,4 +1,4 @@
-### KI-2026-09-24-o — nobody has checked whether the Sentry build plugin contacts Sentry during the build that e2e serves
+### KI-2026-09-24-v — nobody has checked whether the Sentry build plugin contacts Sentry during the build that e2e serves
 
 - **Severity:** process, and low. This is build-time traffic, not test traffic.
 - **Area:** `withSentryConfig` in `apps/web/next.config.ts`; the `pnpm build` inside `test:e2e:ci-like` and in the CI build step.

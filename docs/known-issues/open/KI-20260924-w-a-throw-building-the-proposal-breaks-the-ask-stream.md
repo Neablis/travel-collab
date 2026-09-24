@@ -1,4 +1,4 @@
-### KI-2026-09-24-p — a throw while building the proposal breaks `/ask`'s stream instead of reaching `onError`
+### KI-2026-09-24-w — a throw while building the proposal breaks `/ask`'s stream instead of reaching `onError`
 
 - **Severity:** correctness, narrow. No known trigger today. It needs a bug in
   `buildProposal`, and there isn't one known.
