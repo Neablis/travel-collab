@@ -55,3 +55,45 @@ the fixture working — it says nothing about the real tiles.
 A blank or paper-coloured canvas is a failure, not a pass. If screenshots of
 the canvas come back blank, look at the page itself rather than the capture
 (KI-49 records a screenshot pipeline that could not capture WebGL).
+
+## Place search — LocationIQ, through `/api/geocode`
+
+**Depends on:** LocationIQ, called server-side by `/api/geocode` with
+`LOCATIONIQ_API_KEY`. `LocationInput.tsx` (the location field on a stop) calls
+that route as you type.
+
+**What the automated tests do instead:** `LocationInput.test.tsx` answers
+`/api/geocode` with MSW. One case returns a 502 and asserts the placeholder,
+*"Could not search for that place"*, with no results list. The unit and
+integration lanes' fetch guard (`src/test-support/networkGuard.ts`) refuses any
+request to a non-localhost host that MSW does not answer.
+
+**Manual check:**
+
+1. On the preview, open a trip and edit a stop. Type a real place name (e.g.
+   `Fushimi Inari`) in the location field. Confirm real results appear, and
+   that picking one puts the stop on the Map lens.
+2. In DevTools, block the request URL `*/api/geocode*` (Network → right-click →
+   *Block request URL*) and type again. Confirm the red *"Could not search for
+   that place"* line appears and no stale results list stays open.
+
+## The assistant's model — the AI gateway
+
+**Depends on:** the model provider behind `AI_GATEWAY_API_KEY`, reached by
+`/api/trips/[tripId]/ask` when `AI_LIVE` is on.
+
+**What the automated tests do instead:** unit and e2e run the simulated model
+(`AI_LIVE: "false"` in the e2e server env). `route.int.test.ts` makes the
+provider throw and asserts that the client gets `ASK_FAILED_MESSAGE`
+(`packages/contracts/src/assistant.ts`), *"The assistant couldn't answer just
+now. Try again in a moment."*, and never the provider's own text. The real
+cause goes to the `ai.ask` log record. The rail tests assert that same constant.
+
+**Manual check:**
+
+1. On a preview with `AI_LIVE` on, ask the assistant something small about a
+   trip. Confirm a real answer streams in.
+2. The failure path is not something to force on a shared preview (it means
+   breaking the key). If a real failure happens during a walk, confirm the rail
+   shows exactly the sentence above with no provider detail, and that the
+   Vercel runtime log's `ai.ask` line carries the real cause.
