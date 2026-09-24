@@ -31,7 +31,7 @@ describe("TripGlobals time zones", () => {
   it("publishes the day's zone to the field picker, and neither the coordinates nor the reader's zone", () => {
     const days = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "days");
     const fields = days?.kind === "collection" ? days.fields : [];
-    expect(fields.find((f) => f.field === "timeZone")).toMatchObject({ valueKind: "text", label: "The day's time zone" });
+    expect(fields.find((f) => f.field === "timeZone")).toMatchObject({ valueKind: "text", label: "Time zone" });
     expect(fields.map((f) => f.field)).not.toContain("place");
     const trip = buildAttributeManifest().filter((e) => e.object === "trip").map((e) => (e.kind === "value" ? e.field : e.collection));
     expect(trip).not.toContain("homeTimeZone");

@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
-import { createEmptyTripViaWizard } from "./helpers";
+import { createEmptyTripViaWizard, createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
 import { E2E_SUPER_CODE } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 
@@ -217,6 +217,23 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   // (§26), so the settings take the column and the rail is out of view until
   // the caret leaves the widget.
   await expect(page.getByTestId("widget-settings")).toBeVisible();
+}
+
+// **"A line for each…" is one row, and its collection is a setting** (Mitchell,
+// PR #221 preview: *"We combined a 'Sentence for every ...' and added a picker
+// for type, can we do the same for 'A line for every....'?"*). It lands as
+// `day.rows`, selected, so a walk that wants stops or cities picks them in the
+// panel's "Lines for each" — the way an author does — and waits for the panel
+// to be about that table (its heading is the widget's title) before going on.
+// Not a `[data-macro-name]` wait: the seeded Overview already holds a
+// `stop.rows` ("What's booked"), so that would find the wrong widget.
+async function insertLinesFor(page: Page, scope: "Day" | "Stop" | "City"): Promise<void> {
+  await insertFromList(page, /A line for each/, "line for each");
+  const panel = page.getByTestId("widget-settings");
+  const picker = panel.getByRole("radiogroup", { name: "Lines for each" });
+  await picker.getByRole("radio", { name: scope }).click();
+  await expect(picker.getByRole("radio", { name: scope })).toHaveAttribute("aria-checked", "true");
+  await expect(panel.getByRole("heading", { name: `A line for every ${scope.toLowerCase()}` })).toBeVisible();
 }
 
 // **The rail is a flex sibling now, so it TAKES 320px the popover never did.**
@@ -637,7 +654,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await tripWithTwoDays(page);
   await openSeededPage(page);
 
-  await insertFromList(page, /A line for every day/, "every day");
+  await insertLinesFor(page, "Day");
 
   // **Exactly two rows, one per day.** Asserting only that both labels appear
   // allows a renderer that duplicates a row or puts both leads in one — and
@@ -668,60 +685,52 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(afterReload.nth(1)).toContainText("Day 2");
 });
 
-// **The authored repeat** (ADR-035 decision 4; M14 link 6's gate box, and
-// Mitchell's 2026-09-24 call 6). One sentence the author writes, with widgets
-// in it, printed once per day — each widget reading that line's day. The
-// template is written where it sits, the way any sentence is: that IS "Edit
-// the wording" (catalogue row 12), so the walk writes it rather than opening
-// anything. The widgets are inserted from the same rail at the same caret.
-test("a sentence for every day is written once and reads one line per day", async ({ page }) => {
+// **The authored repeat** (ADR-035 decision 4; M14 link 6's gate box), as
+// Mitchell reshaped it on the PR #221 preview: ONE widget, "A sentence for
+// each…", told in its settings what it repeats for and given its sentence as a
+// line of text with a detail dropped in — and Editing shows the lines exactly
+// as Reading will (*"every widget should be shown as it will render in the
+// notebook in edit mode"*). So the walk reads the page's lines BEFORE leaving
+// Editing, then again in Reading, then after a reload.
+test("a sentence for each city is written in its settings and reads the same in Editing and Reading", async ({ page }) => {
   await tripWithTwoDays(page);
   const tripId = new URL(page.url()).pathname.split("/")[2]!;
   const detail = await page.request.get(`/api/trips/${tripId}`);
   const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
-  // A day's city comes from its stops, so each day gets one in its own city.
+  // A city comes from a located stop, so each day gets one in its own city.
   await addStopViaApi(page, tripId, "Landing at Haneda", { dayId: trip.days[0]!.dayId, location: { name: "Haneda", city: "Tokyo" } });
   await addStopViaApi(page, tripId, "Fushimi Inari", { dayId: trip.days[1]!.dayId, location: { name: "Fushimi Inari", city: "Kyoto" } });
   await openSeededPage(page);
 
-  await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-  await page.getByRole("searchbox", { name: "Search widgets" }).fill("sentence for every day");
-  await railList(page).getByRole("button", { name: /A sentence for every day/ }).click();
+  // Inserting selects it, so its settings are already open.
+  await insertFromList(page, /A sentence for each/, "sentence");
+  const panel = settingsPanel(page);
+  await expect(panel.getByRole("heading", { name: "A sentence for each day" })).toBeVisible();
+  await panel.getByRole("radio", { name: "City" }).click();
+  await expect(panel.getByRole("heading", { name: "A sentence for each city" })).toBeVisible();
 
-  // The dashed rail names what it repeats over and how many, and the caret is
-  // already in the template — so the next keystrokes are the sentence.
-  const repeat = page.locator('.tc-page-editor [data-repeat-over="day"]');
-  await expect(repeat.getByTestId("repeat-rail")).toHaveText("For every day · 2 days");
-  await page.keyboard.type("Day ");
-  await page.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
-  await railList(page).getByRole("button", { name: /The dates/ }).click();
-  await expect(repeat.locator('[data-macro-name="dates"]')).toHaveCount(1);
+  // The sentence, and the city dropped in at the caret by its "+ City" button —
+  // nobody types a key.
+  const sentence = panel.getByRole("textbox", { name: "Sentence" });
+  await sentence.fill("Welcome to !");
+  await sentence.press("End");
+  await sentence.press("ArrowLeft");
+  await panel.getByRole("group", { name: "Insert a detail" }).getByRole("button", { name: "City", exact: true }).click();
+  await expect(sentence).toHaveValue("Welcome to {name}!");
 
-  // Back to the end of the template, past the widget the insert selected.
-  const template = repeat.locator("p").first();
-  await template.click({ position: { x: (await boxOf(template)).width - 4, y: 4 } });
-  await page.keyboard.press("End");
-  await page.keyboard.type(" — ");
-  await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
-  await railList(page).getByRole("button", { name: /Which cities/ }).click();
-  await expect(repeat.locator('[data-macro-name="city"]')).toHaveCount(1);
+  // Editing: the lines as they will read, on the rail naming what they repeat
+  // over — and the template itself nowhere on the page.
+  const repeat = page.locator('.tc-page-editor [data-repeat-over="city"]');
+  await expect(repeat.getByTestId("repeat-rail")).toHaveText("For every city · 2 cities");
+  const lines = page.locator("[data-repeat-line]");
+  const EXPECTED = ["Welcome to Tokyo!", "Welcome to Kyoto!"];
+  await expect(lines).toHaveText(EXPECTED);
+  await expect(page.locator(".tc-page-editor")).not.toContainText("{name}");
 
-  // Editing shows the template ONCE, its widgets previewing the first day. Per
-  // widget, because each also carries its numbered handle (▸1, ▸2) in Editing.
-  await expect(template).toContainText("Day ");
-  await expect(repeat.locator('[data-macro-name="dates"]')).toContainText("Jun 1, 2027");
-  await expect(repeat.locator('[data-macro-name="city"]')).toContainText("Tokyo");
-  await expect(repeat.locator('[data-macro-name="city"]')).not.toContainText("Kyoto");
-
-  // Reading: one line per day, each filled from its own day. Exactly two, so a
-  // renderer that printed the template once, or three times, fails here.
+  // Reading: the same two lines, and no chrome. Exactly two, so a renderer that
+  // printed the sentence once, or three times, fails here.
   const readLines = async () => {
-    const lines = page.locator("[data-repeat-line]");
-    await expect(lines).toHaveCount(2);
-    await expect(lines.nth(0)).toHaveText(/^Day\s*Jun 1, 2027\s*—\s*Tokyo$/);
-    await expect(lines.nth(1)).toHaveText(/^Day\s*Jun 2, 2027\s*—\s*Kyoto$/);
+    await expect(lines).toHaveText(EXPECTED);
     await expect(page.getByTestId("repeat-rail")).toHaveCount(0);
   };
   await finishEditing(page);
@@ -732,9 +741,9 @@ test("a sentence for every day is written once and reads one line per day", asyn
 });
 
 // A repeat is a block, and inserting one with the caret mid-sentence used to
-// SPLIT the sentence around it: in a repeat, "On d" | the new repeat | "ay X we
-// go" (M14 PART 3 review, finding 2). Walked through the rail, the insert an
-// author actually makes; `insertRepeatAt`'s unit tests hold the drop and slash.
+// SPLIT the sentence around it (M14 PART 3 review, finding 2). Walked through
+// the rail, the insert an author actually makes; `insertRepeatAt`'s unit tests
+// hold the drop and slash.
 test("a sentence inserted mid-sentence lands after it, never splitting it", async ({ page }) => {
   await tripWithTwoDays(page);
   await openSeededPage(page);
@@ -743,21 +752,19 @@ test("a sentence inserted mid-sentence lands after it, never splitting it", asyn
   await page.locator(".tc-page-editor h2").first().click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  await search.fill("sentence for every day");
-  await railList(page).getByRole("button", { name: /A sentence for every day/ }).click();
   await page.keyboard.type("On day X we go");
-
   // The caret between "On d" and "ay": the exact spot the review split.
   await page.keyboard.press("Home");
   for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
-  await search.fill("sentence for every stop");
-  await railList(page).getByRole("button", { name: /A sentence for every stop/ }).click();
+  await search.fill("sentence");
+  await railList(page).getByRole("button", { name: /A sentence for each/ }).click();
 
   const repeats = page.locator(".tc-page-editor [data-repeat-over]");
-  await expect(repeats).toHaveCount(2);
-  await expect(repeats.nth(0)).toHaveAttribute("data-repeat-over", "day");
-  await expect(repeats.nth(0).locator("p").first()).toHaveText("On day X we go");
-  await expect(repeats.nth(1)).toHaveAttribute("data-repeat-over", "stop");
+  await expect(repeats).toHaveCount(1);
+  const written = page.locator(".tc-page-editor p", { hasText: "On d" });
+  await expect(written).toHaveText("On day X we go");
+  // After the sentence, not before it.
+  expect((await boxOf(repeats.first())).y).toBeGreaterThan((await boxOf(written)).y);
 
   // Mid-heading too: the heading keeps every letter, and nothing new nests.
   const heading = page.locator(".tc-page-editor h2").first();
@@ -766,9 +773,9 @@ test("a sentence inserted mid-sentence lands after it, never splitting it", asyn
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
-  await search.fill("sentence for every city");
-  await railList(page).getByRole("button", { name: /A sentence for every city/ }).click();
-  await expect(repeats).toHaveCount(3);
+  await search.fill("sentence");
+  await railList(page).getByRole("button", { name: /A sentence for each/ }).click();
+  await expect(repeats).toHaveCount(2);
   await expect(page.locator(".tc-page-editor h2").first()).toHaveText(title);
   await expect(page.locator(".tc-page-editor [data-repeat-over] [data-repeat-over]")).toHaveCount(0);
 });
@@ -788,7 +795,7 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
   await openSeededPage(page);
 
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
 
   // **Its controls are in the side channel (SPEC §26)**, and it is already the
   // selected widget because inserting selects what it inserted.
@@ -947,7 +954,7 @@ test("a repeat widget is one table as wide as the card it sits in", async ({ pag
   await addTaggedStop(page, "Ramen", "Meal");
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
   await openSeededPage(page);
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
 
   const table = page.getByRole("table").first();
   const tableBox = await boxOf(table);
@@ -1104,7 +1111,7 @@ test("a group header in a repeat table is as wide as the table", async ({ page }
   await addStopViaApi(page, tripId, "Someday: the tram museum");
 
   await openSeededPage(page);
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
 
   const table = page.getByRole("table").first();
   // Day 1 and Unscheduled: two groups, so two headers.
@@ -1233,7 +1240,7 @@ test("a repeat widget's rows are striped, and its values are text rather than ch
   // a dated day's row carries its date as a value.
   await tripWithTwoDays(page);
   await openSeededPage(page);
-  await insertFromList(page, /A line for every day/, "every day");
+  await insertLinesFor(page, "Day");
 
   const table = page.getByRole("table").first();
   const backgrounds = await table
@@ -1586,6 +1593,36 @@ test("a long value does not squeeze a repeat table's lead column to nothing", as
   ).toBeLessThan(geometry.line * 2);
 });
 
+test("the trip strip fits its column on a 20-day trip, with no sideways scroll", async ({ page }) => {
+  // Mitchell, on the PR #221 preview, on this widget: *"I would love if this
+  // could fit without having to scroll, and be more space efficient, but might
+  // be hard, especially on mobile."* The preview trip was about 14 days; this
+  // one is 20, so a strip that fits here has room to spare there. The phone
+  // half is `m14-mobile-notebook.spec.ts`'s, in the phone project.
+  const tripId = await createMappedTrip(page, e2eTripName("Strip"), 20, { locations: TWENTY_DAYS_IN_JAPAN });
+  await page.goto(`/trips/${tripId}/pages`);
+  await page.getByRole("link", { name: /Overview/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await insertFromList(page, /Trip strip/, "strip");
+
+  const strip = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
+  await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
+  // Editing first: the 320px rail makes this the narrowest the column gets.
+  await expect.poll(() => stripOverhang(strip), { message: "strip overflow while editing" }).toBeLessThanOrEqual(0);
+  // "More space efficient" in height too, and one height whatever the length
+  // (ADR-044): a 16px line (`h-4`), a 2px gap, a 12px bar. Exact, because every
+  // part of it is a fixed box — a label that wrapped instead of dropping out
+  // would add a line here. (Comparing editing to reading alone was tried and
+  // did not catch that: a wrap happened at both widths, so they still agreed.)
+  expect((await strip.boundingBox())!.height, "strip height while editing").toBe(30);
+
+  await finishEditing(page);
+  await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+  await expect.poll(() => stripOverhang(strip), { message: "strip overflow while reading" }).toBeLessThanOrEqual(0);
+  expect((await strip.boundingBox())!.height, "strip height while reading").toBe(30);
+});
+
 test("a field the reader picks prints in a sentence, and joins a stop list as a column", async ({ page }) => {
   // M14 field widget, build step 6 — Mitchell's answer 4: *"inline first: a
   // field chip inside a sentence. The repeat shape follows: a field as a
@@ -1613,7 +1650,7 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   await expect(fieldWidget).not.toContainText("choose a field");
 
   // The same field vocabulary, as a column on a stop list.
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
   const addColumn = settingsPanel(page).getByRole("combobox", { name: "Add a column" });
   await addColumn.click();
   await addColumn.fill("status");
@@ -1752,4 +1789,111 @@ test("a co-traveller moves a stop and shifts the days, and the open notebook fol
   } finally {
     await bobContext.close();
   }
+});
+
+// Opens a seeded trip's Overview in Editing, with the insert rail on screen.
+async function openOverviewOf(page: Page, tripId: string): Promise<void> {
+  await page.goto(`/trips/${tripId}/pages`);
+  await page.getByRole("link", { name: /Overview/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
+}
+
+// **Weather, with the outside world switched off** (Mitchell's policy: no
+// automated test may call a real third party). The e2e server runs with
+// `EXTERNAL_DATA_OFFLINE=true` (`playwright.config.ts`), so both ports refuse
+// before any request and the widget must land in its quiet down state — in
+// Editing and in Reading, and without a console error on the way.
+//
+// The trip is dated 2027-06-01, past MET's horizon, so its rows are NASA
+// POWER's "typical": the source that needs no key and would have been called
+// for real before the switch. The route's own answer is asserted too, because
+// "weather unavailable" alone is also what a sandbox with no egress shows.
+test("the weather widget is the quiet placeholder while outside data is offline, in Editing and Reading", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  await openOverviewOf(page, await createMappedTrip(page, e2eTripName("Weather"), 2));
+
+  // The page asks for weather only once it holds a widget that needs it.
+  const answered = page.waitForResponse((r) => /\/api\/trips\/[^/]+\/weather$/.test(new URL(r.url()).pathname));
+  await insertFromList(page, /Weather/, "weather");
+  const response = await answered;
+  expect(response.status()).toBe(200);
+  const { weather } = (await response.json()) as { weather: { points: { typical: unknown }[] } };
+  expect(weather.points.length).toBeGreaterThan(0);
+  for (const point of weather.points) expect(point.typical).toEqual({ unavailable: "source" });
+
+  await expect(page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
+
+  await finishEditing(page);
+  await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+  await expect(page.locator('[data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+// **The table fits the column** (Mitchell, #221 preview: *"We need to scroll to
+// the right to see all the data here"*), and says what its columns are. The
+// weather route is answered in the browser: this is about layout, and the
+// route's own answer is the offline walk's business above — no third party is
+// involved either way.
+test("the weather table heads its columns and fits the notebook column without scrolling", async ({ page }) => {
+  const tripId = await createMappedTrip(page, e2eTripName("WeatherFit"), 2);
+  // Answered for the trip's OWN days and cities: `mappedTrip` starts ten days
+  // from today, and a point that matches no day is not drawn at all.
+  const detail = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as {
+    trip: { days: { date: string | null; activityIds: string[] }[]; activities: Record<string, { location?: { city?: string } | null }> };
+  };
+  const located = detail.trip.days.map((day) => ({
+    date: day.date!,
+    city: day.activityIds.map((id) => detail.trip.activities[id]?.location?.city).find((c) => c !== undefined)!,
+  }));
+  const forecastOn = ({ date, city }: { date: string; city: string }) => ({
+    date,
+    city,
+    forecast: {
+      source: "met-norway", asOf: "2027-05-31T06:00:00Z", highC: 27.4, lowC: 18.1, precipitationMm: 2.14,
+      symbol: "lightrainshowersandthunder_day", hours: [],
+    },
+    typical: {
+      source: "nasa-power", month: 6, highC: 28, lowC: 19, precipitationMmPerDay: 6.2,
+      period: { fromYear: 2001, throughYear: 2020 },
+    },
+  });
+  await page.route("**/api/trips/*/weather", (route) =>
+    route.fulfill({ json: { weather: { points: located.map(forecastOn) } } }),
+  );
+  await openOverviewOf(page, tripId);
+  await insertFromList(page, /Weather/, "weather");
+
+  const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Day", "Conditions", "High", "Low", "Rain"]);
+  await expect(table.getByRole("row")).toHaveCount(3);
+  const overflow = await table.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(overflow, "the weather table scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
+});
+
+// Mitchell, on the PR 221 preview: *"Selecting anywhere other than the widget or
+// the widget sidebar editor should deselect the widget. Right now you need to
+// select a free spot in notebook to make it deselect."* A click in the settings
+// column is how the widget is changed, so it keeps the selection; a click
+// anywhere else outside the editor lets it go and the column returns to the rail.
+test("a click outside the widget and its settings deselects it", async ({ page }) => {
+  await tripWithTwoDays(page);
+  await openSeededPage(page);
+  await insertFromList(page, /What it costs/);
+  await expect(settingsPanel(page)).toBeVisible();
+
+  await settingsPanel(page).click({ position: { x: 8, y: 8 } });
+  await expect(settingsPanel(page)).toBeVisible();
+
+  // The page's left gutter: outside the editor, outside the column.
+  await page.mouse.click(4, 400);
+  await expect(settingsPanel(page)).toHaveCount(0);
+  await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeVisible();
 });

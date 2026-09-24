@@ -50,11 +50,26 @@ export function inspectStoredPageDoc(raw: unknown): StoredPageDoc {
 
   const unsupportedTypes = [...collectPageDocNodeTypes(doc)]
     .filter((type) => !PAGE_EDITOR_NODE_TYPES.has(type))
+    .concat(holdsWrittenRepeat(doc.content) ? ["repeat"] : [])
     .sort();
 
   return unsupportedTypes.length > 0
     ? { status: "unsupported", doc, unsupportedTypes }
     : { status: "mountable", doc };
+}
+
+// A repeat that still holds content: its sentence written the v2 way, in a
+// document that claims v3 or later, so no migration emptied it. The editor's
+// repeat is a leaf (PR #221 preview), and a leaf handed children is a node the
+// editor cannot hold — the vocabulary check above cannot see that, because the
+// TYPE is known. `findWidgetError` refuses the same node on write.
+function holdsWrittenRepeat(nodes: readonly unknown[]): boolean {
+  return nodes.some((node) => {
+    if (typeof node !== "object" || node === null) return false;
+    const { type, content } = node as { type?: unknown; content?: unknown };
+    if (!Array.isArray(content)) return false;
+    return (type === "repeat" && content.length > 0) || holdsWrittenRepeat(content);
+  });
 }
 
 // The save half of the same guard, and the reason a write is not just

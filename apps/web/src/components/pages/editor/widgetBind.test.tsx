@@ -4,7 +4,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
-import { fieldChoices, type WidgetInput } from "@tc/pages";
+import { fieldChoices, getMacro, type WidgetInput } from "@tc/pages";
 import { WidgetBindControls, bindSummary, optionsFor } from "./widgetBind";
 
 afterEach(cleanup);
@@ -215,5 +215,40 @@ describe("Remove duplicates", () => {
     cleanup();
     render(<Harness name="cost" initial={{ field: "stop.location" }} />);
     expect(box()).toBeNull();
+  });
+});
+
+// The two inputs that change how a widget looks (#221 preview): the weather
+// table's column headings, and the spend chart's bars or burn-down. Read off
+// the REGISTERED declarations, so this proves the widget's own input reaches a
+// control, not a test-only one.
+describe("a widget's toggle and choice inputs", () => {
+  const declared = (name: string, type: WidgetInput["type"]) => getMacro(name)!.inputs.filter((i) => i.type === type);
+
+  it("shows column headings ticked by default, and stores only turning them off", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="day.weather" inputs={declared("day.weather", "toggle")} />);
+    const box = screen.getByRole("checkbox", { name: "One stop's detail: column headings" }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    await user.click(box);
+    expect(stored()).toEqual({ headings: false });
+    await user.click(box);
+    expect(stored()).toEqual({});
+  });
+
+  it("offers Default and Burn down as the Variation, reads Default when nothing is stored, and stores only the other", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="cost.chart" inputs={declared("cost.chart", "choice")} />);
+    const select = screen.getByRole("combobox", { name: "One stop's detail: variation" }) as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(["Default", "Burn down"]);
+    expect(select.value).toBe("bars");
+    await user.selectOptions(select, "burndown");
+    expect(stored()).toEqual({ view: "burndown" });
+    await user.selectOptions(select, "bars");
+    expect(stored()).toEqual({});
+  });
+
+  it("keeps both out of the 'Pointed at' summary, which is about what the widget reads", () => {
+    expect(bindSummary("cost.chart", { view: "burndown", headings: false }, detail, null)).toBe("everything");
   });
 });

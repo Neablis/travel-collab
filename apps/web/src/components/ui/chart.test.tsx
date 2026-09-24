@@ -52,17 +52,27 @@ function spendTrip(): TripDetail {
   return trip;
 }
 
-const CHARTS: Record<string, () => ReactElement> = {
+function spendChart(params: Record<string, unknown>): ReactElement {
+  const trip = spendTrip();
+  const outcome = renderMacro({ trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null }, "cost.chart", params);
+  if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "spend-by-day") {
+    throw new Error(`expected a spend-by-day block, got ${outcome.status}`);
+  }
+  const payload = outcome.rendered.block;
+  return <SpendByDayChart payload={payload} config={spendChartConfig(payload)} height={224} />;
+}
+
+// Every way a chart file can draw, keyed by file then by variant. A variant is
+// swept here because a file drawing one Recharts chart per variant can size one
+// and not the other: the burn-down drew NOTHING on the PR 221 preview (Mitchell:
+// *"Burn down isnt working"*) while the bars, the only variant this listed,
+// passed.
+const CHARTS: Record<string, Record<string, () => ReactElement>> = {
   // The chart itself, not `SpendByDayBlock`, which loads it lazily: rendering
   // the block would sweep a placeholder.
-  "components/pages/blocks/SpendByDayChart.tsx": () => {
-    const trip = spendTrip();
-    const outcome = renderMacro({ trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null }, "cost.chart", {});
-    if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "spend-by-day") {
-      throw new Error(`expected a spend-by-day block, got ${outcome.status}`);
-    }
-    const payload = outcome.rendered.block;
-    return <SpendByDayChart payload={payload} config={spendChartConfig(payload)} height={224} />;
+  "components/pages/blocks/SpendByDayChart.tsx": {
+    bars: () => spendChart({}),
+    "burn down": () => spendChart({ view: "burndown" }),
   },
 };
 
@@ -151,16 +161,18 @@ describe("charts go through the one chart component, in tokens only", () => {
     expect(checked).toBe(chartFiles.length * literal.length);
   });
 
-  for (const [path, chart] of Object.entries(CHARTS)) {
-    it(`${path}: every paint and font it renders is a token`, () => {
-      render(chart());
-      const { offences, painted } = sweep(screen.getByRole("img"));
-      expect(offences).toEqual([]);
-      // Measured at 27 painted elements for the spend fixture (bars, grid,
-      // axis, ticks, labels, budget line). Half of that, so a Recharts upgrade
-      // that draws a few marks differently does not flap, while a chart that
-      // never drew — an empty span passes the check above — fails here.
-      expect(painted, "the sweep saw no drawn chart").toBeGreaterThanOrEqual(13);
-    });
+  for (const [path, variants] of Object.entries(CHARTS)) {
+    for (const [variant, chart] of Object.entries(variants)) {
+      it(`${path} (${variant}): every paint and font it renders is a token`, () => {
+        render(chart());
+        const { offences, painted } = sweep(screen.getByRole("img"));
+        expect(offences).toEqual([]);
+        // Measured at 27 painted elements for the spend fixture (bars, grid,
+        // axis, ticks, labels, budget line). Half of that, so a Recharts upgrade
+        // that draws a few marks differently does not flap, while a chart that
+        // never drew — an empty span passes the check above — fails here.
+        expect(painted, "the sweep saw no drawn chart").toBeGreaterThanOrEqual(13);
+      });
+    }
   }
 });

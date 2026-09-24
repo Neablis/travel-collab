@@ -519,6 +519,37 @@ choice — and reuse it only to retry that same operation.
 - **`/api/*` without `v1`.** Those routes serve this app's own frontend. They
   are cookie-only, they are not versioned, and they change shape without notice.
 
+## Features ship before their endpoints
+
+**Decided by Mitchell, 2026-09-24.** Building a feature does not include building
+its REST endpoint. Until then, a feature that shipped in the app often grew a
+`/v1` route in the same PR by habit (M14's globals did), which made every
+feature pay for API work nobody had asked for yet.
+
+The rule now:
+
+1. **A feature documents itself; it does not publish itself.** Its milestone doc,
+   ADR or guideline says what it is and which internal route serves it
+   (`apps/web/src/app/api/**`, outside `v1/`). No new `/api/v1/**` route, no new
+   scope and no OpenAPI entry, unless the task is API work.
+2. **The gap is found mechanically, in a pass.** A deterministic script lists
+   every internal route and every public one, with its methods, and prints the
+   internal capabilities that have no public counterpart. An API pass reads that
+   list, picks what to publish, and adds the endpoints the way the next section
+   describes. *Status: the script is not written yet.* Until it is, the list is
+   `find apps/web/src/app/api -name route.ts` read against the same under
+   `api/v1/`.
+3. **An endpoint that already exists stays correct.** If a contract it returns
+   grows a field, the field reaches the public response and `openapi.json` is
+   regenerated in the same PR: the surface we have must not drift, even while
+   the surface we don't have waits.
+
+**New scopes, when an API pass needs them.** Add the scope to the catalogue. We
+do **not** re-scope existing tokens or build a "regenerate with new scopes"
+flow: a token's scopes are fixed when it is minted, and someone who wants a new
+scope revokes the old token and creates a new one. The token screen should say
+so where a scope is chosen.
+
 ## For somebody adding an endpoint
 
 ### The whole of it

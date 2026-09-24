@@ -19,7 +19,7 @@
       "description": "The whole trip in one place — the why, the shape, the money.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 2,
+        "v": 3,
         "type": "doc",
         "content": [
           {
@@ -94,7 +94,7 @@
       "description": "One day, close up. Times, reservations, notes for the group.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 2,
+        "v": 3,
         "type": "doc",
         "content": [
           {
@@ -148,7 +148,7 @@
       "description": "One day, built out of the plan — every stop, what it costs, what is still loose.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 2,
+        "v": 3,
         "type": "doc",
         "content": [
           {
@@ -297,7 +297,7 @@
       "description": "Every day, every city and every cost, laid out end to end.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 2,
+        "v": 3,
         "type": "doc",
         "content": [
           {
@@ -500,7 +500,7 @@
       "description": "Every meal on the trip, what it costs, and which ones still need a table.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 2,
+        "v": 3,
         "type": "doc",
         "content": [
           {
@@ -721,7 +721,7 @@
       "description": "Everything that is confirmed, in one list — flights, rooms, tickets, tables.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 2,
+        "v": 3,
         "type": "doc",
         "content": [
           {
@@ -914,7 +914,7 @@
       "description": "The list that stops a trip starting badly — packing, documents, the first day.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 2,
+        "v": 3,
         "type": "doc",
         "content": [
           {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatDate, formatCountdown } from "./format";
+import { formatMoney, formatDate, formatCountdown, ordinal, toClockLabel, toClockRange } from "./format";
+import { witness } from "./test-support/witness";
 
 describe("format helpers", () => {
   it("formats minor units to 2 decimals with currency", () => {
@@ -96,5 +97,60 @@ describe("formatCountdown", () => {
     // and inventing "in 0 days" here would put a false fact on a page.
     expect(formatCountdown("not-a-date", FIRST, LAST)).toBeNull();
     expect(formatCountdown("2026-08-01", "", LAST)).toBeNull();
+  });
+});
+
+// The house 12-hour clock, moved here from `apps/web/src/lib/time.ts` so a
+// notebook widget can print it (Mitchell, PR #221 preview: "All times should
+// be in AM/PM not military time"). `lib/time` re-exports it, and its own tests
+// still run there against the re-export.
+describe("toClockLabel", () => {
+  it("drops the minutes on the hour", () => {
+    expect(toClockLabel("13:00")).toBe("1 pm");
+  });
+
+  it("keeps the minutes otherwise, zero-padded", () => {
+    expect(toClockLabel("10:30")).toBe("10:30 am");
+    expect(toClockLabel("09:05")).toBe("9:05 am");
+  });
+
+  // The two hours where `h % 12` is 0 and a naive formatter renders "0".
+  it("renders midnight and noon as 12", () => {
+    expect(toClockLabel("00:00")).toBe("12 am");
+    expect(toClockLabel("12:00")).toBe("12 pm");
+    expect(toClockLabel("00:45")).toBe("12:45 am");
+    expect(toClockLabel("23:59")).toBe("11:59 pm");
+  });
+});
+
+describe("toClockRange", () => {
+  it("joins two clock labels with a spaced en dash", () => {
+    expect(toClockRange("09:00", "17:30")).toBe("9 am – 5:30 pm");
+    expect(toClockRange("00:00", "12:00")).toBe("12 am – 12 pm");
+  });
+});
+
+// The spend chart's axis (Mitchell, on the #221 preview: *"just go with 1st,
+// 2nd, 3rd to save on space"*). Every n from 1 to 120 rather than a sample:
+// the range is small, the rule has two exceptions a sample can miss (11-13 and
+// 111-113), and a trip longer than 120 days is not one this chart is drawn for.
+describe("ordinal", () => {
+  it("names every day from 1 to 120, the teens included", () => {
+    const w = witness("ordinal 1..120");
+    for (let n = 1; n <= 120; n += 1) {
+      const text = ordinal(n);
+      w.tick();
+      expect(text.startsWith(String(n)), `${n} → ${text}`).toBe(true);
+      const suffix = text.slice(String(n).length);
+      const teen = n % 100 >= 11 && n % 100 <= 13;
+      const expected = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+      expect(suffix, `${n} → ${text}`).toBe(expected);
+    }
+    w.atLeast(120);
+    // The rule above could share a mistake with the code, so the cases a
+    // person checks by eye are spelled out as well.
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111, 112, 113, 120].map(ordinal)).toEqual([
+      "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th", "112th", "113th", "120th",
+    ]);
   });
 });

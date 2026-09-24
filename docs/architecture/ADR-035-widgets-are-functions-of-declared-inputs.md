@@ -162,6 +162,27 @@ extension is an atom, and an atom cannot have editable content.
 >   its widgets previewing the first item; there is no wording dialog. Reading prints one line per
 >   item and hides the template; an empty collection reads as the rows widget's `emptyText`.
 
+> **Amended 2026-09-24, by Mitchell on the PR #221 preview — the template IS a string now.**
+> *"We can simplify to one widget 'A sentence X' and its a input to select day, stop city"*,
+> *"It should support a Placeholder to input the enumeration value such as 'Welcome to ${city}'"*,
+> and *"every widget should be shown as it will render in the notebook in edit mode"*. So:
+>
+> - The sentence is `params.template`, one line of at most 500 characters: `{key}` names a field of
+>   the item (the attribute manifest's own field name, e.g. `{name}` for a city), `{{` / `}}` are
+>   literal braces, and anything else is literal text. One parser (`sentenceTemplate.ts` in
+>   `@tc/contracts`, beside the migrations that must read it); page documents went to v3, which
+>   moves each stored inline template into the param.
+> - The two objections above are answered rather than overruled. §7's rule is that nobody *sees*
+>   syntax on the page: the raw sentence appears only in the settings panel's text field, the page
+>   shows resolved lines in both modes, and `noRawSyntax.test.tsx` fails if a token reaches the
+>   DOM. The second parser is the only parser, and it cannot fail.
+> - Widgets inside a line are gone: a line is text and field values. `weather`, `sun` and
+>   `fromHome` on each line of a repeat are no longer expressible; Mitchell asked for the
+>   simplification, and a field covers the sentence case. The `ItemScope` argument to `resolve`
+>   stays in `@tc/pages`, now read only by `sentence.ts` and tests.
+> - The repeat node is a leaf atom with a settings panel of its own (the collection, the sentence,
+>   and click-to-insert details labelled in words), like any widget.
+
 ### 5. The assistant's page tools become insert-shaped
 
 Under this model the assistant no longer needs to compose a whole document to change one

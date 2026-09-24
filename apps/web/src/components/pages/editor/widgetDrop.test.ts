@@ -65,10 +65,9 @@ describe("dropping a widget onto the page", () => {
   });
 
   // A repeat is a BLOCK, so a drop point inside a sentence must not become a
-  // split: dropped at pos 5 of repeat("On day X we go") it used to yield
-  // repeat("On d"), repeat(), repeat("ay X we go") — the author's sentence cut
-  // in two (M14 PART 3 review, finding 2). A real document, because the bug
-  // IS the document's shape.
+  // split: dropped at pos 5 of a sentence it used to cut the sentence in two
+  // (M14 PART 3 review, finding 2). A real document, because the bug IS the
+  // document's shape.
   function realView(doc: ProseMirrorNode) {
     let state = EditorState.create({ schema, doc });
     const view = {
@@ -84,28 +83,24 @@ describe("dropping a widget onto the page", () => {
   }
   const sentence = (text: string) => [{ type: "text", text }];
 
-  it("drops a repeat inside a repeat's sentence AFTER that repeat — no split, no nesting", () => {
-    const { view, doc } = realView(
-      schema.nodeFromJSON({
-        type: "doc",
-        content: [{ type: "repeat", attrs: { name: "day.rows", params: {} }, content: sentence("On day X we go") }],
-      }),
-    );
-    expect(handleWidgetDrop(view, dragEvent({ data: "sentence.stop" }))).toBe(true);
-    expect(doc()).toEqual({
-      type: "doc",
-      content: [
-        { type: "repeat", attrs: { name: "day.rows", params: {} }, content: sentence("On day X we go") },
-        { type: "repeat", attrs: { name: "stop.rows", params: {} } },
-      ],
-    });
+  it("drops a repeat beside a repeat, never into it — a repeat is a leaf", () => {
+    const written = { type: "repeat", attrs: { name: "city.rows", params: { template: "Hi {name}" } } };
+    const hey = { type: "paragraph", content: sentence("Hey") };
+    // "Hey" closes at 5, which is the repeat's own edge: the drop lands there.
+    const { view, doc } = realView(schema.nodeFromJSON({ type: "doc", content: [hey, written] }));
+    expect(handleWidgetDrop(view, dragEvent({ data: "sentence" }))).toBe(true);
+    expect((doc() as { content: unknown[] }).content).toEqual([
+      hey,
+      { type: "repeat", attrs: { name: "day.rows", params: {} } },
+      written,
+    ]);
   });
 
   it("drops a repeat mid-paragraph after the paragraph, leaving the paragraph whole", () => {
     const { view, doc } = realView(
       schema.nodeFromJSON({ type: "doc", content: [{ type: "paragraph", content: sentence("Hello world") }] }),
     );
-    expect(handleWidgetDrop(view, dragEvent({ data: "sentence.day" }))).toBe(true);
+    expect(handleWidgetDrop(view, dragEvent({ data: "sentence" }))).toBe(true);
     expect(doc()).toEqual({
       type: "doc",
       content: [

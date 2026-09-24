@@ -5,6 +5,7 @@ import { MACRO_NAMES, PRESETS } from "@tc/pages";
 import { newPageDoc, type MacroNode, type TripGlobals } from "@tc/contracts";
 import {
   RAW_SYNTAX,
+  SEGMENT_NAME_LEAK,
   STORED_IDENTIFIERS,
   WIDGET_PRESETS,
   everyRepeat,
@@ -70,27 +71,38 @@ describe("no macro syntax reaches the DOM", () => {
   // really holds every widget, and if every pattern can match.
   it("covers every preset and every registered widget, and each pattern can fire", () => {
     expect(widgets.length).toBe(WIDGET_PRESETS.length + MACRO_NAMES.length);
-    // Every preset is a widget or a repeat, and each repeat's template holds every widget.
-    expect(WIDGET_PRESETS.length + repeats.length).toBe(PRESETS.length);
+    // Every preset is a widget or the one sentence preset, and the sentences
+    // cover every collection it can be pointed at.
+    expect(WIDGET_PRESETS.length + 1).toBe(PRESETS.length);
     expect(repeats.map((r) => r.attrs.name).sort()).toEqual(["city.rows", "day.rows", "stop.rows"]);
     expect(STORED_IDENTIFIERS).toEqual(expect.arrayContaining(["cost.rows", "day.detail", "trip.countdown"]));
 
     // Every category fires on a sample of itself, on text and on an attribute.
     const probe = document.createElement("p");
-    probe.textContent = 'day.detail {{cost}} [[Kyoto]] @cost(day=1) {"dates":{}} [object Object]';
+    probe.textContent = 'day.detail {{cost}} [[Kyoto]] @cost(day=1) {"dates":{}} [object Object] Welcome to {name}';
     probe.title = "unknown macro: stop.rows";
+    // A chip's segment name as its tooltip, the way `MacroView` once set it.
+    const chip = document.createElement("span");
+    chip.title = "value";
+    probe.append(chip);
     const categories = new Set(rawSyntaxLeaks(probe).map((l) => l.split(" — ")[0]));
     expect([...categories].sort()).toEqual(
       [
         "stored identifier day.detail",
         "stored identifier stop.rows",
+        SEGMENT_NAME_LEAK,
         ...RAW_SYNTAX.filter(([what]) => !what.startsWith("stored identifier")).map(([what]) => what),
       ].sort(),
     );
     // …and none fires on prose a page legitimately holds, or the guard would be
-    // tuned down the first time it cried wolf.
+    // tuned down the first time it cried wolf — a sentence's escaped braces and
+    // an unknown key included, which print as the author wrote them.
     const prose = document.createElement("p");
-    prose.textContent = "Day 1 · 2027-06-01 — Kyoto, $1,200.00 of the cost; 3 stops, 2 booked (see: dates).";
+    prose.textContent = "Day 1 · 2027-06-01 — Kyoto, $1,200.00 of the cost; 3 stops, 2 booked (see: dates). {literal} }{ {";
+    // The segment names are English: in a sentence, or as a capitalised
+    // label, they are the page talking, not the renderer.
+    prose.title = "The value of every city";
+    prose.setAttribute("aria-label", "City");
     expect(rawSyntaxLeaks(prose)).toEqual([]);
   });
 
@@ -112,16 +124,15 @@ describe("no macro syntax reaches the DOM", () => {
     });
   }
 
-  // The authored repeat: every repeat preset, its template holding every
-  // registered widget, rendered once per day, stop and city in Reading and as
-  // the rail plus template in Editing — each widget in an item's scope, where a
-  // leak would print once per line.
+  // The authored repeat: a sentence for each day, stop and city, each naming
+  // every field its collection publishes, printed once per item — in BOTH
+  // modes, because Editing reads as Reading does (PR #221 preview). A leak
+  // here would be the template itself reaching the page.
   //
-  // Budgeted, because the work is real: Reading renders every widget eleven
-  // times, synchronously, and nothing in it waits on a clock. Measured
-  // 2026-09-24 on a 4-CPU container: ~1.9s idle, 4.8-5.6s with every core
-  // saturated — where Vitest's default 5s timed it out ("Test timed out in
-  // 5000ms", once in a 105-file run). 15s is ~3x the worst measured.
+  // Budgeted, as it was when each line rendered every widget: measured
+  // 2026-09-24 on a 4-CPU container at ~1.9s idle and 4.8-5.6s with every core
+  // saturated, where Vitest's default 5s timed it out once in a 105-file run.
+  // The sentence lines are cheaper than that, and the budget is left alone.
   const REPEAT_PAGE_BUDGET_MS = 15_000;
   for (const editing of [false, true]) {
     it(`on a page of repeats, in ${editing ? "Editing" : "Reading"}`, async () => {
@@ -137,10 +148,11 @@ describe("no macro syntax reaches the DOM", () => {
         />,
       );
       await waitFor(() => {
-        // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- the witness is "the repeats rendered": in Reading a line per item, in Editing a rail per repeat; neither has a role.
-        const drawn = container.querySelectorAll(editing ? "[data-testid=repeat-rail]" : "[data-repeat-line]");
-        // Witness, measured: Reading draws 3 days + 6 stops + 2 cities; Editing one rail per repeat.
-        expect(drawn.length).toBe(editing ? repeats.length : 11);
+        // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- the witness is "the repeats rendered": a line per item in either mode; a line has no role.
+        const drawn = container.querySelectorAll("[data-repeat-line]");
+        // Witness, measured: 3 days + 6 stops + 2 cities, in either mode.
+        expect(drawn.length).toBe(11);
+        expect(screen.queryAllByTestId("repeat-rail")).toHaveLength(editing ? repeats.length : 0);
         chartsDrawn();
       });
       expect(rawSyntaxLeaks(container)).toEqual([]);

@@ -1,72 +1,94 @@
-import type { PageRepeatNode } from "@tc/contracts";
+import { z } from "zod";
+import {
+  REPEAT_SCOPES, REPEAT_SCOPE_ORDER, SentenceTemplate, parseSentenceTemplate, repeatScopeOf, type PageRepeatNode, type RepeatScope,
+} from "@tc/contracts";
 import type { ItemScope, WidgetContext } from "./registry-types";
 import type { UnboundNeeds } from "./result";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
 import { narrow } from "./select";
 import { needsBooking } from "./needsBooking";
+import { sentenceFieldAt } from "./sentence";
 
 // The authored repeat (ADR-035 decision 4, M14 link 6): one sentence the
-// author writes, rendered once per day, stop or city, with every widget in it
-// reading that line's item.
+// author writes, rendered once per day, stop or city, each line reading its own
+// item. Since Mitchell's preview comment on PR #221 (2026-09-24) the sentence is
+// a string with `{field}` tokens (`sentenceTemplate.ts` in `@tc/contracts`),
+// written in the settings panel, where it used to be inline text and widgets
+// edited on the page.
 //
 // **The stored node names a rows primitive, and that is the whole selection.**
-// `{ type: "repeat", attrs: { name: "day.rows", params: { dates } }, content }`
+// `{ type: "repeat", attrs: { name: "day.rows", params: { dates, template } } }`
 // repeats over exactly the days `day.rows{dates}` would list, through the same
 // `narrow` — so a repeat has no private idea of "which days", its filters are
-// the rows primitive's filters, and its params are validated by that
-// primitive's own `insertWidget`. It is also the shape every stored fixture,
-// the v1 → v2 name migration (`day.line` → `day.rows`) and `savedTemplate`'s
-// day rebinding already assumed, so the format needed no change (ADR-038):
-// `PageRepeatNode` has existed since the AST did, with nothing writing it.
+// the rows primitive's filters, and they are validated by that primitive's own
+// `insertWidget`. `template` is the one param that is the repeat's own.
 //
-// `content` is the row template: ordinary inline content, text and widget
-// nodes. The items are never stored (decision 4) — `resolveRepeat` computes
-// them from the trip every time the page renders.
+// The items are never stored (decision 4) — `resolveRepeat` computes them from
+// the trip every time the page renders.
 
 /** What a repeat can iterate, and the rows primitive whose selection it borrows. */
-export const REPEAT_WIDGETS = { day: "day.rows", stop: "stop.rows", city: "city.rows" } as const;
-export type RepeatOver = keyof typeof REPEAT_WIDGETS;
-
-// A Map, not an object: a stored name is any string, and `OVER_OF["toString"]`
-// on a plain object is a function, not `undefined` (CodeRabbit, PR #226).
-const OVER_OF: ReadonlyMap<string, RepeatOver> = new Map(
-  Object.entries(REPEAT_WIDGETS).map(([over, name]) => [name, over as RepeatOver]),
-);
+export const REPEAT_WIDGETS = Object.fromEntries(
+  REPEAT_SCOPE_ORDER.map((scope) => [scope, REPEAT_SCOPES[scope].widget]),
+) as { readonly [S in RepeatScope]: (typeof REPEAT_SCOPES)[S]["widget"] };
+export type RepeatOver = RepeatScope;
 
 /** The collection a stored repeat name iterates, or `null` for a name that is not one. */
-export function repeatOver(name: string): RepeatOver | null {
-  return OVER_OF.get(name) ?? null;
-}
+export const repeatOver = repeatScopeOf;
 
 // The rows primitives' params that are NOT a selection: `stop.rows`' `columns`
-// are a table's extra columns, and a sentence has no columns — the author
-// writes a field widget into the template instead. `only` IS a selection
-// ("still to book" is a set of stops), so it stays.
+// are a table's extra columns, and a sentence has none — the author writes a
+// token into it instead. `only` IS a selection ("still to book" is a set of
+// stops), so it stays.
 export const TABLE_ONLY_PARAMS: readonly string[] = ["columns"];
+
+/** The sentence a repeat's params hold, or `""` for one not written yet. */
+export function repeatTemplate(params: unknown): string {
+  const template = typeof params === "object" && params !== null ? (params as { template?: unknown }).template : undefined;
+  return typeof template === "string" ? template : "";
+}
+
+// A repeat's params split into its own `template` and the rows primitive's
+// filters, with the template checked. `ok: false` carries the reason.
+function splitParams(
+  params: unknown,
+): { ok: true; template: string | undefined; filters: unknown } | { ok: false; message: string } {
+  if (typeof params !== "object" || params === null || Array.isArray(params) || !("template" in params)) {
+    return { ok: true, template: undefined, filters: params };
+  }
+  const { template, ...filters } = params as Record<string, unknown>;
+  const checked = SentenceTemplate.safeParse(template);
+  return checked.success
+    ? { ok: true, template: checked.data, filters }
+    : { ok: false, message: `the sentence ${checked.error.issues[0]?.message ?? "is not a sentence"}` };
+}
 
 export type RepeatInsertResult = { ok: true; node: PageRepeatNode } | Extract<InsertResult, { ok: false }>;
 
 /**
- * Build a validated repeat node with an empty template, or refuse — the one
- * door, as `insertWidget` is for a widget (ADR-037 decision 4). Its filters go
- * through `insertWidget` on the rows primitive itself, so a repeat cannot
- * accept a filter its collection does not.
+ * Build a validated repeat node, or refuse — the one door, as `insertWidget` is
+ * for a widget (ADR-037 decision 4). Its filters go through `insertWidget` on
+ * the rows primitive itself, so a repeat cannot accept a filter its collection
+ * does not; its `template` goes through `SentenceTemplate`.
  */
 export function insertRepeat(name: string, params: unknown = {}): RepeatInsertResult {
   if (repeatOver(name) === null) return { ok: false, error: { reason: "unknown-widget", name } };
-  const table = typeof params === "object" && params !== null
-    ? TABLE_ONLY_PARAMS.filter((key) => key in params)
+  const split = splitParams(params);
+  if (!split.ok) return { ok: false, error: { reason: "bad-params", name, message: split.message } };
+  const filters = split.filters;
+  const table = typeof filters === "object" && filters !== null
+    ? TABLE_ONLY_PARAMS.filter((key) => key in filters)
     : [];
   if (table.length > 0) {
     return {
       ok: false,
-      error: { reason: "bad-params", name, message: `a sentence for every item has no ${table.join(", ")}; write a widget into it instead` },
+      error: { reason: "bad-params", name, message: `a sentence for each item has no ${table.join(", ")}; write a detail into the sentence instead` },
     };
   }
-  const checked = insertWidget(name, params);
+  const checked = insertWidget(name, filters);
   if (!checked.ok) return checked;
-  return { ok: true, node: { type: "repeat", attrs: checked.node.attrs, content: [] } };
+  const own = split.template === undefined ? {} : { template: split.template };
+  return { ok: true, node: { type: "repeat", attrs: { name, params: { ...checked.node.attrs.params, ...own } }, content: [] } };
 }
 
 export type RepeatOutcome =
@@ -84,7 +106,9 @@ export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unkno
   const over = repeatOver(name);
   const def = getMacro(name);
   if (over === null || !def) return { status: "invalid", message: `nothing called "${name}" can be repeated over` };
-  const parsed = def.params.safeParse(rawParams ?? {});
+  const split = splitParams(rawParams ?? {});
+  if (!split.ok) return { status: "invalid", message: split.message };
+  const parsed = def.params.safeParse(split.filters ?? {});
   if (!parsed.success) return { status: "invalid", message: parsed.error.message };
   const params = parsed.data as Record<string, unknown>;
   const { trip, globals } = ctx;
@@ -105,11 +129,99 @@ export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unkno
   return items.length === 0 ? { status: "empty", over, emptyText: def.emptyText } : { status: "ok", over, items };
 }
 
+/**
+ * Each collection's starting sentence: what a sentence becomes when the scope
+ * picker moves it to a collection that cannot print one of its details. Every
+ * token is one its collection publishes (`repeat.test.ts` holds that).
+ */
+export const DEFAULT_SENTENCES: Readonly<Record<RepeatOver, string>> = {
+  day: "{index}: {cities}",
+  stop: "{title}",
+  city: "Welcome to {name}",
+};
+
+/**
+ * The params the rows primitive over `over` takes, of `params`; every other
+ * key dropped. **The primitive's own params schema decides** — its object
+ * shape, the same one `insertWidget` parses with — so `columns` survives only
+ * onto `stop.rows`, `kind` only onto `stop.rows`, and `day` onto `day.rows` and
+ * `stop.rows` but not `city.rows`. Shared by both collection pickers: the
+ * sentence's ("Repeat for each") and the table's ("Lines for each").
+ */
+function paramsAcceptedBy(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const schema = getMacro(REPEAT_WIDGETS[over])?.params;
+  const accepted = new Set(schema instanceof z.ZodObject ? Object.keys(schema.shape as object) : []);
+  return Object.fromEntries(Object.entries(params).filter(([key]) => accepted.has(key)));
+}
+
+/**
+ * A rows TABLE ("A line for each…", `day.rows` / `stop.rows` / `city.rows`)
+ * moved to another collection, as the settings panel's "Lines for each" picker
+ * writes it (Mitchell, #221 preview: *"We combined a 'Sentence for every ...'
+ * and added a picker for type, can we do the same for 'A line for every....'?"*).
+ * Every param the new primitive takes travels; the rest are dropped rather than
+ * left to make the node invalid — "every stop in Kyoto" becomes "every city in
+ * Kyoto", and "every booked stop" becomes "every city", since a city is not
+ * booked. The result is what `insertWidget(REPEAT_WIDGETS[over], …)` accepts.
+ */
+export function rescopeRows(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  return paramsAcceptedBy(over, params);
+}
+
+/**
+ * The same repeat over another collection, as the scope picker writes it:
+ * every filter the new collection also takes travels, and so does the sentence
+ * — when the new collection can print every detail in it.
+ *
+ * A filter it does not take is dropped rather than left to make the node
+ * invalid — "every stop in Kyoto" becomes "every city in Kyoto", but
+ * "every booked stop" becomes "every city", because a city is not booked.
+ * Which filters travel is `rescopeRows`' rule, less the table-only `columns`.
+ *
+ * **A sentence naming a detail the new collection lacks becomes that
+ * collection's starting sentence** (Mitchell, #221 preview: *"Changing repeat
+ * pretty much will always break the string templates since they have different
+ * names"*). Left alone, `{cities}` in a sentence over stops prints as a
+ * gap (`SENTENCE_NO_VALUE`) on every line. Dropping just the stray token would leave
+ * "Welcome to !", so the sentence is swapped whole; the scope change is one
+ * transaction, so undo brings the old sentence and collection back together.
+ */
+export function rescopeRepeat(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const { template, ...filters } = params;
+  const next = paramsAcceptedBy(over, filters);
+  for (const key of TABLE_ONLY_PARAMS) delete next[key];
+  if (typeof template === "string") next.template = printsEveryDetail(over, template) ? template : DEFAULT_SENTENCES[over];
+  else if ("template" in params) next.template = template;
+  return next;
+}
+
+// Whether every `{token}` in `template` names a detail `over` publishes.
+function printsEveryDetail(over: RepeatOver, template: string): boolean {
+  return unknownSentenceTokens(over, template).length === 0;
+}
+
+/**
+ * The keys of every `{token}` in `template` that `over` does not publish, once
+ * each, in the order they first appear: `{cities}` in a sentence over stops, or
+ * a typo like `{nme}`. The page prints each as a gap (`SENTENCE_NO_VALUE`); the
+ * settings panel names them, so the author learns why while still typing.
+ */
+export function unknownSentenceTokens(over: RepeatOver, template: string): string[] {
+  const unknown = new Set<string>();
+  for (const part of parseSentenceTemplate(template)) {
+    if ("field" in part && sentenceFieldAt(over, part.field) === undefined) unknown.add(part.field);
+  }
+  return [...unknown];
+}
+
 const NOUN: Record<RepeatOver, [one: string, many: string]> = {
   day: ["day", "days"],
   stop: ["stop", "stops"],
   city: ["city", "cities"],
 };
+
+/** The noun a person reads for a collection: "day", "stop", "city". */
+export const repeatNoun = (over: RepeatOver): string => NOUN[over][0];
 
 /**
  * The rail's label: what the repeat is over and, once known, how many

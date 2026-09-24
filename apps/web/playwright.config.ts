@@ -179,7 +179,11 @@ export default defineConfig({
     // whatever `.env.local` names — the run would look isolated, create its
     // rows in the shared database, and quietly reintroduce every symptom the
     // wrapper exists to remove. A wrapped run always starts its own server.
-    reuseExistingServer: !process.env.CI && !process.env.TC_TEST_DB,
+    // Never reuse: a server this config did not start did not get `env` below,
+    // so it may be calling MET Norway and NASA POWER (EXTERNAL_DATA_OFFLINE
+    // unset) — a direct `playwright test` next to `pnpm dev` could do exactly that
+    // (CodeRabbit, PR 221). `test:e2e` already never reused (TC_TEST_DB).
+    reuseExistingServer: false,
     env: {
       AUTH_DEV_LOGIN: "true",
       AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-secret",
@@ -196,6 +200,15 @@ export default defineConfig({
       // apps/web/.env.local, so this has to be set explicitly here rather
       // than relying on a developer's local file.
       AI_LIVE: "false",
+      // The same rule for outside data (Mitchell: no automated test may call a
+      // real third party). Both weather ports refuse before any request, so a
+      // spec rendering weather sees "weather unavailable" — MET was off here
+      // only because `EXTERNAL_DATA_CONTACT` happened to be unset, and NASA
+      // POWER needs no key, so without this the first weather spec called
+      // power.larc.nasa.gov. Explicit rather than trusted to a developer's
+      // `.env.local` (`server/external/weather/index.ts`); the real services
+      // are walked by hand (`docs/guidelines/external-data-manual-check.md`).
+      EXTERNAL_DATA_OFFLINE: "true",
       // Sentry off: an e2e run must not file its own noise against the shared
       // project, and must not talk to a third party at all. The empty string,
       // not unset — `sentry.shared.ts` falls back to the real DSN on `??`, and

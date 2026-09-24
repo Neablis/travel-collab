@@ -1,12 +1,13 @@
 "use client";
 import { useEditorState } from "@tiptap/react";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
-import { getMacro } from "@tc/pages";
+import { REPEAT_WIDGETS, getMacro, repeatOver, rescopeRows, type RepeatOver } from "@tc/pages";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { WidgetBindControls, bindableInputs } from "./widgetBind";
-import { rebindWidget, removeWidget, selectedBlock, type BlockWidget } from "./blockWidgets";
+import { rebindWidget, removeWidget, rescopeWidgetAt, selectedBlock, selectedRepeat, type BlockWidget } from "./blockWidgets";
+import { CollectionPicker, RepeatSettings } from "./RepeatSettings";
 import type { SelectedWidget } from "./MacroEditorContext";
 
 // SPEC §26 — **where a widget's settings live, now that they are not in the
@@ -34,11 +35,19 @@ import type { SelectedWidget } from "./MacroEditorContext";
 // in the document carries a bare ▸ and the name is its tooltip and this
 // panel's title.
 //
-// **No Wording control.** §26 lists it, and the design shows it only for a
-// block with authored wording (`hasWording: !!b.editRow`) — the repeat
-// template, which M14's 2026-09-19 findings item 3 records as not built. No
-// widget this panel can hold has wording to edit, and a button that cannot do
-// anything is the purposeless UI project rule 2 forbids.
+// **The Wording control is a repeat's, and it is a panel of its own.** §26
+// shows it only for a block with authored wording (`hasWording: !!b.editRow`),
+// which is the repeat's sentence — so a selected repeat gets `RepeatSettings`
+// (its collection, its sentence, the details it can print), and a widget gets
+// the entries below, which have no wording to edit.
+//
+// **A rows table's entry opens with "Lines for each"** (Mitchell, PR 221
+// preview: *"We combined a 'Sentence for every ...' and added a picker for
+// type, can we do the same for 'A line for every....'?"*): the same Day / Stop /
+// City control the sentence's "Repeat for each" is, moving `day.rows`,
+// `stop.rows` and `city.rows` into one another. The switch is ONE transaction —
+// the name and the params the new primitive takes (`rescopeRows`) — through
+// `rescopeWidgetAt`, `rebindWidget` plus the name, so it is one undo step.
 export function WidgetSettings({
   selection,
   detail,
@@ -55,6 +64,8 @@ export function WidgetSettings({
   // edit. Compared by value (`useEditorState`'s default), so a keystroke
   // elsewhere in the page does not re-render the panel.
   const block = useEditorState({ editor, selector: ({ editor: e }) => selectedBlock(e.state) });
+  const repeat = useEditorState({ editor, selector: ({ editor: e }) => selectedRepeat(e.state) });
+  if (repeat !== null) return <RepeatSettings editor={editor} repeat={repeat} detail={detail} globals={globals} />;
   // A frame where the report has landed and the editor's selection has already
   // moved on (the selected widget was just removed). The screen closes the
   // panel on the next flush; rendering nothing until then beats rendering
@@ -88,6 +99,9 @@ export function WidgetSettings({
           detail={detail}
           globals={globals}
           onChange={(params) => editor.view.dispatch(rebindWidget(editor.state, entry.pos, params))}
+          onRescope={(over) =>
+            editor.view.dispatch(rescopeWidgetAt(editor.state, entry.pos, REPEAT_WIDGETS[over], rescopeRows(over, entry.params)))
+          }
           onRemove={() => editor.view.dispatch(removeWidget(editor.state, entry.pos))}
         />
       ))}
@@ -105,6 +119,7 @@ function WidgetEntry({
   detail,
   globals,
   onChange,
+  onRescope,
   onRemove,
 }: {
   entry: BlockWidget;
@@ -112,6 +127,7 @@ function WidgetEntry({
   detail: TripDetail;
   globals: TripGlobals | null;
   onChange: (params: Record<string, unknown>) => void;
+  onRescope: (over: RepeatOver) => void;
   onRemove: () => void;
 }) {
   const def = getMacro(entry.name);
@@ -121,6 +137,8 @@ function WidgetEntry({
   // its controls have always had.
   const label = numbered ? `${entry.mark} · ${title}` : title;
   const hasInputs = bindableInputs(entry.name).length > 0;
+  // `day.rows`, `stop.rows`, `city.rows` — a table whose collection is a choice.
+  const over = repeatOver(entry.name);
 
   return (
     <section className="flex flex-col gap-3" aria-label={label} data-testid="widget-settings-entry">
@@ -133,6 +151,15 @@ function WidgetEntry({
             {title}
           </Text>
         </div>
+      ) : null}
+
+      {over !== null ? (
+        <CollectionPicker
+          id={`widget-settings-${entry.mark}-over`}
+          label={numbered ? `${label}: lines for each` : "Lines for each"}
+          value={over}
+          onChange={onRescope}
+        />
       ) : null}
 
       {hasInputs ? (

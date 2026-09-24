@@ -3,37 +3,35 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { Transaction } from "@tiptap/pm/state";
 import { RepeatNodeView } from "./RepeatNodeView";
 
-// The `repeat` ProseMirror node: an authored sentence repeated once per day,
+// The `repeat` ProseMirror node: an authored sentence printed once per day,
 // stop or city (ADR-035 decision 4, `@tc/pages`' `repeat.ts`).
 //
-// **A second node type, not a mode of `macro`**, as the ADR says: `macro` is an
-// atom, and an atom cannot hold content an author edits. This one's content IS
-// the row template — text and widget nodes, `inline*` — so the template is
-// edited where it sits, with the same caret, typing and widget insert as any
-// other sentence. That is what "Edit the wording" is (catalogue row 12): there
-// is no wording dialog, because the wording is already on the page.
+// **A leaf atom, like a widget**, since Mitchell's preview comment on PR #221
+// (2026-09-24). Its sentence used to be the node's inline content, typed on the
+// page with widgets in it; it is now one `template` string in `params`, written
+// in the settings panel. Mitchell's rule is that Editing shows every widget as
+// it reads, so the page shows the resolved lines in both modes, and the raw
+// sentence appears only in the panel's text field.
 //
 // Its attrs mirror `PageRepeatNode` exactly (`{ name, params }`), so `getJSON()`
 // round-trips through the contract without translation — the same promise
-// `MacroNodeExtension` makes for `macro`.
-//
-// `isolating`, so Backspace at the start of the template does not merge the
-// sentence into the paragraph above (and so stop being a repeat), and a paste
-// cannot split one repeat into two.
+// `MacroNodeExtension` makes for `macro`. A stored repeat still holding content
+// is a v2 document, and `migratePageDoc` empties it before the editor sees it.
+
 /**
- * Where the caret goes after a repeat is inserted: at the end of the first
- * repeat's template between `from` and `to`, so the author's next keystroke
- * writes the sentence rather than landing in the paragraph after it. `null`
- * when the range holds no repeat.
+ * Where a repeat went after `insertRepeatAt`: the first repeat between `from`
+ * and `to`, as a position a `NodeSelection` can take, or `null` when the range
+ * holds none. Selecting it is what opens its settings, which is where its
+ * sentence is written.
  */
-export function repeatCaretIn(doc: ProseMirrorNode, from: number, to: number): number | null {
-  let caret: number | null = null;
-  doc.nodesBetween(from, Math.max(from, to), (child, pos) => {
-    if (caret !== null) return false;
-    if (child.type.name === "repeat") caret = pos + 1 + child.content.size;
-    return caret === null;
+export function repeatAt(doc: ProseMirrorNode, from: number, to: number): number | null {
+  let found: number | null = null;
+  doc.nodesBetween(from, Math.max(from + 1, to), (child, pos) => {
+    if (found !== null) return false;
+    if (child.type.name === "repeat") found = pos;
+    return found === null;
   });
-  return caret;
+  return found;
 }
 
 /**
@@ -42,13 +40,11 @@ export function repeatCaretIn(doc: ProseMirrorNode, from: number, to: number): n
  * — click, drop and slash — so none of them can grow its own.
  *
  * A repeat is a block, and ProseMirror fits a block into a sentence by
- * SPLITTING the sentence: inserted at pos 5 of repeat("On day X we go") it
- * made repeat("On d"), the new repeat, repeat("ay X we go") (M14 PART 3 review,
- * finding 2). So inside a textblock it goes after the host block instead —
- * never nested, never splitting. An empty paragraph is replaced rather than
- * left above it, which is what TipTap's `insertContent` did for a block on an
- * empty line and what the e2e walk's "Enter, then insert" relies on. An empty
- * REPEAT is not replaced: that is an author's repeat whose sentence is unwritten.
+ * SPLITTING the sentence (M14 PART 3 review, finding 2). So inside a textblock
+ * it goes after the host block instead — never nested, never splitting. An
+ * empty paragraph is replaced rather than left above it, which is what
+ * TipTap's `insertContent` did for a block on an empty line and what the e2e
+ * walk's "Enter, then insert" relies on.
  */
 export function insertRepeatAt(tr: Transaction, repeat: ProseMirrorNode, from: number, to = from): number {
   if (to > from) tr.delete(from, to);
@@ -58,7 +54,7 @@ export function insertRepeatAt(tr: Transaction, repeat: ProseMirrorNode, from: n
     return from;
   }
   const [before, after] = [$pos.before(), $pos.after()];
-  if ($pos.parent.content.size === 0 && $pos.parent.type.name !== "repeat") {
+  if ($pos.parent.content.size === 0) {
     tr.replaceWith(before, after, repeat);
     return before;
   }
@@ -69,9 +65,7 @@ export function insertRepeatAt(tr: Transaction, repeat: ProseMirrorNode, from: n
 export const RepeatNodeExtension = Node.create({
   name: "repeat",
   group: "block",
-  content: "inline*",
-  isolating: true,
-  defining: true,
+  atom: true,
   selectable: true,
   draggable: false,
 
@@ -103,28 +97,7 @@ export const RepeatNodeExtension = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-repeat": "" }), 0];
-  },
-
-  addKeyboardShortcuts() {
-    return {
-      // Enter ends the sentence rather than splitting it: a repeat holds ONE
-      // line (it is the row template), and splitting would make two repeats
-      // over the same collection. So Enter leaves it for a new paragraph.
-      Enter: ({ editor }) => {
-        const { $from, empty } = editor.state.selection;
-        if (!empty || $from.parent.type.name !== this.name) return false;
-        const after = $from.after();
-        return editor.chain().insertContentAt(after, { type: "paragraph" }).setTextSelection(after + 1).run();
-      },
-      // An emptied sentence goes with one more Backspace, as an empty
-      // paragraph would; `isolating` otherwise leaves no way out by keyboard.
-      Backspace: ({ editor }) => {
-        const { $from, empty } = editor.state.selection;
-        if (!empty || $from.parent.type.name !== this.name || $from.parent.content.size !== 0) return false;
-        return editor.commands.deleteNode(this.name);
-      },
-    };
+    return ["div", mergeAttributes(HTMLAttributes, { "data-repeat": "" })];
   },
 
   addNodeView() {

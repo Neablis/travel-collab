@@ -20,7 +20,12 @@ import type { z } from "zod";
 // declared. One list-kind per scalar kind would double this set, and a declared
 // flag is a second fact that can disagree with the schema it describes, which
 // is the drift the WeakMap below exists to avoid.
-export const VALUE_KINDS = ["money", "date", "count", "text", "duration", "enum", "location"] as const;
+//
+// `day` was added on the #221 preview: a trip day is stored as an index
+// counting from 0 (`TripGlobalsDay.index`, `TripGlobalsCity.dayIndexes`), and
+// as a `count` a sentence's "Trip day" printed "0" on the first day. A `day`
+// prints the day a person reads — "Day 1" — and the stored number is untouched.
+export const VALUE_KINDS = ["money", "date", "count", "text", "duration", "enum", "location", "day"] as const;
 export type ValueKind = (typeof VALUE_KINDS)[number];
 
 // One line per field, and the line carries BOTH facts.
@@ -41,6 +46,13 @@ export type ValueKind = (typeof VALUE_KINDS)[number];
 // everywhere), and `TripGlobals` is served by the public API, whose generated
 // document carries these labels today.
 //
+// **The label and the API text can differ** (#221 preview, Mitchell: *"Dont
+// need 'Day Number, Counting from 0', make names more intuitive 'Trip Day' for
+// instance"*). A picker label is a name — "Trip day", "Cities" — while the
+// public API's text has to say what an integrator needs ("counting from 0").
+// `description` is that API text and defaults to the label, so a field whose
+// label already is its description (every stop field) writes it once.
+//
 // No kind means a collection — see `describedCollection`.
 export interface Annotation {
   kind?: ValueKind;
@@ -48,8 +60,8 @@ export interface Annotation {
 }
 const ANNOTATIONS = new WeakMap<object, Annotation>();
 
-export function described<T extends z.ZodTypeAny>(kind: ValueKind, label: string, schema: T): T {
-  const annotated = schema.describe(label) as T;
+export function described<T extends z.ZodTypeAny>(kind: ValueKind, label: string, schema: T, description: string = label): T {
+  const annotated = schema.describe(description) as T;
   ANNOTATIONS.set(annotated, { kind, label });
   return annotated;
 }

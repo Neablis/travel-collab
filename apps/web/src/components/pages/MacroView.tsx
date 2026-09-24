@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type ItemScope, type Seg } from "@tc/pages";
+import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Seg } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
@@ -79,7 +79,10 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
           // `data-widget-value` is the non-presentational handle: "how many
           // values on this page came from a widget" is a question a test can
           // ask without asserting a class, which the test-quality wall forbids
-          // outside `components/ui/**`.
+          // outside `components/ui/**`. The segment name goes there and
+          // nowhere visible: as the `title` it put a tooltip reading "value"
+          // on every widget value (Mitchell, PR #221 preview), and the
+          // no-raw-syntax guard now fails on that.
           //
           // **`mx-0.5 px-1`, and the margin is the half that was missing.**
           // Mitchell, on the PR 141 preview: *"These inline elements should
@@ -106,7 +109,6 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
               // the trip's colour, not the widget's — see `cityAccents`.
               seg.name === "city" ? CITY_INK[accents.ofCity(seg.text)] : "text-ink",
             )}
-            title={seg.name}
           >
             {seg.text}
           </span>
@@ -128,13 +130,12 @@ const EXTERNAL_NOUN: Record<ExternalNeed, string> = { weather: "weather" };
  * @param external - Outside data slots (ADR-052); absent means every slot is still pending
  * @param onBindDay - Optional handler for rebinding a widget whose selected day was removed
  * @param editing - Editing mode: an unbound widget renders its ghost rather than its placeholder
- * @param item - The repeat line this widget sits on (ADR-035 decision 4): it reads that day, stop or city wherever it was left unbound
  * @returns The rendered macro widget or an appropriate status chip
  */
-export function MacroView({ detail, context, user = null, globals = null, external, name, params, onBindDay, editing = false, item }: {
+export function MacroView({ detail, context, user = null, globals = null, external, name, params, onBindDay, editing = false }: {
   detail: TripDetail; context: PageContext; user?: UserPreferences | null;
   globals?: TripGlobals | null; external?: ExternalInputs; name: string;
-  params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean; item?: ItemScope;
+  params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean;
 }) {
   const def = getMacro(name);
   // One derivation per render of one widget, memoised on the trip: `cityAccents`
@@ -147,7 +148,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // ignores it — see `WidgetContext.today` for why it is passed rather than
   // read inside the package.
   const today = useToday();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external }, name, params, item);
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external }, name, params);
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;

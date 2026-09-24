@@ -15,7 +15,7 @@ import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { PageEditor, sameDocument } from "@/components/pages/editor/PageEditor";
-import { insertRepeatAt, repeatCaretIn } from "@/components/pages/editor/RepeatNodeExtension";
+import { insertRepeatAt, repeatAt } from "@/components/pages/editor/RepeatNodeExtension";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type InsertedNode } from "@/components/pages/WidgetInsert";
@@ -292,6 +292,28 @@ export function PageScreen({
       });
     });
   }, []);
+  // **A click anywhere but the widget or its settings deselects it** (Mitchell,
+  // PR 221 preview: *"Selecting anywhere other than the widget or the widget
+  // sidebar editor should deselect the widget"*). A widget is selected as a
+  // ProseMirror node selection, and a click outside the editor leaves that
+  // selection where it was, so the panel stayed open until a free spot in the
+  // prose was clicked. Clicks inside the editor are ProseMirror's own; the
+  // settings column, and the popovers and sheet its controls open (portalled
+  // to the body), keep the selection, because they are how it is changed.
+  useEffect(() => {
+    if (!editing || editor === null) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || editor.isDestroyed) return;
+      if (editor.view.dom.contains(target)) return;
+      if (target.closest('[data-widget-panel], [role="dialog"], [data-radix-popper-content-wrapper]')) return;
+      const { selection, doc, tr } = editor.state;
+      if (!(selection instanceof NodeSelection)) return;
+      editor.view.dispatch(tr.setSelection(TextSelection.near(doc.resolve(selection.to))));
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [editing, editor]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   // The verdict on the document AS LOADED, taken once. It is deliberately not
@@ -807,9 +829,10 @@ export function PageScreen({
     // by watching the insert sheet never close.
     //
     // **A repeat is placed by `insertRepeatAt`, on phone and desktop alike**:
-    // after the sentence the caret is in, never splitting it. It has nothing
-    // to configure on arrival and everything to write, so the caret goes into
-    // its template and the next keystroke is the sentence (ADR-035 decision 4).
+    // after the sentence the caret is in, never splitting it. It arrives
+    // unwritten, and its sentence is written in its settings (PR #221 preview),
+    // so it is selected on the phone too: the insert sheet asked nothing about
+    // it, and the settings sheet that opens is the one question left.
     if (!Array.isArray(node) && (node as InsertedNode).type === "repeat") {
       editor
         ?.chain()
@@ -819,8 +842,8 @@ export function PageScreen({
           // sentence, so replacing selected text — or a selected widget —
           // would delete something the author did not ask to lose.
           const at = insertRepeatAt(tr, tr.doc.type.schema.nodeFromJSON(node), tr.selection.from);
-          const caret = repeatCaretIn(tr.doc, at, at + 1);
-          if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
+          const landed = repeatAt(tr.doc, at, at + 1);
+          if (landed !== null) tr.setSelection(NodeSelection.create(tr.doc, landed));
           return true;
         })
         .run();
@@ -1137,6 +1160,7 @@ export function PageScreen({
           back link plus two buttons does not wrap at 768px and up. */}
       {editing && !isPhone ? (
         <aside
+          data-widget-panel
           className="sticky top-29 w-80 shrink-0"
           aria-label={selectedWidget === null ? "Insert a widget" : "Widget settings"}
         >

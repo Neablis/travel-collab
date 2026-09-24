@@ -4,7 +4,8 @@ import { DataText } from "@/components/ui/data-text";
 import { ChartErrorBoundary, ChartLegend, ChartPlaceholder, type ChartConfig, type ChartToken } from "@/components/ui/chart";
 
 // "Spend by day" — a bar per day, stacked by tag, with the budget per day as a
-// dashed line (M14 link 11, the first chart).
+// dashed line (M14 link 11, the first chart); or, as the widget's `view`
+// variation "Burn down", the running total against the budget and an even pace.
 //
 // Spans throughout, for `CostsTableBlock`'s reason: this sits inside a
 // paragraph. The chart itself arrives through `ChartContainer`'s portal.
@@ -47,6 +48,8 @@ export function spendChartConfig(payload: SpendByDayPayload): ChartConfig {
  */
 export function SpendByDayBlock({ payload }: { payload: SpendByDayPayload }) {
   const config = spendChartConfig(payload);
+  const burn = payload.burnDown;
+  const budget = burn ? burn.budget : null;
 
   return (
     <span className="flex flex-col gap-2 rounded-md border border-hairline bg-surface p-3">
@@ -58,7 +61,20 @@ export function SpendByDayBlock({ payload }: { payload: SpendByDayPayload }) {
       <ChartLegend
         config={config}
         extra={
-          payload.budgetPerDay ? (
+          burn ? (
+            budget ? (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <span aria-hidden className="w-4 border-t-2 border-dashed border-ink" />
+                  Budget <DataText size="xs">{budget.text}</DataText>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span aria-hidden className="w-4 border-t-2 border-dotted border-slate" />
+                  Even pace
+                </span>
+              </>
+            ) : null
+          ) : payload.budgetPerDay ? (
             <span className="flex items-center gap-1.5">
               <span aria-hidden className="w-4 border-t-2 border-dashed border-ink" />
               Budget <DataText size="xs">{payload.budgetPerDay.text}</DataText> a day
@@ -66,22 +82,33 @@ export function SpendByDayBlock({ payload }: { payload: SpendByDayPayload }) {
           ) : null
         }
       />
+      {/* Said, never drawn: a burn-down with no budget is spend so far. */}
+      {burn?.note ? <span className="block text-xs text-slate">{burn.note}</span> : null}
       {payload.notCharted ? <span className="block text-xs text-slate">{payload.notCharted}</span> : null}
-      {/* The chart's numbers for a screen reader: the picture is `role="img"`
-          with the summary as its name, and this is the table behind it. */}
-      <span role="table" aria-label="Spend by day" className="sr-only">
-        <span role="row">
-          <span role="columnheader">Day</span>
-          <span role="columnheader">Date</span>
-          <span role="columnheader">Total</span>
-          <span role="columnheader">By tag</span>
+      {/* The chart's numbers without a pointer: the picture is `role="img"`
+          with the summary as its name, its hover is a mouse's alone, and this
+          table is the one place that carries EVERY number — for a screen
+          reader, a keyboard, and paper. Hidden on screen, printed as a plain
+          table: the hover that replaced the bar labels does not print. */}
+      <span role="table" aria-label="Spend by day" className="sr-only print:not-sr-only print:table print:w-full print:text-xs">
+        <span role="row" className="print:table-row">
+          <span role="columnheader" className="print:table-cell print:pr-3">Day</span>
+          <span role="columnheader" className="print:table-cell print:pr-3">Date</span>
+          <span role="columnheader" className="print:table-cell print:pr-3">Total</span>
+          <span role="columnheader" className="print:table-cell print:pr-3">By tag</span>
+          {burn ? <span role="columnheader" className="print:table-cell print:pr-3">So far</span> : null}
+          {budget ? <span role="columnheader" className="print:table-cell print:pr-3">Budget left</span> : null}
+          {budget ? <span role="columnheader" className="print:table-cell print:pr-3">Even pace leaves</span> : null}
         </span>
-        {payload.days.map((day) => (
-          <span role="row" key={day.label}>
-            <span role="rowheader">{day.label}</span>
-            <span role="cell">{day.date ?? "—"}</span>
-            <span role="cell">{day.total ?? "nothing priced"}</span>
-            <span role="cell">{day.breakdown ?? "—"}</span>
+        {payload.days.map((day, index) => (
+          <span role="row" key={day.label} className="print:table-row">
+            <span role="rowheader" className="print:table-cell print:pr-3">{day.label}</span>
+            <span role="cell" className="print:table-cell print:pr-3">{day.date ?? "—"}</span>
+            <span role="cell" className="print:table-cell print:pr-3">{day.total ?? "nothing priced"}</span>
+            <span role="cell" className="print:table-cell print:pr-3">{day.breakdown ?? "—"}</span>
+            {burn ? <span role="cell" className="print:table-cell print:pr-3">{burn.days[index]!.spentSoFar}</span> : null}
+            {budget ? <span role="cell" className="print:table-cell print:pr-3">{burn!.days[index]!.left}</span> : null}
+            {budget ? <span role="cell" className="print:table-cell print:pr-3">{burn!.days[index]!.pace}</span> : null}
           </span>
         ))}
       </span>

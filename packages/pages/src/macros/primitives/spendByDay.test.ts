@@ -159,6 +159,115 @@ describe("cost.chart — spend by day", () => {
   it("needs a trip", () => {
     expect(renderMacro(contextOf(undefined), "cost.chart", {})).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
   });
+
+  // Mitchell, on the #221 preview: *"just go with 1st, 2nd, 3rd to save on
+  // space."* The axis says the ordinal; the label keeps "Day 1" for the hover
+  // and the table, which have the room.
+  it("ticks each bar with its TRIP ordinal, also when a date range narrows the bars", () => {
+    const trip = tripOf();
+    price(trip, 0, 0, usd(4000));
+    expect(chartOf(trip).days.map((bar) => [bar.tick, bar.label])).toEqual([
+      ["1st", "Day 1"], ["2nd", "Day 2"], ["3rd", "Day 3"],
+    ]);
+    price(trip, 1, 0, usd(4000));
+    const narrowed = chartOf(trip, { dates: { from: "2026-08-02", through: "2026-08-03" } });
+    expect(narrowed.days.map((bar) => bar.tick)).toEqual(["2nd", "3rd"]);
+  });
+
+  it("draws bars unless the author picked the burn-down", () => {
+    const trip = tripOf();
+    price(trip, 0, 0, usd(4000));
+    expect(chartOf(trip)).toMatchObject({ view: "bars", burnDown: null });
+    expect(chartOf(trip, { view: "burndown" }).view).toBe("burndown");
+  });
+});
+
+// "Budget burn-down" (widget brainstorm §3, Mitchell on the #221 preview: *"a
+// stacked area chart and how each day subtracts from budget"*). The same stops
+// and the same currency rule as the bars; what it adds is the running sum, the
+// budget left, and an even pace to hold it against.
+describe("cost.chart — burn-down", () => {
+  // $50 on day 1, $300 on day 2 — past a $300 budget mid-trip — and nothing on
+  // day 3, which must still carry the running total rather than drop to zero.
+  function crossedMidTrip(): TripDetail {
+    const trip = tripOf();
+    trip.budget = usd(30000);
+    price(trip, 0, 0, usd(5000), ["meal"]);
+    price(trip, 1, 0, usd(30000), ["lodging"]);
+    return trip;
+  }
+
+  it("runs each stack's spend day over day, a day with no spend carrying the total", () => {
+    const burn = chartOf(crossedMidTrip(), { view: "burndown" }).burnDown!;
+    expect(burn.days.map((d) => [d.cumulative.meal, d.cumulative.lodging])).toEqual([
+      [5000, 0], [5000, 30000], [5000, 30000],
+    ]);
+    expect(burn.days.map((d) => d.spentSoFar)).toEqual(["$50.00", "$350.00", "$350.00"]);
+  });
+
+  it("says what is left, and how far over once the budget is crossed", () => {
+    const burn = chartOf(crossedMidTrip(), { view: "burndown" }).burnDown!;
+    expect(burn.budget).toEqual({ amountMinor: 30000, text: "$300.00" });
+    expect(burn.days.map((d) => d.left)).toEqual(["$250.00 left", "$50.00 over", "$50.00 over"]);
+    expect(burn.days.map((d) => d.leftMinor)).toEqual([25000, -5000, -5000]);
+  });
+
+  it("holds the budget left against an even pace from the budget down to nothing", () => {
+    const burn = chartOf(crossedMidTrip(), { view: "burndown" }).burnDown!;
+    // $300 over three days: $200 should be left after day 1, $100 after day 2.
+    expect(burn.days.map((d) => d.paceMinor)).toEqual([20000, 10000, 0]);
+    expect(burn.days.map((d) => d.overPace)).toEqual([false, true, true]);
+  });
+
+  it("paces by TRIP day when a date range narrows the chart", () => {
+    const trip = crossedMidTrip();
+    const burn = chartOf(trip, { view: "burndown", dates: { from: "2026-08-02", through: "2026-08-03" } }).burnDown!;
+    expect(burn.days.map((d) => d.paceMinor)).toEqual([10000, 0]);
+  });
+
+  it("says what is left of the TRIP's budget when the chart is narrowed, not the budget less what is drawn", () => {
+    // Narrowed to days 2–3: day 1's $50 is not drawn, but it is spent.
+    const dated = chartOf(crossedMidTrip(), { view: "burndown", dates: { from: "2026-08-02", through: "2026-08-03" } });
+    expect(dated.burnDown!.days.map((d) => d.spentSoFar)).toEqual(["$300.00", "$300.00"]);
+    expect(dated.burnDown!.days.map((d) => d.left)).toEqual(["$50.00 over", "$50.00 over"]);
+    expect(dated.burnDown!.days.map((d) => d.overPace)).toEqual([true, true]);
+    // Narrowed to meals: $50 of meals drawn, but the lodging still spent the budget.
+    const meals = chartOf(crossedMidTrip(), { view: "burndown", tag: "meal" });
+    expect(meals.burnDown!.days.map((d) => d.left)).toEqual(["$250.00 left", "$50.00 over", "$50.00 over"]);
+    // The summary's spent, budget and left add up: the trip's $350, not the
+    // $300 or $50 the narrowed chart draws.
+    expect(dated.summary).toBe("Budget burn-down in USD: $350.00 spent against a budget of $300.00 — $50.00 over.");
+    expect(meals.summary).toBe("Budget burn-down in USD: $350.00 spent against a budget of $300.00 — $50.00 over.");
+  });
+
+  it("puts the axis above the budget and above the most spent", () => {
+    const chart = chartOf(crossedMidTrip(), { view: "burndown" });
+    expect(chart.ticks.at(-1)!.value).toBeGreaterThanOrEqual(35000);
+    expect(chart.summary).toBe("Budget burn-down in USD: $350.00 spent against a budget of $300.00 — $50.00 over.");
+  });
+
+  it("without a budget, still runs the spend and says in words that there is none", () => {
+    const trip = crossedMidTrip();
+    trip.budget = null;
+    const chart = chartOf(trip, { view: "burndown" });
+    const burn = chart.burnDown!;
+    expect(burn.budget).toBeNull();
+    expect(burn.days.map((d) => d.spentSoFar)).toEqual(["$50.00", "$350.00", "$350.00"]);
+    // No line to draw and no number to invent: every budget-derived value is absent.
+    expect(burn.days.map((d) => [d.left, d.leftMinor, d.paceMinor, d.overPace])).toEqual([
+      [null, null, null, false], [null, null, null, false], [null, null, null, false],
+    ]);
+    expect(burn.note).toBe("No budget set — this is spend so far.");
+    expect(chart.summary).toBe("Spend so far in USD: $350.00 over 3 days. No budget set.");
+  });
+
+  it("keeps another currency out of the running total, as the bars do, and names it", () => {
+    const trip = crossedMidTrip();
+    price(trip, 2, 0, { amountMinor: 1200000, currency: "JPY" });
+    const chart = chartOf(trip, { view: "burndown" });
+    expect(chart.burnDown!.days.at(-1)!.spentSoFar).toBe("$350.00");
+    expect(chart.notCharted).toBe("Not charted: ¥12,000.00 in other currencies.");
+  });
 });
 
 // The claim a chart of money has to keep for every trip, not the handful above:

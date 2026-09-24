@@ -93,10 +93,11 @@ export interface CountryFactsPayload { kind: "country-facts"; countries: Country
 // consecutive days in one city (`city: null` is a run of days naming no place).
 // The runs partition the days in order, so the renderer draws cells from them
 // alone. `dayId` is what the colour is keyed on (`cityAccents.ofDayId`); `date`
-// is display-ready and short ("Jun 1"), `null` for an undated trip; `summary`
-// is the strip in words, for its accessible name.
+// is display-ready and short ("Jun 1"), `null` for an undated trip; `phrase` is
+// one run in words ("days 1–4 Tokyo (Jun 1 – Jun 4)"), and `summary` is every
+// run's phrase in one sentence, for the strip's accessible name.
 export interface TripStripDay { dayId: string; ordinal: number; date: string | null; city: string | null; }
-export interface TripStripRun { city: string | null; days: TripStripDay[]; }
+export interface TripStripRun { city: string | null; days: TripStripDay[]; phrase: string; }
 export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; summary: string; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
@@ -330,7 +331,20 @@ export type WidgetInput =
   // LIST of paths, one column each, where the plain form is one path. Same
   // vocabulary and same resolve-time check; its control is a list of pickers.
   // Empty or absent means no extra columns — never "waiting for a choice".
-  | { name: string; type: "field"; label: string; of: ManifestObject; multiple?: true };
+  | { name: string; type: "field"; label: string; of: ManifestObject; multiple?: true }
+  // **The two inputs that change how a widget LOOKS, not what it reads**
+  // (Mitchell on the #221 preview: column headings on the weather table *"might
+  // be good to make that a toggle"*, and a burn-down *"option/input"* on the
+  // spend chart). Neither narrows a selection, so neither is a filter, and
+  // neither can be unbound: an absent one is its `default`. They are declared
+  // here rather than special-cased per widget in `apps/web` (as `distinct`
+  // is), because ADR-037 decision 1 fails the moment a widget's name decides
+  // which control the settings panel draws.
+  //
+  // Stored only when it differs from `default`, so a widget left alone and one
+  // switched away and back are the same `{}`.
+  | { name: string; type: "toggle"; label: string; default: boolean }
+  | { name: string; type: "choice"; label: string; options: readonly { value: string; label: string }[]; default: string };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];
@@ -365,8 +379,11 @@ type Assert<T extends true> = T;
  * is no "every field", so an absent one is a widget with nothing to read, and a
  * path the manifest no longer publishes is aimed at nothing. Both are
  * `unbound("field")`, which the field picker can fix.
+ *
+ * `toggle` and `choice` join them because they are not bindings at all: each
+ * has a declared `default`, and absent IS that default.
  */
-type NeverUnbound = "tags" | "city" | "kind" | "dates";
+type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice";
 
 export type NeedsCoversEveryBindableInput = Assert<
   Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false

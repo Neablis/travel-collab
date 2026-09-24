@@ -82,6 +82,12 @@ env:
   # too means a workflow-level env var backs that claim rather than only
   # test-level plumbing.
   AI_LIVE: "false"
+  # No test sends to Sentry (Mitchell, 2026-09-24: no automated test calls a
+  # real third party). `sentry.shared.ts` falls back to a hard-coded DSN when
+  # this is unset, and a `NEXT_PUBLIC_` value is inlined at BUILD time, so the
+  # empty string (the SDK's documented off switch) is set for the whole
+  # workflow — the build the e2e job serves, and every test lane.
+  NEXT_PUBLIC_SENTRY_DSN: ""
 
 jobs:
   # Static analysis and unit tests share a job because neither needs Postgres,

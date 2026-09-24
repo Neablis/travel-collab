@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — short picker labels for the trip globals, and a `day` value kind (#221 preview)
+
+- **Changed:** `described(kind, label, schema, description?)` takes an optional fourth
+  argument, the `.describe()` text. It defaults to `label`, so every existing call is
+  unchanged; a field whose picker name and API text differ passes both.
+- **Changed (labels only):** the attribute manifest's labels for `TripGlobalsDay`
+  (`index` "Trip day", `date` "Date", `cities` "Cities", `activityCount` "Number of
+  stops", `costSubtotal` "Cost", `timeZone` "Time zone"), `TripGlobalsCity` (`name`
+  "City", `dayIndexes` "Trip days", `activityCount` "Number of stops") and
+  `TripGlobalsTag` (`tag` "Tag", `activityCount` "Number of stops"). Each keeps its old
+  sentence as its `.describe()` text, so **the public API's OpenAPI document does not
+  change** (`openapi.test.ts`).
+- **Added:** `"day"` to `VALUE_KINDS`, now the kind of `TripGlobalsDay.index` and
+  `TripGlobalsCity.dayIndexes` (was `"count"`). The stored numbers still count from 0;
+  `@tc/pages` prints a `day` as "Day 1", and many as "Day 1, Day 2" in trip order,
+  never a sum.
+- Why: Mitchell, on the #221 preview, on a sentence's detail buttons: *"Dont need 'Day
+  Number, Counting from 0', make names more intuitive 'Trip Day' for instance"* and
+  *"Lines are too long"*. The labels are the picker's and the buttons' text, and the
+  API descriptions were serving as both. As a `count`, "Trip day" would have printed
+  "0" on the first day, and a field widget over every day summed the indexes.
+- Consumers updated: `@tc/pages` `kinds.ts` (the `day` formatter, ghost "Day N");
+  `apps/web` `RepeatSettings.tsx` (the buttons read the new labels); tests in
+  `manifest.test.ts`, `globals.test.ts`, `kinds.test.ts`, `sentence.test.ts`,
+  `WidgetSettings.test.tsx` and `m14-notebook-widgets.spec.ts`.
+- Breaking? No. No field, path or stored value changed; `PUBLISHED_FIELD_PATHS` is
+  untouched. A caller comparing manifest labels or kinds reads the new ones.
+
 ## 2026-09-24 — `expectedUpdatedAt` on a page edit: the stale-save guard (M14, CodeRabbit on PR #222)
 
 - **Added:** optional `expectedUpdatedAt` on `EditPage` (`pageEvents.ts`) and on
@@ -54,6 +82,68 @@ Format:
   and `MacroView.test.tsx`.
 - Breaking? No. Additive, with a default, so a response or a cached globals
   from before the field parses with `city: null` (`globals.test.ts`).
+
+## 2026-09-24 — two stored widget params, and the `toggle` / `choice` widget inputs (#221 preview) — no schema change
+
+- **Nothing in `packages/contracts` changed shape.** A page stores a widget as a name
+  and opaque `params`; what changed is which params two `@tc/pages` primitives accept,
+  so every page written before this parses and renders exactly as it did. Logged here
+  because stored documents now carry the new keys, per the `PageRepeatNode` entry's
+  precedent.
+- Added: `day.weather` accepts `headings: boolean` (absent = shown; only `false` is
+  stored) and `cost.chart` accepts `view: "bars" | "burndown"` (absent = bars; only
+  `"burndown"` is stored). Both are declared as `WidgetInput`s of two new types in
+  `registry-types.ts`: `toggle` (`default: boolean`) and `choice` (`options`,
+  `default`). Neither can be unbound (`NeverUnbound`).
+- Added to payloads (`@tc/pages`, not contracts): `WeatherPayload.headings`;
+  `SpendByDayBar.tick` (the ordinal, "3rd") and `.parts`; `SpendByDayPayload.view` and
+  `.burnDown`. `ordinal` is exported from `@tc/pages`.
+- Weather's display strings follow `UserPreferences.distanceUnit` (°F and inches for
+  `mi`); the field itself is unchanged (ADR-052's 2026-09-24 amendment).
+- Why: Mitchell's #221 preview comments — column headings as a toggle, a burn-down
+  option on the spend chart, units from the account.
+- Consumers updated: `apps/web` — `widgetBind.tsx` renders a checkbox for `toggle` and
+  a select for `choice`, and keeps both out of the "Pointed at" summary;
+  `WeatherBlock`, `SpendByDayBlock`, `SpendByDayChart`. The assistant's catalogue reads
+  `view`'s enum off the schema (`nonFilterParams`) with no edit.
+- Breaking? no — both params are optional, and absent is the behaviour before.
+
+## 2026-09-24 — A repeat's sentence is a `template` param; page documents go to v3 (PR #221 preview)
+
+- **Added:** `sentenceTemplate.ts` — `SentenceTemplate` (one line, at most
+  `SENTENCE_TEMPLATE_MAX` = 500 characters), `parseSentenceTemplate` /
+  `serializeSentenceTemplate` / `escapeSentenceText` over `SentencePart`
+  (`{ text } | { field }`), and `REPEAT_SCOPES` / `REPEAT_SCOPE_ORDER` /
+  `repeatScopeOf`, which name each collection's rows primitive and where its
+  fields sit in the attribute manifest. Grammar: `{key}` is a field token,
+  `{{` and `}}` are literal braces, anything else is literal text; parsing
+  never fails.
+- **Changed:** `PageRepeatNode`'s sentence moves from `content` (inline text
+  and widgets) to `attrs.params.template`. The Zod shape is unchanged —
+  `content` stays in the schema because a v2 row is parsed before it is
+  migrated — so `openapi.json` does not move. A new base migration, v2 → v3,
+  writes each stored template as the closest sentence: text as text (braces
+  escaped, marks dropped), a line break as a space, an unfiltered widget that
+  read the line's item as its token (`city{}` over cities → `{name}`,
+  `dates{}` over days → `{date}`, `field{field: "stop.title"}` over stops →
+  `{title}`, …), and any other widget as its label. `v2WidgetToken` is exported
+  so `@tc/pages` can check every token it writes is one its resolver knows.
+  `CURRENT_PAGE_DOC_VERSION` is 3; the first `FIELD_CHANGES` batch now takes
+  `since: 4`, and a field rename or removal also rewrites the tokens in every
+  stored sentence.
+- Why: Mitchell, on the PR #221 preview — one "A sentence for each…" widget
+  with a day / stop / city input, a template string with a placeholder for the
+  item's value, set in the sidebar, and Editing showing the resolved lines.
+- Consumers updated: `@tc/pages` (`repeat.ts` validates `template`,
+  `sentence.ts` resolves it, one `sentence` preset replaces three,
+  `findWidgetError` refuses a repeat still carrying content); `apps/web` (the
+  repeat node is a leaf atom, `RepeatNodeView` prints the lines in both modes,
+  `RepeatSettings` edits it, `inspectStoredPageDoc` refuses a v3+ repeat with
+  content); `content/notebooks/built-in-notebooks.json` re-stamped `v: 3` (it
+  holds no repeat). The assistant's page tools and the factories emit no
+  repeats, and neither did before.
+- Breaking? For stored documents, no: every v2 repeat migrates on read. Only
+  the preview database holds any — repeats never reached `main`.
 
 ## 2026-09-24 — `TripGlobals.homeTimeZone` is not told to a `trips:read`-only token (#223 review)
 

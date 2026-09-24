@@ -213,6 +213,14 @@ fetched data:
 - *"Typical: NASA Langley Research Center POWER Project"* — a courtesy NASA requests, not a
   licence condition (to verify with the terms above).
 
+*Amended 2026-09-24 (Mitchell, #221 preview: "I dont understand what this section is?
+Typical lines? are they needed?").* The credits, the as-of and the averaging period are now
+**one line**, each source labelled by what its data is on the block: *"Forecast: Norwegian
+Meteorological Institute, CC BY 4.0 (updated 9:10 am) · Monthly averages: NASA POWER,
+2001–2020"*, the MET part still linked to its licence. Only sources whose data is on the
+block appear, as before. The table's typical rows say *"November average"* rather than
+*"Typical for November"*, so the word needs no footer to explain it.
+
 **Weather ships as a block only.** The brainstorm's inline chip (`18° · rain likely`) has
 nowhere to carry a credit line, and CC BY needs one wherever the value appears. The chip
 waits for a page-level credit footer, which is its own small decision.
@@ -335,6 +343,10 @@ older as-of, which is what makes serving it honest.
    - whether a request-rate figure is published.
    A first real call on a preview settles all four: the route logs a warning naming the key
    when a call fails, and a body of a different shape is refused rather than mis-read.
+   The walk that does it, with MET's `complete` field names from the section below, is
+   `docs/guidelines/external-data-manual-check.md`. No automated test calls either source:
+   the e2e server runs with `EXTERNAL_DATA_OFFLINE=true`, and the unit lane refuses any
+   `fetch` to a host other than this machine.
 
 ## Implementation notes (T24, 2026-09-24)
 
@@ -391,3 +403,26 @@ that did not survive contact with the code:
   unset the route passes no forecast source and no forecast jobs exist; before, a stub
   that always rejected was charged on every load until the shared quota refused the NASA
   normals too, and the reader got "Weather unavailable" instead of typical.
+
+## Amendment — 2026-09-24: units come from the account's `distanceUnit`
+
+**The coordinator's call, pending Mitchell's review.** Mitchell on the #221 preview:
+*"Make sure we are respecting the account settings for fahrenheit vs celsius, or metric vs
+imperial."* The account has one unit setting, `distanceUnit: "km" | "mi"`
+(`packages/contracts/src/identity.ts`), and no temperature preference.
+
+- **Decision: derive, and add no setting.** `mi` reads °F and rain in inches; `km` reads
+  °C and mm. An account that asked for miles has asked for US units, and a second
+  setting would be one more thing to disagree with the first. Preferences that did not
+  load read as metric, the units both sources speak.
+- **Where:** in the pure resolver (`day.weather`, `weather.ts`), from
+  `WidgetContext.user`, which every widget already receives. The cache and the route
+  stay in °C and mm; only the display-ready strings change.
+- **Rounding:** °F to whole degrees, as °C already was, never printing `-0°`. Inches to
+  two places, since a tenth of an inch is 2.5 mm; a trace that rounds to nothing prints
+  `<0.01 in` rather than `0.00 in`, which would read as dry.
+- **Rejected:** a separate temperature setting (a contract change and an Account control
+  for a preference nobody has yet asked for separately), and reading the reader's
+  locale (a notebook would print differently for two readers of the same account).
+  If Mitchell wants °C with miles, the derivation becomes a setting, and this is the one
+  function that reads it.

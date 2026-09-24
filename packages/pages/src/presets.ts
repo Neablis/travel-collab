@@ -3,7 +3,7 @@ import { WIDGET_NAME_MIGRATION } from "@tc/contracts";
 import type { WidgetInput } from "./registry-types";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
-import { TABLE_ONLY_PARAMS, insertRepeat, type RepeatInsertResult } from "./repeat";
+import { REPEAT_WIDGETS, insertRepeat, type RepeatInsertResult } from "./repeat";
 
 /**
  * **A named widget is a preset, and a preset is data** (ADR-039 decision 4).
@@ -45,9 +45,26 @@ export interface WidgetPreset {
   /**
    * Inserts an authored REPEAT over `widget`'s selection instead of the widget
    * itself (`repeat.ts`): the same days, stops or cities, as a sentence the
-   * author writes rather than a table the widget draws.
+   * author writes rather than a table the widget draws. Its collection and its
+   * sentence are chosen in the settings panel after it lands.
    */
   repeat?: true;
+  /**
+   * A rows table whose collection is chosen after it lands: it inserts
+   * `widget` (`day.rows`), and the settings panel's "Lines for each" picker
+   * moves it between every rows primitive (`REPEAT_WIDGETS`). So it stands for
+   * all three unfiltered tables — in the retired-name aliases and in the
+   * "every primitive is reachable" check — without three rows in the picker.
+   */
+  anyCollection?: true;
+}
+
+/**
+ * Every primitive a preset can leave in the document: its own `widget`, or —
+ * for an `anyCollection` preset — each rows primitive its picker offers.
+ */
+export function presetWidgets(preset: WidgetPreset): readonly string[] {
+  return preset.anyCollection ? Object.values(REPEAT_WIDGETS) : [preset.widget];
 }
 
 /**
@@ -148,7 +165,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     // The thing he expected already exists and is that neighbour, which is why
     // this is a rename rather than a new widget: `dates` answers in calendar
     // dates ("Fri 25 Sep – Sun 4 Oct") and `hours` answers in clock times
-    // ("09:00 – 21:30"). Naming the unit is what tells them apart, and the
+    // ("9 am – 9:30 pm"). Naming the unit is what tells them apart, and the
     // preview alone did not — it was already on the row he misread.
     params: {},
     title: "Start and end times",
@@ -244,60 +261,42 @@ export const PRESETS: readonly WidgetPreset[] = [
     keywords: ["city", "cities", "where", "places", "overview"],
   },
   // ---- a sentence each (ADR-035 decision 4) --------------------------------
-  // The authored repeat. Same selection as the `…line` rows below; what differs
-  // is who writes the line — the author, with widgets in it that read each
-  // item — so these insert a `repeat` node with an empty template.
+  // The authored repeat. ONE row, not one per collection: Mitchell, on the PR
+  // #221 preview, *"We can simplify to one widget 'A sentence X' and its a input
+  // to select day, stop city"*. It inserts a sentence over days, the first
+  // choice the settings panel offers, and the panel is where the author picks
+  // the collection and writes the sentence.
   {
-    id: "sentence.day",
+    id: "sentence",
     widget: "day.rows",
     params: {},
     repeat: true,
-    title: "A sentence for every day",
-    keywords: ["repeat", "each", "every", "day", "days", "sentence", "write", "template"],
-    description: "A sentence you write once, repeated for every day. Widgets you put in it read that line's day.",
-    preview: "your own sentence, once per day",
-  },
-  {
-    id: "sentence.stop",
-    widget: "stop.rows",
-    params: {},
-    repeat: true,
-    title: "A sentence for every stop",
-    keywords: ["repeat", "each", "every", "stop", "stops", "activities", "sentence", "write", "template"],
-    description: "A sentence you write once, repeated for every stop. Widgets you put in it read that line's stop.",
-    preview: "your own sentence, once per stop",
-  },
-  {
-    id: "sentence.city",
-    widget: "city.rows",
-    params: {},
-    repeat: true,
-    title: "A sentence for every city",
-    keywords: ["repeat", "each", "every", "city", "cities", "sentence", "write", "template"],
-    description: "A sentence you write once, repeated for every city. Widgets you put in it read that line's city.",
-    preview: "your own sentence, once per city",
+    title: "A sentence for each…",
+    keywords: ["repeat", "each", "every", "day", "days", "stop", "stops", "city", "cities", "sentence", "write", "template", "welcome"],
+    description: "A sentence you write once, printed for each day, stop or city — like \"Welcome to\" and the city's name. Each line reads its own.",
+    preview: "your own sentence, once per day, stop or city",
   },
   // ---- a line each --------------------------------------------------------
+  // ONE row for the three plain tables, as the sentence above is one row for
+  // its three collections: Mitchell, on the PR #221 preview, *"We combined a
+  // 'Sentence for every ...' and added a picker for type, can we do the same
+  // for 'A line for every....'?"*. It inserts `day.rows`, the first choice the
+  // settings panel's "Lines for each" picker offers, and the picker moves it to
+  // `stop.rows` or `city.rows` (`rescopeRows`). The document still names the
+  // primitive, so nothing stored changes. "A line for every booking" and
+  // "Still to book" stay rows of their own: each is a filter worth naming.
   {
-    id: "day.line",
+    id: "line",
     widget: "day.rows",
     params: {},
-    title: "A line for every day",
-    keywords: ["day", "days", "list", "line", "summary", "overview"],
-  },
-  {
-    id: "city.line",
-    widget: "city.rows",
-    params: {},
-    title: "A line for every city",
-    keywords: ["city", "cities", "list", "line", "where"],
-  },
-  {
-    id: "stop.line",
-    widget: "stop.rows",
-    params: {},
-    title: "A line for every stop",
-    keywords: ["stop", "stops", "activities", "things to do", "list", "line"],
+    anyCollection: true,
+    title: "A line for each…",
+    keywords: [
+      "list", "line", "lines", "table", "rows", "each", "every", "summary", "overview",
+      "day", "days", "stop", "stops", "activities", "things to do", "city", "cities", "where",
+    ],
+    description: "One line for each day, stop or city, in a table — pick which in its settings.",
+    preview: "one line per day, stop or city",
   },
   {
     id: "booking.line",
@@ -351,6 +350,14 @@ export const PRESETS: readonly WidgetPreset[] = [
     params: {},
     title: "Spend by day",
     keywords: ["spend", "spending", "chart", "graph", "bar", "costs", "money", "budget", "daily", "per day"],
+  },
+  // Mitchell, PR 221 preview: the same chart as a burn-down against the budget.
+  {
+    id: "budget-burn-down",
+    widget: "cost.chart",
+    params: { view: "burndown" },
+    title: "Budget burn-down",
+    keywords: ["burn down", "burndown", "budget", "left", "remaining", "pace", "chart", "area", "spend", "money"],
   },
   // ---- the clock pair -----------------------------------------------------
   // M14 link 11. Unbound, so every located day; a day binding narrows either.
@@ -528,7 +535,7 @@ const paramsKey = (params: Readonly<Record<string, unknown>>): string =>
 // sentence the author writes.
 const RETIRED_NAMES_BY_PRESET: Record<string, string[]> = {};
 for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
-  const onPrimitive = PRESETS.filter((preset) => preset.widget === step.name && !preset.repeat);
+  const onPrimitive = PRESETS.filter((preset) => presetWidgets(preset).includes(step.name) && !preset.repeat);
   const exact = onPrimitive.filter((preset) => paramsKey(preset.params) === paramsKey(step.set ?? {}));
   for (const preset of exact.length > 0 ? exact : onPrimitive) {
     (RETIRED_NAMES_BY_PRESET[preset.id] ??= []).push(retired);
@@ -543,13 +550,14 @@ for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
  * filter is what the general widget is for — but the row a person picked by
  * name should not immediately offer to unpick it.
  *
- * A repeat preset also drops a table's `columns`: a sentence has none, and
- * `insertRepeat` refuses them.
+ * A repeat preset offers none at insert: which collection it reads decides
+ * which filters apply, and the collection is chosen in the settings panel once
+ * it lands. That panel (`RepeatSettings`) renders the chosen collection's
+ * filters beside the sentence they are chosen for.
  */
 export function presetInputs(preset: WidgetPreset): readonly WidgetInput[] {
-  return (getMacro(preset.widget)?.inputs ?? []).filter(
-    (input) => !(input.name in preset.params) && !(preset.repeat && TABLE_ONLY_PARAMS.includes(input.name)),
-  );
+  if (preset.repeat) return [];
+  return (getMacro(preset.widget)?.inputs ?? []).filter((input) => !(input.name in preset.params));
 }
 
 export function presetCatalog(): WidgetCatalogEntry[] {

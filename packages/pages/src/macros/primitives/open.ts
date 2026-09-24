@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext } from "../../registry-types";
 import { chip, rowLabel, rowValue, rowsOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
+import { dayLabel } from "../../format";
 
 // `open` — "What needs you". SPEC §25's second half of the Overview page.
 //
@@ -119,7 +120,7 @@ export const open: MacroDef<OpenParams, RepeatPayload> = {
       if (day.activityIds.length > 0) continue;
       rows.push({
         lead: rowLabel("Empty day"),
-        cells: [[rowValue(`Day ${index + 1}`)]],
+        cells: [[rowValue(dayLabel(index))]],
       });
     }
 

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { MacroNode, PageRepeatNode, TripDetail, TripGlobals } from "@tc/contracts";
-import { TABLE_ONLY_PARAMS, getMacro, getPreset, insertPreset } from "@tc/pages";
+import { getMacro, getPreset, insertPreset } from "@tc/pages";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -34,8 +34,8 @@ import {
 // the one path (decision 4 — "there is no way to put a widget into a document
 // that skips validation").
 
-// What an insert lands: a widget, or an authored repeat with an empty template
-// (a "sentence for every …" preset, ADR-035 decision 4).
+// What an insert lands: a widget, or an authored repeat with no sentence yet
+// (the "A sentence for each…" preset, ADR-035 decision 4).
 export type InsertedNode = MacroNode | PageRepeatNode;
 
 // The picker only ever offers preset ids the catalogue gave it, so a refusal
@@ -49,14 +49,6 @@ export type InsertedNode = MacroNode | PageRepeatNode;
 function build(presetId: string, extra: Record<string, unknown>): InsertedNode | null {
   const result = insertPreset(presetId, extra);
   return result.ok ? result.node : null;
-}
-
-// The phone's bind step for a preset. A sentence for every stop borrows
-// `stop.rows`' selection but not its table columns — `insertRepeat` refuses
-// them — so the step does not offer a control whose answer cannot be inserted.
-function bindStepInputs(presetId: string) {
-  const repeat = getPreset(presetId)?.repeat === true;
-  return presetBindableInputs(presetId).filter((input) => !(repeat && TABLE_ONLY_PARAMS.includes(input.name)));
 }
 
 export function WidgetInsert({
@@ -165,7 +157,7 @@ export function WidgetInsert({
               // A preset whose name already answers every dimension is finished
               // the moment it lands, so §19 has it skip step 2 entirely rather
               // than showing an empty "point it at" with nothing in it.
-              if (bindStepInputs(presetId).length === 0) {
+              if (presetBindableInputs(presetId).length === 0) {
                 insert(presetId, {});
                 return;
               }
@@ -200,7 +192,7 @@ export function WidgetInsert({
               // Only the dimensions the preset has NOT already answered. "A
               // line for every booking" does not offer to stop being about
               // bookings on the way in.
-              inputs={bindStepInputs(pending)}
+              inputs={presetBindableInputs(pending)}
             />
             <div>
               <Text variant="muted">Reads as</Text>
@@ -221,7 +213,7 @@ export function WidgetInsert({
                 { ...pendingTarget.params, ...params },
                 detail,
                 globals,
-                bindStepInputs(pending),
+                presetBindableInputs(pending),
               )}
             </Text>
             <Button

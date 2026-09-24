@@ -1,6 +1,7 @@
 import { expect, test } from "./fixtures/test";
 import { commandsFor } from "@tc/factories";
 import { e2eTripName } from "./tripNames";
+import { createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
 
 // The phone Notebook — design handoff 2026-09-03, `SPEC.md` §19, `DRIFT.md`
 // §2f. Runs in the "phone" project (playwright.config.ts, 411×852), the same
@@ -16,12 +17,23 @@ import { e2eTripName } from "./tripNames";
 // The trip is seeded through the API rather than by clicking, for the reason
 // the mobile assistant spec seeds its own: the board's phone layout is not what
 // is under test here, and walking it would make every failure ambiguous.
-async function openTripOverview(page: import("@playwright/test").Page): Promise<string> {
+async function openTripOverview(
+  page: import("@playwright/test").Page,
+  { bookedStop }: { bookedStop?: string } = {},
+): Promise<string> {
   const { tripId } = await page.request
     .post("/api/trips", { data: { name: e2eTripName("PhoneNotebook") } })
     .then((r) => r.json());
   for (const command of commandsFor("threeDayTrip", tripId)) {
     await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+  }
+  // `threeDayTrip` books nothing, and a walk through "A line for every
+  // booking" needs a row to draw its columns over.
+  if (bookedStop !== undefined) {
+    const added = await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title: bookedStop, kind: "booked" },
+    });
+    expect(added.ok()).toBe(true);
   }
   await page.goto(`/trips/${tripId}/pages`);
   await page.getByRole("link", { name: /Overview/ }).first().click();
@@ -395,13 +407,21 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
   // sheet's bind step — so on a phone it is the one most likely to open into
   // the sheet's bottom edge. jsdom has no layout, so only this layer can say
   // the list is reachable there (CodeRabbit, PR #222).
+  //
+  // Through "A line for every booking" since the plain stop list became "A line
+  // for each…" (PR #221 preview), which lands on days and has no columns until
+  // its settings move it to stops. The booking row is still `stop.rows`, with
+  // its columns in the bind step — the control this walk is about. Its bind
+  // step is one control shorter (no kind), which put the list 2px under the
+  // sheet body's clipped edge while it still fit the screen: the list now
+  // measures its room inside every clipping ancestor, not the viewport alone.
   test("the last field picker in the bind step opens a list you can pick from", async ({ page }) => {
-    await openTripOverview(page);
+    await openTripOverview(page, { bookedStop: "Tram tour" });
 
     await page.getByRole("button", { name: "Insert a widget" }).click();
     const sheet = page.getByRole("dialog");
-    await sheet.getByRole("searchbox", { name: "Search widgets" }).fill("every stop");
-    await sheet.getByRole("button", { name: /A line for every stop/ }).click();
+    await sheet.getByRole("searchbox", { name: "Search widgets" }).fill("booking");
+    await sheet.getByRole("button", { name: /A line for every booking/ }).click();
 
     const addColumn = sheet.getByRole("combobox", { name: /add a column/i });
     await addColumn.click();
@@ -420,5 +440,33 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     await sheet.getByRole("button", { name: "Insert it" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
+  });
+
+  // Mitchell on the PR #221 preview: the strip should fit without scrolling,
+  // "but might be hard, especially on mobile". This is the mobile half; the
+  // desktop half and the reason for 20 days are in `m14-notebook-widgets`.
+  test("the trip strip fits a phone's width on a 20-day trip", async ({ page }) => {
+    const tripId = await createMappedTrip(page, e2eTripName("PhoneStrip"), 20, { locations: TWENTY_DAYS_IN_JAPAN });
+    await page.goto(`/trips/${tripId}/pages`);
+    await page.getByRole("link", { name: /Overview/ }).first().click();
+    await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "Edit page" }).click();
+
+    await page.getByRole("button", { name: "Insert a widget" }).click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByRole("searchbox", { name: "Search widgets" }).fill("strip");
+    // No bind step: the strip takes no params, so the pick is the insert.
+    await sheet.getByRole("button", { name: /Trip strip/ }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    const strip = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
+    await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
+    await expect.poll(() => stripOverhang(strip), { message: "strip overflow on a phone" }).toBeLessThanOrEqual(0);
+    // And it still reads: `TripStripBlock`'s header says a four-day stay keeps
+    // its name at this width and a one-day stay keeps only its colour — whole
+    // words or nothing, never "Ha…". Asserted here so that sentence stays true.
+    await expect(strip.getByText("Tokyo", { exact: true }).first()).toBeVisible();
+    await expect(strip.getByText("Kyoto", { exact: true })).toBeVisible();
+    await expect(strip.getByText("Hakone", { exact: true })).toBeHidden();
   });
 });

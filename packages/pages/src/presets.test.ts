@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WIDGET_NAME_MIGRATION, parsePageDoc } from "@tc/contracts";
-import { PRESETS, getPreset, insertPreset, presetCatalog } from "./presets";
+import { PRESETS, getPreset, insertPreset, presetCatalog, presetWidgets } from "./presets";
 import { insertWidget } from "./insert";
 import { MACRO_NAMES, getMacro, primitiveCatalog, renderMacro } from "./registry";
 import type { WidgetContext } from "./registry-types";
@@ -52,7 +52,9 @@ describe("the preset table", () => {
   it("reaches every primitive, so nothing is registered and unreachable", () => {
     // The picker is the only way a person meets a widget. A primitive with no
     // preset is code nobody can run, which is the shape of KI-2026-09-02-d.
-    const reached = new Set(PRESETS.map((p) => p.widget));
+    // `presetWidgets`, not `widget`: "A line for each…" inserts `day.rows` and
+    // its settings move it to `stop.rows` or `city.rows`, so it reaches all three.
+    const reached = new Set(PRESETS.flatMap(presetWidgets));
     expect([...reached].sort()).toEqual([...MACRO_NAMES].sort());
   });
 
@@ -75,7 +77,7 @@ describe("the preset table", () => {
     const reached: string[] = [];
     for (const entry of primitiveCatalog()) {
       const fieldInputs = new Set(entry.inputs.filter((i) => i.type === "field").map((i) => i.name));
-      const presets = PRESETS.filter((p) => p.widget === entry.name);
+      const presets = PRESETS.filter((p) => presetWidgets(p).includes(entry.name));
       for (const [key, values] of Object.entries(entry.params)) {
         if (values === null || fieldInputs.has(key)) continue;
         for (const value of values) {
@@ -107,7 +109,7 @@ describe("presets and the document migration agree", () => {
     // those primitives has at least one preset. So a person who knew a widget
     // by its old name can still find something that does what it did.
     for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
-      const covering = PRESETS.filter((preset) => preset.widget === step.name);
+      const covering = PRESETS.filter((preset) => presetWidgets(preset).includes(step.name));
       expect(covering.length, `${retired} became ${step.name}, which no preset offers`).toBeGreaterThan(0);
     }
   });
@@ -120,7 +122,11 @@ describe("presets and the document migration agree", () => {
     // presets (Copilot, PR 141).
     const aliasesOf = (id: string) => presetCatalog().find((e) => e.name === id)!.aliases;
     expect(aliasesOf("booking.line")).toEqual(["booking.line"]);
-    expect(aliasesOf("stop.line")).toEqual(["stop.line"]);
+    // The three plain tables are one row now, "A line for each…", and it is
+    // each of their retired names — never "Still to book", the other preset
+    // on `stop.rows`, which is a filter `stop.line` never meant.
+    expect([...aliasesOf("line")].sort()).toEqual(["city.line", "day.line", "stop.line"]);
+    expect(aliasesOf("still-to-book")).toEqual([]);
     expect(aliasesOf("account.homeAirport")).toEqual(["account.homeAirport"]);
     expect(aliasesOf("account.name")).toEqual(["account.name"]);
     // A pair that genuinely collapsed onto one preset keeps BOTH names, which
@@ -224,6 +230,18 @@ describe("insertPreset", () => {
     ]);
   });
 
+  it("offers the three plain tables as ONE row, which inserts a line for each day", () => {
+    // Mitchell, #221 preview: *"We combined a 'Sentence for every ...' and added
+    // a picker for type, can we do the same for 'A line for every....'?"*. Only
+    // the unfiltered tables collapse; the booking and still-to-book shortcuts
+    // keep their rows, since each is a filter worth naming.
+    const tables = PRESETS.filter((p) => !p.repeat && presetWidgets(p).some((w) => ["day.rows", "city.rows"].includes(w) || (w === "stop.rows" && Object.keys(p.params).length === 0)));
+    expect(tables.map((p) => p.id)).toEqual(["line"]);
+    expect(insertPreset("line")).toEqual({ ok: true, node: { type: "macro", attrs: { name: "day.rows", params: {} } } });
+    expect([...presetWidgets(getPreset("line")!)].sort()).toEqual(["city.rows", "day.rows", "stop.rows"]);
+    expect(PRESETS.map((p) => p.id)).toEqual(expect.arrayContaining(["booking.line", "still-to-book"]));
+  });
+
   it("refuses an unknown preset id with the same typed reason", () => {
     expect(insertPreset("nope.nope")).toEqual({
       ok: false,
@@ -271,8 +289,10 @@ describe("presetCatalog", () => {
     const booking = presetCatalog().find((e) => e.name === "booking.line")!;
     expect(booking.inputs.map((i) => i.name)).not.toContain("kind");
     expect(booking.inputs.map((i) => i.name)).toContain("day");
-    const stops = presetCatalog().find((e) => e.name === "stop.line")!;
-    expect(stops.inputs.map((i) => i.name)).toContain("kind");
+    // The unfiltered table is "A line for each…": it lands on days, and its
+    // settings panel moves it to stops, where the kind control is.
+    expect(presetWidgets(getPreset("line")!)).toContain("stop.rows");
+    expect(getMacro("stop.rows")!.inputs.map((i) => i.name)).toContain("kind");
   });
 
   it("falls through to the primitive's copy unless the preset overrides it", () => {

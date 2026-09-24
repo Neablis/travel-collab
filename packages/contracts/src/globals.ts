@@ -46,16 +46,19 @@ import { described, describedCollection, type ValueKind } from "./valueKind.ts";
 // the manifest dropped without a word (M14 field-widget review, 2026-09-24),
 // and then a bare `.describe()`, until T06 stopped `.describe()` publishing.
 
+// Each `described()` below takes a short picker LABEL and, where the public
+// API needs more, a longer DESCRIPTION (`valueKind.ts`): "Trip day" in a
+// sentence's detail buttons, "Day number, counting from 0" in the API document.
 export const TripGlobalsDay = z.object({
-  index: described("count", "Day number, counting from 0", z.number().int().nonnegative()),
-  date: described("date", "The day's date, or nothing if the trip has no start date", z.string().nullable()),
+  index: described("day", "Trip day", z.number().int().nonnegative(), "Day number, counting from 0"),
+  date: described("date", "Date", z.string().nullable(), "The day's date, or nothing if the trip has no start date"),
   // From `citiesOfDay`, which is the ONE implementation of this rule and says
   // why in its own header: time order not stored order, `location.city` only
   // (never a name/area fallback), duplicates collapsed. A day that touches no
   // located stop reports `[]`.
-  cities: described("text", "The cities this day touches, in arrival order", z.array(z.string())),
-  activityCount: described("count", "How many stops are on this day", z.number().int().nonnegative()),
-  costSubtotal: described("money", "What this day costs", z.number().int()),
+  cities: described("text", "Cities", z.array(z.string()), "The cities this day touches, in arrival order"),
+  activityCount: described("count", "Number of stops", z.number().int().nonnegative(), "How many stops are on this day"),
+  costSubtotal: described("money", "Cost", z.number().int(), "What this day costs"),
   // **Where the day is, for the sun and the clock** (M14 link 11): the first
   // located stop in TIME order, untimed stops after timed ones — `citiesOfDay`'s
   // ordering, so "the day's place" and "the day's first city" come from the same
@@ -83,20 +86,20 @@ export const TripGlobalsDay = z.object({
   // The IANA zone at `place`, computed on the server (M14 "Decided 2026-09-24":
   // no boundary dataset ships to the browser). `null` exactly when `place` is.
   // `.default(null)` so a response from before this field still parses.
-  timeZone: described("text", "The day's time zone", z.string().min(1).nullable()).default(null),
+  timeZone: described("text", "Time zone", z.string().min(1).nullable(), "The day's time zone").default(null),
 });
 export type TripGlobalsDay = z.infer<typeof TripGlobalsDay>;
 
 export const TripGlobalsCity = z.object({
-  name: described("text", "The city's name", z.string()),
-  dayIndexes: described("count", "Which days touch this city", z.array(z.number().int().nonnegative())),
-  activityCount: described("count", "How many stops are in this city", z.number().int().nonnegative()),
+  name: described("text", "City", z.string(), "The city's name"),
+  dayIndexes: described("day", "Trip days", z.array(z.number().int().nonnegative()), "Which days touch this city"),
+  activityCount: described("count", "Number of stops", z.number().int().nonnegative(), "How many stops are in this city"),
 });
 export type TripGlobalsCity = z.infer<typeof TripGlobalsCity>;
 
 export const TripGlobalsTag = z.object({
-  tag: described("enum", "The tag", ActivityTag),
-  activityCount: described("count", "How many stops carry this tag", z.number().int().nonnegative()),
+  tag: described("enum", "Tag", ActivityTag, "The tag"),
+  activityCount: described("count", "Number of stops", z.number().int().nonnegative(), "How many stops carry this tag"),
 });
 export type TripGlobalsTag = z.infer<typeof TripGlobalsTag>;
 
