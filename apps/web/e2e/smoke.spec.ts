@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { e2eTripName } from "./tripNames";
 import { createEmptyTripViaWizard } from "./helpers";

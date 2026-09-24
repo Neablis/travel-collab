@@ -147,16 +147,15 @@ inside a section that was 69% of this file, where nothing looks for a blocker.
   reseeded by a deploy, so seed-side work stays invisible there until somebody
   with the credential reseeds it. Mitchell knows; it is his to do.
 
-**1. The Map lens's tiles have still never been confirmed to paint — KI-49.**
-From a cloud session the egress proxy blocks the tile host outright, so the
-map's chrome can be walked and its tiles cannot. From a laptop the transport
-verifies (M11's gate loaded the style, tilejson, sprites and glyphs from
-`tiles.openfreemap.org` on the preview, and WebGL is real) and the **pixels
-still do not**: the WebGL canvas captures blank in the screenshot pipeline, and
-MapLibre fetches its data tiles from a worker the main thread cannot observe.
-So neither environment has produced a picture of a rendered map. Nothing on the
-roadmap is blocked by it; it bounds what a browser walk is allowed to claim,
-from anywhere. A blank canvas is not a pass.
+**1. The Map lens's tiles have still never been confirmed to paint.** KI-49,
+the cloud-session half, is resolved (2026-09-24). The e2e suite no longer fetches
+tiles at all: it serves a background-only fixture style at the real URL and
+asserts that no request left for a third party. So the e2e suite never renders a
+real basemap, by design. Confirming real tiles is now a written manual check on a
+preview: `docs/guidelines/third-party-services-on-a-preview.md` → *Map tiles*.
+The pixel caveat still holds. The WebGL canvas has captured blank in the
+screenshot pipeline, so look at the page, not the capture. A blank canvas is not
+a pass.
 
 **Retired from this list at M11's gate, 2026-08-28** — all three were on it and
 none of them is live any more:

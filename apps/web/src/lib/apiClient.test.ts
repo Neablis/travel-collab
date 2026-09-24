@@ -53,7 +53,7 @@ import {
 import { cachedRead, clearQueryCache } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { INVITE_TOKEN_HEADER, beginInviteLook } from "@/lib/inviteLook";
-import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 
@@ -736,7 +736,7 @@ describe("askAssistant", () => {
         sseResponse([
           '{"type":"start"}',
           '{"type":"text-delta","id":"0","delta":"Day 3 "}',
-          '{"type":"error","errorText":"model call failed: upstream 500"}',
+          JSON.stringify({ type: "error", errorText: ASK_FAILED_MESSAGE }),
         ]),
       ),
     );
@@ -746,7 +746,7 @@ describe("askAssistant", () => {
     if (result.ok) return;
     expect(result.error.status).toBe(200);
     expect(result.error.code).toBe(apiClientModule.ASK_STREAM_ERROR_CODE);
-    expect(result.error.message).toBe("model call failed: upstream 500");
+    expect(result.error.message).toBe(ASK_FAILED_MESSAGE);
     // The partial answer still reached the caller — it is on screen already.
     expect(events.filter((e) => e.type === "text").map((e) => e.delta)).toEqual(["Day 3 "]);
   });
