@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
 import { createEmptyTripViaWizard } from "./helpers";

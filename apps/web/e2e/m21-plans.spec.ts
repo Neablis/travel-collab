@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { accountPanel, openAccountPage } from "./helpers";
 import { E2E_SUPER_CODE } from "./admission";
 

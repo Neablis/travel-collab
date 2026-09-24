@@ -329,6 +329,46 @@ Format:
 - Breaking? no — both schema changes are additive and optional, and
   `TripGlobals` parses exactly what it did.
 
+## 2026-09-24 — `ASK_FAILED_MESSAGE`: `/ask` stops sending provider text (wire)
+
+- Added: `ASK_FAILED_MESSAGE` in `packages/contracts/src/assistant.ts`,
+  *"The assistant couldn't answer just now. Try again in a moment."*
+- Changed: `POST /api/trips/:tripId/ask`'s model-failure text. The 503 body
+  (the agent could not start) was `{ error: "model call failed: <provider
+  message>", simulated }` and is now `{ error: ASK_FAILED_MESSAGE, simulated }`;
+  the stream's `error` chunk (the turn failed mid-answer) carried the bare
+  provider message as `errorText` and now carries `ASK_FAILED_MESSAGE`. Status
+  codes, body shape and the client's `ask-stream-error` code are unchanged. The
+  model-selection 503 (`model selection failed: <message>`) now sends
+  `ASK_FAILED_MESSAGE` too; its detail stays on the refusal's `ai.grant` line
+  (`reason`). The 400s (specific and actionable) are untouched
+- Why: users should not see raw provider text (2026-09-24). The rail printed
+  it verbatim. The real cause is still recorded, with the error, on the turn's
+  `ai.ask` record (`cause`) by `recorder.abandon("error", err)`
+- Here rather than in `@/server/ai`: it crosses the wire and the UI may not
+  import `@/server/*` — the reason `SIMULATED_HEADER` moved here in P6. One
+  definition, imported by the server and by the client tests
+- Consumers updated: `apps/web` — `server/ai/handleAskRequest.ts` (both
+  paths), `app/api/trips/[tripId]/ask/route.int.test.ts` (the failed-turn test
+  now asserts the placeholder and the ABSENCE of the provider's text, plus a
+  new 503 case), `components/assistant/AssistantRail.test.tsx`,
+  `components/board/TripBoardScreen.test.tsx`, `lib/apiClient.test.ts` (their
+  hand-written failure strings replaced by the constant)
+- Breaking? no — the client passes the text through and branches on status and
+  `code`, neither of which moved. Anything parsing the provider's words out of
+  the old message loses them, which is the point
+- Added, same day: `ASK_INTERNAL_ERROR_MESSAGE`, *"The assistant hit a problem
+  on our side, and it has been logged."* The stream's `error` chunk and the
+  agent-could-not-start catch now send `ASK_FAILED_MESSAGE` only for a
+  model-side failure (the AI SDK's provider, gateway, retry and network error
+  types, listed at `isModelSideFailure` in `handleAskRequest.ts`), and this
+  sentence for anything our own code threw, because "try again" is false of a
+  bug. That catch answers **500** rather than 503 for our own failure. The
+  model-selection 503 is unchanged. Consumers: `route.int.test.ts`, where
+  `failingModel` now throws an `APICallError` (what a provider throws) and two
+  cases cover our own throw. Breaking? no. The body shape is unchanged, and the
+  client passes any non-200 `error` through
+
 ## 2026-09-24 — `TripSummary.startDate` (KI-034)
 
 - **Changed:** `TripSummary` gains `startDate: string (YYYY-MM-DD) | null`,

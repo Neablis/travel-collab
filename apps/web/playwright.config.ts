@@ -1,5 +1,4 @@
 import { defineConfig, devices } from "@playwright/test";
-import { containerChromiumArgs } from "./scripts/container-chromium.mjs";
 import { BASE_URL } from "./src/config";
 import { DATABASE_URL } from "./src/server/config";
 import { E2E_SUPER_CODE } from "./e2e/admission";
@@ -71,25 +70,35 @@ export default defineConfig({
     // failure.
     trace: "on-first-retry",
     video: "off",
-    // KI-49, the actionable half. Empty everywhere except inside a Claude Code
-    // cloud container, where it pins the egress gateway's own CAs by SPKI hash
-    // so Chromium will complete a TLS handshake the proxy re-terminated.
+    // **No automated test talks to a real third party** (Mitchell,
+    // 2026-09-24). The map was the one place this suite's pages did: both maps
+    // load their basemap from `tiles.openfreemap.org`. Every browser context
+    // in this suite now serves that style from a committed fixture, by
+    // default: specs import `test` from `e2e/fixtures/test.ts`, which routes
+    // the tile host on every context it creates (and `eslint.config.mjs`
+    // refuses `test` from `@playwright/test` in a spec, so a new one cannot
+    // skip it). The map specs also assert nothing else left the machine; whether
+    // the REAL service renders is a manual check on a Vercel preview
+    // (`docs/guidelines/third-party-services-on-a-preview.md`).
     //
-    // Only two specs care — `m10-map-rail` and `m26-shared-day-map` — because
-    // `tiles.openfreemap.org` is the single third-party host this suite's pages
-    // fetch from; everything else is localhost, which the proxy never sees.
-    // Without this they fail with "The map could not load" in every cloud
-    // session, which is what left M26's Definition-of-Done gate at 153 passed /
-    // 2 failed rather than green.
+    // This flag is the backstop behind that default: every hostname except
+    // the app's own resolves to nothing, so a request no route answered fails
+    // in the browser instead of reaching the network. Playwright's routes are
+    // consulted before a request is sent, so a fulfilled route never resolves
+    // a name and the fixture is unaffected. It is what made the old opt-in
+    // version fail loudly — a map spec that forgot the call got the map's
+    // offline panel over its chrome (m10-growth, m17-account-preferences and
+    // responsive's phone-map case, measured 2026-09-24) — and it is what still
+    // catches any third-party host the fixture does not know about.
     //
-    // `container-chromium.mjs` carries the reasoning, and two things it says
-    // are worth repeating at the call site: this ADDS trust for specific public
-    // keys rather than disabling verification (which the proxy README forbids,
-    // and which would make a green map run prove nothing), and the detector is
-    // deliberately NOT `process.env.CI` — `test:e2e:ci-like` sets that locally
-    // and is the only lane whose result counts, so gating on it would withhold
-    // the fix from the exact run anyone would act on.
-    launchOptions: { args: containerChromiumArgs() },
+    // It is also why `scripts/container-chromium.mjs`'s CA pin (KI-49) is no
+    // longer passed here: that existed so a cloud container's Chromium would
+    // trust the egress proxy on the way to the tile host, and nothing in this
+    // lane goes to the tile host any more. `walk-preview.mjs` still uses it,
+    // because walking a real preview is exactly where the real host belongs.
+    launchOptions: {
+      args: [`--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE ${new URL(BASE_URL).hostname}`],
+    },
   },
   // One retry in CI only. NOT a flake-suppression tool: a test that passes
   // on retry is reported as flaky and must be treated as a bug, not waved
@@ -187,6 +196,17 @@ export default defineConfig({
       // apps/web/.env.local, so this has to be set explicitly here rather
       // than relying on a developer's local file.
       AI_LIVE: "false",
+      // Sentry off: an e2e run must not file its own noise against the shared
+      // project, and must not talk to a third party at all. The empty string,
+      // not unset — `sentry.shared.ts` falls back to the real DSN on `??`, and
+      // `""` is the SDK's documented no-op.
+      //
+      // **This line only covers `pnpm dev`.** `NEXT_PUBLIC_*` is inlined into
+      // the bundles at BUILD time, so under `pnpm start` (CI and
+      // `test:e2e:ci-like`) the value that counts is the one the build saw:
+      // `test:e2e:ci-like` in package.json and the build step in ci.yml set it
+      // there too. Set here as well so the dev lane matches.
+      NEXT_PUBLIC_SENTRY_DSN: "",
       // M11a: every dev user this suite signs in is brand new against a fresh
       // database, and the gate refuses anyone with no `users` row and no
       // credential — so without this the run dies in `auth.setup.ts` and every

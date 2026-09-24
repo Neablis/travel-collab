@@ -51,6 +51,38 @@ import { BatchableCommand } from "./trip.ts";
  */
 export const SIMULATED_HEADER = "x-tc-ai-simulated";
 
+// Mitchell / the lead, 2026-09-24: users do not see raw provider text. `/ask`
+// used to send `model call failed: <provider message>` on its 503 and the bare
+// provider message as the stream's error chunk, and the rail printed both
+// verbatim — a gateway's JSON, a rate-limit id, a stack-shaped string, all in
+// the red line under the composer. The real cause is still recorded, with the
+// error, by `recorder.abandon("error", err)` in `handleAskRequest.ts`; only the
+// person reading the rail gets this sentence instead.
+//
+// Here rather than in `@/server/ai` because it crosses the wire and the UI may
+// not import `@/server/*` — the same reason `SIMULATED_HEADER` above moved.
+/**
+ * What `/ask` tells the person when the model failed: the `error` of its 503
+ * body when the turn could not start, and the text of the stream's `error`
+ * chunk when it failed mid-answer. One fixed sentence on both paths; the
+ * provider's own message never reaches the client.
+ */
+export const ASK_FAILED_MESSAGE = "The assistant couldn't answer just now. Try again in a moment.";
+
+// The lead, 2026-09-24: `ASK_FAILED_MESSAGE` says "try again", which is true of
+// a provider outage, a rate limit or a dropped connection and false of a bug
+// in our own code — `buildProposal` throwing on the final chunk fails the same
+// way on every retry. So a failure that did not come from the model, its
+// provider or the network gets this sentence instead. Same rule as above: a
+// fixed string, never the error's own text; the cause goes to the turn's
+// `ai.ask` record.
+/**
+ * What `/ask` tells the person when the turn failed in OUR code rather than the
+ * model's: the `error` of its 500 body, or the text of the stream's `error`
+ * chunk. Deliberately does not suggest retrying.
+ */
+export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our side, and it has been logged.";
+
 // Derived from `BatchableCommand`'s own options rather than spelled again, for
 // the reason `describeProposedChange`'s exhaustive switch exists: a thirteenth
 // command joins this for free and can never drift from the union it describes.

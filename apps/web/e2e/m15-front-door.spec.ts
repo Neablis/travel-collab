@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { e2eTripName } from "./tripNames";
 
 // The front door only exists for signed-out visitors, so this spec opts out

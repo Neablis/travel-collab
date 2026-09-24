@@ -21,6 +21,11 @@ the same rule proven four times costs four maintenance sites and catches one
 bug. **Test count is a cost, not a score** — a PR that adds tests without
 covering a *new* failure mode made the suite slower and nothing else.
 
+**No test at any layer talks to a real third party** (Mitchell, 2026-09-24).
+Stub the service, test the placeholder the UI shows when its data cannot load,
+and write the check against the real service into
+`third-party-services-on-a-preview.md`, which is done by hand on a preview.
+
 ## 2. Should this test exist
 
 Three questions. All must be yes:

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { commandsFor } from "@tc/factories";
 import { createMappedTrip, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";

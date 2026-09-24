@@ -1,8 +1,14 @@
 /**
  * The launch recipe that gets a Playwright Chromium onto the network from
  * inside a Claude Code cloud container — extracted from `walk-preview.mjs`,
- * which discovered it, so `playwright.config.ts` can share it rather than
- * carry a second copy that drifts.
+ * which discovered it and is now its only caller.
+ *
+ * **The e2e lane does not use it any more** (2026-09-24). No automated test may
+ * talk to a real third party, so `playwright.config.ts` serves the map's
+ * basemap from a fixture and resolves every non-app hostname to nothing; there
+ * is no proxied host left for it to trust. It stays a separate module because
+ * the reasoning below is long and is about the container, not about walking a
+ * preview.
  *
  * ## The problem this solves
  *
@@ -14,10 +20,9 @@
  * month: the host was always reachable; the browser just would not trust the
  * hop.
  *
- * For the e2e lane that shows up as exactly two red specs — `m10-map-rail`
- * and `m26-shared-day-map` — because `tiles.openfreemap.org` is the only
- * third-party host the suite's pages fetch from. Everything else is
- * `localhost`, which the proxy never sees.
+ * From 2026-09-23 to 2026-09-24 the e2e lane passed this to its Chromium too,
+ * because its two map specs fetched real tiles from `tiles.openfreemap.org`
+ * and went red in every cloud session without it. They no longer fetch them.
  *
  * ## Why an SPKI pin and not `--ignore-certificate-errors`
  *

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { openPlan } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";

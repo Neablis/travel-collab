@@ -39,7 +39,7 @@
 // is the point of the array.
 import { z } from "zod";
 import type { LanguageModel } from "ai";
-import type { Page, TripDetail, TripRole } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, type Page, type TripDetail, type TripRole } from "@tc/contracts";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { hasAtLeast } from "@/server/accessPolicy";
 import type { AskScope } from "@/server/assistant/context";
@@ -821,8 +821,18 @@ const selectModel: AdmissionStage = {
     try {
       outcome = await draft.input.ports.selectModel(userId);
     } catch (err) {
+      // **The detail is logged, not sent** (2026-09-24, the rule
+      // `ASK_FAILED_MESSAGE` states). `reason` carries the thrown message —
+      // a missing gateway key, a provider's own words — onto this refusal's
+      // `ai.grant` line (`refusedRecord`), which is where it is diagnosed. The
+      // 503 body gets the same fixed sentence `handleAskRequest` sends when
+      // the model itself fails, so "no model answered" reads one way to a user.
       const reason = `model selection failed: ${errorMessage(err)}`;
-      return refuse("selectModel", reason, Response.json({ error: reason, simulated: false }, { status: 503 }));
+      return refuse(
+        "selectModel",
+        reason,
+        Response.json({ error: ASK_FAILED_MESSAGE, simulated: false }, { status: 503 }),
+      );
     }
     if (outcome.outcome === "denied") {
       return refuse("selectModel", outcome.reason, outcome.response, outcome.code);
