@@ -25,6 +25,23 @@ describe("the test network guard", () => {
     expect(inner).toHaveBeenCalledTimes(4);
   });
 
+  // `0.0.0.0` is what a dev server bound to every interface prints as its own
+  // address, and `*.localhost` resolves to loopback by RFC 6761 (browsers and
+  // Node's resolver both honour it) — so a test URL built from either is this
+  // machine, and blocking it would send someone hunting for a third party
+  // that is not there. The suffix is matched on a dot boundary: a host that
+  // merely ENDS in the letters is someone else's.
+  it("treats 0.0.0.0 and any *.localhost host as this machine, and nothing that only looks like one", async () => {
+    const inner = vi.fn(async () => new Response("ok"));
+    const guarded = guardFetch(inner as unknown as typeof fetch);
+    for (const url of ["http://0.0.0.0:3001/api/health", "http://app.localhost:3000/", "http://a.b.localhost/"]) {
+      await expect(guarded(url)).resolves.toBeInstanceOf(Response);
+    }
+    expect(inner).toHaveBeenCalledTimes(3);
+    await expect(guarded("https://notlocalhost/")).rejects.toThrow(/Blocked network request/);
+    await expect(guarded("https://localhost.example.com/")).rejects.toThrow(/Blocked network request/);
+  });
+
   it("does not hand a third-party request to the real fetch at all", async () => {
     const inner = vi.fn(async () => new Response("ok"));
     const guarded = guardFetch(inner as unknown as typeof fetch);

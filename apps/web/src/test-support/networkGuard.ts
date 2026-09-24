@@ -27,7 +27,16 @@
 
 const GUARDED = Symbol.for("travel-collab.networkGuard");
 
-const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
+
+/**
+ * Any subdomain of `localhost` is loopback (RFC 6761 §6.3), and both Chromium
+ * and Node's resolver answer it that way. Matched on the dot, so
+ * `localhost.example.com` and `notlocalhost` stay third parties.
+ */
+function isLocalHostname(hostname: string): boolean {
+  return LOCAL_HOSTNAMES.has(hostname) || hostname.endsWith(".localhost");
+}
 
 /** The origin a relative URL resolves against: jsdom's `location`, else localhost. */
 function currentBase(): string {
@@ -54,8 +63,9 @@ export function blockedRequestMessage(url: string): string {
 
 /**
  * True when `url` (absolute, or relative to the current page) names this
- * machine: `localhost`, `127.0.0.1` or `::1`. Anything unparseable is treated
- * as local so the underlying `fetch` reports its own error for it.
+ * machine: `localhost` or any `*.localhost`, `127.0.0.1`, `0.0.0.0` or `::1`.
+ * Anything unparseable is treated as local so the underlying `fetch` reports
+ * its own error for it.
  */
 export function isLocalUrl(url: string): boolean {
   let parsed: URL;
@@ -65,7 +75,7 @@ export function isLocalUrl(url: string): boolean {
     return true;
   }
   if (parsed.protocol === "data:" || parsed.protocol === "blob:") return true;
-  return LOCAL_HOSTNAMES.has(parsed.hostname);
+  return isLocalHostname(parsed.hostname);
 }
 
 /**
