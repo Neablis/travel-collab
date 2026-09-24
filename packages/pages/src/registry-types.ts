@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type { FilterDimension, TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
+import type { SpendByDayPayload } from "./chartPayloads";
 
 // Inline payloads are display-ready strings; block payloads are structured data
 // the renderer turns into a component (NOT markup — the C-era swap point).
@@ -85,6 +86,15 @@ export interface CountryFactsCard {
   emergency: string | null; currency: string; callingCode: string; tipping: string | null;
 }
 export interface CountryFactsPayload { kind: "country-facts"; countries: CountryFactsCard[]; }
+// "Trip strip" (`trip.strip`): every day of the trip, grouped into runs of
+// consecutive days in one city (`city: null` is a run of days naming no place).
+// The runs partition the days in order, so the renderer draws cells from them
+// alone. `dayId` is what the colour is keyed on (`cityAccents.ofDayId`); `date`
+// is display-ready and short ("Jun 1"), `null` for an undated trip; `summary`
+// is the strip in words, for its accessible name.
+export interface TripStripDay { dayId: string; ordinal: number; date: string | null; city: string | null; }
+export interface TripStripRun { city: string | null; days: TripStripDay[]; }
+export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; summary: string; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
 // no longer switches on a widget's name.
@@ -102,7 +112,9 @@ export interface CountryFactsPayload { kind: "country-facts"; countries: Country
 // This is an implementation decision the ADR did not make; it is recorded in
 // ADR-037 under decision 3 rather than only here.
 export type BlockPayload =
-  | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload;
+  | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload
+  | TripStripPayload
+  | SpendByDayPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose

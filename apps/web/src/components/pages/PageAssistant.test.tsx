@@ -17,7 +17,7 @@ import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 // The wire is mocked at `askAssistant` rather than served as SSE, because
 // `apiClient.test.ts` already owns the frame parsing and this file is about
 // what the SCREEN does with an event once it has one. Everything else — the
-// page fetch, the trip fetch, the autosave PATCH — is real through MSW, since
+// page fetch, the trip fetch, the session's PATCH — is real through MSW, since
 // "the insert reaches the document AND the document reaches the server" is the
 // claim these tests exist to make.
 const askAssistantMock = vi.fn();
@@ -48,16 +48,30 @@ import { PageScreen } from "./PageScreen";
 // stayed green on the same tree: the race is decided by how fast the machine
 // gets from render to focus (KI-2026-09-06-a).
 //
-// The wait is the AUTOSAVE, not the focus. `onUpdate` fires from the editor
-// after the insert chain has run, so observing it means the focus call has
-// already happened — and it costs no `document.activeElement`, which
+// The wait is the TURN SETTLING, not the focus: the composer is
+// `disabled={asking}`, and it is re-enabled only after the turn's last event —
+// the insert — has been handled. This used to wait for the insert's autosave,
+// which no longer exists: a page writes once, when the edit session ends
+// (ADR-036). It costs no `document.activeElement`, which
 // `testing-library/no-node-access` forbids and whose only existing use is
 // grandfathered under KI-2026-09-02-b with "Do not add more."
-async function readyForAnotherTurn(onUpdate: Mock): Promise<HTMLElement> {
-  await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-  const composer = screen.getByPlaceholderText(/add to this page/i);
+async function turnSettled(): Promise<HTMLTextAreaElement> {
+  const composer = screen.getByPlaceholderText<HTMLTextAreaElement>(/add to this page/i);
+  await vi.waitFor(() => expect(composer.disabled).toBe(false));
+  return composer;
+}
+
+async function readyForAnotherTurn(): Promise<HTMLElement> {
+  const composer = await turnSettled();
   await userEvent.click(composer);
   return composer;
+}
+
+// The end of the edit session, and the one write it makes.
+async function sessionWrite(onUpdate: Mock): Promise<string> {
+  await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+  await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+  return JSON.stringify(onUpdate.mock.calls[0]![1].content);
 }
 
 const DOC = newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Bring a raincoat" }] }]);
@@ -99,9 +113,11 @@ const server = setupServer(
   ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+// Unmount FIRST: leaving a page mid-session commits it (ADR-036), and that
+// write has to reach this test's handlers rather than the defaults.
 afterEach(() => {
-  server.resetHandlers();
   cleanup();
+  server.resetHandlers();
 });
 afterAll(() => server.close());
 
@@ -164,7 +180,7 @@ describe("the assistant on a notebook page", () => {
     expect(scope).toEqual({ kind: "page", pageId: page.id });
   });
 
-  it("puts what the turn inserted into the document, and autosaves it", async () => {
+  it("puts what the turn inserted into the document, and saves it with the session", async () => {
     const { onUpdate } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
 
@@ -172,9 +188,10 @@ describe("the assistant on a notebook page", () => {
     // drop use, which is what stops the AI from having placement rules of its
     // own.
     expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
-    // ...and through the ordinary debounced autosave, not a second write path.
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-    expect(JSON.stringify(onUpdate.mock.calls.at(-1)![1].content)).toContain("Bring a raincoat");
+    // ...and through the edit session's one write, not a second write path.
+    await turnSettled();
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(await sessionWrite(onUpdate)).toContain("Bring a raincoat");
   });
 
   // The reason the rail could not have this job until now. `compose_page`
@@ -183,7 +200,7 @@ describe("the assistant on a notebook page", () => {
   // second time". ADR-035 decision 5 made the tools insert-shaped; this is that
   // second time, and it has an obvious meaning.
   it("accumulates a second turn instead of replacing the first", async () => {
-    const { onUpdate } = await openRail();
+    await openRail();
     const composer = screen.getByPlaceholderText(/add to this page/i);
     await userEvent.type(composer, "Add a packing list{Enter}");
     expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
@@ -194,7 +211,7 @@ describe("the assistant on a notebook page", () => {
         content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "And a power adapter" }] }]),
       }),
     );
-    await userEvent.type(await readyForAnotherTurn(onUpdate), "One more thing{Enter}");
+    await userEvent.type(await readyForAnotherTurn(), "One more thing{Enter}");
 
     expect(await screen.findByText("And a power adapter")).toBeTruthy();
     // The first turn's text is STILL THERE. That is the whole difference
@@ -228,7 +245,7 @@ describe("the assistant on a notebook page", () => {
   // claiming something no browser does. What this test actually guards — and
   // all KI-2026-09-06-b was ever about — is the destructive half: the
   // keystrokes must not end up in the document the user was reading, and must
-  // not be autosaved there. That holds in jsdom AND in the browser.
+  // not be saved there. That holds in jsdom AND in the browser.
   //
   // Measured, rather than assumed, with the `isFocused` guard in
   // `PageScreen.tsx` reverted:
@@ -241,12 +258,11 @@ describe("the assistant on a notebook page", () => {
     const { onUpdate } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
     expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
-    // The autosave, not the rendered text, is the signal that the insert chain
-    // has run — `onUpdate` fires from the editor afterwards. The focus call
-    // that used to steal the caret was scheduled a frame later still, which is
-    // what made it land in the middle of the next word.
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-    const savedBeforeFollowUp = onUpdate.mock.calls.length;
+    // The turn settling, not the rendered text, is the signal that the insert
+    // chain has run. The focus call that used to steal the caret was scheduled
+    // a frame later still, which is what made it land in the middle of the
+    // next word.
+    await turnSettled();
 
     askAssistantMock.mockImplementation(
       turnEmitting({
@@ -269,14 +285,13 @@ describe("the assistant on a notebook page", () => {
     const [, messages] = askAssistantMock.mock.calls[1]!;
     expect((messages as AskWireMessage[]).at(-1)!.parts[0]!.text).toBe("One more thing");
 
-    // ...and none of it reached the page the user was reading. The second
-    // turn's own autosave is the one that would carry the stray characters if
-    // any had, so it is the one worth looking at.
+    // ...and none of it reached the page the user was reading. The session's
+    // one write carries the whole document, so it is the one worth looking at.
     expect(await screen.findByText("And a power adapter")).toBeTruthy();
-    await vi.waitFor(() => expect(onUpdate.mock.calls.length).toBeGreaterThan(savedBeforeFollowUp), {
-      timeout: 3000,
-    });
-    expect(JSON.stringify(onUpdate.mock.calls.at(-1)![1].content)).not.toContain("One more thing");
+    await turnSettled();
+    const saved = await sessionWrite(onUpdate);
+    expect(saved).toContain("And a power adapter");
+    expect(saved).not.toContain("One more thing");
   });
 
   // The thread is what a rail is for, and what the prompt box could not have.
@@ -291,11 +306,11 @@ describe("the assistant on a notebook page", () => {
         { type: "page-inserts", content: DOC },
       ),
     );
-    const { onUpdate } = await openRail();
+    await openRail();
     const composer = screen.getByPlaceholderText(/add to this page/i);
     await userEvent.type(composer, "Add a packing list{Enter}");
     await screen.findByText("Bring a raincoat");
-    await userEvent.type(await readyForAnotherTurn(onUpdate), "One more thing{Enter}");
+    await userEvent.type(await readyForAnotherTurn(), "One more thing{Enter}");
 
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
     const [, messages] = askAssistantMock.mock.calls[1]!;
@@ -312,7 +327,7 @@ describe("the assistant on a notebook page", () => {
   // Copilot and CodeRabbit, PR 139: `useAskThread` lives on this SCREEN, so
   // nothing about the panel going away aborts a turn on its own — and a late
   // `page-inserts` wrote into a document the user had put back into Reading,
-  // and autosaved it.
+  // and saved it.
   function neverSettlingTurn() {
     let emit: ((event: AskEvent) => void) | null = null;
     // The SIGNAL as well as the emitter. Watching only for late events proves

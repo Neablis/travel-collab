@@ -1,13 +1,12 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
+import type { Page, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/components/account/PreferencesProvider";
-import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
@@ -35,25 +34,20 @@ import { cn } from "@/lib/cn";
 import { Sheet } from "@/components/ui/sheet";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
+import { useEditSession } from "./useEditSession";
 import type { ApiError } from "@/lib/apiClient";
 
 type Status = "loading" | "ready" | "error";
-
-// Debounce delay for content autosave. A `setTimeout`-based debounce (no
-// existing utility in this repo — checked `lib/debounce.ts` didn't exist
-// before adding it) is all this needs: keystrokes coalesce into one
-// `updatePage` call ~1s after the user stops typing.
-const AUTOSAVE_DELAY_MS = 800;
 
 // What the assistant says when a turn wanted to write into a page that is being
 // read rather than edited. It names the control that would let it through,
 // because "I can't do that here" without one is a dead end.
 const READING_REFUSAL = "I drafted that, but this page is open for reading — turn on Edit page and ask again to put it in.";
 
-// Why this screen is the place ADR-038 decision 4 lives: it owns the autosave.
+// Why this screen is the place ADR-038 decision 4 lives: it owns the write.
 // The loss the ADR is about is not a bad migration, it is this component
-// writing `getJSON()` back over a document the editor never understood, 800 ms
-// after mounting it. The refusal has to happen before `PageEditor` renders,
+// writing `getJSON()` back over a document the editor never understood, at the
+// end of the first edit session after mounting it. The refusal has to happen before `PageEditor` renders,
 // because by the time TipTap has fallen back to an empty document the content
 // is already gone from memory.
 //
@@ -335,20 +329,17 @@ export function PageScreen({
     };
   }, [tripId, pageId]);
 
-  const saveContent = useMemo(
-    () =>
-      debounce((content: PageDoc) => {
-        void updatePage(tripId, pageId, { content });
-      }, AUTOSAVE_DELAY_MS),
-    [tripId, pageId],
-  );
+  // **One write per editing session**, not one per pause (ADR-036, M14 link 9):
+  // the document is committed when the author leaves Editing, when this screen
+  // unmounts, on `pagehide`, or after a minute idle. `useEditSession` holds the
+  // triggers and the reasons. What it costs is written down in ADR-036
+  // decision 3: prose typed since the session last settled is lost on a crash.
+  const session = useEditSession(editing, (content, { keepalive }) => {
+    void updatePage(tripId, pageId, { content }, { keepalive });
+  });
   // Stable, so `PageEditor`'s effect does not re-run on every render and
   // re-publish the same editor.
   const handleEditorReady = useCallback((next: Editor | null) => setEditor(next), []);
-
-  const saveContentRef = useRef(saveContent);
-  saveContentRef.current = saveContent;
-  useEffect(() => () => saveContentRef.current.cancel(), []);
 
   // The editor, held in a ref as well as in state, so the ask handler below —
   // which is created before `editor` exists and outlives several renders — can
@@ -472,7 +463,7 @@ export function PageScreen({
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
   // screen goes, and a turn still streaming would land its `page-inserts` in a
-  // document the user had just put back into Reading — and autosave it. Found
+  // document the user had just put back into Reading — and save it. Found
   // by Copilot and CodeRabbit on PR 139.
   const closeAssistant = () => {
     ask.cancel();
@@ -491,8 +482,8 @@ export function PageScreen({
   // actual edit/rename"*. Same `updatePage` call the index's inline rename
   // made — only the surface moved.
   //
-  // Not debounced, unlike the content autosave above: a title is committed
-  // once, on blur or Enter, rather than on every keystroke.
+  // Written at once rather than held for the edit session: a title is already
+  // committed once, on blur or Enter, rather than on every keystroke.
   const handleRename = (title: string) => {
     const previousTitle = page?.title ?? null;
     // A rename says nothing about the title once a later one has been sent.
@@ -537,12 +528,12 @@ export function PageScreen({
   const handleContentChange = (content: unknown) => {
     const storable = toStoredPageDoc(content);
     if (storable === null) {
-      saveContent.cancel();
+      session.discard();
       setUnstorable(true);
       return;
     }
     setPage((prev) => (prev === null ? prev : { ...prev, content: storable }));
-    saveContent(storable);
+    session.change(storable);
   };
 
   // Click-to-insert. `insertContent` puts the node at the current selection,
@@ -644,10 +635,10 @@ export function PageScreen({
   // supplies its own.
   const backLink = <PageBreadcrumb tripId={tripId} tripName={trip.name} from={from} title={page.title} />;
 
-  // Read-only, and every write path off: no autosave (nothing calls
-  // `saveContent`), and no ComposePanel — it inserts into an editor this
+  // Read-only, and every write path off: no session write (nothing calls
+  // `session.change`), and no ComposePanel — it inserts into an editor this
   // branch deliberately never mounts, and anything it did land would be
-  // autosaved over the content we just refused to risk.
+  // written over the content we just refused to risk.
   //
   // **No Edit toggle here either.** ADR-038 decision 4's whole point is that
   // this document must not be mounted in an editor at all, so offering a

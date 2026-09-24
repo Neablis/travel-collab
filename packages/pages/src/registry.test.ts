@@ -27,9 +27,9 @@ describe("registry", () => {
     // `open`'s terms: no selection, so not a primitive. `day.sun` and
     // `day.fromHome` (the same link) ARE primitives — day entity, day filters.
     expect([...MACRO_NAMES].sort()).toEqual([
-      "attribute", "city", "city.detail", "city.rows", "cost", "cost.rows",
+      "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "hours", "open",
-      "stop.rows",
+      "stop.rows", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -352,7 +352,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // containment it always meant: every primitive is registered, and a
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
-    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual(["country.facts", "open"]);
+    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual(["country.facts", "open", "trip.strip"]);
   });
 
   it("declares only dimensions its entity permits", () => {

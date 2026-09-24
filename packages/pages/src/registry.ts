@@ -9,6 +9,8 @@ import { dayDetail, cityDetail } from "./macros/primitives/block";
 import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows";
 import { open } from "./macros/primitives/open";
 import { countryFactsWidget } from "./macros/primitives/countryFacts";
+import { tripStripWidget } from "./macros/primitives/tripStrip";
+import { costChart } from "./macros/primitives/spendByDay";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
@@ -37,6 +39,10 @@ const DEFS: AnyMacroDef[] = [
   // "Know before you go" (M14 link 11) — registered and not a primitive, for
   // `open`'s reason: it has no entity to narrow. See `countryFacts.ts`.
   countryFactsWidget,
+  // "Trip strip" (M14 link 11), on the same terms. See `tripStrip.ts`.
+  tripStripWidget,
+  // "Spend by day" (M14 link 11): a primitive, `stop` + filters drawn as a chart.
+  costChart,
   // The clock pair (M14 link 11): day primitives over the zone and place the
   // server put on each day of the globals projection. See `time.ts`.
   daySun, dayFromHome,

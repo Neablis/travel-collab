@@ -266,6 +266,23 @@ export const PRESETS: readonly WidgetPreset[] = [
       "emergency", "police", "ambulance", "currency", "money", "calling code", "phone", "tipping", "tip",
     ],
   },
+  // ---- the whole trip in one band ------------------------------------------
+  // M14 link 11. No params: the widget takes none and inserts immediately.
+  {
+    id: "trip-strip",
+    widget: "trip.strip",
+    params: {},
+    title: "Trip strip",
+    keywords: ["strip", "timeline", "overview", "cities", "route", "days", "at a glance", "band"],
+  },
+  // M14 link 11, the first chart. Unfiltered: every day, every tag.
+  {
+    id: "spend-by-day",
+    widget: "cost.chart",
+    params: {},
+    title: "Spend by day",
+    keywords: ["spend", "spending", "chart", "graph", "bar", "costs", "money", "budget", "daily", "per day"],
+  },
   // ---- the clock pair -----------------------------------------------------
   // M14 link 11. Unbound, so every located day; a day binding narrows either.
   {
