@@ -829,14 +829,34 @@ milestone opens:**
       display name on `TripMember`, not attribution.
       *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
-- [ ] **A notebook is saved as a template from one trip and instantiated into a
+- [x] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
       not an event stream, which a test asserts by sweeping for a second writer
       the way `soleWriter.test.ts` does for subscriptions. *(Link 10, added
       2026-09-18.)*
-- [ ] **A template snapshotted at one document version still instantiates after
+      *(Ticked 2026-09-24, T15/T16 on `m14/t15-saved-notebooks`. The walk is
+      `e2e/m14-saved-notebooks.spec.ts`, green on `test:e2e:ci-like`: Save as
+      template in trip A, then *Your templates* in trip B's gallery, then a
+      reload. The table is `saved_notebooks` (migration `0029_saved_notebooks`),
+      written only by `server/savedNotebooks.ts`, and
+      `savedNotebooks.soleWriter.test.ts` sweeps for a second writer, for raw
+      SQL naming the table, and for an event append from the module.
+      Instantiating creates the page with a `CreatePage` command, so the target
+      trip's stream gets a `PageCreated`, which `route.int.test.ts` asserts.
+      **The re-binding rule:** a `day` pinned by `dayId` to a day the target
+      trip lacks is re-pointed at the nil UUID (`UNRESOLVED_DAY_ID`), so it
+      renders *"that day was removed"* rather than widening to every day, and no
+      source-trip id reaches the target stream. `index` refs, cities, tags,
+      kinds and date ranges carry over as written. The context is the target
+      trip alone, so a template saved from an Overview is an ordinary notebook.)*
+- [x] **A template snapshotted at one document version still instantiates after
       the AST has moved** — ADR-038's versioning is exercised by link 10 rather
       than assumed by it, with a test that pins an older version and renders it.
+      *(Ticked 2026-09-24, T15: `packages/pages/src/savedTemplate.test.ts` pins
+      a v1 snapshot (old widget names, `dayRef`, no `v`), asserts the current
+      version is above 1, migrates it through `instantiateTemplate` and resolves
+      every widget with `renderMacro` against a new trip. The integration test
+      does the same against a v1 row in Postgres.)*
 - [x] **Adding a filter dimension cannot be silently ignored.** *(Ticked 2026-09-24, T02 on PR #221: `narrow` is total through a compile-checked `NARROWS` record, `optionsFor` and the page-document switches end in `never`, and KI-2026-09-05-h is resolved with its proof line.)* The
       `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
       control and dropped by `narrow` — fails before the change and passes after,
