@@ -7,6 +7,7 @@ import {
   BatchableCommand,
   CreatePageInput,
   CreateReportInput,
+  CreateSavedNotebookInput,
   PutReviewInput,
   TripCommand,
   UpdatePageInput,
@@ -15,6 +16,8 @@ import {
   type Review,
   type ReviewSummary,
   type SavedDayReviewsResponse,
+  type SavedNotebook,
+  type SavedNotebookSummary,
   type TripDetail,
   type TripEventsPage,
   type TripHistory,
@@ -420,6 +423,71 @@ export function makeReviewsHandlers(
       if (!reviews.some((r) => r.reviewerId === viewerId)) return notFound();
       reviews = reviews.filter((r) => r.reviewerId !== viewerId);
       return HttpResponse.json({ summary: summary() });
+    }),
+  ];
+}
+
+/**
+ * MSW handlers for the signed-in person's saved notebooks (M14 link 10): list,
+ * save, delete, and instantiate into a trip. Mirrors the real routes' shapes
+ * and status codes, not their storage — a save snapshots an empty document
+ * because the mock has no page store to read, and an instantiate creates a
+ * page titled after the template.
+ */
+export function makeSavedNotebookHandlers(
+  initial: SavedNotebook[] = [],
+  options?: {
+    onSave?: (input: CreateSavedNotebookInput) => void;
+    onInstantiate?: (tripId: string, savedNotebookId: string) => void;
+  },
+) {
+  let saved = structuredClone(initial);
+  const summary = ({ content: _content, ...rest }: SavedNotebook): SavedNotebookSummary => rest;
+  return [
+    http.get("/api/saved-notebooks", () => HttpResponse.json({ savedNotebooks: saved.map(summary) })),
+    http.post("/api/saved-notebooks", async ({ request }) => {
+      const input = CreateSavedNotebookInput.parse(await request.json());
+      options?.onSave?.(input);
+      const savedNotebook: SavedNotebook = {
+        savedNotebookId: crypto.randomUUID(),
+        ownerId: "dev-alice",
+        title: input.title ?? "Untitled notebook",
+        docVersion: 1,
+        visibility: "private",
+        provenance: {
+          sourceTripId: input.tripId,
+          sourceTripName: "Mock trip",
+          sourcePageId: input.pageId,
+          savedAt: new Date().toISOString(),
+        },
+        content: { v: 1, type: "doc", content: [] },
+      };
+      saved.push(savedNotebook);
+      return HttpResponse.json({ savedNotebook }, { status: 201 });
+    }),
+    http.delete("/api/saved-notebooks/:savedNotebookId", ({ params }) => {
+      const before = saved.length;
+      saved = saved.filter((s) => s.savedNotebookId !== params.savedNotebookId);
+      return saved.length < before
+        ? HttpResponse.json({ ok: true })
+        : HttpResponse.json({ error: "not-found" }, { status: 404 });
+    }),
+    http.post("/api/trips/:tripId/saved-notebooks/:savedNotebookId", ({ params }) => {
+      const template = saved.find((s) => s.savedNotebookId === params.savedNotebookId);
+      if (template === undefined) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      options?.onInstantiate?.(params.tripId as string, template.savedNotebookId);
+      const now = new Date().toISOString();
+      const page: Page = {
+        id: crypto.randomUUID(),
+        tripId: params.tripId as string,
+        title: template.title,
+        context: { tripId: params.tripId as string },
+        content: { v: 1, type: "doc", content: [] },
+        createdAt: now,
+        updatedAt: now,
+        actorId: "dev-alice",
+      };
+      return HttpResponse.json({ page }, { status: 201 });
     }),
   ];
 }
