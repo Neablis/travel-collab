@@ -140,6 +140,22 @@ describe("cost.chart — spend by day", () => {
     });
   });
 
+  // Trip-currency money on no day is still money: "no costs yet" over $70 of
+  // parked ideas would be the chart denying what the notCharted line admits.
+  it("says what is priced when none of it is on a day", () => {
+    const trip = tripOf();
+    price(trip, null, 0, usd(7000));
+    expect(renderMacro(contextOf(trip), "cost.chart", {})).toEqual({
+      status: "empty",
+      because: "nothing priced on a day yet: $70.00 unscheduled",
+    });
+    price(trip, 0, 0, { amountMinor: 1200000, currency: "JPY" });
+    expect(renderMacro(contextOf(trip), "cost.chart", {})).toEqual({
+      status: "empty",
+      because: "nothing priced on a day yet: ¥12,000.00 in other currencies; $70.00 unscheduled",
+    });
+  });
+
   it("needs a trip", () => {
     expect(renderMacro(contextOf(undefined), "cost.chart", {})).toEqual({ status: "unbound", needs: "trip" });
   });
