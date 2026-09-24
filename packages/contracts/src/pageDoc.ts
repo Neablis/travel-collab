@@ -1,4 +1,15 @@
 import { z } from "zod";
+import { buildAttributeManifest } from "./manifest.ts";
+import {
+  REPEAT_SCOPES,
+  SENTENCE_TEMPLATE_MAX,
+  escapeSentenceText,
+  parseSentenceTemplate,
+  repeatScopeOf,
+  serializeSentenceTemplate,
+  type RepeatScope,
+  type SentencePart,
+} from "./sentenceTemplate.ts";
 
 // The stored notebook document, as a versioned AST (ADR-038). `PageContent`
 // next door is what this replaces: `z.array(z.unknown())` is not an AST, it is
@@ -188,13 +199,19 @@ export const PageHeadingNode = z.object({
 }).strict();
 export type PageHeadingNode = z.infer<typeof PageHeadingNode>;
 
-// A repeater's `content` IS its row template, not its rendered rows (ADR-035
-// decision 4, ADR-038 decision 1). The format understood it before the editor
-// did, so the first client to meet one would not eat the document; M14 link 6
-// is the first writer. `attrs.name` names the rows widget whose selection it
-// repeats over (`day.rows`, `stop.rows`, `city.rows`) and `params` are that
-// widget's filters — a convention `@tc/pages`' `insertRepeat` enforces, not a
+// An authored repeat: one sentence printed once per day, stop or city (ADR-035
+// decision 4). `attrs.name` names the rows widget whose selection it repeats
+// over (`day.rows`, `stop.rows`, `city.rows` — `REPEAT_SCOPES`), and `params`
+// are that widget's filters plus `template`, the sentence itself
+// (`sentenceTemplate.ts`). `@tc/pages`' `insertRepeat` enforces that, not a
 // narrower schema here, since the registry owns params (as for `macro`).
+//
+// **`content` is empty from v3 on.** Until then it held the template as inline
+// text and widgets; Mitchell's preview comment on PR #221 (2026-09-24) made the
+// sentence one string edited in the settings panel, and the v2 → v3 step below
+// moves every stored template into `params.template`. The field stays in the
+// schema because a v2 row is parsed BEFORE it is migrated, and the write check
+// refuses a repeat that still carries content.
 export const PageRepeatNode = z.object({
   type: z.literal("repeat"),
   attrs: WidgetAttrs,
@@ -518,7 +535,142 @@ function rewriteWidgets(rewrite: WidgetRewrite): PageDocMigration {
 const migrateWidgetNames = rewriteWidgets(migrateWidgetAttrs);
 
 // ---------------------------------------------------------------------------
-// v3 onward: a field is renamed or removed (M14 field widget, answer 1)
+// v2 → v3: a repeat's sentence becomes a template param (PR #221 preview)
+// ---------------------------------------------------------------------------
+
+// The label a template widget becomes when no token can stand in for it:
+// every widget name the registry held when repeats carried widgets. Frozen
+// here, because a migration is a function of the past — no v2 template can
+// name a widget added after this step shipped.
+const V2_WIDGET_TITLES: Readonly<Record<string, string>> = {
+  cost: "What it costs",
+  count: "How many",
+  dates: "The dates",
+  hours: "Start and end times",
+  city: "The cities",
+  attribute: "One fact",
+  "day.detail": "The days in detail",
+  "city.detail": "The cities in detail",
+  "day.rows": "A line for every day",
+  "city.rows": "A line for every city",
+  "stop.rows": "A line for every stop",
+  "cost.rows": "Costs, broken down",
+  open: "What needs you",
+  "country.facts": "Know before you go",
+  "trip.strip": "Trip strip",
+  "cost.chart": "Spend by day",
+  field: "A detail of the stops",
+  "day.sun": "Sunrise and sunset",
+  "day.fromHome": "Time difference from home",
+  "day.weather": "Weather",
+};
+
+// The manifest's label for a stored field path, or `undefined` for a path it
+// does not publish.
+function manifestLabel(path: string): string | undefined {
+  for (const entry of buildAttributeManifest()) {
+    if (entry.kind === "value" && `${entry.object}.${entry.field}` === path) return entry.label;
+    if (entry.kind === "collection") {
+      const field = entry.fields.find((f) => `${entry.object}.${entry.collection}.${f.field}` === path);
+      if (field) return field.label;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The token a v2 template widget becomes in a repeat over `scope`, or `null`
+ * when none prints what it printed.
+ *
+ * Only a widget with NO filter of its own qualifies: in a v2 template an
+ * unbound widget read the line's item, so `city{}` in a sentence for every city
+ * printed that city — exactly `{name}`. `cost{kind: "booked"}` in a day's
+ * sentence printed the day's booked cost, which no day field holds, so it is a
+ * label instead. Exported for `@tc/pages`' test that every key here is one its
+ * resolver knows.
+ */
+export function v2WidgetToken(scope: RepeatScope, attrs: PageWidgetNode["attrs"]): string | null {
+  const keys = Object.keys(attrs.params);
+  const bare = keys.length === 0;
+  switch (scope) {
+    case "stop": {
+      const field = attrs.params.field;
+      if (attrs.name === "field" && keys.length === 1 && typeof field === "string" && field.startsWith("stop.")) {
+        return manifestLabel(field) === undefined ? null : field.slice("stop.".length);
+      }
+      return attrs.name === "cost" && bare ? "cost" : null;
+    }
+    case "day":
+      if (!bare) return null;
+      return attrs.name === "dates" ? "date" : attrs.name === "city" ? "cities" : attrs.name === "cost" ? "costSubtotal" : null;
+    case "city":
+      return bare && attrs.name === "city" ? "name" : null;
+  }
+}
+
+function v2WidgetLabel(attrs: PageWidgetNode["attrs"]): string {
+  const field = attrs.params.field;
+  const fromField = typeof field === "string" ? manifestLabel(field) : undefined;
+  return fromField ?? V2_WIDGET_TITLES[attrs.name] ?? "a widget";
+}
+
+// A v2 template, written as the one-line sentence that reads the same: text as
+// text (marks are formatting and go), a line break as a space, a widget as its
+// token or its label, and a node from a newer build — which printed nothing on
+// a line — as nothing.
+function v2TemplateOf(scope: RepeatScope | null, content: readonly PageInlineNode[]): string {
+  const written = content
+    .map((node) => {
+      switch (node.type) {
+        case "text":
+          return escapeSentenceText(node.text);
+        case "hardBreak":
+          return " ";
+        case "macro": {
+          const token = scope === null ? null : v2WidgetToken(scope, node.attrs);
+          return token === null ? escapeSentenceText(v2WidgetLabel(node.attrs)) : `{${token}}`;
+        }
+        default:
+          return "";
+      }
+    })
+    .join("");
+  return written.slice(0, SENTENCE_TEMPLATE_MAX);
+}
+
+// Every block, at every depth, through `rewrite`. Repeats are blocks, so one
+// can sit in a list item or a quote as well as at the top.
+function rewriteBlocks(rewrite: (node: PageNode) => PageNode): PageDocMigration {
+  const block = (node: PageNode): PageNode => {
+    const next = rewrite(node);
+    switch (next.type) {
+      case "blockquote":
+        return { ...next, content: next.content.map(block) };
+      case "bulletList":
+      case "orderedList":
+        return {
+          ...next,
+          content: next.content.map((item) =>
+            item.type === "unknown" ? item : { ...item, content: item.content.map(block) },
+          ),
+        } as PageNode;
+      default:
+        return next;
+    }
+  };
+  return (doc) => ({ ...doc, content: doc.content.map(block) });
+}
+
+// The v2 → v3 step. A repeat with no content is left as it is: it had no
+// sentence, and inventing an empty `template` would only add a key.
+const migrateRepeatTemplates = rewriteBlocks((node) => {
+  if (node.type !== "repeat" || node.content.length === 0) return node;
+  const template = v2TemplateOf(repeatScopeOf(node.attrs.name), node.content);
+  return { ...node, attrs: { ...node.attrs, params: { ...node.attrs.params, template } }, content: [] };
+});
+
+// ---------------------------------------------------------------------------
+// v4 onward: a field is renamed or removed (M14 field widget, answer 1)
 // ---------------------------------------------------------------------------
 
 /**
@@ -605,13 +757,37 @@ function fieldChangeStep(batch: readonly FieldChange[]): PageDocMigration {
         });
       }
     }
+    const template = params.template;
+    const scope = repeatScopeOf(attrs.name);
+    if (scope !== null && typeof template === "string") params.template = retokenize(batch, scope, template);
     return { ...attrs, params };
   });
 }
 
+// A repeat's sentence names fields by token, so a renamed field renames its
+// token and a removed one becomes its label as plain text — the sentence
+// version of the widget's placeholder. Rewritten only when a token moved, so a
+// sentence this batch does not touch keeps its exact spelling.
+function retokenize(batch: readonly FieldChange[], scope: RepeatScope, template: string): string {
+  const { prefix } = REPEAT_SCOPES[scope];
+  let changed = false;
+  const parts = parseSentenceTemplate(template).map((part): SentencePart => {
+    if (!("field" in part)) return part;
+    const next = applyBatch(batch, prefix + part.field);
+    if ("removed" in next) {
+      changed = true;
+      return { text: next.removed };
+    }
+    if (next.path === prefix + part.field || !next.path.startsWith(prefix)) return part;
+    changed = true;
+    return { field: next.path.slice(prefix.length) };
+  });
+  return changed ? serializeSentenceTemplate(parts) : template;
+}
+
 // The steps that come before any field change. A future step that is not a
 // field change goes here too, and the next field batch's `since` moves past it.
-const BASE_MIGRATIONS: readonly PageDocMigration[] = [migrateWidgetNames];
+const BASE_MIGRATIONS: readonly PageDocMigration[] = [migrateWidgetNames, migrateRepeatTemplates];
 
 /**
  * The migration chain for a given field-change table. The real chain is

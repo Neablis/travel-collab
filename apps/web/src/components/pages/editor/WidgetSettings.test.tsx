@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { useCallback, useRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { newPageDoc, type TripGlobals } from "@tc/contracts";
+import { newPageDoc, type PageDoc, type TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import type { Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
@@ -65,7 +65,7 @@ const doc = newPageDoc([
 // re-ran widget 1's node view, which reported "not selected", and the panel
 // closed under the person using it. Every report is resolved per microtask by
 // the screen's own rule (`winningReport`), so this is that, not a stand-in.
-function Harness({ onEditor }: { onEditor: (editor: Editor) => void }) {
+function Harness({ onEditor, value = doc }: { onEditor: (editor: Editor) => void; value?: PageDoc }) {
   const [selection, setSelection] = useState<SelectedWidget | null>(null);
   const pending = useRef<(SelectedWidget | null)[]>([]);
   const onWidgetSelected = useCallback((next: SelectedWidget | null) => {
@@ -86,7 +86,7 @@ function Harness({ onEditor }: { onEditor: (editor: Editor) => void }) {
         detail={detail}
         globals={globals}
         context={{ tripId: detail.tripId }}
-        value={doc}
+        value={value}
         onChange={() => {}}
         onEditorReady={onEditorReady}
         onWidgetSelected={onWidgetSelected}
@@ -162,5 +162,68 @@ describe("WidgetSettings — one entry per widget in the block (SPEC §26)", () 
       ),
     );
     expect(screen.getAllByTestId("widget-handle").map((h) => h.textContent)).toEqual(["▸", "▸"]);
+  });
+});
+
+// The authored repeat's panel (PR #221 preview, 2026-09-24): which collection,
+// the sentence, and the details it can print — and every write shows on the
+// page at once, because the page resolves the sentence in Editing too.
+describe("WidgetSettings for a sentence for each…", () => {
+  const repeatDoc = (name: string, params: Record<string, unknown>) =>
+    newPageDoc([{ type: "repeat", attrs: { name, params }, content: [] }]);
+
+  async function openRepeat(value: PageDoc): Promise<Editor> {
+    let editor: Editor | undefined;
+    render(<Harness onEditor={(e) => (editor = e)} value={value} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 0)));
+    await screen.findByTestId("widget-settings");
+    return editor!;
+  }
+  // eslint-disable-next-line testing-library/no-node-access -- a repeat line has no role of its own; the attribute is the handle the view puts on each line.
+  const lines = () => [...document.querySelectorAll("[data-repeat-line]")].map((line) => line.textContent);
+  const repeatAttrs = (editor: Editor) => editor.state.doc.child(0).attrs;
+
+  it("shows what it repeats for, the sentence as written, and the details in words", async () => {
+    await openRepeat(repeatDoc("city.rows", { template: "Welcome to {name}!" }));
+    const panel = within(screen.getByTestId("widget-settings"));
+    expect(panel.getByRole("heading", { name: "A sentence for each city" })).toBeTruthy();
+    expect(panel.getByRole("radio", { name: "City" }).getAttribute("aria-checked")).toBe("true");
+    expect((panel.getByRole("textbox", { name: "Sentence" }) as HTMLInputElement).value).toBe("Welcome to {name}!");
+    const details = within(panel.getByRole("group", { name: "Details of each city" })).getAllByRole("button");
+    expect(details.map((b) => b.textContent)).toEqual(["The city's name", "Which days touch this city", "How many stops are in this city"]);
+    // And the page beside it reads the sentence, not the template.
+    expect(lines()).toEqual(["Welcome to Tokyo!", "Welcome to Kyoto!"]);
+  });
+
+  it("drops a detail in at the caret, and the page follows every keystroke", async () => {
+    const editor = await openRepeat(repeatDoc("city.rows", {}));
+    const panel = within(screen.getByTestId("widget-settings"));
+    const input = panel.getByRole("textbox", { name: "Sentence" }) as HTMLInputElement;
+    await userEvent.type(input, "Welcome !");
+    expect(lines()).toEqual(["Welcome !", "Welcome !"]);
+
+    input.setSelectionRange("Welcome ".length, "Welcome ".length);
+    await userEvent.click(panel.getByRole("button", { name: "The city's name" }));
+    await waitFor(() => expect(repeatAttrs(editor).params).toEqual({ template: "Welcome {name}!" }));
+    expect(lines()).toEqual(["Welcome Tokyo!", "Welcome Kyoto!"]);
+    // The caret lands after the detail, so typing carries on from there.
+    await userEvent.keyboard(" and hello");
+    await waitFor(() => expect(repeatAttrs(editor).params).toEqual({ template: "Welcome {name} and hello!" }));
+  });
+
+  it("switches what it repeats for, keeping the sentence and dropping filters the new one does not take", async () => {
+    const editor = await openRepeat(repeatDoc("stop.rows", { kind: "booked", template: "Hi {name}" }));
+    await userEvent.click(within(screen.getByTestId("widget-settings")).getByRole("radio", { name: "City" }));
+    await waitFor(() => expect(repeatAttrs(editor)).toEqual({ name: "city.rows", params: { template: "Hi {name}" } }));
+    expect(lines()).toEqual(["Hi Tokyo", "Hi Kyoto"]);
+    // Still selected, so the panel is still up, now about cities.
+    expect(screen.getByRole("heading", { name: "A sentence for each city" })).toBeTruthy();
+  });
+
+  it("removes the sentence", async () => {
+    const editor = await openRepeat(repeatDoc("day.rows", { template: "Day {date}" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove the sentence for each day" }));
+    await waitFor(() => expect(editor.state.doc.child(0).type.name).toBe("paragraph"));
   });
 });

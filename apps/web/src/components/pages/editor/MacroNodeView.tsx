@@ -1,13 +1,11 @@
 "use client";
-import { useEffect, useId, useMemo, useRef } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import type { WidgetShape } from "@tc/contracts";
 import { getMacro } from "@tc/pages";
 import { MacroView } from "../MacroView";
 import { useMacroEditorContext } from "./MacroEditorContext";
 import type { WidgetMarkSpec } from "./widgetMarkPlugin";
-import { templateItem } from "./RepeatNodeView";
-import { useToday } from "@/lib/today";
+import { useSelectionReport } from "./useSelectionReport";
 
 // The shape a widget renders as, with the one default both readers of it must
 // agree on. `MacroNodeExtension` puts this on the DOM for the stylesheet; the
@@ -36,7 +34,7 @@ export function macroShape(name: string): WidgetShape {
 // `--color-*: initial`, so an unknown utility emits nothing and the ring fell
 // back to `currentColor` instead of the brand. Caught by the token wall
 // (`KI-2026-09-19-g`), not by a test, because no layer here can assert a paint.
-const SELECTED_RING = "ring-2 ring-brand rounded";
+export const SELECTED_RING = "ring-2 ring-brand rounded";
 
 // SPEC §26's edit-mode affordance, and the whole of what edit mode adds to the
 // document:
@@ -66,102 +64,17 @@ const EDIT_OUTLINE = "tc-widget-edit relative";
  * `updateAttributes` and said of each what its own name says. None of the above
  * is visible in the signature, which is what a docstring here is for.
  */
-export function MacroNodeView({ node, selected, editor, decorations, getPos }: ReactNodeViewProps) {
-  const { detail, context, user, globals, external, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
+export function MacroNodeView({ node, selected, editor, decorations }: ReactNodeViewProps) {
+  const { detail, context, user, globals, external, onBindDay, editing } = useMacroEditorContext();
   const name = node.attrs.name as string;
-  // **Memoised on its VALUE, not its identity.** `node.attrs.params ?? {}` is a
-  // fresh object on every render, and this feeds a `useEffect` that reports the
-  // selection upward — so an unmemoised value re-reports on every render, which
-  // re-renders the screen, which re-renders this. `PageScreen` also guards
-  // against that by value, and both are worth having: this stops the loop at
-  // the source, and the guard there stops any other reporter starting one.
-  const rawParams = node.attrs.params;
-  const paramsKey = JSON.stringify(rawParams ?? {});
-  const params = useMemo(
-    () => (rawParams ?? {}) as Record<string, unknown>,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialised value on purpose; `rawParams` is a new object every render and is what this memo exists to stabilise.
-    [paramsKey],
-  );
+  const params = useSelectionReport(selected, name, node.attrs.params, editor);
   const def = getMacro(name);
-
-  // Stable for the life of this mounted node view, and the reason the surface
-  // can tell "this widget deselected" from "a different widget selected
-  // instead". Without it, two node views racing their effects — the old one
-  // clearing as the new one sets — can clear the selection that was just made,
-  // and which one wins depends on React's effect order rather than on what the
-  // user clicked.
-  const key = useId();
-
-  // **The one report this view owes on the way out: it was selected, and now it
-  // does not exist.**
-  //
-  // Deleting the selected widget destroys this view without `selected` ever
-  // going false, so nothing else can say the selection is gone — and
-  // `PageScreen` would go on showing the settings of a widget that is no longer
-  // in the document, writing its edits back through an `onChange` closed over a
-  // dead node (CodeRabbit, PR 170).
-  //
-  // Through REFS, with `key` as the only dependency, so this runs on unmount
-  // and on nothing else. The selection effect below deliberately re-runs on
-  // every params change — a rebind is a params change — and a cleanup sharing
-  // those deps would fire a clear every time somebody used the panel, which is
-  // the bug the comment in `PageScreen` records as the second shape this went
-  // through. A remount's clear is harmless anyway: a claim beats a release in
-  // the same flush, and the remounted view claims immediately.
-  const selectedRef = useRef(selected);
-  const reporterRef = useRef(onWidgetSelected);
-  selectedRef.current = selected;
-  reporterRef.current = onWidgetSelected;
-  useEffect(
-    () => () => {
-      if (selectedRef.current) reporterRef.current?.(null, key);
-    },
-    [key],
-  );
-
-  const claimedRef = useRef(false);
-  useEffect(() => {
-    if (!editing || onWidgetSelected === undefined) return;
-    if (selected) {
-      claimedRef.current = true;
-      // The panel writes through `editor` with an attribute step
-      // (`blockWidgets.ts`), which keeps this node selected across a rebind.
-      // This used to hand up an `updateAttributes` closure, which REPLACES a
-      // leaf node, and had to re-select it in a microtask or the panel closed
-      // on the first thing you did in it.
-      onWidgetSelected({ key, name, params, editor }, key);
-      // Deliberately no cleanup that clears: see `PageScreen`, which drops the
-      // selection only when the reporting key matches. A cleanup here would run
-      // on every params change too, closing the panel the user is typing into.
-      return;
-    }
-    // **Release only what this view claimed.** A view that was never selected
-    // has nothing to give up, and saying so is not harmless: since the panel
-    // holds every widget of a sentence (§26), rebinding entry 1 changes widget
-    // 1's params and re-runs this effect while widget 2 holds the selection —
-    // and a flush holding only that "not me" closed the panel under the person
-    // using it. Found by the e2e walk for the gate sentence.
-    if (!claimedRef.current) return;
-    claimedRef.current = false;
-    onWidgetSelected(null, key);
-    // `params` is in the deps because the panel edits them: a rebind has to
-    // reach the open panel, or its selects would show the value from before the
-    // change and write it back on the next edit.
-  }, [editing, selected, key, name, params, onWidgetSelected, editor]);
 
   // The number that ties this widget to its entry in the settings panel (§26:
   // *"numbered to match the marks in the text"*). It arrives as a decoration
   // from `widgetMarkPlugin`, not from reading the document here: a node view
   // is only re-rendered when ITS node or decorations change, so a sibling
   // inserted earlier in the sentence would leave a number computed here stale.
-  // Inside a repeat's template, the widget previews the repeat's first item
-  // while Editing, so the author writes against a real line (`RepeatNodeView`).
-  // Reading hides the template and prints each line itself.
-  const today = useToday();
-  const item = editing
-    ? templateItem(editor, getPos, { trip: detail, page: context, user, globals, today, external })
-    : undefined;
-
   const mark = decorations.find((d) => typeof (d.spec as WidgetMarkSpec).widgetMark === "number")?.spec as
     | WidgetMarkSpec
     | undefined;
@@ -202,7 +115,7 @@ export function MacroNodeView({ node, selected, editor, decorations, getPos }: R
           ▸{mark?.widgetMark}
         </span>
       ) : null}
-      <MacroView detail={detail} context={context} user={user} globals={globals} external={external} name={name} params={params} onBindDay={onBindDay} editing={editing} item={item} />
+      <MacroView detail={detail} context={context} user={user} globals={globals} external={external} name={name} params={params} onBindDay={onBindDay} editing={editing} />
     </NodeViewWrapper>
   );
 }

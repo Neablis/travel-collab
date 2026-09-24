@@ -44,9 +44,10 @@ export function findWidgetError(nodes: readonly unknown[]): string | null {
     }
 
     // A repeat is judged by `insertRepeat`, for the reason a widget is judged
-    // by `insertWidget`: the door and the write check cannot disagree. Its
-    // template is inline content and falls through to the walk below, so a
-    // widget inside it is judged like any other (KI-2026-09-24-d item 3).
+    // by `insertWidget`: the door and the write check cannot disagree — its
+    // filters and its `template` both. Its sentence is that param, so content
+    // is a v2 template nobody migrated (`pageDoc.ts`, v2 → v3), and the editor
+    // could not mount it: a repeat is a leaf there.
     if (record.type === "repeat") {
       const parsed = MacroNode.shape.attrs.safeParse(record.attrs);
       if (!parsed.success) return `Invalid repeat node: ${parsed.error.message}`;
@@ -57,6 +58,10 @@ export function findWidgetError(nodes: readonly unknown[]): string | null {
           ? `Unknown repeat "${name}": only a day, stop or city collection can be repeated over.`
           : `Repeat "${name}" params failed validation: ${checked.error.message}`;
       }
+      if (Array.isArray(record.content) && record.content.length > 0) {
+        return `Repeat "${name}" carries content; its sentence belongs in its template param.`;
+      }
+      continue;
     }
 
     const nested = record.content;

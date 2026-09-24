@@ -73,6 +73,11 @@ them.
 6. **The authored repeat is still wanted** alongside field columns. That is the dashed rail, a row template
    the author writes in the editor, and the empty case (link 6, box 9). Catalogue row 12's *"Edit the
    wording"* therefore needs a design. The build proposes one and walks it on the preview.
+   **Reshaped the same day by Mitchell's PR #221 preview comment:** one widget, *"A sentence
+   for each…"*, whose collection (day / stop / city) is an input in its settings; the sentence is
+   a template string set in the sidebar with the item's value dropped in as a token
+   (`Welcome to {name}`); and Editing renders the resolved lines exactly as Reading does —
+   his standing rule that every widget shows in Editing as it will read. See the repeater gate box.
 7. **Weather after the trip shows "typical for those dates", labelled as such.** The free climate source
    has no observations, so there are three real modes plus a labelled fallback.
 
@@ -800,31 +805,34 @@ milestone opens:**
       reload. It was run red first: an aggregate rebind fails it at the second
       widget (`Received string: "▸2Tokyo"`). ci-like green (27/27 across
       `m14-notebook-widgets` and `m14-mobile-notebook`).
-- [x] A repeater renders one line per day/stop/city with chips filled from each
+- [x] A repeater renders one line per day/stop/city, each filled from its own
       item, and renders its empty case the way the ADR says it should.
-      *(**Ticked 2026-09-24** (T13), for the AUTHORED repeat — Mitchell's call 6.
-      Three presets, *"A sentence for every day / stop / city"*, insert a `repeat`
-      node over `day.rows` / `stop.rows` / `city.rows`'s own selection; its
-      content is the sentence. **Reading** prints it once per item, every widget
-      in it reading that item where it was left unbound (`ItemScope` through
-      `narrow`); **Editing** shows it once inside a dashed rail labelled
-      *"For every day · 2 days"*, accented when it resolves and neutral when
-      empty or waiting, with its widgets previewing the first item. **Empty:**
-      Reading prints the rows widget's `emptyText`; Editing keeps rail and
-      template (ADR-035 as built, see its decision 4 note). **"Edit the wording"
-      is proposed as editing the template in place** — no dialog, no panel
-      entry; still to be walked on the preview with Mitchell. Evidence: the
-      walk *"a sentence for every day is written once and reads one line per
-      day"* types "Day ", inserts The dates, types " — ", inserts Which cities,
-      and reads `Day Jun 1, 2027 — Tokyo` / `Day Jun 2, 2027 — Kyoto` after a
-      reload; with the item dropped from Reading lines it fails on
-      `Received string: "Day Jun 1, 2027 – Jun 2, 2027 — Tokyo – Kyoto"`.
-      ci-like green, 24/24 in `m14-notebook-widgets`. Stop and city lines,
-      and the empty case per mode, are `repeat.test.ts`,
-      `RepeatNodeView.test.tsx` and `noRawSyntax.test.tsx` (3 + 6 + 2 lines on
-      one page of repeats). **Not built:** a settings entry for a repeat's own
-      filters (they are set by the preset or the phone's bind step, and are
-      stored and honoured), and repeat insertion by the assistant.)*
+      *(**Ticked 2026-09-24** (T13), for the AUTHORED repeat — Mitchell's call 6;
+      **reworded and re-evidenced the same day** for the design his PR #221
+      preview comment asked for.) ONE preset, *"A sentence for each…"*, inserts a
+      `repeat` node over `day.rows` / `stop.rows` / `city.rows`'s own selection,
+      selected, so its settings open: **what it repeats for** (Day / Stop / City),
+      **the sentence** as one line of text (`params.template`, at most 500
+      characters, `{key}` a field of the item, `{{`/`}}` literal braces, anything
+      else literal), and **the details** as buttons labelled in words that drop a
+      token in at the caret. **Both modes print the same lines** (Mitchell's rule
+      that Editing shows a widget as it will read); Editing adds only the dashed
+      rail *"For every city · 2 cities"*, the ring and the click to select. The
+      sentence is parsed once and each value printed as React text, never re-read
+      (`sentence.test.ts`: a stop named `<img …>`, `{city}`, `${city}`, `}}{{`, a
+      token-valued name, 10k characters). **Empty:** an unwritten sentence reads
+      as nothing in Reading and as a prompt in Editing; an empty collection reads
+      as the rows widget's `emptyText` in both. **Widgets inside a line are gone**
+      — `weather`, `sun` and `fromHome` per line are not expressible; a field
+      token covers the sentence case (ADR-035's 2026-09-24 amendment). Evidence:
+      the walk *"a sentence for each city is written in its settings and reads
+      the same in Editing and Reading"* picks City, fills `Welcome to !`, drops
+      *The city's name* in before the `!`, and reads `Welcome to Tokyo!` /
+      `Welcome to Kyoto!` in Editing, in Reading and after a reload; with Editing's
+      lines withheld it fails on `Received: []`. ci-like green, 32/32 across
+      `m14-notebook-widgets` and `m14-mobile-notebook`. **Not built:** a settings
+      control for a repeat's own filters (kept on a scope change where the new
+      collection takes them), and repeat insertion by the assistant.
 
       **The city colour scale reaches the notebook** (2026-09-04, second preview
       round): *"The every day at a glance and every city at a glance are not
@@ -1040,21 +1048,20 @@ in this repo's own hands.
    selected block, numbered to match the handles in the text, and a **Remove**
    per entry. **Tag filters** were already there as the `tags` bind select of any
    widget that declares the dimension; the design's chip row for them was not
-   built. **Wording is still open, and it is not a panel ticket.** The design
-   shows it only for a block with authored wording (`hasWording: !!b.editRow`),
-   which means the repeat template, and that is item 3 below. When that template
-   exists, its Wording button belongs in the entry beside Remove.
+   built. **Wording closed with item 3:** the design shows it only for a block
+   with authored wording (`hasWording: !!b.editRow`), which is the repeat's
+   sentence, and a selected repeat's panel is where that sentence is written.
 3. **§18's author-supplied repeat template is the one real catalogue hole left.**
    The repeat shape renders resolver-supplied rows, not an authored sentence.
    That needs a macro param schema for the template, and it is the *"one new
    primitive"* §7 named.
 
-   **Built 2026-09-24 (T13), and not as a param schema.** ADR-035 decision 4
-   already said the template is document content, so it is a `repeat` node
-   whose inline content is the sentence, over a rows widget's selection — see
-   the repeater gate box. The dashed rail is in; the Wording button in the
-   settings entry is not, because the design this build proposes has no
-   wording surface to open: the wording is edited where it sits.
+   **Built 2026-09-24 (T13) as document content, then rebuilt the same day as a
+   param** after Mitchell's PR #221 preview comment. It is still a `repeat` node
+   over a rows widget's selection, but its sentence is `params.template`, a
+   string with `{field}` tokens, and the settings panel is its Wording surface
+   (`RepeatSettings`: collection, sentence, click-to-insert details). See the
+   repeater gate box.
 4. **`count{of: "day" | "city"}` has no preset**, so *how many days* and *how
    many cities* are reachable only by the assistant through `primitiveCatalog()`
    — `KI-20260905-i` finding F-B05. Two preset rows and a generalised guard.

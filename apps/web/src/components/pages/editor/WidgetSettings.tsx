@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { WidgetBindControls, bindableInputs } from "./widgetBind";
-import { rebindWidget, removeWidget, selectedBlock, type BlockWidget } from "./blockWidgets";
+import { rebindWidget, removeWidget, selectedBlock, selectedRepeat, type BlockWidget } from "./blockWidgets";
+import { RepeatSettings } from "./RepeatSettings";
 import type { SelectedWidget } from "./MacroEditorContext";
 
 // SPEC §26 — **where a widget's settings live, now that they are not in the
@@ -34,11 +35,11 @@ import type { SelectedWidget } from "./MacroEditorContext";
 // in the document carries a bare ▸ and the name is its tooltip and this
 // panel's title.
 //
-// **No Wording control.** §26 lists it, and the design shows it only for a
-// block with authored wording (`hasWording: !!b.editRow`) — the repeat
-// template, which M14's 2026-09-19 findings item 3 records as not built. No
-// widget this panel can hold has wording to edit, and a button that cannot do
-// anything is the purposeless UI project rule 2 forbids.
+// **The Wording control is a repeat's, and it is a panel of its own.** §26
+// shows it only for a block with authored wording (`hasWording: !!b.editRow`),
+// which is the repeat's sentence — so a selected repeat gets `RepeatSettings`
+// (its collection, its sentence, the details it can print), and a widget gets
+// the entries below, which have no wording to edit.
 export function WidgetSettings({
   selection,
   detail,
@@ -55,6 +56,8 @@ export function WidgetSettings({
   // edit. Compared by value (`useEditorState`'s default), so a keystroke
   // elsewhere in the page does not re-render the panel.
   const block = useEditorState({ editor, selector: ({ editor: e }) => selectedBlock(e.state) });
+  const repeat = useEditorState({ editor, selector: ({ editor: e }) => selectedRepeat(e.state) });
+  if (repeat !== null) return <RepeatSettings editor={editor} repeat={repeat} />;
   // A frame where the report has landed and the editor's selection has already
   // moved on (the selected widget was just removed). The screen closes the
   // panel on the next flush; rendering nothing until then beats rendering
