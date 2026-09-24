@@ -5,7 +5,7 @@ import { chip, ghost, inlineOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { costOfStops, narrow, stopsInCity, type Narrowed } from "../../select";
-import { formatMoney, formatDate } from "../../format";
+import { formatMoney, formatDate, toClockRange } from "../../format";
 
 // The `single` primitives (ADR-039 decision 1): a shape that **collapses** its
 // selection to one value — a sum, a span, a count, a joined list.
@@ -17,7 +17,7 @@ import { formatMoney, formatDate } from "../../format";
 //
 // **Every value is formatted in `resolve` and rendered as a chip**, matching the
 // widgets already in the registry: `cost.day` resolves to `"$45.00"` and
-// `day.window` to `"09:00 – 21:30"`. The one that does not is `city` below, and
+// `day.window` to `"9 am – 9:30 pm"`. The one that does not is `city` below, and
 // it is the same exception `day.city` already makes — a LIST whose members each
 // carry the trip's own colour cannot be one string, because one string can only
 // wear one colour.
@@ -223,6 +223,7 @@ type HoursParams = z.infer<typeof HoursParams>;
  *
  * `HH:mm` is zero-padded and 24-hour, so string comparison IS time comparison —
  * the property `TimeWindow`'s own `start < end` refinement already relies on.
+ * Only the result is printed 12-hour (`toClockRange`), after the comparing.
  *
  * No `person` dimension: this is stop-level, and `LEGAL_FILTERS.stop` permits it,
  * but a window over "whose stops" is a question no field can answer yet and
@@ -235,7 +236,7 @@ export const hours: MacroDef<HoursParams, string> = {
   description:
     "When a selection of stops starts and ends, from their times. Unfiltered it spans the whole trip; filter it to a day for that day's window.",
   emptyText: "no times set",
-  preview: "09:00 – 21:30",
+  preview: "9 am – 9:30 pm",
   resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
@@ -248,7 +249,7 @@ export const hours: MacroDef<HoursParams, string> = {
       if (first === null || window.start < first) first = window.start;
       if (last === null || window.end > last) last = window.end;
     }
-    return first === null || last === null ? empty() : ok(`${first} – ${last}`);
+    return first === null || last === null ? empty() : ok(toClockRange(first, last));
   },
   render: (value) => inlineOf(chip("value", value)),
 };

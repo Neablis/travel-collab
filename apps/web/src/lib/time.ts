@@ -31,54 +31,16 @@ export function toTimeString(minutes: number): string {
   return `${h}:${m}`;
 }
 
-// The design's copy renders clock times in 12-hour form with the minutes
-// dropped on the hour ("10:30 am", "1 pm"), while the timeline's own time
-// column still shows the raw "HH:MM" the contract stores. There was no
-// existing 12-hour formatter anywhere in the app (grep for `formatTime`,
-// `toLocaleTimeString`, `hour12` — 2026-08-23, M10 Phase 5), so this is the
-// first and only one: put new prose-facing time copy through it rather than
-// hand-assembling a second variant. Not Intl.DateTimeFormat, which needs a
-// Date (and therefore a date and a zone) to render a bare wall-clock time
-// and would emit "1:00 PM" rather than the design's "1 pm".
-export function toClockLabel(time: string): string {
-  const minutes = toMinutes(time);
-  const hours24 = Math.floor(minutes / 60) % 24;
-  const mins = minutes % 60;
-  const suffix = hours24 < 12 ? "am" : "pm";
-  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
-  return mins === 0 ? `${hours12} ${suffix}` : `${hours12}:${mins.toString().padStart(2, "0")} ${suffix}`;
-}
-
-/**
- * A start–end pair as one label: "2:30 pm–4 pm".
- *
- * Mitchell, preview feedback on PR #55: "this is still military time, lets
- * focus on local time if thats possible, so if this is japan, the first time
- * of the day will be 2pm -4pm". Every display surface renders through this or
- * `toClockLabel` now — the board card, the timeline rail, the rack card and
- * the assistant's ghost proposal were each hand-assembling `${start}–${end}`
- * from the raw 24-hour strings, which is precisely the "second variant"
- * toClockLabel's own note above asks callers not to write.
- *
- * Storage is untouched and stays 24-hour `HH:MM`: it is what the domain
- * compares, what the contracts carry, and what `<input type="time">` requires.
- * This is a rendering concern only — do not route the editor's inputs through
- * it, or they will stop accepting input.
- *
- * "Local time" in the sense meant here is the trip's own wall clock, which is
- * what these strings have always been — there is no zone conversion happening,
- * and none is wanted: 14:30 in Tokyo is 2:30 pm in Tokyo regardless of where
- * the person reading the screen happens to be.
- */
-export function toClockRange(start: string, end: string): string {
-  // Spaces around the en dash (Mitchell, walking the #71 preview): "9 am–5 pm"
-  // ran the meridiem into the dash. Fixed in the one formatter rather than at
-  // the activity card he was looking at, so all eight call sites move together
-  // — the same reasoning `formatDuration` records below for its own spacing.
-  // `OverlapWarning` already hand-wrote the spaced form, so this makes the
-  // codebase agree with itself rather than introducing a new convention.
-  return `${toClockLabel(start)} – ${toClockLabel(end)}`;
-}
+// The house 12-hour clock ("10:30 am", "1 pm", and "2:30 pm – 4 pm" for a
+// range) lives in `@tc/pages` now, so a notebook widget prints the same clock
+// as the board: Mitchell, on the PR #221 preview's sunrise widget, *"All times
+// should be in AM/PM not military time"* — the widgets were printing stored
+// `HH:mm` because the one formatter sat here, where a pure package cannot
+// reach. Re-exported so every caller of `@/lib/time` is untouched. The board
+// moved first (PR #55: "this is still military time"). Storage stays 24-hour;
+// do not route an editor's
+// `<input type="time">` through these, or it will stop accepting input.
+export { toClockLabel, toClockRange } from "@tc/pages";
 
 // Hoisted verbatim out of components/lenses/TimelineLens.tsx (where it was
 // file-local) for the same reason toMinutes moved here: the overlap warning's

@@ -11,7 +11,7 @@ import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, narrow, stopsInCity, type SelectedStop } from "../../select";
-import { formatDate, formatMoney } from "../../format";
+import { formatDate, formatMoney, toClockRange } from "../../format";
 
 // The `block` primitives (ADR-039 decision 1): a shape that **details** its
 // selection — one member renders one card, many render one card per member
@@ -39,14 +39,15 @@ import { formatDate, formatMoney } from "../../format";
  * counted as midnight, and a day of nothing but untimed stops has no window at
  * all and says so with `null`.
  *
- * `HH:mm` is zero-padded and 24-hour, so string comparison IS time comparison.
+ * `HH:mm` is zero-padded and 24-hour, so string comparison IS time comparison;
+ * only the answer is printed 12-hour.
  */
 function windowOf(stops: readonly SelectedStop[]): string | null {
   const windows = stops.map(({ activity }) => activity.timeWindow).filter((w) => w != null);
   if (windows.length === 0) return null;
   const start = windows.reduce((a, w) => (w.start < a ? w.start : a), windows[0]!.start);
   const end = windows.reduce((a, w) => (w.end > a ? w.end : a), windows[0]!.end);
-  return `${start}–${end}`;
+  return toClockRange(start, end);
 }
 
 function dayCard(
@@ -81,7 +82,7 @@ function dayCard(
     date: day.date === null ? null : formatDate(day.date),
     activities: stops.map(({ activity }) => ({
       title: activity.title,
-      timeWindow: activity.timeWindow ? `${activity.timeWindow.start}–${activity.timeWindow.end}` : null,
+      timeWindow: activity.timeWindow ? toClockRange(activity.timeWindow.start, activity.timeWindow.end) : null,
       cost: activity.cost ? formatMoney(activity.cost.amountMinor, trip.currency) : null,
     })),
   };

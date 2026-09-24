@@ -63,14 +63,14 @@ describe("day.sun", () => {
     const [tokyo] = sun(contextOf(trip()));
     expect(tokyo![0]).toBe("Day 1");
     expect(tokyo![1]).toBe("Tokyo");
-    expect(tokyo![2]).toMatch(/^sunrise 04:2[4-7]$/);
-    expect(tokyo![3]).toMatch(/^sunset (18:5[89]|19:0[0-2])$/);
-    expect(tokyo![4]).toMatch(/^golden hour 04:2\d–05:0\d and 18:2\d–(18:5\d|19:0\d)$/);
+    expect(tokyo![2]).toMatch(/^sunrise 4:2[4-7] am$/);
+    expect(tokyo![3]).toMatch(/^sunset (6:5[89] pm|7 pm|7:0[12] pm)$/);
+    expect(tokyo![4]).toMatch(/^golden hour 4:2\d am – 5(:0\d)? am and 6:2\d pm – (6:5\d pm|7 pm|7:0\d pm)$/);
   });
 
   it("says so when a sunset falls after midnight, rather than printing it as the morning's", () => {
     const [, reykjavik] = sun(contextOf(trip()));
-    expect(reykjavik![3]).toMatch(/^sunset 00:0\d \(next day\)$/);
+    expect(reykjavik![3]).toMatch(/^sunset 12(:0\d)? am \(next day\)$/);
   });
 
   // West of 180° on UTC+13: the day's own sun, never the next day's marked
@@ -78,8 +78,8 @@ describe("day.sun", () => {
   it("gives Apia that day's sunrise, not the next morning's", () => {
     const apia = setup([{ date: "2027-01-15", city: "Apia", place: { lat: -13.8333, lng: -171.7667 }, zone: "Pacific/Apia" }]);
     const [row] = sun(contextOf(apia));
-    expect(row![2]).toMatch(/^sunrise 06:(09|1[0-3])$/);
-    expect(row![3]).toMatch(/^sunset (19:0[0-4])$/);
+    expect(row![2]).toMatch(/^sunrise 6:(09|1[0-3]) am$/);
+    expect(row![3]).toMatch(/^sunset (7 pm|7:0[1-4] pm)$/);
   });
 
   it("leaves out a day with no located stop, and is empty when that is every day", () => {

@@ -5,7 +5,7 @@ import { chip, rowCity, rowLabel, rowValue, rowsOf, text } from "../../registry-
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } from "../../select";
-import { formatMoney, formatDate } from "../../format";
+import { formatMoney, formatDate, toClockRange } from "../../format";
 import { needsBooking } from "../../needsBooking";
 import { fieldAt, formatStopField } from "../../fields";
 
@@ -266,7 +266,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     const lineOf = ({ activity }: SelectedStop): RepeatRow => ({
       lead: rowLabel(activity.title),
       cells: [
-        activity.timeWindow ? [rowValue(`${activity.timeWindow.start} – ${activity.timeWindow.end}`)] : [],
+        activity.timeWindow ? [rowValue(toClockRange(activity.timeWindow.start, activity.timeWindow.end))] : [],
         activity.cost ? [rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency))] : [],
         ...columns.map((choice) => {
           const value = formatStopField(choice, [activity], kindCtx);

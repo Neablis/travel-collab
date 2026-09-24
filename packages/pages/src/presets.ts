@@ -148,7 +148,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     // The thing he expected already exists and is that neighbour, which is why
     // this is a rename rather than a new widget: `dates` answers in calendar
     // dates ("Fri 25 Sep – Sun 4 Oct") and `hours` answers in clock times
-    // ("09:00 – 21:30"). Naming the unit is what tells them apart, and the
+    // ("9 am – 9:30 pm"). Naming the unit is what tells them apart, and the
     // preview alone did not — it was already on the row he misread.
     params: {},
     title: "Start and end times",

@@ -8,6 +8,7 @@ import { narrow, pinnedCity } from "../../select";
 import { renderRows } from "./rows";
 import { formatKind } from "../../kinds";
 import { clockIn, isKnownZone, noonIn, offsetMinutes } from "../../clock";
+import { toClockLabel } from "../../format";
 import { sunEvents, type SunTime } from "../../sun";
 
 // The two clock widgets of M14 link 11 (widget brainstorm tier B): the sun on a
@@ -53,15 +54,16 @@ function locatedDay(globals: TripGlobals, index: number, city: string | undefine
 // ---------------------------------------------------------------------------
 
 /**
- * An instant as the day's local clock, marked when it falls on another date —
- * Reykjavik's June sunset is at 00:03 the next morning, and printed bare it
- * would read as a sunset before the sunrise.
+ * An instant as the day's local clock, in the house 12-hour form, marked when
+ * it falls on another date — Reykjavik's June sunset is at 12:03 am the next
+ * morning, and printed bare it would read as a sunset before the sunrise.
  */
 function clockOnDay(instant: number, zone: string, date: string): string {
   const local = clockIn(zone, instant);
-  if (local.date > date) return `${local.time} (next day)`;
-  if (local.date < date) return `${local.time} (day before)`;
-  return local.time;
+  const label = toClockLabel(local.time);
+  if (local.date > date) return `${label} (next day)`;
+  if (local.date < date) return `${label} (day before)`;
+  return label;
 }
 
 /**
@@ -78,10 +80,10 @@ function goldenHour(sun: ReturnType<typeof sunEvents>, clock: (t: number) => str
   }
   const parts: string[] = [];
   if (typeof morningEnd === "number") {
-    parts.push(typeof sunrise === "number" ? `${clock(sunrise)}–${clock(morningEnd)}` : `until ${clock(morningEnd)}`);
+    parts.push(typeof sunrise === "number" ? `${clock(sunrise)} – ${clock(morningEnd)}` : `until ${clock(morningEnd)}`);
   }
   if (typeof eveningStart === "number") {
-    parts.push(typeof sunset === "number" ? `${clock(eveningStart)}–${clock(sunset)}` : `from ${clock(eveningStart)}`);
+    parts.push(typeof sunset === "number" ? `${clock(eveningStart)} – ${clock(sunset)}` : `from ${clock(eveningStart)}`);
   }
   return parts.length === 0 ? [] : [rowValue(`golden hour ${parts.join(" and ")}`)];
 }
@@ -114,7 +116,7 @@ export const daySun: MacroDef<TimeParams, RepeatPayload> = {
     "Sunrise, sunset and the golden hour for each selected day, in that day's local time, at its first stop with a place. Filter it to a day for that day's sun.",
   emptyText: "add a stop with a place to see this",
   // Fixed, never computed (ADR-037 decision 5).
-  preview: "sunrise 04:25 · sunset 19:00 · golden hour 18:22–19:00",
+  preview: "sunrise 4:25 am · sunset 7 pm · golden hour 6:22 pm – 7 pm",
   resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);

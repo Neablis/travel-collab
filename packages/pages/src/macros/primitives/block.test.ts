@@ -51,11 +51,11 @@ describe("day.detail", () => {
           // `ItineraryDayPayload` for why a filtered card and a whole-day total
           // must not be printed as the same fact.
           cities: ["Rome"],
-          window: "09:00–13:00",
+          window: "9 am – 1 pm",
           cost: expect.any(String),
           activities: [
-            { title: "Colosseum", timeWindow: "09:00–10:00", cost: expect.any(String) },
-            { title: "Lunch", timeWindow: "12:00–13:00", cost: expect.any(String) },
+            { title: "Colosseum", timeWindow: "9 am – 10 am", cost: expect.any(String) },
+            { title: "Lunch", timeWindow: "12 pm – 1 pm", cost: expect.any(String) },
           ],
         },
       },

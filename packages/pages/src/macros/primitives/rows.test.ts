@@ -154,7 +154,7 @@ describe("stop.rows", () => {
     const ctx = contextOf(fixture);
     const cost = formatMoney(fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor, "USD");
     expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "booked" })).toEqual([
-      `Colosseum 09:00 – 10:00 ${cost}`,
+      `Colosseum 9 am – 10 am ${cost}`,
     ]);
   });
 
@@ -277,9 +277,9 @@ describe("stop.rows", () => {
         return formatMoney(amountMinor, currency);
       };
       expect(cellsOf(ctx, "stop.rows", params)).toEqual([
-        ["09:00 – 10:00", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "Booked", "Ticketed"],
+        ["9 am – 10 am", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "Booked", "Ticketed"],
         // Lunch has no place: its cell stays, empty, so the column stays one.
-        ["12:00 – 13:00", cost(fixture.ids.s1), "", "Planned", "Meal"],
+        ["12 pm – 1 pm", cost(fixture.ids.s1), "", "Planned", "Meal"],
       ]);
       expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Place", "Status", "Tags"]);
     });

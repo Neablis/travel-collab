@@ -189,12 +189,26 @@ describe("hours", () => {
     // so the trip's window is the train's start and end. A widget reading the
     // first and last stop of the list would answer 09:00 – 13:00.
     const wide = renderMacro(ctx, "hours", {});
-    expect(wide.status === "ok" && wide.rendered.kind === "inline" && wide.rendered.segs[0]!.text).toBe("06:00 – 14:00");
+    expect(wide.status === "ok" && wide.rendered.kind === "inline" && wide.rendered.segs[0]!.text).toBe("6 am – 2 pm");
     // What `day.window` answered, for a filtered day: day 1 runs 09:00–13:00.
     const day1 = renderMacro(ctx, "hours", { day: { kind: "index", index: 0 } });
     expect(day1.status === "ok" && day1.rendered.kind === "inline" && day1.rendered.segs).toEqual([
-      { kind: "chip", name: "value", text: "09:00 – 13:00" },
+      { kind: "chip", name: "value", text: "9 am – 1 pm" },
     ]);
+  });
+
+  // Stored `HH:mm` is compared as a string and printed in the house 12-hour
+  // form (Mitchell, PR #221 preview: "All times should be in AM/PM not
+  // military time"). Midnight is where a naive `h % 12` prints "0".
+  it("prints the window in 12-hour time, midnight and odd minutes included", () => {
+    const fixture = selectionTrip();
+    const s0 = fixture.trip.days[0]!.activityIds[0]!;
+    fixture.trip.activities[s0] = { ...fixture.trip.activities[s0]!, timeWindow: { start: "00:00", end: "09:05" } };
+    const day1 = renderMacro(contextOf(fixture), "hours", { day: { kind: "index", index: 0 } });
+    expect(day1.status === "ok" && day1.rendered.kind === "inline" && day1.rendered.segs[0]!.text).toBe("12 am – 1 pm");
+    fixture.trip.activities[fixture.trip.days[0]!.activityIds[1]!]!.timeWindow = null;
+    const early = renderMacro(contextOf(fixture), "hours", { day: { kind: "index", index: 0 } });
+    expect(early.status === "ok" && early.rendered.kind === "inline" && early.rendered.segs[0]!.text).toBe("12 am – 9:05 am");
   });
 
   it("is empty when nothing selected carries a time", () => {
