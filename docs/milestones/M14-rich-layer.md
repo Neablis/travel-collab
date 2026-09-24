@@ -770,7 +770,7 @@ That is convergent, not drift, and **the handoff owes the reconciliation.**
 
 ## Parked 2026-09-24 — notebook and widget entries with no owner
 
-A KI pass on 2026-09-24 found seven open entries about the notebook, its widgets
+A KI pass on 2026-09-24 found seven open entries (and filed an eighth) about the notebook, its widgets
 or its history that named no milestone. They are this milestone's surface, so
 they are parked here. **One is a gate box already** (KI-2026-09-05-h — *"Adding a
 filter dimension cannot be silently ignored"*); the rest are **carried, not
@@ -785,3 +785,4 @@ gating**. Each entry's own **Milestone:** line points back here.
 | KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
 | KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |
 | KI-2026-09-22-d | An open notebook editor does not show a co-traveller's edit, deliberately, until it can do so safely | carried |
+| KI-2026-09-24-d | The page write check (KI-2026-09-05-g, fixed 2026-09-24) leaves pre-fix wrapped rows unrepaired and `repeat` nodes unchecked; a stored bad widget now blocks autosave | carried |
