@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WIDGET_NAME_MIGRATION, parsePageDoc } from "@tc/contracts";
 import { PRESETS, getPreset, insertPreset, presetCatalog } from "./presets";
 import { insertWidget } from "./insert";
-import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
+import { MACRO_NAMES, getMacro, primitiveCatalog, renderMacro } from "./registry";
 import type { WidgetContext } from "./registry-types";
 import { selectionTrip } from "./test-support/selectionTrip";
 
@@ -54,6 +54,45 @@ describe("the preset table", () => {
     // preset is code nobody can run, which is the shape of KI-2026-09-02-d.
     const reached = new Set(PRESETS.map((p) => p.widget));
     expect([...reached].sort()).toEqual([...MACRO_NAMES].sort());
+  });
+
+  it("reaches every value of every non-filter param, so no choice is AI-only", () => {
+    // KI-2026-09-05-i item 1: `count{of: "city"}` had no preset, so "how many
+    // cities" was code only the assistant could reach — the widget-level check
+    // above passed because `count` itself had a row. Same shape as
+    // KI-2026-09-02-d, one level down: every VALUE, not just every widget.
+    //
+    // A value is reached when a preset sets it, or when a preset leaves the
+    // param out and renders exactly what setting it renders — `count` with no
+    // `of` counts stops, and that is proved here by rendering rather than
+    // declared in a second list.
+    //
+    // **`field` inputs are exempt.** Their vocabulary is the manifest, dozens
+    // of fields that grow whenever one is annotated, and the widget's field
+    // picker is how a person reaches each one; a preset per field would be the
+    // hand-maintained list the manifest exists to replace.
+    const ctx = contextOf(selectionTrip());
+    const reached: string[] = [];
+    for (const entry of primitiveCatalog()) {
+      const fieldInputs = new Set(entry.inputs.filter((i) => i.type === "field").map((i) => i.name));
+      const presets = PRESETS.filter((p) => p.widget === entry.name);
+      for (const [key, values] of Object.entries(entry.params)) {
+        if (values === null || fieldInputs.has(key)) continue;
+        for (const value of values) {
+          const bySetting = presets.some((p) => p.params[key] === value);
+          const byDefault = presets.some(
+            (p) =>
+              !(key in p.params) &&
+              JSON.stringify(renderMacro(ctx, entry.name, p.params)) ===
+                JSON.stringify(renderMacro(ctx, entry.name, { ...p.params, [key]: value })),
+          );
+          expect(bySetting || byDefault, `${entry.name}{${key}: "${value}"} has no preset`).toBe(true);
+          reached.push(`${entry.name}.${key}.${value}`);
+        }
+      }
+    }
+    // Non-vacuous: the three enums this was written against are all swept.
+    expect(reached).toEqual(expect.arrayContaining(["count.of.city", "attribute.field.trip.name", "stop.rows.only.needsBooking"]));
   });
 
   it("has a unique id per row, since the id is what the picker keys on", () => {
