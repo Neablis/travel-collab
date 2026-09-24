@@ -13,7 +13,7 @@ import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
-import { NodeSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { PageEditor, sameDocument } from "@/components/pages/editor/PageEditor";
 import { insertRepeatAt, repeatAt } from "@/components/pages/editor/RepeatNodeExtension";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
@@ -292,6 +292,28 @@ export function PageScreen({
       });
     });
   }, []);
+  // **A click anywhere but the widget or its settings deselects it** (Mitchell,
+  // PR 221 preview: *"Selecting anywhere other than the widget or the widget
+  // sidebar editor should deselect the widget"*). A widget is selected as a
+  // ProseMirror node selection, and a click outside the editor leaves that
+  // selection where it was, so the panel stayed open until a free spot in the
+  // prose was clicked. Clicks inside the editor are ProseMirror's own; the
+  // settings column, and the popovers and sheet its controls open (portalled
+  // to the body), keep the selection, because they are how it is changed.
+  useEffect(() => {
+    if (!editing || editor === null) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || editor.isDestroyed) return;
+      if (editor.view.dom.contains(target)) return;
+      if (target.closest('[data-widget-panel], [role="dialog"], [data-radix-popper-content-wrapper]')) return;
+      const { selection, doc, tr } = editor.state;
+      if (!(selection instanceof NodeSelection)) return;
+      editor.view.dispatch(tr.setSelection(TextSelection.near(doc.resolve(selection.to))));
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [editing, editor]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   // The verdict on the document AS LOADED, taken once. It is deliberately not
@@ -1138,6 +1160,7 @@ export function PageScreen({
           back link plus two buttons does not wrap at 768px and up. */}
       {editing && !isPhone ? (
         <aside
+          data-widget-panel
           className="sticky top-29 w-80 shrink-0"
           aria-label={selectedWidget === null ? "Insert a widget" : "Widget settings"}
         >

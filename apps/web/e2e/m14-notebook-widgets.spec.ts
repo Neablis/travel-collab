@@ -1860,3 +1860,23 @@ test("the weather table heads its columns and fits the notebook column without s
   const overflow = await table.evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(overflow, "the weather table scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
 });
+
+// Mitchell, on the PR 221 preview: *"Selecting anywhere other than the widget or
+// the widget sidebar editor should deselect the widget. Right now you need to
+// select a free spot in notebook to make it deselect."* A click in the settings
+// column is how the widget is changed, so it keeps the selection; a click
+// anywhere else outside the editor lets it go and the column returns to the rail.
+test("a click outside the widget and its settings deselects it", async ({ page }) => {
+  await tripWithTwoDays(page);
+  await openSeededPage(page);
+  await insertFromList(page, /What it costs/);
+  await expect(settingsPanel(page)).toBeVisible();
+
+  await settingsPanel(page).click({ position: { x: 8, y: 8 } });
+  await expect(settingsPanel(page)).toBeVisible();
+
+  // The page's left gutter: outside the editor, outside the column.
+  await page.mouse.click(4, 400);
+  await expect(settingsPanel(page)).toHaveCount(0);
+  await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeVisible();
+});
