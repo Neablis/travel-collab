@@ -74,8 +74,11 @@ export type CommitSession = (
  * names none, so whichever lands second, the older document is never the one
  * kept (`expectedUpdatedAt`). Found by CodeRabbit on PR #222. The other way
  * round, an ordinary commit waits for a keepalive still in flight (the tab came
- * back before its hidden-page write answered), and a keepalive passing another
- * keepalive is `overtaking` too (PR #226).
+ * back before its hidden-page write answered). A keepalive cannot pass another
+ * keepalive either: both would name no revision, and the older could land
+ * last. It is held until the first answers and then sent, and `hold` is told
+ * its document at once, so a page that goes before that still has it as a
+ * draft (CodeRabbit, PR #226).
  *
  * **Only the latest commit started may act on its result.** An older one can
  * still answer after a newer one (past a keepalive), and what it says is
@@ -84,11 +87,14 @@ export type CommitSession = (
 export function useEditSession(
   editing: boolean,
   commit: CommitSession,
+  hold?: (doc: PageDoc) => void,
 ): { change: (doc: PageDoc) => void; flush: () => void; failed: boolean } {
   const pending = useRef<{ doc: PageDoc; commit: CommitSession } | null>(null);
   const idle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commitRef = useRef(commit);
   commitRef.current = commit;
+  const holdRef = useRef(hold);
+  holdRef.current = hold;
   const mounted = useRef(true);
   const [failed, setFailed] = useState(false);
   // Which commit is the latest started, and whether an ordinary one is in
@@ -101,6 +107,8 @@ export function useEditSession(
   // write has answered, and a commit racing it names the revision it is about
   // to move (CodeRabbit, PR #226). A count: each hide sends one.
   const keepalivesInFlight = useRef(0);
+  // A keepalive held behind one still in flight (see "at most one" above).
+  const keepaliveQueued = useRef(false);
 
   const settle = useCallback((keepalive: boolean) => {
     if (idle.current !== null) clearTimeout(idle.current);
@@ -110,11 +118,17 @@ export function useEditSession(
       queued.current = true;
       return;
     }
+    if (keepalive && keepalivesInFlight.current > 0) {
+      if (pending.current === null) return;
+      holdRef.current?.(pending.current.doc);
+      keepaliveQueued.current = true;
+      return;
+    }
     const session = pending.current;
     pending.current = null;
     if (session === null) return;
     const seq = ++started.current;
-    const overtaking = keepalive && (inFlight.current || keepalivesInFlight.current > 0);
+    const overtaking = keepalive && inFlight.current;
     if (keepalive) keepalivesInFlight.current += 1;
     else inFlight.current = true;
     // A rejection counts as a failure: left unhandled, `inFlight` would stay
@@ -138,6 +152,10 @@ export function useEditSession(
         }
       }
       // Even after unmount: the unmount's own settle may be the one queued.
+      if (keepaliveQueued.current && keepalivesInFlight.current === 0) {
+        keepaliveQueued.current = false;
+        settle(true);
+      }
       if (queued.current && !inFlight.current && keepalivesInFlight.current === 0) {
         queued.current = false;
         settle(false);
