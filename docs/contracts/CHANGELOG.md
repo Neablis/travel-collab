@@ -13,6 +13,36 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — A Playbook as a file, Discover over `v1`, keyed create (ADR-050 Pass C)
+
+- **No `packages/contracts` schema changed.** A `v1` surface change plus an
+  additive change to the content-bundle FORMAT (a fixture format, not a
+  contract — `schema.ts`'s header says why). `openapi.json` regenerated;
+  `/v1/library`'s entries are byte-identical, and `/v1/playbooks` moved only by
+  the `Idempotency-Key` / `Idempotent-Replayed` headers on its `POST`.
+- **New endpoints:** `GET /v1/playbooks/{playbookId}/export` (`library:read`,
+  answers a `PlaybookExportBundle` raw, 409 for a stop the format cannot say),
+  `POST /v1/playbooks/import` (`library:write`, body `PlaybookImportBundle`,
+  answers `{ playbook, warnings, sourceVersion }` where a warning is
+  `date-anchor-removed` | `visibility-reset`; idempotent), and
+  `GET /v1/discover/playbooks` (`library:read`, a collection of the app's
+  `DiscoverDay` cards; `?city`, `?country`, `?length`, `?rating`, `?sort`).
+- **`POST /v1/playbooks`** takes `Idempotency-Key`.
+- **`@tc/fixtures`**: `BundlePlaybook` gains optional `version` (int >= 1);
+  new `PlaybookImportBundle`, `PlaybookExportBundle`, `playbookToBundle`,
+  `toBundleDays`; `toSavedSequence` is now exported; `toBundleStop`'s parameter
+  widens from `ActivityView` to `StopFields` (the eight fields it reads).
+- **Server internals:** `storeSavedDay` takes an optional `authorKind`; new
+  `discoverPage` (keyset) beside `discoverDays`, which is unchanged in
+  behaviour (its select now shares `matchedCount` / `discoverColumns`).
+- Why: ADR-050's remaining proposal items — a Playbook leaves and re-enters as
+  a file, and everyone's published Playbooks are listable over `v1`.
+- Consumers updated: `apps/web` (three new route files,
+  `server/public-api/{playbooks,discover}.ts`, `server/playbooks.ts`,
+  `server/savedDays.ts`); `packages/fixtures` (`schema.ts`, `fromTrip.ts`, new
+  `fromPlaybook.ts`, `index.ts`). No bundle under `content/` changes.
+- Breaking? No. Every change is additive.
+
 ## 2026-09-24 — Applying a Playbook: version pin, `expectedTripSeq`, `startingAt`, `Idempotency-Key`, warnings (ADR-050 Pass B, ADR-051)
 
 - **No `packages/contracts` schema changed.** A `v1` surface change;

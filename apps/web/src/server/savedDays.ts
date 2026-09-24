@@ -190,6 +190,12 @@ export async function storeSavedDay(input: {
   dayCount: number;
   sourceTripId: string;
   sourceTripName: string;
+  /**
+   * Who wrote the words — absent = a person. Only `POST /v1/playbooks/import`
+   * passes it: a file declares its own `origin`, and an AI-written Playbook
+   * uploaded by a person is still AI-written (ADR-050, Pass C).
+   */
+  authorKind?: SavedDayAuthorKind;
   now: string;
   /** What the refusal log names, so a bad write can be traced to its source. */
   context: Record<string, unknown>;
@@ -237,6 +243,7 @@ export async function storeSavedDay(input: {
     dayCount: input.dayCount,
     sourceTripId: input.sourceTripId,
     sourceTripName: input.sourceTripName,
+    ...(input.authorKind !== undefined ? { authorKind: input.authorKind } : {}),
     createdAt: new Date(input.now),
   });
   await db.insert(savedDays).values(row);

@@ -304,11 +304,14 @@ days, where `/v1/library` keeps its published singular `dayId` (ADR-050). Only
 | | Scope | Role | Notes |
 |---|---|---|---|
 | `GET /v1/playbooks` | `library:read` | — | Yours, newest first, paged like every collection. `?visibility=private\|public` filters |
-| `POST /v1/playbooks` | `library:write` | `viewer` on the source trip, checked by hand (from-a-trip only) | One of the two bodies below. Answers `{ playbook, warnings }`, 201 |
+| `POST /v1/playbooks` | `library:write` | `viewer` on the source trip, checked by hand (from-a-trip only) | One of the two bodies below. Answers `{ playbook, warnings }`, 201. Takes `Idempotency-Key` |
 | `GET /v1/playbooks/{playbookId}` | `library:read` | — | Yours, or anyone's published one; otherwise 404 |
 | `PATCH /v1/playbooks/{playbookId}` | `library:write` | — | Edit or publish — see below. Answers `{ playbook, warnings }` |
 | `DELETE /v1/playbooks/{playbookId}` | `library:write` | — | A published Playbook must be unpublished first (409) |
 | `POST /v1/trips/{tripId}/playbook-applications` | `trips:write` | `editor` on the destination | `{ playbookId, version?, placement?, expectedTripSeq? }`. Answers 201. Takes `Idempotency-Key` |
+| `GET /v1/playbooks/{playbookId}/export` | `library:read` | — | The Playbook as a file — see below. Readable on `GET`'s terms |
+| `POST /v1/playbooks/import` | `library:write` | — | A file with one playbook becomes a new Playbook of yours. Answers `{ playbook, warnings, sourceVersion }`, 201. Takes `Idempotency-Key` |
+| `GET /v1/discover/playbooks` | `library:read` | — | Everyone's published Playbooks, as Discover's cards — see below |
 
 **Creating takes exactly one of two bodies.** Both refuse unknown fields, so a
 body carrying both `source` and `days` matches neither and is a 400. (The
@@ -425,13 +428,63 @@ Only `playbookId` is required. The answer:
 - **Somebody else's Playbook** applies if they published it, and is a 404 if
   they did not — the same answer as one that does not exist.
 
-**Not yet:** applying some of a Playbook's days. **A retried create
-(`POST /v1/playbooks`) still keeps twice** — it takes no `Idempotency-Key` yet.
+**Not yet:** applying some of a Playbook's days, or inserting between a trip's
+existing days (`startingAt` merges onto them instead).
+
+**A Playbook as a file.** `GET /v1/playbooks/{playbookId}/export` answers a
+`content-bundle/v1` document — the trip export's format — carrying exactly one
+entry in `playbooks` and nothing else. The Playbook is written in the `days`
+form, every day in order with rest days as `{ "stops": [] }`, so `dayCount`
+survives; each stop carries every field it has; `summary`, `visibility`,
+`version` and `origin` (who wrote the words) come too. **Left out on purpose:**
+who has added it to which trip, its reviews and rating, and the source trip's
+id — the source is named (`sourceTrip.name`) and never pointed at. `ownerId` is
+written because every reader can already see it. A Playbook written inline with
+a stop title over 200 characters (or empty) or notes over 2,000 cannot be said in
+the format, and is a **409** naming the stop rather than a file with it cut.
+
+`POST /v1/playbooks/import` takes that file back — or any bundle with **exactly
+one playbook and no trips** (otherwise a 400 naming the count). The file is
+content, never authority:
+
+- **You own the result**, whatever its `ownerId` says.
+- **It starts private.** A file that said `public` adds a
+  `{ "code": "visibility-reset" }` warning; publish with a `PATCH`.
+- **It starts at `version` 1.** The file's `version` is echoed as
+  `sourceVersion` and not stored.
+- **Ids are minted**, the source trip id included; the adds ledger is ignored.
+  The same file imported twice is two Playbooks.
+- Stops pass the same checks and the same date-anchor stripping as
+  `POST /v1/playbooks` (with its `date-anchor-removed` warning), and the same
+  bounds: 366 days, 500 stops, 2,000,000 bytes.
+
+Export → import reproduces the name, summary, every day and every stop field.
+
+**Discover.** `GET /v1/discover/playbooks` lists **published** Playbooks from
+everyone — yours included, your private ones never — as the same cards the app's
+Discover page draws: derived facts, day one's first three stops, rating and
+review count, `ownerId`. Open one with `GET /v1/playbooks/{playbookId}`.
+
+| Query | Meaning |
+|---|---|
+| `city` | One city, spelled as stored (`GET /v1/cities`) |
+| `country` | One ISO alpha-2 code. With `city`, a Playbook touching either matches |
+| `length` | `one`, `two-three`, `four-six`, `seven-plus` |
+| `rating` | Minimum average: `3`, `4`, `4.5`; any floor drops unrated Playbooks |
+| `sort` | `most-added` (default), `highest-rated`, `most-reviewed`, `newest`. Places matched rank first, as in the app |
+
+Paged like every collection (`limit` 1–200, `nextCursor`). The cursor is the
+last card's id, and the next page is what ranks after that Playbook **now** — so
+while nothing moves you see each Playbook once, and a Playbook whose adds or
+rating change between your requests can move across the page boundary. `newest`
+is the sort that holds still. The app's budget filter is not offered: it is
+worked out from each Playbook's stops after the query, and cannot page.
 
 ### Retrying safely: `Idempotency-Key`
 
 An endpoint that takes it says so in the reference (the `Idempotency-Key` header
-parameter); today that is `POST /v1/trips/{tripId}/playbook-applications`. Send
+parameter); today that is `POST /v1/trips/{tripId}/playbook-applications`,
+`POST /v1/playbooks` and `POST /v1/playbooks/import`. Send
 any string of 1–255 characters, fresh per operation — a UUID is the obvious
 choice — and reuse it only to retry that same operation.
 

@@ -1,6 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { SavedDay, SavedDayVisibility, SavedStop } from "@tc/contracts";
+import { AddActivity, SavedDay, SavedDayVisibility, SavedStop } from "@tc/contracts";
+import {
+  bundleKeyFor,
+  PlaybookExportBundle,
+  PlaybookImportBundle,
+  playbookToBundle,
+  toSavedSequence,
+} from "@tc/fixtures";
 import {
   captureDays,
   readableSavedDay,
@@ -35,8 +42,16 @@ const MAX_DAYS = 366;
  * is the position of the day it is written in, so a caller cannot send one
  * that disagrees with where they put it. Derived from the contract rather than
  * copied, so a field `SavedStop` gains is a field this accepts.
+ *
+ * **`title` and `notes` take `AddActivity`'s bounds**, because `SavedStop`'s
+ * are unbounded (it parses stored bytes) and a stop this accepts must be one
+ * an apply can write: an empty or 201-character title would be stored here
+ * and then refused by every apply and every export.
  */
-const StopInput = SavedStop.omit({ dayIndex: true });
+const StopInput = SavedStop.omit({ dayIndex: true }).extend({
+  title: AddActivity.shape.title,
+  notes: AddActivity.shape.notes.unwrap().nullable(),
+});
 
 /** The days of an inline Playbook, in order. A day with no stops is a rest day. */
 const InlineDays = z
@@ -118,6 +133,12 @@ const PlaybookWarning = z.object({
   message: z.string(),
 });
 
+/** An import said `public`; the Playbook it made is private until a `PATCH` publishes it. */
+const VisibilityResetWarning = z.object({
+  code: z.literal("visibility-reset"),
+  message: z.string(),
+});
+
 /** What a create or an edit answers: the Playbook as stored, and what was changed on the way in. */
 export const PlaybookWritten = z.object({ playbook: SavedDay, warnings: z.array(PlaybookWarning) });
 type PlaybookWritten = z.infer<typeof PlaybookWritten>;
@@ -159,6 +180,11 @@ type PatchPlaybookBody = z.infer<typeof PatchPlaybookBody>;
 /** Inline days → one indexed sequence. A day's position is its `dayIndex`; an empty day leaves a gap (ADR-048). */
 function inlineStops(days: z.infer<typeof InlineDays>): SavedStop[] {
   return days.flatMap((day, dayIndex) => day.stops.map((stop) => ({ ...stop, dayIndex })));
+}
+
+/** Trimmed, and blank means none — how every writer here stores an authored summary. */
+function summaryOf(summary: string | null | undefined): string | null {
+  return summary === undefined || summary === null || summary.trim() === "" ? null : summary.trim();
 }
 
 function warningsFor(removed: readonly RemovedDateAnchor[]): PlaybookWritten["warnings"] {
@@ -212,7 +238,7 @@ async function createPlaybook(actor: Actor, body: CreatePlaybookBody): Promise<P
   const saved = await storeSavedDay({
     ownerId: actor.userId,
     name: body.name,
-    summary: body.summary === undefined || body.summary === null || body.summary.trim() === "" ? null : body.summary.trim(),
+    summary: summaryOf(body.summary),
     stops: stripped.stops,
     dayCount: source.dayCount,
     sourceTripId: source.tripId,
@@ -229,6 +255,9 @@ export const createPlaybookDef: ResourceDef = {
   scope: "library:write",
   body: CreatePlaybookBody,
   response: PlaybookWritten,
+  // A dropped connection after a create leaves the caller unable to tell
+  // whether it landed; a retry without a key keeps the Playbook twice (ADR-051).
+  idempotent: true,
   handle: ({ actor, body }) => createPlaybook(actor, body as CreatePlaybookBody),
 };
 
@@ -290,4 +319,137 @@ export const patchPlaybookDef: ResourceDef = {
         throw new PublicApiError(409, "This playbook is published. Unpublish it before editing its days.", "conflict");
     }
   },
+};
+
+// ---------------------------------------------------------------------------
+// A Playbook as a file (ADR-050, Pass C)
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /v1/playbooks/{playbookId}/export` — the Playbook as a one-playbook
+ * `content-bundle/v1` file, readable on `GET`'s terms (yours, or published).
+ *
+ * The body is built by `playbookToBundle` in `@tc/fixtures`, beside the
+ * importer's own conversion, so the round trip is testable without a database.
+ * What the file leaves out (the adds ledger, reviews, the source trip's id) is
+ * listed there.
+ */
+export const exportPlaybookDef: ResourceDef = {
+  summary: "Download a Playbook — yours, or anyone's published one — as a content-bundle file you can re-import",
+  scope: "library:read",
+  response: PlaybookExportBundle,
+  responseHeaders: {
+    "Content-Disposition": "Names the download. The filename is the Playbook's name, slugified.",
+  },
+  handle: async (ctx) => {
+    const day = await readableSavedDay(playbookId(ctx), ctx.actor.userId);
+    if (day === null) throw new PublicApiError(404, MISSING);
+    const file = PlaybookExportBundle.safeParse(playbookToBundle(day, { generatedAt: new Date().toISOString() }));
+    if (!file.success) {
+      // A stop the format cannot say: `SavedStop`'s title and notes are
+      // unbounded, `BundleStop`'s are `AddActivity`'s. Refused rather than
+      // trimmed — a file that silently shortened a stop is not a copy — and
+      // 409 because the fix is an edit to the Playbook, not to this request.
+      const issue = file.error.issues[0]!;
+      throw new PublicApiError(
+        409,
+        `This playbook cannot be written as a file: ${issue.path.slice(1).join(".")} — ${issue.message}. Edit that stop and export again.`,
+        "invalid-request",
+        { path: issue.path },
+      );
+    }
+    ctx.responseHeaders.set(
+      "Content-Disposition",
+      `attachment; filename="${bundleKeyFor({ tripId: day.savedDayId, name: day.name })}.json"`,
+    );
+    return file.data;
+  },
+};
+
+/** 2 MB, `POST /v1/trips/import`'s ceiling: 500 stops is well under it, and a refusal past it is ours. */
+const MAX_IMPORT_BYTES = 2_000_000;
+
+export const PlaybookImported = z.object({
+  playbook: SavedDay,
+  warnings: z.array(z.union([PlaybookWarning, VisibilityResetWarning])),
+  sourceVersion: z
+    .number()
+    .int()
+    .min(1)
+    .nullable()
+    .describe("The `version` the file said it was at, echoed and not trusted: the new Playbook is version 1."),
+});
+type PlaybookImported = z.infer<typeof PlaybookImported>;
+
+/**
+ * A file becomes a new Playbook of yours.
+ *
+ * **The file is content, never authority.** Its `ownerId` is ignored (the
+ * caller owns what they import), its `visibility` is ignored (private; a
+ * `public` file says so in a warning, and publishing is a `PATCH`), its
+ * `version` is echoed back rather than stored, and its `sourceTrip.id` and
+ * adds ledger are ignored — a fresh id names no row, as an inline Playbook's
+ * does. Its `origin` IS kept: it only ever says who wrote the words.
+ *
+ * The stops take the content importer's conversion (`toSavedSequence`) and then
+ * the same path `POST /v1/playbooks` does — date anchors stripped with a
+ * warning, `storeSavedDay`'s write-path validation, `newSavedDayRow`'s one
+ * construction of the row — so nothing here builds a row of its own.
+ */
+async function importPlaybook(actor: Actor, bundle: PlaybookImportBundle): Promise<PlaybookImported> {
+  if (bundle.trips.length > 0) {
+    throw new PublicApiError(
+      400,
+      `This file contains ${bundle.trips.length} ${bundle.trips.length === 1 ? "trip" : "trips"}. A playbook file carries one playbook and no trips; import a trip at POST /v1/trips/import.`,
+    );
+  }
+  if (bundle.playbooks.length === 0) throw new PublicApiError(400, "This file contains no playbook to import.");
+  if (bundle.playbooks.length > 1) {
+    throw new PublicApiError(
+      400,
+      `This file contains ${bundle.playbooks.length} playbooks. Import takes one at a time.`,
+    );
+  }
+  const file = bundle.playbooks[0]!;
+  const { stops, dayCount } = toSavedSequence(file);
+  if (dayCount > MAX_DAYS) {
+    throw new PublicApiError(400, `That playbook has ${dayCount} days. The limit is ${MAX_DAYS}.`);
+  }
+  if (stops.length > MAX_PLAYBOOK_STOPS) {
+    throw new PublicApiError(400, `That playbook has ${stops.length} stops. The limit is ${MAX_PLAYBOOK_STOPS}.`);
+  }
+
+  const stripped = withoutDateAnchors(stops);
+  const saved = await storeSavedDay({
+    ownerId: actor.userId,
+    name: file.name,
+    summary: summaryOf(file.summary),
+    stops: stripped.stops,
+    dayCount,
+    sourceTripId: randomUUID(),
+    sourceTripName: file.sourceTrip.name,
+    authorKind: file.origin ?? bundle.bundle.origin,
+    now: new Date().toISOString(),
+    context: { route: "POST /v1/playbooks/import", bundle: bundle.bundle.id },
+  });
+  if (!saved.ok) throw new PublicApiError(400, saved.error.message);
+
+  const warnings: PlaybookImported["warnings"] = warningsFor(stripped.removed);
+  if (file.visibility === SavedDayVisibility.enum.public) {
+    warnings.push({
+      code: "visibility-reset",
+      message: "The file said this playbook is public. An imported playbook starts private; publish it with PATCH { visibility: \"public\" }.",
+    });
+  }
+  return { playbook: saved.value, warnings, sourceVersion: file.version ?? null };
+}
+
+export const importPlaybookDef: ResourceDef = {
+  summary: "Create a Playbook of yours from a content-bundle file with one playbook in it (the format export produces)",
+  scope: "library:write",
+  body: PlaybookImportBundle,
+  maxBodyBytes: MAX_IMPORT_BYTES,
+  response: PlaybookImported,
+  idempotent: true,
+  handle: ({ actor, body }) => importPlaybook(actor, body as PlaybookImportBundle),
 };

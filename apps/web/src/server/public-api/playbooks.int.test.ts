@@ -466,6 +466,20 @@ describe("POST /v1/playbooks written inline", () => {
     expect(res.status).toBe(400);
     expect(JSON.stringify(await res.json())).toContain("at most 500 stops");
   });
+
+  it("refuses a stop no apply could write — an empty or over-long title, over-long notes", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    for (const stop of [
+      inlineStop(""),
+      inlineStop("x".repeat(201)),
+      inlineStop("Fine", { notes: "n".repeat(2001) }),
+    ]) {
+      const res = await keep(secret, { name: "Unwritable", days: [{ stops: [stop] }] });
+      expect(res.status).toBe(400);
+    }
+    expect(await db.select().from(savedDays).where(eq(savedDays.ownerId, owner))).toEqual([]);
+  });
 });
 
 describe("PATCH /v1/playbooks/{playbookId}", () => {

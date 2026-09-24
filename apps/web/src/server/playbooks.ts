@@ -18,6 +18,7 @@ import {
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { displayNameFor } from "@/lib/displayName";
 import { db } from "./db/client";
+import { isUuid } from "./ids";
 import { parseSavedDayColumns } from "./savedDayRow";
 
 // The public library's three read surfaces (M11b links 5, 7 and 8): Discover's
@@ -484,18 +485,29 @@ async function publishedDayCount(): Promise<number> {
   return Number(rows.rows[0]?.days ?? 0);
 }
 
-export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
+/**
+ * How many of the asked-for places a day touches — cities plus countries,
+ * `orderBy`'s first key. One spelling for the select below and for
+ * `rankKeys`, which cannot name the select's alias.
+ */
+function matchedCount(query: Pick<DiscoverQuery, "cities" | "countries">): SQL {
   const cities = sql`${sql.param(query.cities)}::text[]`;
   const countries = sql`${sql.param(query.countries ?? [])}::text[]`;
-  const rows = await db.execute<DiscoverRow>(sql`
-    select
-      d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds, d.rating, d.review_count,
-      d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at,
-      (cardinality(array(
+  return sql`(cardinality(array(
         select unnest(d.cities) intersect select unnest(${cities})
       )) + cardinality(array(
         select unnest(d.countries) intersect select unnest(${countries})
-      )))::int as matched_count
+      )))`;
+}
+
+/** The columns a `DiscoverRow` is read from. */
+const discoverColumns = sql`
+      d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds, d.rating, d.review_count,
+      d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at`;
+
+export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
+  const rows = await db.execute<DiscoverRow>(sql`
+    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count
     from saved_days d
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
@@ -539,6 +551,88 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     // `daysShared`.
     truncated: rows.rows.length === CANDIDATE_LIMIT || filtered.length > PAGE_LIMIT,
   };
+}
+
+/**
+ * **`orderBy`'s ranking, spelled as keys that all ascend** — so "after this
+ * row" is one row comparison, `(keys) > (the cursor row's keys)`, which is what
+ * a keyset page needs and a mixed `desc`/`asc` list cannot give.
+ *
+ * Each `desc` key is negated; `rating desc nulls last` is
+ * `-coalesce(rating, 0)`, which puts null last because a rating is never below
+ * 1; a timestamp is negated as its epoch (`numeric` since Postgres 14, so the
+ * microseconds survive). `d.id` ascends last, as it does in `orderBy`.
+ * `public-api/discover.int.test.ts` holds the two to one order for every sort;
+ * `orderBy` keeps its readable form for the app's Discover, which never pages.
+ */
+function rankKeys(query: DiscoverQuery): SQL {
+  const matched = matchedCount(query);
+  const then = {
+    "most-added": sql`-d.adds, -extract(epoch from d.created_at)`,
+    "highest-rated": sql`-coalesce(d.rating, 0), -d.review_count`,
+    "most-reviewed": sql`-d.review_count, -coalesce(d.rating, 0)`,
+    newest: sql`-extract(epoch from coalesce(d.published_at, d.created_at))`,
+  }[query.sort];
+  return sql`-${matched}, ${then}, d.id`;
+}
+
+/**
+ * **One keyset page of Discover — what `GET /v1/discover/playbooks` serves**
+ * (ADR-050, Pass C).
+ *
+ * Not `discoverDays`, because that answers a screen: the 200-row candidate
+ * window, the budget band applied in application code over it, 24 cards and no
+ * way past them. None of that pages. This takes the same predicates
+ * (`matchPredicate`) and the same ranking (`rankKeys`) and the same row → card
+ * boundary (`toDiscoverDay`), and pages them by keyset: `after` is the
+ * `savedDayId` of the last card, and the next page is the rows ranked strictly
+ * after that row's keys **as they are now**.
+ *
+ * What that promises, honestly: no duplicate and no skip while the ranking
+ * holds still. A day whose adds, rating or publish time move between two
+ * requests moves in the ranking, and may be seen twice or not at all — true of
+ * any page over a live counter, and `newest` is the sort that holds still.
+ *
+ * **The budget band is not offered.** A day's total is a sum over jsonb stops
+ * (ADR-029), so it cannot be a predicate, and a page filtered after the fact
+ * would come back short and read as the end.
+ *
+ * An `after` that names no row is no cursor — `decodeKeyedCursor`'s rule — and a
+ * row this server cannot read is skipped with the page refilled past it, so
+ * one unreadable row never ends the listing early.
+ */
+export async function discoverPage(
+  query: Omit<DiscoverQuery, "budget">,
+  page: { limit: number; after: string | null },
+): Promise<DiscoverDay[]> {
+  const full: DiscoverQuery = { ...query, budget: "any" };
+  const keys = rankKeys(full);
+  const out: DiscoverDay[] = [];
+  let after = page.after !== null && isUuid(page.after) ? page.after : null;
+  for (;;) {
+    const want = page.limit - out.length;
+    const rows = await db.execute<DiscoverRow>(sql`
+      select ${discoverColumns}, ${matchedCount(full)}::int as matched_count
+      from saved_days d
+      where ${matchPredicate(full)}
+        ${
+          after === null
+            ? sql``
+            : sql`and (
+                not exists (select 1 from saved_days c where c.id = ${after})
+                or (${keys}) > (select ${keys} from saved_days d where d.id = ${after})
+              )`
+        }
+      order by ${keys}
+      limit ${want}
+    `);
+    for (const row of rows.rows) {
+      const day = toDiscoverDay(row, query.cities, query.readerId);
+      if (day !== null) out.push(day);
+    }
+    if (out.length >= page.limit || rows.rows.length < want) return out;
+    after = rows.rows[rows.rows.length - 1]!.id;
+  }
 }
 
 /**

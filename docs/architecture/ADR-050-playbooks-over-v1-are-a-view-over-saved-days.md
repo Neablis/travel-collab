@@ -160,9 +160,81 @@ commands can say.
 of Playbook stops (`savedDayPins.ts`, M27) fills a stop only when it has no
 plausible coordinate.
 
-## Deferred
+## Pass C — 2026-09-24
 
-Applying some of a Playbook's days, and a positioned insert (above).
+A Playbook as a file, Discover over `v1`, and a keyed create. Still one
+`saved_days` row; nothing here adds an object type or a column.
+
+19. **`GET /v1/playbooks/{playbookId}/export` is a `content-bundle/v1` file with
+    exactly one entry in `playbooks`**, readable on decision 11's terms. The
+    bundle schema never required a trip (`trips` defaults to `[]`), so no
+    variant of the format was needed: `PlaybookExportBundle` pins the other
+    sections empty, as `TripExportBundle` does for its own, and the converter
+    (`playbookToBundle`) lives beside `toPlaybooks.ts` in `@tc/fixtures`. It
+    writes the authored `days` form, every day to `dayCount` (rest days as
+    `{ stops: [] }`), each stop through the trip export's own `toBundleStop`
+    (retyped over the eight fields it reads, so `SavedStop` fits it — no second
+    translation). `BundleStop` already carries every `SavedStop` field; the one
+    it does not, `dayIndex`, is the day's position. `BundlePlaybook` gains an
+    optional `version`.
+20. **What the file leaves out:** the adds ledger (other people's activity),
+    reviews and rating (other people's words), the source trip's **id** (a
+    pointer into somebody's trip history, possibly private — the name is the
+    credit and is kept), and `keptOn`. `ownerId` is written: the format
+    requires it and every reader of the Playbook already sees it.
+21. **A stop the format cannot say is a 409, not a trimmed file.** `SavedStop`'s
+    `title` and `notes` are unbounded; `BundleStop`'s are `AddActivity`'s
+    (1..200, <= 2000). The export refuses naming the path rather than trimming.
+    **[closed before merge]** Pass A's inline `StopInput` first inherited the
+    unbounded ones, so such a stop could be written and then neither applied nor
+    exported; it now takes `AddActivity`'s `title` and `notes` bounds, so the
+    409 is reachable only by a row written some other way.
+22. **`POST /v1/playbooks/import` takes one playbook and no trips** (400 naming
+    the count otherwise), `library:write`, `Idempotency-Key`. The file is
+    content, never authority: owner = the caller, **private** (a `public` file
+    adds a `visibility-reset` warning; publishing is a `PATCH`), **version 1**
+    (the file's is echoed as `sourceVersion`), a fresh `sourceTripId`, the
+    ledger ignored. Its `origin` is kept, as `authorKind` — it only says who
+    wrote the words, and an AI-written file uploaded by a person is still
+    AI-written; `storeSavedDay` takes an optional `authorKind` for it. The
+    stops take the importer's conversion (`toSavedSequence`), then the create
+    path's `withoutDateAnchors` and `storeSavedDay` → `newSavedDayRow`, so there
+    is still one construction of a row. Not `resolvePlaybook`: it derives ids
+    from the bundle's keys, which is right for authored content and would let
+    two uploads of one file collide.
+23. **`GET /v1/discover/playbooks` is the app's Discover, published only, as
+    `DiscoverDay` cards** — the same predicates (`matchPredicate`), the same
+    row → card boundary (`toDiscoverDay`), `publishedOnly` so a caller's own
+    private Playbooks never appear. **Not `discoverDays` itself**: that answers
+    a screen — a 200-row candidate window, the budget band applied after it in
+    application code, 24 cards and no way past them — and none of it pages.
+    `discoverPage` pages by keyset over `rankKeys`, `orderBy`'s ranking spelled
+    as ascending keys; an int test holds the two to one order for every sort.
+    The cursor is the last card's `savedDayId`, and the next page ranks after
+    that row's keys **as they are now**: no duplicate or skip while the ranking
+    holds still, and a day whose counters move between requests can cross the
+    boundary — true of any page over a live counter; `newest` holds still.
+    **The budget band is not offered** (it cannot be a predicate, and filtering
+    a page after the fact would end it early). `city` and `country` take one
+    value each: the wrapper reads one value per query key.
+24. **`POST /v1/playbooks` takes `Idempotency-Key`** (`idempotent: true`).
+25. **The trip export is unchanged.** `tripToBundle`'s `playbooks: []` is right
+    for a TRIP file. The proposal asked to replace `TripExportBundle`'s
+    `playbooks: maxItems 0` so a Playbook could leave the system as a file; a
+    playbook export of its own does that without making a trip file carry
+    something a trip import reads past.
+
+## Deferred, and deliberately not done
+
+- **Applying some of a Playbook's days.**
+- **`afterDay` / a positioned insert** — Mitchell, 2026-09-24: merge-only
+  (decision 15, and the rejection above it).
+- **Per-day labels.** ADR-048 keeps a Playbook's days unlabelled; `BundleDay.label`
+  is read and dropped on import, and an export writes none.
+- **Deprecation headers on `/v1/library`.** Only after its clients have moved to
+  `/v1/playbooks`; announcing it before then would warn callers with nowhere
+  better to go for the one thing `/v1/library` still does alone (keep by a
+  singular `dayId`).
 
 ## Consequences
 

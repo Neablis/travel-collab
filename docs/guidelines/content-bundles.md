@@ -181,6 +181,19 @@ can take into their own trip.
   into your own trip does not count.
 - **`cities` is derived, never authored.** `citiesOfStops` reads
   `stops[].location.city`, which is the reason every stop needs one.
+- **`version`** (optional) is what `GET /v1/playbooks/{id}/export` writes: the
+  Playbook's content revision when the file was made. Nothing reads it on the
+  way in — the content importer ignores it, and `POST /v1/playbooks/import`
+  starts a new Playbook at version 1 and echoes the file's back as
+  `sourceVersion` (ADR-050, Pass C).
+
+**A Playbook export is one of these, alone in a bundle** (`PlaybookExportBundle`
+in `fromPlaybook.ts`): always the `days` form with rest days as
+`{ "stops": [] }`, no `addedBy`, no `keptOn`, and `sourceTrip` by name only.
+`POST /v1/playbooks/import` takes that file, or any bundle with exactly one
+playbook and no trips, and makes a new private Playbook owned by the caller —
+fresh ids, not the derived ids the content importer uses. It is the user door;
+this guide's importer stays the authoring one.
 
 ### What makes a day worth cloning
 

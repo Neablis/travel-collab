@@ -21,7 +21,8 @@ and nothing about one is specific to Playbooks.
 
 1. **A declaration opt-in on `route()`**: `idempotent: true` (or
    `{ onReplay }`) on a `POST`. `route()` throws at import on any other method.
-   Enabled on the playbook-application endpoint only, for now. The OpenAPI
+   Enabled on the playbook-application endpoint, and since ADR-050's Pass C
+   on `POST /v1/playbooks` and `POST /v1/playbooks/import`. The OpenAPI
    generator documents the `Idempotency-Key` request header and the
    `Idempotent-Replayed` response header for every operation that sets it.
 2. **One table, `api_idempotency_keys`, keyed `(user_id, key)`** (migration
