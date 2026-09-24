@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { PlanSection } from "./PlanSection";
@@ -331,6 +331,18 @@ describe("the referral row", () => {
     serve(subscribed());
     render(<PlanSection />);
     expect(await screen.findByTestId("referral-row")).toBeTruthy();
+  });
+
+  // The invited person should never have to type the code: what lands on the
+  // clipboard is a signup link that prefills it.
+  it("copies a signup link with the code already in it", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    serve({ ...subscribed(), referralCode: "REFER23456" });
+    render(<PlanSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Copy invite link" }));
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/signup?code=REFER23456`);
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
   });
 });
 

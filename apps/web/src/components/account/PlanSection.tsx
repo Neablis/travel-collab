@@ -92,6 +92,11 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
  * threading a plan through every one of them would make an unrelated surface
  * care about entitlements.
  */
+/** The signup URL that arrives with `code` already in the invite-code field. */
+function referralLink(code: string): string {
+  return `${window.location.origin}/signup?code=${encodeURIComponent(code)}`;
+}
+
 export function PlanSection() {
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
@@ -346,7 +351,7 @@ export function PlanSection() {
         <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3" data-testid="referral-row">
           <Heading level={4}>Bring someone in, get a month</Heading>
           <Text variant="secondary" className="text-xs">
-            When someone new signs up with your code you get a month of whatever you hold the moment
+            When someone new signs up with your link you get a month of whatever you hold the moment
             they join. A free plan earns nothing, so there is nothing to farm.
           </Text>
           {plan.referralCode === null ? (
@@ -367,13 +372,15 @@ export function PlanSection() {
                 // code was on the clipboard when it was not — on the one control
                 // whose entire job is to put it there. CodeRabbit, PR #174.
                 onClick={() => {
+                  // The link, not the bare code: `/signup?code=` prefills the
+                  // field, so the person invited never has to type it.
                   navigator.clipboard
-                    .writeText(plan.referralCode ?? "")
+                    .writeText(referralLink(plan.referralCode ?? ""))
                     .then(() => setCopied(true))
                     .catch(() => setCopied(false));
                 }}
               >
-                {copied ? "Copied" : "Copy"}
+                {copied ? "Copied" : "Copy invite link"}
               </Button>
             </div>
           )}
