@@ -311,7 +311,6 @@
   "apps/web/src/lib/savedDayFacts.ts::savedDayFacts",
   "apps/web/src/lib/siteMetadata.ts::pageMetadata",
   "apps/web/src/lib/time.ts::formatDuration",
-  "apps/web/src/lib/time.ts::toClockLabel",
   "apps/web/src/lib/time.ts::toMinutes",
   "apps/web/src/lib/time.ts::toTimeString",
   "apps/web/src/mocks/handlers.ts::makePagesHandlers",
