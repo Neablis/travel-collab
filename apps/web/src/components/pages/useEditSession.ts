@@ -49,6 +49,17 @@ export type CommitSession = (doc: PageDoc, options: { keepalive: boolean }) => v
  * made while it was in flight, which already holds everything it did. After
  * unmount nothing here can retry, which is why `PageScreen` also keeps a failed
  * document in the browser (`pageDraft.ts`).
+ *
+ * **At most one ordinary commit is in flight.** Two PATCHes can land in either
+ * order and the server keeps the last one to arrive, with no revision to
+ * refuse the older, so a settle made while one is in flight waits for it and
+ * then sends only the newest document. The `pagehide` commit cannot wait, so
+ * it goes at once; `PageScreen` keeps a draft of every keepalive commit, which
+ * is what covers it losing that race. Found by CodeRabbit on PR #222.
+ *
+ * **Only the latest commit started may act on its result.** An older one can
+ * still answer after a newer one (past a keepalive), and what it says is
+ * history: it may not report a failure or put its document back.
  */
 export function useEditSession(
   editing: boolean,
@@ -60,19 +71,42 @@ export function useEditSession(
   commitRef.current = commit;
   const mounted = useRef(true);
   const [failed, setFailed] = useState(false);
+  // Which commit is the latest started, and whether an ordinary one is in
+  // flight with a settle queued behind it. See "at most one" above.
+  const started = useRef(0);
+  const inFlight = useRef(false);
+  const queued = useRef(false);
 
   const settle = useCallback((keepalive: boolean) => {
-    const session = pending.current;
     if (idle.current !== null) clearTimeout(idle.current);
     idle.current = null;
+    if (!keepalive && inFlight.current) {
+      // Left pending, so a change made while waiting replaces it.
+      queued.current = true;
+      return;
+    }
+    const session = pending.current;
     pending.current = null;
     if (session === null) return;
-    void Promise.resolve(session.commit(session.doc, { keepalive })).then((taken) => {
-      if (!mounted.current) return;
-      setFailed(taken === false);
-      if (taken !== false || pending.current !== null) return;
-      pending.current = session;
-      idle.current = setTimeout(() => settle(false), EDIT_SESSION_IDLE_MS);
+    const seq = ++started.current;
+    if (!keepalive) inFlight.current = true;
+    // A rejection counts as a failure: left unhandled, `inFlight` would stay
+    // set and every commit after it would queue forever.
+    const result = Promise.resolve(session.commit(session.doc, { keepalive })).catch(() => false as const);
+    void result.then((taken) => {
+      if (!keepalive) inFlight.current = false;
+      if (seq === started.current && mounted.current) {
+        setFailed(taken === false);
+        if (taken === false && pending.current === null) {
+          pending.current = session;
+          idle.current = setTimeout(() => settle(false), EDIT_SESSION_IDLE_MS);
+        }
+      }
+      // Even after unmount: the unmount's own settle may be the one queued.
+      if (!keepalive && queued.current) {
+        queued.current = false;
+        settle(false);
+      }
     });
   }, []);
 

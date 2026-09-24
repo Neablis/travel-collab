@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link";
 import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
-import { fitsKeepalive } from "@/lib/keepalive";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -431,21 +430,29 @@ export function PageScreen({
   // decision 3: prose typed since the session last settled is lost on a crash.
   //
   // What the server has not confirmed is also kept in this browser
-  // (`pageDraft.ts`): on a failure, and on a `pagehide` too big for
-  // `keepalive`, whose outcome nothing will ever report. A success clears it —
-  // unless a later commit has started, which settles the draft itself.
+  // (`pageDraft.ts`): on a failure, and on EVERY `pagehide` commit, before it
+  // is sent. A request made while the page unloads may never complete, and no
+  // one is left to read its result, whatever its size (CodeRabbit, PR #222).
+  // When it did land, the next load finds the page already matching the draft
+  // and drops it unsent.
+  //
+  // A result is acted on only while its commit is the latest started. The
+  // session sends one ordinary commit at a time, but the unload one goes past
+  // it, so an older answer can arrive last; its draft or its `updatedAt` would
+  // be written over a newer state.
   const commitSeq = useRef(0);
   const session = useEditSession(editing, (content, { keepalive }) => {
     const seq = ++commitSeq.current;
     const draft = { base: baseRef.current ?? "", doc: content };
-    if (keepalive && !fitsKeepalive({ content })) rememberPageDraft(pageId, draft);
+    if (keepalive) rememberPageDraft(pageId, draft);
     return updatePage(tripId, pageId, { content }, { keepalive }).then((result) => {
+      if (seq !== commitSeq.current) return result.ok;
       if (!result.ok) {
         rememberPageDraft(pageId, draft);
         return false;
       }
       baseRef.current = result.value.updatedAt;
-      if (seq === commitSeq.current) forgetPageDraft(pageId);
+      forgetPageDraft(pageId);
       return true;
     });
   });
