@@ -3,11 +3,10 @@ import { CURRENT_PAGE_DOC_VERSION, newPageDoc, parsePageDoc, serializePageDoc } 
 import { PAGE_EDITOR_NODE_TYPES } from "./extensions";
 import { inspectStoredPageDoc, toStoredPageDoc } from "./storedPageDoc";
 
-// The premise every test below rests on, asserted rather than assumed: the
-// editor's schema and the AST disagree about `repeat`, and that disagreement is
-// the whole reason this module exists. If a later build registers a `repeat`
-// extension this test goes red and the headline case below stops meaning
-// anything — which is the point of pinning it.
+// The premise every test below rests on, asserted rather than assumed. The
+// editor's schema and the AST disagreed about `repeat` until M14 link 6 gave
+// the editor a `repeat` extension; that disagreement is what this module was
+// written for, and a node from a NEWER build is the same disagreement today.
 describe("the editor's schema, as the guard sees it", () => {
   it("knows the nodes StarterKit and MacroNodeExtension bring", () => {
     for (const type of ["paragraph", "heading", "bulletList", "listItem", "codeBlock", "hardBreak", "macro"]) {
@@ -15,8 +14,11 @@ describe("the editor's schema, as the guard sees it", () => {
     }
   });
 
-  it("does NOT know `repeat`, which the AST does", () => {
-    expect(PAGE_EDITOR_NODE_TYPES.has("repeat")).toBe(false);
+  it("knows every node type the AST does, `repeat` included", () => {
+    // So a document this build wrote always mounts in this build: every type
+    // the guard can still refuse comes from a newer build, never from ours.
+    const ast = ["paragraph", "heading", "macro", "repeat", "text", "blockquote", "bulletList", "orderedList", "listItem", "codeBlock", "horizontalRule", "hardBreak"];
+    expect(ast.filter((type) => !PAGE_EDITOR_NODE_TYPES.has(type))).toEqual([]);
   });
 });
 
@@ -37,7 +39,9 @@ describe("inspectStoredPageDoc", () => {
       type: "doc",
       content: [
         { type: "paragraph", content: [{ type: "text", text: "written by the user" }] },
-        { type: "repeat", attrs: { name: "day.rows", params: {} }, content: [] },
+        // A `repeat` until the editor learned one (M14 link 6); a node from a
+        // newer build is the case left, and it round-trips just as perfectly.
+        { type: "callout", attrs: { tone: "warm" }, content: [] },
       ],
     };
 
@@ -48,20 +52,22 @@ describe("inspectStoredPageDoc", () => {
     // paragraph included (PageEditor.test.tsx measures that directly).
     const verdict = inspectStoredPageDoc(stored);
     expect(verdict.status).toBe("unsupported");
-    expect(verdict.status === "unsupported" && verdict.unsupportedTypes).toEqual(["repeat"]);
+    expect(verdict.status === "unsupported" && verdict.unsupportedTypes).toEqual(["callout"]);
   });
 
-  it("refuses a node type from a newer build, which also round-trips byte-identically", () => {
-    const stored = {
+  it("mounts a document holding an authored repeat, template and all", () => {
+    const verdict = inspectStoredPageDoc({
       v: CURRENT_PAGE_DOC_VERSION,
       type: "doc",
-      content: [{ type: "paragraph", content: [] }, { type: "somethingFromANewerBuild", attrs: { a: 1 } }],
-    };
-    expect(JSON.stringify(serializePageDoc(parsePageDoc(stored)))).toBe(JSON.stringify(stored));
-
-    const verdict = inspectStoredPageDoc(stored);
-    expect(verdict.status).toBe("unsupported");
-    expect(verdict.status === "unsupported" && verdict.unsupportedTypes).toEqual(["somethingFromANewerBuild"]);
+      content: [
+        {
+          type: "repeat",
+          attrs: { name: "day.rows", params: {} },
+          content: [{ type: "text", text: "Day " }, { type: "macro", attrs: { name: "dates", params: {} } }],
+        },
+      ],
+    });
+    expect(verdict.status).toBe("mountable");
   });
 
   it("refuses an unsupported node however deeply it is buried", () => {
@@ -73,7 +79,7 @@ describe("inspectStoredPageDoc", () => {
           content: [
             {
               type: "listItem",
-              content: [{ type: "blockquote", content: [{ type: "repeat", attrs: { name: "x", params: {} }, content: [] }] }],
+              content: [{ type: "blockquote", content: [{ type: "callout", content: [] }] }],
             },
           ],
         },
@@ -169,13 +175,13 @@ describe("toStoredPageDoc", () => {
 
   it("refuses a document it would not have opened, so the two rules cannot diverge", () => {
     // "We write only what we would open." Unreachable from `PageScreen` — a
-    // document with a `repeat` in it is read-only, so nothing calls this for
-    // one — and that is exactly why it is asserted here rather than left to the
-    // call site to maintain.
+    // document with a newer build's node in it is read-only, so nothing calls
+    // this for one — and that is exactly why it is asserted here rather than
+    // left to the call site to maintain.
     expect(
       toStoredPageDoc({
         type: "doc",
-        content: [{ type: "repeat", attrs: { name: "day.line", params: {} }, content: [] }],
+        content: [{ type: "callout", content: [] }],
       }),
     ).toBeNull();
   });

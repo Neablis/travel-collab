@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { renderMacro } from "@tc/pages";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
-import { SpendByDayBlock } from "../pages/blocks/SpendByDayBlock";
+import { spendChartConfig } from "../pages/blocks/SpendByDayBlock";
+import { SpendByDayChart } from "../pages/blocks/SpendByDayChart";
 
 // The M14 gate box, as a test: *"Charts go through the one adopted chart
 // component, and none carries a colour or font outside the design-system
@@ -52,13 +53,16 @@ function spendTrip(): TripDetail {
 }
 
 const CHARTS: Record<string, () => ReactElement> = {
-  "components/pages/blocks/SpendByDayBlock.tsx": () => {
+  // The chart itself, not `SpendByDayBlock`, which loads it lazily: rendering
+  // the block would sweep a placeholder.
+  "components/pages/blocks/SpendByDayChart.tsx": () => {
     const trip = spendTrip();
     const outcome = renderMacro({ trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null }, "cost.chart", {});
     if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "spend-by-day") {
       throw new Error(`expected a spend-by-day block, got ${outcome.status}`);
     }
-    return <SpendByDayBlock payload={outcome.rendered.block} />;
+    const payload = outcome.rendered.block;
+    return <SpendByDayChart payload={payload} config={spendChartConfig(payload)} height={224} />;
   },
 };
 

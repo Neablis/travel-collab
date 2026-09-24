@@ -5,6 +5,7 @@ export * from "./result";
 export * from "./registry-types";
 export * from "./external";
 export * from "./chartPayloads";
+export * from "./weatherPayload";
 export * from "./registry";
 export * from "./filters";
 export * from "./select";
@@ -12,8 +13,13 @@ export * from "./insert";
 export * from "./presets";
 export * from "./templates";
 export * from "./writeCheck";
+export * from "./repeat";
 export * from "./needsBooking";
 export * from "./dayCity";
+export * from "./enumLabels";
 export * from "./kinds";
 export * from "./fields";
 export * from "./savedTemplate";
+// The one reader of an instant in a named zone; the server's weather cuts its
+// local days with it too, rather than a second `Intl` walk (review finding 6).
+export { clockIn } from "./clock";

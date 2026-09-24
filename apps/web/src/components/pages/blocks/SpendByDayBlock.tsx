@@ -1,16 +1,23 @@
-import { Bar, BarChart, CartesianGrid, LabelList, ReferenceLine, XAxis, YAxis } from "recharts";
+import { Suspense, lazy } from "react";
 import type { SpendByDayPayload, SpendSeriesKey } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
-import {
-  ChartContainer, ChartLegend, chartAxisLine, chartGrid, chartLabel, chartTick, seriesColor, tokenColor,
-  type ChartConfig, type ChartToken,
-} from "@/components/ui/chart";
+import { ChartErrorBoundary, ChartLegend, ChartPlaceholder, type ChartConfig, type ChartToken } from "@/components/ui/chart";
 
 // "Spend by day" — a bar per day, stacked by tag, with the budget per day as a
 // dashed line (M14 link 11, the first chart).
 //
 // Spans throughout, for `CostsTableBlock`'s reason: this sits inside a
 // paragraph. The chart itself arrives through `ChartContainer`'s portal.
+//
+// **The picture is loaded lazily.** Imported here, Recharts was in every
+// notebook page's first load whether or not the notebook held a chart; moving
+// it out took the route's entry JS from 326 to 236 KB gzip (`next build`,
+// 2026-09-24). `SpendByDayChart` is the one file that imports it. Until it
+// arrives a `ChartPlaceholder` holds the chart's exact height, so nothing below
+// moves (ADR-044), and the key, the note and the table are already there.
+// `MacroView.test.tsx`'s nesting sweep waits for it, so it still covers the
+// drawn chart rather than the placeholder.
+const SpendByDayChart = lazy(() => import("./SpendByDayChart").then((m) => ({ default: m.SpendByDayChart })));
 
 // The tag chips' own families (`lib/activityTags.ts`'s `TAG_CHIP_CLASS`), as
 // solids, so a meal is the same colour on the board and in the chart. Untagged
@@ -29,62 +36,25 @@ const SERIES_COLOR: Record<SpendSeriesKey, ChartToken> = {
 // changes how many days there are.
 const SPEND_CHART_HEIGHT = 224;
 
+/** Each stack's label and colour, shared by the chart and its key. */
+export function spendChartConfig(payload: SpendByDayPayload): ChartConfig {
+  return Object.fromEntries(payload.series.map(({ key, label }) => [key, { label, color: SERIES_COLOR[key] }]));
+}
+
 /**
  * "Spend by day": the chart, its key, what it left out, and the same numbers
  * as a table for a screen reader.
  */
 export function SpendByDayBlock({ payload }: { payload: SpendByDayPayload }) {
-  const config: ChartConfig = Object.fromEntries(
-    payload.series.map(({ key, label }) => [key, { label, color: SERIES_COLOR[key] }]),
-  );
-  // `crown` is the stack the day's total sits on: its highest non-zero one.
-  // Labelling the last SERIES instead drops the total from every day that has
-  // none of it, since Recharts draws no label on a zero-height segment.
-  const data = payload.days.map((day) => ({
-    label: day.label,
-    total: day.total ?? "",
-    crown: [...payload.series].reverse().find(({ key }) => day.amounts[key] > 0)?.key,
-    ...day.amounts,
-  }));
-  const tickText = new Map(payload.ticks.map((tick) => [tick.value, tick.text]));
-  const top = payload.ticks.at(-1)?.value ?? 0;
+  const config = spendChartConfig(payload);
 
   return (
     <span className="flex flex-col gap-2 rounded-md border border-hairline bg-surface p-3">
-      <ChartContainer config={config} height={SPEND_CHART_HEIGHT} label={payload.summary}>
-        <BarChart data={data} margin={{ top: 20, right: 8, bottom: 0, left: 0 }} accessibilityLayer={false}>
-          <CartesianGrid {...chartGrid} />
-          <XAxis dataKey="label" tick={chartTick} tickLine={false} axisLine={chartAxisLine} />
-          <YAxis
-            domain={[0, top]}
-            ticks={payload.ticks.map((tick) => tick.value)}
-            tickFormatter={(value: number) => tickText.get(value) ?? ""}
-            tick={chartTick}
-            tickLine={false}
-            axisLine={false}
-            width={80}
-          />
-          {payload.series.map(({ key }) => (
-            <Bar key={key} dataKey={key} stackId="spend" fill={seriesColor(key)} isAnimationActive={false}>
-              {/* The day's total over the top of its stack — printed, so a
-                  notebook on paper still says what each day came to. */}
-              <LabelList
-                dataKey={(row: (typeof data)[number]) => (row.crown === key ? row.total : "")}
-                position="top"
-                {...chartLabel}
-              />
-            </Bar>
-          ))}
-          {payload.budgetPerDay ? (
-            <ReferenceLine
-              y={payload.budgetPerDay.amountMinor}
-              stroke={tokenColor("--color-ink")}
-              strokeDasharray="4 3"
-              ifOverflow="extendDomain"
-            />
-          ) : null}
-        </BarChart>
-      </ChartContainer>
+      <ChartErrorBoundary fallback={<ChartPlaceholder height={SPEND_CHART_HEIGHT} label={payload.summary} busy={false} />}>
+        <Suspense fallback={<ChartPlaceholder height={SPEND_CHART_HEIGHT} label={payload.summary} />}>
+          <SpendByDayChart payload={payload} config={config} height={SPEND_CHART_HEIGHT} />
+        </Suspense>
+      </ChartErrorBoundary>
       <ChartLegend
         config={config}
         extra={

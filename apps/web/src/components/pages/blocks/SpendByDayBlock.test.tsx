@@ -1,9 +1,16 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { renderMacro, type SpendByDayPayload } from "@tc/pages";
 import type { ActivityTag, Money, TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { SpendByDayBlock } from "./SpendByDayBlock";
+
+// The chart's code is lazy. Loaded here so `findByRole`'s 1s wait is for React
+// to draw it, not for a cold transform of Recharts — which alone is 550-650ms
+// idle and ran out under full-suite load (`MacroView.test.tsx` has the numbers).
+beforeAll(async () => {
+  await import("./SpendByDayChart");
+});
 
 // What a reader takes from "Spend by day" without hovering anything: each
 // day's total printed over its bar, the numbers again in a table for a screen
@@ -25,7 +32,7 @@ const set = (trip: TripDetail, id: string, cost: Money, tags: ActivityTag[]) => 
 };
 
 describe("SpendByDayBlock", () => {
-  it("prints every priced day's total over its bar, whichever stack is on top", () => {
+  it("prints every priced day's total over its bar, whichever stack is on top", async () => {
     // Day 1 tops out on "untagged" and day 2 on "meal": a total that rode on
     // the last series alone would vanish from day 2.
     const payload = payloadOf((trip, id) => {
@@ -35,7 +42,8 @@ describe("SpendByDayBlock", () => {
     });
     render(<SpendByDayBlock payload={payload} />);
 
-    const chart = screen.getByRole("img", { name: payload.summary });
+    // The picture is lazy: wait for the frame to stop being busy.
+    const chart = await screen.findByRole("img", { name: payload.summary, busy: false });
     expect(within(chart).getByText("$50.00")).toBeDefined();
     expect(within(chart).getByText("$25.00")).toBeDefined();
   });

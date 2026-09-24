@@ -1,11 +1,14 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scenarios } from "@tc/factories";
 import { MACRO_NAMES, PRESETS } from "@tc/pages";
-import { newPageDoc, type MacroNode } from "@tc/contracts";
+import { newPageDoc, type MacroNode, type TripGlobals } from "@tc/contracts";
 import {
   RAW_SYNTAX,
   STORED_IDENTIFIERS,
+  WIDGET_PRESETS,
+  everyRepeat,
+  everyRepeatPage,
   everyWidget,
   everyWidgetPage,
   rawSyntaxLeaks,
@@ -23,6 +26,17 @@ import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
 // covered too: `MacroView` used to print `unknown macro: <name>` /
 // `bad params: <name>` for those, which is the stored name on the screen.
 
+// A chart's code is lazy (`SpendByDayBlock`); until it arrives only its
+// placeholder is on the page, and a sweep that ends there scans the placeholder,
+// not the chart. Loaded up front so waiting for the drawn chart is waiting on
+// React rather than on a cold transform of Recharts — the same reason, and the
+// same measured failure, as `MacroView.test.tsx`'s nesting sweep.
+beforeAll(async () => {
+  await import("../blocks/SpendByDayChart");
+});
+/** Every lazily-drawn chart on the page has been drawn. */
+const chartsDrawn = () => expect(screen.queryAllByRole("img", { busy: true })).toEqual([]);
+
 beforeEach(() => {
   // jsdom has no layout engine; the same stubs `PageEditor.test.tsx` uses.
   document.elementFromPoint = () => null;
@@ -36,12 +50,29 @@ const doc = everyWidgetPage();
 const trip = scenarios.threeDayTrip({ startDate: "2027-06-01" });
 const context = { tripId: trip.tripId };
 const user = { displayName: "Alice", homeAirport: "LIS", distanceUnit: "km" as const };
+const repeats = everyRepeat();
+const repeatPage = everyRepeatPage();
+// Two cities, so a sentence for every city has lines to print.
+const globals: TripGlobals = {
+  days: trip.days.map((day, index) => ({
+    index, date: day.date, cities: [index === 0 ? "Lisbon" : "Porto"], activityCount: day.activityIds.length,
+    costSubtotal: day.costSubtotal, place: null, timeZone: null,
+  })),
+  cities: [
+    { name: "Lisbon", dayIndexes: [0], activityCount: 2 },
+    { name: "Porto", dayIndexes: [1, 2], activityCount: 4 },
+  ],
+  tags: [], bookedCount: 0, homeTimeZone: null,
+};
 
 describe("no macro syntax reaches the DOM", () => {
   // The witnesses: the guard is only worth anything if the page it scans
   // really holds every widget, and if every pattern can match.
   it("covers every preset and every registered widget, and each pattern can fire", () => {
-    expect(widgets.length).toBe(PRESETS.length + MACRO_NAMES.length);
+    expect(widgets.length).toBe(WIDGET_PRESETS.length + MACRO_NAMES.length);
+    // Every preset is a widget or a repeat, and each repeat's template holds every widget.
+    expect(WIDGET_PRESETS.length + repeats.length).toBe(PRESETS.length);
+    expect(repeats.map((r) => r.attrs.name).sort()).toEqual(["city.rows", "day.rows", "stop.rows"]);
     expect(STORED_IDENTIFIERS).toEqual(expect.arrayContaining(["cost.rows", "day.detail", "trip.countdown"]));
 
     // Every category fires on a sample of itself, on text and on an attribute.
@@ -75,9 +106,45 @@ describe("no macro syntax reaches the DOM", () => {
         const views = container.querySelectorAll(".tc-page-editor [data-macro-name]");
         expect(views.length).toBeGreaterThanOrEqual(widgets.length);
         for (const view of views) expect(view.textContent?.trim()).not.toBe("");
+        chartsDrawn();
       });
       expect(rawSyntaxLeaks(container)).toEqual([]);
     });
+  }
+
+  // The authored repeat: every repeat preset, its template holding every
+  // registered widget, rendered once per day, stop and city in Reading and as
+  // the rail plus template in Editing — each widget in an item's scope, where a
+  // leak would print once per line.
+  //
+  // Budgeted, because the work is real: Reading renders every widget eleven
+  // times, synchronously, and nothing in it waits on a clock. Measured
+  // 2026-09-24 on a 4-CPU container: ~1.9s idle, 4.8-5.6s with every core
+  // saturated — where Vitest's default 5s timed it out ("Test timed out in
+  // 5000ms", once in a 105-file run). 15s is ~3x the worst measured.
+  const REPEAT_PAGE_BUDGET_MS = 15_000;
+  for (const editing of [false, true]) {
+    it(`on a page of repeats, in ${editing ? "Editing" : "Reading"}`, async () => {
+      const { container } = render(
+        <PageEditor
+          detail={trip}
+          context={context}
+          user={user}
+          globals={globals}
+          value={repeatPage}
+          onChange={() => {}}
+          editable={editing}
+        />,
+      );
+      await waitFor(() => {
+        // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- the witness is "the repeats rendered": in Reading a line per item, in Editing a rail per repeat; neither has a role.
+        const drawn = container.querySelectorAll(editing ? "[data-testid=repeat-rail]" : "[data-repeat-line]");
+        // Witness, measured: Reading draws 3 days + 6 stops + 2 cities; Editing one rail per repeat.
+        expect(drawn.length).toBe(editing ? repeats.length : 11);
+        chartsDrawn();
+      });
+      expect(rawSyntaxLeaks(container)).toEqual([]);
+    }, REPEAT_PAGE_BUDGET_MS);
   }
 
   // A page written by a newer build, or a widget whose stored params no longer
@@ -112,6 +179,12 @@ describe("no macro syntax reaches the DOM", () => {
   it("in the read-only fallback", () => {
     const { container } = render(<ReadOnlyPageDoc doc={doc} />);
     expect(screen.getAllByText(/^Before /)).toHaveLength(widgets.length);
+    expect(rawSyntaxLeaks(container)).toEqual([]);
+  });
+
+  it("in the read-only fallback, for a page of repeats", () => {
+    const { container } = render(<ReadOnlyPageDoc doc={repeatPage} />);
+    expect(screen.getAllByText(/^For every (day|stop|city)$/)).toHaveLength(repeats.length);
     expect(rawSyntaxLeaks(container)).toEqual([]);
   });
 });

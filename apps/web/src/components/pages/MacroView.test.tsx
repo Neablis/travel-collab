@@ -1,7 +1,7 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { fieldChoices, getMacro, presetCatalog, renderMacro } from "@tc/pages";
+import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
 
@@ -170,7 +170,7 @@ describe("MacroView", () => {
       ]);
       // Lined up with the data: a lead and a cell under every other heading.
       expect(rows).toHaveLength(1);
-      expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00 – 10:00", "$123.45", "planned"]);
+      expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00 – 10:00", "$123.45", "Planned"]);
     });
 
     it("has no heading row when no column was chosen", () => {
@@ -457,6 +457,27 @@ participants: [],
     tags: [], bookedCount: 1, homeTimeZone: "America/Los_Angeles",
   };
   const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" };
+  // Weather for the day, as the route would hand it in (ADR-052); without it
+  // "Weather" answers `unavailable` and skips the nesting walk. Both sources
+  // are up, so whichever mode the day lands in has something to render.
+  const richExternal: ExternalInputs = {
+    weather: {
+      state: "ready",
+      value: {
+        points: [{
+          date: "2026-08-01", city: "Kyoto",
+          forecast: {
+            source: "met-norway", asOf: "2026-07-31T06:00:00Z", highC: 33, lowC: 25, precipitationMm: 1.2,
+            symbol: "partlycloudy_day", hours: [{ at: "2026-08-01T00:00:00Z", tempC: 27, precipitationMm: 0, symbol: "fair_day" }],
+          },
+          typical: {
+            source: "nasa-power", month: 8, highC: 33.4, lowC: 24.8, precipitationMmPerDay: 4.6,
+            period: { fromYear: 2001, throughYear: 2020 },
+          },
+        }],
+      },
+    },
+  };
 
   it("resolves every widget in the registry against this fixture", () => {
     // The witness for the test below, and a real assertion in its own right: if
@@ -467,7 +488,7 @@ participants: [],
         // A fixed `today` well before the fixture's dates, so `trip.countdown`
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01" },
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", external: richExternal },
         widget.widget,
         boundParams(widget),
       );
@@ -476,7 +497,14 @@ participants: [],
     expect(presetCatalog().length).toBeGreaterThan(10);
   });
 
-  it("renders no block-level element inside a paragraph, for any widget in the registry", () => {
+  it("renders no block-level element inside a paragraph, for any widget in the registry", async () => {
+    // Loaded before the sweep, not inside it. Cold, this import is the chart's
+    // first transform of Recharts — 550-650ms idle, measured — and the
+    // `waitFor` below has 1000ms; on a saturated box it ran out and the sweep
+    // failed on the placeholder (KI-13's mechanism). Once the module is in the
+    // registry, `lazy` resolves it in a tick, so the wait is for React, not
+    // for the machine.
+    await import("./blocks/SpendByDayChart");
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));
@@ -490,11 +518,16 @@ participants: [],
               context={ctx}
               user={richUser}
               globals={richGlobals}
+              external={richExternal}
               name={widget.widget}
               params={boundParams(widget)}
             />
           </p>,
         );
+        // A chart's code is loaded lazily (`SpendByDayBlock`), and until it
+        // arrives only its placeholder is in the paragraph. Unmounting then
+        // would sweep the placeholder and never the chart, and pass.
+        await waitFor(() => expect(screen.queryAllByRole("img", { busy: true })).toEqual([]));
         unmount();
       }
     } finally {

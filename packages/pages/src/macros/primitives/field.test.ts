@@ -53,8 +53,8 @@ describe("field", () => {
       formatMoney(colosseum.cost!.amountMinor, colosseum.cost!.currency),
     );
     expect(valueOf(ctx, { ...one, field: "stop.location" })).toBe("Colosseum, Rome, Italy");
-    expect(valueOf(ctx, { ...one, field: "stop.kind" })).toBe("booked");
-    expect(valueOf(ctx, { ...one, field: "stop.tags" })).toBe("ticketed");
+    expect(valueOf(ctx, { ...one, field: "stop.kind" })).toBe("Booked");
+    expect(valueOf(ctx, { ...one, field: "stop.tags" })).toBe("Ticketed");
     expect(valueOf(ctx, { ...one, field: "stop.title" })).toBe("Colosseum");
   });
 
@@ -67,10 +67,22 @@ describe("field", () => {
   it("lists every value across several stops, and each once when asked for distinct", () => {
     const ctx = contextOf(selectionTrip());
     // Board order: day 1, day 2, day 3, then the backlog.
-    expect(valueOf(ctx, { field: "stop.kind" })).toBe("booked, planned, transit, booked, planned, idea, idea");
-    expect(valueOf(ctx, { field: "stop.kind", distinct: true })).toBe("booked, planned, transit, idea");
+    expect(valueOf(ctx, { field: "stop.kind" })).toBe("Booked, Planned, Travel, Booked, Planned, Idea, Idea");
+    expect(valueOf(ctx, { field: "stop.kind", distinct: true })).toBe("Booked, Planned, Travel, Idea");
     // A list field is its elements, across stops.
-    expect(valueOf(ctx, { field: "stop.tags", day: { kind: "index", index: 0 } })).toBe("ticketed, meal");
+    expect(valueOf(ctx, { field: "stop.tags", day: { kind: "index", index: 0 } })).toBe("Ticketed, Meal");
+  });
+
+  it("removes duplicates within one stop's list too", () => {
+    // `tags` is an array, not a set: the API replaces it whole and keeps a
+    // repeat. The one-stop branch prints a list without collapsing it, so
+    // `distinct` has to reach it as well.
+    const fixture = selectionTrip();
+    fixture.trip.activities[fixture.ids.s0]!.tags = ["ticketed", "meal", "ticketed"];
+    const ctx = contextOf(fixture);
+    const one = { tag: "ticketed", field: "stop.tags" };
+    expect(valueOf(ctx, one)).toBe("Ticketed, Meal, Ticketed");
+    expect(valueOf(ctx, { ...one, distinct: true })).toBe("Ticketed, Meal");
   });
 
   it("is empty when the filters leave no stop, and says so when no stop has the value", () => {

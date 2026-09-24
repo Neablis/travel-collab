@@ -1,17 +1,13 @@
 import type { ActivityKind } from "@tc/contracts";
+import { KIND_LABEL } from "@tc/pages";
 
 // The four variants the handoff's badge map names, and no more — `Badge`
 // already carries every one of them (components/ui/badge.tsx).
 type KindBadgeVariant = "success" | "warning" | "neutral" | "info";
 
-/** Copy for a kind, shared by the card's badge and the editor's picker. */
-export const KIND_LABEL: Record<ActivityKind, string> = {
-  planned: "Planned",
-  idea: "Idea",
-  hold: "Holding",
-  booked: "Booked",
-  transit: "Travel",
-};
+// Copy for a kind, shared by the card's badge and the editor's picker. It lives
+// in `@tc/pages` because the notebook prints the same words.
+export { KIND_LABEL };
 
 // The handoff's own map (`Trip Planner Redesign.dc.html:3740`):
 //   { booked: ['Booked','success'], hold: ['Holding','warning'],

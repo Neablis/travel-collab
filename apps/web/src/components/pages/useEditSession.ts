@@ -45,6 +45,10 @@ export type CommitSession = (
  *   was CANCELLED here, which is KI-2026-09-24-g;
  * - **`pagehide`**, because a reload or a closed tab never unmounts. Sent with
  *   `keepalive` so the request outlives the page;
+ * - **`visibilitychange` to hidden**, also with `keepalive`, because mobile
+ *   Safari does not reliably fire `pagehide` when a backgrounded tab is killed.
+ *   Switching tabs therefore ends the session too; the `pagehide` that often
+ *   follows finds nothing pending and sends nothing;
  * - **`EDIT_SESSION_IDLE_MS` without a change.**
  *
  * Nothing pending means nothing is written, so opening Editing to read and
@@ -68,7 +72,13 @@ export type CommitSession = (
  * once, marked `overtaking`. The race it then runs is settled by the server:
  * the ordinary commit names the revision it was typed against, the keepalive
  * names none, so whichever lands second, the older document is never the one
- * kept (`expectedUpdatedAt`). Found by CodeRabbit on PR #222.
+ * kept (`expectedUpdatedAt`). Found by CodeRabbit on PR #222. The other way
+ * round, an ordinary commit waits for a keepalive still in flight (the tab came
+ * back before its hidden-page write answered). A keepalive cannot pass another
+ * keepalive either: both would name no revision, and the older could land
+ * last. It is held until the first answers and then sent, and `hold` is told
+ * its document at once, so a page that goes before that still has it as a
+ * draft (CodeRabbit, PR #226).
  *
  * **Only the latest commit started may act on its result.** An older one can
  * still answer after a newer one (past a keepalive), and what it says is
@@ -77,11 +87,14 @@ export type CommitSession = (
 export function useEditSession(
   editing: boolean,
   commit: CommitSession,
+  hold?: (doc: PageDoc) => void,
 ): { change: (doc: PageDoc) => void; flush: () => void; failed: boolean } {
   const pending = useRef<{ doc: PageDoc; commit: CommitSession } | null>(null);
   const idle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commitRef = useRef(commit);
   commitRef.current = commit;
+  const holdRef = useRef(hold);
+  holdRef.current = hold;
   const mounted = useRef(true);
   const [failed, setFailed] = useState(false);
   // Which commit is the latest started, and whether an ordinary one is in
@@ -89,13 +102,26 @@ export function useEditSession(
   const started = useRef(0);
   const inFlight = useRef(false);
   const queued = useRef(false);
+  // Keepalive commits still on the wire. An ordinary commit waits for them as
+  // it waits for one of its own: the tab can come back before a hidden-page
+  // write has answered, and a commit racing it names the revision it is about
+  // to move (CodeRabbit, PR #226). A count: each hide sends one.
+  const keepalivesInFlight = useRef(0);
+  // A keepalive held behind one still in flight (see "at most one" above).
+  const keepaliveQueued = useRef(false);
 
   const settle = useCallback((keepalive: boolean) => {
     if (idle.current !== null) clearTimeout(idle.current);
     idle.current = null;
-    if (!keepalive && inFlight.current) {
+    if (!keepalive && (inFlight.current || keepalivesInFlight.current > 0)) {
       // Left pending, so a change made while waiting replaces it.
       queued.current = true;
+      return;
+    }
+    if (keepalive && keepalivesInFlight.current > 0) {
+      if (pending.current === null) return;
+      holdRef.current?.(pending.current.doc);
+      keepaliveQueued.current = true;
       return;
     }
     const session = pending.current;
@@ -103,12 +129,14 @@ export function useEditSession(
     if (session === null) return;
     const seq = ++started.current;
     const overtaking = keepalive && inFlight.current;
-    if (!keepalive) inFlight.current = true;
+    if (keepalive) keepalivesInFlight.current += 1;
+    else inFlight.current = true;
     // A rejection counts as a failure: left unhandled, `inFlight` would stay
     // set and every commit after it would queue forever.
     const result = Promise.resolve(session.commit(session.doc, { keepalive, overtaking })).catch(() => false as const);
     void result.then((taken) => {
-      if (!keepalive) inFlight.current = false;
+      if (keepalive) keepalivesInFlight.current -= 1;
+      else inFlight.current = false;
       if (taken === "superseded" && seq === started.current) {
         // Anything typed while it was in flight was typed on the same stale
         // page, and is already in what the caller kept.
@@ -124,7 +152,11 @@ export function useEditSession(
         }
       }
       // Even after unmount: the unmount's own settle may be the one queued.
-      if (!keepalive && queued.current) {
+      if (keepaliveQueued.current && keepalivesInFlight.current === 0) {
+        keepaliveQueued.current = false;
+        settle(true);
+      }
+      if (queued.current && !inFlight.current && keepalivesInFlight.current === 0) {
         queued.current = false;
         settle(false);
       }
@@ -149,9 +181,14 @@ export function useEditSession(
   useEffect(() => {
     mounted.current = true;
     const onPageHide = () => settle(true);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") settle(true);
+    };
     window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       settle(false);
       mounted.current = false;
     };

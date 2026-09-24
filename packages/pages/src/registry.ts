@@ -1,10 +1,11 @@
 import { z } from "zod";
 import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import type { AnyMacroDef, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
+import type { AnyMacroDef, ItemScope, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
 import { ghost, text } from "./registry-types";
 import type { UnavailableReason, UnboundNeeds } from "./result";
-import { fieldChoices } from "./fields";
+import { fieldAt, fieldChoices } from "./fields";
+import { VALUE_KIND_FORMATS } from "./kinds";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
@@ -15,6 +16,7 @@ import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
 import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
+import { dayWeather } from "./macros/primitives/weather";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -52,6 +54,9 @@ const DEFS: AnyMacroDef[] = [
   // The clock pair (M14 link 11): day primitives over the zone and place the
   // server put on each day of the globals projection. See `time.ts`.
   daySun, dayFromHome,
+  // "Weather" (M14 link 11): a day primitive over data the trip does not hold,
+  // handed in pre-fetched (ADR-052). The first registered widget with `needs`.
+  dayWeather,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -93,12 +98,15 @@ export type RenderOutcome =
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
-export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown): RenderOutcome {
+// `item` is the repeat line this widget is being rendered on, when it sits in a
+// repeat's template (ADR-035 decision 4). Render-time only: it never reaches
+// the stored node.
+export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown, item?: ItemScope): RenderOutcome {
   const def = getMacro(name);
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
-  const outcome = def.resolve(ctx, parsed.data as never);
+  const outcome = def.resolve(ctx, parsed.data as never, item);
   if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
   if (outcome.status === "unbound") return { ...outcome, shape: outcome.shape ?? fallbackShape(def) };
   return outcome;
@@ -208,4 +216,27 @@ function nonFilterParams(def: AnyMacroDef): Record<string, readonly string[] | n
     out[key] = inner instanceof z.ZodEnum ? (inner.options as readonly string[]) : null;
   }
   return out;
+}
+
+/**
+ * Whether "Remove duplicates" means anything for this widget as it is bound.
+ *
+ * Two facts, both read rather than listed: the widget's params schema declares
+ * a boolean `distinct` (today only `field`; `stop.rows` has field inputs but a
+ * row per stop, so nothing to collapse), and its one field input points at a
+ * published field whose kind's "All" rule `distinct` changes (`kinds.ts` —
+ * text, enum, place list; money, dates, counts and durations sum or span). No
+ * field chosen, or one no longer published, is `false`: there is nothing yet
+ * for the setting to act on.
+ */
+export function distinctApplies(name: string, params: Record<string, unknown>): boolean {
+  const def = getMacro(name);
+  const shape = (def?.params as Partial<z.ZodObject<z.ZodRawShape>> | undefined)?.shape;
+  const declared = shape?.distinct;
+  const inner = declared instanceof z.ZodOptional ? (declared.unwrap() as z.ZodTypeAny) : declared;
+  if (!(inner instanceof z.ZodBoolean)) return false;
+  const input = def!.inputs.find((i) => i.type === "field" && !i.multiple);
+  if (input?.type !== "field") return false;
+  const choice = fieldAt(input.of, params[input.name]);
+  return choice !== undefined && VALUE_KIND_FORMATS[choice.valueKind].distinct;
 }

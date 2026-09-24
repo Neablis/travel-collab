@@ -9,6 +9,8 @@ import {
   AttributeRef,
   buildAttributeManifest,
   described,
+  FIELD_CHANGES,
+  type FieldChange,
   HIDDEN_STOP_FIELDS,
   Location,
   MANIFEST_OBJECTS,
@@ -17,7 +19,9 @@ import {
   TripGlobals,
   unwrapSchema,
   valueKindOf,
+  WIDGET_NAME_MIGRATION,
 } from "../src";
+import { PUBLISHED_FIELD_PATHS } from "./fixtures/publishedFieldPaths";
 
 describe("the attribute manifest", () => {
   it("lists the trip's collections with the fields readable off each member", () => {
@@ -407,5 +411,97 @@ describe("a value kind through a schema wrapper", () => {
   it("answers undefined for a bare describe(), wrapped or not", () => {
     expect(valueKindOf(z.string().describe("Just a label"))).toBeUndefined();
     expect(valueKindOf(z.string().describe("Just a label").nullable())).toBeUndefined();
+  });
+});
+
+// M14 field widget, answer 1: a field leaves the manifest only through a
+// `FIELD_CHANGES` entry, which converts the pages that read it. Without one,
+// every page naming the field is refused whole on its next save (the review's
+// gap 1), and nothing about the removal itself looks wrong.
+describe("a published field never disappears silently", () => {
+  // The paths a widget stores: `object.field`, or `object.collection.field`
+  // for a collection member.
+  const livePaths = () =>
+    buildAttributeManifest([]).flatMap((e) =>
+      e.kind === "value" ? [`${e.object}.${e.field}`] : e.fields.map((f) => `${e.object}.${e.collection}.${f.field}`),
+    );
+
+  // Published once, not live now, and no entry says where it went.
+  const unaccounted = (published: readonly string[], live: readonly string[], changes: readonly FieldChange[]) => {
+    const changed = new Set(changes.map((c) => (c.kind === "rename" ? c.from : c.path)));
+    return published.filter((path) => !live.includes(path) && !changed.has(path));
+  };
+
+  it("can say no: a path gone from the manifest with no entry is reported", () => {
+    const removed = { kind: "remove", path: "stop.cost", label: "Cost", since: 3 } as const;
+    expect(unaccounted(["stop.cost", "stop.title"], ["stop.title"], [])).toEqual(["stop.cost"]);
+    expect(unaccounted(["stop.cost", "stop.title"], ["stop.title"], [removed])).toEqual([]);
+  });
+
+  it("accounts for every path ever published, live or in FIELD_CHANGES", () => {
+    expect(PUBLISHED_FIELD_PATHS.length, "the witness").toBeGreaterThan(15);
+    expect(
+      unaccounted(PUBLISHED_FIELD_PATHS, livePaths(), FIELD_CHANGES),
+      "removed from the manifest without a FIELD_CHANGES entry in pageDoc.ts",
+    ).toEqual([]);
+  });
+
+  it("records every live path as published", () => {
+    // The other direction keeps the record whole: a field annotated today and
+    // removed next month has to be on the list for the check above to see it.
+    const missing = livePaths().filter((path) => !PUBLISHED_FIELD_PATHS.includes(path));
+    expect(missing, "add these to test/fixtures/publishedFieldPaths.ts").toEqual([]);
+  });
+
+  // Returns violations rather than asserting in a loop: `FIELD_CHANGES` is
+  // empty today, and a loop over it asserts nothing (CodeRabbit, PR #226).
+  const badChanges = (changes: readonly FieldChange[], live: ReadonlySet<string>): string[] =>
+    changes.flatMap((change, index) => {
+      if (change.kind === "remove") return live.has(change.path) ? [`${change.path} is removed but still published`] : [];
+      // Follow the rename through later entries: it may itself be renamed or
+      // removed again, and only where it ends up has to be live.
+      let path: string | undefined = change.to;
+      for (const later of changes.slice(index + 1)) {
+        if (later.kind === "rename" && later.from === path) path = later.to;
+        if (later.kind === "remove" && later.path === path) path = undefined;
+      }
+      return path !== undefined && !live.has(path) ? [`${change.from} → ${path}`] : [];
+    });
+
+  it("can say no: a rename onto a dead field, or a remove of a live one", () => {
+    const live = new Set(["stop.title", "stop.price"]);
+    expect(badChanges([{ kind: "rename", from: "stop.cost", to: "stop.gone", since: 3 }], live)).toEqual([
+      "stop.cost → stop.gone",
+    ]);
+    expect(badChanges([{ kind: "remove", path: "stop.title", label: "Title", since: 3 }], live)).toEqual([
+      "stop.title is removed but still published",
+    ]);
+    // A chain is judged where it ends, and a rename later removed owes nothing.
+    expect(
+      badChanges(
+        [
+          { kind: "rename", from: "stop.cost", to: "stop.tmp", since: 3 },
+          { kind: "rename", from: "stop.tmp", to: "stop.price", since: 4 },
+          { kind: "rename", from: "stop.old", to: "stop.gone", since: 4 },
+          { kind: "remove", path: "stop.gone", label: "Gone", since: 5 },
+        ],
+        live,
+      ),
+    ).toEqual([]);
+  });
+
+  it("only renames to a field that exists, and only removes one that is gone", () => {
+    expect(badChanges(FIELD_CHANGES, new Set(livePaths()))).toEqual([]);
+  });
+
+  it("names only live fields in the widget-name migration's fields", () => {
+    // A v1 page migrates onto these, so one that is not live would convert a
+    // page straight onto a field the manifest lacks.
+    const live = new Set(livePaths());
+    const fields = Object.values(WIDGET_NAME_MIGRATION).flatMap((step) =>
+      typeof step.set?.field === "string" ? [step.set.field] : [],
+    );
+    expect(fields.length, "the witness").toBe(4);
+    for (const field of fields) expect(live, field).toContain(field);
   });
 });

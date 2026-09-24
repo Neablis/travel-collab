@@ -1252,16 +1252,17 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 // paragraphs with it. So the assertion that carries the weight here is the
 // negative one: `onUpdate` is never called.
 describe("PageScreen given a document the editor cannot mount (ADR-038 decision 4)", () => {
-  // `repeat` is a valid v1 node with no TipTap extension behind it, so this is
-  // a document that parses, round-trips byte-identically, and would still cost
+  // A node from a newer build has no TipTap extension behind it, so this is a
+  // document that parses, round-trips byte-identically, and would still cost
   // its owner the page. See `editor/storedPageDoc.test.ts` for that pair of
-  // facts asserted side by side.
-  const withRepeat = {
+  // facts asserted side by side. (It was a `repeat` until M14 link 6 gave the
+  // editor one.)
+  const withNewerNode = {
     v: 1,
     type: "doc" as const,
     content: [
       { type: "paragraph", content: [{ type: "text", text: "written by the user" }] },
-      { type: "repeat", attrs: { name: "day.line", params: {} }, content: [] },
+      { type: "callout", content: [] },
     ],
   };
 
@@ -1289,10 +1290,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
   }
 
   it("opens read-only, explains why, and never autosaves over the page", async () => {
-    const { onUpdate } = await renderWithStoredContent(withRepeat);
+    const { onUpdate } = await renderWithStoredContent(withNewerNode);
 
     const notice = await screen.findByRole("status");
-    expect(notice.textContent).toContain("repeat");
+    expect(notice.textContent).toContain("callout");
 
     // No editor at all: mounting one is what destroys the document, so the
     // refusal has to be "do not mount", not "mount it and don't save".
@@ -1317,7 +1318,7 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
   });
 
   it("takes the assistant away too, since what it inserts would be autosaved", async () => {
-    await renderWithStoredContent(withRepeat);
+    await renderWithStoredContent(withNewerNode);
     await screen.findByRole("status");
     // Not only the rail — its launcher, in BOTH of its shapes. This branch
     // never mounts an editor at all (that is the whole of decision 4), so an

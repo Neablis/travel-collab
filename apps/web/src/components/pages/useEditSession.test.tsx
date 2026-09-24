@@ -65,6 +65,96 @@ describe("useEditSession", () => {
     expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true, overtaking: false }]]);
   });
 
+  // Mobile Safari does not reliably fire pagehide when a tab is swiped away or
+  // the app is backgrounded and killed; `visibilitychange` to hidden is the
+  // last event it does fire. Safari then often fires pagehide as well, so the
+  // second trigger must find nothing left to send: one session, one write.
+  describe("when the page is hidden", () => {
+    let visibility: DocumentVisibilityState = "visible";
+    beforeEach(() => {
+      visibility = "visible";
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => visibility,
+      });
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(document, "visibilityState");
+    });
+    const setVisibility = (state: DocumentVisibilityState) => {
+      visibility = state;
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+
+    it("commits with keepalive, and not again on the pagehide and unmount after", () => {
+      const { result, unmount, commit } = mount();
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true, overtaking: false }]]);
+      window.dispatchEvent(new Event("pagehide"));
+      unmount();
+      expect(commit).toHaveBeenCalledTimes(1);
+    });
+
+    // The tab came back while its hidden-page write was still on the wire.
+    // The next ordinary commit names the same revision that write is about to
+    // move, so racing it would get one of the two refused as stale, and the
+    // author would be shown a conflict with their own words (CodeRabbit, PR
+    // #226). It waits instead, and goes once the keepalive has answered.
+    it("holds an ordinary commit until a keepalive in flight has answered", async () => {
+      let land: (ok: boolean) => void = () => {};
+      const commit = vi
+        .fn<CommitSession>()
+        .mockImplementationOnce(() => new Promise((r) => (land = r)))
+        .mockResolvedValue(true);
+      const { result } = mount(true, commit);
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      setVisibility("visible");
+      act(() => result.current.change(doc("ab")));
+      act(() => result.current.flush());
+      expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
+      await act(async () => land(true));
+      expect(commit.mock.calls).toEqual([
+        [doc("a"), { keepalive: true, overtaking: false }],
+        [doc("ab"), { keepalive: false, overtaking: false }],
+      ]);
+    });
+
+    // A second hide while the first hide's write is still out: both would
+    // name no revision, so the older could land last and win (CodeRabbit, PR
+    // #226). The second is held, its document handed to `hold` at once (the
+    // page may go before the first answers), and sent when the first answers.
+    it("holds a keepalive behind one in flight, keeping its document, and sends it after", async () => {
+      let land: (ok: boolean) => void = () => {};
+      const commit = vi
+        .fn<CommitSession>()
+        .mockImplementationOnce(() => new Promise((r) => (land = r)))
+        .mockResolvedValue(true);
+      const hold = vi.fn<(doc: PageDoc) => void>();
+      const { result } = renderHook(() => useEditSession(true, commit, hold));
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      setVisibility("visible");
+      act(() => result.current.change(doc("ab")));
+      setVisibility("hidden");
+      expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
+      expect(hold.mock.calls).toEqual([[doc("ab")]]);
+      await act(async () => land(true));
+      expect(commit.mock.calls).toEqual([
+        [doc("a"), { keepalive: true, overtaking: false }],
+        [doc("ab"), { keepalive: true, overtaking: false }],
+      ]);
+    });
+
+    it("does not commit when the page becomes visible", () => {
+      const { result, commit } = mount();
+      act(() => result.current.change(doc("a")));
+      setVisibility("visible");
+      expect(commit).not.toHaveBeenCalled();
+    });
+  });
+
   it("commits after a minute idle, counted from the LAST change", () => {
     const { result, commit } = mount();
     act(() => result.current.change(doc("a")));

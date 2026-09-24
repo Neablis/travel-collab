@@ -1,4 +1,5 @@
 import type { ActivityTag } from "@tc/contracts";
+import { TAG_LABEL } from "@tc/pages";
 
 /**
  * The four tags the contract carries, in the order the picker offers them and
@@ -9,12 +10,8 @@ import type { ActivityTag } from "@tc/contracts";
  */
 export const TAG_ORDER: readonly ActivityTag[] = ["meal", "lodging", "ticketed", "outdoors"];
 
-export const TAG_LABEL: Record<ActivityTag, string> = {
-  meal: "Meal",
-  lodging: "Lodging",
-  ticketed: "Ticketed",
-  outdoors: "Outdoors",
-};
+// One source with the notebook's `field` widget and filter selects.
+export { TAG_LABEL };
 
 /**
  * Chip colours, from the handoff's `TAGS` array (`Trip Planner

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import type { SavedStop, TripDetail } from "@tc/contracts";
-import { citiesOfDay, citiesOfStops, countriesOfStops } from "../src";
+import { citiesOfDay, citiesOfStops, countriesOfStops, stopsInTimeOrder } from "../src";
 import { witness } from "./support/witness";
 
 const TRIP = "1c2d3e4f-0000-4000-8000-000000000002";
@@ -217,6 +217,32 @@ describe("citiesOfDay and citiesOfStops are the same rule", () => {
     // shape is pinned before the equality is asserted.
     expect(fromTrip).toEqual(["Kyoto", "Osaka", "Nara"]);
     expect(fromSaved).toEqual(fromTrip);
+  });
+});
+
+// The walk alone, which the weather's "first stop in each city" shares with
+// `citiesOfDay` rather than copying it (M14 PART 3 review, finding 6).
+describe("stopsInTimeOrder", () => {
+  it("puts timed stops by start, then untimed ones in stored order — ties keep stored order", () => {
+    const stops = [
+      activity("untimed-a", null),
+      activity("late", { start: "19:00", end: "20:00" }),
+      activity("early-1", { start: "08:00", end: "09:00" }),
+      activity("untimed-b", null),
+      activity("early-2", { start: "08:00", end: "08:30" }),
+    ];
+    expect(stopsInTimeOrder(stops).map((s) => s.activityId)).toEqual(["early-1", "early-2", "late", "untimed-a", "untimed-b"]);
+  });
+
+  it("is the order citiesOfStops reads cities in", () => {
+    const stops = [
+      activity("untimed-nara", null, { city: "Nara" }),
+      activity("evening-kyoto", { start: "19:00", end: "21:00" }, { city: "Kyoto" }),
+      activity("midday-osaka", { start: "13:00", end: "14:00" }, { city: "Osaka" }),
+    ];
+    const cities = stopsInTimeOrder(stops).map((s) => s.location!.city);
+    expect(cities).toEqual(["Osaka", "Kyoto", "Nara"]);
+    expect(citiesOfStops(stops)).toEqual(cities);
   });
 });
 

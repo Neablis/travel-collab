@@ -146,6 +146,22 @@ exists to disprove.
 `repeat` is a second ProseMirror node type, not a mode of `MacroNodeExtension`: that
 extension is an atom, and an atom cannot have editable content.
 
+> **Built 2026-09-24 (M14 T13).** Three choices the decision left open, as taken:
+>
+> - **What a repeat is over is its `attrs.name`: a rows widget** (`day.rows`, `stop.rows`,
+>   `city.rows`), and `params` are that widget's filters. So a repeat's selection is the rows
+>   widget's own (`narrow`), its filters are validated by that widget's own `insertWidget`, and
+>   the stored `PageRepeatNode` needed no change — it is also the shape the v1 fixtures, the
+>   v1 → v2 name migration and saved-template day rebinding already assumed. `columns` is refused:
+>   a sentence has none.
+> - **`ItemScope` is a filter the author did not set.** `narrow` applies a day, city or stop item
+>   only to a dimension the widget left unbound, so an unbound widget on a line renders exactly
+>   what it renders bound to that item, and an explicit binding wins (`repeat.test.ts`).
+> - **"Edit the wording" (catalogue row 12) is editing the template in place.** In Editing the
+>   template is ordinary editable text inside a dashed rail labelled *"For every day · 9 days"*,
+>   its widgets previewing the first item; there is no wording dialog. Reading prints one line per
+>   item and hides the template; an empty collection reads as the rows widget's `emptyText`.
+
 ### 5. The assistant's page tools become insert-shaped
 
 Under this model the assistant no longer needs to compose a whole document to change one

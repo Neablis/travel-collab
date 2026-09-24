@@ -3,6 +3,7 @@ import { WIDGET_NAME_MIGRATION } from "@tc/contracts";
 import type { WidgetInput } from "./registry-types";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
+import { TABLE_ONLY_PARAMS, insertRepeat, type RepeatInsertResult } from "./repeat";
 
 /**
  * **A named widget is a preset, and a preset is data** (ADR-039 decision 4).
@@ -41,6 +42,12 @@ export interface WidgetPreset {
   /** Overrides the primitive's, when the preset is about something narrower. */
   description?: string;
   preview?: string;
+  /**
+   * Inserts an authored REPEAT over `widget`'s selection instead of the widget
+   * itself (`repeat.ts`): the same days, stops or cities, as a sentence the
+   * author writes rather than a table the widget draws.
+   */
+  repeat?: true;
 }
 
 /**
@@ -236,6 +243,40 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "The cities, in detail",
     keywords: ["city", "cities", "where", "places", "overview"],
   },
+  // ---- a sentence each (ADR-035 decision 4) --------------------------------
+  // The authored repeat. Same selection as the `…line` rows below; what differs
+  // is who writes the line — the author, with widgets in it that read each
+  // item — so these insert a `repeat` node with an empty template.
+  {
+    id: "sentence.day",
+    widget: "day.rows",
+    params: {},
+    repeat: true,
+    title: "A sentence for every day",
+    keywords: ["repeat", "each", "every", "day", "days", "sentence", "write", "template"],
+    description: "A sentence you write once, repeated for every day. Widgets you put in it read that line's day.",
+    preview: "your own sentence, once per day",
+  },
+  {
+    id: "sentence.stop",
+    widget: "stop.rows",
+    params: {},
+    repeat: true,
+    title: "A sentence for every stop",
+    keywords: ["repeat", "each", "every", "stop", "stops", "activities", "sentence", "write", "template"],
+    description: "A sentence you write once, repeated for every stop. Widgets you put in it read that line's stop.",
+    preview: "your own sentence, once per stop",
+  },
+  {
+    id: "sentence.city",
+    widget: "city.rows",
+    params: {},
+    repeat: true,
+    title: "A sentence for every city",
+    keywords: ["repeat", "each", "every", "city", "cities", "sentence", "write", "template"],
+    description: "A sentence you write once, repeated for every city. Widgets you put in it read that line's city.",
+    preview: "your own sentence, once per city",
+  },
   // ---- a line each --------------------------------------------------------
   {
     id: "day.line",
@@ -328,6 +369,13 @@ export const PRESETS: readonly WidgetPreset[] = [
     keywords: ["time", "time zone", "timezone", "difference", "jet lag", "home", "clock", "hours ahead", "behind", "call home"],
   },
   {
+    id: "weather",
+    widget: "day.weather",
+    params: {},
+    title: "Weather",
+    keywords: ["weather", "forecast", "temperature", "rain", "typical", "climate", "sun", "cold", "hot", "umbrella", "pack"],
+  },
+  {
     id: "costs.table",
     widget: "cost.rows",
     params: {},
@@ -389,7 +437,7 @@ function isParamRecord(value: unknown): value is Readonly<Record<string, unknown
  * door. So this resolves the preset to `(primitive, params)` and hands both to
  * the same validator every other caller uses.
  */
-export function insertPreset(id: string, extra: unknown = {}): InsertResult {
+export function insertPreset(id: string, extra: unknown = {}): PresetInsertResult {
   const preset = getPreset(id);
   // The same typed refusal an unknown widget gets. A preset id is not a widget
   // name, but from a caller's point of view "I asked for a thing that is not
@@ -408,9 +456,13 @@ export function insertPreset(id: string, extra: unknown = {}): InsertResult {
   // exactly the reason `insertWidget`'s `params` is: the preset door and the
   // general door have to refuse the same inputs, or the preset door is the
   // second insert path ADR-037 decision 4 exists to forbid.
-  if (!isParamRecord(extra)) return insertWidget(preset.widget, extra);
-  return insertWidget(preset.widget, presetParams(preset, extra));
+  const insert = preset.repeat ? insertRepeat : insertWidget;
+  if (!isParamRecord(extra)) return insert(preset.widget, extra);
+  return insert(preset.widget, presetParams(preset, extra));
 }
+
+/** A preset's node: a widget, or — for a `repeat` preset — a repeat with an empty template. */
+export type PresetInsertResult = InsertResult | RepeatInsertResult;
 
 /**
  * What the picker, the slash menu and the phone sheet read.
@@ -471,13 +523,33 @@ const paramsKey = (params: Readonly<Record<string, unknown>>): string =>
  * back to every preset on its primitive rather than becoming unfindable, which
  * is the honest degradation: the reader gets the family, not nothing.
  */
+//
+// A repeat preset answers to none: every retired name was a widget, never a
+// sentence the author writes.
 const RETIRED_NAMES_BY_PRESET: Record<string, string[]> = {};
 for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
-  const onPrimitive = PRESETS.filter((preset) => preset.widget === step.name);
+  const onPrimitive = PRESETS.filter((preset) => preset.widget === step.name && !preset.repeat);
   const exact = onPrimitive.filter((preset) => paramsKey(preset.params) === paramsKey(step.set ?? {}));
   for (const preset of exact.length > 0 ? exact : onPrimitive) {
     (RETIRED_NAMES_BY_PRESET[preset.id] ??= []).push(retired);
   }
+}
+
+/**
+ * **The controls a preset offers: the ones its name does not already answer.**
+ * A preset that fixes `kind: "booked"` is "a line for every booking"; offering
+ * a kind select beside it invites the author to turn it into something its own
+ * title contradicts. The dimension is still there — clearing the preset's
+ * filter is what the general widget is for — but the row a person picked by
+ * name should not immediately offer to unpick it.
+ *
+ * A repeat preset also drops a table's `columns`: a sentence has none, and
+ * `insertRepeat` refuses them.
+ */
+export function presetInputs(preset: WidgetPreset): readonly WidgetInput[] {
+  return (getMacro(preset.widget)?.inputs ?? []).filter(
+    (input) => !(input.name in preset.params) && !(preset.repeat && TABLE_ONLY_PARAMS.includes(input.name)),
+  );
 }
 
 export function presetCatalog(): WidgetCatalogEntry[] {
@@ -497,13 +569,7 @@ export function presetCatalog(): WidgetCatalogEntry[] {
       description: preset.description ?? def.description,
       emptyText: def.emptyText,
       preview: preset.preview ?? def.preview,
-      // **The controls the preset does not already answer.** A preset that
-      // fixes `kind: "booked"` is "a line for every booking"; offering a kind
-      // select beside it invites the author to turn it into something its own
-      // title contradicts. The dimension is still there — clearing the preset's
-      // filter is what the general widget is for — but the row a person picked
-      // by name should not immediately offer to unpick it.
-      inputs: def.inputs.filter((input) => !(input.name in preset.params)),
+      inputs: presetInputs(preset),
       keywords: preset.keywords,
       aliases: RETIRED_NAMES_BY_PRESET[preset.id] ?? [],
     });

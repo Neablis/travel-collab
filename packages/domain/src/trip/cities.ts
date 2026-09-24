@@ -96,29 +96,37 @@ export function countriesOfStops(stops: readonly (CityBearingStop | undefined)[]
   });
 }
 
+/**
+ * Decision 1 alone: stops in TIME order, timed ones by start and untimed ones
+ * after them in stored order. Exported because "the day's first stop" asks
+ * the same question — the weather's point per city is that city's first
+ * located stop in this order — and a copy of the walk is free to drift from
+ * the one `citiesOfDay` makes (M14 PART 3 review, finding 6).
+ */
+export function stopsInTimeOrder<T extends Pick<CityBearingStop, "timeWindow">>(stops: readonly T[]): T[] {
+  const timed = stops.filter((stop) => stop.timeWindow);
+  const untimed = stops.filter((stop) => !stop.timeWindow);
+  // Lexicographic order agrees with chronological order for zero-padded
+  // "HH:mm" — the same fact `findFreeGaps`'s callers rely on elsewhere. The
+  // sort is stable, so equal starts keep stored order.
+  timed.sort((a, b) => (a.timeWindow!.start < b.timeWindow!.start ? -1 : a.timeWindow!.start > b.timeWindow!.start ? 1 : 0));
+  return [...timed, ...untimed];
+}
+
 /** Decisions 1 and 3 above, over whichever field `pick` reads off a location. */
 function distinctInTimeOrder(
   stops: readonly (CityBearingStop | undefined)[],
   pick: (location: NonNullable<CityBearingStop["location"]>) => string | undefined,
 ): string[] {
-  const timed: { value: string; start: string }[] = [];
-  const untimed: string[] = [];
+  const picked: (CityBearingStop & { value: string })[] = [];
   for (const stop of stops) {
     const value = stop?.location ? pick(stop.location) : undefined;
-    if (!value) continue;
-    if (stop!.timeWindow) {
-      timed.push({ value, start: stop!.timeWindow.start });
-    } else {
-      untimed.push(value);
-    }
+    if (value) picked.push({ ...stop!, value });
   }
-  // Lexicographic order agrees with chronological order for zero-padded
-  // "HH:mm" — the same fact `findFreeGaps`'s callers rely on elsewhere.
-  timed.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
 
   const seen = new Set<string>();
   const ordered: string[] = [];
-  for (const value of [...timed.map((t) => t.value), ...untimed]) {
+  for (const { value } of stopsInTimeOrder(picked)) {
     if (seen.has(value)) continue;
     seen.add(value);
     ordered.push(value);

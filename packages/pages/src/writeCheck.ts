@@ -1,5 +1,6 @@
 import { MacroNode } from "@tc/contracts";
 import { insertWidget } from "./insert";
+import { insertRepeat } from "./repeat";
 
 /**
  * The first widget in a document that the registry refuses, as a sentence, or
@@ -40,6 +41,22 @@ export function findWidgetError(nodes: readonly unknown[]): string | null {
           : `Macro "${name}" params failed validation: ${checked.error.message}`;
       }
       continue;
+    }
+
+    // A repeat is judged by `insertRepeat`, for the reason a widget is judged
+    // by `insertWidget`: the door and the write check cannot disagree. Its
+    // template is inline content and falls through to the walk below, so a
+    // widget inside it is judged like any other (KI-2026-09-24-d item 3).
+    if (record.type === "repeat") {
+      const parsed = MacroNode.shape.attrs.safeParse(record.attrs);
+      if (!parsed.success) return `Invalid repeat node: ${parsed.error.message}`;
+      const { name, params } = parsed.data;
+      const checked = insertRepeat(name, params);
+      if (!checked.ok) {
+        return checked.error.reason === "unknown-widget"
+          ? `Unknown repeat "${name}": only a day, stop or city collection can be repeated over.`
+          : `Repeat "${name}" params failed validation: ${checked.error.message}`;
+      }
     }
 
     const nested = record.content;

@@ -13,20 +13,23 @@ export type HistoryRow = { entry: HistoryEntry; count: number };
 /**
  * Collapse consecutive edits to the same page by the same person into one row.
  *
- * **Why this exists.** The notebook editor autosaves on an 800ms debounce, and
- * since notebook edits became real events (2026-09-22) each of those saves is
- * a batch. A few minutes of writing is dozens of identical-looking rows, and a
- * history you have to scroll past is a history nobody reads.
+ * **Why this exists.** Since notebook edits became real events (2026-09-22)
+ * each notebook write is a batch. `useEditSession` makes that one write per
+ * editing session (M14 T14), so a morning of short visits to one page is still
+ * a column of identical-looking rows, and a history you have to scroll past is
+ * a history nobody reads.
  *
- * **Presentation only, and that is the point.** Mitchell chose this shape over
- * one-event-per-session: the log keeps every batch, so undo stays as
- * fine-grained as it ever was and `deriveUndoRedo`'s bookkeeping is untouched.
- * Only the reading of it is grouped.
+ * **Presentation only.** The log keeps every batch; only the reading of it is
+ * grouped. Page-only batches are not undoable at all today (`deriveUndoRedo`
+ * skips them, `KI-2026-09-22-c`), so a grouped row makes no promise about
+ * undo either way.
  *
- * The consequence worth stating, because it is a real trade and it was
- * accepted knowingly: **one undo does not undo one visible row.** A row
- * standing for twelve saves is undone twelve times. The count is rendered so
- * that is visible rather than surprising.
+ * History, superseded 2026-09-24: this was written when the editor autosaved
+ * on an 800ms debounce, one batch per save. Mitchell chose grouping in the
+ * reading over one-event-per-session so undo would stay per-save, and accepted
+ * that one undo would not undo one visible row. T14 then moved to one write
+ * per session anyway, and page batches never became undoable, so neither half
+ * of that trade applies now.
  *
  * Grouping is by `(pageId, actorId)` and only for ADJACENT entries:
  * - `pageId` is absent on every trip change and on any batch touching more

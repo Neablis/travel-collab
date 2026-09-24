@@ -16,6 +16,11 @@ const DEFAULT_AI_MODEL = "anthropic/claude-haiku-4-5";
 
 export const serverConfig = {
   locationIqApiKey: process.env.LOCATIONIQ_API_KEY ?? "",
+  // The ops contact in the User-Agent every outside-data call sends (ADR-052
+  // decision 6) — MET Norway's terms require one. An operator's address,
+  // NEVER a user's. Unset, `getForecast()` throws, as `getGeocoder()` does
+  // without its key.
+  externalDataContact: process.env.EXTERNAL_DATA_CONTACT ?? "",
   aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY ?? "",
   aiModel: process.env.AI_MODEL ?? DEFAULT_AI_MODEL,
   // The pre-turn intent classifier's model (askIntent.ts). Falls through to

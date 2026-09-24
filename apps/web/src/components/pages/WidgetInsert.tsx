@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import type { TripDetail, TripGlobals } from "@tc/contracts";
-import { getMacro, getPreset, insertPreset } from "@tc/pages";
+import type { MacroNode, PageRepeatNode, TripDetail, TripGlobals } from "@tc/contracts";
+import { TABLE_ONLY_PARAMS, getMacro, getPreset, insertPreset } from "@tc/pages";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -34,7 +34,9 @@ import {
 // the one path (decision 4 — "there is no way to put a widget into a document
 // that skips validation").
 
-export type MacroNode = { type: "macro"; attrs: { name: string; params: Record<string, unknown> } };
+// What an insert lands: a widget, or an authored repeat with an empty template
+// (a "sentence for every …" preset, ADR-035 decision 4).
+export type InsertedNode = MacroNode | PageRepeatNode;
 
 // The picker only ever offers preset ids the catalogue gave it, so a refusal
 // here can only mean the resolved params do not parse — which
@@ -44,9 +46,17 @@ export type MacroNode = { type: "macro"; attrs: { name: string; params: Record<s
 // `insertPreset` resolves `(primitive, params)` and then goes through
 // `insertWidget`, so a preset is a shortcut for choosing arguments and not a
 // second door into a document (ADR-037 decision 4).
-function build(presetId: string, extra: Record<string, unknown>): MacroNode | null {
+function build(presetId: string, extra: Record<string, unknown>): InsertedNode | null {
   const result = insertPreset(presetId, extra);
   return result.ok ? result.node : null;
+}
+
+// The phone's bind step for a preset. A sentence for every stop borrows
+// `stop.rows`' selection but not its table columns — `insertRepeat` refuses
+// them — so the step does not offer a control whose answer cannot be inserted.
+function bindStepInputs(presetId: string) {
+  const repeat = getPreset(presetId)?.repeat === true;
+  return presetBindableInputs(presetId).filter((input) => !(repeat && TABLE_ONLY_PARAMS.includes(input.name)));
 }
 
 export function WidgetInsert({
@@ -58,7 +68,7 @@ export function WidgetInsert({
 }: {
   detail: TripDetail;
   globals: TripGlobals | null;
-  onInsert: (node: MacroNode) => void;
+  onInsert: (node: InsertedNode) => void;
   // The rail's filter, owned by `PageScreen` because this component unmounts
   // whenever a widget is selected — see `WidgetFilter`. The phone sheet passes
   // neither and the picker keeps its own.
@@ -155,7 +165,7 @@ export function WidgetInsert({
               // A preset whose name already answers every dimension is finished
               // the moment it lands, so §19 has it skip step 2 entirely rather
               // than showing an empty "point it at" with nothing in it.
-              if (presetBindableInputs(presetId).length === 0) {
+              if (bindStepInputs(presetId).length === 0) {
                 insert(presetId, {});
                 return;
               }
@@ -190,7 +200,7 @@ export function WidgetInsert({
               // Only the dimensions the preset has NOT already answered. "A
               // line for every booking" does not offer to stop being about
               // bookings on the way in.
-              inputs={presetBindableInputs(pending)}
+              inputs={bindStepInputs(pending)}
             />
             <div>
               <Text variant="muted">Reads as</Text>
@@ -211,7 +221,7 @@ export function WidgetInsert({
                 { ...pendingTarget.params, ...params },
                 detail,
                 globals,
-                presetBindableInputs(pending),
+                bindStepInputs(pending),
               )}
             </Text>
             <Button

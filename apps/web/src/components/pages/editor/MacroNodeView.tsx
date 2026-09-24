@@ -6,6 +6,8 @@ import { getMacro } from "@tc/pages";
 import { MacroView } from "../MacroView";
 import { useMacroEditorContext } from "./MacroEditorContext";
 import type { WidgetMarkSpec } from "./widgetMarkPlugin";
+import { templateItem } from "./RepeatNodeView";
+import { useToday } from "@/lib/today";
 
 // The shape a widget renders as, with the one default both readers of it must
 // agree on. `MacroNodeExtension` puts this on the DOM for the stylesheet; the
@@ -64,7 +66,7 @@ const EDIT_OUTLINE = "tc-widget-edit relative";
  * `updateAttributes` and said of each what its own name says. None of the above
  * is visible in the signature, which is what a docstring here is for.
  */
-export function MacroNodeView({ node, selected, editor, decorations }: ReactNodeViewProps) {
+export function MacroNodeView({ node, selected, editor, decorations, getPos }: ReactNodeViewProps) {
   const { detail, context, user, globals, external, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
   const name = node.attrs.name as string;
   // **Memoised on its VALUE, not its identity.** `node.attrs.params ?? {}` is a
@@ -152,6 +154,14 @@ export function MacroNodeView({ node, selected, editor, decorations }: ReactNode
   // from `widgetMarkPlugin`, not from reading the document here: a node view
   // is only re-rendered when ITS node or decorations change, so a sibling
   // inserted earlier in the sentence would leave a number computed here stale.
+  // Inside a repeat's template, the widget previews the repeat's first item
+  // while Editing, so the author writes against a real line (`RepeatNodeView`).
+  // Reading hides the template and prints each line itself.
+  const today = useToday();
+  const item = editing
+    ? templateItem(editor, getPos, { trip: detail, page: context, user, globals, today, external })
+    : undefined;
+
   const mark = decorations.find((d) => typeof (d.spec as WidgetMarkSpec).widgetMark === "number")?.spec as
     | WidgetMarkSpec
     | undefined;
@@ -192,7 +202,7 @@ export function MacroNodeView({ node, selected, editor, decorations }: ReactNode
           ▸{mark?.widgetMark}
         </span>
       ) : null}
-      <MacroView detail={detail} context={context} user={user} globals={globals} external={external} name={name} params={params} onBindDay={onBindDay} editing={editing} />
+      <MacroView detail={detail} context={context} user={user} globals={globals} external={external} name={name} params={params} onBindDay={onBindDay} editing={editing} item={item} />
     </NodeViewWrapper>
   );
 }

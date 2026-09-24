@@ -1,4 +1,5 @@
 import type { Location, Money, ValueKind } from "@tc/contracts";
+import { enumLabel } from "./enumLabels";
 import { formatDate, formatMoney } from "./format";
 
 // One formatter per value kind — M14 field widget, build step 3 (gap 3 of the
@@ -53,6 +54,12 @@ export interface KindFormat<V> {
    * total of nothing that reads as `$0.00`.
    */
   collapse(values: readonly V[], ctx: KindContext, opts?: CollapseOptions): string | null;
+  /**
+   * Whether `CollapseOptions.distinct` changes `collapse` — true only for the
+   * listing kinds. The editor offers "Remove duplicates" by this flag, and
+   * `kinds.test.ts` checks it against what `collapse` does for every kind.
+   */
+  distinct: boolean;
 }
 
 export type KindFormats = { [K in ValueKind]: KindFormat<KindValues[K]> };
@@ -80,11 +87,14 @@ function formatDuration(minutes: number): string {
 // (Mitchell's answer 3, 2026-09-24), and `distinct` collapses repeats. Repeats
 // are judged on the printed string — two pins with one name read as the same
 // place to the person reading the page.
-function listing<V>(format: (value: V, ctx: KindContext) => string): KindFormat<V>["collapse"] {
-  return (values, ctx, opts) => {
-    if (values.length === 0) return null;
-    const printed = values.map((v) => format(v, ctx));
-    return (opts?.distinct ? [...new Set(printed)] : printed).join(LIST_SEPARATOR);
+function listing<V>(format: (value: V, ctx: KindContext) => string): Pick<KindFormat<V>, "collapse" | "distinct"> {
+  return {
+    collapse: (values, ctx, opts) => {
+      if (values.length === 0) return null;
+      const printed = values.map((v) => format(v, ctx));
+      return (opts?.distinct ? [...new Set(printed)] : printed).join(LIST_SEPARATOR);
+    },
+    distinct: true,
   };
 }
 
@@ -112,6 +122,7 @@ export const VALUE_KIND_FORMATS: KindFormats = {
         .map(([currency, amountMinor]) => formatMoney(amountMinor, currency))
         .join(" + ");
     },
+    distinct: false,
   },
   date: {
     format: (value) => formatDate(value),
@@ -126,33 +137,35 @@ export const VALUE_KIND_FORMATS: KindFormats = {
       const last = sorted[sorted.length - 1]!;
       return first === last ? formatDate(first) : `${formatDate(first)} – ${formatDate(last)}`;
     },
+    distinct: false,
   },
   count: {
     format: (value) => countFormat.format(value),
     ghost: "NN",
     collapse: (values) => (values.length === 0 ? null : countFormat.format(sum(values))),
+    distinct: false,
   },
   text: {
     format: (value) => value,
     ghost: "———",
-    collapse: listing((value) => value),
+    ...listing((value) => value),
   },
   duration: {
     format: (value) => formatDuration(value),
     ghost: "Nh NNm",
     collapse: (values) => (values.length === 0 ? null : formatDuration(sum(values))),
+    distinct: false,
   },
   enum: {
-    // Verbatim. A closed vocabulary with display labels needs a label map,
-    // and the manifest does not carry one yet.
-    format: (value) => value,
+    // By label ("Holding", not "hold"), from the one map the board reads too.
+    format: (value) => enumLabel(value),
     ghost: "———",
-    collapse: listing((value) => value),
+    ...listing(enumLabel),
   },
   location: {
     format: (value) => value.name,
     ghost: "———",
-    collapse: listing((value) => value.name),
+    ...listing((value) => value.name),
   },
 };
 
@@ -165,9 +178,18 @@ export function formatKind<K extends ValueKind>(kind: K, value: KindValues[K], c
  * A `list: true` field: `valueKind` names the element (contracts CHANGELOG,
  * 2026-09-24), so a list prints as its elements' formats, joined.
  */
-export function formatKindList<K extends ValueKind>(kind: K, values: readonly KindValues[K][], ctx: KindContext): string {
-  const { format } = VALUE_KIND_FORMATS[kind];
-  return values.map((v) => format(v, ctx)).join(LIST_SEPARATOR);
+export function formatKindList<K extends ValueKind>(
+  kind: K,
+  values: readonly KindValues[K][],
+  ctx: KindContext,
+  opts?: CollapseOptions,
+): string {
+  const { format, distinct } = VALUE_KIND_FORMATS[kind];
+  const printed = values.map((v) => format(v, ctx));
+  // One stop's list can repeat itself (`tags` is an array, not a set), and
+  // "Remove duplicates" is offered for it, so it has to mean the same here as
+  // across stops (CodeRabbit, PR #226).
+  return (opts?.distinct && distinct ? [...new Set(printed)] : printed).join(LIST_SEPARATOR);
 }
 
 /**

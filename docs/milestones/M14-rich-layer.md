@@ -691,8 +691,8 @@ milestone opens:**
       walk cannot do honestly and `broadcast.test.tsx` / `PageScreen.test.tsx`
       prove instead. KI-2026-09-05-i item 5; model recorded in ADR-012's
       2026-09-24 note.)*
-- [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if
-      raw syntax reaches the DOM.
+- [x] **No user-visible macro syntax anywhere**, in either mode. A test fails if
+      raw syntax reaches the DOM. *(Ticked 2026-09-24 on PR #221. T04's `apps/web/src/components/pages/editor/noRawSyntax.test.tsx` scans every preset and every registered widget in Reading, Editing and the read-only fallback, and the screen around it (`PageScreen.test.tsx`), for stored identifiers and `{{ }}` / `[[ ]]` / `@name(` syntax. The last leak it found — `MacroView` printing `unknown macro: <name>` / `bad params: <name>` — now reads "this widget isn't available in this version" / "this widget's settings no longer fit it", covered in both modes (red first). `m14-notebook-widgets.spec.ts` ci-like: 23/23.)*
       *(Built 2026-09-24, T04, **not ticked: one known leak.** The guard is
       `test-support/rawSyntax.ts`: stored widget names, preset ids and
       param paths, `{{ }}`, `[[ ]]`, `@name(`, a JSON params blob, a stringified
@@ -707,8 +707,9 @@ milestone opens:**
       can no longer parse. Measured, rendered in Reading:
       `"unknown macro: trip.fromTheFuture"`, `"bad params: count"`. Tick when
       those say something a person can read and the case joins the guard.)*
-- [ ] Reading and Editing are one control; Reading shows no insert affordance and
+- [x] Reading and Editing are one control; Reading shows no insert affordance and
       no repeat-rail chrome.
+      *(**Re-baselined and ticked 2026-09-24** (T01, PR #221), on the audit's evidence: one aria-pressed control in `PageScreen.tsx`; `m14-notebook-widgets.spec.ts` "Reading takes the whole authoring surface away, and the widget stays" and `m14-mobile-notebook.spec.ts` "Reading is the default, and it takes the phone's authoring surface away too"; the desktop spec green ci-like 23/23 on 2026-09-24. The repeat-rail chrome half is carried by the repeater box below.)*
 - [ ] The insert Sheet offers search + *how it reads* over a flat list, each row
       carrying its shape tag, a **real resolved preview**, and a mono line naming
       what it takes; then **Point it at** for widgets with inputs, and immediate
@@ -764,7 +765,7 @@ milestone opens:**
       it (the two that would have were deferred out of M14 with the attribution
       model), so a badge for it would be a branch nothing can reach and no test
       could honestly cover.*
-- [ ] **Two widgets on one page read two different days**, bound at insert and
+- [x] **Two widgets on one page read two different days**, bound at insert and
       rebindable from the chrome row — on the phone the chrome row is a 44px
       *"Pointed at …"* button opening a bind sheet, which is the ONE divergence
       handoff `SPEC.md` §19 allows and it is density, not model: at 390px a name
@@ -772,6 +773,7 @@ milestone opens:**
       order, same option lists (`widgetBind.tsx` is the single source, so the two
       surfaces cannot offer different days) — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
+      *(**Re-baselined and ticked 2026-09-24** (T01, PR #221). "Chrome row" now reads **settings panel**: SPEC §26 replaced the chrome row, and T12 built one numbered entry per widget there. Proof: `m14-notebook-widgets.spec.ts` "two widgets on one page read two different days" (ci-like 23/23) and the phone bind sheet in `m14-mobile-notebook.spec.ts` "rebinding is a sheet, and the inline select row is gone".)*
 - [x] **And two widgets in the SAME BLOCK read two different days** — *"We land on
       Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two
       day-bound widgets pointed at different days, and it must be writable and
@@ -798,8 +800,31 @@ milestone opens:**
       reload. It was run red first: an aggregate rebind fails it at the second
       widget (`Received string: "▸2Tokyo"`). ci-like green (27/27 across
       `m14-notebook-widgets` and `m14-mobile-notebook`).
-- [ ] A repeater renders one line per day/stop/city with chips filled from each
+- [x] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
+      *(**Ticked 2026-09-24** (T13), for the AUTHORED repeat — Mitchell's call 6.
+      Three presets, *"A sentence for every day / stop / city"*, insert a `repeat`
+      node over `day.rows` / `stop.rows` / `city.rows`'s own selection; its
+      content is the sentence. **Reading** prints it once per item, every widget
+      in it reading that item where it was left unbound (`ItemScope` through
+      `narrow`); **Editing** shows it once inside a dashed rail labelled
+      *"For every day · 2 days"*, accented when it resolves and neutral when
+      empty or waiting, with its widgets previewing the first item. **Empty:**
+      Reading prints the rows widget's `emptyText`; Editing keeps rail and
+      template (ADR-035 as built, see its decision 4 note). **"Edit the wording"
+      is proposed as editing the template in place** — no dialog, no panel
+      entry; still to be walked on the preview with Mitchell. Evidence: the
+      walk *"a sentence for every day is written once and reads one line per
+      day"* types "Day ", inserts The dates, types " — ", inserts Which cities,
+      and reads `Day Jun 1, 2027 — Tokyo` / `Day Jun 2, 2027 — Kyoto` after a
+      reload; with the item dropped from Reading lines it fails on
+      `Received string: "Day Jun 1, 2027 – Jun 2, 2027 — Tokyo – Kyoto"`.
+      ci-like green, 24/24 in `m14-notebook-widgets`. Stop and city lines,
+      and the empty case per mode, are `repeat.test.ts`,
+      `RepeatNodeView.test.tsx` and `noRawSyntax.test.tsx` (3 + 6 + 2 lines on
+      one page of repeats). **Not built:** a settings entry for a repeat's own
+      filters (they are set by the preset or the phone's bind step, and are
+      stored and honoured), and repeat insertion by the assistant.)*
 
       **The city colour scale reaches the notebook** (2026-09-04, second preview
       round): *"The every day at a glance and every city at a glance are not
@@ -857,7 +882,8 @@ milestone opens:**
       domain concept that does not exist. `w-people` is unaffected — it needs a
       display name on `TripMember`, not attribution.
       *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
-- [ ] Both prebuilt pages ship with a new trip and resolve against it.
+- [x] Both prebuilt pages ship with a new trip and resolve against it.
+      *(**Reworded and ticked 2026-09-24** (T01, PR #221). Voided as written by the 2026-09-12 gallery change: a new trip seeds **one** page, the Overview, and the rest are a gallery. It now reads: **the Overview seeds with every new trip and resolves readably against it, and every gallery template parses and holds only widgets `insertWidget` accepts** — `packages/pages/src/templates.test.ts` ("seeds exactly one notebook into a new trip, and it is the Overview", "seeds only widgets that say something readable on a brand-new empty trip", "every widget in every template is one insertWidget would accept").)*
 - [x] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
       not an event stream, which a test asserts by sweeping for a second writer
@@ -1018,6 +1044,13 @@ in this repo's own hands.
    The repeat shape renders resolver-supplied rows, not an authored sentence.
    That needs a macro param schema for the template, and it is the *"one new
    primitive"* §7 named.
+
+   **Built 2026-09-24 (T13), and not as a param schema.** ADR-035 decision 4
+   already said the template is document content, so it is a `repeat` node
+   whose inline content is the sentence, over a rows widget's selection — see
+   the repeater gate box. The dashed rail is in; the Wording button in the
+   settings entry is not, because the design this build proposes has no
+   wording surface to open: the wording is edited where it sits.
 4. **`count{of: "day" | "city"}` has no preset**, so *how many days* and *how
    many cities* are reachable only by the assistant through `primitiveCatalog()`
    — `KI-20260905-i` finding F-B05. Two preset rows and a generalised guard.
@@ -1074,12 +1107,14 @@ gating**. Each entry's own **Milestone:** line points back here.
 | KI | What it is | Gate? |
 |---|---|---|
 | ~~KI-2026-09-05-h~~ | ~~`narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default~~ — **resolved 2026-09-24 (T02)**: a `NARROWS` record beside `narrow`, a mapped `WidgetFilterValues`, and `never` defaults in `optionsFor`, `serializePageNode` and `ReadOnlyPageDoc`. A probe dimension now fails to compile, and a sweep over `FilterDimension.options` covers the runtime path | **gate box** |
-| KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | carried |
+| KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | resolved 2026-09-24 (T13 spent `ItemScope`, the last line) |
 | ~~KI-2026-09-15-b~~ | ~~The phone Notebook insert e2e spec intermittently finds the widget bound to "All days"~~ — **resolved 2026-09-24**: the spec waited for any PATCH and caught the unchanged save a mode switch sent (fixed in `PageEditor`), then reloaded over the insert's pending save | — |
 | ~~KI-2026-09-24-g~~ | ~~An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it~~ — **resolved 2026-09-24 (T14)**: the debounce is gone, and the edit session commits on unmount and on `pagehide` instead of cancelling | — |
 | KI-2026-09-20-g | The widget container is built four times and none matches the design | carried |
 | KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
 | KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |
 | KI-2026-09-22-d | An open notebook editor does not show a co-traveller's edit, deliberately, until it can do so safely | carried |
-| KI-2026-09-24-d | The page write check (KI-2026-09-05-g, fixed 2026-09-24) leaves pre-fix wrapped rows unrepaired and `repeat` nodes unchecked; a stored bad widget now blocks autosave | carried |
+| KI-2026-09-24-d | The page write check (KI-2026-09-05-g, fixed 2026-09-24) leaves pre-fix wrapped rows unrepaired; a stored bad widget now blocks autosave (`repeat` nodes unchecked: fixed in T13) | carried |
 | KI-2026-09-24-n | Know before you go: emergency numbers carry no service label; ~45 countries have none recorded | carried |
+| KI-2026-09-24-o | Weather sends rounded stop locations to MET Norway / NASA POWER; no privacy page says so | carried |
+| KI-2026-09-24-p | Cost totals (`costOfStops`, `rollupCosts`: the `cost` single, `cost.rows`, board totals) add amounts across currencies; `kinds.ts` and the spend chart already keep them apart | carried |

@@ -75,6 +75,63 @@ Format:
   token: it now reads `null`, a value the field could already take. No schema
   change.
 
+## 2026-09-24 — `PageRepeatNode` gets its first writer (M14 T13) — no schema change
+
+- **Nothing in `packages/contracts` changed shape.** `PageRepeatNode` has been in
+  the AST since ADR-038; the editor now writes it (the authored repeat, ADR-035
+  decision 4). The comment in `pageDoc.ts` records the convention: `attrs.name`
+  is the rows widget whose selection the repeat iterates (`day.rows`,
+  `stop.rows`, `city.rows`), `params` are that widget's filters, and `content`
+  is the row template. `@tc/pages`' `insertRepeat` enforces it, as the registry
+  does for `macro` params.
+- **Consumers:** `@tc/pages` (`repeat.ts`, `ItemScope` widened to day / city /
+  stop, `narrow(…, item)`, `findWidgetError` judges repeat attrs);
+  `apps/web` (`RepeatNodeExtension`, which puts `repeat` in the editor's schema,
+  so `inspectStoredPageDoc` stops refusing a document that holds one).
+- **Breaking?** No. A stored repeat that `insertRepeat` refuses (a name that is
+  not a rows widget, a filter its widget does not take, `columns`) is now
+  refused on write, as a bad widget already was (KI-2026-09-24-d item 3). No
+  build ever wrote one.
+
+## 2026-09-24 — field renames and removals convert stored documents (M14 T08)
+
+- **Added:** `FieldChange` (`{ kind: "rename"; from; to; since }` or
+  `{ kind: "remove"; path; label; since }`) and `FIELD_CHANGES`, the table of
+  every manifest field ever renamed or removed. **Empty**: none has been.
+  `pageDocMigrations(changes)` builds the migration chain from a table;
+  `PAGE_DOC_MIGRATIONS` is `pageDocMigrations(FIELD_CHANGES)`.
+- **What a step does.** For a document older than an entry's `since`, every
+  widget whose `field` param names a renamed path is pointed at the new one,
+  and every widget naming a removed path becomes the plain text
+  `(<label> — no longer available)`. A block widget becomes a paragraph holding
+  that text; a `repeat` keeps its row template after it. In `stop.rows`'s
+  `columns` list a renamed path is renamed and a removed one drops out of the
+  list; the table keeps its other columns.
+- **Versioning rule.** Each distinct `since` is one document version, so a
+  batch of entries bumps `CURRENT_PAGE_DOC_VERSION` once. A new batch takes
+  `CURRENT_PAGE_DOC_VERSION + 1`, and `pageDocMigrations` throws on a gap. A
+  merged batch is closed.
+- **Changed:** `migratePageDoc(doc, migrations?)` takes an optional chain,
+  defaulting to `PAGE_DOC_MIGRATIONS`, so tests can convert with a test-only
+  table. The v1 → v2 step now uses the same widget walker. Its output is
+  unchanged: the v1 → v2 golden test passes as before.
+- **Guard (tests):** `test/fixtures/publishedFieldPaths.ts` records every field
+  path ever published (23 today). `manifest.test.ts` fails when a recorded path
+  leaves the manifest without an entry, when a live path is missing from the
+  record, when a rename ends on a field that is not live, and when a removed
+  field is still published.
+- Why: M14 field widget, Mitchell's answer 1 (convert documents, so a stored
+  page never names a field the manifest lacks) and four more calls, item 4 (a
+  removed field's widget becomes a placeholder naming it). A saved template
+  (link 10) snapshots a document version and is read through the same
+  `migratePageDoc`, so it converts the same way. A test pins that path.
+- Consumers updated: none needed. Every caller of `migratePageDoc` (`apps/web`
+  `storedPageDoc.ts`, `pageTools.ts`, `server/pages.ts`, `apiClient.ts`, and
+  `@tc/pages` `instantiateTemplate` for saved notebooks) passes
+  one argument and gets the real chain. `CURRENT_PAGE_DOC_VERSION` is still 2.
+- Breaking? no. The table is empty, so no stored document changes and no
+  version moves.
+
 ## 2026-09-24 — `TripWeather`, and the `unavailable` widget state (M14 T23, ADR-052)
 
 - **Added:** `packages/contracts/src/weather.ts` — `TripWeather { points }`,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
+import { distinctApplies, getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { fieldChoices } from "./fields";
@@ -26,10 +26,11 @@ describe("registry", () => {
     // below that once equated the two is what caught it.
     // `country.facts` ("Know before you go", M14 link 11) is registered on
     // `open`'s terms: no selection, so not a primitive. `day.sun` and
-    // `day.fromHome` (the same link) ARE primitives — day entity, day filters.
+    // `day.fromHome` (the same link) ARE primitives — day entity, day filters —
+    // and so is `day.weather`, which also declares `needs` (ADR-052).
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
-      "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "field", "hours",
+      "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
       "open", "stop.rows", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
@@ -229,6 +230,25 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // exactly its job rather than a reason to lower it.
   const user = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" as const };
 
+  // What the weather route would hand in for the day (ADR-052): with no slot
+  // "Weather" answers `unavailable` and never reaches `render` — the floor
+  // refusing, as above. The day is before `today` below, so this is the
+  // labelled-typical row.
+  const external = {
+    weather: {
+      state: "ready" as const,
+      value: {
+        points: [{
+          date: "2026-08-01", city: "Tokyo", forecast: { unavailable: "not-in-horizon" as const },
+          typical: {
+            source: "nasa-power" as const, month: 8, highC: 31, lowC: 24, precipitationMmPerDay: 4.8,
+            period: { fromYear: 2001, throughYear: 2020 },
+          },
+        }],
+      },
+    },
+  };
+
   // **The sweep runs over PRESETS, not over registered names.** A primitive
   // asked to render with `{}` is not always meaningful — `attribute` with no
   // field chosen has nothing to read and correctly answers `empty()` — so a
@@ -238,7 +258,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01" },
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", external },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
       // widgets reach `ok` instead of `unbound`. A field the preset leaves for
@@ -552,5 +572,36 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // And junk that is not a filter dimension at all still strips on insert —
     // this refuses illegal FILTERS, not unfamiliar keys.
     expect(insertWidget("city.rows", { somethingNewer: 1 }).ok).toBe(true);
+  });
+});
+
+// Whether the editor offers "Remove duplicates" (M14 polish). Derived from the
+// widget's own params schema and the chosen field's kind, never from a list of
+// widget names or field paths.
+describe("distinctApplies", () => {
+  it("is true for a field widget reading a kind that lists", () => {
+    const listing = fieldChoices("stop").filter((c) => ["text", "enum", "location"].includes(c.valueKind));
+    expect(listing.length).toBeGreaterThan(0);
+    for (const choice of listing) expect(distinctApplies("field", { field: choice.path }), choice.path).toBe(true);
+  });
+
+  it("is false for a field that sums or spans, for no field, and for one no longer published", () => {
+    expect(distinctApplies("field", { field: "stop.cost" })).toBe(false);
+    expect(distinctApplies("field", {})).toBe(false);
+    expect(distinctApplies("field", { field: "stop.gone" })).toBe(false);
+  });
+
+  // `stop.rows` has field inputs too, but no `distinct` param: a table lists
+  // one stop per row, so there is nothing to collapse.
+  it("is false for every widget whose params do not declare `distinct`", () => {
+    const declaring = PRIMITIVE_NAMES.filter((name) => {
+      const shape = (getMacro(name)!.params as { shape?: Record<string, unknown> }).shape;
+      return shape !== undefined && "distinct" in shape;
+    });
+    expect(declaring).toEqual(["field"]);
+    for (const name of PRIMITIVE_NAMES.filter((n) => n !== "field")) {
+      expect(distinctApplies(name, { field: "stop.title", columns: ["stop.title"] }), name).toBe(false);
+    }
+    expect(distinctApplies("nope", { field: "stop.title" })).toBe(false);
   });
 });

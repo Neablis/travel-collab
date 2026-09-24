@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import type { TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { fieldChoices, type WidgetInput } from "@tc/pages";
 import { WidgetBindControls, bindSummary, optionsFor } from "./widgetBind";
@@ -16,10 +17,12 @@ const COLUMNS: WidgetInput = { name: "columns", type: "field", label: "Columns",
 const detail = tripDetailFixture();
 
 function Harness({
+  name = "cost",
   initial = {},
   layout = "stacked" as const,
   inputs = [FIELD],
 }: {
+  name?: string;
   initial?: Record<string, unknown>;
   layout?: "inline" | "stacked";
   inputs?: readonly WidgetInput[];
@@ -28,7 +31,7 @@ function Harness({
   return (
     <>
       <WidgetBindControls
-        name="cost"
+        name={name}
         params={params}
         detail={detail}
         globals={null}
@@ -44,6 +47,31 @@ function Harness({
 }
 
 const stored = () => JSON.parse(screen.getByTestId("params").textContent ?? "{}") as Record<string, unknown>;
+
+// The kind and tag selects print the words the stop card prints ("Holding",
+// "Meal"), never the stored value, and still store the value.
+describe("optionsFor a kind or tag input", () => {
+  const KIND: WidgetInput = { name: "kind", type: "kind", label: "Kind" };
+  const TAGS: WidgetInput = { name: "tag", type: "tags", label: "Tag" };
+
+  it("labels every kind and stores the value", () => {
+    const options = optionsFor(KIND, {}, detail, null);
+    expect(options.find((o) => o.value === "hold")).toEqual({ value: "hold", label: "Holding" });
+    expect(options.find((o) => o.value === "transit")).toEqual({ value: "transit", label: "Travel" });
+  });
+
+  it("labels the trip's tags", () => {
+    const globals = { cities: [], tags: [{ tag: "meal", activityCount: 1 }] } as unknown as TripGlobals;
+    expect(optionsFor(TAGS, {}, detail, globals)).toEqual([
+      { value: "", label: "Every stop" },
+      { value: "meal", label: "Meal" },
+    ]);
+  });
+
+  it("says the bound kind in words in the summary line", () => {
+    expect(bindSummary("cost", { kind: "booked" }, detail, null, [KIND])).toBe("Booked");
+  });
+});
 
 describe("optionsFor a field input", () => {
   it("offers the manifest's fields by label and group, and stores the path", () => {
@@ -151,5 +179,41 @@ describe("the field picker", () => {
     await user.click(box);
     await user.click(screen.getByRole("option", { name: "Notes" }));
     expect(stored()).toEqual({ field: "stop.notes" });
+  });
+});
+
+// `field`'s `distinct` param had no control (M14 polish). It is offered only
+// where it changes what the widget prints: a field widget reading a kind that
+// lists (text, status, place), not one that sums (cost).
+describe("Remove duplicates", () => {
+  const box = () => screen.queryByRole("checkbox", { name: "One stop's detail: remove duplicates" });
+
+  it("sets and clears `distinct` on a field widget reading a place", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="field" initial={{ field: "stop.location" }} />);
+    expect(box()).not.toBeNull();
+    expect((box() as HTMLInputElement).checked).toBe(false);
+    await user.click(box()!);
+    expect(stored()).toEqual({ field: "stop.location", distinct: true });
+    await user.click(box()!);
+    // Unticked goes back to `{field}`: absent is the one spelling of "off".
+    expect(stored()).toEqual({ field: "stop.location" });
+  });
+
+  it("appears when the field is changed to one that lists, and not for one that sums", async () => {
+    const user = userEvent.setup();
+    render(<Harness name="field" initial={{ field: "stop.cost" }} />);
+    expect(box()).toBeNull();
+    await user.click(screen.getByRole("combobox", { name: "One stop's detail: field" }));
+    await user.click(screen.getByRole("option", { name: "Status" }));
+    expect(box()).not.toBeNull();
+  });
+
+  it("is not offered before a field is chosen, or on a widget without `distinct`", () => {
+    render(<Harness name="field" />);
+    expect(box()).toBeNull();
+    cleanup();
+    render(<Harness name="cost" initial={{ field: "stop.location" }} />);
+    expect(box()).toBeNull();
   });
 });

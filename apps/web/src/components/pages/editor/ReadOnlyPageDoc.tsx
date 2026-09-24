@@ -6,7 +6,7 @@ import type {
   PageListContentNode,
   PageNode,
 } from "@tc/contracts";
-import { getMacro } from "@tc/pages";
+import { getMacro, repeatLabel, repeatOver } from "@tc/pages";
 
 // The read half of ADR-038 decision 4: what a page looks like when this build
 // is not allowed to mount an editor over it.
@@ -130,11 +130,20 @@ function renderBlock(node: PageNode): ReactNode {
     }
     case "macro":
       return <p>{renderInline(node)}</p>;
-    // `repeat` is the node that motivated the whole guard: a type this build's
-    // AST knows and its editor has no extension for. There is nothing to
-    // render it as, so it renders as what it is.
-    case "repeat":
-      return <Placeholder label={node.attrs.name} />;
+    // An authored repeat, unresolved like every widget here: what it repeats
+    // over, then its template once. It printed the STORED name (`day.rows`)
+    // while no editor could mount one; that is raw syntax on the screen.
+    case "repeat": {
+      const over = repeatOver(node.attrs.name);
+      return (
+        <div className="my-2 rounded border border-dashed border-border-strong px-2 py-1">
+          <p className="text-sm text-slate">{over ? repeatLabel(over, null) : PLACEHOLDER_LABEL}</p>
+          <p>
+            <InlineNodes nodes={node.content} />
+          </p>
+        </div>
+      );
+    }
     case "blockquote":
       return (
         <blockquote>

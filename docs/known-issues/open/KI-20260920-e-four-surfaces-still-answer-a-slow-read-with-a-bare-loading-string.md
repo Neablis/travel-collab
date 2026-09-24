@@ -70,3 +70,33 @@
   a walk hits: it paints `Loading…` alone where M26 §3b wants real chrome from
   the first frame. The Home hero's sparkline `Loading…` is a separate problem
   with its own measurement: `KI-2026-09-23-e`.
+- **2026-09-24, seen again, and the scope widened on Mitchell's call.** On the
+  PR #221 preview, going **Overview → Edit Overview** (a notebook page,
+  `/trips/…/pages/…?from=overview`) still shows `Loading…` where the page's
+  placeholder belongs. That is `PageScreen.tsx:646`, the branch this entry has
+  named since 2026-09-20. Mitchell, via a preview comment: *"Lets file a KI to
+  clean up all page transitions and confirm we arent doing the 'Loading...'
+  text anymore."* So this entry now covers **every route transition**, not just
+  the four surfaces it started with. The bare strings still in the tree, by
+  `grep -rn "Loading…" apps/web/src --include=*.tsx` without the tests and
+  comments, are:
+  - `components/pages/PageScreen.tsx:646`: the whole page, and the one a walk hits.
+  - `components/plans/PlansScreen.tsx:687`: the order card while Stripe's
+    preview is pending. It sits inside a card, not a whole surface, but it
+    is still the word.
+  - `components/account/TokensSection.tsx:646`: `Loading your trips…` in the
+    token scope picker. It has the same shape, so it's in scope.
+
+  **Done means, in addition to the fixes above:**
+  1. Every route under `app/` has been walked from its usual entry point on a
+     preview (for the notebook, Overview → the page), and none paints the word.
+     KI-2026-09-20-f's server-first read is still the first thing to weigh.
+     Where a route keeps a client read, it gets a shaped placeholder from
+     `ui/skeleton.tsx`, as `NotebookScreen` and `OverviewLens` have.
+  2. **A guard, so "confirm we aren't doing it anymore" stays true.** Add a
+     wall (the shape of the docstring wall, and allowlist-free) that fails
+     when a `.tsx` under `apps/web/src`, outside tests and comments, renders
+     text matching `/^\s*Loading(…|\.\.\.)/`. Screen-reader names on
+     `SkeletonRegion`, such as `label="Loading notebooks"`, are attributes, not
+     rendered text, and stay allowed. See it red on `PageScreen.tsx:646`
+     before that line is fixed.

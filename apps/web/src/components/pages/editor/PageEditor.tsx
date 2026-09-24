@@ -9,6 +9,8 @@ import { MacroEditorContext, type MacroEditorContextValue } from "./MacroEditorC
 import { SlashMenu } from "./SlashMenu";
 import { useSlashMenu } from "./useSlashMenu";
 import { allowWidgetDragOver, handleWidgetDrop } from "./widgetDrop";
+import { insertRepeatAt, repeatCaretIn } from "./RepeatNodeExtension";
+import { TextSelection } from "@tiptap/pm/state";
 
 export interface PageEditorProps {
   detail: TripDetail;
@@ -238,7 +240,23 @@ export function PageEditor({ detail, context, user = null, globals = null, value
       if (!built.ok) return;
       // Replace the typed `/query` rather than inserting after it, or the
       // document keeps the text that summoned the menu.
-      editor?.chain().focus().insertContentAt(range, built.node).run();
+      if (built.node.type !== "repeat") {
+        editor?.chain().focus().insertContentAt(range, built.node).run();
+        return;
+      }
+      // A repeat lands after the sentence it was summoned from, never inside
+      // it (`insertRepeatAt`), and arrives empty, so the caret goes into its
+      // template — the same landing `PageScreen`'s click insert gives it.
+      editor
+        ?.chain()
+        .focus()
+        .command(({ tr }) => {
+          const at = insertRepeatAt(tr, tr.doc.type.schema.nodeFromJSON(built.node), range.from, range.to);
+          const caret = repeatCaretIn(tr.doc, at, at + 1);
+          if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
+          return true;
+        })
+        .run();
     },
   });
   slashKeyDownRef.current = slash.handleKeyDown;

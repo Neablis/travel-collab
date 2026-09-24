@@ -68,7 +68,7 @@ vi.mock("@/server/ai/modelSelection", async (importOriginal) => {
 //
 // Not `buildProposal` in `messageMetadata`, which was the obvious candidate: a
 // throw there never reaches `onError` at all — it errors the response body
-// (KI-2026-09-24-p).
+// (KI-2026-09-24-w).
 let failNextEscalationRead = false;
 vi.mock("@/server/assistant/deps", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/assistant/deps")>();

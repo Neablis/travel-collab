@@ -13,11 +13,12 @@ import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
-import { NodeSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { PageEditor, sameDocument } from "@/components/pages/editor/PageEditor";
+import { insertRepeatAt, repeatCaretIn } from "@/components/pages/editor/RepeatNodeExtension";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
-import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
+import { WidgetInsert, type InsertedNode } from "@/components/pages/WidgetInsert";
 import { NO_WIDGET_FILTER, type WidgetFilter } from "@/components/pages/WidgetPicker";
 import { Button } from "@/components/ui/button";
 import type { Editor } from "@tiptap/react";
@@ -458,9 +459,10 @@ export function PageScreen({
   // keepalive `overtaking` an ordinary commit still in flight: the revision it
   // would name is about to be moved by that commit, so it names none and wins
   // by arriving, while the commit it passed still names its own and is refused
-  // if it arrives second. The server answers a no-op before it looks at the
-  // revision, so a commit repeating what a keepalive already landed is not a
-  // conflict.
+  // if it arrives second. A keepalive behind another keepalive is held by the
+  // session instead, and its document kept here as a draft meanwhile (the last
+  // argument). The server answers a no-op before it looks at the revision, so
+  // a commit repeating what a keepalive already landed is not a conflict.
   const commitSeq = useRef(0);
   const session = useEditSession(editing, (content, { keepalive, overtaking }) => {
     const seq = ++commitSeq.current;
@@ -486,7 +488,7 @@ export function PageScreen({
       });
     };
     return send(1);
-  });
+  }, (content) => rememberPageDraft(pageId, { base: baseRef.current ?? "", doc: content }));
   sessionRef.current = session;
 
   // A save refused as typed against an older page. What the page says NOW
@@ -770,7 +772,7 @@ export function PageScreen({
   // (ADR-035 decision 5): a turn's prose and widgets arrive as a node list and
   // land the same way a click does. One mechanism, so the AI path cannot
   // develop placement rules of its own.
-  const insertAtCursor = (node: MacroNode | readonly unknown[]) => {
+  const insertAtCursor = (node: InsertedNode | readonly unknown[]) => {
     // **Selects what it just inserted**, which SPEC §26 makes load-bearing
     // rather than a nicety. Before §26 a widget arrived with its chrome row
     // already attached, so "inserted" and "configurable" were the same moment.
@@ -803,6 +805,27 @@ export function PageScreen({
     // sheet asking the question they have already answered: §19's "one sheet
     // deep, ever" served twice in a row. `m14-mobile-notebook` is what said so,
     // by watching the insert sheet never close.
+    //
+    // **A repeat is placed by `insertRepeatAt`, on phone and desktop alike**:
+    // after the sentence the caret is in, never splitting it. It has nothing
+    // to configure on arrival and everything to write, so the caret goes into
+    // its template and the next keystroke is the sentence (ADR-035 decision 4).
+    if (!Array.isArray(node) && (node as InsertedNode).type === "repeat") {
+      editor
+        ?.chain()
+        .focus()
+        .command(({ tr }) => {
+          // From the selection's start only: the repeat goes after the host
+          // sentence, so replacing selected text — or a selected widget —
+          // would delete something the author did not ask to lose.
+          const at = insertRepeatAt(tr, tr.doc.type.schema.nodeFromJSON(node), tr.selection.from);
+          const caret = repeatCaretIn(tr.doc, at, at + 1);
+          if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
+          return true;
+        })
+        .run();
+      return;
+    }
     if (isPhone) {
       editor
         ?.chain()
