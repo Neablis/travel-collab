@@ -327,6 +327,83 @@ test.describe("responsive (narrow viewport)", () => {
   });
 });
 
+// KI-2026-09-23-e: the hero's sparkline and its actionable line both come from
+// the hero's own TripDetail, which lands after the page has painted. At a phone
+// width the hero is one column, so the sparkline panel sits BELOW the left
+// column and every pixel it gains pushes *Other trips* down under the thumb —
+// measured at 122.75px on the seeded trip at 390px, and 90.56px on the trip
+// below before the fix. At 1440px the left column sets the row height and the
+// jump is 0.19px, which is why this is asserted at a phone width only.
+//
+// **A fresh account, because the hero has to be THIS trip.** The hero is
+// `visibleTrips[0]` of a list query with no ORDER BY (KI-034), so on the
+// shared dev user it is whichever row Postgres returns first — a first draft
+// here assumed "newest" and measured another spec's trip. One account, one
+// trip, one hero.
+//
+// The trip is chosen to exercise both halves: one row of city pills (Rome,
+// Barcelona, Kyoto fit on one line at 390px), and an actionable line with both
+// of its parts — overlapping windows (and three cities a day apart) give
+// decisions, and `kind: "idea"` makes every stop one still to book. With both
+// parts present, "N not booked yet" used to wrap under the button at this
+// width, which was the second half of the jump. The fetch is HELD so the
+// loading state is measured deliberately, not raced.
+test.describe("responsive (Home hero on a phone, fresh account)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("the hero keeps its height when its trip detail lands at 390px (KI-2026-09-23-e)", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await signInAsDevUser(page, freshUsername());
+
+    const name = e2eTripName("Hero reflow");
+    const { tripId } = await page.request.post("/api/trips", { data: { name } }).then((r) => r.json());
+    const overlapping = [
+      { start: "09:00", end: "10:00" },
+      { start: "09:30", end: "10:30" },
+    ];
+    const commands = commandsFor("threeDayTrip", tripId, { timeWindows: overlapping });
+    for (const command of commands) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+    const stops = commands.filter(
+      (command): command is Extract<typeof command, { type: "AddActivity" }> => command.type === "AddActivity",
+    );
+    for (const { activityId } of stops) {
+      await page.request.post(`/api/trips/${tripId}/commands`, {
+        data: { type: "UpdateActivity", tripId, activityId, kind: "idea" },
+      });
+    }
+
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/api/trips/${tripId}`, async (route) => {
+      await released;
+      await route.continue();
+    });
+
+    await page.goto("/");
+    const hero = page.getByTestId("next-trip-hero");
+    await expect(hero.getByRole("heading", { level: 2, name })).toBeVisible();
+    await expect(hero.getByRole("status", { name: /shape of the trip/i })).toBeVisible();
+    const before = (await hero.boundingBox())!.height;
+
+    release();
+    // Both detail-dependent halves have actually landed — otherwise this
+    // would compare the loading state with itself.
+    await expect(hero.getByRole("group", { name: /shape of the trip/i })).toBeVisible();
+    await expect(hero.getByText(/needs? a decision/)).toBeVisible();
+    await expect(hero.getByText(/not booked yet/)).toBeVisible();
+    const after = (await hero.boundingBox())!.height;
+
+    // 1px, the same allowance as KI-56's: the reserved bones are whole-pixel
+    // scale classes and the real rows are 1.35-line-height text, so the two
+    // differ by a fraction of a pixel. The defect is ~90px.
+    expect(Math.abs(after - before)).toBeLessThan(1);
+  });
+});
+
 // The landing page is the one surface a signed-out phone actually reaches, and
 // its feature grid is breakpoint-gated — the class of thing KI-19 says the
 // Mitchell, 2026-08-30 design pass, on a 411px Android: "map view pretty

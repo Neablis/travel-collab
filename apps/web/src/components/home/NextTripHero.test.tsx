@@ -111,8 +111,10 @@ describe("NextTripHero", () => {
 
     // No sparkline group yet — the placeholder renders in its slot instead.
     expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
-    const placeholder = screen.getByRole("status", { name: /shape of the trip/i });
-    expect(placeholder.textContent).toMatch(/loading/i);
+    // A skeleton now (KI-2026-09-23-e), so no visible "Loading…": what a
+    // screen reader is told is the region's name and that it is busy.
+    const placeholder = screen.getByRole("status", { name: /loading the shape of the trip/i });
+    expect(placeholder.getAttribute("aria-busy")).toBe("true");
 
     resolveFetch!({ ok: true, value: tripDetailWithDays(trip.tripId) });
     await screen.findByRole("group", { name: /shape of the trip/i });
@@ -123,7 +125,7 @@ describe("NextTripHero", () => {
     const trip = tripSummaryFixture();
     render(<NextTripHero trip={trip} />);
 
-    const placeholder = await screen.findByRole("status", { name: /shape of the trip/i });
+    const placeholder = await screen.findByRole("status", { name: "Shape of the trip" });
     expect(placeholder.textContent).toMatch(/unavailable/i);
     expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
   });
@@ -136,7 +138,7 @@ describe("NextTripHero", () => {
     });
     render(<NextTripHero trip={trip} />);
 
-    const placeholder = await screen.findByRole("status", { name: /shape of the trip/i });
+    const placeholder = await screen.findByRole("status", { name: "Shape of the trip" });
     expect(placeholder.textContent).toMatch(/no days yet/i);
     expect(screen.queryByRole("group", { name: /shape of the trip/i })).toBeNull();
   });
@@ -508,7 +510,7 @@ describe("NextTripHero", () => {
     const trip = tripSummaryFixture();
     render(<NextTripHero trip={trip} />);
 
-    await screen.findByRole("status", { name: /shape of the trip/i });
+    await screen.findByRole("status", { name: "Shape of the trip" });
     expect(screen.queryByText(/planned of/)).toBeNull();
     expect(screen.queryByText("No budget yet")).toBeNull();
   });

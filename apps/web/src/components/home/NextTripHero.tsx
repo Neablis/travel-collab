@@ -8,7 +8,9 @@ import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { PHONE_TOUCH, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
+import { SparklineSkeleton } from "./HomeSkeletons";
 import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
@@ -106,6 +108,9 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
   // narrower than SPEC §12's literal wording and says why. `null` is the same
   // "nothing honest to say yet" as its neighbours above.
   const [notBooked, setNotBooked] = useState<number | null>(null);
+  const detailLoading = sparkline.status === "loading";
+  const hasDecisions = conflictCount !== null && conflictCount > 0;
+  const hasUnbooked = notBooked !== null && notBooked > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -263,7 +268,19 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
               While the detail is loading, or after it failed, there is nothing
               honest to say — the tiles said "—" there, and a line reading
               "— need a decision" would be worse. And "0 need a decision" is not
-              a task. */}
+              a task.
+
+              **Its own line below `md`, held open while the detail loads**
+              (KI-2026-09-23-e). It used to share the button's row and wrap
+              wherever its text ran out — on a 390px phone, "N not booked yet"
+              dropped under the button 30px after the page had painted. Now,
+              below `md`, it takes a full-width line of its own at the 44px
+              phone floor the decisions link already has, and while the detail
+              loads that line is a bone rather than nothing. A trip that turns
+              out to have nothing to do gives the line back; a trip with
+              something to do — the case where the line is worth reading —
+              lands in space already made for it. From `md` up it sits beside
+              the button as before, where the row never wrapped. */}
           <div className="mt-0.5 flex flex-wrap items-center gap-x-4.5 gap-y-3">
             {/* **`Open trip`, and it was `Open plan`** — Mitchell, Vercel
                 Toolbar comment on the PR #196 preview, 2026-09-20, with this
@@ -279,20 +296,28 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
                 handler as *Open plan*: it goes to the trip, and a navigation is
                 a link — middle-clickable, and read as one. The trip's own
                 conflict banner is where the decisions are made. */}
-            {conflictCount !== null && conflictCount > 0 && (
-              <Link
-                href={`/trips/${trip.tripId}`}
-                className={cn(
-                  "inline-flex items-center gap-2 py-1.5 text-sm font-semibold text-danger-ink no-underline hover:underline",
-                  PHONE_TOUCH,
+            {(detailLoading || hasDecisions || hasUnbooked) && (
+              <div className="flex min-h-11 basis-full flex-wrap items-center gap-x-4.5 gap-y-3 md:min-h-0 md:basis-auto">
+                {detailLoading ? (
+                  <Skeleton circle className="h-3 w-32" delay={3} />
+                ) : (
+                  <>
+                    {hasDecisions && (
+                      <Link
+                        href={`/trips/${trip.tripId}`}
+                        className={cn(
+                          "inline-flex items-center gap-2 py-1.5 text-sm font-semibold text-danger-ink no-underline hover:underline",
+                          PHONE_TOUCH,
+                        )}
+                      >
+                        <span aria-hidden className="size-1.75 shrink-0 rounded-full bg-danger" />
+                        {conflictCount} {conflictCount === 1 ? "needs" : "need"} a decision
+                      </Link>
+                    )}
+                    {hasUnbooked && <span className="text-sm text-slate">{notBooked} not booked yet</span>}
+                  </>
                 )}
-              >
-                <span aria-hidden className="size-1.75 shrink-0 rounded-full bg-danger" />
-                {conflictCount} {conflictCount === 1 ? "needs" : "need"} a decision
-              </Link>
-            )}
-            {notBooked !== null && notBooked > 0 && (
-              <span className="text-sm text-slate">{notBooked} not booked yet</span>
+              </div>
             )}
           </div>
         </div>
@@ -305,13 +330,17 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
               // (an empty, day-numbered slot) — the placeholder below is
               // only for states where there's no real day data at all yet.
               <Sparkline days={sparkline.days} />
+            ) : sparkline.status === "loading" ? (
+              // KI-2026-09-23-e: the Sparkline's own height, not a 96px box —
+              // see SparklineSkeleton for what it reserves and what it cannot.
+              <SparklineSkeleton />
             ) : (
               <div
                 role="status"
                 aria-label="Shape of the trip"
                 className="flex h-24 items-center justify-center rounded-xl p-2 text-xs text-slate"
               >
-                {sparkline.status === "loading" ? "Loading…" : sparkline.status === "error" ? "Unavailable" : "No days yet"}
+                {sparkline.status === "error" ? "Unavailable" : "No days yet"}
               </div>
             )}
           </div>
