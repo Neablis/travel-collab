@@ -206,6 +206,83 @@ next session does not re-derive it.
   the widget renders wide"* the worst of the three available answers. More filtering built
   on that seam multiplies the defect rather than adding a feature.
 
+### The field widget ("pick any field") — reviewed and decided 2026-09-24
+
+The *"dynamic widget that can grab arbitrary fields"* above was designed as ADR-037 open
+question 4 (a generated manifest of annotated fields; the reader picks from labels and
+never types a path). Mitchell asked on 2026-09-24 whether it still holds. A read-only
+review against `main` said **sound, with gaps: nothing above the manifest is built.**
+
+**What exists.** `packages/contracts/src/manifest.ts` builds the manifest, opt-in by
+`.describe()`, with `AttributeRef` as the stored shape, but **nothing outside contracts
+tests calls it**. Its only root is `TripGlobals` (days, cities, tags). The shipped
+`attribute` primitive reads a separate hand-written enum, `AttributeFieldRef`
+(`contracts/src/pages.ts`), so there are two field vocabularies today. `KI-20260905-o` is
+**resolved** (2026-09-21): `ActivitySnapshot` is the one declaration of activity fields,
+but none of them is annotated, so no stop field can be picked.
+
+**The gaps, most serious first:**
+
+1. **A field that disappears locks the page.** `writeCheck.ts`'s `findWidgetError`
+   rejects the *whole* document on one bad widget, so after a field rename a prose edit
+   to that page is refused, and Reading shows a red bad-params chip. `MacroResult` has no
+   stale state.
+2. **There is no control for a field.** Non-filter params are "chosen once, by the
+   preset". `widgetBind.tsx`'s `optionsFor` falls through to the **tag list** for any
+   input type it does not know. That is the same class of hole as KI-2026-09-05-h, so the
+   `default:` becomes a `never`.
+3. **No formatter per value kind.** `VALUE_KINDS` is money, date, count, text and
+   duration. There is no enum (transit `mode`), location or list, and no table dispatches
+   on kind. Some existing labels are wrong: `cities` is "text" and `dayIndexes` is "count".
+4. **"All stops" had no rule** (settled below). `AttributeRef.key` duplicates the `city`
+   filter, and it is trip-specific, so it would go stale in a link-10 template. **Drop
+   `key`**: choose the item with the existing filters and `narrow`, never a private lookup.
+5. **The assistant cannot see valid fields.** `nonFilterParams` lists only `ZodEnum`
+   values, so manifest entries have to go into `primitiveCatalog()`.
+6. **Privacy holds only while the resolver reads through the manifest.** `AttributeRef.field`
+   is any string. A resolver that indexed the raw object by that name could reach
+   unannotated fields such as `bookedBy`, which holds user ids. Always look the field up
+   in the manifest.
+
+**Mitchell's answers, 2026-09-24:**
+
+1. **A renamed or removed field is handled by converting documents**, not left as a
+   *"field removed"* state. That means a `PAGE_DOC_MIGRATIONS` step (`contracts/src/pageDoc.ts`,
+   ADR-038), so a stored page never names a field the manifest no longer has and gap 1
+   cannot occur for a deliberate change. **Still open:** what a *removed* field's widget
+   becomes after conversion. The candidates are dropped from the document, or turned into
+   a plain-text placeholder carrying the old label. This must be decided before the first
+   field is removed.
+2. **Every annotated field is pickable for now, with a typed exclusion list ready.** The
+   list is a TypeScript key list over the snapshot (a `Pick`/`Omit`-style `keyof
+   ActivitySnapshot` array, "pluck"), so a field that makes no sense in testing can be
+   hidden in one line, and a renamed field fails the build rather than silently
+   un-hiding.
+3. **"All stops" on a text field lists every value** (it may be long, and that is
+   accepted), and **a distinct option collapses duplicates**. *(Recorded as understood
+   from "let user pick too much, but also support distinct for duplicates". Confirm when
+   building.)* Money and counts still need their own all-rule (sum is the default).
+4. **Inline first**: a field chip inside a sentence. **The repeat shape follows**: a
+   field as a column on the existing `day.rows` / `city.rows` / `stop.rows`, before the
+   author-written row template. Both are in scope.
+
+**Build order:**
+
+1. KI-2026-09-05-h's exhaustiveness holes, plus the `never` default in `optionsFor`.
+2. `described()` on `ActivitySnapshot`, a `stop` manifest root, the typed exclusion list,
+   and `AttributeFieldRef` derived from the manifest (one vocabulary).
+3. A `Record<ValueKind, formatter>` in `packages/pages`, adding enum, location and list
+   kinds. The same table gives the Editing ghost its per-kind glyph (`$XXX`, `NN`).
+4. The conversion path for renames and removals in `PAGE_DOC_MIGRATIONS`, with a test
+   that pins an old document and converts it.
+5. A `field` `WidgetInput` type with a searchable control reading the manifest, exposed
+   through `primitiveCatalog()`. This goes in the same change that retires `days`/`trip`
+   (KI-2026-09-05-i).
+6. The inline field widget, then `columns` on the row widgets.
+
+M24's `mode` and `endLocation` join the picker by being annotated when M24 adds them.
+That is worth doing there, so the field is ready before this milestone opens.
+
 ### Rescoped a second time, 2026-09-03 (evening) — and it no longer fits in one milestone
 
 The nine links above were written before the widget model was worked out. Mitchell's answers
