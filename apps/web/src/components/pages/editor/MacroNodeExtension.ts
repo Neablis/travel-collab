@@ -8,7 +8,10 @@ import { widgetMarkPlugin } from "./widgetMarkPlugin";
 // a page's saved `getJSON()` round-trips through the contract's schema
 // validation without translation.
 //
-// One node type, not two: whether a given macro *presents* inline or as a
+// One node type for every WIDGET, not two — the authored repeat is the one
+// content-bearing exception, and it is its own node (`RepeatNodeExtension`,
+// ADR-035 decision 4) because an atom cannot hold a template the author edits.
+// Whether a given macro *presents* inline or as a
 // block is a rendering decision (`getMacro(name).kind`), owned by MacroView
 // (Task 4.2). The editor schema only needs one atom that can sit inside
 // inline content (so `{{` autocomplete works anywhere text can go, including

@@ -13,11 +13,12 @@ import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
-import { NodeSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
+import { repeatCaretIn } from "@/components/pages/editor/RepeatNodeExtension";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
-import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
+import { WidgetInsert, type InsertedNode } from "@/components/pages/WidgetInsert";
 import { NO_WIDGET_FILTER, type WidgetFilter } from "@/components/pages/WidgetPicker";
 import { Button } from "@/components/ui/button";
 import type { Editor } from "@tiptap/react";
@@ -610,7 +611,7 @@ export function PageScreen({
   // (ADR-035 decision 5): a turn's prose and widgets arrive as a node list and
   // land the same way a click does. One mechanism, so the AI path cannot
   // develop placement rules of its own.
-  const insertAtCursor = (node: MacroNode | readonly unknown[]) => {
+  const insertAtCursor = (node: InsertedNode | readonly unknown[]) => {
     // **Selects what it just inserted**, which SPEC §26 makes load-bearing
     // rather than a nicety. Before §26 a widget arrived with its chrome row
     // already attached, so "inserted" and "configurable" were the same moment.
@@ -658,6 +659,14 @@ export function PageScreen({
       .insertContent(node as never)
       .command(({ tr, dispatch }) => {
         if (at === undefined || dispatch === undefined) return true;
+        // A repeat has nothing to configure on arrival and everything to
+        // write: the caret goes into its template, so the next keystroke is
+        // the sentence (ADR-035 decision 4).
+        if (!Array.isArray(node) && (node as InsertedNode).type === "repeat") {
+          const caret = repeatCaretIn(tr.doc, at, tr.selection.to);
+          if (caret !== null) dispatch(tr.setSelection(TextSelection.create(tr.doc, caret)));
+          return true;
+        }
         let macroPos: number | null = null;
         tr.doc.nodesBetween(at, Math.max(at, tr.selection.to), (child, pos) => {
           if (macroPos !== null) return false;

@@ -667,6 +667,69 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(afterReload.nth(1)).toContainText("Day 2");
 });
 
+// **The authored repeat** (ADR-035 decision 4; M14 link 6's gate box, and
+// Mitchell's 2026-09-24 call 6). One sentence the author writes, with widgets
+// in it, printed once per day — each widget reading that line's day. The
+// template is written where it sits, the way any sentence is: that IS "Edit
+// the wording" (catalogue row 12), so the walk writes it rather than opening
+// anything. The widgets are inserted from the same rail at the same caret.
+test("a sentence for every day is written once and reads one line per day", async ({ page }) => {
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  // A day's city comes from its stops, so each day gets one in its own city.
+  await addStopViaApi(page, tripId, "Landing at Haneda", { dayId: trip.days[0]!.dayId, location: { name: "Haneda", city: "Tokyo" } });
+  await addStopViaApi(page, tripId, "Fushimi Inari", { dayId: trip.days[1]!.dayId, location: { name: "Fushimi Inari", city: "Kyoto" } });
+  await openSeededPage(page);
+
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.getByRole("searchbox", { name: "Search widgets" }).fill("sentence for every day");
+  await railList(page).getByRole("button", { name: /A sentence for every day/ }).click();
+
+  // The dashed rail names what it repeats over and how many, and the caret is
+  // already in the template — so the next keystrokes are the sentence.
+  const repeat = page.locator('.tc-page-editor [data-repeat-over="day"]');
+  await expect(repeat.getByTestId("repeat-rail")).toHaveText("For every day · 2 days");
+  await page.keyboard.type("Day ");
+  await page.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
+  await railList(page).getByRole("button", { name: /The dates/ }).click();
+  await expect(repeat.locator('[data-macro-name="dates"]')).toHaveCount(1);
+
+  // Back to the end of the template, past the widget the insert selected.
+  const template = repeat.locator("p").first();
+  await template.click({ position: { x: (await boxOf(template)).width - 4, y: 4 } });
+  await page.keyboard.press("End");
+  await page.keyboard.type(" — ");
+  await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
+  await railList(page).getByRole("button", { name: /Which cities/ }).click();
+  await expect(repeat.locator('[data-macro-name="city"]')).toHaveCount(1);
+
+  // Editing shows the template ONCE, its widgets previewing the first day. Per
+  // widget, because each also carries its numbered handle (▸1, ▸2) in Editing.
+  await expect(template).toContainText("Day ");
+  await expect(repeat.locator('[data-macro-name="dates"]')).toContainText("Jun 1, 2027");
+  await expect(repeat.locator('[data-macro-name="city"]')).toContainText("Tokyo");
+  await expect(repeat.locator('[data-macro-name="city"]')).not.toContainText("Kyoto");
+
+  // Reading: one line per day, each filled from its own day. Exactly two, so a
+  // renderer that printed the template once, or three times, fails here.
+  const readLines = async () => {
+    const lines = page.locator("[data-repeat-line]");
+    await expect(lines).toHaveCount(2);
+    await expect(lines.nth(0)).toHaveText(/^Day\s*Jun 1, 2027\s*—\s*Tokyo$/);
+    await expect(lines.nth(1)).toHaveText(/^Day\s*Jun 2, 2027\s*—\s*Kyoto$/);
+    await expect(page.getByTestId("repeat-rail")).toHaveCount(0);
+  };
+  await finishEditing(page);
+  await readLines();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await readLines();
+});
+
 test("a multi-filter widget keeps every binding, and each survives a reload", async ({ page }) => {
   // `stop.rows` is the widest widget in the registry — entity `stop`, which the
   // legality matrix gives all six dimensions — so it is the one that proves the

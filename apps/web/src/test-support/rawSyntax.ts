@@ -1,4 +1,4 @@
-import { newPageDoc, type MacroNode, type PageDoc } from "@tc/contracts";
+import { newPageDoc, type MacroNode, type PageDoc, type PageRepeatNode } from "@tc/contracts";
 import { MACRO_NAMES, PRESETS, insertPreset, insertWidget } from "@tc/pages";
 
 // The M14 gate box: *"No user-visible macro syntax anywhere, in either mode. A
@@ -31,12 +31,36 @@ import { MACRO_NAMES, PRESETS, insertPreset, insertWidget } from "@tc/pages";
  * a primitive no preset reaches still renders on a page the assistant wrote.
  */
 export function everyWidget(): MacroNode[] {
-  return [...PRESETS.map((p) => insertPreset(p.id)), ...MACRO_NAMES.map((name) => insertWidget(name))].map(
+  return [...WIDGET_PRESETS.map((p) => insertPreset(p.id)), ...MACRO_NAMES.map((name) => insertWidget(name))].map(
     (result) => {
       if (!result.ok) throw new Error(`could not build a widget node: ${JSON.stringify(result.error)}`);
-      return result.node;
+      return result.node as MacroNode;
     },
   );
+}
+
+/** Every preset that inserts a widget; the rest insert an authored repeat (`everyRepeat`). */
+export const WIDGET_PRESETS = PRESETS.filter((p) => !p.repeat);
+
+/**
+ * Every repeat preset as the picker inserts it, its template then written with
+ * every registered widget in it — so each widget is also rendered in a day's,
+ * a stop's and a city's scope, where a leak would print once per line.
+ */
+export function everyRepeat(): PageRepeatNode[] {
+  const template = everyWidget()
+    .slice(WIDGET_PRESETS.length)
+    .flatMap((node) => [{ type: "text" as const, text: " then " }, node]);
+  return PRESETS.filter((p) => p.repeat).map((p) => {
+    const result = insertPreset(p.id);
+    if (!result.ok || result.node.type !== "repeat") throw new Error(`could not build a repeat: ${p.id}`);
+    return { ...result.node, content: [{ type: "text" as const, text: "Each" }, ...template] };
+  });
+}
+
+/** A page holding every repeat preset, each over the same all-widget template. */
+export function everyRepeatPage(): PageDoc {
+  return newPageDoc(everyRepeat());
 }
 
 /** A page holding every widget, each in a sentence of its own — so a leak is also a leak mid-prose. */

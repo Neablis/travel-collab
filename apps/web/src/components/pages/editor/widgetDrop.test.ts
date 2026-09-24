@@ -56,6 +56,14 @@ describe("dropping a widget onto the page", () => {
     expect(node.attrs.params).toEqual({ kind: "booked" });
   });
 
+  it("drops a sentence-for-every-day preset as a repeat, not as the rows widget it borrows", () => {
+    const { view, dispatch } = stubView({ pos: 4 });
+    expect(handleWidgetDrop(view, dragEvent({ data: "sentence.day" }))).toBe(true);
+    const { node } = dispatch.mock.calls[0]![0] as { node: { type: { name: string }; attrs: Record<string, unknown> } };
+    expect(node.type.name).toBe("repeat");
+    expect(node.attrs).toEqual({ name: "day.rows", params: {} });
+  });
+
   // ADR-037 decision 4: "there is no way to put a widget into a document that
   // skips validation". The drag payload is an id, so this is the check that
   // stops an id nothing in the preset list answers to from reaching the

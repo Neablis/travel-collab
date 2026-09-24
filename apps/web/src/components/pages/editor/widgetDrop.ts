@@ -36,14 +36,16 @@ export function handleWidgetDrop(view: EditorView, event: DragEvent): boolean {
   const built = insertPreset(presetId);
   if (!built.ok) return false;
 
-  const macro = view.state.schema.nodes.macro;
-  if (macro === undefined) return false;
+  // A widget, or — for a "sentence for every …" preset — an authored repeat,
+  // which lands with an empty template for the author to write.
+  const type = view.state.schema.nodes[built.node.type];
+  if (type === undefined) return false;
 
   // Prevented only once we are certain we are handling it, so a drag this
   // editor does not understand still falls through to ProseMirror's own drop
   // handling (moving a selection, dropping text from elsewhere).
   event.preventDefault();
-  view.dispatch(view.state.tr.insert(at.pos, macro.create(built.node.attrs)));
+  view.dispatch(view.state.tr.insert(at.pos, type.create(built.node.attrs)));
   return true;
 }
 
