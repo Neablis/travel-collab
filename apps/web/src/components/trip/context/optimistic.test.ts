@@ -1,4 +1,8 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import type { BatchableCommand, TripDetail } from "@tc/contracts";
+import { predictBatch } from "@tc/predict";
+import { witness } from "@/test-support/witness";
 import {
   enqueue,
   confirmHead,
@@ -508,5 +512,215 @@ describe("concurrent-edit conflicts ride the overlay (M13 link 4)", () => {
       pending: [],
     };
     expect(adoptOutcome(idle, remote("Kiyomizu-dera")).remoteConflicts).toBeUndefined();
+  });
+});
+
+// KI-2026-09-05-p. Every example above is a window somebody had already
+// imagined, and the queue produced six known issues (KI-5, 36, 42, 55, 70, 90)
+// that were each one sentence — "an accepted unit vanished with no failure
+// record" — fixed as a line while the next window opened beside it. The claim
+// is universally quantified, so it gets a property: for ANY interleaving of a
+// user editing, the sequential sender's head send being accepted, refused or
+// dropped, the user's retry, another client editing the server, and an
+// authoritative reconcile (a poll, or an undo/redo/revert's response — both go
+// through `adoptOutcome`), no accepted unit is ever lost or reordered.
+//
+// The model drives the reducers the way TripProvider does (its sender gate,
+// its no-op path, its reconcile) against a model SERVER that decides commands
+// with the same `decideTripCommand` the real one runs (`predictBatch` is that
+// decider plus hydration). What it cannot reach is KI-5's own trigger —
+// navigating away before the queue drains — which is outside any reducer.
+describe("the optimistic queue loses nothing under any interleaving (KI-2026-09-05-p)", () => {
+  // Small id pools so commands collide: a day removed remotely that a queued
+  // unit adds a stop to is exactly how KI-42's retention gets exercised.
+  const DAYS = ["d-1", "d-2", "d-3"];
+  const ACTS = ["a-1", "a-2", "a-3"];
+
+  const command: fc.Arbitrary<BatchableCommand> = fc.oneof(
+    fc.constantFrom(...DAYS).map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
+    fc.constantFrom(...DAYS).map((dayId): BatchableCommand => ({ type: "RemoveDay", tripId, dayId })),
+    fc
+      .tuple(fc.constantFrom(...ACTS), fc.constantFrom(...DAYS))
+      .map(([activityId, dayId]): BatchableCommand => ({ type: "AddActivity", tripId, activityId, dayId, title: "stop" })),
+    fc
+      .tuple(fc.constantFrom(...ACTS), fc.constantFrom("x", "y"))
+      .map(([activityId, notes]): BatchableCommand => ({ type: "UpdateActivity", tripId, activityId, notes })),
+    fc.constantFrom(...ACTS).map((activityId): BatchableCommand => ({ type: "RemoveActivity", tripId, activityId })),
+  );
+
+  type Step =
+    | { kind: "edit"; commands: BatchableCommand[] } // runDispatch -> enqueue
+    | { kind: "send" } // the head send reaches the server, which decides it
+    | { kind: "drop" } // the head send fails in transit (network error)
+    | { kind: "retry" } // the user's manual retry -> clearFailure
+    | { kind: "remote"; command: BatchableCommand } // another client edits the server
+    | { kind: "reconcile" }; // a poll / history command's response -> adoptOutcome
+
+  const step: fc.Arbitrary<Step> = fc.oneof(
+    {
+      weight: 6,
+      arbitrary: fc.array(command, { minLength: 1, maxLength: 2 }).map((commands): Step => ({ kind: "edit", commands })),
+    },
+    { weight: 2, arbitrary: fc.constant<Step>({ kind: "send" }) },
+    { weight: 1, arbitrary: fc.constant<Step>({ kind: "drop" }) },
+    { weight: 1, arbitrary: fc.constant<Step>({ kind: "retry" }) },
+    { weight: 2, arbitrary: command.map((c): Step => ({ kind: "remote", command: c })) },
+    // Another client REMOVING what the queue names is what makes a queued unit
+    // stop predicting (KI-42) or the server refuse the head (KI-36). Uniform
+    // commands reach that window a handful of times per hundred runs, so it
+    // gets its own weight.
+    {
+      weight: 2,
+      arbitrary: fc
+        .oneof(
+          fc.constantFrom(...DAYS).map((dayId): BatchableCommand => ({ type: "RemoveDay", tripId, dayId })),
+          fc.constantFrom(...ACTS).map((activityId): BatchableCommand => ({ type: "RemoveActivity", tripId, activityId })),
+        )
+        .map((c): Step => ({ kind: "remote", command: c })),
+    },
+    { weight: 2, arbitrary: fc.constant<Step>({ kind: "reconcile" }) },
+  );
+
+  const history = historyFixture(tripId);
+
+  // Start from a trip that already has days and a stop, built by the decider
+  // itself so it is internally consistent. From an empty trip most generated
+  // edits are refused at enqueue and the interesting windows are rarely hit.
+  const seeded = (): OptimisticState => {
+    const r = predictBatch(tripDetailFixture(), [
+      { type: "AddDay", tripId, dayId: "d-1" },
+      { type: "AddDay", tripId, dayId: "d-2" },
+      { type: "AddActivity", tripId, activityId: "a-1", dayId: "d-1", title: "stop" },
+    ]);
+    if (!r.ok) throw new Error(`seed: ${r.rejection.code}`);
+    return { confirmed: { detail: r.detail, history }, pending: [] };
+  };
+
+  // The preview must be a PREFIX of the send order (KI-55): the confirmed trip
+  // with the predicted head of the queue replayed onto it, in order.
+  function expectedPreview(state: OptimisticState): TripDetail {
+    let detail = state.confirmed.detail;
+    for (const unit of state.pending) {
+      if (unit.predictedDetail === null) break;
+      const r = predictBatch(detail, unit.commands);
+      if (!r.ok) throw new Error(`predicted unit ${unit.id} does not replay onto its prefix: ${r.rejection.code}`);
+      detail = r.detail;
+    }
+    const remote = state.remoteConflicts ?? [];
+    return remote.length === 0 ? detail : { ...detail, conflicts: [...detail.conflicts, ...remote] };
+  }
+
+  it("every accepted unit is confirmed or still queued in order, and a refusal stays on the record", () => {
+    const w = witness("optimistic queue invariants");
+    // The dangerous windows sit behind guards in the model, which is the shape
+    // that goes vacuous silently — each gets its own count.
+    const retained = witness("a unit retained unpredicted (KI-42/55)");
+    const adoptedOverQueue = witness("a reconcile over a non-empty queue (KI-90)");
+    const refused = witness("a server refusal retained (KI-36)");
+
+    fc.assert(
+      // `size: "max"` because fast-check's default size keeps arrays near ten
+      // steps, and a queue needs room to build up before it can lose anything.
+      fc.property(fc.array(step, { minLength: 1, maxLength: 30, size: "max" }), (steps) => {
+        let state: OptimisticState = seeded();
+        let server: TripDetail = state.confirmed.detail;
+        let lastAdopted: TripDetail = state.confirmed.detail;
+        const accepted: string[] = [];
+        const settled = new Set<string>();
+        let failed = false;
+        let next = 0;
+        let sawRetained = false;
+        let sawAdoptOverQueue = false;
+        let sawRefusal = false;
+
+        for (const s of steps) {
+          switch (s.kind) {
+            case "edit": {
+              const id = `u${++next}`;
+              const r = enqueue(state, id, s.commands);
+              if (r.ok) {
+                state = r.state;
+                accepted.push(id);
+              }
+              break;
+            }
+            case "send":
+            case "drop": {
+              // TripProvider's sender gate: nothing is sent while the queue is
+              // empty or a failure is recorded.
+              if (state.pending.length === 0 || state.failure) break;
+              const head = state.pending[0]!;
+              if (s.kind === "drop") {
+                state = failHead(state, { at: "t", message: "network" });
+                failed = true;
+                break;
+              }
+              const r = predictBatch(server, head.commands);
+              if (r.ok) {
+                server = r.detail;
+                lastAdopted = server;
+                state = confirmHead(state, { detail: server, history });
+                settled.add(head.id);
+              } else if (r.rejection.code === "no-op") {
+                // TripProvider confirms a server no-op away against the
+                // existing confirmed state.
+                state = confirmHead(state, state.confirmed);
+                settled.add(head.id);
+              } else {
+                state = failHead(state, { at: "t", message: r.rejection.message });
+                failed = true;
+                sawRefusal = true;
+              }
+              break;
+            }
+            case "retry":
+              state = clearFailure(state);
+              failed = false;
+              break;
+            case "remote": {
+              const r = predictBatch(server, [s.command]);
+              if (r.ok) server = r.detail;
+              break;
+            }
+            case "reconcile":
+              if (state.pending.length > 0) sawAdoptOverQueue = true;
+              state = adoptOutcome(state, { detail: server, history });
+              lastAdopted = server;
+              break;
+          }
+
+          // 1. Nothing accepted vanishes, is duplicated, or is reordered: the
+          //    queue is exactly the accepted units not yet confirmed.
+          expect(state.pending.map((u) => u.id)).toEqual(accepted.filter((id) => !settled.has(id)));
+          expect(unsentCount(state)).toBe(accepted.length - settled.size);
+          // 2. A refusal stays on the record until the user retries: only
+          //    `clearFailure` unlatches the sender's gate.
+          expect(state.failure !== undefined).toBe(failed);
+          // 3. Unpredicted units are a strict suffix of the queue (KI-55).
+          const firstNull = state.pending.findIndex((u) => u.predictedDetail === null);
+          if (firstNull >= 0) {
+            sawRetained = true;
+            expect(state.pending.slice(firstNull).every((u) => u.predictedDetail === null)).toBe(true);
+          }
+          // 4. The board shows a prefix of the send order over the last
+          //    authoritative trip, never a trip no send produces.
+          expect(state.confirmed.detail).toEqual(lastAdopted);
+          expect(activeDetail(state)).toEqual(expectedPreview(state));
+          w.tick();
+        }
+        if (sawRetained) retained.tick();
+        if (sawAdoptOverQueue) adoptedOverQueue.tick();
+        if (sawRefusal) refused.tick();
+      }),
+      { numRuns: 200 },
+    );
+
+    // Floors measured, not guessed (testing.md): over eight runs of 200 the
+    // observed minimums were 2770 steps, 24 runs reaching retention, 74
+    // reconciles over a queue and 14 server refusals. Each floor is about half.
+    w.atLeast(1400);
+    retained.atLeast(12);
+    adoptedOverQueue.atLeast(37);
+    refused.atLeast(7);
   });
 });
