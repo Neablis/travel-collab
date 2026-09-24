@@ -202,6 +202,27 @@ assertions that retry (`toBeVisible`, `toHaveText`), never a sleep.
 `m4-money-and-lenses.spec.ts` is the model. Trip names come from
 `e2eTripName()` so parallel workers do not collide.
 
+**Don't type into a React node view's editable line the moment it has been
+inserted.** A node rendered with `ReactNodeViewRenderer` that has a content
+hole (`NodeViewContent`) mounts that hole asynchronously. Keystrokes typed
+before it is attached are lost, 1 to 3 characters at a time, and never the same
+number twice. The case that found this was the part-3 version of
+*"a sentence inserted mid-sentence…"*: insert *"A sentence for every day"*,
+type *"On day X we go"* at once, and the repeat read *"n day X we go"* or
+*" day X we go"*. On a production build that failed 3 times in 20 with
+`--retries=0`, and passed 20 of 20 once it waited first:
+
+```ts
+await expect(page.locator(".tc-page-editor [data-repeat-over] [data-node-view-content]").first()).toBeAttached();
+await expect(page.locator(".tc-page-editor .ProseMirror")).toBeFocused();
+```
+
+Measured on the same build: typing straight after inserting an inline widget
+with no content hole (*"Which cities"*) passed 10 of 10 without the wait. So
+the rule is about the content hole, not about inserting in general. `main`'s
+repeat no longer has one; its sentence is written in the settings panel.
+Clicking inside the editor then typing, as most specs do, is safe.
+
 ## 7. Running things, and what to believe
 
 Which commands to run for a given change is `AGENTS.md`'s Definition of Done,

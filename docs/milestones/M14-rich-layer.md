@@ -863,7 +863,7 @@ milestone opens:**
       hiding the surface — cancellation and unmounting both leave a window for a
       stream frame already in flight, and the guard does not.
 
-- [ ] **Notebook history: an edit session commits one event, and the `pages` row
+- [x] **Notebook history: an edit session commits one event, and the `pages` row
       rebuilds from the log** — the projection-rebuild golden test gains a page
       case, and `PageScreen` no longer autosaves. **A rebuild mid-session must not
       be able to destroy prose, because there is no mid-session row state left to
@@ -884,6 +884,7 @@ milestone opens:**
       here. ADR-036 decision 2 is amended to the trip stream. Board ⌘Z never reverting a
       page event is pinned by `pageHistory.property.test.ts`. e2e specs changed:
       `m14-notebook-widgets`, `m14-mobile-notebook`, `m7-solo-delight`.)*
+      *(**Ticked 2026-09-24** at M14's merge: all three specs green in CI's `integration-e2e` on #221's last head, `348edbe` (run 36069596573), after #222 added the server-side stale-save guard (`expectedUpdatedAt`, 409 `page-changed`). **Ticked with the one exception named above standing:** seeded notebooks that the log has never recorded are left alone by a rebuild. That needs a design call (seed through the log, or a backfill); it is not a bug.)*
 - [x] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
       the registry declares a `person` input. They left this milestone on
       2026-09-03 with item F; a build that quietly adds them back is building on a
@@ -929,10 +930,24 @@ milestone opens:**
       renders wide is the defect, not the feature.)*
 - [ ] **The external-data ADR is accepted before any external-data code lands**,
       and it answers the widget brainstorm's §5 seven points. *(Link 11, added 2026-09-24.)*
-- [ ] **Weather renders in all four date-driven modes**, each naming its mode in
+- [x] **Weather renders in all four date-driven modes**, each naming its mode in
       words, with MET Norway's attribution on the block, an as-of time, and a quiet
       `unavailable` placeholder when the source is down. That state is proved with a
       failing port stub, not by assertion.
+      *(Ticked 2026-09-24, on #226 and #221. The modes are `forecast`, `today`,
+      `typical`, `past` and `no-forecast`, and each is labelled in words:
+      *"Past day · Sep avg"* and *"No forecast · Sep avg"*.
+      `packages/pages/src/macros/primitives/weather.test.ts` covers the mode for
+      every date, the words for each row, the as-of time, and crediting only the
+      sources whose data is shown. The unavailable state is proved with failing
+      port stubs in `app/api/trips/[tripId]/weather/route.int.test.ts`:
+      - both sources down → every point unavailable, and the widget is the quiet
+        placeholder;
+      - the forecast down → typical, labelled;
+      - no `EXTERNAL_DATA_CONTACT` → the forecast is down and the route is not.
+      In a browser, `m14-notebook-widgets.spec.ts` *"the weather widget is the
+      quiet placeholder while outside data is offline"* covers Editing and
+      Reading. The live-source half is the next box, which is a walk by hand.)*
 - [ ] Weather walked against the real MET Norway and NASA POWER on a preview, per
       docs/guidelines/external-data-manual-check.md. *(Added 2026-09-24: no automated test
       may call either source, so the e2e server runs with `EXTERNAL_DATA_OFFLINE=true` and
@@ -943,8 +958,17 @@ milestone opens:**
       map block follows once M24's legs exist.
 - [x] **Charts go through the one adopted chart component**, and none carries a
       colour or font outside the design-system tokens. *(Ticked 2026-09-24, T21 on PR #221: `apps/web/src/components/ui/chart.test.tsx` fails on a literal colour or font in any chart file, on Recharts imported without `ChartContainer`, and on a rendered chart carrying Recharts' default `#ccc`/`#666`; each case seen red first.)*
-- [ ] The full Definition of Done is green, including
+- [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
+      *(Ticked 2026-09-24 at merge. CI's `static-and-unit` and `integration-e2e`
+      were green on #221's last head, `348edbe` (run 36069596573): typecheck,
+      lint, every unit suite, the integration suite, and the whole e2e suite on
+      a production build. `main` at `965b7ac` is that tree plus prose. A
+      reported flake, *"a sentence inserted mid-sentence…"*, came from the
+      part-3 version of that test on a branch cut before #221. It fails 3 in
+      20 there, and 0 in 20 on `main`, on the ci-like build; see `testing.md`. The whole-stack Tier 3 that each
+      part's body deferred was paid by that CI run, not by a separate local
+      `pnpm check`.)*
 - [ ] Retro appended at gate close.
 
 ## Deliberately not here

@@ -292,6 +292,9 @@ reorder and the one place a reorder updates.
       enforced rather than remembered.)*
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
       → `docs/milestones/M14-rich-layer.md`
+      *(**Code merged 2026-09-24, built ahead of M24** on Mitchell's call, as
+      #222, #223, #226 and #221. The gate is 17 of 22. The five open boxes
+      need a person, not code; `docs/STATUS.md` lists them.)*
       *(**Scoped 2026-09-01** — six links, and the **repeaters ADR is a
       prerequisite**, not a mid-build deliverable. Checked against the tree:
       `MacroKind` is `"inline" | "block"` with no repeat kind, and every macro

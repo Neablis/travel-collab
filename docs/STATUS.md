@@ -36,6 +36,43 @@ OF 2026-09-23**, by **M12's gate closing at 13 of 13**. Order:
 Scope and its eleven boxes: `docs/milestones/M24-travel-legs.md`. Its stated
 prerequisite, the activity-field descriptor refactor (`KI-2026-09-05-o`),
 landed in #200.
+**M14 was built ahead of it on 2026-09-24** and is merged with its gate at 17
+of 22. The open boxes are Mitchell's (next section). That leaves M24 as the
+next milestone to *build*, and it inherits new city-reading code from M14
+(see *Next action*).
+
+## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 17 of 22, the rest is Mitchell's
+
+Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped the
+same day as four stacked PRs: #222 → #223 → #226 → #221. `main` is at
+`965b7ac`, and CI was green on #221's last head, `348edbe`. **The gate is not
+closed.** Every box still open needs a person, not code:
+
+1. **The insert Sheet box.** It needs a design call: should each row show a
+   *real resolved preview*, or ADR-037's fixed sample?
+2. **ADR-052 acceptance.** It was accepted on delegation ("go with your own
+   best judgement… I'll review in the morning"). The gate orders it before any
+   external-data code lands, and that code is now on `main`.
+3. **The real-service weather walk**, per
+   `docs/guidelines/external-data-manual-check.md`.
+4. **The six link-11 widgets walked against a real trip.**
+5. **The milestone retro, appended at gate close.**
+   `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro;
+   the milestone's own retro is still owed.
+
+**Operator items, unless already done:**
+- dispatch `migrate-production` for `0029_saved_notebooks` and
+  `0030_external_data_cache`;
+- set `EXTERNAL_DATA_CONTACT` in Vercel for Production and Preview. Without it,
+  forecasts are skipped and only typical weather shows.
+
+Branches cut from `main` before #221 still carry the part-3 version of
+`m14-notebook-widgets.spec.ts` *"a sentence inserted mid-sentence…"*. That
+version fails about 3 times in 20: it types into a repeat node view before
+React has mounted its editable line, and loses the first keystrokes. Merge
+`main` into those branches; `main`'s version passed 20 of 20. Known carriers
+are `claude/optimistic-shannon-tce4t8` and `claude/ecstatic-villani-13d488`.
+The mechanism is in `docs/guidelines/testing.md` § *Copy these → E2E*.
 
 ## DONE 2026-09-23 — M12 Reviews and moderation, gate closed 13 of 13
 
@@ -221,7 +258,23 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 **M24 is the current milestone** (M12's gate closed 2026-09-23, 13 of 13).
 Read `docs/milestones/M24-travel-legs.md` before planning anything; its
-descriptor-refactor prerequisite is done (below). **Two operator items are
+descriptor-refactor prerequisite is done (below).
+
+**M14 added places that read a stop's city, and M24's knock-on 2 must cover
+them too.** The milestone file lists `citiesOfStops`, `cityFor()` and
+`shortPlace()`, all written before M14. Since 2026-09-24 these also read a
+stop's city:
+- `placeOfDay` in `apps/web/src/server/tripGlobals.ts`, which feeds
+  `TripGlobalsDay.place.city`;
+- `packages/pages/src/dayCity.ts`, used by `locatedDay`, sun, time difference
+  and weather;
+- `apps/web/src/server/external/weather/tripWeather.ts`, the weather points
+  for each day and city;
+- the city filter and "Which cities" in `packages/pages/src/select.ts`.
+
+Each one must choose between origin and destination for a transit stop, the
+same as the three listed. M14 also parked a **route-map block** until M24's
+legs exist. **Two operator items are
 open:** the production content re-import M12's gate close owes (three corrected
 country codes), and, from M27, `LOCATIONIQ_API_KEY` on Vercel (Production and
 Preview) — the Playbook pin backfill does nothing without it.
