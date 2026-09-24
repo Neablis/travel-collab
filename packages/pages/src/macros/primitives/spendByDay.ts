@@ -36,9 +36,12 @@ type CostChartParams = z.infer<typeof CostChartParams>;
 
 const COST_CHART_INPUTS: readonly WidgetInput[] = [
   ...filterInputs(COST_CHART_FILTERS),
+  // "Variation", not "Show as" (Mitchell, #221 preview: *"Maybe Variation is
+  // better. Variation: Default, Burn Down"*). The stored values do not change,
+  // so every saved chart reads the same.
   {
-    name: "view", type: "choice", label: "Show as", default: "bars",
-    options: [{ value: "bars", label: "Bars" }, { value: "burndown", label: "Burn-down" }],
+    name: "view", type: "choice", label: "Variation", default: "bars",
+    options: [{ value: "bars", label: "Default" }, { value: "burndown", label: "Burn down" }],
   },
 ];
 

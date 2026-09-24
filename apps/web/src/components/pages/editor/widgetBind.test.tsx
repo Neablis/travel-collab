@@ -236,11 +236,11 @@ describe("a widget's toggle and choice inputs", () => {
     expect(stored()).toEqual({});
   });
 
-  it("offers Bars and Burn-down, reads Bars when nothing is stored, and stores only the other", async () => {
+  it("offers Default and Burn down as the Variation, reads Default when nothing is stored, and stores only the other", async () => {
     const user = userEvent.setup();
     render(<Harness name="cost.chart" inputs={declared("cost.chart", "choice")} />);
-    const select = screen.getByRole("combobox", { name: "One stop's detail: show as" }) as HTMLSelectElement;
-    expect([...select.options].map((o) => o.textContent)).toEqual(["Bars", "Burn-down"]);
+    const select = screen.getByRole("combobox", { name: "One stop's detail: variation" }) as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(["Default", "Burn down"]);
     expect(select.value).toBe("bars");
     await user.selectOptions(select, "burndown");
     expect(stored()).toEqual({ view: "burndown" });

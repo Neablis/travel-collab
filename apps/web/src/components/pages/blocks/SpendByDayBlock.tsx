@@ -5,7 +5,7 @@ import { ChartLegend, ChartPlaceholder, type ChartConfig, type ChartToken } from
 
 // "Spend by day" — a bar per day, stacked by tag, with the budget per day as a
 // dashed line (M14 link 11, the first chart); or, as the widget's `view`
-// "Burn-down", the running total against the budget and an even pace.
+// variation "Burn down", the running total against the budget and an even pace.
 //
 // Spans throughout, for `CostsTableBlock`'s reason: this sits inside a
 // paragraph. The chart itself arrives through `ChartContainer`'s portal.

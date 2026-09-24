@@ -87,7 +87,7 @@ export function SpendByDayChart({
   return (
     <ChartContainer config={config} height={height} label={payload.summary}>
       {payload.burnDown ? (
-        <BurnDown payload={payload} content={content} />
+        burnDownChart(payload, content)
       ) : (
         <BarChart data={rowsOf(payload.days)} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} accessibilityLayer={false}>
           {axes(payload)}
@@ -111,8 +111,14 @@ const rowsOf = (days: Days) => days.map((day, index) => ({ index, tick: day.tick
  * it is over pace. Past the budget the base is zero and the stacks rise over
  * the line. With no budget there is no base, no line and no pace: the stacks
  * are the running total from zero, and the block says why in words.
+ *
+ * **A function returning the chart, never a component wrapping it.**
+ * `ChartContainer` sizes its child by cloning `width` and `height` onto it; as
+ * `<BurnDown>` the clone sized the wrapper, which dropped both, and Recharts
+ * drew an empty, unsized frame — the burn-down that "isnt working" on the PR 221
+ * preview. `chart.test.tsx` sweeps this variant for a drawn chart.
  */
-function BurnDown({ payload, content }: { payload: SpendByDayPayload; content: ReturnType<typeof tooltipFor> }) {
+function burnDownChart(payload: SpendByDayPayload, content: ReturnType<typeof tooltipFor>) {
   const burn = payload.burnDown!;
   const data = payload.days.map((day, index) => {
     const through = burn.days[index]!;
