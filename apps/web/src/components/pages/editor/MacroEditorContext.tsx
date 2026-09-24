@@ -2,6 +2,7 @@
 import { createContext, useContext } from "react";
 import type { Editor } from "@tiptap/react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
+import type { ExternalInputs } from "@tc/pages";
 
 // Carries the `detail`/`context` that every `macro` NodeView needs to resolve
 // itself, from `PageEditor` down to `MacroNodeView` — without threading them
@@ -20,6 +21,9 @@ export interface MacroEditorContextValue {
   user: UserPreferences | null;
   // The trip's addressable collections; `null` until the request lands.
   globals: TripGlobals | null;
+  // Outside data (ADR-052) — every slot pending until `useExternalInputs`
+  // hears back, and never fetched for a page with no widget that needs it.
+  external?: ExternalInputs;
   // Reading vs Editing (§18: one control, two states). Reading is the
   // traveller's view and shows no chrome, so the chrome row reads this rather
   // than each widget guessing.

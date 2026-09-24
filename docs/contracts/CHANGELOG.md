@@ -13,6 +13,41 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `TripWeather`, and the `unavailable` widget state (M14 T23, ADR-052)
+
+- **Added:** `packages/contracts/src/weather.ts` — `TripWeather { points }`,
+  `TripWeatherPoint { date, city, forecast, typical }`, `ForecastDay`,
+  `ForecastHour`, `TypicalMonth`, `WeatherSource`, and the route envelope
+  `TripWeatherResponse { weather }` for `GET /api/trips/[tripId]/weather`.
+  Normalized shapes only; each value carries its `source` id (the block maps it
+  to credit text, decision 5) and a forecast carries the source's own `asOf`
+  (decision 7). `forecast` / `typical` are a value or `{ unavailable }`.
+- **Added (`@tc/pages`, not a contracts schema, recorded here because ADR-052
+  names it an Invariant 5 change):** `MacroResult` gains
+  `{ status: "unavailable"; reason: "pending" | "source" }` and `RenderOutcome`
+  passes it through; `WidgetContext.external?: { weather: Slot<TripWeather> }`;
+  `MacroDef.needs?: ExternalNeed[]`; `readSlot`, `externalNeedsOf`, `NO_EXTERNAL`.
+- **Shapes the ADR left open, decided here:** `ForecastDay`'s fields (high, low,
+  rainfall, MET `symbol_code`, and the hours for the "today" mode) and
+  `TypicalMonth`'s (high, low, rainfall per day, averaging period). T24's
+  adapters are the first producers; if they need a field these lack, that is a
+  further entry, not a silent widening.
+- **`WidgetContext.external` is optional** where ADR-052 writes it required:
+  absent means every slot pending, so every context built before it — the
+  server's `resolveMacro`, the assistant, every test — keeps compiling and
+  keeps its meaning.
+- Why: ADR-052 (external data enters a widget as a server-fetched input); T23
+  is the plumbing, T24 the ports, cache, route and widget.
+- Consumers updated: `apps/web` — `fetchTripWeather`, `tripKeys.weather`,
+  `useExternalInputs` (fetches only when the page holds a widget declaring
+  `needs: ["weather"]`; none does yet), `PageEditor` → `MacroEditorContext` →
+  `MacroNodeView` → `MacroView` (a muted "loading weather" / "weather
+  unavailable" chip; no ghost, no action), and an MSW handler parsed through
+  `TripWeatherResponse`. The route itself is T24; until it exists the client
+  reads its 404 as `failed`.
+- Breaking? no — every addition is new or optional, and no registered widget
+  can return `unavailable`.
+
 ## 2026-09-24 — `SavedNotebook`: a notebook kept as a template (M14 T15, link 10)
 
 - **Added** `savedNotebook.ts`: `SavedNotebookVisibility` (`"private"` only),

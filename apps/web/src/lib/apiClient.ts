@@ -14,6 +14,8 @@ import {
   TripAccess,
   TripDetail,
   TripGlobals,
+  TripWeatherResponse,
+  type TripWeather,
   TripEventsPage,
   TripHistory,
   TripInvite,
@@ -528,6 +530,22 @@ export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGl
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`), { headers: inviteLookHeaders(tripId) });
     return await readJson(res, (data) => TripGlobals.parse((data as { globals: unknown }).globals));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * The trip's weather (ADR-052 decision 3). Only the trip id is sent: the server
+ * derives the rounded points from the trip, so nothing the reader chose leaves.
+ *
+ * Asked for only by a page that holds a widget declaring `needs: ["weather"]` —
+ * see `useExternalInputs`.
+ */
+export async function fetchTripWeather(tripId: string): Promise<ApiResult<TripWeather>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/weather`), { headers: inviteLookHeaders(tripId) });
+    return await readJson(res, (data) => TripWeatherResponse.parse(data).weather);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

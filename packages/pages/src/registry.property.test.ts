@@ -1,6 +1,7 @@
 // The macro registry's central promise (ADR-014 / the M7 design) is that every
 // resolver is **pure and total**: given any TripDetail and any PageContext it
-// returns one of three states — `ok`, `empty`, or `unbound` — and never throws
+// returns one of four states — `ok`, `empty`, `unbound`, or (for a widget that
+// reads outside data, ADR-052) `unavailable` — and never throws
 // and never returns null. That promise is what lets a page render a legible
 // skeleton for a brand-new empty trip instead of exploding.
 //
@@ -11,7 +12,10 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 import { ActivityKind, ActivityTag, FILTER_VALUE_SCHEMAS, FilterDimension, type TripDetail } from "@tc/contracts";
+import type { ExternalInputs } from "./external";
 import { MACRO_REGISTRY, primitiveCatalog } from "./registry";
+import type { AnyMacroDef } from "./registry-types";
+import { weatherProbe } from "./test-support/weatherProbe";
 import { witness } from "./test-support/witness";
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
@@ -144,6 +148,24 @@ const paramsArb = fc.oneof(
   { weight: 1, arbitrary: fc.constantFrom(null, undefined) },
 );
 
+// Every state an outside input can be in when a widget resolves (ADR-052
+// decision 4, and ADR-037 decision 6b: every state renders). Absent is its own
+// case: every context built before the slot existed has no `external` at all.
+const externalArb: fc.Arbitrary<ExternalInputs | undefined> = fc.constantFrom(
+  undefined,
+  { weather: { state: "pending" } },
+  { weather: { state: "failed" } },
+  { weather: { state: "ready", value: { points: [] } } },
+);
+
+// The registered widgets, and one that reads an outside input. No registered
+// widget declares a need until T24's weather block, so without the probe this
+// sweep could never produce `unavailable` and would pass whatever it did.
+const SWEPT: [string, AnyMacroDef][] = [
+  ...Object.entries(MACRO_REGISTRY),
+  [weatherProbe.name, weatherProbe as unknown as AnyMacroDef],
+];
+
 describe("macro registry — every resolver is pure and total", () => {
   const names = Object.keys(MACRO_REGISTRY);
 
@@ -167,17 +189,17 @@ describe("macro registry — every resolver is pure and total", () => {
     w.atLeast(FilterDimension.options.length * 50);
   });
 
-  for (const [name, def] of Object.entries(MACRO_REGISTRY)) {
-    it(`${name}: never throws, always ok|empty|unbound`, () => {
+  for (const [name, def] of SWEPT) {
+    it(`${name}: never throws, always ok|empty|unbound|unavailable, and ok renders`, () => {
       const w = witness(`macro ${name}`);
       const seen = new Set<string>();
       fc.assert(
-        fc.property(detailArb, contextArb, paramsArb, (detail, ctx, raw) => {
+        fc.property(detailArb, contextArb, paramsArb, externalArb, (detail, ctx, raw, external) => {
           const parsed = def.params.safeParse(raw);
           if (!parsed.success) return; // the schema rejected it — not the resolver's problem
-          let result: { status?: string };
+          let result: { status?: string; value?: unknown };
           try {
-            result = def.resolve({ trip: detail, page: ctx as never, user: null, globals: null, today: null }, parsed.data as never) as never;
+            result = def.resolve({ trip: detail, page: ctx as never, user: null, globals: null, today: null, external }, parsed.data as never) as never;
           } catch (error) {
             throw new Error(
               `resolver threw on params=${JSON.stringify(raw)} ctx=${JSON.stringify(ctx)}: ${(error as Error).message}`,
@@ -185,14 +207,18 @@ describe("macro registry — every resolver is pure and total", () => {
           }
           w.tick();
           expect(result, "resolver returned null/undefined instead of a result").toBeTruthy();
-          expect(["ok", "empty", "unbound"], `unexpected status in ${JSON.stringify(result)}`).toContain(result.status);
+          expect(["ok", "empty", "unbound", "unavailable"], `unexpected status in ${JSON.stringify(result)}`).toContain(result.status);
+          if (result.status === "ok") expect(def.render(result.value as never)).toBeTruthy();
           seen.add(result.status!);
         }),
         { numRuns: 200 },
       );
       // Floors measured 2026-07-28; every macro accepts at least the `{}` params
-      // case, so all of them clear 50 comfortably.
+      // case, so all of them clear 50 comfortably. The weather probe measured
+      // 163–175 over six runs on 2026-09-24.
       w.atLeast(50);
+      // The widening is only a claim if the sweep reaches the new state.
+      if (def.needs?.length) expect([...seen]).toEqual(expect.arrayContaining(["ok", "unavailable"]));
       // The path the old generator never reached. A widget that takes a day is
       // handed removed and out-of-range day refs, and must have answered
       // `unbound` for at least one of them.

@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type { FilterDimension, ManifestObject, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
+import type { ExternalInputs, ExternalNeed } from "./external";
 import type { SpendByDayPayload } from "./chartPayloads";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
@@ -436,6 +437,17 @@ export interface WidgetContext {
    * and `user` give while their own requests are in flight.
    */
   today: string | null;
+  /**
+   * Data the trip does not hold — weather — fetched by the client and handed
+   * in as slots (ADR-052 decision 3). Read it through `readSlot`.
+   *
+   * **Optional, and absent means every slot is pending.** ADR-052 writes it as
+   * required; it is optional so that every context built before it — the
+   * server's `resolveMacro`, the assistant, and every test — keeps compiling
+   * and keeps its meaning. Only a widget that declares `needs` reads it, and to
+   * that widget "not handed" and "not landed" are the same answer.
+   */
+  external?: ExternalInputs;
 }
 
 // The per-iteration scope a repeat renderer passes as it maps a row template
@@ -490,6 +502,10 @@ export interface MacroDef<P, T> {
   inputs: readonly WidgetInput[];
   // What this widget selects over, when it is a primitive. See `WidgetSelection`.
   selection?: WidgetSelection;
+  // The outside inputs this widget reads from `ctx.external` (ADR-052). A page
+  // fetches an input only when one of its widgets names it here, so absent is
+  // the answer for every widget that reads only the trip.
+  needs?: readonly ExternalNeed[];
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // The insert sidebar's sample. **A fixed string, never a computed value**

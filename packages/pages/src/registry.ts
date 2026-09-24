@@ -3,7 +3,7 @@ import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
 import type { AnyMacroDef, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
 import { ghost, text } from "./registry-types";
-import type { UnboundNeeds } from "./result";
+import type { UnavailableReason, UnboundNeeds } from "./result";
 import { fieldChoices } from "./fields";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
@@ -88,6 +88,8 @@ export type RenderOutcome =
   | { status: "empty"; because?: string }
   // `shape` is always present here: the resolver's own, or `fallbackShape`.
   | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
+  // No shape, and never one: ADR-052's `unavailable` is not a ghost.
+  | { status: "unavailable"; reason: UnavailableReason }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 

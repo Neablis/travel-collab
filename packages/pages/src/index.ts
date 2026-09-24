@@ -3,6 +3,7 @@
 
 export * from "./result";
 export * from "./registry-types";
+export * from "./external";
 export * from "./chartPayloads";
 export * from "./registry";
 export * from "./filters";

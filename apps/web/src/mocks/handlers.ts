@@ -10,6 +10,7 @@ import {
   CreateSavedNotebookInput,
   PutReviewInput,
   TripCommand,
+  TripWeatherResponse,
   UpdatePageInput,
   type ContentReport,
   type Page,
@@ -260,6 +261,13 @@ export function makeTripHandlers(
     // through this path — a suite that cares overrides with `server.use`.
     http.get("/api/trips/:tripId/globals", () =>
       HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
+    ),
+    // ADR-052's weather route, ahead of the route itself (T24). Parsed through
+    // the contract so the mock cannot drift from it. Nothing requests this until
+    // a page holds a widget declaring `needs: ["weather"]`; a suite that wants
+    // the failed slot overrides it with a non-2xx.
+    http.get("/api/trips/:tripId/weather", () =>
+      HttpResponse.json(TripWeatherResponse.parse({ weather: { points: [] } })),
     ),
     http.get("/api/geocode", ({ request }) => {
       const q = new URL(request.url).searchParams.get("q")?.trim();
