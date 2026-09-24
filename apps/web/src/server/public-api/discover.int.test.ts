@@ -4,7 +4,7 @@
 // every Playbook here touches a city named for this run and every read filters
 // on it — the only way "exactly these" can be asserted against a shared library.
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import type { SavedDay } from "@tc/contracts";
 import type { DiscoverDay, DiscoverSort } from "@/lib/playbooks";
@@ -146,6 +146,32 @@ describe("GET /v1/discover/playbooks", () => {
     const seen = pages.flat().map((d) => d.savedDayId);
     expect(seen).toHaveLength(5);
     expect(new Set(seen)).toEqual(made);
+  });
+
+  it("skips a row it cannot read and refills the page past it, so the listing does not end early", async () => {
+    const city = `Discoverville-${RUN}-e`;
+    const { secret } = await entitledToken();
+    const made: string[] = [];
+    for (let i = 0; i < 5; i += 1) made.push((await playbookIn(secret, city)).savedDayId);
+    // Still matches the city (a column of its own); only `parseSavedDayColumns` refuses it.
+    const [broken] = made.splice(2, 1);
+    await db.update(savedDays).set({ stops: sql`'[{"nope": true}]'::jsonb` }).where(eq(savedDays.id, broken!));
+
+    const pages = await allPages(secret, { city, limit: "2", sort: "newest" });
+    expect(pages.slice(0, -1).every((p) => p.length === 2)).toBe(true);
+    const seen = pages.flat().map((d) => d.savedDayId);
+    expect(seen).not.toContain(broken);
+    expect(new Set(seen)).toEqual(new Set(made));
+  });
+
+  it("treats a cursor that names no row as no cursor", async () => {
+    const city = `Discoverville-${RUN}-f`;
+    const { secret } = await entitledToken();
+    for (let i = 0; i < 3; i += 1) await playbookIn(secret, city);
+
+    const first = await discover(secret, { city, limit: "2", sort: "newest" });
+    expect(first.items).toHaveLength(2);
+    expect(await discover(secret, { city, limit: "2", sort: "newest", cursor: randomUUID() })).toEqual(first);
   });
 
   it("ranks exactly as the app's Discover does, for every sort", async () => {

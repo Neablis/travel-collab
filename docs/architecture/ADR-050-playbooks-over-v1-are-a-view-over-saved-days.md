@@ -135,7 +135,9 @@ The apply, finished. `POST /v1/trips/{tripId}/playbook-applications` takes
     trip day `k` places after `dayId` via `AddActivity`; only the days that run
     past the end of the trip are added with `AddDay`. Still one batch, one
     history entry, one undo. `dayIds` lists the day each Playbook day landed on;
-    `createdDayIds` only the new ones. An unknown `dayId` is a 400.
+    `createdDayIds` only the new ones. An unknown `dayId` is a 400 — unless a stale
+    `expectedTripSeq` came with it, which is answered first (409): the day may be
+    gone because the trip moved.
     `insertCommands` takes the days to merge onto (`[]` = append), so there is
     still one construction of "materialise saved stops into trip days". Merging
     reads the trip's days with the stream head and pins the batch to that head,

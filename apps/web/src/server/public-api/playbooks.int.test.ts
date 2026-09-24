@@ -11,7 +11,7 @@ import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { commandsFor } from "@tc/factories";
 import type { SavedDay, TripDetail } from "@tc/contracts";
-import { executeTripCommand } from "@/server/commands";
+import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { upsertUser } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
@@ -21,6 +21,12 @@ import { db } from "@/server/db/client";
 import { apiIdempotencyKeys, savedDays } from "@/server/db/schema";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
+// The real batch, spyable: a race lost at the append cannot be staged on demand
+// against a real database, so one test fakes exactly that answer once.
+vi.mock("@/server/commands", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/commands")>();
+  return { ...real, executeTripCommandBatch: vi.fn(real.executeTripCommandBatch) };
+});
 
 const { GET: LIST_PLAYBOOKS, POST: KEEP } = await import("@/app/api/v1/playbooks/route");
 const { GET: GET_PLAYBOOK, PATCH: PATCH_PLAYBOOK } = await import(
@@ -785,6 +791,26 @@ describe("POST /v1/trips/{tripId}/playbook-applications — startingAt", () => {
     });
   });
 
+  it("answers a stale expectedTripSeq with 409 even when the day it names has since been removed", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const { tripId, dayIds } = await tripWithDays(owner, 2);
+    const seq = await headSeq(secret, tripId);
+    expect((await executeTripCommand({ type: "RemoveDay", tripId, dayId: dayIds[1]! }, owner)).ok).toBe(true);
+
+    const res = await APPLY(
+      applyReq(secret, {
+        playbookId: playbook.savedDayId,
+        placement: { mode: "startingAt", dayId: dayIds[1] },
+        expectedTripSeq: seq,
+      }),
+      P({ tripId }),
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.details).toEqual({ currentSeq: await headSeq(secret, tripId) });
+  });
+
   it("refuses a day that is not in the trip with 400, and writes nothing", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner);
@@ -855,6 +881,39 @@ describe("POST /v1/trips/{tripId}/playbook-applications — Idempotency-Key", ()
     expect(b.status).toBe(201);
     expect(b.headers.get("Idempotent-Replayed")).toBeNull();
     expect((await tripOf(author, target)).days).toHaveLength(6);
+  });
+
+  it("does not keep a 409 from a race lost at the append: the retry with the same key runs", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const tripId = await emptyTrip(owner);
+    const key = randomUUID();
+    vi.mocked(executeTripCommandBatch).mockResolvedValueOnce({
+      ok: false,
+      error: { code: "concurrency-conflict", message: "Lost the race." },
+    });
+
+    const lost = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }));
+    expect(lost.status).toBe(409);
+    const retried = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }));
+    expect(retried.status).toBe(201);
+    expect(retried.headers.get("Idempotent-Replayed")).toBeNull();
+    expect((await tripOf(owner, tripId)).days).toHaveLength(3);
+  });
+
+  it("keeps a 409 for a stale expectedTripSeq: the same key replays it", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const { tripId } = await tripWithDays(owner, 1);
+    const stale = { playbookId: playbook.savedDayId, expectedTripSeq: (await headSeq(secret, tripId)) - 1 };
+    const key = randomUUID();
+
+    expect((await APPLY(applyReq(secret, stale, key), P({ tripId }))).status).toBe(409);
+    const again = await APPLY(applyReq(secret, stale, key), P({ tripId }));
+    expect(again.status).toBe(409);
+    expect(again.headers.get("Idempotent-Replayed")).toBe("true");
   });
 
   it("runs again once the key is more than 24 hours old", async () => {

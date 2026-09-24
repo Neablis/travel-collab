@@ -113,7 +113,8 @@ interface BaseDef {
    * **Opt-in, per endpoint**, because a replay answers with a stored body
    * rather than running the handler — right for a write that creates
    * something, wrong for anything whose answer should be fresh. The contract
-   * (reservation, replay, mismatch, in flight, 5xx not kept, 24-hour expiry)
+   * (reservation, replay, mismatch, in flight, an unfinished or retryable
+   * answer not kept, 24-hour expiry)
    * lives in `idempotency.ts` and is the same for every endpoint that sets this.
    *
    * `onReplay` runs when a stored answer is replayed instead of the handler, so
@@ -643,10 +644,10 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     // After every gate and the body parse, so a key is only ever spent on a
     // request the handler would actually run.
     const run = () => respond(method, def, { actor, params, query, body, trip, role, page });
-    if (def.idempotent === undefined) return run();
+    if (def.idempotent === undefined) return (await run()).response;
     const header = readIdempotencyKey(request.headers);
     if ("refused" in header) return fail("invalid-request", header.refused, 400);
-    if (header.key === null) return run();
+    if (header.key === null) return (await run()).response;
     return idempotently(method, def, actor, params, header.key, new URL(request.url).pathname, body, run);
   };
 
@@ -675,7 +676,7 @@ async function idempotently(
   key: string,
   path: string,
   body: unknown,
-  run: () => Promise<Response>,
+  run: () => Promise<Responded>,
 ): Promise<Response> {
   const reservedAt = new Date();
   let reservation: Awaited<ReturnType<typeof reserveKey>>;
@@ -709,12 +710,16 @@ async function idempotently(
       break;
   }
 
-  const response = await run();
+  const { response, keep } = await run();
   // **The answer is kept only once it is known to be one worth replaying.** A
   // failure to keep it is logged and not surfaced: the caller's request did
   // succeed, and the key is left in flight until its lease runs out.
+  //
+  // **Kept is decided by whether the handler finished, not by the status.** A
+  // 500 from a payload that failed its own schema comes after the handler's
+  // writes committed; releasing that key would let a retry write them twice.
   try {
-    if (response.status >= 500) {
+    if (!keep) {
       await releaseKey(actor.userId, key, reservedAt);
     } else {
       await completeKey(actor.userId, key, reservedAt, response.status, await response.clone().json(), new Date());
@@ -725,12 +730,23 @@ async function idempotently(
   return response;
 }
 
+/**
+ * A response, and whether an `Idempotency-Key` may keep it (ADR-051). `keep` is
+ * false only when the handler did not finish — it threw something other than a
+ * `PublicApiError`, so its writes may or may not have landed — or when it
+ * refused with one marked `retryable`.
+ */
+interface Responded {
+  readonly response: Response;
+  readonly keep: boolean;
+}
+
 /** The handler, its response check, and bookkeeping — everything after the gates. */
 async function respond(
   method: HttpMethod,
   def: MethodDef,
   gated: Omit<HandlerContext, "responseHeaders">,
-): Promise<Response> {
+): Promise<Responded> {
   const { actor } = gated;
   // ---- the thing the endpoint actually does ----------------------------
   const responseHeaders = new Headers();
@@ -746,16 +762,17 @@ async function respond(
     // "not an editor" — and rethrowing it as a 500 would tell a caller the
     // server broke when in fact they were told no.
     if (error instanceof PublicApiError) {
-      return fail(
+      const response = fail(
         (error.code as z.infer<typeof ApiErrorCode> | undefined) ?? codeForStatus(error.status),
         error.message,
         error.status,
         { details: error.details, headers: Object.fromEntries(responseHeaders) },
       );
+      return { response, keep: error.retryable !== true };
     }
     // Anything else is ours to explain and never the caller's to read.
     console.error("v1 handler threw", { method, scope: def.scope, error });
-    return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+    return { response: fail("server-error", "Something went wrong. The failure has been logged.", 500), keep: false };
   }
 
   // ---- response shape --------------------------------------------------
@@ -771,7 +788,7 @@ async function respond(
       scope: def.scope,
       issues: shape.error.issues,
     });
-    return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+    return { response: fail("server-error", "Something went wrong. The failure has been logged.", 500), keep: true };
   }
 
   // ---- bookkeeping, never blocking -------------------------------------
@@ -783,10 +800,13 @@ async function respond(
     });
   }
 
-  return Response.json(shape === undefined ? payload : shape.data, {
-    status: def.status ?? (method === "POST" ? 201 : 200),
-    headers: responseHeaders,
-  });
+  return {
+    response: Response.json(shape === undefined ? payload : shape.data, {
+      status: def.status ?? (method === "POST" ? 201 : 200),
+      headers: responseHeaders,
+    }),
+    keep: true,
+  };
 }
 
 /** Run a collection handler and wrap its page, validating each item. */

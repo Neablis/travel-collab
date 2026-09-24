@@ -498,9 +498,14 @@ choice — and reuse it only to retry that same operation.
 - Keys are **per account**: all your tokens share them, and nobody else's key can
   replay your answer.
 - "The same body" means the same JSON value — key order does not matter.
-- **A 5xx is not kept**, so retrying after one runs the request again. **A 4xx
-  is kept**: a 409 for a stale `version` replays as that 409 — send a new key
-  with the corrected request.
+- **An answer is kept once the request has run**: every 2xx and 4xx, and a 5xx
+  that came after the work was done. A 409 for a stale `version` or
+  `expectedTripSeq` replays as that 409 — send a new key with the corrected
+  request.
+- **Two answers are not kept**, so retrying after one with the same key runs the
+  request again: a 5xx from a request that did not finish, and the 409 an
+  apply without `expectedTripSeq` gets when another write landed at the same
+  moment (sending the same body again can succeed).
 - A request refused before it runs — bad JSON, a missing scope, no access to the
   trip — spends no key.
 
@@ -551,9 +556,12 @@ makes "the directory is the registry" true rather than intended.
 
 **A `POST` that creates something can add `idempotent: true`** and get the
 whole `Idempotency-Key` contract above — reservation, replay, mismatch, in
-flight, 5xx not kept, 24-hour expiry — plus its header in the reference
+flight, an unfinished or `retryable` answer not kept, 24-hour expiry — plus its header in the reference
 (ADR-051). `{ onReplay }` instead of `true` lets an endpoint that logs its
 outcomes log a replay too; `playbook-applications` is the worked example.
+A refusal that the same request sent again might not get — a race lost at the
+append, with no precondition from the caller — is thrown as
+`new PublicApiError(409, message, code, details, { retryable: true })`, so the key is given back.
 
 ### What a new endpoint still costs
 

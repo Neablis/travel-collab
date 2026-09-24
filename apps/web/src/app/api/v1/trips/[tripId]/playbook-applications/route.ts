@@ -189,12 +189,18 @@ export const { POST } = route({
             // A stale `expectedTripSeq` knows the head it lost to. A race lost
             // at the append itself does not — its transaction is gone — so the
             // head is read once more, only to say where the trip now stands.
+            //
+            // **Only the race is retryable.** With no `expectedTripSeq` the same
+            // body sent again reads the new head and may land, so an
+            // `Idempotency-Key` must not keep this 409 (ADR-051). A stale
+            // `expectedTripSeq` fails the same way every time, and is kept.
             const currentSeq =
               ("currentSeq" in error ? error.currentSeq : undefined) ?? (await readStreamHeadSeq(db, tripId));
+            const raced = request.expectedTripSeq === undefined;
             return reject(
               logged,
-              request.expectedTripSeq === undefined ? "concurrency-conflict" : "stale-trip-seq",
-              new PublicApiError(409, error.message, "conflict", { currentSeq }),
+              raced ? "concurrency-conflict" : "stale-trip-seq",
+              new PublicApiError(409, error.message, "conflict", { currentSeq }, raced ? { retryable: true } : undefined),
             );
           }
         }

@@ -14,6 +14,7 @@ import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { db } from "@/server/db/client";
 import { apiIdempotencyKeys } from "@/server/db/schema";
+import { IDEMPOTENCY_LEASE_MS, requestHash } from "./idempotency";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -142,6 +143,42 @@ describe("Idempotency-Key in route()", () => {
 
     release();
     expect((await first).status).toBe(201);
+    expect(endpoint.runs).toBe(1);
+  });
+
+  it("keeps a 500 that came after the handler finished — a payload failing its own schema — and runs once", async () => {
+    const { secret } = await tokenForNewUser();
+    const endpoint = counted();
+    const key = randomUUID();
+    // The handler's writes would have committed by now; only the answer is bad.
+    endpoint.then(async () => ({ n: "not a number" }));
+
+    const first = await endpoint.POST(post(secret, key), NO_PARAMS);
+    expect(first.status).toBe(500);
+    const again = await endpoint.POST(post(secret, key), NO_PARAMS);
+    expect(again.status).toBe(500);
+    expect(again.headers.get("Idempotent-Replayed")).toBe("true");
+    expect(endpoint.runs).toBe(1);
+  });
+
+  it("takes over a reservation abandoned past its lease, and runs", async () => {
+    const { userId, secret } = await tokenForNewUser();
+    const endpoint = counted();
+    const key = randomUUID();
+    // What a process that died mid-handler leaves: the same request, reserved,
+    // never completed, older than the lease — but well inside the 24 hours.
+    await db.insert(apiIdempotencyKeys).values({
+      userId,
+      key,
+      method: "POST",
+      path: `/api/v1/test-${RUN}`,
+      requestHash: requestHash({ value: "a" }),
+      createdAt: new Date(Date.now() - IDEMPOTENCY_LEASE_MS - 60_000),
+    });
+
+    const res = await endpoint.POST(post(secret, key), NO_PARAMS);
+    expect(res.status).toBe(201);
+    expect(res.headers.get("Idempotent-Replayed")).toBeNull();
     expect(endpoint.runs).toBe(1);
   });
 

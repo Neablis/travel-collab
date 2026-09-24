@@ -1064,6 +1064,18 @@ export async function insertSavedDay(
   let expectedSeq = options.expectedSeq;
   if (options.startingAt !== undefined) {
     const envelopes = await readStream(db, tripId);
+    // A caller's stale pin is answered first: the day it names may be gone
+    // because the trip moved, and "unknown day" would hide that it did.
+    if (options.expectedSeq !== undefined && options.expectedSeq !== envelopes.length) {
+      return {
+        ok: false,
+        error: {
+          code: "concurrency-conflict",
+          message: `This trip has changed since revision ${options.expectedSeq}; it is at ${envelopes.length}. Re-read it and retry.`,
+          currentSeq: envelopes.length,
+        },
+      };
+    }
     const days = foldEnvelopes(envelopes)?.days ?? [];
     const at = days.findIndex((d) => d.dayId === options.startingAt);
     if (at === -1) {

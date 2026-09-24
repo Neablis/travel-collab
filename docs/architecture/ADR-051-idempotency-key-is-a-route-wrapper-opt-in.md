@@ -41,10 +41,20 @@ and nothing about one is specific to Playbooks.
    - unfinished and older → abandoned by a dead process: taken over and run.
 4. **The body hash is sha256 over the parsed body's canonical JSON** (keys
    sorted at every depth), so key order on the wire does not matter.
-5. **A 5xx is not kept.** The reservation is deleted and a retry runs. **A 4xx
-   is kept** and replayed: the handler ran and answered, and the key promised
-   the same answer again. Validation and gate refusals happen before the
-   reservation, so they spend no key.
+5. **Kept is decided by whether the handler finished, not by the status**
+   (refined in review, PR #217). **Stored** and replayed: every 2xx and 4xx,
+   and any 5xx that came after the handler completed — a payload that failed
+   its own response schema is a 500 whose writes already committed, and
+   releasing its key would let a retry write them twice. **Released**, so a
+   retry runs: the handler did not complete (it threw something other than a
+   `PublicApiError`, so its outcome is unknown), or it refused with a
+   `PublicApiError` marked `retryable` — today only the playbook apply's
+   append losing the optimistic-concurrency race when the caller sent no
+   `expectedTripSeq`, which the same body can win on a retry. A stale
+   `expectedTripSeq` or `version` fails the same way every time and is
+   stored. The in-flight 409 is answered before this request reserves
+   anything, so it stores nothing. Validation and gate refusals happen before
+   the reservation, so they spend no key.
 6. **No sweep.** Expiry is resolved on read; an old row is overwritten the next
    time its key is used, and otherwise just sits there.
 7. **Completion is matched on the reservation's own `created_at`**, so a request

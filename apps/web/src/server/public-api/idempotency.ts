@@ -16,9 +16,11 @@ import { apiIdempotencyKeys } from "@/server/db/schema";
 //    replays that request's status and body without running the handler. A
 //    different method, path or body under the same key is a 400; the same
 //    request while the first is still running is a 409.
-// 4. A 5xx is not kept: the row is deleted and a retry runs. A 4xx is kept —
-//    the handler ran and gave an answer, and running it again is not what the
-//    key promised.
+// 4. An answer is kept when the handler finished: every 2xx and 4xx, and a
+//    5xx that came after it (a payload failing its own schema — its writes
+//    landed). The row is deleted, and a retry runs, only when the handler did
+//    not finish (it crashed) or refused with a `retryable` answer (an append
+//    that lost the race with no caller precondition). `route()` decides which.
 // 5. After 24 hours a row is treated as absent and overwritten. No sweep.
 
 export const IDEMPOTENCY_KEY_MAX_LENGTH = 255;
@@ -156,7 +158,7 @@ export async function reserveKey(
     .select()
     .from(apiIdempotencyKeys)
     .where(and(eq(apiIdempotencyKeys.userId, userId), eq(apiIdempotencyKeys.key, key)));
-  // Released (a 5xx) between our insert and this read: the other request is
+  // Released between our insert and this read: the other request is
   // retryable and so is this one, but running now would race its retry. Say so.
   if (row === undefined) return { kind: "in-flight" };
 
@@ -205,7 +207,7 @@ export async function completeKey(
     .where(ours(userId, key, reservedAt));
 }
 
-/** Give the key back after a 5xx, so a retry runs instead of replaying a failure. */
+/** Give the key back after an unfinished or retryable answer, so a retry runs instead of replaying it. */
 export async function releaseKey(userId: string, key: string, reservedAt: Date): Promise<void> {
   await db.delete(apiIdempotencyKeys).where(ours(userId, key, reservedAt));
 }
