@@ -7,6 +7,7 @@
 // order a caller can zip against `stops[]`, and all of it one history entry
 // that one undo takes back.
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { commandsFor } from "@tc/factories";
 import type { SavedDay, TripDetail } from "@tc/contracts";
@@ -16,6 +17,8 @@ import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { acceptInvite, createInvite } from "@/server/access/invites";
+import { db } from "@/server/db/client";
+import { savedDays } from "@/server/db/schema";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -24,6 +27,7 @@ const { GET: GET_PLAYBOOK, PATCH: PATCH_PLAYBOOK } = await import(
   "@/app/api/v1/playbooks/[playbookId]/route"
 );
 const { GET: LIST_LIBRARY } = await import("@/app/api/v1/library/route");
+const { PATCH: PATCH_LIBRARY } = await import("@/app/api/v1/library/[savedDayId]/route");
 const { POST: APPLY } = await import("@/app/api/v1/trips/[tripId]/playbook-applications/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
 const { GET: HISTORY } = await import("@/app/api/v1/trips/[tripId]/history/route");
@@ -99,6 +103,14 @@ async function keep(secret: string, body: unknown): Promise<Response> {
   return KEEP(req(secret, body, "POST"), NO_PARAMS);
 }
 
+/** The from-a-trip body: whole days, in the order given. */
+const fromTrip = (tripId: string, name: string, dayIds: readonly (string | undefined)[]) => ({
+  name,
+  source: { tripId, days: dayIds.map((dayId) => ({ dayId })) },
+});
+
+type Written = { playbook: SavedDay; warnings: { code: string; stopIndex: number; title: string; message: string }[] };
+
 describe("POST /v1/playbooks keeps several days as one Playbook", () => {
   it("indexes stops by position in dayIds, skipping and reordering the source's days", async () => {
     const owner = await entitled();
@@ -107,9 +119,9 @@ describe("POST /v1/playbooks keeps several days as one Playbook", () => {
     const source = await tripOf(owner, tripId);
 
     // Day 3 then day 1: non-contiguous, and out of the trip's own order.
-    const res = await keep(secret, { tripId, name: "Ends first", dayIds: [dayIds[2], dayIds[0]] });
+    const res = await keep(secret, fromTrip(tripId, "Ends first", [dayIds[2], dayIds[0]]));
     expect(res.status).toBe(201);
-    const playbook = (await res.json()) as SavedDay;
+    const { playbook } = (await res.json()) as Written;
 
     expect(playbook.dayCount).toBe(2);
     const titlesOf = (dayId: string) =>
@@ -139,11 +151,11 @@ describe("POST /v1/playbooks keeps several days as one Playbook", () => {
     const { tripId: other, dayIds: otherDays } = await sourceTrip(owner);
     const confined = await tokenFor(owner, [named]);
 
-    const elsewhere = await keep(confined, { tripId: other, name: "Nope", dayIds: [otherDays[0]] });
+    const elsewhere = await keep(confined, fromTrip(other, "Nope", [otherDays[0]]));
     expect(elsewhere.status, "a trip the token does not name").toBe(403);
     expect((await elsewhere.json()).error.code).toBe("trip-out-of-scope");
 
-    const home = await keep(confined, { tripId: named, name: "Nope", dayIds: [namedDays[0]] });
+    const home = await keep(confined, fromTrip(named, "Nope", [namedDays[0]]));
     expect(home.status, "the trip the token names").toBe(403);
     expect((await home.json()).error.code).toBe("trip-out-of-scope");
   });
@@ -152,9 +164,9 @@ describe("POST /v1/playbooks keeps several days as one Playbook", () => {
 describe("POST /v1/trips/{tripId}/playbook-applications", () => {
   async function threeDayPlaybook(owner: string, secret: string): Promise<SavedDay> {
     const { tripId, dayIds } = await sourceTrip(owner);
-    const res = await keep(secret, { tripId, name: "Three days", dayIds });
+    const res = await keep(secret, fromTrip(tripId, "Three days", dayIds));
     expect(res.status).toBe(201);
-    return (await res.json()) as SavedDay;
+    return ((await res.json()) as Written).playbook;
   }
 
   it("appends the days in order with every stop's fields, as one undoable entry", async () => {
@@ -268,5 +280,324 @@ describe("POST /v1/trips/{tripId}/playbook-applications", () => {
     expect(res.status).toBe(403);
     expect((await res.json()).error.code).toBe("forbidden");
     expect((await tripOf(owner, target)).days).toEqual([]);
+  });
+});
+
+// ---- ADR-050, Pass A --------------------------------------------------------
+
+/** A stop as an inline body writes one: `SavedStop` without `dayIndex`. */
+function inlineStop(title: string, over: Record<string, unknown> = {}) {
+  return {
+    title,
+    timeWindow: { start: "09:00", end: "10:00" },
+    location: { name: title, city: "Kyoto", countryCode: "JP" },
+    notes: null,
+    anchors: [],
+    kind: "planned",
+    tags: [],
+    cost: { amountMinor: 1200, currency: "USD" },
+    ...over,
+  };
+}
+
+async function patch(secret: string, playbookId: string, body: unknown): Promise<Response> {
+  return PATCH_PLAYBOOK(req(secret, body, "PATCH"), P({ playbookId }));
+}
+
+async function inline(secret: string, body: unknown): Promise<Written> {
+  const res = await keep(secret, body);
+  expect(res.status, JSON.stringify(await res.clone().json())).toBe(201);
+  return (await res.json()) as Written;
+}
+
+describe("POST /v1/playbooks from part of a trip", () => {
+  /** Three days, three stops a day — enough for "some, out of order" to mean something. */
+  async function wideTrip(owner: string) {
+    const tripId = randomUUID();
+    expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Wide" }, owner)).ok).toBe(true);
+    const windows = [
+      { start: "09:00", end: "10:00" },
+      { start: "10:00", end: "11:00" },
+      { start: "11:00", end: "12:00" },
+    ];
+    for (const command of commandsFor("threeDayTrip", tripId, { activitiesPerDay: 3, timeWindows: windows })) {
+      const result = await executeTripCommand(command, owner);
+      if (!result.ok) throw new Error(`seed failed: ${result.error.message}`);
+    }
+    return tripOf(owner, tripId);
+  }
+
+  it("keeps only the named activities, in the trip's order rather than the order given", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const trip = await wideTrip(owner);
+    const [first, second] = trip.days;
+    const title = (id: string) => trip.activities[id]!.title;
+    const [a0, , a2] = first!.activityIds;
+
+    const { playbook } = await inline(secret, {
+      name: "Bookends",
+      source: {
+        tripId: trip.tripId,
+        // Reversed on purpose: the trip ran a0 before a2, so that is the order kept.
+        days: [{ dayId: first!.dayId, activityIds: [a2, a0] }, { dayId: second!.dayId }],
+      },
+    });
+
+    expect(playbook.dayCount).toBe(2);
+    expect(playbook.stops.map((s) => [s.dayIndex, s.title])).toEqual([
+      [0, title(a0!)],
+      [0, title(a2!)],
+      ...second!.activityIds.map((id) => [1, title(id)]),
+    ]);
+  });
+
+  it("refuses an activity that is not on the day it was named with, naming it, and keeps nothing", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const trip = await wideTrip(owner);
+    const foreign = trip.days[1]!.activityIds[0]!;
+
+    const res = await keep(secret, {
+      name: "Wrong day",
+      source: { tripId: trip.tripId, days: [{ dayId: trip.days[0]!.dayId, activityIds: [foreign] }] },
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("invalid-request");
+    expect(body.error.message).toContain(foreign);
+    const listed = await LIST_PLAYBOOKS(req(secret), NO_PARAMS);
+    expect((await listed.json()).items).toEqual([]);
+  });
+
+  it("strips a calendar-date anchor from a kept stop and says so, keeping the weekday one", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const trip = await wideTrip(owner);
+    const day = trip.days[0]!;
+    const pinned = day.activityIds[1]!;
+    const weekday = { kind: "dayOfWeek", days: ["tue"] } as const;
+    const updated = await executeTripCommand(
+      {
+        type: "UpdateActivity",
+        tripId: trip.tripId,
+        activityId: pinned,
+        anchors: [{ kind: "dateRange", from: "2027-06-01", to: "2027-06-03" }, weekday],
+      },
+      owner,
+    );
+    expect(updated.ok).toBe(true);
+
+    const { playbook, warnings } = await inline(secret, fromTrip(trip.tripId, "Tuesdays", [day.dayId]));
+    expect(playbook.stops[1]!.anchors).toEqual([weekday]);
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: "date-anchor-removed", stopIndex: 1, title: trip.activities[pinned]!.title }),
+    ]);
+  });
+});
+
+describe("POST /v1/playbooks written inline", () => {
+  it("round-trips its stops and day count, an empty middle day included", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+
+    const { playbook, warnings } = await inline(secret, {
+      name: "Rest in the middle",
+      summary: "Two busy days either side of nothing.",
+      days: [{ stops: [inlineStop("Arrive"), inlineStop("Dinner")] }, { stops: [] }, { stops: [inlineStop("Leave")] }],
+    });
+
+    expect(warnings).toEqual([]);
+    expect(playbook).toMatchObject({
+      dayCount: 3,
+      version: 1,
+      summary: "Two busy days either side of nothing.",
+      visibility: "private",
+      // No `sourceName`, so the Playbook credits itself; the id names no trip.
+      sourceTripName: "Rest in the middle",
+      cities: ["Kyoto"],
+    });
+    expect(playbook.stops.map((s) => [s.dayIndex, s.title])).toEqual([
+      [0, "Arrive"],
+      [0, "Dinner"],
+      [2, "Leave"],
+    ]);
+    expect(playbook.stops[0]).toEqual({ ...inlineStop("Arrive"), dayIndex: 0 });
+
+    const read = await GET_PLAYBOOK(req(secret), P({ playbookId: playbook.savedDayId }));
+    expect(await read.json()).toEqual(playbook);
+  });
+
+  it("strips a calendar-date anchor with a warning, and keeps weekday and time-of-day ones", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const keptAnchors = [
+      { kind: "dayOfWeek", days: ["sat", "sun"] },
+      { kind: "timeOfDay", window: { start: "06:00", end: "08:00" } },
+    ];
+
+    const { playbook, warnings } = await inline(secret, {
+      name: "Market mornings",
+      days: [
+        {
+          stops: [
+            inlineStop("Coffee"),
+            inlineStop("Flea market", {
+              anchors: [{ kind: "dateRange", from: "2027-05-03", to: "2027-05-05" }, ...keptAnchors],
+            }),
+          ],
+        },
+      ],
+    });
+
+    expect(playbook.stops[1]!.anchors).toEqual(keptAnchors);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ code: "date-anchor-removed", stopIndex: 1, title: "Flea market" });
+    expect(warnings[0]!.message).toContain("2027-05-03");
+  });
+
+  it(`refuses more than 500 stops`, async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const res = await keep(secret, {
+      name: "Too much",
+      days: [{ stops: Array.from({ length: 501 }, (_, i) => inlineStop(`Stop ${i}`)) }],
+    });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("at most 500 stops");
+  });
+});
+
+describe("PATCH /v1/playbooks/{playbookId}", () => {
+  async function kyotoPlaybook(secret: string): Promise<SavedDay> {
+    return (await inline(secret, { name: "Kyoto", days: [{ stops: [inlineStop("Temple"), inlineStop("Tea")] }] }))
+      .playbook;
+  }
+
+  it("renames under expectedVersion, bumping version by exactly one and moving nothing else", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const before = await kyotoPlaybook(secret);
+
+    const res = await patch(secret, before.savedDayId, { name: "Kyoto, slowly", expectedVersion: 1 });
+    expect(res.status).toBe(200);
+    const { playbook: after } = (await res.json()) as Written;
+    expect(after).toEqual({ ...before, name: "Kyoto, slowly", version: 2 });
+
+    // A visibility flip is not a content change: no version needed, none bumped.
+    const published = await patch(secret, before.savedDayId, { visibility: "public" });
+    expect(published.status).toBe(200);
+    expect(((await published.json()) as Written).playbook).toMatchObject({ visibility: "public", version: 2 });
+  });
+
+  it("refuses a stale expectedVersion with 409 and the current version, and writes nothing", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await kyotoPlaybook(secret);
+    expect((await patch(secret, playbook.savedDayId, { summary: "First", expectedVersion: 1 })).status).toBe(200);
+
+    const res = await patch(secret, playbook.savedDayId, { name: "Lost update", expectedVersion: 1 });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.details).toEqual({ currentVersion: 2 });
+
+    const read = (await (await GET_PLAYBOOK(req(secret), P({ playbookId: playbook.savedDayId }))).json()) as SavedDay;
+    expect(read).toMatchObject({ name: "Kyoto", summary: "First", version: 2 });
+  });
+
+  it("refuses to replace the days of a published Playbook, but renames it", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await kyotoPlaybook(secret);
+    expect((await patch(secret, playbook.savedDayId, { visibility: "public" })).status).toBe(200);
+
+    const res = await patch(secret, playbook.savedDayId, {
+      days: [{ stops: [inlineStop("Something else")] }],
+      expectedVersion: 1,
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.message).toBe("This playbook is published. Unpublish it before editing its days.");
+
+    const renamed = await patch(secret, playbook.savedDayId, { name: "Still Kyoto", expectedVersion: 1 });
+    expect(renamed.status).toBe(200);
+    const after = ((await renamed.json()) as Written).playbook;
+    expect(after.stops).toEqual(playbook.stops);
+    expect(after.version).toBe(2);
+  });
+
+  it("recomputes cities, countries and day count when the days are replaced", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await kyotoPlaybook(secret);
+
+    const res = await patch(secret, playbook.savedDayId, {
+      days: [
+        { stops: [inlineStop("Colosseum", { location: { name: "Colosseum", city: "Rome", countryCode: "IT" } })] },
+        { stops: [] },
+      ],
+      expectedVersion: 1,
+    });
+    expect(res.status).toBe(200);
+    const after = ((await res.json()) as Written).playbook;
+    expect(after).toMatchObject({ cities: ["Rome"], dayCount: 2, version: 2 });
+    expect(after.stops.map((s) => s.title)).toEqual(["Colosseum"]);
+    const [row] = await db
+      .select({ countries: savedDays.countries })
+      .from(savedDays)
+      .where(eq(savedDays.id, playbook.savedDayId));
+    expect(row!.countries).toEqual(["IT"]);
+  });
+
+  it("requires expectedVersion for content, and at least one field", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await kyotoPlaybook(secret);
+    expect((await patch(secret, playbook.savedDayId, { name: "No version" })).status).toBe(400);
+    expect((await patch(secret, playbook.savedDayId, {})).status).toBe(400);
+  });
+});
+
+describe("reading Playbooks", () => {
+  it("reads another person's published Playbook, and 404s their private one", async () => {
+    const author = await entitled();
+    const authorSecret = await tokenFor(author);
+    const shared = (await inline(authorSecret, { name: "Shared", days: [{ stops: [inlineStop("A")] }] })).playbook;
+    const kept = (await inline(authorSecret, { name: "Kept", days: [{ stops: [inlineStop("B")] }] })).playbook;
+    expect((await patch(authorSecret, shared.savedDayId, { visibility: "public" })).status).toBe(200);
+
+    const reader = await tokenFor(await entitled());
+    const open = await GET_PLAYBOOK(req(reader), P({ playbookId: shared.savedDayId }));
+    expect(open.status).toBe(200);
+    expect(((await open.json()) as SavedDay).savedDayId).toBe(shared.savedDayId);
+    const closed = await GET_PLAYBOOK(req(reader), P({ playbookId: kept.savedDayId }));
+    expect(closed.status).toBe(404);
+
+    // `?visibility=` filters your own list, and only your own.
+    const url = (v: string) => new Request(`http://localhost/x?visibility=${v}`, { headers: { authorization: `Bearer ${authorSecret}` } });
+    const pub = (await (await LIST_PLAYBOOKS(url("public"), NO_PARAMS)).json()).items.map((d: SavedDay) => d.savedDayId);
+    const priv = (await (await LIST_PLAYBOOKS(url("private"), NO_PARAMS)).json()).items.map((d: SavedDay) => d.savedDayId);
+    expect(pub).toEqual([shared.savedDayId]);
+    expect(priv).toEqual([kept.savedDayId]);
+  });
+});
+
+describe("/v1/library is unchanged by Pass A", () => {
+  it("PATCH still takes only { visibility }: a name alone is refused, and a name beside it is ignored", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = (await inline(secret, { name: "Library day", days: [{ stops: [inlineStop("A")] }] })).playbook;
+    const lib = (body: unknown) => PATCH_LIBRARY(req(secret, body, "PATCH"), P({ savedDayId: playbook.savedDayId }));
+
+    expect((await lib({ name: "Renamed" })).status).toBe(400);
+    const res = await lib({ visibility: "public", name: "Renamed" });
+    expect(res.status).toBe(200);
+    const day = await res.json();
+    expect(day.name).toBe("Library day");
+    // The library's DTO is the one it published: no `version`, no `summary`.
+    expect(Object.keys(day)).not.toContain("version");
+    expect(Object.keys(day)).not.toContain("summary");
+    const listed = (await (await LIST_LIBRARY(req(secret), NO_PARAMS)).json()).items[0];
+    expect(Object.keys(listed)).not.toContain("version");
   });
 });

@@ -25,7 +25,8 @@ transaction, `readableSavedDay` deciding whose Playbooks you may take.
 1. **`/v1/playbooks` is a second `v1` view over `saved_days` rows**, not a new
    resource. `GET`/`POST` on the collection and `GET`/`PATCH`/`DELETE` on one
    Playbook, with the library's scopes (`library:read`, `library:write`). The
-   `POST` body is the contract's own `CreateSavedDayInput`. Both trees declare
+   `POST` body is the contract's own `CreateSavedDayInput` *(superseded by
+   decision 6, Pass A, before either was merged)*. Both trees declare
    through one module (`server/public-api/library.ts`), so they cannot drift.
 2. **`/v1/library` is frozen as it is.** Same body, same answers, same
    `openapi.json` entries — the regeneration that added `/v1/playbooks` changed
@@ -50,11 +51,73 @@ transaction, `readableSavedDay` deciding whose Playbooks you may take.
   two shapes for one question — the thing `CreateSavedDayInput` refused for
   itself.
 
+## Pass A — 2026-09-24
+
+Mitchell approved building the deferred phases ahead of the current milestone.
+Pass A adds composition, content edits and cross-owner reads to
+`/v1/playbooks`. A Playbook is still one `saved_days` row; nothing here adds an
+object type.
+
+5. **Two columns, both defaulted.** `saved_days.version` (NOT NULL DEFAULT 1)
+   and `saved_days.summary` (nullable), migration `0026`. `SavedDay` gains both
+   with `.default()`, so a DTO or row written before them parses as "version 1,
+   no summary". A content bundle's `summary` is now stored rather than read and
+   dropped.
+6. **Creating takes exactly one of two bodies**, a union of two strict objects:
+   *from a trip* (`source: { tripId, days: [{ dayId, activityIds? }] }`) or
+   *inline* (`days: [{ stops }]`, each stop `SavedStop.omit({ dayIndex })`).
+   From a trip, `activityIds` narrows a day to some of its activities, kept **in
+   the trip's order**, and an id not on that day is a 400 naming it. This is an
+   optional filter on `stopsForDays`, which the app never passes, so the app's
+   keep is unchanged. `saveDay` is now `captureDays` + `storeSavedDay`, so the
+   API can run a step between them; the app calls the same composition as
+   before. `zod-to-json-schema` renders every union as `anyOf`, so the
+   reference says "exactly one" in the description rather than as `oneOf`.
+7. **An inline Playbook's `source_trip_id` is a freshly minted uuid** naming no
+   row, and `source_trip_name` is the caller's `sourceName`, or the Playbook's
+   name. The column is NOT NULL and was never a foreign key — it is a snapshot
+   (ADR-028/029), and the content importer already stores a declared id that
+   names no row. A fresh id per Playbook means no two inline Playbooks claim a
+   common source.
+8. **Calendar-date anchors are stripped on the way in, in both modes, and
+   reported** as `warnings: [{ code: "date-anchor-removed", stopIndex, title,
+   message }]`. A Playbook has no dates (ADR-029), and a `dateRange` anchor is a
+   date by another name. Weekday, time-of-day and public-holiday anchors
+   describe the place and are kept. **The app's keep does not strip them**:
+   changing what the UI saves was outside this pass, and doing it silently
+   would contradict the warning this API gives. That gap is open.
+9. **Content edits are versioned by one guarded UPDATE.** Changing `name`,
+   `summary` or `days` requires `expectedVersion`; the UPDATE matches only
+   `version = expectedVersion` and sets `version = version + 1` in the same
+   statement, so there is no read-then-write window. No match → the row is
+   re-read, under the same owner scope, only to say why: 409 `conflict` with
+   `details: { currentVersion }`, or 404. A visibility-only patch needs no
+   version and bumps none. Replacing days recomputes every derived column
+   through `sequenceColumns`, the helper `newSavedDayRow` now uses too, so an
+   insert and a replace cannot derive `cities`, `countries` or `day_count`
+   differently.
+10. **Days can only be replaced while private.** Reviews (M12) rate the
+    published content, so replacing it under them would leave ratings on stops
+    nobody reviewed. Unpublish, edit, republish. The check is a predicate on the
+    same UPDATE, against the stored visibility. Name and summary may change
+    while published: they describe the content rather than being it.
+11. **`GET /v1/playbooks/{playbookId}` is `readableSavedDay`**: yours, or anyone's
+    published and unmoderated Playbook; everything else is the same 404.
+    `GET /v1/playbooks` takes `?visibility=` over your own.
+12. **`/v1/library` stays frozen, including against the new fields.** It
+    declares over `LibraryDay = SavedDay.omit({ version, summary })`, and its
+    `PATCH` still takes only `{ visibility }`. Its `openapi.json` entries are
+    byte-identical to Phase 1's, and its answers carry neither new key. The
+    library and Playbook item routes now share only `DELETE`.
+
+Also: at most 500 stops per Playbook written over `v1` (the 366-day bound was
+already there), and `PublicApiError` can carry `details` into the envelope.
+
 ## Deferred (Phase 2)
 
-Applying part of a Playbook (some of its days), composing one inline in the
-request, editing a Playbook's content or versioning it, `Idempotency-Key` on the
-apply, and an `expectedTripSeq` precondition. Until the last two exist, a
+Applying part of a Playbook (some of its days), `Idempotency-Key` on the apply,
+and an `expectedTripSeq` precondition. (Inline composition and versioned content
+edits landed in Pass A, above.) Until the last two exist, a
 retried apply appends twice, and a 409 is the only concurrency signal.
 
 ## Consequences

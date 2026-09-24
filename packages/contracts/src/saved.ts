@@ -281,6 +281,24 @@ export const SavedDay = z.object({
   sourceTripId: z.string().uuid(),
   sourceTripName: z.string().min(1).max(200),
   createdAt: z.string(),
+  /**
+   * **The content revision, starting at 1** (ADR-050, Pass A). A change to
+   * `name`, `summary` or the days moves it by exactly one; publishing and
+   * unpublishing do not, because they change who can see the content and not
+   * what it says. An editor sends the number it read as `expectedVersion`, and
+   * a stale one is refused rather than written over (409).
+   *
+   * **Defaulted, per `SavedStop`'s rule, and for the same reason.** A DTO
+   * produced before the column existed, or by a consumer that never heard of
+   * it, parses — and "never edited" is exactly what version 1 means.
+   */
+  version: z.number().int().min(1).default(1),
+  /**
+   * One authored paragraph saying what this Playbook is for, or null. Written
+   * by the author (or a content bundle); never derived from the stops.
+   * Defaulted to null so old bytes parse, per the rule above.
+   */
+  summary: z.string().max(500).nullable().default(null),
 });
 export type SavedDay = z.infer<typeof SavedDay>;
 

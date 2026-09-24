@@ -28,6 +28,7 @@ export type JapanTripExpectations = {
   conflictTotal: number;
   daysNeedingBooking: number;
   savedDayCount: number;
+  savedDaysWithSummary: number;
   savedDayCities: string[];
   savedDaysByOwner: Record<string, SavedDayOwnerReport>;
 };
@@ -121,6 +122,11 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // the stops — so a change to a stop's city, or to the rule, lands here as a
   // mismatch rather than in two places that quietly agree.
   savedDayCount: 5,
+  // Three of five, deliberately not all: a card and a detail page with no
+  // summary is the ordinary case (every row written before ADR-050 Pass A), so
+  // the demo has to show both. One of the three is private, so the owner's own
+  // library shows one too — not only Discover.
+  savedDaysWithSummary: 3,
   savedDayCities: ["Hakone", "Kyoto", "Naoshima", "Osaka", "Tokyo"],
   savedDaysByOwner: {
     // "Tokyo to Hakone, slowly" is the two-city day. Without one, Discover's
@@ -180,6 +186,7 @@ export function diffAgainstExpectations(
   scalar("conflictTotal", report.conflictTotal, expected.conflictTotal);
   scalar("daysNeedingBooking", report.daysNeedingBooking, expected.daysNeedingBooking);
   scalar("savedDayCount", report.savedDayCount, expected.savedDayCount);
+  scalar("savedDaysWithSummary", report.savedDaysWithSummary, expected.savedDaysWithSummary);
   scalar("savedDayCities", report.savedDayCities, expected.savedDayCities);
   scalar("savedDaysByOwner", report.savedDaysByOwner, expected.savedDaysByOwner);
 
@@ -206,6 +213,9 @@ export function diffAgainstExpectations(
   }
   if (!Object.values(report.savedDaysByOwner).some((o) => o.adds > 0)) {
     findings.push("no saved day has ever been added — the leaderboard would rank an all-zero column");
+  }
+  if (report.savedDaysWithSummary === 0) {
+    findings.push("no saved day has a summary — SavedDay.summary would have no demo (ADR-050, Pass A)");
   }
 
   // Lists that must be empty. Each one is a defect, not a count that drifted.

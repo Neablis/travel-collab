@@ -103,6 +103,7 @@ export async function POST() {
           savedDayId: day.savedDayId,
           ownerId: day.ownerId,
           name: day.name,
+          summary: day.summary,
           stops: day.stops,
           visibility: day.visibility,
           sourceTripId: source.id,

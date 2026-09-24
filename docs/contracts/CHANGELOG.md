@@ -13,6 +13,47 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `SavedDay.version` and `SavedDay.summary`; Playbook composition and edits over `v1` (ADR-050, Pass A)
+
+- **`SavedDay`** (`packages/contracts/src/saved.ts`) gains two fields, both
+  defaulted so stored and old bytes still parse (the rule `SavedStop` states):
+  - `version: int >= 1, default 1` — the content revision. Moves by exactly one
+    on a change to `name`, `summary` or the days; never on a visibility flip.
+  - `summary: string <= 500 | null, default null` — one authored paragraph.
+- **Migration `0026_saved_day_version_and_summary`**: `saved_days.version integer
+  NOT NULL DEFAULT 1`, `saved_days.summary text` — metadata-only, no backfill.
+- **`v1` surface** (`openapi.json` regenerated; only the two `/v1/playbooks`
+  paths moved — `/v1/library`'s entries are byte-identical):
+  - `POST /v1/playbooks` body is now exactly one of `{ name, summary?, source:
+    { tripId, days: [{ dayId, activityIds? }] } }` or `{ name, summary?,
+    sourceName?, days: [{ stops: StopInput[] }] }` (`StopInput` =
+    `SavedStop.omit({ dayIndex })`); rendered as `anyOf` of two strict objects,
+    which the generator cannot emit as `oneOf`. Answers `{ playbook, warnings }`.
+    **Breaking against Phase 1's body** (`CreateSavedDayInput`), which was never
+    merged.
+  - `PATCH /v1/playbooks/{playbookId}` takes `{ name?, summary?, visibility?,
+    days?, expectedVersion? }` and answers `{ playbook, warnings }`; a stale
+    version is 409 `conflict` with `details: { currentVersion }`.
+  - `GET /v1/playbooks/{playbookId}` reads anyone's published Playbook;
+    `GET /v1/playbooks` takes `?visibility=`.
+  - The error envelope's `details` can now come from a handler
+    (`PublicApiError`'s fourth argument), not only from the wrapper's zod issues.
+- Why: composing a Playbook from part of a trip or inline, and editing one
+  without a lost update, were ADR-050's deferred Phase 2.
+- Consumers updated: `apps/web` — `savedDays.ts` (`toDto`, `newSavedDayRow`,
+  `saveDay` split into `captureDays` + `storeSavedDay`, new
+  `updatePlaybookContent` and `withoutDateAnchors`), `lib/savedStops.ts`
+  (optional per-day activity filter; the app never passes it), the content
+  importer (dev route and `import-content-production.ts` store a bundle's
+  `summary`), `/api/dev/saved-days`, `server/public-api/{library,playbooks,
+  commands,route}.ts`, two component tests' `SavedDay` literals.
+  `/v1/library` declares over `LibraryDay` (`SavedDay.omit({ version, summary })`)
+  so its answers are unchanged. `packages/fixtures` — `JapanSavedDay.summary`,
+  three demo days carry one, `verify.ts`/`expectations.ts` count them;
+  `resolvePlaybook` carries a bundle's summary.
+- Breaking? no for `SavedDay` (additive, defaulted). The UI reads neither field
+  yet.
+
 ## 2026-09-23 — `/v1/playbooks` and applying a Playbook over `v1` (ADR-050)
 
 - **No `packages/contracts` schema changed.** This is a `v1` surface change:

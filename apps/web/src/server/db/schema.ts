@@ -466,6 +466,17 @@ export const savedDays = pgTable(
     // refusing a row over an arithmetic disagreement is how a library empties
     // itself (KI-20260905-l).
     dayCount: integer("day_count").notNull().default(1),
+    // **The content revision** (ADR-050, Pass A). Moves by exactly one on every
+    // change to `name`, `summary` or the days, and never on a visibility flip.
+    // The only writer that moves it is `updatePlaybookContent`, whose UPDATE is
+    // guarded by `version = expectedVersion` — the compare and the bump are one
+    // statement, so two editors holding the same version cannot both win.
+    // NOT NULL DEFAULT 1 is metadata-only, `day_count`'s reason: every existing
+    // row is "never edited", which is what 1 says.
+    version: integer("version").notNull().default(1),
+    // One authored paragraph, or null. Length (500) is the contract's to
+    // enforce, as `name`'s is — no CHECK here, for `day_count`'s reason.
+    summary: text("summary"),
     // The cities this day touches, derived from `stops` at SAVE time by
     // `citiesOfStops` (@tc/domain) — a snapshot, exactly like
     // `source_trip_name` below (M11b link 1).

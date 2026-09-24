@@ -44,6 +44,7 @@ export type WriteOutcome =
   | { ok: true; detail: TripDetail }
   | { ok: false; status: number; message: string };
 
+/** A domain refusal as a `v1` status and message: 403, 409 for a lost race, 400 otherwise. */
 export function refusal(error: { code: string; message: string }): WriteOutcome {
   // `forbidden` is the policy seam's word for "not a member, or not senior
   // enough". Everything else a command rejects is the caller's input — a day
@@ -102,11 +103,14 @@ export async function runBatch(actor: Actor, commands: CommandInput[]): Promise<
 export class PublicApiError extends Error {
   readonly status: number;
   readonly code?: string;
+  /** The envelope's machine-readable half — e.g. `{ currentVersion }` on a stale edit. */
+  readonly details?: unknown;
 
-  constructor(status: number, message: string, code?: string) {
+  constructor(status: number, message: string, code?: string, details?: unknown) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
     this.name = "PublicApiError";
   }
 }

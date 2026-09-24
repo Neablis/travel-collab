@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { SavedDay } from "@tc/contracts";
-import { keepDays, savedDayCollection } from "@/server/public-api/library";
+import { keepDays, LibraryDay, savedDayCollection } from "@/server/public-api/library";
 import { route } from "@/server/public-api/route";
 
 // **Your saved-days library** — a clean collection already.
@@ -27,12 +26,12 @@ const SaveDayBody = z.object({
 });
 
 export const { GET, POST } = route({
-  GET: savedDayCollection("List the days you have saved to your library, newest first"),
+  GET: savedDayCollection("List the days you have saved to your library, newest first", { item: LibraryDay }),
   POST: {
     summary: "Save one day of a trip you can see into your library",
     scope: "library:write",
     body: SaveDayBody,
-    response: SavedDay,
+    response: LibraryDay,
     handle: ({ actor, body }) => {
       const input = body as z.infer<typeof SaveDayBody>;
       return keepDays(actor, { tripId: input.tripId, name: input.name, dayIds: [input.dayId] });

@@ -28,28 +28,60 @@ import {
 // out of its route files byte for byte, and its `openapi.json` entries are the
 // check that it stayed that way.
 
-/** `GET` over your saved days, newest first, keyset-paged. `summary` is the only difference. */
-export function savedDayCollection(summary: string): CollectionDef<CollectionItem> {
+/**
+ * **A saved day as `/v1/library` publishes it: `SavedDay` without `version` and
+ * `summary`.** Both arrived with ADR-050's Pass A, for `/v1/playbooks`; the
+ * library is published and frozen, so its answers and its `openapi.json`
+ * entries stay what they were. Derived by `.omit` rather than copied, so every
+ * other field still moves with the contract. The wrapper answers a resource's
+ * `shape.data`, which strips the two keys; the collection below parses each
+ * item through this for the same effect.
+ */
+export const LibraryDay = SavedDay.omit({ version: true, summary: true });
+
+/** `?visibility=` on `GET /v1/playbooks` (ADR-050, Pass A). The library's list takes no query. */
+const VisibilityFilter = z.object({ visibility: SavedDayVisibility.optional() });
+
+/**
+ * `GET` over your saved days, newest first, keyset-paged. `summary` is the only
+ * difference — plus, for `/v1/playbooks` alone, an optional `?visibility=`
+ * filter. `/v1/library` does not pass `filterable`, so it declares no query and
+ * its `openapi.json` entry does not move.
+ */
+export function savedDayCollection(
+  summary: string,
+  options: { readonly filterable?: boolean; readonly item?: typeof SavedDay | typeof LibraryDay } = {},
+): CollectionDef<CollectionItem> {
+  const item = options.item ?? SavedDay;
   return {
     summary,
     scope: "library:read",
+    ...(options.filterable === true ? { query: VisibilityFilter } : {}),
     collection: {
-      item: SavedDay,
-      cursorOf: (day: z.infer<typeof SavedDay>) => keyedCursor(day.createdAt, day.savedDayId),
+      item,
+      cursorOf: (day: z.infer<typeof LibraryDay>) => keyedCursor(day.createdAt, day.savedDayId),
     },
-    handle: async ({ actor, page }) => {
-      const all = await listSavedDays(actor.userId);
+    handle: async ({ actor, page, query }) => {
+      const wanted = (query as z.infer<typeof VisibilityFilter> | undefined)?.visibility;
+      // Filtered before paging, so a page is `limit` matching items and the
+      // cursor stays a position in the filtered list.
+      const all = (await listSavedDays(actor.userId)).filter(
+        (d) => wanted === undefined || d.visibility === wanted,
+      );
       const after = decodeKeyedCursor(page.after);
-      if (after === null) return all.slice(0, page.limit);
       // `listSavedDays` is newest first with `savedDayId` breaking ties, so
       // "after" is strictly lower on that pair.
-      return all
-        .filter(
-          (d) =>
-            d.createdAt < after.sortKey ||
-            (d.createdAt === after.sortKey && d.savedDayId < after.id),
-        )
-        .slice(0, page.limit);
+      const pageOf =
+        after === null
+          ? all.slice(0, page.limit)
+          : all
+              .filter(
+                (d) =>
+                  d.createdAt < after.sortKey ||
+                  (d.createdAt === after.sortKey && d.savedDayId < after.id),
+              )
+              .slice(0, page.limit);
+      return pageOf.map((d) => item.parse(d));
     },
   };
 }
@@ -66,7 +98,7 @@ export function savedDayCollection(summary: string): CollectionDef<CollectionIte
  * declares `trip`, so `route()` refuses every trip-confined token before a
  * handler runs. It is kept so the gate stays whole if that ever changes.
  */
-async function sourceTrip(actor: Actor, tripId: string): Promise<TripDetail> {
+export async function sourceTrip(actor: Actor, tripId: string): Promise<TripDetail> {
   if (!actorMayReachTrip(actor, tripId)) {
     throw new PublicApiError(403, "This token is not scoped to that trip.", "trip-out-of-scope");
   }
@@ -110,6 +142,11 @@ export async function keepDays(
  * a patch"* — the API does not need `/publish` and `/unpublish` endpoints to
  * express one boolean, and inventing them would leak how the UI happens to
  * present it.
+ *
+ * **Only `/v1/library` takes all three now.** `/v1/playbooks/{playbookId}` has
+ * its own `GET` (published Playbooks are readable by anyone) and `PATCH`
+ * (content edits, versioned) since ADR-050's Pass A, and shares `DELETE` alone
+ * — so the library's `PATCH` still accepts exactly `{ visibility }`.
  */
 export function savedDayItem(words: {
   readonly param: string;
@@ -122,7 +159,7 @@ export function savedDayItem(words: {
     GET: {
       summary: words.summaries.get,
       scope: "library:read",
-      response: SavedDay,
+      response: LibraryDay,
       handle: async (ctx) => {
         const day = await getSavedDay(id(ctx), ctx.actor.userId);
         if (day === null) throw new PublicApiError(404, words.missing);
@@ -133,7 +170,7 @@ export function savedDayItem(words: {
       summary: words.summaries.patch,
       scope: "library:write",
       body: z.object({ visibility: SavedDayVisibility }),
-      response: SavedDay,
+      response: LibraryDay,
       handle: async (ctx) => {
         const updated = await setSavedDayVisibility(
           id(ctx),
@@ -144,20 +181,31 @@ export function savedDayItem(words: {
         return updated;
       },
     },
-    DELETE: {
-      summary: words.summaries.delete,
-      scope: "library:write",
-      response: z.object({ savedDayId: z.string(), deleted: z.literal(true) }),
-      handle: async (ctx) => {
-        const outcome = await deleteSavedDay(id(ctx), ctx.actor.userId);
-        if (outcome === "not-found") throw new PublicApiError(404, words.missing);
-        if (outcome === "published") {
-          // It exists and you own it; it is published, so unpublish it first.
-          // 409, because the caller can fix this and the fix is one PATCH away.
-          throw new PublicApiError(409, words.published, "invalid-request");
-        }
-        return { savedDayId: id(ctx), deleted: true as const };
-      },
+    DELETE: savedDayDelete({ ...words, summary: words.summaries.delete }),
+  };
+}
+
+/** `DELETE` on one saved day — soft, and refused (409) while it is published. */
+export function savedDayDelete(words: {
+  readonly param: string;
+  readonly summary: string;
+  readonly missing: string;
+  readonly published: string;
+}): ResourceDef {
+  const id = ({ params }: HandlerContext) => params[words.param]!;
+  return {
+    summary: words.summary,
+    scope: "library:write",
+    response: z.object({ savedDayId: z.string(), deleted: z.literal(true) }),
+    handle: async (ctx) => {
+      const outcome = await deleteSavedDay(id(ctx), ctx.actor.userId);
+      if (outcome === "not-found") throw new PublicApiError(404, words.missing);
+      if (outcome === "published") {
+        // It exists and you own it; it is published, so unpublish it first.
+        // 409, because the caller can fix this and the fix is one PATCH away.
+        throw new PublicApiError(409, words.published, "invalid-request");
+      }
+      return { savedDayId: id(ctx), deleted: true as const };
     },
   };
 }

@@ -298,23 +298,79 @@ for `GET /v1/trips`; the free path is the UI one.
 A Playbook is one or more days kept from a trip, in an order you choose. It is
 the same thing as a saved day in your library — `/v1/playbooks` and
 `/v1/library` list the **same items** — but `/v1/playbooks` speaks in several
-days, where `/v1/library` keeps its published singular `dayId` (ADR-050).
+days, where `/v1/library` keeps its published singular `dayId` (ADR-050). Only
+`/v1/playbooks` shows a Playbook's `version` and `summary`.
 
 | | Scope | Role | Notes |
 |---|---|---|---|
-| `GET /v1/playbooks` | `library:read` | — | Newest first, paged like every collection |
-| `POST /v1/playbooks` | `library:write` | `viewer` on the source trip, checked by hand | `{ tripId, name, dayIds }`. Answers the `SavedDay`, 201 |
-| `GET` / `PATCH` / `DELETE /v1/playbooks/{playbookId}` | `library:read` / `library:write` | — | Exactly `/v1/library/{savedDayId}`: `PATCH { visibility }` publishes; a published Playbook must be unpublished before it can be deleted (409) |
+| `GET /v1/playbooks` | `library:read` | — | Yours, newest first, paged like every collection. `?visibility=private\|public` filters |
+| `POST /v1/playbooks` | `library:write` | `viewer` on the source trip, checked by hand (from-a-trip only) | One of the two bodies below. Answers `{ playbook, warnings }`, 201 |
+| `GET /v1/playbooks/{playbookId}` | `library:read` | — | Yours, or anyone's published one; otherwise 404 |
+| `PATCH /v1/playbooks/{playbookId}` | `library:write` | — | Edit or publish — see below. Answers `{ playbook, warnings }` |
+| `DELETE /v1/playbooks/{playbookId}` | `library:write` | — | A published Playbook must be unpublished first (409) |
 | `POST /v1/trips/{tripId}/playbook-applications` | `trips:write` | `editor` on the destination | `{ playbookId }`. Answers 201 |
 
-**`dayIds` is an ordered set, not a range.** Keep days 5, 1 and 3 and you get a
-three-day Playbook whose day 0 is your day 5. The same day twice is refused, and
-so is a selection with no stops at all; an empty day among others is kept as a
-rest day.
+**Creating takes exactly one of two bodies.** Both refuse unknown fields, so a
+body carrying both `source` and `days` matches neither and is a 400. (The
+generated reference shows them as `anyOf`; the generator has no `oneOf`.)
 
-**A trip-confined token cannot keep a Playbook**, not even from a trip it
-names. The source trip is in the body, and the collection is not about one trip,
-so it is refused the way every tripless endpoint refuses one.
+```json
+{ "name": "Kyoto, two mornings", "summary": "…",
+  "source": { "tripId": "…", "days": [
+    { "dayId": "…" },
+    { "dayId": "…", "activityIds": ["…", "…"] } ] } }
+```
+
+- **From a trip.** `days` is an ordered set, not a range: keep days 5, 1 and 3
+  and you get a three-day Playbook whose day 0 is your day 5. Omit `activityIds`
+  to keep the whole day; send it to keep only those activities — **in the
+  trip's order, not the order you listed them**. `[]` keeps the day, empty. An
+  activity that is not on the day you named it with is a 400 naming it. The
+  same day twice is refused, and so is a selection with no stops at all; an
+  empty day among others is kept as a rest day.
+
+```json
+{ "name": "Rest in the middle", "sourceName": "My notes",
+  "days": [ { "stops": [ { "title": "Arrive", "timeWindow": null, "location": null,
+      "notes": null, "anchors": [], "kind": "planned", "tags": [], "cost": null } ] },
+    { "stops": [] },
+    { "stops": [ … ] } ] }
+```
+
+- **Inline.** Each stop is a `SavedStop` without `dayIndex` — its day is the one
+  you wrote it in. The Playbook is `days.length` days long; empty days are rest
+  days, but it needs at least one stop. No trip is read, so none is credited:
+  `sourceTripId` is a freshly minted id that names no trip, and
+  `sourceTripName` is your `sourceName`, or the Playbook's `name`.
+- **Limits:** 1–366 days and at most 500 stops, either way — a 400 past either.
+- **Calendar dates do not travel.** A Playbook has no dates, so a stop's
+  `dateRange` anchor is removed on the way in, in both modes, and reported:
+
+```json
+{ "playbook": { … }, "warnings": [ { "code": "date-anchor-removed", "stopIndex": 3,
+    "title": "Flea market", "message": "…" } ] }
+```
+
+  Weekday, time-of-day and public-holiday anchors are kept. (The app's own keep
+  does not strip them yet; see ADR-050.)
+
+**Editing is versioned.** Every Playbook carries `version`, starting at 1.
+`PATCH` takes any of `{ name, summary, visibility, days, expectedVersion }`:
+
+- Changing `name`, `summary` (`null` clears it) or `days` **needs
+  `expectedVersion`** — the `version` you read. If it is no longer current the
+  answer is **409 `conflict`** with `details: { currentVersion }` and nothing is
+  written: read the Playbook again and resend. A success moves `version` by
+  exactly one, however many of the three you changed.
+- `days` takes the inline shape above and replaces every day and stop; cities,
+  countries and the day count are recomputed from it. **Only while the Playbook
+  is private** — reviews rate the published content, so a published Playbook's
+  days are a 409 ("Unpublish it before editing its days"). Its name and summary
+  can change while published.
+- `visibility` alone needs no version and does not bump it. Sent with a content
+  change, it happens in the same write, and the "private" check is against the
+  stored state — so `{ days, visibility: "public", expectedVersion }` on a
+  private Playbook edits and publishes in one step.
 
 **Applying** appends every day of the Playbook to the end of the trip, empty
 days included, with every stop on the day it belongs to:
@@ -337,10 +393,9 @@ days included, with every stop on the day it belongs to:
 - **Somebody else's Playbook** applies if they published it, and is a 404 if
   they did not — the same answer as one that does not exist.
 
-**Not yet (Phase 2):** applying some of a Playbook's days, composing a Playbook
-inline in the request, editing a Playbook's content or versioning it, an
-`Idempotency-Key`, and an `expectedTripSeq` precondition. Until those last two
-exist, **a retried apply appends twice** — check the trip before resending one
+**Not yet:** applying some of a Playbook's days, an `Idempotency-Key`, and an
+`expectedTripSeq` precondition. Until those last two exist, **a retried apply
+appends twice** — and so does a retried create — check before resending one
 whose answer you did not see.
 
 ### What is not here, and will not be

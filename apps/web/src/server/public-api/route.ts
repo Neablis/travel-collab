@@ -621,7 +621,7 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
           (error.code as z.infer<typeof ApiErrorCode> | undefined) ?? codeForStatus(error.status),
           error.message,
           error.status,
-          { headers: Object.fromEntries(responseHeaders) },
+          { details: error.details, headers: Object.fromEntries(responseHeaders) },
         );
       }
       // Anything else is ours to explain and never the caller's to read.

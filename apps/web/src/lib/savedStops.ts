@@ -23,11 +23,20 @@ import type { SavedStop, TripDetail } from "@tc/contracts";
  * Returns null when the day is not in this trip — a caller asking about a day
  * that does not exist is a different situation from a day with no stops, and
  * both have a caller that cares.
+ *
+ * `only`, when given, keeps just those activities — walked in the day's own
+ * order, so what is kept runs in the order the day ran (ADR-050, Pass A). The
+ * app never passes it.
  */
-export function stopsForDay(detail: TripDetail, dayId: string): SavedStop[] | null {
+export function stopsForDay(
+  detail: TripDetail,
+  dayId: string,
+  only?: ReadonlySet<string>,
+): SavedStop[] | null {
   const day = detail.days.find((d) => d.dayId === dayId);
   if (day === undefined) return null;
   return day.activityIds.flatMap((activityId) => {
+    if (only !== undefined && !only.has(activityId)) return [];
     const activity = detail.activities[activityId];
     if (activity === undefined) return [];
     return [
@@ -72,11 +81,18 @@ export function stopsForDay(detail: TripDetail, dayId: string): SavedStop[] | nu
  * day that does not exist is a different situation from a day with no stops,
  * and partially honouring a multi-day request would save a playbook quietly
  * missing a day.
+ *
+ * `only` narrows the days it names to some of their activities (`stopsForDay`);
+ * a day it does not name is kept whole.
  */
-export function stopsForDays(detail: TripDetail, dayIds: readonly string[]): SavedStop[] | null {
+export function stopsForDays(
+  detail: TripDetail,
+  dayIds: readonly string[],
+  only?: ReadonlyMap<string, ReadonlySet<string>>,
+): SavedStop[] | null {
   const sequence: SavedStop[] = [];
   for (const [dayIndex, dayId] of dayIds.entries()) {
-    const stops = stopsForDay(detail, dayId);
+    const stops = stopsForDay(detail, dayId, only?.get(dayId));
     if (stops === null) return null;
     for (const stop of stops) sequence.push({ ...stop, dayIndex });
   }
