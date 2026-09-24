@@ -138,10 +138,9 @@ type SeedStop = {
  * stops; the two agreed only by luck, and only the copy here ever had tags or
  * a full set of coordinates.
  *
- * Seeded first and with the soonest start date so it is the trip
- * `GET /api/trips` returns first — the homepage hero picks `trips[0]` with no
- * sort of its own (`app/(app)/page.tsx`), so insertion order is what decides
- * "next trip" today (KI-34).
+ * Seeded with the soonest start date (10 days out; the others are 21 and 60)
+ * so it is the homepage's "Next trip": Home picks the soonest upcoming trip by
+ * start date (`lib/homeTripOrder.ts`, KI-034), not the list's first row.
  */
 async function seedJapanTrip(cookie: string): Promise<void> {
   const { tripId } = await createTrip(cookie, JAPAN_TRIP_NAME);

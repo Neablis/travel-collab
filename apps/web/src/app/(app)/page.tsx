@@ -29,6 +29,7 @@ import { useSessionUser } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
+import { orderHomeTrips } from "@/lib/homeTripOrder";
 
 // Today's calendar date as YYYY-MM-DD in local time, so formatTripDateLong
 // (which expects a calendar date, not an instant — see lib/formatDate.ts)
@@ -367,15 +368,17 @@ export default function Home() {
     router.push(`/trips/${result.value.tripId}`);
   }
 
-  // "Next trip" (README §1 next-trip hero): TripSummary carries no start
-  // date (packages/contracts/src/trip.ts), so there's no real "first
-  // upcoming by start date" to compute — per the M10 plan, this uses the
-  // first trip in the list instead of adding a server-side date field
-  // (presentational-only rule). Revisit once TripSummary gains a start date.
-  const nextTrip = visibleTrips[0] ?? null;
+  // "Next trip" (README §1 next-trip hero): the soonest upcoming trip by its
+  // start date, then undated trips newest first, then past ones — the rule and
+  // its tie-break are `orderHomeTrips`'s (KI-034). It was `visibleTrips[0]`,
+  // the head of a list with no ORDER BY, so the hero was whichever trip the
+  // heap happened to return first. `dateIso` is the reader's own calendar day.
+  const orderedTrips = orderHomeTrips(visibleTrips, dateIso);
+  const nextTrip = orderedTrips[0] ?? null;
   // **"Other trips", and the hero is not one of them** (SPEC §35.2). The grid
   // was "All trips" and drew the hero's trip a second time directly under it.
-  const otherTrips = visibleTrips.slice(1);
+  // In the same order, so the grid reads on from the hero.
+  const otherTrips = orderedTrips.slice(1);
 
   // One TripDetail fetch per grid trip (keyed by a joined id string so this
   // only refires when the actual set of ids changes, not on every render):

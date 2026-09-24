@@ -14,6 +14,7 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
     status: "active",
     members: [{ userId: "dev-alice", role: "owner" }],
     createdAt: "2026-07-08T12:00:00.000Z",
+    startDate: null,
     ...overrides,
   };
 }
@@ -97,23 +98,13 @@ describe("TripCard", () => {
     expect(screen.queryByText(/planned of/)).toBeNull();
   });
 
-  // Task 8.5 / phase-8-polish.md's own verbatim test: "shows the trip's
-  // dates rather than its creation date". Deliberately skipped, not
-  // implemented — TripSummary (packages/contracts/src/trip.ts) carries no
-  // start/end date field at all, only createdAt, and this plan is
-  // presentational-only (no `packages/contracts` growth). There is no real
-  // date for TripCard to show instead of "Created …" without a contract
-  // change that's out of scope here; forcing this test green would mean
-  // either adding a schema field (against the plan's own rule) or
-  // fabricating a fake date on the card (exactly what Task 8.5's "honesty
-  // points" section says not to do). See the test just above — "shows a
-  // human-readable created date, not the raw ISO timestamp" — which is the
-  // accurate, currently-correct behavior this card actually has, and
-  // docs/known-issues/ KI-34, which records this as a known, accepted gap
-  // with its fix path (add a start date to TripSummary) out of scope.
-  it.skip("shows the trip's dates rather than its creation date", () => {
-    const trip = tripSummaryFixture();
+  // Task 8.5's own verbatim test, skipped until KI-034 put a start date on
+  // TripSummary. A trip with one shows it; a trip without one keeps the
+  // honest "Created …" line (the test above) rather than a fabricated date.
+  it("shows the trip's dates rather than its creation date", () => {
+    const trip = tripSummaryFixture({ startDate: "2026-10-01" });
     render(<TripCard trip={trip} />);
+    expect(screen.getByText("Thu, Oct 1")).toBeTruthy();
     expect(screen.queryByText(/^Created /)).toBeNull();
   });
 });

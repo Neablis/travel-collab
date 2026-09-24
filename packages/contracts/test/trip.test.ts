@@ -87,6 +87,21 @@ describe("trip contracts", () => {
       }),
     ).toThrow();
   });
+
+  // KI-034 added `startDate`. A summary serialised before it (a client or
+  // server one deploy behind) has no such key and must still parse, to null.
+  it("parses a TripSummary from before startDate existed, as undated", () => {
+    const summary = {
+      tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+      name: "Rome 2027",
+      status: "active",
+      members: [{ userId: "dev-alice", role: "owner" }],
+      createdAt: "2026-07-08T12:00:00.000Z",
+    };
+    expect(TripSummary.parse(summary).startDate).toBeNull();
+    expect(TripSummary.parse({ ...summary, startDate: "2027-05-01" }).startDate).toBe("2027-05-01");
+    expect(TripSummary.safeParse({ ...summary, startDate: "May 1" }).success).toBe(false);
+  });
 });
 
 describe("lifecycle commands", () => {

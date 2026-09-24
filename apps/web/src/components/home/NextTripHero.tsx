@@ -36,7 +36,7 @@ export type NextTripHeroProps = {
 
 // Sparkline needs each day's real stop count and real city, but TripSummary
 // (what the trips list fetches) carries no day/activity/city data at all
-// (only tripId/name/status/members/createdAt) — that lives on TripDetail.
+// (only tripId/name/status/members/createdAt/startDate) — that lives on TripDetail.
 // Rather than fabricate numbers, this fetches the real TripDetail on mount
 // and derives the graph from its `days`/`activities` directly: the stop
 // count straight off the day's own `activityIds`, and the city via
@@ -84,8 +84,14 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
     const pad = (n: number) => String(n).padStart(2, "0");
     setToday(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
   }, []);
+  // **The date this hero shows** (KI-034): the summary's own `startDate` from
+  // the first frame, and the detail's once it has loaded — the detail is the
+  // fresher read of the same field, so it wins, including when it says the
+  // date was cleared. Before KI-034 the summary had no date and the meta row
+  // said "Created …" until the detail landed.
+  const shownStartDate = sparkline.status === "ready" ? startDate : trip.startDate;
   const countdown =
-    startDate === null || today === null ? null : relativeCalendarDays(startDate, today);
+    shownStartDate === null || today === null ? null : relativeCalendarDays(shownStartDate, today);
   // "{planned} planned of {budget}" (Task 4.1, M10 Phase 4) — derived from
   // the same real TripDetail fetch as the sparkline above, via tripSpend +
   // formatMoney (KI-2), keyed off the trip's own currency (never per-Money).
@@ -158,24 +164,20 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
         <div className="flex flex-col gap-5 border-b border-hairline p-6 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2.5">
             <Badge variant="brand">Next trip</Badge>
-            {/* **The countdown** (DRIFT D6, `dc.html:1540`, M26 link 9d). D6
-                is two things and only one of them is blocked: WHICH trip the
-                hero picks needs a start date on `TripSummary` (KI-034, still
-                open — `nextTrip` is `visibleTrips[0]`), but this hero already
-                fetches the whole `TripDetail` for its sparkline, so the date
-                it is counting to is real and has been all along.
+            {/* **The countdown** (DRIFT D6, `dc.html:1540`, M26 link 9d). Home
+                picks this hero by start date (`orderHomeTrips`, KI-034), and
+                this counts to that date.
 
-                **It stays honest about a trip that has started or passed**,
-                which the selection bug makes likely rather than theoretical:
+                **It stays honest about a trip that has started or passed**:
                 `relativeCalendarDays` says "yesterday" and "12 days ago" as
-                readily as "in 47 days". A countdown that only counts down
-                would print nothing, or a negative, for exactly the case D6
-                warns the hero can land on.
+                readily as "in 47 days". The hero lands on a past trip when
+                every trip is past, or when the trip is under way (the summary
+                has no end date, so "under way" ranks as past).
 
-                Absent until the first client frame and until the trip's real
-                start date lands — see `today`'s note for why it is read in an
-                effect, and `startDate`'s for why this hero never invents a
-                date it has not been given. */}
+                Absent until the first client frame and for an undated trip —
+                see `today`'s note for why it is read in an effect, and
+                `shownStartDate`'s for where the date comes from. This hero
+                never invents a date it has not been given. */}
             {countdown !== null && <DataText size="sm">{countdown}</DataText>}
             {menuSlot !== undefined && <div className="ml-auto">{menuSlot}</div>}
           </div>
@@ -193,16 +195,14 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
             >
               <Heading level={2}>{trip.name}</Heading>
             </Link>
-            {/* Meta row (README: "dates · length · cities") — TripSummary
-                itself carries none of those (no start date, no day/city
-                data), but TripDetail (fetched above, for the sparkline)
-                does have a real start date. Prefer that once it's in; until
-                then (or if the fetch fails), fall back to the one
-                date-shaped field TripSummary actually has: when the trip
+            {/* Meta row (README: "dates · length · cities") — the trip's real
+                start date (`shownStartDate`: the summary's until the detail
+                lands, KI-034). An undated trip falls back to the one other
+                date-shaped fact it has, labelled as what it is: when the trip
                 was created. */}
-            {startDate !== null ? (
+            {shownStartDate !== null ? (
               <div className="mt-1.5">
-                <DataText size="sm">{formatTripDate(startDate)}</DataText>
+                <DataText size="sm">{formatTripDate(shownStartDate)}</DataText>
               </div>
             ) : (
               createdLabel && (

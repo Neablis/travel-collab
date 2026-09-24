@@ -298,5 +298,14 @@ export const TripSummary = z.object({
   status: TripStatus,
   members: z.array(TripMember).min(1),
   createdAt: z.string(), // ISO 8601
+  // The trip's first calendar day (`YYYY-MM-DD`), or null for an undated trip
+  // (KI-034). What Home chooses its "next trip" by, and what a card prints in
+  // place of `createdAt`. The shape-only regex, as on `TripStartDateSet`: this
+  // is copied from the event, and history must stay readable.
+  //
+  // `.default(null)` so a payload from before this field (a cached response,
+  // a client or server one deploy behind) parses to an explicit null rather
+  // than failing — additive, the same way `forkedFrom` was added.
+  startDate: z.string().regex(ISO_DATE).nullable().default(null),
 });
 export type TripSummary = z.infer<typeof TripSummary>;

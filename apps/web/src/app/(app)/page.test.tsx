@@ -33,6 +33,7 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
     status: "active",
     members: [{ userId: OWNER_ID, role: "owner" }],
     createdAt: "2026-07-08T12:00:00.000Z",
+    startDate: null,
     ...overrides,
   };
 }
@@ -567,6 +568,35 @@ describe("Home page head", () => {
     expect(within(cards[0]!).getByRole("heading", { name: "Peru" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
     expect(screen.getByText("1 trip")).toBeTruthy();
+  });
+
+  // **KI-034: the hero is the next trip by DATE, not the list's head.** The
+  // list arrives newest-created first, so a trip made yesterday for next
+  // spring sits ahead of one made last month for next week. Both dates are in
+  // 2099 so "upcoming" does not depend on the day the suite runs.
+  it("makes the soonest upcoming trip the hero, whatever order the list came in", async () => {
+    const SPRING = tripSummaryFixture({
+      tripId: "0b9d4a1e-2c3f-4d5e-8f60-718293a4b5c6",
+      name: "Peru",
+      startDate: "2099-04-01",
+      createdAt: "2026-07-09T12:00:00.000Z",
+    });
+    const NEXT_WEEK = tripSummaryFixture({ startDate: "2099-03-01" });
+    renderHome([SPRING, NEXT_WEEK]);
+
+    expect(await screen.findByRole("heading", { name: "Japan", level: 2 })).toBeTruthy();
+    const cards = screen.getAllByTestId("trip-card");
+    expect(cards).toHaveLength(1);
+    expect(within(cards[0]!).getByRole("heading", { name: "Peru" })).toBeTruthy();
+  });
+
+  // An undated trip outranks one that has already started: the hero says
+  // "Next trip", and a trip in the past is not one.
+  it("puts an undated trip ahead of a past one for the hero", async () => {
+    const PAST = tripSummaryFixture({ startDate: "2001-01-01" });
+    renderHome([PAST, PERU]);
+
+    expect(await screen.findByRole("heading", { name: "Peru", level: 2 })).toBeTruthy();
   });
 
   // One trip is the hero and nothing else — a heading over an empty grid would

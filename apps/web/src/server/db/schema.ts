@@ -318,6 +318,12 @@ export const tripSummaries = pgTable("trip_summaries", {
   members: jsonb("members").$type<TripMember[]>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   status: text("status").notNull().default("active"),
+  // KI-034: `YYYY-MM-DD`, copied from `TripStartDateSet`; null = undated.
+  // `text`, not `date`: the stored event is validated by shape only, and a
+  // `date` column would refuse a shape-valid, calendar-invalid string that
+  // history is allowed to hold (see `TripDateInput` in the contract). ISO
+  // dates sort correctly as text.
+  startDate: text("start_date"),
 });
 
 export const tripDetails = pgTable("trip_details", {

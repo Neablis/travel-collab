@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { executeTripCommand } from "./commands";
-import { getTripDetail, listTripSummaries, rebuildProjections } from "./projections";
+import { getTripDetail, listTripSummaries, listTripSummariesVisibleTo, rebuildProjections } from "./projections";
 import { db } from "./db/client";
 import { tripDetails, tripSummaries } from "./db/schema";
 
@@ -48,6 +48,53 @@ describe("trip_summaries tracks lifecycle events", () => {
     await rebuildProjections();
     const after = await db.select().from(tripSummaries).where(where);
     expect(after).toEqual(before);
+  });
+});
+
+/**
+ * KI-034. Home's hero is "the next trip", and it could only be chosen by date
+ * once the list carried one. Two halves: the summary follows the start date
+ * through every event that moves it (and a rebuild agrees), and the list comes
+ * back in one stated order rather than whatever the heap held.
+ */
+describe("trip summaries carry the start date, in a stated order", () => {
+  it("follows the start date, rebuilds it, and lists newest-created first", async () => {
+    // Its own member, so the list below holds exactly these two trips.
+    const member = `ki034-${randomUUID().slice(0, 8)}`;
+    const older = randomUUID();
+    const newer = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId: older, name: "Older" }, member);
+    await executeTripCommand({ type: "CreateTrip", tripId: newer, name: "Newer draft" }, member);
+    await executeTripCommand(
+      {
+        type: "SetTripDates",
+        tripId: older,
+        startDate: "2099-03-01",
+        endDate: "2099-03-02",
+        newDayIds: [randomUUID(), randomUUID()],
+      },
+      member,
+    );
+    // Touched LAST on purpose: an UPDATE writes a new tuple at the heap's end,
+    // so without an ORDER BY the rows would now come back Older, Newer — the
+    // heap order this test exists to rule out.
+    await executeTripCommand({ type: "SetTripName", tripId: newer, name: "Newer" }, member);
+
+    const listed = await listTripSummariesVisibleTo(member);
+    expect(listed.map((r) => [r.name, r.startDate])).toEqual([
+      ["Newer", null],
+      ["Older", "2099-03-01"],
+    ]);
+
+    await executeTripCommand({ type: "SetTripStartDate", tripId: older, startDate: "2099-04-01" }, member);
+    const where = eq(tripSummaries.tripId, older);
+    const before = await db.select().from(tripSummaries).where(where);
+    expect(before.map((r) => r.startDate)).toEqual(["2099-04-01"]);
+    await rebuildProjections();
+    expect(await db.select().from(tripSummaries).where(where)).toEqual(before);
+
+    await executeTripCommand({ type: "SetTripStartDate", tripId: older, startDate: null }, member);
+    expect((await db.select().from(tripSummaries).where(where))[0]!.startDate).toBeNull();
   });
 });
 
