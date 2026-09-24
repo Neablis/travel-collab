@@ -183,6 +183,14 @@ export const BundlePlaybook = z.object({
   sourceTrip: z.object({ id: z.string().uuid().optional(), name: z.string().min(1).max(200) }),
   addedBy: z.array(BundleAdd).default([]),
   /**
+   * The content revision the playbook was at when this file was written
+   * (`SavedDay.version`, ADR-050). Written by `GET /v1/playbooks/{id}/export`
+   * so a reader can tell two exports of one playbook apart; **never trusted on
+   * the way in** — an import starts a new playbook at version 1 and echoes this
+   * back as `sourceVersion`, and the content importer ignores it.
+   */
+  version: z.number().int().min(1).optional(),
+  /**
    * A ONE-DAY playbook's stops. The original shape, and still the ordinary one.
    *
    * Exactly one of `stops` and `days` — see the refine below.
@@ -330,6 +338,29 @@ export const TripImportBundle = z.object({
   trips: z.array(BundleTrip).default([]),
 });
 export type TripImportBundle = z.infer<typeof TripImportBundle>;
+
+/**
+ * **What `POST /v1/playbooks/import` reads** (ADR-050, Pass C) — the same
+ * document, narrowed the way `TripImportBundle` narrows it, for the other kind
+ * of content.
+ *
+ * `trips` is declared as a list of anything rather than as `BundleTrip`: the
+ * endpoint refuses a file carrying one (by count, in the handler, so the
+ * refusal can name it), and publishing the trip schema in this endpoint's
+ * request body would tell an integrator it does something with one.
+ * `notebooks` and `activities` are read past, as the trip import reads past
+ * `playbooks`.
+ */
+export const PlaybookImportBundle = z.object({
+  $schema: z.literal("travel-collab/content-bundle/v1"),
+  bundle: BundleMeta,
+  trips: z
+    .array(z.unknown())
+    .default([])
+    .describe("Must be empty: a playbook file carries no trip. Import trips at POST /v1/trips/import."),
+  playbooks: z.array(BundlePlaybook).default([]),
+});
+export type PlaybookImportBundle = z.infer<typeof PlaybookImportBundle>;
 
 /**
  * Validates raw JSON against `content-bundle/v1` and resolves the two things

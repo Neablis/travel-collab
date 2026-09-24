@@ -96,6 +96,8 @@ export function resolvePlaybook(
     savedDayId,
     ownerId: playbook.ownerId,
     name: playbook.name,
+    // Stored on the row since ADR-050's Pass A; `SeededSavedDay.summary`.
+    ...(playbook.summary !== undefined ? { summary: playbook.summary } : {}),
     ...toSavedSequence(playbook),
     visibility: playbook.visibility as SavedDayVisibility,
     authorKind: playbook.origin ?? fallbackAuthorKind,

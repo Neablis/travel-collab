@@ -257,6 +257,36 @@ export const apiTokens = pgTable(
   ],
 );
 
+// **`Idempotency-Key` reservations for `v1` writes that opt in** (ADR-051).
+//
+// Keyed by the USER, not the token, so two of one person's tokens share a key
+// space and two people's keys never collide. The row is written BEFORE the
+// handler runs (`INSERT … ON CONFLICT DO NOTHING`), which is what stops two
+// concurrent requests with one key both running; `completed_at` null means in
+// flight. A 5xx deletes the row, so only answers the caller should see again are
+// kept. Rows older than 24 hours are treated as absent and overwritten on the
+// next use of the key — there is no sweep.
+export const apiIdempotencyKeys = pgTable(
+  "api_idempotency_keys",
+  {
+    // A `users.id`, on the same no-foreign-key terms as `api_tokens.owner_id`
+    // (ADR-025).
+    userId: text("user_id").notNull(),
+    key: text("key").notNull(),
+    method: text("method").notNull(),
+    path: text("path").notNull(),
+    // sha256 of the parsed body's canonical JSON, hex.
+    requestHash: text("request_hash").notNull(),
+    statusCode: integer("status_code"),
+    response: jsonb("response"),
+    // The start of the current attempt: the 24-hour expiry and the in-flight
+    // lease are both measured from it.
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
+
 export const events = pgTable(
   "events",
   {
@@ -466,6 +496,17 @@ export const savedDays = pgTable(
     // refusing a row over an arithmetic disagreement is how a library empties
     // itself (KI-20260905-l).
     dayCount: integer("day_count").notNull().default(1),
+    // **The content revision** (ADR-050, Pass A). Moves by exactly one on every
+    // change to `name`, `summary` or the days, and never on a visibility flip.
+    // The only writer that moves it is `updatePlaybookContent`, whose UPDATE is
+    // guarded by `version = expectedVersion` — the compare and the bump are one
+    // statement, so two editors holding the same version cannot both win.
+    // NOT NULL DEFAULT 1 is metadata-only, `day_count`'s reason: every existing
+    // row is "never edited", which is what 1 says.
+    version: integer("version").notNull().default(1),
+    // One authored paragraph, or null. Length (500) is the contract's to
+    // enforce, as `name`'s is — no CHECK here, for `day_count`'s reason.
+    summary: text("summary"),
     // The cities this day touches, derived from `stops` at SAVE time by
     // `citiesOfStops` (@tc/domain) — a snapshot, exactly like
     // `source_trip_name` below (M11b link 1).

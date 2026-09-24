@@ -214,6 +214,7 @@ async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
           savedDayId: day.savedDayId,
           ownerId: day.ownerId,
           name: day.name,
+          summary: day.summary,
           stops: day.stops,
           visibility: day.visibility,
           authorKind: day.authorKind,

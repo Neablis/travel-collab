@@ -105,6 +105,7 @@ export async function POST(request: Request) {
           savedDayId: day.savedDayId,
           ownerId: day.ownerId,
           name: day.name,
+          summary: day.summary,
           stops: day.stops,
           // Carried from the bundle's authored `days:` length, not left to the
           // stops' own floor: a playbook whose LAST authored day declares no

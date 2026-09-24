@@ -139,5 +139,39 @@
   never. Deliberately not done from PR #203, which has no business touching
   this file.
 
+- **THIRD OCCURRENCE, 2026-09-24 — and it observes the poll not running, directly.**
+
+  CI's `static-and-unit` on `0d5e62f` (PR #217, run 35944862989) reported
+  **`1 failed | 3713 passed | 1 skipped`**. The failure is the third test in the
+  same `describe`:
+
+  ```
+  FAIL src/components/trip/context/TripProvider.test.tsx
+    > TripProvider broadcast (M13 link 2)
+    > does not bump when the poll finds nothing
+  AssertionError: expected "vi.fn()" to be called at least once
+    ❯ TripProvider.test.tsx:1110  await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalled())
+  ```
+
+  PR #217 is a server-side API change and touches nothing under
+  `components/trip`. The same test passed on that PR's previous head, `a2c9005`.
+
+  **What it adds.** The second occurrence inferred "the poll never ran" from
+  `remoteRevision` staying at `0`. This one does not need the inference: line
+  1110 is the test's own *witness-first* assertion that `fetchTripEvents` was
+  called, and it was not. The DOM at failure shows `dayCount` = `1`, so the
+  provider was already rendered with its detail. The poll still did not fire
+  within `waitFor`'s budget after `becomeVisible()`. That is the surviving
+  candidate named above: `enabled` still false, or the `visibilitychange`
+  listener not yet attached, at the moment the event is dispatched. After that,
+  the next poll is a full `POLL_INTERVAL_MS` away.
+
+  **Three occurrences, three different tests, one describe block, all CI-only,
+  all on commits that could not have caused them.** The next step is still the
+  instrumentation the second occurrence proposed, now narrowed further. The
+  probe that settles it is whether `useTripBroadcast`'s effect has attached its
+  listener by the time `becomeVisible()` runs. Still **not** fixed by raising the
+  timeout.
+
 - **Found by:** CI, 2026-09-22, on a docs-only commit.
 - **First noted:** 2026-09-22.

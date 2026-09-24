@@ -13,6 +13,133 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — A Playbook as a file, Discover over `v1`, keyed create (ADR-050 Pass C)
+
+- **No `packages/contracts` schema changed.** A `v1` surface change plus an
+  additive change to the content-bundle FORMAT (a fixture format, not a
+  contract — `schema.ts`'s header says why). `openapi.json` regenerated;
+  `/v1/library`'s entries are byte-identical, and `/v1/playbooks` moved only by
+  the `Idempotency-Key` / `Idempotent-Replayed` headers on its `POST`.
+- **New endpoints:** `GET /v1/playbooks/{playbookId}/export` (`library:read`,
+  answers a `PlaybookExportBundle` raw, 409 for a stop the format cannot say),
+  `POST /v1/playbooks/import` (`library:write`, body `PlaybookImportBundle`,
+  answers `{ playbook, warnings, sourceVersion }` where a warning is
+  `date-anchor-removed` | `visibility-reset`; idempotent), and
+  `GET /v1/discover/playbooks` (`library:read`, a collection of the app's
+  `DiscoverDay` cards; `?city`, `?country`, `?length`, `?rating`, `?sort`).
+- **`POST /v1/playbooks`** takes `Idempotency-Key`.
+- **`@tc/fixtures`**: `BundlePlaybook` gains optional `version` (int >= 1);
+  new `PlaybookImportBundle`, `PlaybookExportBundle`, `playbookToBundle`,
+  `toBundleDays`; `toSavedSequence` is now exported; `toBundleStop`'s parameter
+  widens from `ActivityView` to `StopFields` (the eight fields it reads).
+- **Server internals:** `storeSavedDay` takes an optional `authorKind`; new
+  `discoverPage` (keyset) beside `discoverDays`, which is unchanged in
+  behaviour (its select now shares `matchedCount` / `discoverColumns`).
+- Why: ADR-050's remaining proposal items — a Playbook leaves and re-enters as
+  a file, and everyone's published Playbooks are listable over `v1`.
+- Consumers updated: `apps/web` (three new route files,
+  `server/public-api/{playbooks,discover}.ts`, `server/playbooks.ts`,
+  `server/savedDays.ts`); `packages/fixtures` (`schema.ts`, `fromTrip.ts`, new
+  `fromPlaybook.ts`, `index.ts`). No bundle under `content/` changes.
+- Breaking? No. Every change is additive.
+
+## 2026-09-24 — Applying a Playbook: version pin, `expectedTripSeq`, `startingAt`, `Idempotency-Key`, warnings (ADR-050 Pass B, ADR-051)
+
+- **No `packages/contracts` schema changed.** A `v1` surface change;
+  `openapi.json` regenerated, and only
+  `/v1/trips/{tripId}/playbook-applications` moved — `/v1/library`'s entries are
+  byte-identical.
+- **`POST /v1/trips/{tripId}/playbook-applications`** body gains `version?`
+  (int >= 1), `placement?` (`{ mode: "append" }` default, or `{ mode:
+  "startingAt", dayId }`) and `expectedTripSeq?` (int >= 0). The answer gains
+  `playbookVersion`, `createdDayIds` and `warnings` (`conflict` |
+  `weekday-mismatch`); `dayIds` now means "the day each Playbook day landed on"
+  (identical to before on an append). A stale `version` or `expectedTripSeq` is
+  409 `conflict` with `details.currentVersion` / `details.currentSeq`; an
+  unknown `startingAt` day is 400. It declares the `Idempotency-Key` request
+  header and the `Idempotent-Replayed` response header.
+- **`route()`** gains `idempotent` (POST only), backed by the new table
+  `api_idempotency_keys` — **migration `0027_api_idempotency_keys`**.
+- **Server internals** (not contracts): `executeTripCommandBatch` takes an
+  optional `{ expectedSeq }`; `CommandResult`'s error may carry `currentSeq`;
+  `insertCommands` takes the days to merge onto (default `[]`, i.e. append);
+  `insertSavedDay`'s fourth argument is now an options object (`now`, `version`,
+  `startingAt`, `expectedSeq`) — no caller passed the old positional `now`;
+  `InsertedIds` gains `createdDayIds`.
+- Why: ADR-050's deferred Phase 2 — a safe retry, a concurrency precondition,
+  and applying onto days a trip already has.
+- Consumers updated: `apps/web` only — the route, `server/{commands,savedDays}.ts`,
+  `server/public-api/{route,openapi,idempotency,applications}.ts`,
+  `server/db/schema.ts`. The app's internal saved-day route and the assistant's
+  insert pass nothing new and are unchanged.
+- Breaking? No. Every new request field is optional and every new answer field
+  is additive.
+
+## 2026-09-24 — `SavedDay.version` and `SavedDay.summary`; Playbook composition and edits over `v1` (ADR-050, Pass A)
+
+- **`SavedDay`** (`packages/contracts/src/saved.ts`) gains two fields, both
+  defaulted so stored and old bytes still parse (the rule `SavedStop` states):
+  - `version: int >= 1, default 1` — the content revision. Moves by exactly one
+    on a change to `name`, `summary` or the days; never on a visibility flip.
+  - `summary: string <= 500 | null, default null` — one authored paragraph.
+- **Migration `0026_saved_day_version_and_summary`**: `saved_days.version integer
+  NOT NULL DEFAULT 1`, `saved_days.summary text` — metadata-only, no backfill.
+- **`v1` surface** (`openapi.json` regenerated; only the two `/v1/playbooks`
+  paths moved — `/v1/library`'s entries are byte-identical):
+  - `POST /v1/playbooks` body is now exactly one of `{ name, summary?, source:
+    { tripId, days: [{ dayId, activityIds? }] } }` or `{ name, summary?,
+    sourceName?, days: [{ stops: StopInput[] }] }` (`StopInput` =
+    `SavedStop.omit({ dayIndex })`); rendered as `anyOf` of two strict objects,
+    which the generator cannot emit as `oneOf`. Answers `{ playbook, warnings }`.
+    **Breaking against Phase 1's body** (`CreateSavedDayInput`), which was never
+    merged.
+  - `PATCH /v1/playbooks/{playbookId}` takes `{ name?, summary?, visibility?,
+    days?, expectedVersion? }` and answers `{ playbook, warnings }`; a stale
+    version is 409 `conflict` with `details: { currentVersion }`.
+  - `GET /v1/playbooks/{playbookId}` reads anyone's published Playbook;
+    `GET /v1/playbooks` takes `?visibility=`.
+  - The error envelope's `details` can now come from a handler
+    (`PublicApiError`'s fourth argument), not only from the wrapper's zod issues.
+- Why: composing a Playbook from part of a trip or inline, and editing one
+  without a lost update, were ADR-050's deferred Phase 2.
+- Consumers updated: `apps/web` — `savedDays.ts` (`toDto`, `newSavedDayRow`,
+  `saveDay` split into `captureDays` + `storeSavedDay`, new
+  `updatePlaybookContent` and `withoutDateAnchors`), `lib/savedStops.ts`
+  (optional per-day activity filter; the app never passes it), the content
+  importer (dev route and `import-content-production.ts` store a bundle's
+  `summary`), `/api/dev/saved-days`, `server/public-api/{library,playbooks,
+  commands,route}.ts`, two component tests' `SavedDay` literals.
+  `/v1/library` declares over `LibraryDay` (`SavedDay.omit({ version, summary })`)
+  so its answers are unchanged. `packages/fixtures` — `JapanSavedDay.summary`,
+  three demo days carry one, `verify.ts`/`expectations.ts` count them;
+  `resolvePlaybook` carries a bundle's summary.
+- Breaking? no for `SavedDay` (additive, defaulted). The UI reads neither field
+  yet.
+
+## 2026-09-23 — `/v1/playbooks` and applying a Playbook over `v1` (ADR-050)
+
+- **No `packages/contracts` schema changed.** This is a `v1` surface change:
+  `apps/web/src/app/api/v1/openapi.json` gains three paths and loses nothing.
+  - `GET`/`POST /v1/playbooks` and `GET`/`PATCH`/`DELETE
+    /v1/playbooks/{playbookId}` — the same `saved_days` rows `/v1/library`
+    serves, answering `SavedDay`. The `POST` body **is** `CreateSavedDayInput`
+    (`dayIds`, ordered, 1–366), not a copy of it.
+  - `POST /v1/trips/{tripId}/playbook-applications` — body `{ playbookId }`,
+    answers a route-local `{ tripId, playbookId, dayIds, activityIds,
+    historySeq }`: the minted ids in the Playbook's day order and `stops[]`
+    order, and the `toSeq` of the one history entry the apply wrote.
+- Why: `v1` could keep one day at a time and apply nothing. M23 had built both
+  halves server-side (`saveDay` over `dayIds`, `insertSavedDay`); this publishes
+  them without a new object type (ADR-048) and without touching `/v1/library`.
+- Consumers updated: `apps/web` only — the three route files, the new shared
+  `server/public-api/library.ts` (which `/v1/library`'s two route files now
+  declare through), `insertSavedDay` (returns `minted` on success; the internal
+  route's response is unchanged), `openapi.json` (regenerated), and
+  `docs/guidelines/using-the-api.md`. No MSW handler — the frontend does not
+  call these.
+- Breaking? no. `/v1/library`'s `openapi.json` entries are byte-identical, and
+  its handlers moved rather than changed.
+
 ## 2026-09-23 — `UndoLastChange` may name the batch it undoes (M27 D17)
 
 - Added optional **`undoesBatchId: uuid`** to `UndoLastChange`

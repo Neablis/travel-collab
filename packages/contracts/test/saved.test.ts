@@ -126,7 +126,8 @@ describe("SavedDaySequence", () => {
 
 describe("SavedDay", () => {
   it("round-trips", () => {
-    expect(SavedDay.parse(savedDay)).toEqual(savedDay);
+    const current = { ...savedDay, version: 2, summary: "Temples before the crowds." };
+    expect(SavedDay.parse(current)).toEqual(current);
   });
 
   // The default is the guarantee, not a convention every writer has to
@@ -138,6 +139,23 @@ describe("SavedDay", () => {
     expect(SavedDay.parse(withoutAuthor).authorKind).toBe("human");
     expect(SavedDay.parse({ ...savedDay, authorKind: "ai" }).authorKind).toBe("ai");
     expect(SavedDay.safeParse({ ...savedDay, authorKind: "robot" }).success).toBe(false);
+  });
+
+  // ADR-050 Pass A. `savedDay` above is the bytes a DTO had before either field
+  // existed — so this is the old-bytes case, not a hand-made one. Both defaults
+  // are what such a day always meant: never edited, and no summary.
+  it("parses a day written before version and summary existed, as version 1 with no summary", () => {
+    expect(Object.keys(savedDay)).not.toContain("version");
+    expect(Object.keys(savedDay)).not.toContain("summary");
+    const parsed = SavedDay.parse(savedDay);
+    expect(parsed.version).toBe(1);
+    expect(parsed.summary).toBeNull();
+    expect(SavedDay.parse({ ...savedDay, version: 4, summary: "Temples before the crowds." })).toMatchObject({
+      version: 4,
+      summary: "Temples before the crowds.",
+    });
+    expect(SavedDay.safeParse({ ...savedDay, version: 0 }).success).toBe(false);
+    expect(SavedDay.safeParse({ ...savedDay, summary: "x".repeat(501) }).success).toBe(false);
   });
 
   it("accepts a day with no stops in the DTO — the API is what refuses to create one", () => {

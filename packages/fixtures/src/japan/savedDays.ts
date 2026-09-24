@@ -66,6 +66,8 @@ export type JapanSavedDay = {
   savedDayId: string;
   ownerId: string;
   name: string;
+  /** The author's one paragraph (ADR-050, Pass A). Absent = none, as most days have. */
+  summary?: string;
   stops: SavedStop[];
   visibility: "private" | "public";
   /** The ledger rows for this day. `adds` is this list's length, never a separate number. */
@@ -149,6 +151,7 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
     savedDayId: "aa000000-0000-4000-8000-000000000001",
     ownerId: ALICE,
     name: "Kyoto temples on foot",
+    summary: "Four temples south to east on foot, starting at Fushimi Inari before the gates fill and ending at Kiyomizu-dera as the lanterns come on.",
     visibility: "public",
     // Two different people, two different trips. Two rows, so `adds` is 2 —
     // and if a future write path counted raw inserts instead, this is the day
@@ -189,6 +192,7 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
     savedDayId: "aa000000-0000-4000-8000-000000000002",
     ownerId: ALICE,
     name: "Tokyo to Hakone, slowly",
+    summary: "A travel day that does not feel like one: coffee in Nakameguro, the Romancecar out, and an onsen before dinner.",
     visibility: "public",
     // Three rows, not one. Alice's total has to differ from her own DAY count
     // as well as from Bob's total: the profile header renders "days shared" and
@@ -276,6 +280,7 @@ export const JAPAN_SAVED_DAYS: JapanSavedDay[] = [
     savedDayId: "aa000000-0000-4000-8000-000000000005",
     ownerId: BOB,
     name: "Naoshima in one day",
+    summary: "The first ferry, Chichu before the timed slots run out, and the Benesse walk in the afternoon light.",
     visibility: "private",
     addedBy: [],
     stops: [

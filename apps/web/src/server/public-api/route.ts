@@ -10,6 +10,14 @@ import { PublicApiError } from "./commands";
 import { tripAccessFor, type TripAccessDenial } from "@/server/access/trip-access";
 import { consumeQuota, type QuotaPolicy } from "@/server/quota";
 import {
+  completeKey,
+  readIdempotencyKey,
+  releaseKey,
+  REPLAYED_HEADER,
+  requestHash,
+  reserveKey,
+} from "./idempotency";
+import {
   actorHasScope,
   actorMayReachTrip,
   resolveActor,
@@ -99,6 +107,30 @@ interface BaseDef {
   readonly status?: number;
   /** Response headers this endpoint may set, name → description, published in openapi.json. */
   readonly responseHeaders?: Readonly<Record<string, string>>;
+  /**
+   * Honour an `Idempotency-Key` header (ADR-051). `POST` only.
+   *
+   * **Opt-in, per endpoint**, because a replay answers with a stored body
+   * rather than running the handler — right for a write that creates
+   * something, wrong for anything whose answer should be fresh. The contract
+   * (reservation, replay, mismatch, in flight, an unfinished or retryable
+   * answer not kept, 24-hour expiry)
+   * lives in `idempotency.ts` and is the same for every endpoint that sets this.
+   *
+   * `onReplay` runs when a stored answer is replayed instead of the handler, so
+   * an endpoint that logs its outcomes can log that one too.
+   */
+  readonly idempotent?: true | { readonly onReplay?: (replay: ReplayInfo) => void };
+}
+
+/** What `idempotent.onReplay` is told: who asked, about what, and what they were given again. */
+export interface ReplayInfo {
+  readonly actor: Actor;
+  readonly params: Readonly<Record<string, string>>;
+  /** The parsed request body — the same request as the one first answered. */
+  readonly request: unknown;
+  readonly status: number;
+  readonly body: unknown;
 }
 
 /** An endpoint returning one resource. */
@@ -416,6 +448,11 @@ export function route<D extends RouteDefs>(defs: D): { [K in keyof D]: DeclaredH
 }
 
 function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
+  // A declaration error, thrown at import so `conformance.test.ts` and the
+  // openapi generator both trip on it rather than a caller.
+  if (def.idempotent !== undefined && method !== "POST") {
+    throw new Error(`idempotent is declared on ${method}; it is only meaningful on POST`);
+  }
   const handler = async (
     request: Request,
     context: { params: Promise<Record<string, string>> },
@@ -603,61 +640,15 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       );
     }
 
-    // ---- the thing the endpoint actually does ----------------------------
-    const responseHeaders = new Headers();
-    const base: HandlerContext = { actor, params, query, body, trip, role, page, responseHeaders };
-    let payload: unknown;
-    try {
-      payload = isCollection(def)
-        ? await declareCollection(def as CollectionDef<CollectionItem>, base)
-        : await (def as ResourceDef).handle(base);
-    } catch (error) {
-      // **A handler may refuse deliberately**, and that is not a crash. A write
-      // that maps to a command gets its answer from the domain — "no such day",
-      // "not an editor" — and rethrowing it as a 500 would tell a caller the
-      // server broke when in fact they were told no.
-      if (error instanceof PublicApiError) {
-        return fail(
-          (error.code as z.infer<typeof ApiErrorCode> | undefined) ?? codeForStatus(error.status),
-          error.message,
-          error.status,
-          { headers: Object.fromEntries(responseHeaders) },
-        );
-      }
-      // Anything else is ours to explain and never the caller's to read.
-      console.error("v1 handler threw", { method, scope: def.scope, error });
-      return fail("server-error", "Something went wrong. The failure has been logged.", 500);
-    }
-
-    // ---- response shape --------------------------------------------------
-    // **Validated on the way out, every time.** A response that does not match
-    // its declared schema is a contract we published and then broke, and the
-    // one place to find that is here rather than in a caller's parser.
-    const shape = isCollection(def)
-      ? undefined
-      : (def as ResourceDef).response.safeParse(payload);
-    if (shape !== undefined && !shape.success) {
-      console.error("v1 response failed its own schema", {
-        method,
-        scope: def.scope,
-        issues: shape.error.issues,
-      });
-      return fail("server-error", "Something went wrong. The failure has been logged.", 500);
-    }
-
-    // ---- bookkeeping, never blocking -------------------------------------
-    if (actor.via === "token") {
-      // Fire-and-forget: a token that worked must not 500 because a
-      // five-minute-coarsened bookkeeping update lost a race.
-      void touchLastUsed(actor.tokenId).catch((error: unknown) => {
-        console.error("last_used_at touch failed", { tokenId: actor.tokenId, error });
-      });
-    }
-
-    return Response.json(shape === undefined ? payload : shape.data, {
-      status: def.status ?? (method === "POST" ? 201 : 200),
-      headers: responseHeaders,
-    });
+    // ---- Idempotency-Key, where declared ---------------------------------
+    // After every gate and the body parse, so a key is only ever spent on a
+    // request the handler would actually run.
+    const run = () => respond(method, def, { actor, params, query, body, trip, role, page });
+    if (def.idempotent === undefined) return (await run()).response;
+    const header = readIdempotencyKey(request.headers);
+    if ("refused" in header) return fail("invalid-request", header.refused, 400);
+    if (header.key === null) return (await run()).response;
+    return idempotently(method, def, actor, params, header.key, new URL(request.url).pathname, body, run);
   };
 
   return Object.assign(handler, {
@@ -670,6 +661,152 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       def,
     },
   }) as DeclaredHandler;
+}
+
+/**
+ * Run a request under its `Idempotency-Key` (ADR-051): reserve, then run, then
+ * keep the answer — or replay, or refuse. The store's own failures are 500s in
+ * the envelope, like every other infrastructure failure on this surface.
+ */
+async function idempotently(
+  method: HttpMethod,
+  def: MethodDef,
+  actor: Actor,
+  params: Readonly<Record<string, string>>,
+  key: string,
+  path: string,
+  body: unknown,
+  run: () => Promise<Responded>,
+): Promise<Response> {
+  const reservedAt = new Date();
+  let reservation: Awaited<ReturnType<typeof reserveKey>>;
+  try {
+    reservation = await reserveKey(actor.userId, key, { method, path, requestHash: requestHash(body) }, reservedAt);
+  } catch (error) {
+    console.error("v1 idempotency reserve threw", { method, scope: def.scope, error });
+    return fail("server-error", "Something went wrong. The failure has been logged.", 500);
+  }
+  switch (reservation.kind) {
+    case "mismatch":
+      return fail("invalid-request", "Idempotency-Key reused with a different request.", 400);
+    case "in-flight":
+      return fail("conflict", "A request with this Idempotency-Key is still in progress.", 409);
+    case "replay": {
+      if (typeof def.idempotent === "object") {
+        def.idempotent.onReplay?.({
+          actor,
+          params,
+          request: body,
+          status: reservation.status,
+          body: reservation.body,
+        });
+      }
+      return Response.json(reservation.body, {
+        status: reservation.status,
+        headers: { [REPLAYED_HEADER]: "true" },
+      });
+    }
+    case "run":
+      break;
+  }
+
+  const { response, keep } = await run();
+  // **The answer is kept only once it is known to be one worth replaying.** A
+  // failure to keep it is logged and not surfaced: the caller's request did
+  // succeed, and the key is left in flight until its lease runs out.
+  //
+  // **Kept is decided by whether the handler finished, not by the status.** A
+  // 500 from a payload that failed its own schema comes after the handler's
+  // writes committed; releasing that key would let a retry write them twice.
+  try {
+    if (!keep) {
+      await releaseKey(actor.userId, key, reservedAt);
+    } else {
+      await completeKey(actor.userId, key, reservedAt, response.status, await response.clone().json(), new Date());
+    }
+  } catch (error) {
+    console.error("v1 idempotency completion threw", { method, scope: def.scope, error });
+  }
+  return response;
+}
+
+/**
+ * A response, and whether an `Idempotency-Key` may keep it (ADR-051). `keep` is
+ * false only when the handler did not finish — it threw something other than a
+ * `PublicApiError`, so its writes may or may not have landed — or when it
+ * refused with one marked `retryable`.
+ */
+interface Responded {
+  readonly response: Response;
+  readonly keep: boolean;
+}
+
+/** The handler, its response check, and bookkeeping — everything after the gates. */
+async function respond(
+  method: HttpMethod,
+  def: MethodDef,
+  gated: Omit<HandlerContext, "responseHeaders">,
+): Promise<Responded> {
+  const { actor } = gated;
+  // ---- the thing the endpoint actually does ----------------------------
+  const responseHeaders = new Headers();
+  const base: HandlerContext = { ...gated, responseHeaders };
+  let payload: unknown;
+  try {
+    payload = isCollection(def)
+      ? await declareCollection(def as CollectionDef<CollectionItem>, base)
+      : await (def as ResourceDef).handle(base);
+  } catch (error) {
+    // **A handler may refuse deliberately**, and that is not a crash. A write
+    // that maps to a command gets its answer from the domain — "no such day",
+    // "not an editor" — and rethrowing it as a 500 would tell a caller the
+    // server broke when in fact they were told no.
+    if (error instanceof PublicApiError) {
+      const response = fail(
+        (error.code as z.infer<typeof ApiErrorCode> | undefined) ?? codeForStatus(error.status),
+        error.message,
+        error.status,
+        { details: error.details, headers: Object.fromEntries(responseHeaders) },
+      );
+      return { response, keep: error.retryable !== true };
+    }
+    // Anything else is ours to explain and never the caller's to read.
+    console.error("v1 handler threw", { method, scope: def.scope, error });
+    return { response: fail("server-error", "Something went wrong. The failure has been logged.", 500), keep: false };
+  }
+
+  // ---- response shape --------------------------------------------------
+  // **Validated on the way out, every time.** A response that does not match
+  // its declared schema is a contract we published and then broke, and the
+  // one place to find that is here rather than in a caller's parser.
+  const shape = isCollection(def)
+    ? undefined
+    : (def as ResourceDef).response.safeParse(payload);
+  if (shape !== undefined && !shape.success) {
+    console.error("v1 response failed its own schema", {
+      method,
+      scope: def.scope,
+      issues: shape.error.issues,
+    });
+    return { response: fail("server-error", "Something went wrong. The failure has been logged.", 500), keep: true };
+  }
+
+  // ---- bookkeeping, never blocking -------------------------------------
+  if (actor.via === "token") {
+    // Fire-and-forget: a token that worked must not 500 because a
+    // five-minute-coarsened bookkeeping update lost a race.
+    void touchLastUsed(actor.tokenId).catch((error: unknown) => {
+      console.error("last_used_at touch failed", { tokenId: actor.tokenId, error });
+    });
+  }
+
+  return {
+    response: Response.json(shape === undefined ? payload : shape.data, {
+      status: def.status ?? (method === "POST" ? 201 : 200),
+      headers: responseHeaders,
+    }),
+    keep: true,
+  };
 }
 
 /** Run a collection handler and wrap its page, validating each item. */

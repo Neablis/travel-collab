@@ -81,6 +81,12 @@ export type JapanTripReport = {
    */
   savedDaysByOwner: Record<string, SavedDayOwnerReport>;
   savedDayCount: number;
+  /**
+   * How many saved days carry an authored `summary` (ADR-050, Pass A). Counted
+   * rather than asserted "> 0" alone, so a day losing its summary is a moved
+   * number and not only a coverage finding.
+   */
+  savedDaysWithSummary: number;
   /** Every city the library touches, sorted. Discover searches this set. */
   savedDayCities: string[];
   /** Findings. Every one of these is expected to be empty; a non-empty list is a failure. */
@@ -394,6 +400,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     daysNeedingBooking,
     savedDaysByOwner,
     savedDayCount: JAPAN_SAVED_DAYS.length,
+    savedDaysWithSummary: JAPAN_SAVED_DAYS.filter((d) => d.summary !== undefined).length,
     savedDayCities: [...savedDayCities].sort(),
     rejections,
     emptyDays,
@@ -439,6 +446,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("conflicts", `${report.conflictTotal} (${histogram(report.conflictsByKind)})`);
   row("days needing booking", `${report.daysNeedingBooking}/${report.dayCount}`);
   row("saved days", report.savedDayCount);
+  row("saved days with a summary", `${report.savedDaysWithSummary}/${report.savedDayCount}`);
   row("saved-day cities", report.savedDayCities.join(", "));
   for (const [ownerId, owner] of Object.entries(report.savedDaysByOwner).sort()) {
     row(`  ${ownerId}`, `${owner.days} days / ${owner.published} public / ${owner.adds} adds / ${owner.cities.join(", ")}`);

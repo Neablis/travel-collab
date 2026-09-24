@@ -97,6 +97,7 @@ export {
   BundleTrip,
   ContentBundleV1,
   parseBundle,
+  PlaybookImportBundle,
   TripImportBundle,
 } from "./bundle/schema.ts";
 export { bundleId } from "./bundle/ids.ts";
@@ -106,8 +107,16 @@ export {
   toBundleStop,
   TripExportBundle,
   tripToBundle,
+  type StopFields,
   type TripToBundleOptions,
 } from "./bundle/fromTrip.ts";
+// A Playbook as a file (ADR-050, Pass C) — the other end of `toPlaybooks`.
+export {
+  PlaybookExportBundle,
+  playbookToBundle,
+  toBundleDays,
+  type PlaybookToBundleOptions,
+} from "./bundle/fromPlaybook.ts";
 export {
   addDays as addCalendarDays,
   bundleActivityCommands,
@@ -120,6 +129,7 @@ export {
 export {
   playbookIdFor,
   resolvePlaybook,
+  toSavedSequence,
   toSavedStop,
   type ResolvedPlaybook,
 } from "./bundle/toPlaybooks.ts";

@@ -97,7 +97,7 @@ A token is either account-wide or confined to named trips.
   you hold loses it on the next request.
 
 **A confined token is refused on any endpoint that is not about one trip**
-(`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`). Creating a new trip
+(`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`, `POST /v1/playbooks`). Creating a new trip
 from a credential restricted to two existing ones is a widening.
 
 ### Two gates, always in this order
@@ -293,6 +293,222 @@ which is `premium@v2` — so `GET /v1/trips/{tripId}/export` answers 402 for an
 account that cannot hold one. That is *the API* being gated, exactly as it is
 for `GET /v1/trips`; the free path is the UI one.
 
+### Playbooks: keeping days, and applying them to a trip
+
+A Playbook is one or more days kept from a trip, in an order you choose. It is
+the same thing as a saved day in your library — `/v1/playbooks` and
+`/v1/library` list the **same items** — but `/v1/playbooks` speaks in several
+days, where `/v1/library` keeps its published singular `dayId` (ADR-050). Only
+`/v1/playbooks` shows a Playbook's `version` and `summary`.
+
+| | Scope | Role | Notes |
+|---|---|---|---|
+| `GET /v1/playbooks` | `library:read` | — | Yours, newest first, paged like every collection. `?visibility=private\|public` filters |
+| `POST /v1/playbooks` | `library:write` | `viewer` on the source trip, checked by hand (from-a-trip only) | One of the two bodies below. Answers `{ playbook, warnings }`, 201. Takes `Idempotency-Key` |
+| `GET /v1/playbooks/{playbookId}` | `library:read` | — | Yours, or anyone's published one; otherwise 404 |
+| `PATCH /v1/playbooks/{playbookId}` | `library:write` | — | Edit or publish — see below. Answers `{ playbook, warnings }` |
+| `DELETE /v1/playbooks/{playbookId}` | `library:write` | — | A published Playbook must be unpublished first (409) |
+| `POST /v1/trips/{tripId}/playbook-applications` | `trips:write` | `editor` on the destination | `{ playbookId, version?, placement?, expectedTripSeq? }`. Answers 201. Takes `Idempotency-Key` |
+| `GET /v1/playbooks/{playbookId}/export` | `library:read` | — | The Playbook as a file — see below. Readable on `GET`'s terms |
+| `POST /v1/playbooks/import` | `library:write` | — | A file with one playbook becomes a new Playbook of yours. Answers `{ playbook, warnings, sourceVersion }`, 201. Takes `Idempotency-Key` |
+| `GET /v1/discover/playbooks` | `library:read` | — | Everyone's published Playbooks, as Discover's cards — see below |
+
+**Creating takes exactly one of two bodies.** Both refuse unknown fields, so a
+body carrying both `source` and `days` matches neither and is a 400. (The
+generated reference shows them as `anyOf`; the generator has no `oneOf`.)
+
+```json
+{ "name": "Kyoto, two mornings", "summary": "…",
+  "source": { "tripId": "…", "days": [
+    { "dayId": "…" },
+    { "dayId": "…", "activityIds": ["…", "…"] } ] } }
+```
+
+- **From a trip.** `days` is an ordered set, not a range: keep days 5, 1 and 3
+  and you get a three-day Playbook whose day 0 is your day 5. Omit `activityIds`
+  to keep the whole day; send it to keep only those activities — **in the
+  trip's order, not the order you listed them**. `[]` keeps the day, empty. An
+  activity that is not on the day you named it with is a 400 naming it. The
+  same day twice is refused, and so is a selection with no stops at all; an
+  empty day among others is kept as a rest day.
+
+```json
+{ "name": "Rest in the middle", "sourceName": "My notes",
+  "days": [ { "stops": [ { "title": "Arrive", "timeWindow": null, "location": null,
+      "notes": null, "anchors": [], "kind": "planned", "tags": [], "cost": null } ] },
+    { "stops": [] },
+    { "stops": [ … ] } ] }
+```
+
+- **Inline.** Each stop is a `SavedStop` without `dayIndex` — its day is the one
+  you wrote it in. The Playbook is `days.length` days long; empty days are rest
+  days, but it needs at least one stop. No trip is read, so none is credited:
+  `sourceTripId` is a freshly minted id that names no trip, and
+  `sourceTripName` is your `sourceName`, or the Playbook's `name`.
+- **Limits:** 1–366 days and at most 500 stops, either way — a 400 past either.
+- **Calendar dates do not travel.** A Playbook has no dates, so a stop's
+  `dateRange` anchor is removed on the way in, in both modes, and reported:
+
+```json
+{ "playbook": { … }, "warnings": [ { "code": "date-anchor-removed", "stopIndex": 3,
+    "title": "Flea market", "message": "…" } ] }
+```
+
+  Weekday, time-of-day and public-holiday anchors are kept. (The app's own keep
+  does not strip them yet; see ADR-050.)
+
+**Editing is versioned.** Every Playbook carries `version`, starting at 1.
+`PATCH` takes any of `{ name, summary, visibility, days, expectedVersion }`:
+
+- Changing `name`, `summary` (`null` clears it) or `days` **needs
+  `expectedVersion`** — the `version` you read. If it is no longer current the
+  answer is **409 `conflict`** with `details: { currentVersion }` and nothing is
+  written: read the Playbook again and resend. A success moves `version` by
+  exactly one, however many of the three you changed.
+- `days` takes the inline shape above and replaces every day and stop; cities,
+  countries and the day count are recomputed from it. **Only while the Playbook
+  is private** — reviews rate the published content, so a published Playbook's
+  days are a 409 ("Unpublish it before editing its days"). Its name and summary
+  can change while published.
+- `visibility` alone needs no version and does not bump it. Sent with a content
+  change, it happens in the same write, and the "private" check is against the
+  stored state — so `{ days, visibility: "public", expectedVersion }` on a
+  private Playbook edits and publishes in one step.
+
+**Applying** puts every day of the Playbook into the trip, empty days included,
+with every stop on the day it belongs to:
+
+```json
+{ "playbookId": "…", "version": 3,
+  "placement": { "mode": "startingAt", "dayId": "…" },
+  "expectedTripSeq": 41 }
+```
+
+Only `playbookId` is required. The answer:
+
+```json
+{ "tripId": "…", "playbookId": "…", "playbookVersion": 3,
+  "dayIds": ["…", "…"], "createdDayIds": ["…"], "activityIds": ["…", "…", "…"],
+  "historySeq": 42, "warnings": [] }
+```
+
+- **Placement.** `{ "mode": "append" }`, the default, adds every Playbook day at
+  the end of the trip. `{ "mode": "startingAt", "dayId" }` **merges**: Playbook
+  day 0 goes onto `dayId`, day 1 onto the trip's next day, and so on; only the
+  days that run past the end of the trip are added, at the end. Nothing is ever
+  inserted *between* two days — the trip's own days never move. An unknown
+  `dayId` is a 400. If the trip's days change between your request and the
+  write, the answer is a 409 rather than a stop on the wrong day.
+- **`dayIds[i]`** is the trip day the Playbook's day `i` landed on — new on an
+  append, existing (then new) on a merge. **`createdDayIds`** is only the days
+  this application added. **`activityIds[i]`** is the Playbook's `stops[i]`.
+- **`version`** applies only if the Playbook is still at that version; otherwise
+  **409 `conflict`** with `details: { currentVersion }`, and nothing is written.
+  `playbookVersion` says which version was applied either way.
+- **`expectedTripSeq`** applies only if the trip still stands at that revision —
+  the `historySeq` of your last write, or the newest history entry's `toSeq`.
+  Otherwise **409 `conflict`** with `details: { currentSeq }`, and nothing is
+  written. It is checked inside the write's own transaction, not before it.
+- **Atomic.** All of it lands or none of it does.
+- **One undo.** The whole application is one history entry, and `historySeq` is
+  that entry's revision — while it is the trip's last change, one
+  `POST …/history/undo` takes all of it back, merged stops included.
+- **Fresh ids, every time.** The same Playbook applied twice gives you two sets
+  of stops (and, on an append, two sets of days) — unless you send the same
+  `Idempotency-Key`, below.
+- **`warnings` never stop anything.** `{ "code": "conflict", "conflictId",
+  "activityIds", "message" }` for each conflict the application introduced that
+  involves a new stop — two stops whose times overlap, say. `{ "code":
+  "weekday-mismatch", "activityId", "message" }` for a stop anchored to certain
+  weekdays that landed on a dated day that is none of them. Every stop is
+  applied regardless.
+- **Nothing of the source trip comes across** — not its dates, not its ids. A
+  stop carries its title, time window, place (coordinates exactly as stored —
+  applying never geocodes), notes, anchors, kind, tags and cost.
+- **Somebody else's Playbook** applies if they published it, and is a 404 if
+  they did not — the same answer as one that does not exist.
+
+**Not yet:** applying some of a Playbook's days, or inserting between a trip's
+existing days (`startingAt` merges onto them instead).
+
+**A Playbook as a file.** `GET /v1/playbooks/{playbookId}/export` answers a
+`content-bundle/v1` document — the trip export's format — carrying exactly one
+entry in `playbooks` and nothing else. The Playbook is written in the `days`
+form, every day in order with rest days as `{ "stops": [] }`, so `dayCount`
+survives; each stop carries every field it has; `summary`, `visibility`,
+`version` and `origin` (who wrote the words) come too. **Left out on purpose:**
+who has added it to which trip, its reviews and rating, and the source trip's
+id — the source is named (`sourceTrip.name`) and never pointed at. `ownerId` is
+written because every reader can already see it. A Playbook written inline with
+a stop title over 200 characters (or empty) or notes over 2,000 cannot be said in
+the format, and is a **409** naming the stop rather than a file with it cut.
+
+`POST /v1/playbooks/import` takes that file back — or any bundle with **exactly
+one playbook and no trips** (otherwise a 400 naming the count). The file is
+content, never authority:
+
+- **You own the result**, whatever its `ownerId` says.
+- **It starts private.** A file that said `public` adds a
+  `{ "code": "visibility-reset" }` warning; publish with a `PATCH`.
+- **It starts at `version` 1.** The file's `version` is echoed as
+  `sourceVersion` and not stored.
+- **Ids are minted**, the source trip id included; the adds ledger is ignored.
+  The same file imported twice is two Playbooks.
+- Stops pass the same checks and the same date-anchor stripping as
+  `POST /v1/playbooks` (with its `date-anchor-removed` warning), and the same
+  bounds: 366 days, 500 stops, 2,000,000 bytes.
+
+Export → import reproduces the name, summary, every day and every stop field.
+
+**Discover.** `GET /v1/discover/playbooks` lists **published** Playbooks from
+everyone — yours included, your private ones never — as the same cards the app's
+Discover page draws: derived facts, day one's first three stops, rating and
+review count, `ownerId`. Open one with `GET /v1/playbooks/{playbookId}`.
+
+| Query | Meaning |
+|---|---|
+| `city` | One city, spelled as stored (`GET /v1/cities`) |
+| `country` | One ISO alpha-2 code. With `city`, a Playbook touching either matches |
+| `length` | `one`, `two-three`, `four-six`, `seven-plus` |
+| `rating` | Minimum average: `3`, `4`, `4.5`; any floor drops unrated Playbooks |
+| `sort` | `most-added` (default), `highest-rated`, `most-reviewed`, `newest`. Places matched rank first, as in the app |
+
+Paged like every collection (`limit` 1–200, `nextCursor`). The cursor is the
+last card's id, and the next page is what ranks after that Playbook **now** — so
+while nothing moves you see each Playbook once, and a Playbook whose adds or
+rating change between your requests can move across the page boundary. `newest`
+is the sort that holds still. The app's budget filter is not offered: it is
+worked out from each Playbook's stops after the query, and cannot page.
+
+### Retrying safely: `Idempotency-Key`
+
+An endpoint that takes it says so in the reference (the `Idempotency-Key` header
+parameter); today that is `POST /v1/trips/{tripId}/playbook-applications`,
+`POST /v1/playbooks` and `POST /v1/playbooks/import`. Send
+any string of 1–255 characters, fresh per operation — a UUID is the obvious
+choice — and reuse it only to retry that same operation.
+
+| You send the key again… | You get |
+|---|---|
+| with the same request, after the first finished | The first answer — same status, same body — with `Idempotent-Replayed: true`. Nothing runs again |
+| with the same request, while the first is still running | **409 `conflict`**. Wait and retry |
+| with a different method, path or body | **400 `invalid-request`**, "Idempotency-Key reused with a different request" |
+| more than 24 hours after it was first used | A fresh run: the key has expired |
+
+- Keys are **per account**: all your tokens share them, and nobody else's key can
+  replay your answer.
+- "The same body" means the same JSON value — key order does not matter.
+- **An answer is kept once the request has run**: every 2xx and 4xx, and a 5xx
+  that came after the work was done. A 409 for a stale `version` or
+  `expectedTripSeq` replays as that 409 — send a new key with the corrected
+  request.
+- **Two answers are not kept**, so retrying after one with the same key runs the
+  request again: a 5xx from a request that did not finish, and the 409 an
+  apply without `expectedTripSeq` gets when another write landed at the same
+  moment (sending the same body again can succeed).
+- A request refused before it runs — bad JSON, a missing scope, no access to the
+  trip — spends no key.
+
 ### What is not here, and will not be
 
 - **The assistant.** A token cannot spend model budget.
@@ -337,6 +553,15 @@ and pagination — once, for every endpoint that will ever exist.
 **`conformance.test.ts` fails CI on a raw `export async function GET` under
 `v1/`**, and on a declaration that names a trip without a role. That is what
 makes "the directory is the registry" true rather than intended.
+
+**A `POST` that creates something can add `idempotent: true`** and get the
+whole `Idempotency-Key` contract above — reservation, replay, mismatch, in
+flight, an unfinished or `retryable` answer not kept, 24-hour expiry — plus its header in the reference
+(ADR-051). `{ onReplay }` instead of `true` lets an endpoint that logs its
+outcomes log a replay too; `playbook-applications` is the worked example.
+A refusal that the same request sent again might not get — a race lost at the
+append, with no precondition from the caller — is thrown as
+`new PublicApiError(409, message, code, details, { retryable: true })`, so the key is given back.
 
 ### What a new endpoint still costs
 

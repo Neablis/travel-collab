@@ -4,6 +4,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import type { z } from "zod";
 import { API_SCOPES, SCOPE_CATALOGUE } from "@tc/contracts";
 import { DECLARED, MAX_PAGE_LIMIT, type DeclaredHandler, type MethodDef } from "./route";
+import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
 
 // **The reference docs, derived — never written twice** (Decision 9).
 //
@@ -120,6 +121,26 @@ export function buildOpenApi(
         }
       }
 
+      if (def.idempotent !== undefined) {
+        parameters.push({
+          name: "Idempotency-Key",
+          in: "header",
+          required: false,
+          description:
+            "Optional. A retry with the same key and the same request replays the first answer instead of " +
+            "running again; the same key with a different request is a 400, and one still in progress is a " +
+            "409. Kept for 24 hours, per account. A 5xx is not kept.",
+          schema: { type: "string", minLength: 1, maxLength: IDEMPOTENCY_KEY_MAX_LENGTH },
+        });
+      }
+
+      const responseHeaders = {
+        ...def.responseHeaders,
+        ...(def.idempotent === undefined
+          ? {}
+          : { [REPLAYED_HEADER]: "`true` when this answer is a replay of an earlier request with the same Idempotency-Key." }),
+      };
+
       const responseSchema =
         "collection" in def
           ? {
@@ -157,11 +178,11 @@ export function buildOpenApi(
         responses: {
           [String(status)]: {
             description: "Success.",
-            ...(def.responseHeaders === undefined
+            ...(Object.keys(responseHeaders).length === 0
               ? {}
               : {
                   headers: Object.fromEntries(
-                    Object.entries(def.responseHeaders).map(([name, description]) => [
+                    Object.entries(responseHeaders).map(([name, description]) => [
                       name,
                       { description, schema: { type: "string" } },
                     ]),

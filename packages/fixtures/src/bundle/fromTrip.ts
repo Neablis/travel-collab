@@ -81,6 +81,12 @@ export type TripToBundleOptions = {
   generatedAt?: string;
 };
 
+/** What `toBundleStop` reads: the stop fields an activity and a `SavedStop` share. */
+export type StopFields = Pick<
+  ActivityView,
+  "title" | "timeWindow" | "location" | "notes" | "anchors" | "kind" | "tags" | "cost"
+>;
+
 /**
  * A slug for `bundle.id` and `trips[].key`, both `^[a-z0-9-]+$`.
  *
@@ -125,8 +131,12 @@ export function bundleKeyFor(trip: Pick<TripDetail, "tripId" | "name">): string 
  * the other direction: the importer writes no `tags` key for an empty array, so
  * writing one here would make the two ends disagree on a file neither of them
  * is wrong about.
+ *
+ * **Typed over the eight fields it reads, not over `ActivityView`**, so a
+ * Playbook's `SavedStop` — the same fields, minus an id — goes through this
+ * same translation on export (`fromPlaybook.ts`) rather than a second copy.
  */
-export function toBundleStop(activity: ActivityView): BundleStop {
+export function toBundleStop(activity: StopFields): BundleStop {
   return {
     title: activity.title,
     ...(activity.timeWindow ? { timeWindow: activity.timeWindow } : {}),

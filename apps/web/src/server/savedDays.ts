@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import {
   SavedDayAuthorKind,
   SavedDayVisibility,
@@ -9,12 +9,13 @@ import {
   type SavedDay,
   type TripDetail,
 } from "@tc/contracts";
-import { citiesOfSequence, countriesOfStops } from "@tc/domain";
+import { citiesOfSequence, countriesOfStops, foldEnvelopes } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
 import { parseSavedDayColumns } from "./savedDayRow";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
+import { readStream } from "./eventStore";
 import { addCounts, recordAdd } from "./savedDayAdds";
 import type { AccessError, AccessResult } from "./access/invites";
 // Shared with the UI (the Keep-this-day dialog describes what it is about to
@@ -56,6 +57,8 @@ function toDto(row: SavedDayRow, stops: SavedStop[]): SavedDay {
     sourceTripId: row.sourceTripId,
     sourceTripName: row.sourceTripName,
     createdAt: row.createdAt.toISOString(),
+    version: row.version,
+    summary: row.summary,
   };
 }
 
@@ -103,6 +106,10 @@ function fromRow(row: SavedDayRow): SavedDay | null {
  * middle, and leaves nothing at all when it is last — so the count has to come
  * from the selection, which is the only place that knows. Keep three days and
  * the Playbook is three days, whatever the third one holds.
+ *
+ * The two halves — `captureDays` and `storeSavedDay` — are exported because
+ * `/v1/playbooks` runs a step between them (ADR-050, Pass A). This composition
+ * is what the app's keep does, unchanged.
  */
 export async function saveDay(
   input: { name: string; dayIds: readonly string[] },
@@ -110,23 +117,94 @@ export async function saveDay(
   ownerId: string,
   now: string = new Date().toISOString(),
 ): Promise<AccessResult<SavedDay>> {
+  const captured = captureDays(detail, input.dayIds);
+  if (!captured.ok) return captured;
+  return storeSavedDay({
+    ownerId,
+    name: input.name,
+    stops: captured.value,
+    dayCount: input.dayIds.length,
+    sourceTripId: detail.tripId,
+    sourceTripName: detail.name,
+    now,
+    context: { tripId: detail.tripId, dayIds: input.dayIds },
+  });
+}
+
+/**
+ * The stops a selection of a trip's days would keep, or the refusal.
+ *
+ * `keepOnly` narrows a day to some of its activities (ADR-050, Pass A) — the
+ * app never passes it, so its keep is whole days exactly as before. A day named
+ * there keeps only those activities, **in the trip's order, not the order
+ * given**: a Playbook's day is the day as it ran, minus what you left out. An
+ * id that is not on the day it was named with is refused by name, rather than
+ * silently dropped — a caller who typed one wrong id would otherwise get a
+ * Playbook quietly missing a stop.
+ */
+export function captureDays(
+  detail: TripDetail,
+  dayIds: readonly string[],
+  keepOnly?: ReadonlyMap<string, readonly string[]>,
+): AccessResult<SavedStop[]> {
   // A repeated day is a caller bug, not a repetition feature: two identical
   // `dayIndex` groups would be indistinguishable from one day's stops split
   // across two days, and no UI can produce it — the calendar toggles a day on
   // or off. Refused here rather than silently de-duplicated, because
   // de-duplicating would quietly save fewer days than the caller asked for.
-  if (new Set(input.dayIds).size !== input.dayIds.length) {
+  if (new Set(dayIds).size !== dayIds.length) {
     return { ok: false, error: { code: "invalid", message: "That list names the same day twice." } };
   }
-  const stops = stopsForDays(detail, input.dayIds);
+  const filter = new Map<string, ReadonlySet<string>>();
+  for (const [dayId, activityIds] of keepOnly ?? []) {
+    const day = detail.days.find((d) => d.dayId === dayId);
+    // A missing DAY is `stopsForDays`' refusal below, with its own words.
+    if (day === undefined) continue;
+    const onDay = new Set(day.activityIds);
+    const foreign = activityIds.find((id) => !onDay.has(id));
+    if (foreign !== undefined) {
+      return {
+        ok: false,
+        error: { code: "invalid", message: `Activity ${foreign} is not on day ${dayId}.` },
+      };
+    }
+    filter.set(dayId, new Set(activityIds));
+  }
+  const stops = stopsForDays(detail, dayIds, filter);
   if (stops === null) {
     return { ok: false, error: { code: "not-found", message: "That day is not in this trip." } };
   }
+  return { ok: true, value: stops };
+}
+
+/**
+ * Validate a sequence and insert it as a new `saved_days` row — every write of
+ * a new Playbook by a person goes through here, whether its stops came from a
+ * trip or from the request body.
+ */
+export async function storeSavedDay(input: {
+  ownerId: string;
+  name: string;
+  summary?: string | null;
+  stops: SavedStop[];
+  dayCount: number;
+  sourceTripId: string;
+  sourceTripName: string;
+  /**
+   * Who wrote the words — absent = a person. Only `POST /v1/playbooks/import`
+   * passes it: a file declares its own `origin`, and an AI-written Playbook
+   * uploaded by a person is still AI-written (ADR-050, Pass C).
+   */
+  authorKind?: SavedDayAuthorKind;
+  now: string;
+  /** What the refusal log names, so a bad write can be traced to its source. */
+  context: Record<string, unknown>;
+}): Promise<AccessResult<SavedDay>> {
   // A selection that holds nothing at all saves nothing worth reusing, and the
   // "Save" button is disabled for one — but the API is the boundary, so it says
   // so too. Note this is the WHOLE selection being empty: one empty day among
   // three is a rest day, and it is kept.
-  if (stops.length === 0) {
+  if (input.stops.length === 0) {
     return { ok: false, error: { code: "invalid", message: "Those days have no stops to save." } };
   }
   // Trimmed BEFORE the emptiness check, not after: `SavedDay.name` requires
@@ -149,26 +227,72 @@ export async function saveDay(
   // enforces `dayIndex` monotonicity (ADR-048 decision 3). The two READ
   // boundaries must not: they sort and keep, because dropping a row whose stops
   // are each valid is how a library empties itself (KI-20260905-l).
-  const validated = SavedDaySequence.safeParse(stops);
+  const validated = SavedDaySequence.safeParse(input.stops);
   if (!validated.success) {
     console.error("refused to save a day whose stops do not match SavedStop", {
-      tripId: detail.tripId,
-      dayIds: input.dayIds,
+      ...input.context,
       issues: validated.error.issues,
     });
     return { ok: false, error: { code: "invalid", message: "This day cannot be saved." } };
   }
   const row = newSavedDayRow({
-    ownerId,
+    ownerId: input.ownerId,
     name,
+    summary: input.summary,
     stops: validated.data,
-    dayCount: input.dayIds.length,
-    sourceTripId: detail.tripId,
-    sourceTripName: detail.name,
-    createdAt: new Date(now),
+    dayCount: input.dayCount,
+    sourceTripId: input.sourceTripId,
+    sourceTripName: input.sourceTripName,
+    ...(input.authorKind !== undefined ? { authorKind: input.authorKind } : {}),
+    createdAt: new Date(input.now),
   });
   await db.insert(savedDays).values(row);
   return { ok: true, value: toDto(row, validated.data) };
+}
+
+/**
+ * **The columns a sequence's stops decide** — stored snapshots, never authored.
+ *
+ * One function because two writers need it: `newSavedDayRow` on insert, and
+ * `updatePlaybookContent` when a Playbook's days are replaced (ADR-050, Pass A).
+ * A replace that recomputed `cities` and forgot `countries` would leave a
+ * Playbook findable by a country it no longer visits.
+ */
+function sequenceColumns(
+  stops: SavedStop[],
+  dayCount: number | undefined,
+): Pick<SavedDayRow, "stops" | "dayCount" | "cities" | "countries"> {
+  return {
+    stops,
+    // The floor when the caller did not say — see `newSavedDayRow`'s
+    // `dayCount`. Never below it either way: a count that cannot hold its own
+    // stops is the one value `parseSavedDayColumns` has to repair on every read.
+    dayCount: Math.max(
+      dayCount ?? 1,
+      stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
+    ),
+    // Derived HERE, once, at save time — the snapshot ADR-029 already takes of
+    // `sourceTripName`, for the reason link 1 gives: `stops` is jsonb because a
+    // saved day is never queried into, and Discover has to search on cities.
+    //
+    // `citiesOfSequence` is the domain's single rule FOLDED PER DAY (M23,
+    // ADR-048 decision 4) — `citiesOfStops` itself sorts timed stops into time
+    // order across everything it is handed, which is right for one day and
+    // silently wrong for three: day 3's 08:00 stop would sort ahead of day 1's
+    // 14:00 one, and this snapshot would be in an order the sequence never runs
+    // in. Over a one-day sequence the two are byte-identical.
+    //
+    // `citiesOfStops` is the domain's single rule, the same one `citiesOfDay`
+    // folds for the trip readout. A second implementation over `SavedStop[]`
+    // would be free to drift, and a profile whose cities disagree with
+    // Discover's is a gate box, not a rounding error.
+    cities: citiesOfSequence(stops),
+    // `cities`' sibling (M12 link 7), snapshotted here for the same reason.
+    // `countriesOfStops` rather than a per-day fold: a country set's order
+    // means nothing, and this is the exact call the backfill makes through
+    // `savedDayCountries.ts`, so the two writers agree byte-for-byte.
+    countries: countriesOfStops(stops),
+  };
 }
 
 /**
@@ -185,6 +309,8 @@ export async function saveDay(
 export function newSavedDayRow(input: {
   ownerId: string;
   name: string;
+  /** Authored, or absent — stored as null. Only a person or a bundle writes one. */
+  summary?: string | null;
   stops: SavedStop[];
   sourceTripId: string;
   sourceTripName: string;
@@ -211,10 +337,11 @@ export function newSavedDayRow(input: {
    * How many days this sequence spans. **Defaults to the stops' own floor**
    * (`max(dayIndex) + 1`), which is what a caller holding only stops can know —
    * the content importer and the demo seed are both in that position, because a
-   * bundle declares stops and not a selection. Only `saveDay` passes this, and
-   * only it can: the count of days SELECTED is the one fact that distinguishes
-   * a three-day keep whose last day is empty from a two-day keep, and the
-   * selection is the only place it exists (ADR-048 decision 2).
+   * bundle declares stops and not a selection. A caller that knows the
+   * selection passes it — `storeSavedDay`, and the content importer from a
+   * bundle's authored `days:` — because the count of days SELECTED is the one
+   * fact that distinguishes a three-day keep whose last day is empty from a
+   * two-day keep (ADR-048 decision 2).
    */
   dayCount?: number;
 }): SavedDayRow {
@@ -223,30 +350,10 @@ export function newSavedDayRow(input: {
     id: input.savedDayId ?? randomUUID(),
     ownerId: input.ownerId,
     name: input.name,
-    stops: input.stops,
-    // The floor when the caller did not say — see `dayCount` above. Never below
-    // it either way: a count that cannot hold its own stops is the one value
-    // `parseSavedDayColumns` has to repair on every read.
-    dayCount: Math.max(
-      input.dayCount ?? 1,
-      input.stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
-    ),
-    // Derived HERE, once, at save time — the snapshot ADR-029 already takes of
-    // `sourceTripName`, for the reason link 1 gives: `stops` is jsonb because a
-    // saved day is never queried into, and Discover has to search on cities.
-    //
-    // `citiesOfSequence` is the domain's single rule FOLDED PER DAY (M23,
-    // ADR-048 decision 4) — `citiesOfStops` itself sorts timed stops into time
-    // order across everything it is handed, which is right for one day and
-    // silently wrong for three: day 3's 08:00 stop would sort ahead of day 1's
-    // 14:00 one, and this snapshot would be in an order the sequence never runs
-    // in. Over a one-day sequence the two are byte-identical.
-    //
-    // `citiesOfStops` is the domain's single rule, the same one `citiesOfDay`
-    // folds for the trip readout. A second implementation over `SavedStop[]`
-    // would be free to drift, and a profile whose cities disagree with
-    // Discover's is a gate box, not a rounding error.
-    cities: citiesOfSequence(input.stops),
+    summary: input.summary ?? null,
+    // Never edited. Only `updatePlaybookContent` moves it, and only by one.
+    version: 1,
+    ...sequenceColumns(input.stops, input.dayCount),
     // Private until its author says otherwise (M11b link 3). Spelled through
     // the contract's enum rather than as the literal "private", so the set of
     // visibilities has exactly one definition — the rule M11a set for
@@ -260,11 +367,6 @@ export function newSavedDayRow(input: {
     // from `saved_day_reviews` (see the schema note on `saved_days.rating`).
     rating: null,
     reviewCount: 0,
-    // `cities`' sibling (M12 link 7), snapshotted here for the same reason.
-    // `countriesOfStops` rather than a per-day fold: a country set's order
-    // means nothing, and this is the exact call the backfill makes through
-    // `savedDayCountries.ts`, so the two writers agree byte-for-byte.
-    countries: countriesOfStops(input.stops),
     // Not moderated. Only an operator action moves these.
     moderatedAt: null,
     moderationNote: null,
@@ -535,6 +637,174 @@ export async function setSavedDayVisibility(
 }
 
 /**
+ * An edit to one of your Playbooks (ADR-050, Pass A). Every field optional; the
+ * route refuses an empty one.
+ *
+ * `name`, `summary` and `days` are CONTENT, and need `expectedVersion`.
+ * `visibility` is not — it changes who can see the content, not what it says.
+ */
+export type PlaybookEdit = {
+  name?: string;
+  summary?: string | null;
+  /** Replaces every stop. `dayCount` is the number of days authored, empty ones included. */
+  days?: { stops: SavedStop[]; dayCount: number };
+  visibility?: SavedDayVisibility;
+  expectedVersion?: number;
+};
+
+export type PlaybookEditOutcome =
+  | { ok: true; value: SavedDay }
+  | { ok: false; reason: "not-found" }
+  | { ok: false; reason: "invalid"; message: string }
+  /** `expectedVersion` was not the stored one. Nothing was written. */
+  | { ok: false; reason: "stale"; currentVersion: number }
+  /** `days` on a published Playbook. Nothing was written. */
+  | { ok: false; reason: "published" };
+
+/**
+ * Edit one of your own Playbooks — its content, its visibility, or both.
+ *
+ * **One UPDATE, and the precondition is in its WHERE clause.** A content edit
+ * matches only `version = expectedVersion` and sets `version = version + 1` in
+ * the same statement, so two editors holding version 3 cannot both write: the
+ * second matches no row. A read-then-write would let both pass the read.
+ *
+ * **Days only while private**, as a predicate on the same UPDATE. Reviews rate
+ * the published content (M12), so replacing the stops under them would leave a
+ * five-star rating on a day nobody reviewed. The author unpublishes, edits and
+ * republishes — and the check is against the STORED visibility, so an edit
+ * that also publishes (`{ days, visibility: "public" }`) on a private Playbook
+ * is one atomic step. Name and summary may change while published: they
+ * describe the content rather than being it.
+ *
+ * **A visibility-only edit bumps nothing**, and moves `published_at` exactly as
+ * `setSavedDayVisibility` does. `expectedVersion`, if sent with one, is still
+ * honoured as a precondition.
+ *
+ * When nothing matched, the row is re-read under the same owner scope to say
+ * why — a diagnosis only; the decision was the UPDATE's. Somebody else's day
+ * is still "no row" here, so the re-read cannot disclose one. A stale version
+ * is reported before "published": whoever holds a stale version has to re-read
+ * the Playbook before anything else they send can succeed.
+ */
+export async function updatePlaybookContent(
+  savedDayId: string,
+  ownerId: string,
+  edit: PlaybookEdit,
+  now: string = new Date().toISOString(),
+): Promise<PlaybookEditOutcome> {
+  if (!isUuid(savedDayId)) return { ok: false, reason: "not-found" };
+  const content = edit.name !== undefined || edit.summary !== undefined || edit.days !== undefined;
+  if (content && edit.expectedVersion === undefined) {
+    return { ok: false, reason: "invalid", message: "Send expectedVersion to change a Playbook's content." };
+  }
+
+  const set: { [K in keyof SavedDayRow]?: SavedDayRow[K] | SQL } = {};
+  if (edit.name !== undefined) {
+    // `storeSavedDay`'s reason: "   " is 3 characters and then no name at all.
+    const name = edit.name.trim();
+    if (name === "") return { ok: false, reason: "invalid", message: "Give this Playbook a name." };
+    set.name = name;
+  }
+  if (edit.summary !== undefined) {
+    // Blank is "no summary", not an empty paragraph a card would render.
+    set.summary = edit.summary === null || edit.summary.trim() === "" ? null : edit.summary.trim();
+  }
+  if (edit.days !== undefined) {
+    if (edit.days.stops.length === 0) {
+      return { ok: false, reason: "invalid", message: "A Playbook needs at least one stop." };
+    }
+    // The write path's parse, `storeSavedDay`'s reason (KI-71, ADR-048 decision 3).
+    const validated = SavedDaySequence.safeParse(edit.days.stops);
+    if (!validated.success) {
+      console.error("refused to replace a playbook's stops that do not match SavedStop", {
+        savedDayId,
+        issues: validated.error.issues,
+      });
+      return { ok: false, reason: "invalid", message: "These days cannot be saved." };
+    }
+    Object.assign(set, sequenceColumns(validated.data, edit.days.dayCount));
+  }
+  if (edit.visibility !== undefined) {
+    set.visibility = edit.visibility;
+    set.publishedAt =
+      edit.visibility === SavedDayVisibility.enum.public
+        ? sql`coalesce(${savedDays.publishedAt}, ${new Date(now)})`
+        : null;
+  }
+  if (content) set.version = sql`${savedDays.version} + 1`;
+
+  const updated = await db
+    .update(savedDays)
+    .set(set)
+    .where(
+      and(
+        eq(savedDays.id, savedDayId),
+        eq(savedDays.ownerId, ownerId),
+        isNull(savedDays.deletedAt),
+        edit.expectedVersion === undefined ? undefined : eq(savedDays.version, edit.expectedVersion),
+        edit.days === undefined ? undefined : eq(savedDays.visibility, SavedDayVisibility.enum.private),
+      ),
+    )
+    .returning();
+  if (updated[0] !== undefined) {
+    const day = fromRow(updated[0]);
+    // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
+    // found" would be a lie about a row that is there.
+    if (day === null) throw new Error(`saved day ${savedDayId} is unreadable after a committed edit`);
+    return { ok: true, value: day };
+  }
+
+  const rows = await db
+    .select({ version: savedDays.version, visibility: savedDays.visibility })
+    .from(savedDays)
+    .where(and(eq(savedDays.id, savedDayId), eq(savedDays.ownerId, ownerId), isNull(savedDays.deletedAt)));
+  const current = rows[0];
+  if (current === undefined) return { ok: false, reason: "not-found" };
+  if (edit.expectedVersion !== undefined && current.version !== edit.expectedVersion) {
+    return { ok: false, reason: "stale", currentVersion: current.version };
+  }
+  if (edit.days !== undefined && current.visibility !== SavedDayVisibility.enum.private) {
+    return { ok: false, reason: "published" };
+  }
+  // Both held on the re-read, so something moved between the two statements.
+  // That is a concurrent edit, and the caller's answer to it is a re-read.
+  return { ok: false, reason: "stale", currentVersion: current.version };
+}
+
+/** An absolute-date anchor taken off a stop on its way into a Playbook. */
+export type RemovedDateAnchor = { stopIndex: number; title: string; from: string; to: string };
+
+/**
+ * A sequence with every **calendar-date** anchor removed, and a list of what
+ * went (ADR-050, Pass A).
+ *
+ * A Playbook has no dates — ADR-029 dropped the day's date so a fragment fits
+ * any trip — and a `dateRange` anchor is a date by another name: "only 3–5 May"
+ * carried into October is a conflict on every stop it touched. Weekday,
+ * time-of-day and public-holiday anchors describe the place rather than the
+ * trip, and are kept.
+ *
+ * Only `/v1/playbooks` applies this today; the app's keep does not, and that
+ * difference is recorded in ADR-050 rather than decided here.
+ */
+export function withoutDateAnchors(stops: readonly SavedStop[]): {
+  stops: SavedStop[];
+  removed: RemovedDateAnchor[];
+} {
+  const removed: RemovedDateAnchor[] = [];
+  const kept = stops.map((stop, stopIndex) => {
+    const anchors = stop.anchors.filter((anchor) => {
+      if (anchor.kind !== "dateRange") return true;
+      removed.push({ stopIndex, title: stop.title, from: anchor.from, to: anchor.to });
+      return false;
+    });
+    return anchors.length === stop.anchors.length ? stop : { ...stop, anchors };
+  });
+  return { stops: kept, removed };
+}
+
+/**
  * What `deleteSavedDay` answered with. Three outcomes, because two of them are
  * different refusals and the route owes them different words.
  *
@@ -660,14 +930,25 @@ export async function deleteSavedDay(
  * trips — or twice into one — without ever putting the same id in two streams
  * (the KI-1 hazard; `cloneTrip` remaps for the same reason).
  */
-export function insertCommands(saved: SavedDay, tripId: string): BatchableCommand[] {
-  const days = Math.max(
-    saved.dayCount,
-    saved.stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
-  );
-  const dayIds = Array.from({ length: days }, () => randomUUID());
+/**
+ * **`onto` merges instead of appending** (ADR-050, Pass B): the sequence's day
+ * `k` lands on `onto[k]`, a day the trip already has, and only the days that run
+ * past the end of `onto` are minted with `AddDay` — still at the end of the
+ * trip, because the domain has no positioned `AddDay` and this does not invent
+ * one. The default, `[]`, is "merge onto nothing": every day new, which is the
+ * append every existing caller gets.
+ */
+export function insertCommands(
+  saved: SavedDay,
+  tripId: string,
+  onto: readonly string[] = [],
+): BatchableCommand[] {
+  const days = sequenceLength(saved);
+  const dayIds = Array.from({ length: days }, (_, k) => onto[k] ?? randomUUID());
   return [
-    ...dayIds.map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
+    ...dayIds
+      .slice(onto.length)
+      .map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
     ...saved.stops.map(
       (stop): BatchableCommand => ({
         type: "AddActivity",
@@ -689,6 +970,33 @@ export function insertCommands(saved: SavedDay, tripId: string): BatchableComman
     ),
   ];
 }
+
+/** How many days a sequence occupies: its `dayCount`, floored by its stops. */
+function sequenceLength(saved: SavedDay): number {
+  return Math.max(
+    saved.dayCount,
+    saved.stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
+  );
+}
+
+/**
+ * What a `v1` apply may ask of an insert beyond "append it" (ADR-050, Pass B).
+ * Every field is optional and the app's internal route passes none of them.
+ */
+export interface InsertOptions {
+  readonly now?: string;
+  /** Refuse unless the Playbook is still at this `version`. */
+  readonly version?: number;
+  /** Merge onto the trip's days from this one on, rather than appending. */
+  readonly startingAt?: string;
+  /** Refuse unless the trip's stream still stands at this seq — checked by the batch itself. */
+  readonly expectedSeq?: number;
+}
+
+/** A refusal only an insert with `InsertOptions` can produce. */
+export type InsertRefusal =
+  | { code: "version-mismatch"; message: string; currentVersion: number }
+  | { code: "unknown-day"; message: string };
 
 /**
  * Insert a saved day into a trip, and — when the design's rule says it counts —
@@ -716,24 +1024,109 @@ export function insertCommands(saved: SavedDay, tripId: string): BatchableComman
  * unchanged. Both of the surviving clauses describe perfectly ordinary things to
  * do (adding the same day twice, reusing your own template); neither is an error
  * to report to the person doing it. What must not happen is the number moving.
+ *
+ * **A success also carries `minted`** — the ids this insert gave the new days
+ * and stops. `POST /v1/trips/:id/playbook-applications` publishes them; the
+ * internal route picks its own fields and does not.
  */
 export async function insertSavedDay(
   savedDayId: string,
   tripId: string,
   actorId: string,
-  now: string = new Date().toISOString(),
-): Promise<CommandResult | { ok: false; error: AccessError }> {
+  options: InsertOptions = {},
+): Promise<
+  | (Extract<CommandResult, { ok: true }> & { minted: InsertedIds; playbookVersion: number })
+  | Extract<CommandResult, { ok: false }>
+  | { ok: false; error: AccessError | InsertRefusal }
+> {
+  const now = options.now ?? new Date().toISOString();
   const saved = await readableSavedDay(savedDayId, actorId);
   if (saved === null) {
     return { ok: false, error: { code: "not-found", message: "That saved day does not exist." } };
   }
-  return executeTripCommandBatch(insertCommands(saved, tripId), actorId, async (tx) => {
-    if (!addCounts({ authorId: saved.ownerId, actorId })) return;
-    await recordAdd(tx, {
-      savedDayId: saved.savedDayId,
-      tripId,
-      addedBy: actorId,
-      createdAt: new Date(now),
-    });
-  });
+  if (options.version !== undefined && options.version !== saved.version) {
+    return {
+      ok: false,
+      error: {
+        code: "version-mismatch",
+        message: `This playbook is at version ${saved.version}, not ${options.version}.`,
+        currentVersion: saved.version,
+      },
+    };
+  }
+
+  // **Merging needs the trip's days, and they have to be the days the batch
+  // decides against.** So they are read with the stream's head, and the batch
+  // is pinned to that head: a day added or removed between this read and the
+  // append makes the batch refuse rather than land day `k` somewhere else. A
+  // caller's own `expectedSeq` is the stricter pin and wins.
+  let onto: string[] = [];
+  let expectedSeq = options.expectedSeq;
+  if (options.startingAt !== undefined) {
+    const envelopes = await readStream(db, tripId);
+    // A caller's stale pin is answered first: the day it names may be gone
+    // because the trip moved, and "unknown day" would hide that it did.
+    if (options.expectedSeq !== undefined && options.expectedSeq !== envelopes.length) {
+      return {
+        ok: false,
+        error: {
+          code: "concurrency-conflict",
+          message: `This trip has changed since revision ${options.expectedSeq}; it is at ${envelopes.length}. Re-read it and retry.`,
+          currentSeq: envelopes.length,
+        },
+      };
+    }
+    const days = foldEnvelopes(envelopes)?.days ?? [];
+    const at = days.findIndex((d) => d.dayId === options.startingAt);
+    if (at === -1) {
+      return { ok: false, error: { code: "unknown-day", message: "That day is not in this trip." } };
+    }
+    onto = days.slice(at).map((d) => d.dayId);
+    expectedSeq ??= envelopes.length;
+  }
+
+  const commands = insertCommands(saved, tripId, onto);
+  const result = await executeTripCommandBatch(
+    commands,
+    actorId,
+    async (tx) => {
+      if (!addCounts({ authorId: saved.ownerId, actorId })) return;
+      await recordAdd(tx, {
+        savedDayId: saved.savedDayId,
+        tripId,
+        addedBy: actorId,
+        createdAt: new Date(now),
+      });
+    },
+    { expectedSeq },
+  );
+  if (!result.ok) return result;
+  // Read back out of the batch rather than minted a second time, so these are
+  // by construction the ids that landed. `insertCommands` emits every AddDay
+  // in sequence order and then one AddActivity per stop in `stops[]` order.
+  const createdDayIds = commands.flatMap((c) => (c.type === "AddDay" ? [c.dayId] : []));
+  return {
+    ...result,
+    playbookVersion: saved.version,
+    minted: {
+      dayIds: [...onto, ...createdDayIds].slice(0, sequenceLength(saved)),
+      createdDayIds,
+      activityIds: commands.flatMap((c) => (c.type === "AddActivity" ? [c.activityId] : [])),
+    },
+  };
+}
+
+/**
+ * The ids an insert minted — `dayIds` in the saved sequence's day order,
+ * `activityIds` in the order of its `stops[]`. Positional because a `SavedStop`
+ * has no id of its own to key a map by (ADR-050).
+ *
+ * `dayIds` is where each day LANDED, so on a merge it names days the trip
+ * already had; `createdDayIds` is only the new ones. On an append they are the
+ * same list.
+ */
+export interface InsertedIds {
+  readonly dayIds: string[];
+  readonly createdDayIds: string[];
+  readonly activityIds: string[];
 }
