@@ -523,7 +523,7 @@ test("two widgets in ONE sentence read two different days, and each rebinds on i
   await page.keyboard.press("Enter");
   await page.keyboard.type("We land on Day 1 in ");
   await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
-  await waitForPageSaved(page, () => railList(page).getByRole("button", { name: /Which cities/ }).click());
+  await railList(page).getByRole("button", { name: /Which cities/ }).click();
   const sentence = page.locator(".tc-page-editor p", { hasText: "We land on Day 1 in" });
   await expect(sentence.locator('[data-macro-name="city"]')).toHaveCount(1);
 
@@ -535,7 +535,7 @@ test("two widgets in ONE sentence read two different days, and each rebinds on i
   await expect(settingsPanel(page)).toHaveCount(0);
   await page.keyboard.type(" and by Day 9 we are in ");
   await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
-  await waitForPageSaved(page, () => railList(page).getByRole("button", { name: /Which cities/ }).click());
+  await railList(page).getByRole("button", { name: /Which cities/ }).click();
   await expect(sentence.locator('[data-macro-name="city"]')).toHaveCount(2);
   const [first, second] = [sentence.locator('[data-macro-name="city"]').nth(0), sentence.locator('[data-macro-name="city"]').nth(1)];
 
@@ -554,9 +554,7 @@ test("two widgets in ONE sentence read two different days, and each rebinds on i
   // Entry 1 to Day 1. Only widget 1 narrows: widget 2 is still wide, which is
   // exactly what an aggregated control would have changed.
   await one.getByRole("button", { name: "1 · The cities: dates" }).click();
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 1\b/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 1\b/ }).click();
   await page.keyboard.press("Escape");
   await expect(first).not.toContainText("Kyoto");
   await expect(first).toContainText("Tokyo");
@@ -566,15 +564,14 @@ test("two widgets in ONE sentence read two different days, and each rebinds on i
   // Entry 2 to Day 9 — from the same panel, without reselecting anything — and
   // widget 1 keeps the day it was just given.
   await two.getByRole("button", { name: "2 · The cities: dates" }).click();
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 9\b/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 9\b/ }).click();
   await page.keyboard.press("Escape");
   await expect(second).not.toContainText("Tokyo");
   await expect(first).not.toContainText("Kyoto");
 
   // What persisted, read in Reading after a reload: the gate's sentence, with
   // each widget resolved against its own day.
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await expect(page.locator(".tc-page-editor p", { hasText: "We land on Day 1 in" })).toHaveText(
