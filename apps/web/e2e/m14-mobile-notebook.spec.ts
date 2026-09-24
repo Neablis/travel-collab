@@ -405,7 +405,14 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
 
     const addColumn = sheet.getByRole("combobox", { name: /add a column/i });
     await addColumn.click();
+    // The LIST must open on screen; an option inside it may sit below the
+    // list's own fold (it scrolls at `max-h-64`), which a person scrolls to.
+    // Asserting the option straight away measured the fonts, not the layout:
+    // CI's put "Status" under the fold and read `viewport ratio 0` while a
+    // cloud container's did not (reproduced by shrinking the list's cap).
+    await expect(page.getByRole("listbox")).toBeInViewport({ ratio: 1 });
     const option = page.getByRole("option", { name: "Status", exact: true });
+    await option.scrollIntoViewIfNeeded();
     await expect(option).toBeInViewport();
     await option.click();
     await expect(sheet.getByRole("combobox", { name: /column 1/i })).toHaveValue("Status");
