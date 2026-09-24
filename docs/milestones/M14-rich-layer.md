@@ -874,8 +874,8 @@ milestone opens:**
       strip, still to book (reading `needsBooking`, not a second rule), sunrise /
       sunset, time difference from home, know before you go, spend by day. The route
       map block follows once M24's legs exist.
-- [ ] **Charts go through the one adopted chart component**, and none carries a
-      colour or font outside the design-system tokens.
+- [x] **Charts go through the one adopted chart component**, and none carries a
+      colour or font outside the design-system tokens. *(Ticked 2026-09-24, T21 on PR #221: `apps/web/src/components/ui/chart.test.tsx` fails on a literal colour or font in any chart file, on Recharts imported without `ChartContainer`, and on a rendered chart carrying Recharts' default `#ccc`/`#666`; each case seen red first.)*
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.
