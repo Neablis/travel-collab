@@ -1,4 +1,4 @@
-### KI-2026-09-16-b — `planVersions.ts` cites an immutability test that does not exist, and the runtime freeze it promises is unasserted
+### KI-2026-09-16-b — `planVersions.ts` cites an immutability test that does not exist, and the runtime freeze it promises is unasserted — RESOLVED
 
 - **Severity:** cleanup, shading into correctness — nothing is wrong today, but a
   load-bearing guarantee rests on a comment rather than on a test, which is the
@@ -52,3 +52,30 @@
   `pnpm --filter web test src/server/entitlements/`. Note `moduleBoundary.test.ts`
   forbids importing any trip type under `server/entitlements/`. Red-first applies:
   remove one `Object.freeze` call, watch it go red for your reason, restore it.
+- **Fix.** Took the preferred half: `apps/web/src/server/entitlements/planVersions.immutability.test.ts`
+  now exists, so the module header's citation is true as written and
+  `planVersions.ts` is unchanged. The test does two things. It walks every
+  object reachable from `PLAN_VERSIONS` and requires each to be frozen, so a
+  nested record added to `PlanVersion` later without its own freeze also goes
+  red. It also names the fields the entry lists: every entry, its
+  `entitlements`, `ceilings` and non-null `price`, plus the list itself. It then
+  asserts the behaviour the runtime actually gives. Writing a price, replacing
+  `price`, pushing an entitlement, writing a ceiling or `version`, and running
+  `sort`/`push`/`pop` on the list each throw `TypeError`, and the value
+  afterwards is unchanged. No code defect was found: the freeze loop was
+  already correct and had only never been asserted.
+- **Proven.** Reproduction: with `if (entry.price !== null) Object.freeze(entry.price);`
+  commented out, every existing unit test in `server/entitlements/` and
+  `server/billing/` still passed: `Test Files 16 passed (16)`, `Tests 137
+  passed (137)`. That is the entry's claim, reproduced. The new file failed on
+  the same source: `expected [ 'PLAN_VERSIONS.0.price', …(3) ] to deeply equal
+  []`, `expected false to be true` for each priced version, and `cannot change
+  what a version costs`: `expected function to throw an error, but it didn't`.
+  In total `Tests 6 failed | 4 passed (10)`. A second break, removing
+  `Object.freeze(PLAN_VERSIONS)`, failed three tests, including `expected [
+  'PLAN_VERSIONS' ] to deeply equal []` and the `sort`/`push`/`pop` test with
+  `expected function to throw an error, but it didn't`. Once the source was
+  restored the file passed with `Tests 10 passed (10)`. Checks
+  (`minimal-check-subset`, `web` only): `pnpm --filter web typecheck` was
+  clean, and `eslint --max-warnings 0` on the new file was clean.
+- **Resolved:** 2026-09-24.
