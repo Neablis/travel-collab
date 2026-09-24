@@ -20,3 +20,6 @@ export * from "./enumLabels";
 export * from "./kinds";
 export * from "./fields";
 export * from "./savedTemplate";
+// The one reader of an instant in a named zone; the server's weather cuts its
+// local days with it too, rather than a second `Intl` walk (review finding 6).
+export { clockIn } from "./clock";

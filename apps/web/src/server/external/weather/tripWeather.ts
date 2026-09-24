@@ -1,4 +1,5 @@
-import { citiesOfDay } from "@tc/domain";
+import { citiesOfDay, stopsInTimeOrder } from "@tc/domain";
+import { clockIn } from "@tc/pages";
 import type { ForecastDay, TripDetail, TripWeather, TripWeatherPoint, TypicalMonth } from "@tc/contracts";
 import { readThrough, type CacheStore } from "../cache";
 import { pointText, roundForExport, type RoundedPoint } from "../roundedPoint";
@@ -50,20 +51,14 @@ export interface PlannedPoint {
 
 type Located = { lat: number; lng: number; city: string | null };
 
-/** A day's stops in time order — timed by start, then untimed in stored order — the walk `citiesOfDay` makes. */
+/** A day's located stops in time order — `stopsInTimeOrder`, the walk `citiesOfDay` makes, not a copy of it. */
 function locatedInTimeOrder(detail: TripDetail, activityIds: readonly string[]): Located[] {
-  const timed: { start: string; stop: Located }[] = [];
-  const untimed: Located[] = [];
-  for (const id of activityIds) {
-    const location = detail.activities[id]?.location;
-    if (location?.lat === undefined || location.lng === undefined) continue;
-    const stop = { lat: location.lat, lng: location.lng, city: location.city ?? null };
-    const start = detail.activities[id]!.timeWindow?.start;
-    if (start) timed.push({ start, stop });
-    else untimed.push(stop);
-  }
-  timed.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
-  return [...timed.map((t) => t.stop), ...untimed];
+  const stops = activityIds.flatMap((id) => (detail.activities[id] ? [detail.activities[id]] : []));
+  return stopsInTimeOrder(stops).flatMap(({ location }) =>
+    location?.lat === undefined || location.lng === undefined
+      ? []
+      : [{ lat: location.lat, lng: location.lng, city: location.city ?? null }],
+  );
 }
 
 /**
@@ -96,19 +91,10 @@ const keyOf = (kind: "met:forecast" | "power:normals", point: RoundedPoint) => {
 
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-const localFormats = new Map<string, Intl.DateTimeFormat>();
-/** An instant's calendar date and hour in `zone` (UTC when the place has none). */
+/** An instant's calendar date and hour in `zone` (UTC when the place has none) — `@tc/pages`' one zone reader. */
 function localOf(zone: string | null, ms: number): { date: string; hour: number } {
-  const name = zone ?? "UTC";
-  let format = localFormats.get(name);
-  if (!format) {
-    format = new Intl.DateTimeFormat("en-CA", {
-      timeZone: name, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
-    });
-    localFormats.set(name, format);
-  }
-  const parts = Object.fromEntries(format.formatToParts(ms).map((p) => [p.type, p.value]));
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+  const { date, time } = clockIn(zone ?? "UTC", ms);
+  return { date, hour: Number(time.slice(0, 2)) };
 }
 
 /**
