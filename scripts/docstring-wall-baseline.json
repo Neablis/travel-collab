@@ -267,7 +267,6 @@
   "apps/web/src/lib/apiClient.ts::createTripInvite",
   "apps/web/src/lib/apiClient.ts::createTripShare",
   "apps/web/src/lib/apiClient.ts::duplicateTrip",
-  "apps/web/src/lib/apiClient.ts::fetchPreferences",
   "apps/web/src/lib/apiClient.ts::fetchSavedDays",
   "apps/web/src/lib/apiClient.ts::fetchTripAccess",
   "apps/web/src/lib/apiClient.ts::fetchTripDetail",

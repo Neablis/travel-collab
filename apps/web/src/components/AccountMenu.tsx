@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Popover } from "@/components/ui/popover";
@@ -8,11 +8,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
-import { usePreferences } from "@/components/account/PreferencesProvider";
+import { useIsAdmin, usePreferences } from "@/components/account/PreferencesProvider";
 import { useSessionUser, type SessionUser } from "@/components/account/useSessionUser";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
-import { fetchIsAdmin, resetDemoData } from "@/lib/apiClient";
+import { resetDemoData } from "@/lib/apiClient";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
 // (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
@@ -52,20 +52,11 @@ export function AccountMenu({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  // Read once on mount, beside the preferences read the provider already makes.
-  // `false` until it comes back, so the item never flashes for a non-operator.
-  const [isAdmin, setIsAdmin] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    void fetchIsAdmin().then((result) => {
-      // Any failure reads as "not an operator": the item is advisory, and the
-      // route and every admin endpoint answer 404 regardless of what this does.
-      if (!cancelled) setIsAdmin(result.ok && result.value);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // From the provider's one preferences read, not a request of its own — this
+  // menu used to issue the identical GET beside it on every page load
+  // (KI-2026-09-14-f). `false` until that read lands, so the item never flashes
+  // for a non-operator; any failure also reads as "not an operator".
+  const isAdmin = useIsAdmin();
   const initials = initialsFor(name);
 
   // Discards the caller's trips (via DeleteTrip — recoverable server-side,

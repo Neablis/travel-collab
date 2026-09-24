@@ -10,7 +10,10 @@ const pending: Array<{ patch: UpdateUserPreferences; settle: (value: UserPrefere
 vi.mock("@/lib/apiClient", () => ({
   fetchPreferences: async () => ({
     ok: true as const,
-    value: { displayName: null, homeAirport: null, distanceUnit: "km" } satisfies UserPreferences,
+    value: {
+      preferences: { displayName: null, homeAirport: null, distanceUnit: "km" } satisfies UserPreferences,
+      isAdmin: false,
+    },
   }),
   updatePreferences: (patch: UpdateUserPreferences) =>
     new Promise((resolve) => {

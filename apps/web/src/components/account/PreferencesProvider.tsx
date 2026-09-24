@@ -52,12 +52,20 @@ type PreferencesValue = {
   loaded: boolean;
   /** PATCH, and adopt the server's answer. Resolves; never rejects (apiClient's invariant). */
   save: (patch: UpdateUserPreferences) => Promise<ApiResult<UserPreferences>>;
+  /**
+   * Whether the account is an operator — NOT a preference, and never written by
+   * `save`. It rides in the same response, so it is taken from the same read
+   * rather than asked for again (KI-2026-09-14-f). `false` until that read
+   * lands and after one that failed; see `useIsAdmin`.
+   */
+  isAdmin: boolean;
 };
 
 const Context = createContext<PreferencesValue | null>(null);
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULTS);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -67,8 +75,12 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       // A failure leaves the defaults in place and still marks the read done.
       // Everything downstream is display: a distance rendered in kilometres
       // because the preference could not be read is a smaller wrong than a map
-      // rail that never shows a total.
-      if (result.ok) setPreferences(result.value);
+      // rail that never shows a total. `isAdmin` stays `false` on failure for
+      // the reason `useIsAdmin` gives.
+      if (result.ok) {
+        setPreferences(result.value.preferences);
+        setIsAdmin(result.value.isAdmin);
+      }
       setLoaded(true);
     });
     return () => {
@@ -109,7 +121,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     return result;
   }, []);
 
-  const value = useMemo(() => ({ preferences, loaded, save }), [preferences, loaded, save]);
+  const value = useMemo(
+    () => ({ preferences, loaded, save, isAdmin }),
+    [preferences, loaded, save, isAdmin],
+  );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
@@ -138,6 +153,19 @@ export function useAccountPreferences(): PreferencesValue {
  */
 export function usePreferences(): UserPreferences {
   return useContext(Context)?.preferences ?? DEFAULTS;
+}
+
+/**
+ * Whether to offer the operator console (M20 link 7). Advisory, and it decides
+ * one link: the console's layout, its page and every admin endpoint answer 404
+ * to a non-admin whatever this returns.
+ *
+ * `false` outside a provider, before the read lands, and after one that failed
+ * — a menu item that fails to appear costs an operator one typed URL, and one
+ * that appears wrongly is a 404 nobody expected.
+ */
+export function useIsAdmin(): boolean {
+  return useContext(Context)?.isAdmin ?? false;
 }
 
 /** The common case, named for what the call sites are asking. */
