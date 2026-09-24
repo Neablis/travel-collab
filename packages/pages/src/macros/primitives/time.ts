@@ -34,7 +34,10 @@ type TimeParams = z.infer<typeof TimeParams>;
 function locatedDay(globals: TripGlobals, index: number) {
   const day = globals.days[index];
   if (!day?.place || !day.timeZone || !isKnownZone(day.timeZone)) return null;
-  return { place: day.place, zone: day.timeZone, city: day.cities[0] ?? null };
+  // The city of the stop that gave the place, never `cities[0]`: that can be
+  // an earlier stop with a city and no coordinates, and would put its name on
+  // another city's sunrise (CodeRabbit on #223).
+  return { place: day.place, zone: day.timeZone, city: day.place.city ?? null };
 }
 
 // ---------------------------------------------------------------------------

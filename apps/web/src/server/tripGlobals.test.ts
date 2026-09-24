@@ -155,6 +155,9 @@ describe("buildTripGlobals and time zones", () => {
         { dayId: "d1", activityIds: ["nowhere"], date: "2026-06-22", costSubtotal: 0 },
         // Only untimed stops: stored order decides.
         { dayId: "d2", activityIds: ["loose1", "loose2"], date: "2026-06-23", costSubtotal: 0 },
+        // A city with no coordinates before a located stop in ANOTHER city:
+        // the day's first city is Kyoto, but its place is Tokyo's.
+        { dayId: "d3", activityIds: ["kyotoNoCoords", "tokyoLater"], date: "2026-06-24", costSubtotal: 0 },
       ],
       activities: {
         late: stop("late", { city: "Honolulu", ...HONOLULU }, "20:00"),
@@ -163,6 +166,8 @@ describe("buildTripGlobals and time zones", () => {
         nowhere: stop("nowhere", null, "09:00"),
         loose1: stop("loose1", { city: "Honolulu", ...HONOLULU }, null),
         loose2: stop("loose2", { city: "Tokyo", ...TOKYO }, null),
+        kyotoNoCoords: stop("kyotoNoCoords", { city: "Kyoto" }, "07:00"),
+        tokyoLater: stop("tokyoLater", { city: "Tokyo", ...TOKYO }, "10:00"),
       } as unknown as TripDetail["activities"],
     };
   }
@@ -170,6 +175,12 @@ describe("buildTripGlobals and time zones", () => {
   it("places a day at its earliest located stop, not its first stored one", () => {
     const [flight] = buildTripGlobals(flightDay()).days;
     expect(flight).toMatchObject({ place: TOKYO, timeZone: "Asia/Tokyo" });
+  });
+
+  it("names the place by the stop that gave it, not by the day's first city", () => {
+    const day = buildTripGlobals(flightDay()).days[3]!;
+    expect(day.cities).toEqual(["Kyoto", "Tokyo"]);
+    expect(day.place).toEqual({ ...TOKYO, city: "Tokyo" });
   });
 
   it("reports no place and no zone for a day with no coordinates, rather than a guess", () => {

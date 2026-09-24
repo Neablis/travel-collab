@@ -66,8 +66,17 @@ export const TripGlobalsDay = z.object({
   // no value kind that prints it, the same call `timeWindow` gets on a stop.
   // The bare `.describe()` is the public API's text only (T06: it publishes
   // nothing to the picker).
+  //
+  // `city` is THAT stop's city — not `cities[0]`, which can come from an
+  // earlier stop with a city but no coordinates, and would label one stop's
+  // sunrise with another stop's name (CodeRabbit on #223). `.default(null)` so
+  // a response from before the field still parses.
   place: z
-    .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
+    .object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      city: z.string().nullable().default(null).describe("The city of the stop that gives the day its place, if it has one"),
+    })
     .nullable()
     .default(null)
     .describe("Where the day is: its earliest stop with coordinates. Null when no stop on the day has any."),

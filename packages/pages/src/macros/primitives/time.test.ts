@@ -12,7 +12,9 @@ const TOKYO = { lat: 35.6812, lng: 139.7671 };
 const REYKJAVIK = { lat: 64.1466, lng: -21.9426 };
 const TROMSO = { lat: 69.6492, lng: 18.9553 };
 
-type DaySpec = { date: string | null; city?: string; place?: { lat: number; lng: number }; zone?: string };
+type DaySpec = {
+  date: string | null; city?: string; cities?: string[]; place?: { lat: number; lng: number }; placeCity?: string; zone?: string;
+};
 
 // The trip comes from the factory; only its dates are set here, and the
 // globals are a literal the way `test-support/selectionTrip.ts` writes them:
@@ -23,8 +25,8 @@ function setup(days: DaySpec[], homeTimeZone: string | null = "America/Los_Angel
   const trip: TripDetail = { ...built, days: built.days.map((day, i) => ({ ...day, date: days[i]!.date })) };
   const globals: TripGlobals = {
     days: days.map((spec, index) => ({
-      index, date: spec.date, cities: spec.city ? [spec.city] : [], activityCount: 1, costSubtotal: 0,
-      place: spec.place ?? null, timeZone: spec.zone ?? null,
+      index, date: spec.date, cities: spec.cities ?? (spec.city ? [spec.city] : []), activityCount: 1, costSubtotal: 0,
+      place: spec.place ? { ...spec.place, city: spec.placeCity ?? spec.city ?? null } : null, timeZone: spec.zone ?? null,
     })),
     cities: [], tags: [], bookedCount: 0, homeTimeZone,
   };
@@ -66,6 +68,15 @@ describe("day.sun", () => {
     expect(tokyo![2]).toMatch(/^sunrise 04:2[4-7]$/);
     expect(tokyo![3]).toMatch(/^sunset (18:5[89]|19:0[0-2])$/);
     expect(tokyo![4]).toMatch(/^golden hour 04:2\d–05:0\d and 18:2\d–(18:5\d|19:0\d)$/);
+  });
+
+  // CodeRabbit on #223: an earlier stop with a city and no coordinates put its
+  // name on the day, over another city's sunrise.
+  it("names the sunrise by the stop that located the day, not the day's first city", () => {
+    const [row] = sun(contextOf(setup([
+      { date: "2026-06-21", cities: ["Kyoto", "Tokyo"], place: TOKYO, placeCity: "Tokyo", zone: "Asia/Tokyo" },
+    ])));
+    expect(row![1]).toBe("Tokyo");
   });
 
   it("says so when a sunset falls after midnight, rather than printing it as the morning's", () => {
@@ -143,6 +154,13 @@ describe("day.fromHome", () => {
     expect(sentence(contextOf(trip)).map((s) => s.text).join("")).toBe(
       "Tokyo is 16h ahead of home; Reykjavik is 7h ahead of home",
     );
+  });
+
+  it("names each place by the stop that located it", () => {
+    const trip = setup([
+      { date: "2026-06-21", cities: ["Kyoto", "Tokyo"], place: TOKYO, placeCity: "Tokyo", zone: "Asia/Tokyo" },
+    ]);
+    expect(sentence(contextOf(trip)).map((s) => s.text).join("")).toBe("Tokyo is 16h ahead of home");
   });
 
   it("reads a day with no date on today, when the page knows today", () => {
