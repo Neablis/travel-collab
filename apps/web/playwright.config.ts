@@ -187,6 +187,22 @@ export default defineConfig({
       // apps/web/.env.local, so this has to be set explicitly here rather
       // than relying on a developer's local file.
       AI_LIVE: "false",
+      // The same rule for outside data (Mitchell: no automated test may call a
+      // real third party). Both weather ports refuse before any request, so a
+      // spec rendering weather sees "weather unavailable" — MET was off here
+      // only because `EXTERNAL_DATA_CONTACT` happened to be unset, and NASA
+      // POWER needs no key, so without this the first weather spec called
+      // power.larc.nasa.gov. Explicit rather than trusted to a developer's
+      // `.env.local` (`server/external/weather/index.ts`); the real services
+      // are walked by hand (`docs/guidelines/external-data-manual-check.md`).
+      EXTERNAL_DATA_OFFLINE: "true",
+      // And Sentry: `sentry.shared.ts` falls back to a real DSN when this is
+      // unset, so every e2e run reported to production's Sentry through the
+      // `/monitoring` tunnel (seen as console 403s in a cloud session, where
+      // the proxy refuses the ingest host). The empty string is the SDK's off
+      // switch. This covers the server; the browser bundle takes the value at
+      // build time — `test:e2e:ci-like` and `ci.yml` set it for the build.
+      NEXT_PUBLIC_SENTRY_DSN: "",
       // M11a: every dev user this suite signs in is brand new against a fresh
       // database, and the gate refuses anyone with no `users` row and no
       // credential — so without this the run dies in `auth.setup.ts` and every

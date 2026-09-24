@@ -130,3 +130,18 @@ export function toClockLabel(time: string): string {
 export function toClockRange(start: string, end: string): string {
   return `${toClockLabel(start)} – ${toClockLabel(end)}`;
 }
+
+/**
+ * `n` as an English ordinal: "1st", "2nd", "3rd", "4th", "11th", "21st".
+ *
+ * The 11-13 check comes first because those take "th" whatever their last
+ * digit is, and it reads `n % 100` so 111-113 follow them. `Intl.PluralRules`
+ * with `type: "ordinal"` gives only the plural category, never the suffix, so
+ * a table is needed either way.
+ */
+export function ordinal(n: number): string {
+  const teen = n % 100;
+  if (teen >= 11 && teen <= 13) return `${n}th`;
+  const suffix = ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix}`;
+}

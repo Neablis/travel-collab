@@ -29,6 +29,31 @@ Format:
 - Breaking? No. Additive, with a default, so a response or a cached globals
   from before the field parses with `city: null` (`globals.test.ts`).
 
+## 2026-09-24 — two stored widget params, and the `toggle` / `choice` widget inputs (#221 preview) — no schema change
+
+- **Nothing in `packages/contracts` changed shape.** A page stores a widget as a name
+  and opaque `params`; what changed is which params two `@tc/pages` primitives accept,
+  so every page written before this parses and renders exactly as it did. Logged here
+  because stored documents now carry the new keys, per the `PageRepeatNode` entry's
+  precedent.
+- Added: `day.weather` accepts `headings: boolean` (absent = shown; only `false` is
+  stored) and `cost.chart` accepts `view: "bars" | "burndown"` (absent = bars; only
+  `"burndown"` is stored). Both are declared as `WidgetInput`s of two new types in
+  `registry-types.ts`: `toggle` (`default: boolean`) and `choice` (`options`,
+  `default`). Neither can be unbound (`NeverUnbound`).
+- Added to payloads (`@tc/pages`, not contracts): `WeatherPayload.headings`;
+  `SpendByDayBar.tick` (the ordinal, "3rd") and `.parts`; `SpendByDayPayload.view` and
+  `.burnDown`. `ordinal` is exported from `@tc/pages`.
+- Weather's display strings follow `UserPreferences.distanceUnit` (°F and inches for
+  `mi`); the field itself is unchanged (ADR-052's 2026-09-24 amendment).
+- Why: Mitchell's #221 preview comments — column headings as a toggle, a burn-down
+  option on the spend chart, units from the account.
+- Consumers updated: `apps/web` — `widgetBind.tsx` renders a checkbox for `toggle` and
+  a select for `choice`, and keeps both out of the "Pointed at" summary;
+  `WeatherBlock`, `SpendByDayBlock`, `SpendByDayChart`. The assistant's catalogue reads
+  `view`'s enum off the schema (`nonFilterParams`) with no edit.
+- Breaking? no — both params are optional, and absent is the behaviour before.
+
 ## 2026-09-24 — `TripGlobals.homeTimeZone` is not told to a `trips:read`-only token (#223 review)
 
 - **Changed (description only):** `TripGlobals.homeTimeZone` now says it is

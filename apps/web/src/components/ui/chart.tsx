@@ -35,9 +35,14 @@ import { cn } from "../../lib/cn";
 //   what the server renders — at the chart's full height, so nothing moves when
 //   the chart arrives — and the SVG is appended into it on the client, where no
 //   parser is involved.
-// - **No tooltip or legend from Recharts.** Both render `<div>`s inside the
-//   chart and neither prints. The legend here is spans beside the chart, and a
-//   chart's numbers belong in its accessible table, not behind a hover.
+// - **No legend from Recharts, and a tooltip only as an extra.** The legend is
+//   spans beside the chart, because a key must print. The hover came back on
+//   the #221 preview — Mitchell: *"Add the actual cost number here as a hover
+//   just so we dont have text issues wrapping into left/right lane"* — as
+//   `ChartTooltipContent`, drawn by the chart's own lazy file through
+//   Recharts' `<Tooltip content>`. It is never the only place a number is:
+//   every chart still carries its accessible table, which is what a keyboard,
+//   a screen reader and paper get.
 
 // The `@theme` colour tokens a chart may use, spelled as the custom property
 // rather than the bare name. The colour wall checks every `--color-*` it finds
@@ -62,8 +67,6 @@ export const seriesColor = (key: string) => `var(--chart-${key})`;
 const MONO = "var(--font-mono)";
 /** Axis tick text: slate, mono, `text-xs`. */
 export const chartTick = { fill: tokenColor("--color-slate"), fontFamily: MONO, fontSize: 12 } as const;
-/** A value printed on the chart itself: ink, mono, `text-xs`. */
-export const chartLabel = { fill: tokenColor("--color-ink"), fontFamily: MONO, fontSize: 12 } as const;
 /** Horizontal gridlines only, in hairline — the grid is a ruler, not content. */
 export const chartGrid = { stroke: tokenColor("--color-hairline"), vertical: false } as const;
 /** The category axis' baseline. */
@@ -74,7 +77,8 @@ export const chartAxisLine = { stroke: tokenColor("--color-hairline") } as const
 const INITIAL_WIDTH = 320;
 
 // Upstream's `ChartContext`/`useChart` are not vendored: they exist to feed
-// its tooltip and legend content, and neither is used here (see above).
+// its tooltip and legend content, and `ChartTooltipContent` below is handed
+// its lines directly instead (see above).
 function useWidth(host: HTMLElement | null): number {
   const [width, setWidth] = React.useState(INITIAL_WIDTH);
   React.useEffect(() => {
@@ -141,6 +145,35 @@ const FRAME = "block w-full overflow-hidden font-mono text-xs text-slate";
  */
 export function ChartPlaceholder({ height, label, className }: { height: number; label: string; className?: string }) {
   return <span role="img" aria-label={label} aria-busy="true" className={cn(FRAME, className)} style={{ height }} />;
+}
+
+/**
+ * What a chart says on hover: a title, then a line per value with an optional
+ * swatch. Plain React, so this file stays free of Recharts — the chart's lazy
+ * file hands it to `<Tooltip content>`, and it renders inside
+ * `ChartContainer`, where `seriesColor` resolves.
+ */
+export function ChartTooltipContent({
+  title,
+  lines,
+}: {
+  title: string;
+  lines: readonly { label: string; value: string; color?: string }[];
+}) {
+  return (
+    <span className="flex min-w-40 flex-col gap-1 rounded-md border border-hairline bg-surface px-3 py-2 text-xs text-slate shadow-sm">
+      <span className="font-sans text-sm font-semibold text-ink">{title}</span>
+      {lines.map((line) => (
+        <span key={line.label} className="flex items-center gap-2">
+          {line.color ? (
+            <span aria-hidden className="size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: line.color }} />
+          ) : null}
+          <span className="flex-1 font-sans">{line.label}</span>
+          <span className="text-ink">{line.value}</span>
+        </span>
+      ))}
+    </span>
+  );
 }
 
 /**

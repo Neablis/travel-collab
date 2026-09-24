@@ -111,6 +111,7 @@ export function valueOf(
     // No ref at all is the real "All days", and the one that means every day.
     return "";
   }
+  if (input.type === "choice") return typeof raw === "string" ? raw : input.default;
   return typeof raw === "string" ? raw : "";
 }
 
@@ -193,10 +194,16 @@ export function optionsFor(
       const stale = typeof bound === "string" && bound !== "" && !choices.some((c) => c.value === bound);
       return stale ? [...choices, { value: bound, label: "A field that is no longer offered" }] : choices;
     }
-    // No select, so no options: `dates` is `DaysFilter`'s whole control. Before
-    // it was named, it fell into a `default:` that offered the TAG list, and so
-    // would any input type added later (KI-2026-09-05-h).
+    // The widget's own list, and no "All" row: a choice always has a value,
+    // its `default` when nothing is stored.
+    case "choice":
+      return input.options;
+    // No select, so no options: `dates` is `DaysFilter`'s whole control and a
+    // toggle is a checkbox. Before `dates` was named, it fell into a `default:`
+    // that offered the TAG list, and so would any input type added later
+    // (KI-2026-09-05-h).
     case "dates":
+    case "toggle":
       return [];
     default: {
       // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
@@ -217,7 +224,8 @@ export function withBinding(
   next: string,
 ): Record<string, unknown> {
   const merged = { ...params };
-  if (next === "") {
+  // A choice's default is stored as nothing, the same `{}` a widget lands with.
+  if (next === "" || (input.type === "choice" && next === input.default)) {
     // Clearing goes back to ALL rather than to a default (ADR-039 decision 2).
     // Deleting the key rather than writing a null keeps `{}` the one spelling
     // of "every member" — which matters because it is also what a widget lands
@@ -235,12 +243,18 @@ function listOf(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
 }
 
-// `withBinding` for a boolean: merge, and off deletes the key, so a widget
-// never given the flag and one ticked then unticked are the same `{}`.
-function withFlag(params: Record<string, unknown>, key: string, on: boolean): Record<string, unknown> {
+// `withBinding` for a boolean: merge, and the default deletes the key, so a
+// widget never given the flag and one switched away and back are the same `{}`.
+// `distinct` defaults to off; a declared `toggle` names its own default.
+function withFlag(
+  params: Record<string, unknown>,
+  key: string,
+  on: boolean,
+  fallback = false,
+): Record<string, unknown> {
   const merged = { ...params };
-  if (on) merged[key] = true;
-  else delete merged[key];
+  if (on === fallback) delete merged[key];
+  else merged[key] = on;
   return merged;
 }
 
@@ -273,8 +287,11 @@ export function bindSummary(
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
-  inputs: readonly WidgetInput[] = bindableInputs(name),
+  allInputs: readonly WidgetInput[] = bindableInputs(name),
 ): string | null {
+  // What the widget is POINTED at: a toggle or a choice changes how it looks,
+  // not what it reads, so neither belongs in "Pointed at …".
+  const inputs = allInputs.filter((i) => i.type !== "toggle" && i.type !== "choice");
   if (inputs.length === 0) return null;
   // An unset single field is no answer at all rather than the widest one — the
   // widget renders `unbound("field")` whatever else is bound — so the summary
@@ -351,6 +368,21 @@ export function WidgetBindControls({
   return (
     <>
       {inputs.map((input) => {
+        // A checkbox names itself, so it takes no `FormField` label over it —
+        // the same shape as "Remove duplicates" below.
+        if (input.type === "toggle") {
+          return (
+            <div key={input.name} className={layout === "inline" ? "inline-flex items-center" : "flex min-h-11 items-center"}>
+              <CheckboxField
+                id={`${idPrefix}-${input.name}`}
+                aria-label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
+                checked={typeof params[input.name] === "boolean" ? params[input.name] === true : input.default}
+                onCheckedChange={(on) => onChange(withFlag(params, input.name, on, input.default))}
+                title={input.label}
+              />
+            </div>
+          );
+        }
         const control =
           input.type === "field" && input.multiple ? (
             // A LIST of fields, one per column (`stop.rows`' `columns`). Each

@@ -19,6 +19,34 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 // asserts a digest against a fixture.
 process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key";
 
+// **No unit test may reach a real third party** (Mitchell's policy; the e2e
+// lane's half is `EXTERNAL_DATA_OFFLINE` in `playwright.config.ts`). A `fetch`
+// to anything but this machine throws, loudly and by name, instead of calling
+// MET Norway or NASA POWER from a laptop and passing on whatever came back.
+//
+// It sits UNDER everything a test does on purpose. A test that stubs `fetch`
+// (`vi.stubGlobal`, `vi.spyOn(...).mockResolvedValue`, an assignment) replaces
+// this and never reaches it; MSW's `server.listen()` wraps whatever `fetch` is
+// installed when it starts — this one — so a handled request never gets here
+// and only an UNHANDLED one falls through to the throw. Relative URLs resolve
+// against jsdom's `http://localhost`, which is let through.
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+const realFetch = globalThis.fetch;
+if (typeof realFetch === "function") {
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const base = typeof window !== "undefined" ? window.location.href : "http://localhost/";
+    const host = new URL(raw, base).hostname;
+    if (!LOCAL_HOSTS.has(host)) {
+      throw new Error(
+        `[unit network guard] fetch("${raw}") would leave this machine. Unit tests may not call a real ` +
+          `third party: stub \`fetch\` in the test, or answer it with an MSW handler (apps/web/vitest.setup.ts).`,
+      );
+    }
+    return realFetch(input, init);
+  };
+}
+
 // **jsdom implements no scrolling, and one dependency calls it anyway.**
 // `@atlaskit/pragmatic-drag-and-drop-auto-scroll`'s `try-scroll.js` calls
 // `window.scrollBy` while a drag is near a viewport edge, and jsdom answers

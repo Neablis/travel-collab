@@ -352,6 +352,14 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "Spend by day",
     keywords: ["spend", "spending", "chart", "graph", "bar", "costs", "money", "budget", "daily", "per day"],
   },
+  // Mitchell, PR 221 preview: the same chart as a burn-down against the budget.
+  {
+    id: "budget-burn-down",
+    widget: "cost.chart",
+    params: { view: "burndown" },
+    title: "Budget burn-down",
+    keywords: ["burn down", "burndown", "budget", "left", "remaining", "pace", "chart", "area", "spend", "money"],
+  },
   // ---- the clock pair -----------------------------------------------------
   // M14 link 11. Unbound, so every located day; a day binding narrows either.
   {
