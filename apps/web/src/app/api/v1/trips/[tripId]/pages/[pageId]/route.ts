@@ -14,6 +14,12 @@ async function ofThisTrip(pageId: string, tripId: string) {
   return page;
 }
 
+// **No stale-save guard on v1.** `expectedUpdatedAt` is the editor's, added for
+// the race between its own saves (CodeRabbit, PR #222); v1 does not grow new
+// surface for it (M22), so its OpenAPI body is unchanged and a caller who sends
+// the field anyway has it stripped, keeping last-write-wins.
+const V1UpdatePageInput = UpdatePageInput.omit({ expectedUpdatedAt: true });
+
 export const { GET, PATCH, DELETE } = route({
   GET: {
     summary: "Get one Notebook page on a trip",
@@ -28,11 +34,11 @@ export const { GET, PATCH, DELETE } = route({
     scope: "notebook:write",
     trip: "path",
     role: "editor",
-    body: UpdatePageInput,
+    body: V1UpdatePageInput,
     response: Page,
     handle: async ({ actor, params, body }) => {
       await ofThisTrip(params["pageId"]!, params["tripId"]!);
-      const patch = body as z.infer<typeof UpdatePageInput>;
+      const patch = body as z.infer<typeof V1UpdatePageInput>;
       // The same check `POST` makes, for the same reason: `context` is optional
       // on a patch, but one naming a different trip from the URL would leave a
       // page filed under this trip while claiming to belong to another. The BFF

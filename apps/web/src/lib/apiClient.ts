@@ -92,10 +92,16 @@ export function networkError(err: unknown): { ok: false; error: ApiError } {
   return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
 }
 
-/** A not-ok response: the body's `error` field when there is one, the status text when there is not. */
+/**
+ * A not-ok response: the body's `error` field when there is one, the status
+ * text when there is not. `code` when the route sent one: two refusals can
+ * share a status and want different handling (a 409 `page-changed` must not be
+ * retried, a stream conflict may be).
+ */
 export async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
-  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  const data = (await res.json().catch(() => ({}))) as { error?: string; code?: unknown };
+  const code = typeof data.code === "string" ? { code: data.code } : {};
+  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, ...code } };
 }
 
 // Task 7.2 (M10 Phase 7): the new-trip wizard's real step, factored out of

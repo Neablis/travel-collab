@@ -1,4 +1,4 @@
-import { UpdatePageInput, serializePageDoc } from "@tc/contracts";
+import { PAGE_CHANGED_CODE, UpdatePageInput, serializePageDoc } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
 import { isUuid } from "@/server/ids";
@@ -61,6 +61,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tripId
       pageId,
       ...(body.data.title === undefined ? {} : { title: body.data.title }),
       ...(body.data.content === undefined ? {} : { content: serializePageDoc(body.data.content) }),
+      ...(body.data.expectedUpdatedAt === undefined ? {} : { expectedUpdatedAt: body.data.expectedUpdatedAt }),
     },
     g.userId,
   );
@@ -72,6 +73,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tripId
     // treats a failed save as "not saved yet" rather than as data loss.
     if (result.error.code === "concurrency-conflict") {
       return Response.json({ error: result.error.message }, { status: 409 });
+    }
+    // The page moved since the editor read it. Also a 409, and unlike the one
+    // above it must NOT be retried as it stands: the same save would be
+    // refused again, and it is the older document. The code is what lets the
+    // client tell the two apart and offer the draft instead.
+    if (result.error.code === PAGE_CHANGED_CODE) {
+      return Response.json({ error: result.error.message, code: PAGE_CHANGED_CODE }, { status: 409 });
     }
     if (result.error.code === "forbidden") return Response.json({ error: result.error.message }, { status: 403 });
     return Response.json({ error: result.error.message }, { status: 400 });

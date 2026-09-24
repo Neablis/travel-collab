@@ -17,8 +17,20 @@ export const EDIT_SESSION_IDLE_MS = 60_000;
  * Sends one session's document. Resolving `false` says the server did not take
  * it, and the session keeps it; returning nothing is a commit with no way to
  * tell, which is treated as taken.
+ *
+ * Resolving `"superseded"` says the server refused it as typed against an
+ * older page. It is neither kept nor retried, and nor is anything typed on top
+ * of it: the same send would be refused again, and the caller has already put
+ * it where the author can choose it back.
+ *
+ * `overtaking` is set on a keepalive commit sent past an ordinary one still in
+ * flight. The page revision the caller last saw is about to be moved by that
+ * commit, so this one cannot name it (CodeRabbit, PR #222).
  */
-export type CommitSession = (doc: PageDoc, options: { keepalive: boolean }) => void | Promise<boolean>;
+export type CommitSession = (
+  doc: PageDoc,
+  options: { keepalive: boolean; overtaking: boolean },
+) => void | Promise<boolean | "superseded">;
 
 /**
  * One write per editing session (ADR-036 decisions 3 and 5, M14 link 9).
@@ -55,11 +67,12 @@ export type CommitSession = (doc: PageDoc, options: { keepalive: boolean }) => v
  * document in the browser (`pageDraft.ts`).
  *
  * **At most one ordinary commit is in flight.** Two PATCHes can land in either
- * order and the server keeps the last one to arrive, with no revision to
- * refuse the older, so a settle made while one is in flight waits for it and
- * then sends only the newest document. The `pagehide` commit cannot wait, so
- * it goes at once; `PageScreen` keeps a draft of every keepalive commit, which
- * is what covers it losing that race. Found by CodeRabbit on PR #222.
+ * order, so a settle made while one is in flight waits for it and then sends
+ * only the newest document. The `pagehide` commit cannot wait, so it goes at
+ * once, marked `overtaking`. The race it then runs is settled by the server:
+ * the ordinary commit names the revision it was typed against, the keepalive
+ * names none, so whichever lands second, the older document is never the one
+ * kept (`expectedUpdatedAt`). Found by CodeRabbit on PR #222.
  *
  * **Only the latest commit started may act on its result.** An older one can
  * still answer after a newer one (past a keepalive), and what it says is
@@ -93,12 +106,20 @@ export function useEditSession(
     pending.current = null;
     if (session === null) return;
     const seq = ++started.current;
+    const overtaking = keepalive && inFlight.current;
     if (!keepalive) inFlight.current = true;
     // A rejection counts as a failure: left unhandled, `inFlight` would stay
     // set and every commit after it would queue forever.
-    const result = Promise.resolve(session.commit(session.doc, { keepalive })).catch(() => false as const);
+    const result = Promise.resolve(session.commit(session.doc, { keepalive, overtaking })).catch(() => false as const);
     void result.then((taken) => {
       if (!keepalive) inFlight.current = false;
+      if (taken === "superseded" && seq === started.current) {
+        // Anything typed while it was in flight was typed on the same stale
+        // page, and is already in what the caller kept.
+        if (idle.current !== null) clearTimeout(idle.current);
+        idle.current = null;
+        pending.current = null;
+      }
       if (seq === started.current && mounted.current) {
         setFailed(taken === false);
         if (taken === false && pending.current === null) {

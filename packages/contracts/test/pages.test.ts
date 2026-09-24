@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MacroNode, PageContext, Page, CreatePageInput, DateRangeRef } from "../src";
+import { MacroNode, PageContext, Page, CreatePageInput, DateRangeRef, PageCommand, UpdatePageInput } from "../src";
 
 describe("page contracts", () => {
   it("accepts a valid inline macro node", () => {
@@ -39,6 +39,28 @@ describe("page contracts", () => {
   it("CreatePageInput requires title + context, not id/timestamps", () => {
     const ok = CreatePageInput.safeParse({ title: "X", context: { tripId: crypto.randomUUID() }, content: { type: "doc", content: [] } });
     expect(ok.success).toBe(true);
+  });
+
+  // The stale-save guard (CodeRabbit, PR #222) is optional in both shapes, so
+  // every caller that predates it (the assistant, `/api/v1`, the seeders)
+  // parses exactly as before. Asserted on the OUTPUT, not on `success`: an
+  // unknown key is stripped rather than refused, so a schema without the field
+  // "accepts" it and silently throws it away.
+  it("carries an optional expectedUpdatedAt on an edit and on the PATCH body", () => {
+    const tripId = crypto.randomUUID();
+    const pageId = crypto.randomUUID();
+    const at = "2026-09-24 10:00:00.123+00";
+    const edit = { type: "EditPage", tripId, pageId, title: "X" } as const;
+    expect(PageCommand.parse({ ...edit, expectedUpdatedAt: at })).toEqual({ ...edit, expectedUpdatedAt: at });
+    expect(PageCommand.parse(edit)).toEqual(edit);
+    expect(UpdatePageInput.parse({ title: "X", expectedUpdatedAt: at })).toEqual({ title: "X", expectedUpdatedAt: at });
+    expect(UpdatePageInput.parse({ title: "X" })).toEqual({ title: "X" });
+  });
+
+  // It is echoed back from `Page.updatedAt`, which is Postgres's own text and
+  // not ISO, but it must be a time, because the server compares it as one.
+  it("refuses an expectedUpdatedAt that is not a time", () => {
+    expect(UpdatePageInput.safeParse({ title: "X", expectedUpdatedAt: "yesterday-ish" }).success).toBe(false);
   });
 });
 
