@@ -7,6 +7,7 @@ import { http, HttpResponse } from "msw";
 import { newPageDoc } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
+import type { Page, UpdatePageInput } from "@tc/contracts";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
 // M14 link 8's second half: the notebook's AI surface is the assistant rail,
@@ -121,6 +122,26 @@ async function openRail() {
   await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
   await userEvent.click(screen.getByTestId("assistant-launcher"));
   return { onUpdate, page, trip };
+}
+
+// **"Nothing was saved" means nothing the TURN produced — not "no PATCH at
+// all".** Entering Editing autosaves the page unchanged: `PageEditor` pushes
+// `editable` onto the live editor with `setEditable`, which emits tiptap's
+// `update` event (`@tiptap/core` 2.27.2, `Editor.setEditable`, `emitUpdate`
+// defaults to true), and that reaches `PageScreen`'s 800 ms autosave debounce.
+// `onUpdate` staying uncalled was therefore only ever true on a machine fast
+// enough to finish the test inside that window: under load it failed with the
+// PATCH carrying the page's own "Notes", and nothing about the assistant
+// (KI-2026-09-20-j). What these tests claim is that whatever was saved is the
+// page as it was opened.
+//
+// It cannot prove the insert's OWN save never happens — that would fire 800 ms
+// after the insert, past the end of the test. The DOM assertion beside each use
+// is what rules the insert out; the save is only ever downstream of it.
+function expectOnlyUnchangedSaves(onUpdate: Mock, page: Page) {
+  for (const [, patch] of onUpdate.mock.calls as [string, UpdatePageInput][]) {
+    expect(patch.content?.content).toEqual(page.content.content);
+  }
 }
 
 describe("the assistant on a notebook page", () => {
@@ -345,7 +366,7 @@ describe("the assistant on a notebook page", () => {
   // between a streaming turn and a document that is being read.
   it("refuses a turn's insert once the page has left Editing, and says why", async () => {
     const { emitter } = neverSettlingTurn();
-    const { onUpdate } = await openRail();
+    const { onUpdate, page } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
     await waitFor(() => expect(emitter()).not.toBeNull());
 
@@ -357,7 +378,7 @@ describe("the assistant on a notebook page", () => {
 
     expect(await screen.findByText(/turn on Edit page/i)).toBeTruthy();
     expect(screen.queryByText("Bring a raincoat")).toBeNull();
-    expect(onUpdate).not.toHaveBeenCalled();
+    expectOnlyUnchangedSaves(onUpdate, page);
     // Still open. Hiding it was the old fix and is now the bug.
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
@@ -365,7 +386,7 @@ describe("the assistant on a notebook page", () => {
   // Closing the surface IS hanging up — that half of the PR 139 fix stands.
   it("hangs up on a turn in flight when the assistant is closed", async () => {
     const { emitter, signal } = neverSettlingTurn();
-    const { onUpdate } = await openRail();
+    const { onUpdate, page } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
     await waitFor(() => expect(emitter()).not.toBeNull());
     expect(signal()!.aborted).toBe(false);
@@ -377,7 +398,7 @@ describe("the assistant on a notebook page", () => {
 
     emitter()!({ type: "page-inserts", content: DOC });
     expect(screen.queryByText("Bring a raincoat")).toBeNull();
-    expect(onUpdate).not.toHaveBeenCalled();
+    expectOnlyUnchangedSaves(onUpdate, page);
   });
 
   // **The server's own refusal.** A page turn whose nodes fail registry
@@ -393,13 +414,13 @@ describe("the assistant on a notebook page", () => {
     askAssistantMock.mockImplementation(
       turnEmitting({ type: "page-error", message: 'Macro "cost.day" params failed validation.' }),
     );
-    const { onUpdate } = await openRail();
+    const { onUpdate, page } = await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add today's cost{Enter}");
 
     expect(await screen.findByText(/params failed validation/)).toBeTruthy();
     // Nothing reached the document, and nothing was saved — the refusal is the
     // whole outcome of the turn.
-    expect(onUpdate).not.toHaveBeenCalled();
+    expectOnlyUnchangedSaves(onUpdate, page);
   });
 
   // A refusal is about the question just asked. Left standing it would sit
