@@ -5,7 +5,7 @@ import { blockOf } from "../../registry-types";
 import type { WeatherCredit, WeatherMode, WeatherPayload, WeatherRow } from "../../weatherPayload";
 import { ok, empty, needsTrip, unavailable, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { narrow } from "../../select";
+import { narrow, pinnedCity } from "../../select";
 import { readSlot } from "../../external";
 import { formatShortDate } from "../../format";
 
@@ -177,6 +177,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
     if (slot.status !== "ok") return slot;
     if (today === null) return unavailable("pending");
 
+    const city = pinnedCity(selection.value, item);
     let undated = false;
     const picked: { point: TripWeatherPoint; mode: WeatherMode; index: number }[] = [];
     for (const index of selection.value.days) {
@@ -187,7 +188,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
       }
       for (const point of slot.value.points) {
         if (point.date !== date) continue;
-        if (params.city !== undefined && point.city !== params.city) continue;
+        if (city !== undefined && point.city !== city) continue;
         picked.push({ point, mode: weatherModeOf(point, today), index });
       }
     }

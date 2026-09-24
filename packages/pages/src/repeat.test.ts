@@ -129,6 +129,69 @@ describe("ItemScope — a widget in a template reads its item when it is not bou
     });
   });
 
+  // The widgets that read WHERE a day is — weather at its points, the sun and
+  // the clock at its place — on the fixture's Rome → Kyoto travel day, where
+  // "the day" and "the city" are two different answers. The base fixture has
+  // no places and no weather, which makes every one of them trivially equal
+  // (all empty), so this context gives them something to disagree about.
+  function locatedCtx(): { ctx: WidgetContext; ids: ReturnType<typeof ctxOf>["ids"] } {
+    const { ctx, ids } = ctxOf();
+    const rome = { place: { lat: 41.9, lng: 12.5 }, timeZone: "Europe/Rome" };
+    const typical = {
+      source: "nasa-power", month: 6, highC: 28, lowC: 17, precipitationMmPerDay: 1.2,
+      period: { fromYear: 2001, throughYear: 2020 },
+    } as const;
+    const at = (date: string, city: string) => ({
+      date, city, forecast: { unavailable: "not-in-horizon" as const }, typical: { ...typical, highC: city === "Kyoto" ? 29 : 28 },
+    });
+    const located: WidgetContext = {
+      ...ctx,
+      today: "2027-05-01",
+      globals: {
+        ...ctx.globals!,
+        days: ctx.globals!.days.map((day) => (day.date === null ? day : { ...day, ...rome })),
+        homeTimeZone: "America/New_York",
+      },
+      external: {
+        weather: {
+          state: "ready",
+          value: { points: [at("2027-06-01", "Rome"), at("2027-06-02", "Rome"), at("2027-06-02", "Kyoto")] },
+        },
+      },
+    };
+    return { ctx: located, ids };
+  }
+
+  it("a city item is the city filter for the widgets that read where a day is", () => {
+    const { ctx } = locatedCtx();
+    let compared = 0;
+    for (const name of ["day.weather", "day.sun", "day.fromHome"]) {
+      for (const city of ["Rome", "Kyoto"]) {
+        const scoped = renderMacro(ctx, name, {}, { kind: "city", name: city });
+        expect(scoped, `${name} for ${city}`).toEqual(renderMacro(ctx, name, { city }));
+        // And the Kyoto line never prints Rome — its travel day's other city.
+        if (city === "Kyoto") expect(JSON.stringify(scoped), `${name} for Kyoto`).not.toContain("Rome");
+        compared++;
+      }
+    }
+    // Witness: three widgets, two cities each.
+    expect(compared).toBe(6);
+    // The Rome line does have weather and a sun on both its days — the filter selects, it does not blank.
+    const rome: ItemScope = { kind: "city", name: "Rome" };
+    expect(renderMacro(ctx, "day.weather", {}, rome)).toMatchObject({
+      status: "ok", rendered: { block: { rows: [{ city: "Rome" }, { city: "Rome" }] } },
+    });
+    expect(renderMacro(ctx, "day.sun", {}, rome)).toMatchObject({ status: "ok", rendered: { rows: [{}, {}] } });
+  });
+
+  it("a stop item on a travel day reads its own city's weather, not both", () => {
+    const { ctx, ids } = locatedCtx();
+    const ryokan: ItemScope = { kind: "stop", activityId: ids.s3, dayIndex: 1 };
+    expect(renderMacro(ctx, "day.weather", {}, ryokan)).toMatchObject({
+      status: "ok", rendered: { block: { rows: [{ city: "Kyoto" }] } },
+    });
+  });
+
   it("a stop item reads that one stop, and its day", () => {
     const { ctx, ids } = ctxOf();
     const ryokan: ItemScope = { kind: "stop", activityId: ids.s3, dayIndex: 1 };

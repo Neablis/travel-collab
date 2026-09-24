@@ -4,7 +4,7 @@ import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext } f
 import { chip, inlineOf, rowCity, rowLabel, rowValue, text, type Seg } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { narrow } from "../../select";
+import { narrow, pinnedCity } from "../../select";
 import { renderRows } from "./rows";
 import { formatKind } from "../../kinds";
 import { clockIn, isKnownZone, noonIn, offsetMinutes } from "../../clock";
@@ -30,11 +30,22 @@ const TIME_FILTERS = ["day", "city", "dates"] as const satisfies readonly Filter
 const TimeParams = filterParams(TIME_FILTERS);
 type TimeParams = z.infer<typeof TimeParams>;
 
-/** A day's place and zone, when the server found both and this runtime knows the zone. */
-function locatedDay(globals: TripGlobals, index: number) {
+/**
+ * A day's place and zone, when the server found both and this runtime knows the zone.
+ *
+ * `city` is the selection's pinned city (`pinnedCity`). The projection holds
+ * ONE place per day — its first located stop — so on a Paris → Lyon travel day
+ * it is Paris's, and the Lyon line of a city repeat must not print Paris's sun
+ * under Lyon's name. That day is left out for Lyon rather than guessed: the
+ * zone is not even the same on a London → New York day, and a second place per
+ * day is a `TripGlobalsDay` contract change, not this widget's to make.
+ */
+function locatedDay(globals: TripGlobals, index: number, city: string | undefined) {
   const day = globals.days[index];
   if (!day?.place || !day.timeZone || !isKnownZone(day.timeZone)) return null;
-  return { place: day.place, zone: day.timeZone, city: day.cities[0] ?? null };
+  const first = day.cities[0] ?? null;
+  if (city !== undefined && first !== city) return null;
+  return { place: day.place, zone: day.timeZone, city: first };
 }
 
 // ---------------------------------------------------------------------------
@@ -109,10 +120,11 @@ export const daySun: MacroDef<TimeParams, RepeatPayload> = {
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     if (!globals) return empty();
+    const city = pinnedCity(selection.value, item);
     let undated = false;
     const rows: RepeatRow[] = [];
     for (const index of selection.value.days) {
-      const located = locatedDay(globals, index);
+      const located = locatedDay(globals, index, city);
       if (!located) continue;
       const date = trip.days[index]!.date;
       if (date === null) {
@@ -201,10 +213,11 @@ export const dayFromHome: MacroDef<TimeParams, readonly HomeDifference[]> = {
     if (!home || !isKnownZone(home)) {
       return empty(user?.homeAirport ? `no time zone known for ${user.homeAirport}` : "set a home airport in Account to see this");
     }
+    const city = pinnedCity(selection.value, item);
     const entries: HomeDifference[] = [];
     const said = new Set<string>();
     for (const index of selection.value.days) {
-      const located = locatedDay(globals, index);
+      const located = locatedDay(globals, index, city);
       const date = trip.days[index]!.date ?? today;
       if (!located || date === null) continue;
       const minutes = differenceOnDay(located.zone, home, date);

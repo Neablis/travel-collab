@@ -270,6 +270,22 @@ export function narrow(
 }
 
 /**
+ * The one city a selection reads a day AT, or `undefined` for all of the day's.
+ *
+ * A travel day touches two cities, so "the day" and "the city" are different
+ * answers there, and a widget that reads a day's place must take the city from
+ * the SELECTION — `params.city` is only what the author bound, and misses the
+ * city a repeat item filled in (M14 PART 3 review, finding 1). A stop item
+ * pins the stop's own city when it has one, which is how `narrow` already
+ * narrowed `cities` for it.
+ */
+export function pinnedCity(selection: Narrowed, item?: ItemScope): CityRef | undefined {
+  if (selection.filters.city !== undefined) return selection.filters.city;
+  if (item?.kind === "stop" && selection.cities.length === 1) return selection.cities[0]!.name;
+  return undefined;
+}
+
+/**
  * A widget's bindings with its repeat item applied (ADR-035 decision 4).
  *
  * The item fills the dimension it names **only when the widget left it
