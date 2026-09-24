@@ -17,6 +17,7 @@ import {
   MANIFEST_ROOTS,
   Money,
   TripGlobals,
+  TripGlobalsDay,
   unwrapSchema,
   valueKindOf,
   WIDGET_NAME_MIGRATION,
@@ -42,14 +43,26 @@ describe("the attribute manifest", () => {
     expect(booked!.label).toBe("How many stops are booked");
   });
 
-  it("carries the human label from `.describe()`, which is what the picker shows", () => {
+  it("carries the human label from `described()`, which is what the picker shows", () => {
     const manifest = buildAttributeManifest();
     const days = manifest.find((e) => e.kind === "collection" && e.collection === "days");
     expect(days!.label).toBe("Every day of the trip");
     // Through a `.nullable()` wrapper too — `date` is `z.string().nullable()`,
-    // and a reader would reasonably expect the description to survive the wrap.
+    // and a reader would reasonably expect the label to survive the wrap.
     const dateField = days!.kind === "collection" && days!.fields.find((f) => f.field === "date");
-    expect(dateField && dateField.label).toBe("The day's date, or nothing if the trip has no start date");
+    expect(dateField && dateField.label).toBe("Date");
+  });
+
+  // Mitchell, #221 preview: *"Dont need 'Day Number, Counting from 0', make
+  // names more intuitive 'Trip Day' for instance"*. The picker's label is a
+  // short name; the API's `.describe()` text keeps what an integrator needs,
+  // so the published OpenAPI document does not change.
+  it("keeps the API's description when the picker's label is shorter", () => {
+    const days = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "days");
+    const index = days?.kind === "collection" ? days.fields.find((f) => f.field === "index") : undefined;
+    expect(index).toMatchObject({ label: "Trip day", valueKind: "day" });
+    expect(TripGlobalsDay.shape.index.description).toBe("Day number, counting from 0");
+    expect(TripGlobalsDay.shape.date.description).toBe("The day's date, or nothing if the trip has no start date");
   });
 
   // ────────────────────────────────────────────────────────────────────────
@@ -180,6 +193,7 @@ describe("a value kind fits the schema it labels", () => {
         return inner instanceof z.ZodString;
       case "count":
       case "duration":
+      case "day":
         return inner instanceof z.ZodNumber;
       case "money":
         // Two shapes today: an integer in the trip's currency (`costSubtotal`)
@@ -355,13 +369,13 @@ describe("value kinds", () => {
     const fields = days().fields;
     expect(fields.find((f) => f.field === "cities")).toEqual({
       field: "cities",
-      label: "The cities this day touches, in arrival order",
+      label: "Cities",
       valueKind: "text",
       list: true,
     });
     const cities = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "cities");
     if (!cities || cities.kind !== "collection") throw new Error("cities collection missing");
-    expect(cities.fields.find((f) => f.field === "dayIndexes")).toMatchObject({ valueKind: "count", list: true });
+    expect(cities.fields.find((f) => f.field === "dayIndexes")).toMatchObject({ valueKind: "day", list: true });
     expect(fields.find((f) => f.field === "date")).not.toHaveProperty("list");
   });
 

@@ -43,6 +43,13 @@ describe("formatKind", () => {
     expect(formatKind("count", 1234, ctx)).toBe("1,234");
   });
 
+  // A trip day is stored counting from 0; a reader counts from 1 (#221
+  // preview: a sentence's "Trip day" printed "0" on the first day).
+  it("prints a trip day as the day a person reads, counting from 1", () => {
+    expect(formatKind("day", 0, ctx)).toBe("Day 1");
+    expect(formatKindList("day", [0, 2], ctx)).toBe("Day 1, Day 3");
+  });
+
   it("formats a duration in minutes as hours and minutes", () => {
     expect(formatKind("duration", 45, ctx)).toBe("45m");
     expect(formatKind("duration", 120, ctx)).toBe("2h");
@@ -90,6 +97,10 @@ describe("collapseKind — the 'All' rule", () => {
     );
   });
 
+  it("lists trip days once each, in trip order — never a sum of indexes", () => {
+    expect(collapseKind("day", [2, 0, 2, 1], ctx)).toBe("Day 1, Day 2, Day 3");
+  });
+
   it("sums counts and durations", () => {
     expect(collapseKind("count", [2, 3, 5], ctx)).toBe("10");
     expect(collapseKind("duration", [45, 45, 30], ctx)).toBe("2h");
@@ -114,7 +125,7 @@ describe("collapseKind — the 'All' rule", () => {
   // differently under `distinct` exactly when the kind claims it does.
   it("declares `distinct` on exactly the kinds whose collapse it changes", () => {
     const sample: KindValues = {
-      money: 100, date: "2026-10-01", count: 2, text: "Kyoto", duration: 30, enum: "meal", location: place("Gion"),
+      money: 100, date: "2026-10-01", count: 2, text: "Kyoto", duration: 30, enum: "meal", location: place("Gion"), day: 2,
     };
     for (const kind of VALUE_KINDS) {
       const twice = [sample[kind], sample[kind]] as never[];

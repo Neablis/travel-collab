@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — short picker labels for the trip globals, and a `day` value kind (#221 preview)
+
+- **Changed:** `described(kind, label, schema, description?)` takes an optional fourth
+  argument, the `.describe()` text. It defaults to `label`, so every existing call is
+  unchanged; a field whose picker name and API text differ passes both.
+- **Changed (labels only):** the attribute manifest's labels for `TripGlobalsDay`
+  (`index` "Trip day", `date` "Date", `cities` "Cities", `activityCount` "Number of
+  stops", `costSubtotal` "Cost", `timeZone` "Time zone"), `TripGlobalsCity` (`name`
+  "City", `dayIndexes` "Trip days", `activityCount` "Number of stops") and
+  `TripGlobalsTag` (`tag` "Tag", `activityCount` "Number of stops"). Each keeps its old
+  sentence as its `.describe()` text, so **the public API's OpenAPI document does not
+  change** (`openapi.test.ts`).
+- **Added:** `"day"` to `VALUE_KINDS`, now the kind of `TripGlobalsDay.index` and
+  `TripGlobalsCity.dayIndexes` (was `"count"`). The stored numbers still count from 0;
+  `@tc/pages` prints a `day` as "Day 1", and many as "Day 1, Day 2" in trip order,
+  never a sum.
+- Why: Mitchell, on the #221 preview, on a sentence's detail buttons: *"Dont need 'Day
+  Number, Counting from 0', make names more intuitive 'Trip Day' for instance"* and
+  *"Lines are too long"*. The labels are the picker's and the buttons' text, and the
+  API descriptions were serving as both. As a `count`, "Trip day" would have printed
+  "0" on the first day, and a field widget over every day summed the indexes.
+- Consumers updated: `@tc/pages` `kinds.ts` (the `day` formatter, ghost "Day N");
+  `apps/web` `RepeatSettings.tsx` (the buttons read the new labels); tests in
+  `manifest.test.ts`, `globals.test.ts`, `kinds.test.ts`, `sentence.test.ts`,
+  `WidgetSettings.test.tsx` and `m14-notebook-widgets.spec.ts`.
+- Breaking? No. No field, path or stored value changed; `PUBLISHED_FIELD_PATHS` is
+  untouched. A caller comparing manifest labels or kinds reads the new ones.
+
 ## 2026-09-24 — `TripGlobalsDay.place.city`: the place names its own stop's city (#223 review)
 
 - **Added:** `TripGlobalsDay.place` gains `city: string | null`, defaulted to

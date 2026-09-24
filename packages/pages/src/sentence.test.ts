@@ -73,6 +73,14 @@ describe("sentenceLine — one line per item", () => {
     expect(linesOf(ctx, "stop.rows", "{title} ({kind})", { kind: "booked" })).toHaveLength(2);
   });
 
+  // #221 preview: the "Trip day" detail printed "0" on the first day, because
+  // the stored index counts from 0. A trip day prints as a reader counts.
+  it("prints a trip day counting from 1, alone and in a city's list of days", () => {
+    const { ctx } = ctxOf();
+    expect(linesOf(ctx, "day.rows", "{index}")).toEqual(["Day 1", "Day 2", "Day 3"]);
+    expect(linesOf(ctx, "city.rows", "{name}: {dayIndexes}")).toEqual(["Rome: Day 1, Day 2", "Kyoto: Day 2"]);
+  });
+
   it("prints an unknown key, a malformed brace and an escape as the author wrote them", () => {
     const { ctx } = ctxOf();
     expect(linesOf(ctx, "city.rows", "{nope} { name } {} {title} {{name}} }}{{ {name")[0]).toBe(

@@ -24,6 +24,8 @@ export interface KindValues {
   duration: number;
   enum: string;
   location: Location;
+  /** A trip day's index, counting from 0 — printed counting from 1. */
+  day: number;
 }
 
 export interface KindContext {
@@ -75,6 +77,8 @@ function sum(values: readonly number[]): number {
 function toMoney(value: Money | number, ctx: KindContext): Money {
   return typeof value === "number" ? { amountMinor: value, currency: ctx.currency } : value;
 }
+
+const dayName = (index: number): string => `Day ${index + 1}`;
 
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -166,6 +170,16 @@ export const VALUE_KIND_FORMATS: KindFormats = {
     format: (value) => value.name,
     ghost: "———",
     ...listing((value) => value.name),
+  },
+  // "Day 3" for index 2: the day a person reads, never the stored index (a
+  // sentence's "Trip day" printed "0" on the first day, #221 preview). Many
+  // days list in trip order, each once — a day is not a quantity to sum.
+  day: {
+    format: dayName,
+    ghost: "Day N",
+    collapse: (values) =>
+      values.length === 0 ? null : [...new Set(values)].sort((a, b) => a - b).map(dayName).join(LIST_SEPARATOR),
+    distinct: false,
   },
 };
 

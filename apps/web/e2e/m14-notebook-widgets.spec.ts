@@ -691,13 +691,13 @@ test("a sentence for each city is written in its settings and reads the same in 
   await panel.getByRole("radio", { name: "City" }).click();
   await expect(panel.getByRole("heading", { name: "A sentence for each city" })).toBeVisible();
 
-  // The sentence, and the city's name dropped in at the caret by its label —
+  // The sentence, and the city dropped in at the caret by its "+ City" button —
   // nobody types a key.
   const sentence = panel.getByRole("textbox", { name: "Sentence" });
   await sentence.fill("Welcome to !");
   await sentence.press("End");
   await sentence.press("ArrowLeft");
-  await panel.getByRole("button", { name: "The city's name" }).click();
+  await panel.getByRole("group", { name: "Insert a detail" }).getByRole("button", { name: "City", exact: true }).click();
   await expect(sentence).toHaveValue("Welcome to {name}!");
 
   // Editing: the lines as they will read, on the rail naming what they repeat

@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import type { Editor } from "@tiptap/react";
 import { REPEAT_SCOPE_ORDER, SENTENCE_TEMPLATE_MAX } from "@tc/contracts";
 import { REPEAT_WIDGETS, repeatNoun, repeatOver, repeatTemplate, rescopeRepeat, sentenceFields, type RepeatOver } from "@tc/pages";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { rebindWidget, removeWidget, rescopeRepeatAt, type SelectedRepeat } from "./blockWidgets";
@@ -16,10 +17,12 @@ import { rebindWidget, removeWidget, rescopeRepeatAt, type SelectedRepeat } from
 // city"*, and *"make the string template a input setting on the sidebar"*.
 //
 // Three controls. **What it repeats for**, a segmented choice of day, stop or
-// city. **The sentence**, one line of text — the one place on screen the raw
-// template, braces and all, is ever shown. **The details**, one button per
-// field the chosen collection publishes, labelled in words, each dropping its
-// token in at the caret; the author never has to know a key exists.
+// city; switching keeps the sentence when the new collection can print every
+// detail in it, and otherwise starts from that collection's own sentence
+// (`rescopeRepeat`). **The sentence**, one line of text — the one place on
+// screen the raw template, braces and all, is ever shown. **Insert a detail**,
+// one "+ Trip day" button per field the chosen collection publishes, each
+// dropping its token in at the caret; the author never has to know a key exists.
 //
 // Every write is an attribute step on the document (`blockWidgets.ts`), so the
 // page's lines — resolved in Editing exactly as in Reading — follow each
@@ -67,6 +70,8 @@ export function RepeatSettings({ editor, repeat }: { editor: Editor; repeat: Sel
   };
 
   const noun = repeatNoun(over);
+  const detailsHeading = useId();
+  const detailsHint = useId();
 
   return (
     <div className="flex flex-col gap-4" data-testid="widget-settings">
@@ -101,15 +106,36 @@ export function RepeatSettings({ editor, repeat }: { editor: Editor; repeat: Sel
         />
       </FormField>
 
-      <div className="flex flex-col gap-2">
-        <Text variant="muted">Add a detail where the cursor is</Text>
-        <div role="group" aria-label={`Details of each ${noun}`} className="flex flex-wrap gap-1.5">
+      {/* **Headed by what a button DOES** (Mitchell, PR 221 preview: *"Oh i
+          didnt realize this was a shortcut for the templates, that wasnt clear
+          and was pretty confused at first"*). The heading names the action,
+          the hint says where the detail lands, and each button reads
+          "+ Trip day" — a short name, one line (*"Lines are too long"*), so
+          the row reads as things to add rather than as settings. */}
+      <div className="flex flex-col gap-1.5">
+        <Label id={detailsHeading}>Insert a detail</Label>
+        <div
+          role="group"
+          aria-labelledby={detailsHeading}
+          aria-describedby={detailsHint}
+          className="flex flex-wrap gap-1.5"
+        >
           {fields.map((field) => (
-            <Button key={field.key} variant="secondary" size="sm" onClick={() => insertDetail(field.key)}>
+            <Button
+              key={field.key}
+              variant="secondary"
+              size="sm"
+              className="whitespace-nowrap"
+              onClick={() => insertDetail(field.key)}
+            >
+              <span aria-hidden className="text-slate">+</span>
               {field.label}
             </Button>
           ))}
         </div>
+        <Text variant="muted" id={detailsHint}>
+          Adds it to the sentence at the cursor, filled in for each {noun}.
+        </Text>
       </div>
 
       <div className="flex justify-end">

@@ -190,8 +190,21 @@ describe("WidgetSettings for a sentence for each…", () => {
     expect(panel.getByRole("heading", { name: "A sentence for each city" })).toBeTruthy();
     expect(panel.getByRole("radio", { name: "City" }).getAttribute("aria-checked")).toBe("true");
     expect((panel.getByRole("textbox", { name: "Sentence" }) as HTMLInputElement).value).toBe("Welcome to {name}!");
-    const details = within(panel.getByRole("group", { name: "Details of each city" })).getAllByRole("button");
-    expect(details.map((b) => b.textContent)).toEqual(["The city's name", "Which days touch this city", "How many stops are in this city"]);
+    // Mitchell, PR 221 preview: *"Oh i didnt realize this was a shortcut for the
+    // templates"*. The group is headed by what a button DOES, says where the
+    // detail goes, and each button reads "+ <short name>".
+    const group = panel.getByRole("group", { name: "Insert a detail" });
+    expect(group.getAttribute("aria-describedby")).toBeTruthy();
+    // eslint-disable-next-line testing-library/no-node-access -- the hint is found by the id the group points at, which is the relationship under test.
+    expect(document.getElementById(group.getAttribute("aria-describedby")!)?.textContent).toBe(
+      "Adds it to the sentence at the cursor, filled in for each city.",
+    );
+    const details = within(group).getAllByRole("button");
+    expect(details.map((b) => b.textContent)).toEqual(["+City", "+Trip days", "+Number of stops"]);
+    // The "+" is decoration: each button is named by its detail alone.
+    expect(details.map((b) => b.getAttribute("aria-label") ?? b.textContent!.replace(/^\+/, ""))).toEqual([
+      "City", "Trip days", "Number of stops",
+    ]);
     // And the page beside it reads the sentence, not the template.
     expect(lines()).toEqual(["Welcome to Tokyo!", "Welcome to Kyoto!"]);
   });
@@ -204,7 +217,7 @@ describe("WidgetSettings for a sentence for each…", () => {
     expect(lines()).toEqual(["Welcome !", "Welcome !"]);
 
     input.setSelectionRange("Welcome ".length, "Welcome ".length);
-    await userEvent.click(panel.getByRole("button", { name: "The city's name" }));
+    await userEvent.click(panel.getByRole("button", { name: "City" }));
     await waitFor(() => expect(repeatAttrs(editor).params).toEqual({ template: "Welcome {name}!" }));
     expect(lines()).toEqual(["Welcome Tokyo!", "Welcome Kyoto!"]);
     // The caret lands after the detail, so typing carries on from there.
@@ -219,6 +232,17 @@ describe("WidgetSettings for a sentence for each…", () => {
     expect(lines()).toEqual(["Hi Tokyo", "Hi Kyoto"]);
     // Still selected, so the panel is still up, now about cities.
     expect(screen.getByRole("heading", { name: "A sentence for each city" })).toBeTruthy();
+  });
+
+  // Mitchell, PR 221 preview: *"Changing repeat pretty much will always break
+  // the string templates since they have different names"*. A detail the new
+  // collection lacks never reaches the page as raw braces.
+  it("swaps in the new collection's starting sentence when the old one names a detail it lacks", async () => {
+    const editor = await openRepeat(repeatDoc("day.rows", { template: "{index}: {cities}" }));
+    await userEvent.click(within(screen.getByTestId("widget-settings")).getByRole("radio", { name: "City" }));
+    await waitFor(() => expect(repeatAttrs(editor)).toEqual({ name: "city.rows", params: { template: "Welcome to {name}" } }));
+    expect(lines()).toEqual(["Welcome to Tokyo", "Welcome to Kyoto"]);
+    expect((screen.getByRole("textbox", { name: "Sentence" }) as HTMLInputElement).value).toBe("Welcome to {name}");
   });
 
   it("removes the sentence", async () => {
