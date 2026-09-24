@@ -16,7 +16,7 @@ const trip = tripDetailFactory.build(
 const ctx: WidgetContext = {
   trip,
   page: { tripId: trip.tripId },
-  user: { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" },
+  user: { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" },
   globals: null,
   // A fixed date, because a countdown asserted against the day the suite runs
   // is a test that changes its own answer overnight. Every `trip.countdown`
@@ -150,7 +150,7 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
     const noUser: WidgetContext = { ...ctx, user: null };
     expect(renderMacro(noUser, "attribute", { field: "account.name" }).status).toBe("empty");
     expect(renderMacro(noUser, "attribute", { field: "account.homeAirport" }).status).toBe("empty");
-    const blank: WidgetContext = { ...ctx, user: { displayName: null, homeAirport: "SFO", distanceUnit: "km" } };
+    const blank: WidgetContext = { ...ctx, user: { displayName: null, homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" } };
     expect(renderMacro(blank, "attribute", { field: "account.name" }).status).toBe("empty");
     // And it did not reach for the sibling field that IS set.
     expect(JSON.stringify(renderMacro(blank, "attribute", { field: "account.name" }))).not.toContain("SFO");
@@ -161,7 +161,7 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
     // empty chip's worth of nothing as a VALUE — a tinted, underlined empty
     // pill sitting in a sentence — passed this test while it claimed "every
     // absent case" (CodeRabbit, PR 141).
-    const noAirport: WidgetContext = { ...ctx, user: { displayName: "Priya", homeAirport: "", distanceUnit: "km" } };
+    const noAirport: WidgetContext = { ...ctx, user: { displayName: "Priya", homeAirport: "", distanceUnit: "km", timeFormat: "12h" } };
     expect(renderMacro(noAirport, "attribute", { field: "account.homeAirport" }).status).toBe("empty");
     const unnamed = tripDetailFactory.build({ name: "   " }, { transient: { dayCount: 1 } });
     expect(renderMacro({ ...ctx, trip: unnamed }, "attribute", { field: "trip.name" }).status).toBe("empty");

@@ -50,7 +50,7 @@ const widgets = everyWidget();
 const doc = everyWidgetPage();
 const trip = scenarios.threeDayTrip({ startDate: "2027-06-01" });
 const context = { tripId: trip.tripId };
-const user = { displayName: "Alice", homeAirport: "LIS", distanceUnit: "km" as const };
+const user = { displayName: "Alice", homeAirport: "LIS", distanceUnit: "km" as const, timeFormat: "12h" as const };
 const repeats = everyRepeat();
 const repeatPage = everyRepeatPage();
 // Two cities, so a sentence for every city has lines to print.

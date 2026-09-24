@@ -176,7 +176,7 @@ describe("day.fromHome", () => {
       status: "empty",
       because: "set a home airport in Account to see this",
     });
-    const user = { displayName: null, homeAirport: "QQQ", distanceUnit: "km" } as unknown as UserPreferences;
+    const user = { displayName: null, homeAirport: "QQQ", distanceUnit: "km", timeFormat: "12h" } as unknown as UserPreferences;
     expect(renderMacro(contextOf(trip, user), "day.fromHome", {})).toMatchObject({
       status: "empty",
       because: "no time zone known for QQQ",

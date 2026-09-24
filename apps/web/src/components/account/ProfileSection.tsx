@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { DistanceUnit, UpdateUserPreferences } from "@tc/contracts";
+import type { DistanceUnit, TimeFormat, UpdateUserPreferences } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,13 @@ import { useAccountPreferences } from "./PreferencesProvider";
 const UNIT_OPTIONS = [
   { value: "km" as const, label: "Kilometres" },
   { value: "mi" as const, label: "Miles" },
+];
+
+// Each label carries its own example, so the choice reads without knowing
+// what "24-hour" means to this app (minutes always shown, hour zero-padded).
+const TIME_FORMAT_OPTIONS = [
+  { value: "12h" as const, label: "12-hour (2:30 pm)" },
+  { value: "24h" as const, label: "24-hour (14:30)" },
 ];
 
 // The Profile tab of `/account` (SPEC §34.4): who you are, and how the app
@@ -61,6 +68,7 @@ export function ProfileSection({
   const [nameError, setNameError] = useState<string | null>(null);
   const [airportError, setAirportError] = useState<string | null>(null);
   const [unitError, setUnitError] = useState<string | null>(null);
+  const [timeFormatError, setTimeFormatError] = useState<string | null>(null);
   // Set the moment someone types, cleared once their value is committed or
   // reverted. It is what stops the resync below from overwriting an edit in
   // progress — see the comment there.
@@ -281,6 +289,31 @@ export function ProfileSection({
               // catch exactly the arbitrary value this line first carried.
               <Text variant="muted" className="text-danger-ink">
                 {unitError}
+              </Text>
+            )}
+          </div>
+        </SettingsRow>
+        <SettingsRow label="Time" description="How clock times are written across your trips.">
+          {/* The distance control's twin: account scope, saved at once, the
+              same pre-fetch guard and the same surfaced failure, for the
+              reasons recorded there. Rendering only — every stored time stays
+              24-hour "HH:MM" whichever is picked. */}
+          <div className="flex flex-col items-start gap-2">
+            <SegmentedControl<TimeFormat>
+              aria-label="Time format"
+              value={preferences.timeFormat}
+              options={TIME_FORMAT_OPTIONS}
+              onValueChange={(timeFormat) => {
+                if (!loaded) return;
+                void (async () => {
+                  const result = await save({ timeFormat });
+                  setTimeFormatError(result.ok ? null : result.error.message);
+                })();
+              }}
+            />
+            {timeFormatError !== null && (
+              <Text variant="muted" className="text-danger-ink">
+                {timeFormatError}
               </Text>
             )}
           </div>

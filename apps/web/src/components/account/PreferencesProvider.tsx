@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { DistanceUnit, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
+import type { DistanceUnit, TimeFormat, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 import { fetchPreferences, updatePreferences, type ApiResult } from "@/lib/apiClient";
 
 /**
@@ -39,12 +39,17 @@ import { fetchPreferences, updatePreferences, type ApiResult } from "@/lib/apiCl
  *
  * These are the STORAGE defaults restated for the client, and they have to
  * agree with `PREFERENCE_DEFAULTS` in `server/users.ts` and with the column's
- * own `DEFAULT 'km'` (migration 0015). Three copies is one more than anyone
+ * own `DEFAULT 'km'` (migration 0015) and `DEFAULT '12h'` (migration 0031). Three copies is one more than anyone
  * wants; the alternative is a client module importing `@/server/*`, which the
  * lint wall forbids, or a default in `packages/contracts`, which would be a
  * storage decision living in a package that deliberately holds none.
  */
-const DEFAULTS: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km" };
+const DEFAULTS: UserPreferences = {
+  displayName: null,
+  homeAirport: null,
+  distanceUnit: "km",
+  timeFormat: "12h",
+};
 
 type PreferencesValue = {
   preferences: UserPreferences;
@@ -171,4 +176,14 @@ export function useIsAdmin(): boolean {
 /** The common case, named for what the call sites are asking. */
 export function useDistanceUnit(): DistanceUnit {
   return usePreferences().distanceUnit;
+}
+
+/**
+ * The clock this person reads times in, for `toClockLabel` / `toClockRange`.
+ * `"12h"` outside a provider, which is what a signed-out reader of a shared
+ * trip or day should see anyway: the design's clock, and every account's
+ * default.
+ */
+export function useTimeFormat(): TimeFormat {
+  return usePreferences().timeFormat;
 }

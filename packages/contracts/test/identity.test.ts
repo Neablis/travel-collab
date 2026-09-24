@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DistanceUnit, UpdateUserPreferences, UserPreferences } from "../src";
+import { DistanceUnit, TimeFormat, UpdateUserPreferences, UserPreferences } from "../src";
 
 const preferences = {
   displayName: "Mitchell",
   homeAirport: "SFO",
   distanceUnit: "km",
+  timeFormat: "12h",
 };
 
 describe("UserPreferences", () => {
@@ -13,14 +14,14 @@ describe("UserPreferences", () => {
   });
 
   it("accepts null for both unsettable fields", () => {
-    const cleared = { displayName: null, homeAirport: null, distanceUnit: "mi" };
+    const cleared = { displayName: null, homeAirport: null, distanceUnit: "mi", timeFormat: "24h" };
     expect(UserPreferences.parse(cleared)).toEqual(cleared);
   });
 
   // Absent is NOT the same as null here — the DTO always carries every field,
   // so a reader never has to decide whether "missing" meant "unset" or "not
   // returned". Both omissions must fail.
-  it.each(["displayName", "homeAirport", "distanceUnit"])("requires %s to be present", (field) => {
+  it.each(["displayName", "homeAirport", "distanceUnit", "timeFormat"])("requires %s to be present", (field) => {
     const partial: Record<string, unknown> = { ...preferences };
     delete partial[field];
     expect(UserPreferences.safeParse(partial).success).toBe(false);
@@ -28,6 +29,10 @@ describe("UserPreferences", () => {
 
   it("has no unset state for distanceUnit", () => {
     expect(UserPreferences.safeParse({ ...preferences, distanceUnit: null }).success).toBe(false);
+  });
+
+  it("has no unset state for timeFormat", () => {
+    expect(UserPreferences.safeParse({ ...preferences, timeFormat: null }).success).toBe(false);
   });
 
   describe("homeAirport", () => {
@@ -64,11 +69,17 @@ describe("UserPreferences", () => {
     expect(DistanceUnit.options).toEqual(["km", "mi"]);
     expect(DistanceUnit.safeParse("miles").success).toBe(false);
   });
+
+  it("admits exactly two time formats", () => {
+    expect(TimeFormat.options).toEqual(["12h", "24h"]);
+    expect(TimeFormat.safeParse("24").success).toBe(false);
+  });
 });
 
 describe("UpdateUserPreferences", () => {
   it("takes one field on its own", () => {
     expect(UpdateUserPreferences.parse({ distanceUnit: "mi" })).toEqual({ distanceUnit: "mi" });
+    expect(UpdateUserPreferences.parse({ timeFormat: "24h" })).toEqual({ timeFormat: "24h" });
   });
 
   // Absent means "leave it alone"; explicit null means "clear it". The two are
