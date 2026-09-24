@@ -6,6 +6,8 @@ import { fetchTripWeather } from "@/lib/apiClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
+const PENDING: Slot<TripWeather> = { state: "pending" };
+
 /**
  * The client half of ADR-052's slot: fetches what the page's widgets declare
  * they need, and hands it to every resolver as `WidgetContext.external`.
@@ -23,7 +25,11 @@ import { tripKeys } from "@/lib/queryKeys";
  */
 export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNeed>): ExternalInputs {
   const wantsWeather = needs.has("weather");
-  const [weather, setWeather] = useState<Slot<TripWeather>>({ state: "pending" });
+  // Keyed by the trip it was fetched for, so another trip reads `pending` on
+  // its first render rather than this one's forecast until its own lands
+  // (#223 review). A reset in the effect would still commit one render late.
+  const [fetched, setFetched] = useState<{ tripId: string; slot: Slot<TripWeather> } | null>(null);
+  const weather = fetched?.tripId === tripId ? fetched.slot : PENDING;
 
   useEffect(() => {
     if (!wantsWeather) return;
@@ -31,7 +37,7 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
     void cachedRead(tripKeys.weather(tripId), () => fetchTripWeather(tripId), {
       dedupeMs: DEDUPE.DOCUMENT,
     }).then((r) => {
-      if (live) setWeather(r.ok ? { state: "ready", value: r.value } : { state: "failed" });
+      if (live) setFetched({ tripId, slot: r.ok ? { state: "ready", value: r.value } : { state: "failed" } });
     });
     return () => {
       live = false;

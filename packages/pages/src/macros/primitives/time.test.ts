@@ -73,6 +73,15 @@ describe("day.sun", () => {
     expect(reykjavik![3]).toMatch(/^sunset 00:0\d \(next day\)$/);
   });
 
+  // West of 180° on UTC+13: the day's own sun, never the next day's marked
+  // "(next day)" (#223 review). SunCalc: 06:11 / 19:02.
+  it("gives Apia that day's sunrise, not the next morning's", () => {
+    const apia = setup([{ date: "2027-01-15", city: "Apia", place: { lat: -13.8333, lng: -171.7667 }, zone: "Pacific/Apia" }]);
+    const [row] = sun(contextOf(apia));
+    expect(row![2]).toMatch(/^sunrise 06:(09|1[0-3])$/);
+    expect(row![3]).toMatch(/^sunset (19:0[0-4])$/);
+  });
+
   it("leaves out a day with no located stop, and is empty when that is every day", () => {
     expect(sun(contextOf(trip())).map((row) => row[0])).toEqual(["Day 1", "Day 2"]);
     const outcome = renderMacro(contextOf(trip()), "day.sun", { day: { kind: "index", index: 2 } });

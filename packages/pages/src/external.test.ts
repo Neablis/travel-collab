@@ -50,6 +50,15 @@ describe("externalNeedsOf — which inputs a page asks for", () => {
     expect([...externalNeedsOf(doc, lookup)]).toEqual(["weather"]);
   });
 
+  // A repeater's widget is its `attrs.name` like a macro's; its `content` is
+  // the row template, which can hold widgets of its own (#223 review).
+  it("names weather when a repeater's own widget declares it, or one in its row template does", () => {
+    const repeat = (name: string, content: unknown[] = []) => ({ type: "repeat", attrs: { name, params: {} }, content });
+    expect([...externalNeedsOf([repeat(weatherProbe.name)], lookup)]).toEqual(["weather"]);
+    expect([...externalNeedsOf([repeat("day.rows", [macro(weatherProbe.name)])], lookup)]).toEqual(["weather"]);
+    expect(externalNeedsOf([repeat("day.rows", [macro("cost")])], lookup).size).toBe(0);
+  });
+
   it("names nothing for a page of widgets that only read the trip — so no location leaves", () => {
     const doc = [{ type: "paragraph", content: [macro("cost"), macro("dates")] }, macro("nope.unknown")];
     expect(externalNeedsOf(doc, lookup).size).toBe(0);

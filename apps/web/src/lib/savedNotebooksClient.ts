@@ -1,5 +1,5 @@
 import { Page, SavedNotebook, SavedNotebookListResponse, type SavedNotebookSummary } from "@tc/contracts";
-import { apiUrl, type ApiError, type ApiResult } from "@/lib/apiClient";
+import { apiUrl, networkError, refusal, type ApiResult } from "@/lib/apiClient";
 import { beginWrite, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
@@ -8,15 +8,6 @@ import { tripKeys } from "@/lib/queryKeys";
 // rejects, and a write that changes a trip's notebooks opens that trip's write
 // scope so the cached notebook list is cleared on the way out. Saving or
 // deleting a template changes no trip, so only instantiate opens one.
-
-function networkError(err: unknown): { ok: false; error: ApiError } {
-  return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
-}
-
-async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
-  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
-}
 
 /** The signed-in person's saved notebooks, without their documents. */
 export async function fetchSavedNotebooks(): Promise<ApiResult<SavedNotebookSummary[]>> {

@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `TripGlobals.homeTimeZone` is not told to a `trips:read`-only token (#223 review)
+
+- **Changed (description only):** `TripGlobals.homeTimeZone` now says it is
+  `null` for an API token without `account:read` or restricted to specific
+  trips. The shape is unchanged: still `string | null`, default `null`.
+- Why: the field is the token OWNER's zone, derived from their home airport —
+  a fact about the caller that not even `GET /v1/account` publishes. A
+  `trips:read` token exposed it on `GET /v1/trips/{tripId}/globals`. It now
+  takes the credential that could read the account: `account:read`, and not
+  confined to named trips (the wrapper refuses those on `/v1/account`).
+  Session callers (`/api/trips/[tripId]/globals`, the app itself) are
+  unaffected.
+- Consumers updated: `apps/web` — the v1 globals route gates the preference
+  read; `openapi.json` regenerated (`pnpm --filter web openapi:generate`);
+  `surface.int.test.ts` covers `trips:read`, `trips:read + account:read`, and a
+  trip-scoped token holding both.
+- Breaking? For an API client that read `homeTimeZone` with a `trips:read`
+  token: it now reads `null`, a value the field could already take. No schema
+  change.
+
 ## 2026-09-24 — `PageRepeatNode` gets its first writer (M14 T13) — no schema change
 
 - **Nothing in `packages/contracts` changed shape.** `PageRepeatNode` has been in

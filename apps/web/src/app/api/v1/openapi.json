@@ -12284,7 +12284,7 @@
                       "minLength": 1,
                       "nullable": true,
                       "default": null,
-                      "description": "The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown."
+                      "description": "The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown, and for an API token without `account:read` or restricted to specific trips."
                     }
                   },
                   "required": [
