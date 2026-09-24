@@ -14,6 +14,7 @@ export * from "./presets";
 export * from "./templates";
 export * from "./writeCheck";
 export * from "./repeat";
+export * from "./sentence";
 export * from "./needsBooking";
 export * from "./dayCity";
 export * from "./enumLabels";

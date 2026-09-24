@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
 import type { ItemScope, WidgetContext } from "./registry-types";
-import { insertRepeat, repeatLabel, resolveRepeat } from "./repeat";
+import { SENTENCE_TEMPLATE_MAX } from "@tc/contracts";
+import { insertRepeat, repeatLabel, rescopeRepeat, resolveRepeat } from "./repeat";
 import { findWidgetError } from "./writeCheck";
-import { insertPreset, presetCatalog } from "./presets";
+import { PRESETS, insertPreset, presetCatalog } from "./presets";
 import { selectionTrip } from "./test-support/selectionTrip";
 
 // The authored repeat (ADR-035 decision 4, M14 link 6): a sentence the author
@@ -218,38 +219,60 @@ describe("ItemScope — a widget in a template reads its item when it is not bou
 });
 
 describe("insertRepeat — the one door a repeat enters a document by", () => {
-  it("builds the stored node: the rows primitive's name, its filters, and an empty template", () => {
-    expect(insertRepeat("day.rows", { dates: { from: "2027-06-01", through: "2027-06-02" } })).toEqual({
+  it("builds the stored node: the rows primitive's name, its filters, and its sentence", () => {
+    expect(insertRepeat("day.rows", { dates: { from: "2027-06-01", through: "2027-06-02" }, template: "Day {date}" })).toEqual({
       ok: true,
       node: {
         type: "repeat",
-        attrs: { name: "day.rows", params: { dates: { from: "2027-06-01", through: "2027-06-02" } } },
+        attrs: { name: "day.rows", params: { dates: { from: "2027-06-01", through: "2027-06-02" }, template: "Day {date}" } },
         content: [],
       },
     });
   });
 
-  it("refuses what the rows primitive refuses, and a table's columns", () => {
+  it("refuses what the rows primitive refuses, a table's columns, and a sentence that is not one line of 500", () => {
     expect(insertRepeat("cost", {})).toMatchObject({ ok: false, error: { reason: "unknown-widget" } });
     expect(insertRepeat("day.rows", { kind: "booked" })).toMatchObject({ ok: false, error: { reason: "bad-params" } });
     expect(insertRepeat("stop.rows", { columns: ["stop.cost"] })).toMatchObject({
       ok: false,
       error: { reason: "bad-params" },
     });
+    expect(insertRepeat("city.rows", { template: "x".repeat(SENTENCE_TEMPLATE_MAX) }).ok).toBe(true);
+    for (const template of ["x".repeat(SENTENCE_TEMPLATE_MAX + 1), "two\nlines", 42]) {
+      expect(insertRepeat("city.rows", { template }), String(template).slice(0, 12)).toMatchObject({
+        ok: false,
+        error: { reason: "bad-params" },
+      });
+    }
+  });
+
+  it("a stored sentence it would refuse reads as invalid, not as a guess", () => {
+    const { ctx } = ctxOf();
+    expect(resolveRepeat(ctx, "city.rows", { template: "a\nb" })).toMatchObject({ status: "invalid" });
+  });
+});
+
+describe("rescopeRepeat — the collection picker", () => {
+  it("carries the sentence and every filter the new collection takes, and drops the rest", () => {
+    const june = { from: "2027-06-01", through: "2027-06-02" };
+    const stop = { template: "Hi {name}", city: "Kyoto", kind: "booked", dates: june };
+    expect(rescopeRepeat("city", stop)).toEqual({ template: "Hi {name}", city: "Kyoto", dates: june });
+    expect(insertRepeat("city.rows", rescopeRepeat("city", stop)).ok).toBe(true);
+    // The other way, nothing is lost that a stop takes.
+    expect(rescopeRepeat("stop", { template: "x", city: "Kyoto" })).toEqual({ template: "x", city: "Kyoto" });
   });
 });
 
 describe("findWidgetError inside a repeat (KI-2026-09-24-d item 3)", () => {
-  const macro = (name: string, params: Record<string, unknown> = {}) => ({ type: "macro", attrs: { name, params } });
   const repeat = (name: string, params: Record<string, unknown>, content: unknown[] = []) => ({
     type: "repeat",
     attrs: { name, params },
     content,
   });
 
-  it("passes a repeat over a collection whose template holds legal widgets", () => {
-    expect(findWidgetError([repeat("day.rows", {}, [{ type: "text", text: "Day " }, macro("dates"), macro("city")])])).toBeNull();
-    expect(findWidgetError([repeat("stop.rows", { kind: "booked", only: "needsBooking" }, [macro("field", { field: "stop.title" })])])).toBeNull();
+  it("passes a repeat over a collection with a sentence", () => {
+    expect(findWidgetError([repeat("day.rows", { template: "Day {date} in {cities}" })])).toBeNull();
+    expect(findWidgetError([repeat("stop.rows", { kind: "booked", only: "needsBooking", template: "{title}" })])).toBeNull();
   });
 
   it.each([
@@ -257,26 +280,26 @@ describe("findWidgetError inside a repeat (KI-2026-09-24-d item 3)", () => {
     ["a repeat filter its collection does not take", repeat("day.rows", { kind: "booked" }), /day\.rows does not accept kind/],
     ["a repeat carrying table columns", repeat("stop.rows", { columns: ["stop.cost"] }), /columns/],
     ["a malformed repeat", { type: "repeat", attrs: { name: "" }, content: [] }, /Invalid repeat node/],
-    ["a bad widget in the template", repeat("day.rows", {}, [macro("city.rows", { kind: "booked" })]), /city\.rows does not accept kind/],
+    ["a sentence over the limit", repeat("day.rows", { template: "x".repeat(501) }), /sentence/],
+    // A v2 template nobody migrated: the editor holds a repeat as a leaf.
+    ["a repeat still carrying content", repeat("day.rows", {}, [{ type: "text", text: "Day " }]), /carries content/],
   ])("refuses %s", (_label, node, message) => {
     expect(findWidgetError([{ type: "blockquote", content: [node] }])).toMatch(message);
   });
 });
 
-describe("the repeat presets — how a person reaches one", () => {
-  it("insert a repeat over their collection, not the rows widget", () => {
-    for (const [id, name] of [["sentence.day", "day.rows"], ["sentence.stop", "stop.rows"], ["sentence.city", "city.rows"]] as const) {
-      expect(insertPreset(id), id).toEqual({ ok: true, node: { type: "repeat", attrs: { name, params: {} }, content: [] } });
-    }
+describe("the repeat preset — how a person reaches one", () => {
+  it("is ONE row, which inserts an unwritten sentence over days", () => {
+    expect(PRESETS.filter((preset) => preset.repeat).map((preset) => preset.id)).toEqual(["sentence"]);
+    expect(insertPreset("sentence")).toEqual({ ok: true, node: { type: "repeat", attrs: { name: "day.rows", params: {} }, content: [] } });
   });
 
-  it("offer the collection's filters and never a table's columns", () => {
-    const stop = presetCatalog().find((entry) => entry.name === "sentence.stop")!;
-    expect(stop.inputs.map((input) => input.name)).toEqual(["day", "city", "tag", "kind", "dates"]);
+  it("asks nothing at insert — the collection and the sentence are chosen in its settings", () => {
+    expect(presetCatalog().find((entry) => entry.name === "sentence")!.inputs).toEqual([]);
   });
 
-  it("answer to no retired widget name — those were widgets, not sentences", () => {
-    expect(presetCatalog().find((entry) => entry.name === "sentence.day")!.aliases).toEqual([]);
+  it("answers to no retired widget name — those were widgets, not sentences", () => {
+    expect(presetCatalog().find((entry) => entry.name === "sentence")!.aliases).toEqual([]);
     expect(presetCatalog().find((entry) => entry.name === "day.line")!.aliases).toEqual(["day.line"]);
   });
 });

@@ -13,6 +13,43 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — A repeat's sentence is a `template` param; page documents go to v3 (PR #221 preview)
+
+- **Added:** `sentenceTemplate.ts` — `SentenceTemplate` (one line, at most
+  `SENTENCE_TEMPLATE_MAX` = 500 characters), `parseSentenceTemplate` /
+  `serializeSentenceTemplate` / `escapeSentenceText` over `SentencePart`
+  (`{ text } | { field }`), and `REPEAT_SCOPES` / `REPEAT_SCOPE_ORDER` /
+  `repeatScopeOf`, which name each collection's rows primitive and where its
+  fields sit in the attribute manifest. Grammar: `{key}` is a field token,
+  `{{` and `}}` are literal braces, anything else is literal text; parsing
+  never fails.
+- **Changed:** `PageRepeatNode`'s sentence moves from `content` (inline text
+  and widgets) to `attrs.params.template`. The Zod shape is unchanged —
+  `content` stays in the schema because a v2 row is parsed before it is
+  migrated — so `openapi.json` does not move. A new base migration, v2 → v3,
+  writes each stored template as the closest sentence: text as text (braces
+  escaped, marks dropped), a line break as a space, an unfiltered widget that
+  read the line's item as its token (`city{}` over cities → `{name}`,
+  `dates{}` over days → `{date}`, `field{field: "stop.title"}` over stops →
+  `{title}`, …), and any other widget as its label. `v2WidgetToken` is exported
+  so `@tc/pages` can check every token it writes is one its resolver knows.
+  `CURRENT_PAGE_DOC_VERSION` is 3; the first `FIELD_CHANGES` batch now takes
+  `since: 4`, and a field rename or removal also rewrites the tokens in every
+  stored sentence.
+- Why: Mitchell, on the PR #221 preview — one "A sentence for each…" widget
+  with a day / stop / city input, a template string with a placeholder for the
+  item's value, set in the sidebar, and Editing showing the resolved lines.
+- Consumers updated: `@tc/pages` (`repeat.ts` validates `template`,
+  `sentence.ts` resolves it, one `sentence` preset replaces three,
+  `findWidgetError` refuses a repeat still carrying content); `apps/web` (the
+  repeat node is a leaf atom, `RepeatNodeView` prints the lines in both modes,
+  `RepeatSettings` edits it, `inspectStoredPageDoc` refuses a v3+ repeat with
+  content); `content/notebooks/built-in-notebooks.json` re-stamped `v: 3` (it
+  holds no repeat). The assistant's page tools and the factories emit no
+  repeats, and neither did before.
+- Breaking? For stored documents, no: every v2 repeat migrates on read. Only
+  the preview database holds any — repeats never reached `main`.
+
 ## 2026-09-24 — `TripGlobals.homeTimeZone` is not told to a `trips:read`-only token (#223 review)
 
 - **Changed (description only):** `TripGlobals.homeTimeZone` now says it is

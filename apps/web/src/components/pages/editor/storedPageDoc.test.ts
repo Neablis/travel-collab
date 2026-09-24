@@ -55,19 +55,41 @@ describe("inspectStoredPageDoc", () => {
     expect(verdict.status === "unsupported" && verdict.unsupportedTypes).toEqual(["callout"]);
   });
 
-  it("mounts a document holding an authored repeat, template and all", () => {
+  it("mounts a document holding an authored repeat, its sentence in its params", () => {
     const verdict = inspectStoredPageDoc({
       v: CURRENT_PAGE_DOC_VERSION,
       type: "doc",
-      content: [
-        {
-          type: "repeat",
-          attrs: { name: "day.rows", params: {} },
-          content: [{ type: "text", text: "Day " }, { type: "macro", attrs: { name: "dates", params: {} } }],
-        },
-      ],
+      content: [{ type: "repeat", attrs: { name: "day.rows", params: { template: "Day {date}" } }, content: [] }],
     });
     expect(verdict.status).toBe("mountable");
+  });
+
+  // The preview database holds v2 repeats whose sentence is inline content;
+  // the editor's repeat is a leaf now (PR #221 preview), so they mount only
+  // because migrate-on-read moved the sentence into `params.template`.
+  const writtenRepeat = {
+    type: "repeat",
+    attrs: { name: "day.rows", params: {} },
+    content: [{ type: "text", text: "Day " }, { type: "macro", attrs: { name: "dates", params: {} } }],
+  };
+
+  it("mounts a v2 repeat by migrating its sentence into its template", () => {
+    const verdict = inspectStoredPageDoc({ v: 2, type: "doc", content: [writtenRepeat] });
+    expect(verdict.status).toBe("mountable");
+    expect(verdict.status === "mountable" && verdict.doc.content[0]).toEqual({
+      type: "repeat",
+      attrs: { name: "day.rows", params: { template: "Day {date}" } },
+      content: [],
+    });
+  });
+
+  it("refuses to mount a repeat still holding content in a document no migration will touch", () => {
+    const verdict = inspectStoredPageDoc({
+      v: CURRENT_PAGE_DOC_VERSION,
+      type: "doc",
+      content: [{ type: "blockquote", content: [writtenRepeat] }],
+    });
+    expect(verdict.status === "unsupported" && verdict.unsupportedTypes).toEqual(["repeat"]);
   });
 
   it("refuses an unsupported node however deeply it is buried", () => {

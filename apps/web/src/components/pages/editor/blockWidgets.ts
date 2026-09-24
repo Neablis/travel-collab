@@ -98,6 +98,37 @@ export function rebindWidget(state: EditorState, pos: number, params: Record<str
   return state.tr.setNodeAttribute(pos, "params", params);
 }
 
+/** The repeat the settings panel is about: where it sits, what it reads, and its params. */
+export interface SelectedRepeat {
+  pos: number;
+  name: string;
+  params: Record<string, unknown>;
+}
+
+/**
+ * The repeat the editor's selection is on, or `null`. A repeat is a block of
+ * its own, so its panel is always one entry: it has no sentence of sibling
+ * widgets to number, as a widget does.
+ */
+export function selectedRepeat(state: EditorState): SelectedRepeat | null {
+  const { selection } = state;
+  if (!(selection instanceof NodeSelection) || selection.node.type.name !== "repeat") return null;
+  return {
+    pos: selection.from,
+    name: selection.node.attrs.name as string,
+    params: (selection.node.attrs.params ?? {}) as Record<string, unknown>,
+  };
+}
+
+/**
+ * Points a repeat at another collection: its `name` and its params in one
+ * transaction, so no state exists in which the node names one collection with
+ * the other's filters. Attribute steps, like `rebindWidget`, so it stays selected.
+ */
+export function rescopeRepeatAt(state: EditorState, pos: number, name: string, params: Record<string, unknown>): Transaction {
+  return state.tr.setNodeAttribute(pos, "name", name).setNodeAttribute(pos, "params", params);
+}
+
 /**
  * Removes ONE widget, never the prose around it.
  *

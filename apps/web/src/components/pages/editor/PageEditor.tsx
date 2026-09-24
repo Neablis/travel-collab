@@ -9,8 +9,8 @@ import { MacroEditorContext, type MacroEditorContextValue } from "./MacroEditorC
 import { SlashMenu } from "./SlashMenu";
 import { useSlashMenu } from "./useSlashMenu";
 import { allowWidgetDragOver, handleWidgetDrop } from "./widgetDrop";
-import { insertRepeatAt, repeatCaretIn } from "./RepeatNodeExtension";
-import { TextSelection } from "@tiptap/pm/state";
+import { insertRepeatAt, repeatAt } from "./RepeatNodeExtension";
+import { NodeSelection } from "@tiptap/pm/state";
 
 export interface PageEditorProps {
   detail: TripDetail;
@@ -245,15 +245,16 @@ export function PageEditor({ detail, context, user = null, globals = null, value
         return;
       }
       // A repeat lands after the sentence it was summoned from, never inside
-      // it (`insertRepeatAt`), and arrives empty, so the caret goes into its
-      // template — the same landing `PageScreen`'s click insert gives it.
+      // it (`insertRepeatAt`), and arrives unwritten, so it arrives SELECTED:
+      // its settings are where the sentence is written — the same landing
+      // `PageScreen`'s click insert gives it.
       editor
         ?.chain()
         .focus()
         .command(({ tr }) => {
           const at = insertRepeatAt(tr, tr.doc.type.schema.nodeFromJSON(built.node), range.from, range.to);
-          const caret = repeatCaretIn(tr.doc, at, at + 1);
-          if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
+          const landed = repeatAt(tr.doc, at, at + 1);
+          if (landed !== null) tr.setSelection(NodeSelection.create(tr.doc, landed));
           return true;
         })
         .run();

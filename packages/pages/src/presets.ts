@@ -3,7 +3,7 @@ import { WIDGET_NAME_MIGRATION } from "@tc/contracts";
 import type { WidgetInput } from "./registry-types";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
-import { TABLE_ONLY_PARAMS, insertRepeat, type RepeatInsertResult } from "./repeat";
+import { insertRepeat, type RepeatInsertResult } from "./repeat";
 
 /**
  * **A named widget is a preset, and a preset is data** (ADR-039 decision 4).
@@ -45,7 +45,8 @@ export interface WidgetPreset {
   /**
    * Inserts an authored REPEAT over `widget`'s selection instead of the widget
    * itself (`repeat.ts`): the same days, stops or cities, as a sentence the
-   * author writes rather than a table the widget draws.
+   * author writes rather than a table the widget draws. Its collection and its
+   * sentence are chosen in the settings panel after it lands.
    */
   repeat?: true;
 }
@@ -244,38 +245,20 @@ export const PRESETS: readonly WidgetPreset[] = [
     keywords: ["city", "cities", "where", "places", "overview"],
   },
   // ---- a sentence each (ADR-035 decision 4) --------------------------------
-  // The authored repeat. Same selection as the `…line` rows below; what differs
-  // is who writes the line — the author, with widgets in it that read each
-  // item — so these insert a `repeat` node with an empty template.
+  // The authored repeat. ONE row, not one per collection: Mitchell, on the PR
+  // #221 preview, *"We can simplify to one widget 'A sentence X' and its a input
+  // to select day, stop city"*. It inserts a sentence over days, the first
+  // choice the settings panel offers, and the panel is where the author picks
+  // the collection and writes the sentence.
   {
-    id: "sentence.day",
+    id: "sentence",
     widget: "day.rows",
     params: {},
     repeat: true,
-    title: "A sentence for every day",
-    keywords: ["repeat", "each", "every", "day", "days", "sentence", "write", "template"],
-    description: "A sentence you write once, repeated for every day. Widgets you put in it read that line's day.",
-    preview: "your own sentence, once per day",
-  },
-  {
-    id: "sentence.stop",
-    widget: "stop.rows",
-    params: {},
-    repeat: true,
-    title: "A sentence for every stop",
-    keywords: ["repeat", "each", "every", "stop", "stops", "activities", "sentence", "write", "template"],
-    description: "A sentence you write once, repeated for every stop. Widgets you put in it read that line's stop.",
-    preview: "your own sentence, once per stop",
-  },
-  {
-    id: "sentence.city",
-    widget: "city.rows",
-    params: {},
-    repeat: true,
-    title: "A sentence for every city",
-    keywords: ["repeat", "each", "every", "city", "cities", "sentence", "write", "template"],
-    description: "A sentence you write once, repeated for every city. Widgets you put in it read that line's city.",
-    preview: "your own sentence, once per city",
+    title: "A sentence for each…",
+    keywords: ["repeat", "each", "every", "day", "days", "stop", "stops", "city", "cities", "sentence", "write", "template", "welcome"],
+    description: "A sentence you write once, printed for each day, stop or city — like \"Welcome to\" and the city's name. Each line reads its own.",
+    preview: "your own sentence, once per day, stop or city",
   },
   // ---- a line each --------------------------------------------------------
   {
@@ -543,13 +526,13 @@ for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
  * filter is what the general widget is for — but the row a person picked by
  * name should not immediately offer to unpick it.
  *
- * A repeat preset also drops a table's `columns`: a sentence has none, and
- * `insertRepeat` refuses them.
+ * A repeat preset offers none at insert: which collection it reads decides
+ * which filters apply, and that is chosen in the settings panel once it lands,
+ * beside the sentence it is chosen for.
  */
 export function presetInputs(preset: WidgetPreset): readonly WidgetInput[] {
-  return (getMacro(preset.widget)?.inputs ?? []).filter(
-    (input) => !(input.name in preset.params) && !(preset.repeat && TABLE_ONLY_PARAMS.includes(input.name)),
-  );
+  if (preset.repeat) return [];
+  return (getMacro(preset.widget)?.inputs ?? []).filter((input) => !(input.name in preset.params));
 }
 
 export function presetCatalog(): WidgetCatalogEntry[] {

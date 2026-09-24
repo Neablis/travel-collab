@@ -74,10 +74,14 @@ export function presetTarget(id: string): { widget: string; params: Record<strin
   return preset ? { widget: preset.widget, params: presetParams(preset) } : null;
 }
 
-/** The controls a preset's bind step offers: its widget's, minus what it fixes. */
+/**
+ * The controls a preset's bind step offers: its widget's, minus what it fixes.
+ * None for a sentence: which collection it reads decides which filters apply,
+ * and that is chosen in its settings once it lands (`presetInputs`).
+ */
 export function presetBindableInputs(id: string): readonly WidgetInput[] {
   const preset = getPreset(id);
-  if (!preset) return [];
+  if (!preset || preset.repeat) return [];
   return bindableInputs(preset.widget).filter((input) => !(input.name in preset.params));
 }
 

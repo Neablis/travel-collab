@@ -14,9 +14,9 @@ import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
-import { NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { NodeSelection } from "@tiptap/pm/state";
 import { PageEditor, sameDocument } from "@/components/pages/editor/PageEditor";
-import { insertRepeatAt, repeatCaretIn } from "@/components/pages/editor/RepeatNodeExtension";
+import { insertRepeatAt, repeatAt } from "@/components/pages/editor/RepeatNodeExtension";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type InsertedNode } from "@/components/pages/WidgetInsert";
@@ -722,9 +722,10 @@ export function PageScreen({
     // by watching the insert sheet never close.
     //
     // **A repeat is placed by `insertRepeatAt`, on phone and desktop alike**:
-    // after the sentence the caret is in, never splitting it. It has nothing
-    // to configure on arrival and everything to write, so the caret goes into
-    // its template and the next keystroke is the sentence (ADR-035 decision 4).
+    // after the sentence the caret is in, never splitting it. It arrives
+    // unwritten, and its sentence is written in its settings (PR #221 preview),
+    // so it is selected on the phone too: the insert sheet asked nothing about
+    // it, and the settings sheet that opens is the one question left.
     if (!Array.isArray(node) && (node as InsertedNode).type === "repeat") {
       editor
         ?.chain()
@@ -734,8 +735,8 @@ export function PageScreen({
           // sentence, so replacing selected text — or a selected widget —
           // would delete something the author did not ask to lose.
           const at = insertRepeatAt(tr, tr.doc.type.schema.nodeFromJSON(node), tr.selection.from);
-          const caret = repeatCaretIn(tr.doc, at, at + 1);
-          if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
+          const landed = repeatAt(tr.doc, at, at + 1);
+          if (landed !== null) tr.setSelection(NodeSelection.create(tr.doc, landed));
           return true;
         })
         .run();
