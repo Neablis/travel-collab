@@ -24,10 +24,12 @@ describe("registry", () => {
     // `MACRO_NAMES` and deliberately NOT in `PRIMITIVE_NAMES`, and the sweep
     // below that once equated the two is what caught it.
     // `country.facts` ("Know before you go", M14 link 11) is registered on
-    // `open`'s terms: no selection, so not a primitive.
+    // `open`'s terms: no selection, so not a primitive. `day.sun` and
+    // `day.fromHome` (the same link) ARE primitives — day entity, day filters.
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.rows",
-      "count", "country.facts", "dates", "day.detail", "day.rows", "hours", "open", "stop.rows",
+      "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "hours", "open",
+      "stop.rows",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -200,11 +202,19 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // `TripDetail` (they are derived by `citiesOfDay` in `@tc/domain`, which this
   // package may not import). The sweep passed `globals: null` while nothing
   // consumed it; now something does.
+  //
+  // The day's place and zone, and the reader's home zone, are what the server
+  // computes for "Sunrise and sunset" and "Time difference from home": without
+  // them both answer `empty` and the floor refuses, as above.
   const globals = {
-    days: [{ index: 0, date: "2026-08-01", cities: ["Tokyo"], activityCount: 1, costSubtotal: 5000 }],
+    days: [{
+      index: 0, date: "2026-08-01", cities: ["Tokyo"], activityCount: 1, costSubtotal: 5000,
+      place: { lat: 35.7188, lng: 139.7765 }, timeZone: "Asia/Tokyo",
+    }],
     cities: [{ name: "Tokyo", dayIndexes: [0], activityCount: 1 }],
     tags: [],
     bookedCount: 0,
+    homeTimeZone: "America/Los_Angeles",
   };
 
   // A loaded account. The sweep below needs one: `account.name` and

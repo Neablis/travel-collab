@@ -243,9 +243,12 @@ describe("MacroView", () => {
 
     it("marks a city as a city, so it can carry the trip's own colour for it", () => {
       const globals = {
-        days: [{ index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 1, costSubtotal: 12345 }],
+        days: [{
+          index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 1, costSubtotal: 12345,
+          place: null, timeZone: null,
+        }],
         cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
-        tags: [], bookedCount: 0,
+        tags: [], bookedCount: 0, homeTimeZone: null,
       };
       render(<MacroView detail={costedDetail} context={ctx} globals={globals} name="day.rows" params={{}} />);
       expect(screen.getByText("Kyoto").getAttribute("data-widget-value")).toBe("city");
@@ -404,10 +407,15 @@ participants: [],
       },
     },
   };
+  // A place, a zone and a home zone, so the clock widgets (M14 link 11) resolve
+  // here too rather than answering `empty` and skipping the nesting walk.
   const richGlobals: TripGlobals = {
-    days: [{ index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345 }],
+    days: [{
+      index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345,
+      place: { lat: 35.0116, lng: 135.7681 }, timeZone: "Asia/Tokyo",
+    }],
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
-    tags: [], bookedCount: 1,
+    tags: [], bookedCount: 1, homeTimeZone: "America/Los_Angeles",
   };
   const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" };
 

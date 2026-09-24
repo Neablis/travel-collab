@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TripGlobals } from "@tc/contracts";
 import { executeTripCommand } from "@/server/commands";
+import { upsertUser, writePreferences } from "@/server/users";
 
 const ACTOR_ID = "user-1";
 const OUTSIDER_ID = "user-2";
@@ -77,5 +78,20 @@ describe("/api/trips/:id/globals", () => {
     expect(globals.cities).toEqual([]);
     expect(globals.tags).toEqual([]);
     expect(globals.bookedCount).toBe(0);
+    expect(globals.homeTimeZone).toBeNull();
+  });
+
+  // The one reader-specific field (M14 link 11): the requesting account's home
+  // airport, read from the session and turned into a zone on the server.
+  it("gives the reader's home time zone from their home airport", async () => {
+    const tripId = await seedTrip();
+    await upsertUser({ id: ACTOR_ID, email: "ana@example.com", name: "Ana", image: null });
+    await writePreferences(ACTOR_ID, { homeAirport: "NRT" });
+    const res = await GET(new Request(`http://test/api/trips/${tripId}/globals`), {
+      params: Promise.resolve({ tripId }),
+    });
+    const globals = TripGlobals.parse(((await res.json()) as { globals: unknown }).globals);
+    expect(globals.homeTimeZone).toBe("Asia/Tokyo");
+    await writePreferences(ACTOR_ID, { homeAirport: null });
   });
 });

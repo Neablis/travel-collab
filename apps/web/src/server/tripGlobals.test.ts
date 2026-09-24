@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
+import { demoTripDetail } from "./demoTrip";
 import { buildTripGlobals } from "./tripGlobals";
 
 // A trip whose middle day travels: it ends in a second city, so it appears in
@@ -70,7 +71,7 @@ describe("buildTripGlobals", () => {
   it("reports empty collections for a trip with nothing in it, rather than failing", () => {
     const bare = { ...tripDetailFixture(), days: [], activities: {} } as TripDetail;
     const g = buildTripGlobals(bare);
-    expect(g).toEqual({ days: [], cities: [], tags: [], bookedCount: 0 });
+    expect(g).toEqual({ days: [], cities: [], tags: [], bookedCount: 0, homeTimeZone: null });
   });
 });
 
@@ -130,5 +131,72 @@ describe("buildTripGlobals and duplicate tags", () => {
       } as unknown as TripDetail["activities"],
     } as TripDetail;
     expect(buildTripGlobals(detail).tags.find((t) => t.tag === "meal")?.activityCount).toBe(1);
+  });
+});
+
+// Where a day is, and what its clock says (M14 link 11). The rule: the first
+// located stop in TIME order, untimed stops after timed ones — `citiesOfDay`'s
+// walk — because the first stop is where the morning is.
+describe("buildTripGlobals and time zones", () => {
+  const TOKYO = { lat: 35.6812, lng: 139.7671 };
+  const HONOLULU = { lat: 21.3069, lng: -157.8583 };
+  function flightDay(): TripDetail {
+    const base = tripDetailFixture();
+    const stop = (id: string, location: object | null, start: string | null) => ({
+      activityId: id, tripId: base.tripId, title: `Stop ${id}`, dayId: "d0", position: 0,
+      timeWindow: start === null ? null : { start, end: start }, location, notes: null, anchors: [],
+      kind: "planned", tags: [], cost: null,
+    });
+    return {
+      ...base,
+      days: [
+        // Stored with the evening's Honolulu arrival first; the morning is Tokyo.
+        { dayId: "d0", activityIds: ["late", "unlocated", "early"], date: "2026-06-21", costSubtotal: 0 },
+        { dayId: "d1", activityIds: ["nowhere"], date: "2026-06-22", costSubtotal: 0 },
+        // Only untimed stops: stored order decides.
+        { dayId: "d2", activityIds: ["loose1", "loose2"], date: "2026-06-23", costSubtotal: 0 },
+      ],
+      activities: {
+        late: stop("late", { city: "Honolulu", ...HONOLULU }, "20:00"),
+        unlocated: stop("unlocated", { city: "Tokyo" }, "06:00"),
+        early: stop("early", { city: "Tokyo", ...TOKYO }, "08:00"),
+        nowhere: stop("nowhere", null, "09:00"),
+        loose1: stop("loose1", { city: "Honolulu", ...HONOLULU }, null),
+        loose2: stop("loose2", { city: "Tokyo", ...TOKYO }, null),
+      } as unknown as TripDetail["activities"],
+    };
+  }
+
+  it("places a day at its earliest located stop, not its first stored one", () => {
+    const [flight] = buildTripGlobals(flightDay()).days;
+    expect(flight).toMatchObject({ place: TOKYO, timeZone: "Asia/Tokyo" });
+  });
+
+  it("reports no place and no zone for a day with no coordinates, rather than a guess", () => {
+    expect(buildTripGlobals(flightDay()).days[1]).toMatchObject({ place: null, timeZone: null });
+  });
+
+  it("falls back to stored order among untimed stops", () => {
+    expect(buildTripGlobals(flightDay()).days[2]).toMatchObject({ place: HONOLULU, timeZone: "Pacific/Honolulu" });
+  });
+
+  it("gives the reader's home zone from their home airport, and none without one", () => {
+    expect(buildTripGlobals(flightDay(), { homeAirport: "SFO" }).homeTimeZone).toBe("America/Los_Angeles");
+    expect(buildTripGlobals(flightDay(), { homeAirport: null }).homeTimeZone).toBeNull();
+    // Well-formed — the field is checked by regex only — and not an airport.
+    expect(buildTripGlobals(flightDay(), { homeAirport: "QQQ" }).homeTimeZone).toBeNull();
+    expect(buildTripGlobals(flightDay()).homeTimeZone).toBeNull();
+  });
+
+  // The demo fixture is what the homepage and the preview render, so it is
+  // what has to carry the field (AGENTS.md's Definition of Done). Every Japan
+  // day is fully located (`verify.ts`'s unlocated-stop finding is empty), so
+  // every day has a zone, and it is Japan's.
+  it("puts every day of the Japan demo trip in Asia/Tokyo", () => {
+    const g = buildTripGlobals(demoTripDetail(), { homeAirport: "SFO" });
+    expect(g.days.length).toBeGreaterThan(0);
+    expect(new Set(g.days.map((d) => d.timeZone))).toEqual(new Set(["Asia/Tokyo"]));
+    expect(g.days.every((d) => d.place !== null)).toBe(true);
+    expect(g.homeTimeZone).toBe("America/Los_Angeles");
   });
 });

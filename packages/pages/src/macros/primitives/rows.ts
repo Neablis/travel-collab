@@ -22,7 +22,12 @@ const segOf = (v: RepeatValue) => (v.name === "label" ? text(v.text) : chip(v.na
 // values }` and this seam used to throw the boundary away — which is why a
 // table looked like it needed a new cell model when it only needed the one
 // already upstream. See `RenderedRow`.
-const renderRows = (payload: RepeatPayload) =>
+/**
+ * A repeat payload as rendered rows, cell for cell: a label as text, every
+ * other value as a chip. Exported so every repeat widget renders one way —
+ * `day.sun` (`time.ts`) is the first outside this file.
+ */
+export const renderRows = (payload: RepeatPayload) =>
   rowsOf(
     payload.rows.map((row) => ({
       lead: [segOf(row.lead)],
