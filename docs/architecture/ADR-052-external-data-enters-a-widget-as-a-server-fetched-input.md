@@ -323,3 +323,51 @@ older as-of, which is what makes serving it honest.
    POWER's climatology is monthly and gives rainfall amount, not a chance of rain, so the
    brainstorm's *"chance of rain"* is not what typical mode will say. NASA POWER's terms and
    endpoint are still **to verify**; Open-Meteo paid is the fallback.
+6. **NASA POWER, what the build assumed and nobody has read at the source** (T24; this
+   container cannot reach `power.larc.nasa.gov`, so `nasa-power.ts` is written to these
+   beliefs and its fixture is constructed, not recorded):
+   - the path `/api/temporal/climatology/point` with `parameters=T2M_MAX,T2M_MIN,PRECTOTCORR`,
+     `community=AG`, `latitude`, `longitude`, `format=JSON`;
+   - the body: `properties.parameter.<NAME>.<JAN…DEC>`, `header.fill_value` (-999) for a
+     month with no value, and the period in `header.start` / `header.end` as `YYYYMMDD`
+     (falling back to the years in `header.range`, then to 2001–2020);
+   - AG's units for these three are °C and mm/day;
+   - whether a request-rate figure is published.
+   A first real call on a preview settles all four: the route logs a warning naming the key
+   when a call fails, and a body of a different shape is refused rather than mis-read.
+
+## Implementation notes (T24, 2026-09-24)
+
+Built as written, with these departures — each the closest faithful version of a line
+that did not survive contact with the code:
+
+- **`backoff_until` is a column, and `payload` is nullable.** Decision 8 says a 429
+  "records a back-off on the row"; the column list in decision 2 had nowhere to record it,
+  and a key that has never been fetched has no row to record it on, so such a row holds
+  `payload: null` and serves nothing.
+- **A quota refusal serves the stale row when there is one**, the same as a failed call,
+  rather than going straight to `unavailable: "source"`. The refusal is a failure to
+  fetch, and decision 2's stale-on-failure is the more honest answer when a row exists.
+- **The route has a start budget of 5 s**: a call not started by then is not made, and
+  its point is served from the cache or as `unavailable`. With decision 8's 4 s per call
+  this bounds the route at about 9 s — the concrete form of "answers with whatever has
+  arrived".
+- **A missing `EXTERNAL_DATA_CONTACT` is one source down, not a 500.** `getForecast()`
+  throws as decision 6 says; the route catches that throw, logs it as an error, and the
+  forecast is `unavailable` — so the reader sees typical, labelled.
+- **Today's figures are "now and the rest of the day" from the server's clock**: the
+  route drops forecast steps already over when it answers, so the resolver's "now" is the
+  first remaining hour and the day's high and low are the rest of the day's.
+- **A located day whose stops name no city gets one point**, at its first located stop,
+  with `city: null`. Decision 3 speaks only of "each city of that day".
+- **A credit appears only for a source whose data is on the block**: a block showing
+  only typical carries NASA's line and not MET's. CC BY asks for credit where the data
+  appears, and nothing of MET's appears there.
+- **The loading placeholder does not reserve the block's full height.** Every row of
+  the block is one fixed height, so the block does not move between modes, but
+  `unavailable("pending")` renders `MacroView`'s one-line chip, which cannot know how
+  many rows the trip will have. Reserving it needs the row count from the trip without
+  the slot, which is a change to `MacroView`'s unavailable branch.
+- **Editing's settings-panel line (decision 4) is not built.** The placeholder is the
+  same quiet chip in both modes, and no panel says which source did not answer.
+- **There is no privacy page** to carry the line *Consequences* asks for.
