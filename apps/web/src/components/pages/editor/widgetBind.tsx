@@ -173,7 +173,7 @@ export function optionsFor(
         // up in this select the day it exists.
         ...withBound(ActivityKind.options, bound).map((kind) => ({ value: kind, label: kind })),
       ];
-    default:
+    case "tags":
       return [
         { value: "", label: "Every stop" },
         // The trip's tags in use, plus whatever this widget is already bound to.
@@ -185,6 +185,22 @@ export function optionsFor(
           label: tag,
         })),
       ];
+    // No select, so no options. `dates` is `DaysFilter`'s whole control,
+    // `person` is dropped by `bindableInputs` (ADR-039 decision 7), and no
+    // primitive declares the retired `days` and `trip` (KI-2026-09-05-i). Before
+    // these were named, all four fell into a `default:` that offered the TAG
+    // list, and so would any input type added later (KI-2026-09-05-h).
+    case "dates":
+    case "person":
+    case "days":
+    case "trip":
+      return [];
+    default: {
+      // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
+      // fails to compile here until someone decides what its control offers.
+      const exhaustive: never = input;
+      return exhaustive;
+    }
   }
 }
 
