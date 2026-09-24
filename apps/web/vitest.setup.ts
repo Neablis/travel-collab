@@ -1,24 +1,13 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { clearQueryCache } from "./src/lib/queryCache";
-import { installNetworkGuard } from "./src/test-support/networkGuard";
-
-// **No automated test may reach a third party** (Mitchell, 2026-09-24). Any
-// `fetch` to a host other than this machine rejects with a message naming the
-// URL; stub it with MSW instead. Installed here, before any test file's
-// `server.listen()`, so MSW captures the guarded fetch as its passthrough: a
-// request with a handler is still answered by MSW, and an unhandled one lands
-// here rather than on the network. The why and what it does not cover:
-// `src/test-support/networkGuard.ts`.
-installNetworkGuard();
-
-// `sentry.shared.ts` falls back to the real production DSN when this is unset.
-// No unit test initialises Sentry with it today — the two that call
-// `Sentry.init` pass an in-memory transport and a dummy DSN, and nothing
-// imports `instrumentation*` or `sentry.*.config.ts` — so this closes a path
-// that is not open, for the next test that imports a config file. `??=`, so
-// `sentry.shared.test.ts`'s own `vi.stubEnv` cases still see what they set.
-process.env.NEXT_PUBLIC_SENTRY_DSN ??= "";
+// **No automated test may reach a third party** (Mitchell, 2026-09-24): the
+// fetch guard, and Sentry's DSN forced empty. Shared with the integration lane
+// so the two cannot drift — the why is in the file. A setup file runs before
+// any test file's `server.listen()`, so MSW captures the guarded fetch as its
+// passthrough: so a request with a handler is still answered by MSW and
+// an unhandled one lands on the guard rather than on the network.
+import "./src/test-support/networkGuard.setup";
 
 // `src/server/config.ts` throws at import time if DATABASE_URL is unset (main's
 // "fail loudly, no silent localhost fallback" change). Unit tests run in jsdom

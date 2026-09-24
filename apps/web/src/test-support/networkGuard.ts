@@ -22,8 +22,10 @@
 // Stripe's REST calls, the AI SDK's gateway provider) uses `fetch`, and so does
 // every browser-side client. Node's `http`/`https`, `XMLHttpRequest`,
 // `navigator.sendBeacon` and `WebSocket` are not guarded; nothing a test
-// imports uses them today (the Sentry SDK's node transport does, which is why
-// every test that initialises Sentry passes its own in-memory `transport`).
+// imports uses them today. The Sentry SDK's node transport does, which is why
+// every test that initialises Sentry passes its own in-memory `transport`, and
+// why `networkGuard.setup.ts` forces `NEXT_PUBLIC_SENTRY_DSN` empty in both
+// lanes.
 
 const GUARDED = Symbol.for("travel-collab.networkGuard");
 
