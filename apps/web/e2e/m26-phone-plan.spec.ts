@@ -102,6 +102,32 @@ test.describe("M26 link 13 — Plan on a phone", () => {
     expect(box!.width).toBeGreaterThanOrEqual(44);
   });
 
+  // Found by the 2026-09-24 mobile check: the Day / Start / End row needed
+  // ~407px, and a bare `1fr` grid track cannot shrink below its content, so on
+  // a phone it widened the whole form past the 358px sheet — every field ran
+  // ~50px off the right edge and Save sat at x 368–427 on a 390px screen.
+  // Measured, because jsdom has no layout.
+  test("fits the stop editor inside the phone, with Save on screen", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await planWithALongStop(page);
+    await page.getByRole("button", { name: `Edit ${LONG_TITLE}` }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor();
+
+    const overflow = await dialog.evaluate((d) =>
+      [...d.querySelectorAll<HTMLElement>("*")]
+        .filter((el) => ["auto", "scroll"].includes(getComputedStyle(el).overflowY))
+        .map((el) => el.scrollWidth - el.clientWidth),
+    );
+    expect(Math.max(0, ...overflow)).toBeLessThanOrEqual(1);
+
+    const save = dialog.getByRole("button", { name: "Save" });
+    await save.scrollIntoViewIfNeeded();
+    const box = await save.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  });
+
   // The desktop is unchanged, which is the other half of "a variant layer, not
   // a second design system": same component, different density.
   test("still shows every day side by side on a desktop", async ({ page }) => {

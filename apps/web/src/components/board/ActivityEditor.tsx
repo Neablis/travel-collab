@@ -191,7 +191,7 @@ export function ActivityEditor({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-3">
+    <form onSubmit={submit} className="grid grid-cols-1 gap-3">
       <FormField
         id="activity-title"
         label="What or where"
