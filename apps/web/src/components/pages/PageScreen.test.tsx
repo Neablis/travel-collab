@@ -9,6 +9,7 @@ import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import { everyWidget, everyWidgetPage, rawSyntaxLeaks } from "@/test-support/rawSyntax";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -41,6 +42,10 @@ const server = setupServer(
   // for the trip's addressable collections (ADR-037 open question 4).
   http.get("/api/trips/:tripId/globals", () =>
     HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
+  ),
+  // And the history its live-chip cursor is read off (KI-2026-09-05-i item 5).
+  http.get("/api/trips/:tripId/history", ({ params }) =>
+    HttpResponse.json({ history: { tripId: params.tripId, entries: [], canUndo: false, canRedo: false } }),
   ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -223,6 +228,122 @@ describe("PageScreen", () => {
     // what a page carrying a retired name renders if the migration does not run.
     expect(await screen.findByText("no costs yet")).toBeTruthy();
     expect(screen.queryByText(/unknown macro/)).toBeNull();
+  });
+});
+
+// The M14 gate box *"No user-visible macro syntax anywhere, in either mode"*,
+// on the whole screen rather than only the document: Editing brings the insert
+// rail and a widget's settings, and both describe widgets. The document alone
+// is `editor/noRawSyntax.test.tsx`; the detector is shared.
+describe("PageScreen: no macro syntax on the screen", () => {
+  it("in Reading, in Editing with the rail open, and with a widget's settings open", async () => {
+    const trip = tripDetailFixture({
+      startDate: "2027-06-01",
+      days: [{ dayId: crypto.randomUUID(), activityIds: [], date: "2027-06-01", costSubtotal: 0 }],
+    });
+    const page = pageFixture({ tripId: trip.tripId, content: everyWidgetPage() });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    // Witness: the page on screen holds every widget, each rendered.
+    const widgetCount = everyWidget().length;
+    await waitFor(() => {
+      // eslint-disable-next-line testing-library/no-node-access -- the witness is "every widget node view mounted"; no role or label names a node view.
+      const views = document.body.querySelectorAll(".tc-page-editor [data-macro-name]");
+      expect(views.length).toBeGreaterThanOrEqual(widgetCount);
+      for (const view of views) expect(view.textContent?.trim()).not.toBe("");
+    });
+    expect(rawSyntaxLeaks(document.body)).toEqual([]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(await screen.findByRole("searchbox", { name: "Search widgets" })).toBeTruthy();
+    expect(rawSyntaxLeaks(document.body)).toEqual([]);
+
+    // Inserting selects what it inserted, so the settings take the column.
+    await userEvent.click(screen.getByRole("button", { name: /The days, in detail/ }));
+    expect(await screen.findByTestId("widget-settings")).toBeTruthy();
+    expect(rawSyntaxLeaks(document.body)).toEqual([]);
+  });
+});
+
+// The M14 gate: *"moving a day or a stop changes the page with nobody editing
+// it"*. The page used to read the trip once, so this is KI-2026-09-05-i item 5.
+// Driven through the visibility-regain poll — the path a solo trip has, and the
+// same code an interval tick takes — rather than wall-clock waiting.
+describe("PageScreen: the trip moves under an open page", () => {
+  const day = () => ({ dayId: crypto.randomUUID(), activityIds: [], date: null, costSubtotal: 0 });
+
+  function serve() {
+    let trip = tripDetailFixture({ days: [day()] });
+    let head = 0;
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "We are away for " },
+              { type: "macro", attrs: { name: "count", params: { of: "day" } } },
+            ],
+          },
+        ],
+      },
+    });
+    const pageReads = vi.fn();
+    server.use(
+      // Counted and passed through: the document is not what moved, so it must
+      // be read exactly once however often the trip does.
+      http.get("/api/trips/:tripId/pages/:pageId", () => {
+        pageReads();
+      }),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: head, events: [], resync: false })),
+    );
+    // Somebody elsewhere — another tab, a co-traveller — adds a day.
+    const addDayElsewhere = () => {
+      trip = { ...trip, days: [...trip.days, day()] };
+      head += 1;
+    };
+    return { page, trip, pageReads, addDayElsewhere };
+  }
+
+  // Coming back to the tab. Dispatched on every retry: the listener attaches in
+  // a passive effect a tick after the page renders (KI-2026-09-22-e), and one
+  // event sent before that reaches nothing.
+  const comeBack = async (expected: string) =>
+    waitFor(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(screen.getByText(expected)).toBeTruthy();
+    });
+
+  it("re-resolves a widget in Reading without a reload", async () => {
+    const { page, trip, pageReads, addDayElsewhere } = serve();
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByText("1 day")).toBeTruthy();
+
+    addDayElsewhere();
+    await comeBack("2 days");
+    expect(screen.queryByText("1 day")).toBeNull();
+    expect(pageReads).toHaveBeenCalledTimes(1);
+  });
+
+  // The half that must NOT happen: the document reloading under an author.
+  // Widget VALUES follow the trip; what they typed stays.
+  it("re-resolves a widget in Editing and keeps what the author typed", async () => {
+    const { page, trip, pageReads, addDayElsewhere } = serve();
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByText("1 day")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    const editor = screen.getByRole("textbox");
+    await userEvent.type(editor, "Unsaved words");
+
+    addDayElsewhere();
+    await comeBack("2 days");
+    expect(editor.textContent).toContain("Unsaved words");
+    expect(pageReads).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -39,3 +39,16 @@ LensRouter`. Three binding invariants:
   trip-context writes; `LensRouter` has no `useState`; a test proves
   `fireEvent.click` opens every overlay.
 - No contract/domain change; UI layer only.
+
+## Note, 2026-09-24 — how trip detail stays fresh (KI-2026-09-05-i item 5)
+
+Invariant 1's "→ refetch" has a second trigger since M13: **news that the trip
+moved**, from `useTripBroadcast` (`components/trip/context/broadcast.ts`,
+ADR-049). It is the only freshness mechanism for trip detail, and every surface
+that reads the trip subscribes to it rather than growing its own. `TripProvider`
+does. So does the notebook (`PageScreen`), which is **not** under
+`TripProvider` because it never writes planning data. It keeps its own read of
+`trip` and `globals`, refetches both on news, and never refetches the page
+document, so an author mid-edit is not clobbered. The gates are ADR-049
+Decision 2's. Every reader asks once on coming back to the tab or window, and
+only a multi-member trip polls on a timer. The demo trip never polls.

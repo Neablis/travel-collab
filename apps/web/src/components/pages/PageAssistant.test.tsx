@@ -111,6 +111,10 @@ const server = setupServer(
   http.get("/api/trips/:tripId/globals", () =>
     HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
   ),
+  // The page reads the trip's head off its history, for live chips.
+  http.get("/api/trips/:tripId/history", ({ params }) =>
+    HttpResponse.json({ history: { tripId: params.tripId, entries: [], canUndo: false, canRedo: false } }),
+  ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 // Unmount FIRST: leaving a page mid-session commits it (ADR-036), and that

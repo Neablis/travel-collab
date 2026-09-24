@@ -3,9 +3,10 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link";
 import type { Page, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
-import { fetchTripAccess, fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
-import { cachedRead } from "@/lib/queryCache";
+import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
+import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
@@ -303,10 +304,20 @@ export function PageScreen({
   // is a screen that eventually writes one.
   const [unstorable, setUnstorable] = useState(false);
 
+  // The trip's head as far as this screen knows it — the cursor
+  // `useTripBroadcast` polls from. See the subscription below.
+  const headSeq = useRef(0);
   useEffect(() => {
     let cancelled = false;
     void fetchTripGlobals(tripId).then((r) => {
       if (!cancelled && r.ok) setGlobals(r.value);
+    });
+    // Through the cache TripProvider reads, so arriving from the board reuses
+    // the history it just fetched. A stale or failed read can only put the
+    // cursor BEHIND the detail, which costs one redundant refetch on the first
+    // poll — the safe direction, where ahead would hide a change.
+    void cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)).then((r) => {
+      if (!cancelled && r.ok) headSeq.current = headSeqOf(r.value);
     });
     void Promise.all([fetchPage(tripId, pageId), fetchTripDetail(tripId)]).then(([pageResult, tripResult]) => {
       if (cancelled) return;
@@ -329,6 +340,55 @@ export function PageScreen({
       cancelled = true;
     };
   }, [tripId, pageId]);
+
+  // **Live chips: the trip moving re-resolves every widget, with nobody
+  // editing the page** (M14 gate; KI-2026-09-05-i item 5). This screen used to
+  // read the trip once, so a stop moved in another tab or by a co-traveller
+  // kept rendering until a reload.
+  //
+  // **The board's poll, not a second refresh model.** `useTripBroadcast` is
+  // the one seam that knows how news of this trip arrives (ADR-049 Decision 3),
+  // and it is gated the way the board is: a timer only when there is a second
+  // member, one read on coming back to the tab regardless. The KI's warning was
+  // that a notebook-only refresh would create the asymmetry it described, so
+  // this subscribes to the same source rather than growing its own.
+  //
+  // **Only `trip` and `globals` are refetched — never the page.** The
+  // document is not what moved, and replacing it would clobber an author
+  // mid-edit (KI-2026-09-22-d is where a remote edit to the DOCUMENT stays
+  // deliberately unshown). Widget values resolve from `trip` on every render
+  // through `MacroEditorContext`, so new detail is all a chip needs, in Reading
+  // and in Editing alike.
+  const refreshes = useRef(0);
+  const refreshTrip = useCallback(
+    (head: number) => {
+      // Latest wins. Two polls' refetches can land out of order, and the older
+      // one arriving second would put back the trip the newer one replaced.
+      const mine = ++refreshes.current;
+      // So the next arrival at the board is not answered out of a cache entry
+      // this poll has just proved stale.
+      invalidate(tripKeys.all(tripId));
+      void Promise.all([fetchTripDetail(tripId), fetchTripGlobals(tripId)]).then(([tripResult, globalsResult]) => {
+        if (mine !== refreshes.current) return;
+        // Silent on failure, as the board's refetch is: the cursor stays put,
+        // so the next poll reports the same news and this tries again.
+        if (!tripResult.ok) return;
+        setTrip(tripResult.value);
+        // The detail was read after the poll saw `head`, so it is at least
+        // that new — a later poll from here reports only what is newer.
+        headSeq.current = Math.max(headSeq.current, head);
+        if (globalsResult.ok) setGlobals(globalsResult.value);
+      });
+    },
+    [tripId],
+  );
+  useTripBroadcast({
+    tripId,
+    enabled: status === "ready",
+    interval: (trip?.members.length ?? 0) > 1,
+    cursor: () => headSeq.current,
+    onChanged: refreshTrip,
+  });
 
   // **One write per editing session**, not one per pause (ADR-036, M14 link 9):
   // the document is committed when the author leaves Editing, when this screen
