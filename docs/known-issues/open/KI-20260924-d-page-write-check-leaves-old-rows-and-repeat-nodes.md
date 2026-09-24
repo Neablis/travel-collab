@@ -36,6 +36,15 @@
      has counted; the scan in *Why not fixed* should count these rows first,
      and the fix may be to STRIP a filter a widget ignores on write rather than
      refuse the save.
+- **2026-09-24 (M14 T14), what the pages rebuild does with items 1 and 2.** It
+  does not make either worse. `rebuildProjections` replays page events through
+  the one writer, which stores `serializePageDoc` output, so a node already stored
+  wrapped comes back wrapped exactly once. The golden page case asserts this on a
+  pre-fix row. A backfilled genesis now also REWRITES the row it describes with
+  the event's document, so a row that had no `v` gains `v: 1` at backfill. Its
+  timestamps are kept. Neither item is repaired: the one-off scan below is still
+  owed. Item 4's "every autosave" is now "the edit session's one write". The
+  refusal is the same, and it is met when the author leaves Editing.
 - **Why not fixed here:** KI-2026-09-05-g's fix was scoped to the write path.
   (1) and (2) are a data repair (a one-off scan of `pages` + page events for
   `type:"unknown"` nesting and stale `v`, run through `ci.yml`'s production

@@ -40,6 +40,14 @@
   which reverts to seq 1 and asserts the page is still there. That test goes red
   the moment someone wires `diffPageStates` in without solving this, which is
   the whole reason it was written before the wiring rather than after.
+  **Since 2026-09-24 (M14 T14)** the same safe state is also pinned for arbitrary
+  interleavings by `packages/domain/test/pageHistory.property.test.ts`. Splicing
+  `diffPageStates` into the undo decision turns it red with the minimal
+  counterexample (add a day, create a notebook, undo → `PageDeleted`). ADR-036
+  decision 2 is amended to rest on exactly this.
+  The projection rebuild built then does NOT go through the fold's revert logic, so
+  it cannot hit this trap. It replays events, and a backfilled genesis on an
+  existing row keeps the row's timestamps (`applyPageEvents`).
 
 - **Shape of an answer, none of it costed.** The root problem is that a
   backfilled genesis is not a real create, and undo must be able to tell the
