@@ -691,8 +691,8 @@ milestone opens:**
       walk cannot do honestly and `broadcast.test.tsx` / `PageScreen.test.tsx`
       prove instead. KI-2026-09-05-i item 5; model recorded in ADR-012's
       2026-09-24 note.)*
-- [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if
-      raw syntax reaches the DOM.
+- [x] **No user-visible macro syntax anywhere**, in either mode. A test fails if
+      raw syntax reaches the DOM. *(Ticked 2026-09-24 on PR #221. T04's `apps/web/src/components/pages/editor/noRawSyntax.test.tsx` scans every preset and every registered widget in Reading, Editing and the read-only fallback, and the screen around it (`PageScreen.test.tsx`), for stored identifiers and `{{ }}` / `[[ ]]` / `@name(` syntax. The last leak it found — `MacroView` printing `unknown macro: <name>` / `bad params: <name>` — now reads "this widget isn't available in this version" / "this widget's settings no longer fit it", covered in both modes (red first). `m14-notebook-widgets.spec.ts` ci-like: 23/23.)*
       *(Built 2026-09-24, T04, **not ticked: one known leak.** The guard is
       `test-support/rawSyntax.ts`: stored widget names, preset ids and
       param paths, `{{ }}`, `[[ ]]`, `@name(`, a JSON params blob, a stringified
