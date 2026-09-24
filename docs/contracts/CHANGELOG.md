@@ -23,7 +23,9 @@ Format:
   the stream's `error` chunk (the turn failed mid-answer) carried the bare
   provider message as `errorText` and now carries `ASK_FAILED_MESSAGE`. Status
   codes, body shape and the client's `ask-stream-error` code are unchanged. The
-  400s (specific and actionable) and the model-selection 503 are untouched
+  model-selection 503 (`model selection failed: <message>`) now sends
+  `ASK_FAILED_MESSAGE` too; its detail stays on the refusal's `ai.grant` line
+  (`reason`). The 400s (specific and actionable) are untouched
 - Why: users should not see raw provider text (2026-09-24). The rail printed
   it verbatim. The real cause is still recorded, with the error, on the turn's
   `ai.ask` record (`cause`) by `recorder.abandon("error", err)`
