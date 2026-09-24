@@ -22,7 +22,10 @@ import { formatMoney, formatDate } from "../../format";
 // carry the trip's own colour cannot be one string, because one string can only
 // wear one colour.
 
-const COST_FILTERS = ["day", "city", "tag", "kind", "person", "dates"] as const satisfies readonly FilterDimension[];
+// No `person` here, in `COUNT_FILTERS` or in `stop.rows`: Mitchell, 2026-09-24,
+// *"person is removed for now"* (M14 decision 5). A page stored while these
+// declared it still saves and renders — `insert.ts` strips a retired dimension.
+const COST_FILTERS = ["day", "city", "tag", "kind", "dates"] as const satisfies readonly FilterDimension[];
 const CostParams = filterParams(COST_FILTERS);
 type CostParams = z.infer<typeof CostParams>;
 
@@ -78,7 +81,7 @@ export const cost: MacroDef<CostParams, string> = {
 const CountOf = z.enum(["stop", "day", "city"]);
 type CountOf = z.infer<typeof CountOf>;
 const COUNTS_STOPS: CountOf = "stop";
-const COUNT_FILTERS = ["day", "city", "tag", "kind", "person", "dates"] as const satisfies readonly FilterDimension[];
+const COUNT_FILTERS = ["day", "city", "tag", "kind", "dates"] as const satisfies readonly FilterDimension[];
 const CountParams = filterParams(COUNT_FILTERS, { of: CountOf.optional() });
 type CountParams = z.infer<typeof CountParams>;
 

@@ -240,6 +240,21 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "one line per booking, with its time and cost",
   },
   {
+    // M14 link 11. Reads `needsBooking` — the rule the Calendar's `N to book`
+    // flag and the home hero already share — through `stop.rows`' `only`
+    // param, so the widget cannot come to disagree with them about which
+    // stops are outstanding.
+    id: "still-to-book",
+    widget: "stop.rows",
+    params: { only: "needsBooking" },
+    title: "Still to book",
+    keywords: ["book", "booking", "to book", "unbooked", "outstanding", "todo", "reserve", "tickets", "hold", "idea"],
+    description:
+      "One line per stop that still needs booking: holds, ideas, and ticketed stops nobody has booked yet.",
+    // Fixed, never computed (ADR-037 decision 5): no count, no names.
+    preview: "one line per stop you still have to book",
+  },
+  {
     id: "costs.table",
     widget: "cost.rows",
     params: {},
