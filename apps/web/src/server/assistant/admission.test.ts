@@ -25,7 +25,7 @@
 // observable without a database, a session or a model.
 import { describe, expect, it } from "vitest";
 import { tripDetailFactory, tripMemberFactory } from "@tc/factories";
-import type { Page, TripDetail, TripRole } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, type Page, type TripDetail, type TripRole } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
@@ -228,6 +228,27 @@ describe("a refusal costs the caller nothing it should not", () => {
     expect(admission.refusal.response.status).toBe(503);
     expect(calls).not.toContain("admitQuota");
     expect(calls).not.toContain("classify");
+  });
+
+  // The person is told the assistant failed; the audit line is told why. The
+  // thrown message used to be the 503 body verbatim ("model selection failed:
+  // AI_GATEWAY_API_KEY is not set"), which is operator detail on a user's screen.
+  it("sends the fixed failure sentence, and keeps the thrown detail on the audit record", async () => {
+    const { ports, records } = spyPorts({
+      selectModel: async () => {
+        throw new Error("some provider detail: 529 overloaded req_abc123");
+      },
+    });
+    const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
+
+    expect(admission.ok).toBe(false);
+    if (admission.ok) return;
+    const body = await admission.refusal.response.text();
+    expect(JSON.parse(body)).toEqual({ error: ASK_FAILED_MESSAGE, simulated: false });
+    expect(body).not.toContain("some provider detail");
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ refusedBy: "selectModel", status: 503 });
+    expect(records[0]!.reason).toContain("some provider detail");
   });
 
   it("does not charge the quota, or select a model, for a malformed request", async () => {

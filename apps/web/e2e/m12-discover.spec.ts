@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 

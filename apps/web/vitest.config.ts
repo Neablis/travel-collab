@@ -26,6 +26,11 @@ export default defineConfig({
   test: {
     include: ["src/**/*.int.test.ts"],
     fileParallelism: false,
+    // No test may reach a third party, and this lane is where it would hurt
+    // most: it loads `.env.local`, which carries real vendor keys on a
+    // developer machine. Postgres is TCP, not `fetch`, so the guard does not
+    // see it. See `src/test-support/networkGuard.ts`.
+    setupFiles: ["./src/test-support/networkGuard.setup.ts"],
     reporters: ["dot"],
   },
 });

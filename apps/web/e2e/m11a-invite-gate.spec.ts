@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type BrowserContext, type Cookie, type Page } from "@playwright/test";
+import type { BrowserContext, Cookie, Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { eq } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Client } from "pg";

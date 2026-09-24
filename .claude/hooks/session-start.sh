@@ -362,12 +362,12 @@ print_state_digest() {
 # AGENTS.md calls non-negotiable, and this is worth re-running MID-session when
 # a lane starts misbehaving, which a start-only digest cannot serve.
 #
-# Why it exists at all: four open known issues are each a session discovering a
+# Why it exists at all: four known issues (three still open) are each a session discovering a
 # broken lane mid-task and misreading it as a code failure —
 # KI-2026-09-08-b (pnpm --filter aborts on a pnpm-major skew),
 # KI-2026-09-12-b (an agent worktree with no node_modules),
-# KI-2026-09-02-a (Node 26 breaks the jsdom unit lane),
-# KI-49 (the egress proxy blocks the map tile host).
+# KI-2026-09-02-a (Node 26 breaks the jsdom unit lane), and — resolved
+# 2026-09-24 — KI-49 (the proxy's CA broke the map tile host in e2e).
 # CLAUDE.md rule 2 exists because "environmental" is the most expensive wrong
 # answer available; this front-loads the right one.
 #

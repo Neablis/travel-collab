@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { e2eTripName } from "./tripNames";
 
 // M11 link 4's exit-gate line, and the only way to prove it: "A share link

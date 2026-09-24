@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 import { createMappedTrip, openPlan } from "./helpers";

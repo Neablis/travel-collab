@@ -1,4 +1,5 @@
-import { expect, type Locator, test } from "@playwright/test";
+import type { Locator } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { commandsFor } from "@tc/factories";
 import { e2eTripName } from "./tripNames";
 
