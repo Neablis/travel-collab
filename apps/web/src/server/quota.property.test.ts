@@ -10,29 +10,26 @@
 // could be reached must be served in full.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { aiQuotas, aiStepQuotas, consumeQuota, type QuotaCounters, type QuotaPolicy } from "./quota";
+import {
+  aiQuotas,
+  aiStepQuotas,
+  consumeQuota,
+  reserveAiSteps,
+  settleAiSteps,
+  type QuotaPolicy,
+  type StepReservation,
+} from "./quota";
+import { referenceCounters } from "@/server/test-support/quotaCounters";
 import { witness } from "@/test-support/witness";
 import type { EntitlementCeilings } from "./assistant/entitlements";
 
 const T0 = new Date("2026-08-28T12:00:00.000Z");
 
-function fakeCounters(): QuotaCounters {
-  const rows = new Map<string, { windowStart: number; hits: number }>();
-  return {
-    async bump(bucket, windowStart) {
-      const existing = rows.get(bucket);
-      const next =
-        existing === undefined || windowStart.getTime() > existing.windowStart
-          ? { windowStart: windowStart.getTime(), hits: 1 }
-          : { windowStart: existing.windowStart, hits: existing.hits + 1 };
-      rows.set(bucket, next);
-      return next.hits;
-    },
-    async release() {
-      // Not used in property tests
-    },
-  };
-}
+// The counter model is shared with quota.int.test.ts, which proves it agrees
+// with `pgCounters` on every bump and release (KI-2026-09-15-a). This file used
+// to carry its own fake whose `release` was a no-op, which is why the refund
+// path had no property coverage at all.
+const fakeCounters = referenceCounters;
 
 const USERS = ["alice", "bob", "carol", "dave"];
 
@@ -86,6 +83,169 @@ describe("the quota bound holds for any request sequence", () => {
     // than guessed: 1,837-1,911 bound assertions and 89-105 liveness cases.
     w.atLeast(900);
     live.atLeast(45);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reserve → settle: every counter holds exactly the net charge of its window
+// ---------------------------------------------------------------------------
+
+/**
+ * KI-2026-09-15-a. `release` is the only path that decreases a counter, and it
+ * is reached two ways: `reserveAiSteps` rolling back a refused attempt, and
+ * `settleAiSteps` refunding what a turn did not use. The claim is universally
+ * quantified — for ANY interleaving of reservations and settlements, across
+ * actors, while the clock crosses window boundaries of two policies with
+ * different lengths — so it is a property:
+ *
+ * 1. **Exact accounting.** Every counter row holds exactly the sum, over the
+ *    ADMITTED reservations stamped with that row's current window, of the full
+ *    budget if still in flight or the steps used if settled. A refused attempt
+ *    contributes nothing (its rollback is complete, including a policy earlier
+ *    in the array that had already admitted). A settlement whose window has
+ *    rolled contributes nothing to the new window — the `=` guard, observed
+ *    through the whole reserve/settle path rather than one call.
+ * 2. **Never negative, never over a ceiling.**
+ * 3. **Admission is exact**, in both directions: a reservation is admitted iff
+ *    its budget fits under every ceiling in its window. The safety half alone
+ *    is satisfied by refusing everything.
+ *
+ * The counter model is the one quota.int.test.ts proves agrees with the SQL.
+ */
+const SHORT_MS = 60_000;
+const LONG_MS = 180_000;
+const STEP_USERS = ["alice", "bob", "carol"];
+
+const arbStepPolicy = (name: string, windowMs: number) =>
+  fc
+    .integer({ min: 8, max: 60 })
+    .chain((perUser) =>
+      fc.integer({ min: perUser, max: perUser * 3 }).map((global): QuotaPolicy => ({ name, windowMs, perUser, global })),
+    );
+
+const arbStepOp = fc.oneof(
+  fc.record({
+    kind: fc.constant("reserve" as const),
+    user: fc.constantFrom(...STEP_USERS),
+    advanceMs: fc.integer({ min: 0, max: 70_000 }),
+  }),
+  fc.record({
+    kind: fc.constant("settle" as const),
+    pick: fc.nat(),
+    // Past the budget on purpose: an over-report must clamp to the budget.
+    steps: fc.integer({ min: 0, max: 15 }),
+    advanceMs: fc.integer({ min: 0, max: 70_000 }),
+  }),
+);
+
+const stepScenario = fc.record({
+  short: arbStepPolicy("steps-short", SHORT_MS),
+  long: arbStepPolicy("steps-long", LONG_MS),
+  budget: fc.integer({ min: 1, max: 12 }),
+  ops: fc.array(arbStepOp, { minLength: 1, maxLength: 40 }),
+});
+
+const windowOf = (policy: QuotaPolicy, at: number) => Math.floor(at / policy.windowMs) * policy.windowMs;
+
+describe("reserve and settle keep every counter at its exact net charge", () => {
+  it("for any interleaving of reservations and settlements across window boundaries", async () => {
+    const w = witness("reserve/settle accounting");
+    const admitted = witness("an admitted reservation");
+    const refused = witness("a refused reservation (the rollback path)");
+    const refunded = witness("a settlement refunding into its own window");
+    const rolled = witness("a settlement whose window had rolled");
+
+    await fc.assert(
+      fc.asyncProperty(stepScenario, async ({ short, long, budget, ops }) => {
+        const policies = [short, long];
+        const counters = fakeCounters();
+        const ledger: { user: string; reservation: StepReservation; used: number | null }[] = [];
+        let now = T0.getTime();
+
+        const expectedFor = (policy: QuotaPolicy, user: string | null, windowStart: number): number =>
+          ledger
+            .filter((entry) => user === null || entry.user === user)
+            .filter((entry) => entry.reservation.windowStarts.get(policy.name)?.getTime() === windowStart)
+            .reduce((sum, entry) => sum + (entry.used ?? budget), 0);
+
+        const currentCount = (bucket: string, at: number, policy: QuotaPolicy): number => {
+          const row = counters.rows.get(bucket);
+          return row !== undefined && row.windowStart === windowOf(policy, at) ? row.hits : 0;
+        };
+
+        for (const op of ops) {
+          now += op.advanceMs;
+          if (op.kind === "reserve") {
+            const fits = policies.every(
+              (policy) =>
+                currentCount(`${policy.name}:user:${op.user}`, now, policy) + budget <= policy.perUser &&
+                currentCount(`${policy.name}:global`, now, policy) + budget <= policy.global,
+            );
+            const { decision, reservation } = await reserveAiSteps(
+              policies,
+              op.user,
+              counters,
+              new Date(now),
+              budget,
+            );
+            expect(decision.allowed).toBe(fits);
+            if (decision.allowed) {
+              expect(reservation).not.toBeNull();
+              ledger.push({ user: op.user, reservation: reservation!, used: null });
+              admitted.tick();
+            } else {
+              expect(reservation).toBeNull();
+              refused.tick();
+            }
+          } else {
+            const pending = ledger.filter((entry) => entry.used === null);
+            if (pending.length === 0) continue;
+            const entry = pending[op.pick % pending.length]!;
+            const used = Math.min(op.steps, budget);
+            if (used < budget) {
+              const inWindow = policies.some(
+                (policy) =>
+                  counters.rows.get(`${policy.name}:user:${entry.user}`)?.windowStart ===
+                  entry.reservation.windowStarts.get(policy.name)?.getTime(),
+              );
+              const anyRolled = policies.some(
+                (policy) =>
+                  counters.rows.get(`${policy.name}:user:${entry.user}`)?.windowStart !==
+                  entry.reservation.windowStarts.get(policy.name)?.getTime(),
+              );
+              if (inWindow) refunded.tick();
+              if (anyRolled) rolled.tick();
+            }
+            await settleAiSteps(entry.reservation, op.steps, counters);
+            entry.used = used;
+          }
+
+          for (const [bucket, row] of counters.rows) {
+            const [name, scope, user] = bucket.split(":");
+            const policy = policies.find((candidate) => candidate.name === name)!;
+            expect(policy).toBeDefined();
+            expect(row.hits).toBeGreaterThanOrEqual(0);
+            if (scope === "global") {
+              expect(row.hits).toBe(expectedFor(policy, null, row.windowStart));
+              expect(row.hits).toBeLessThanOrEqual(policy.global);
+            } else {
+              expect(row.hits).toBe(expectedFor(policy, user!, row.windowStart));
+              expect(row.hits).toBeLessThanOrEqual(policy.perUser);
+            }
+          }
+          w.tick();
+        }
+      }),
+      { numRuns: 300 },
+    );
+    // Floors at ~half the observed minimum over five runs (2026-09-24): 1,365-
+    // 1,436 checked steps, 809-864 admitted, 90-147 refused, 133-183 in-window
+    // refunds, 16-28 settlements after a roll.
+    w.atLeast(650);
+    admitted.atLeast(400);
+    refused.atLeast(45);
+    refunded.atLeast(65);
+    rolled.atLeast(8);
   });
 });
 

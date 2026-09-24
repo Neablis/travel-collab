@@ -1,4 +1,4 @@
-### KI-2026-09-15-a — the quota refund path has no direct SQL test and no property coverage, so its two guards are proven only indirectly
+### KI-2026-09-15-a — the quota refund path has no direct SQL test and no property coverage, so its two guards are proven only indirectly — RESOLVED
 
 - **Severity:** reliability of verification (no known defect — the guards are correct today; what is missing is the test that would catch them regressing)
 - **Area:** `apps/web/src/server/quota.ts` (`pgCounters.release`), `apps/web/src/server/quota.int.test.ts`, `apps/web/src/server/quota.property.test.ts`
@@ -12,3 +12,16 @@
 - **Cross-reference:** KI-94 and KI-97 (resolved 2026-09-15 — the change that introduced `release`); KI-2026-09-05-p (the same "fixed as lines, never as a property" shape, on the optimistic queue); `docs/plans/2026-09-15-M9-01-step-quota-concurrency.md`.
 - **Milestone:** unassigned. Not an M9 gate box — M9's step-ceiling box is about the ceiling holding, which it now does and is tested.
 - **First noted:** 2026-09-15, in the scoped re-review of the KI-94 fix wave.
+- **Resolved:** 2026-09-24 (KI sweep). Coverage only; the tests exposed **no defect**, and `quota.ts` is unchanged. Before the fix, widening the window guard to `gte`, and separately dropping `greatest(..., 0)`, each left `quota.int.test.ts` (10/10) and `quota.property.test.ts` (2/2) green. Three pieces now cover it:
+  - **Direct SQL tests.** `quota.int.test.ts`'s "the Postgres refund" block calls `pgCounters().release` directly. It checks five cases: a refund in the same window; a refund against the window before (a no-op); a refund against a later window (a no-op); an over-large refund, which floors at 0; and 10 concurrent refunds, which land at exactly 0. It also checks that no row is created for an uncharged bucket and that amounts are clamped.
+  - **A differential property against the SQL.** A fast-check property, "pgCounters agrees with the reference semantics", runs 150 random bump/release sequences. The sequences cover four windows and include garbage amounts. Each one goes through both `pgCounters` and a shared model, `apps/web/src/server/test-support/quotaCounters.ts`, and the two must agree on the count and the row after every operation. Witness floors ensure the property generates refunds against another window and refunds larger than the count.
+  - **A reserve/settle property.** `quota.property.test.ts` now uses that same model in place of the old no-op `release` stub. A new property, "reserve and settle keep every counter at its exact net charge", runs 300 interleavings of `reserveAiSteps` and `settleAiSteps` across two window lengths. It checks that every row equals the net charge of the admitted reservations in its window, that no counter goes negative or over its ceiling, and that admission is exact in both directions.
+- **How it was proven.** Each guard was broken in turn, and the new tests went red for the stated reason each time:
+  - `eq`→`gte` gave `-   "hits": 5, +   "hits": 0`, because a refund against the old window drained the new one.
+  - Dropping `greatest` gave `+   "hits": -996` (over-large), `-25` (concurrent) and `-1` (differential).
+  - Moving the floor into a JS read-then-write gave `+   "hits": 8` in the concurrency test (lost updates).
+  - Putting the no-op `release` back in the model gave the counterexample "three reservations of 3 under perUser 8" and `expected 9 to be 6`, because the refused attempt's charge was stranded.
+  - Deleting the global release in `settleAiSteps` gave `expected 1 to be +0`.
+  - Widening the model's own guard failed the differential with `+   "hits": 1`.
+
+  After restoring each change: `quota.int.test.ts` 18/18, and `quota.test.ts` plus `quota.property.test.ts` 55/55.

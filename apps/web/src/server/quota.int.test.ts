@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
+import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { like } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { db } from "./db/client";
 import { rateLimitCounters } from "./db/schema";
 import { consumeQuota, pgCounters, type QuotaPolicy } from "./quota";
+import { referenceCounters } from "@/server/test-support/quotaCounters";
+import { witness } from "@/test-support/witness";
 
 // What quota.test.ts cannot cover: the upsert itself. The whole design rests on
 // `ON CONFLICT DO UPDATE ... RETURNING` being one atomic statement — an
@@ -126,6 +129,162 @@ describe("the Postgres counter", () => {
     await counters.bump(key("a"), T0);
     await counters.bump(key("a"), T0);
     expect(await counters.bump(key("a"), new Date(T0.getTime() - 60_000))).toBe(3);
+  });
+});
+
+// KI-2026-09-15-a. `release` is the only path that can DECREASE a counter, and
+// until these tests its two guards were proven only transitively, through
+// route.int.test.ts's refund assertions. The in-memory fakes agree with the SQL
+// on both guards, and that agreement is what makes the unit tests meaningful —
+// but nothing enforced it: widening `eq` to `gte`, or dropping
+// `greatest(..., 0)`, left every quota suite green (measured 2026-09-24).
+async function rowOf(bucket: string): Promise<{ windowStart: number; hits: number } | undefined> {
+  const [row] = await db.select().from(rateLimitCounters).where(eq(rateLimitCounters.bucket, bucket));
+  return row === undefined ? undefined : { windowStart: row.windowStart.getTime(), hits: row.hits };
+}
+
+describe("the Postgres refund", () => {
+  const T1 = new Date(T0.getTime() + 60_000);
+
+  it("subtracts from the window it reserved in", async () => {
+    const counters = pgCounters();
+    await counters.bump(key("a"), T0, 32);
+    await counters.release(key("a"), T0, 30);
+    expect(await rowOf(key("a"))).toEqual({ windowStart: T0.getTime(), hits: 2 });
+  });
+
+  // The window guard. The row is one-per-bucket forever, so after a roll it
+  // holds the NEW window's count — usage this refund never charged. `>=` here
+  // would let a turn that straddled the boundary refund someone else's usage.
+  it("leaves a rolled window alone: a refund against the window before is a no-op", async () => {
+    const counters = pgCounters();
+    await counters.bump(key("a"), T0, 32);
+    await counters.bump(key("a"), T1, 5);
+    await counters.release(key("a"), T0, 30);
+    expect(await rowOf(key("a"))).toEqual({ windowStart: T1.getTime(), hits: 5 });
+  });
+
+  // The other side of the same `=`: a refund stamped with a LATER window than
+  // the row's (a skewed instance) charged nothing here and must not subtract.
+  it("leaves the row alone for a refund stamped with a later window", async () => {
+    const counters = pgCounters();
+    await counters.bump(key("a"), T0, 10);
+    await counters.release(key("a"), T1, 4);
+    expect(await rowOf(key("a"))).toEqual({ windowStart: T0.getTime(), hits: 10 });
+  });
+
+  it("floors an over-large refund at zero rather than going negative", async () => {
+    const counters = pgCounters();
+    await counters.bump(key("a"), T0, 3);
+    await counters.release(key("a"), T0, 999);
+    expect(await rowOf(key("a"))).toEqual({ windowStart: T0.getTime(), hits: 0 });
+  });
+
+  // Why the floor is computed in SQL, in the same statement as the subtraction:
+  // a read-then-write refund loses updates under concurrency, and a JS-side
+  // floor floors a stale read. Ten concurrent refunds of one from ten must land
+  // at exactly zero, and ten over-large ones must still land at zero.
+  it("applies concurrent refunds atomically and never below zero", async () => {
+    const counters = pgCounters();
+    await counters.bump(key("race"), T0, 10);
+    await Promise.all(Array.from({ length: 10 }, () => counters.release(key("race"), T0, 1)));
+    expect(await rowOf(key("race"))).toEqual({ windowStart: T0.getTime(), hits: 0 });
+
+    await counters.bump(key("race2"), T0, 5);
+    await Promise.all(Array.from({ length: 10 }, () => counters.release(key("race2"), T0, 3)));
+    expect(await rowOf(key("race2"))).toEqual({ windowStart: T0.getTime(), hits: 0 });
+  });
+
+  it("does not create a row for a bucket that was never charged", async () => {
+    await pgCounters().release(key("never"), T0, 5);
+    expect(await rowOf(key("never"))).toBeUndefined();
+  });
+
+  it("ignores a negative, zero or non-finite amount and truncates a fractional one", async () => {
+    const counters = pgCounters();
+    await counters.bump(key("a"), T0, 10);
+    await counters.release(key("a"), T0, -5);
+    await counters.release(key("a"), T0, 0);
+    await counters.release(key("a"), T0, Number.NaN);
+    await counters.release(key("a"), T0, Number.POSITIVE_INFINITY);
+    await counters.release(key("a"), T0, 1.7);
+    expect(await rowOf(key("a"))).toEqual({ windowStart: T0.getTime(), hits: 9 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The SQL and the reference semantics agree, for ANY bump/release sequence
+// ---------------------------------------------------------------------------
+
+// `referenceCounters` (test-support/quotaCounters.ts) is the model the reserve/
+// settle property in quota.property.test.ts runs on. This property drives it
+// and `pgCounters` through one generated sequence and requires them to agree
+// after every operation — which is what makes that property one about the real
+// SQL, and closes the fake-vs-real divergence as a class rather than as the
+// cases above: a change to either `release` guard, or to `bump`'s window
+// rules, that the model does not also make fails here.
+
+// Four adjacent windows, so a sequence can roll forward, step back (a skewed
+// clock), and refund against any window — including one the row has left.
+const WINDOWS = [-1, 0, 1, 2].map((i) => new Date(T0.getTime() + i * 60_000));
+// Refunds range wider than charges, so a refund larger than the row's count —
+// the shape the floor exists for — is common rather than rare.
+const arbAmount = (max: number) =>
+  fc.oneof(
+    fc.integer({ min: -5, max }),
+    fc.double({ min: -5, max, noNaN: true }),
+    fc.constantFrom(Number.NaN, Number.POSITIVE_INFINITY),
+  );
+const arbWindow = fc.integer({ min: 0, max: WINDOWS.length - 1 });
+const arbOp = fc.oneof(
+  fc.record({ kind: fc.constant("bump" as const), window: arbWindow, amount: arbAmount(20) }),
+  fc.record({ kind: fc.constant("release" as const), window: arbWindow, amount: arbAmount(60) }),
+);
+
+describe("pgCounters agrees with the reference semantics", () => {
+  it("returns the same count and leaves the same row after every bump and release, for any sequence", async () => {
+    const w = witness("pg vs reference, per operation");
+    // The guards only bite on specific shapes; count those, so the property
+    // cannot pass having never generated one.
+    const rolledRefund = witness("a refund against a window the row is not in");
+    const flooredRefund = witness("a refund larger than the count");
+    let run = 0;
+    await fc.assert(
+      fc.asyncProperty(fc.array(arbOp, { minLength: 1, maxLength: 12 }), async (ops) => {
+        run += 1;
+        // A fresh bucket per run (fast-check also re-runs while shrinking), so
+        // no run inherits another's row. All under this test's prefix, so
+        // `afterEach` removes every one.
+        const bucket = key(`diff-${run}`);
+        const real = pgCounters();
+        const model = referenceCounters();
+        for (const op of ops) {
+          const windowStart = WINDOWS[op.window]!;
+          if (op.kind === "bump") {
+            expect(await real.bump(bucket, windowStart, op.amount)).toBe(
+              await model.bump(bucket, windowStart, op.amount),
+            );
+          } else {
+            const before = model.rows.get(bucket);
+            if (before !== undefined && before.hits > 0 && Number.isFinite(op.amount) && Math.trunc(op.amount) > 0) {
+              if (before.windowStart !== windowStart.getTime()) rolledRefund.tick();
+              else if (Math.trunc(op.amount) > before.hits) flooredRefund.tick();
+            }
+            await real.release(bucket, windowStart, op.amount);
+            await model.release(bucket, windowStart, op.amount);
+          }
+          expect(await rowOf(bucket)).toEqual(model.rows.get(bucket));
+          w.tick();
+        }
+      }),
+      { numRuns: 150 },
+    );
+    // Floors at ~half the observed minimum over five runs (2026-09-24):
+    // 840-970 operations, 51-82 refunds against another window, 16-26 refunds
+    // larger than the count. ~2.5s for the whole file.
+    w.atLeast(400);
+    rolledRefund.atLeast(25);
+    flooredRefund.atLeast(8);
   });
 });
 
