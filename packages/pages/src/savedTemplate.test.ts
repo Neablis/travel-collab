@@ -101,7 +101,7 @@ describe("instantiateTemplate — the day re-binding rule", () => {
     expect(w!.attrs?.params?.day).toEqual({ kind: "dayId", dayId: UNRESOLVED_DAY_ID });
     expect(JSON.stringify(made.content)).not.toContain(SOURCE_DAY);
     // The Editing ghost / Reading placeholder: MacroView's "that day was removed".
-    expect(renderMacro(ctx, "cost", w!.attrs!.params)).toEqual({ status: "unbound", needs: "day" });
+    expect(renderMacro(ctx, "cost", w!.attrs!.params)).toEqual({ status: "unbound", needs: "day", shape: expect.any(Array) });
   });
 
   it("keeps a day pinned by an id the target trip has — a template reused in its own trip", () => {

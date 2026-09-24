@@ -141,7 +141,7 @@ describe("cost.chart — spend by day", () => {
   });
 
   it("needs a trip", () => {
-    expect(renderMacro(contextOf(undefined), "cost.chart", {})).toEqual({ status: "unbound", needs: "trip" });
+    expect(renderMacro(contextOf(undefined), "cost.chart", {})).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
   });
 });
 

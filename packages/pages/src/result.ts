@@ -1,3 +1,5 @@
+import type { Seg } from "./registry-types";
+
 // What a widget's `resolve` can answer.
 //
 // `unbound` carries WHAT is missing, because the two cases read differently to
@@ -46,16 +48,48 @@ export type MacroResult<T> =
        */
       because?: string;
     }
-  | { status: "unbound"; needs: UnboundNeeds };
+  | {
+      status: "unbound";
+      needs: UnboundNeeds;
+      /**
+       * What the value WILL look like — the Editing-mode ghost, per part
+       * (notebook-widget-framework spec, "The ghost"). A bound part is a real
+       * `chip` and an unbound one a `ghost` of its value kind, so a half-bound
+       * widget reads half bound. Optional: a resolver that supplies none gets
+       * a generic one from its widget's shape in `renderMacro`, which is what
+       * lets a new widget ghost without writing one.
+       */
+      shape?: readonly Seg[];
+    };
 
 export const ok = <T>(value: T): MacroResult<T> => ({ status: "ok", value });
 export const empty = (because?: string): MacroResult<never> =>
   because === undefined ? { status: "empty" } : { status: "empty", because };
-export const unbound = (needs: UnboundNeeds): MacroResult<never> => ({ status: "unbound", needs });
+export const unbound = (needs: UnboundNeeds, shape?: readonly Seg[]): MacroResult<never> =>
+  shape === undefined ? { status: "unbound", needs } : { status: "unbound", needs, shape };
+
+/**
+ * Whether an unbound widget renders as its ghost in Editing, per `needs`.
+ * Reading never does: Mitchell, 2026-09-24 (M14 "Decided" item 2) — *"keep it
+ * during edits, and when done editing, have a placeholder like it already
+ * has"* — so Reading keeps the short label for every member.
+ *
+ * **Stale is not a ghost** (framework spec, inline rule 6). A ghost says "bind
+ * me". `day` is reachable only as a ref to a day that was DELETED, and a ghost
+ * there sends an author to bind something already bound, so it keeps "that day
+ * was removed" in both modes. `person` is bound too, to a dimension no field
+ * can answer yet (ADR-039 decision 7); a ghost would invite a choice no control
+ * can make.
+ *
+ * A `field` path the manifest stopped publishing is stale in the spec's sense
+ * and ghosts anyway: it reports the same `needs` as a field never chosen, and
+ * M14 decision 4 turns a removed field's widget into plain text instead.
+ */
+export const UNBOUND_GHOSTS: Record<UnboundNeeds, boolean> = { trip: true, field: true, day: false, person: false };
 
 // The answer every trip-reading widget gives when handed a context with no
 // trip. Named rather than inlined seven times so the reason survives: ADR-037
 // open question 2 requires every resolver to handle an absent trip, because
 // root-account notebooks are the stated direction — and a resolver that
 // assumes a trip is one that has to be rewritten when they arrive.
-export const needsTrip = (): MacroResult<never> => unbound("trip");
+export const needsTrip = (shape?: readonly Seg[]): MacroResult<never> => unbound("trip", shape);

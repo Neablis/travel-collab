@@ -79,7 +79,7 @@ describe("cost", () => {
     // one now strips; `writeCheck.test.ts` pins that.
     const { globals } = selectionTrip();
     const noTrip: WidgetContext = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: null, globals, today: null };
-    expect(renderMacro(noTrip, "cost", {})).toEqual({ status: "unbound", needs: "trip" });
+    expect(renderMacro(noTrip, "cost", {})).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
   });
 });
 

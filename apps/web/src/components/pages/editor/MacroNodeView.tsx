@@ -192,7 +192,7 @@ export function MacroNodeView({ node, selected, editor, decorations }: ReactNode
           ▸{mark?.widgetMark}
         </span>
       ) : null}
-      <MacroView detail={detail} context={context} user={user} globals={globals} name={name} params={params} onBindDay={onBindDay} />
+      <MacroView detail={detail} context={context} user={user} globals={globals} name={name} params={params} onBindDay={onBindDay} editing={editing} />
     </NodeViewWrapper>
   );
 }

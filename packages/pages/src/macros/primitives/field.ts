@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { FilterDimension } from "@tc/contracts";
 import type { MacroDef, WidgetContext, WidgetInput } from "../../registry-types";
-import { chip, inlineOf } from "../../registry-types";
+import { chip, ghost, inlineOf } from "../../registry-types";
 import { ok, empty, needsTrip, unbound, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { narrow } from "../../select";
@@ -56,7 +56,8 @@ export const field: MacroDef<FieldParams, string> = {
   resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
     if (!trip) return needsTrip();
     const choice = fieldAt("stop", params.field);
-    if (!choice) return unbound("field");
+    // No kind until a field is chosen, so the ghost claims none: `———`.
+    if (!choice) return unbound("field", [ghost("text", "field")]);
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
     const { stops } = selection.value;

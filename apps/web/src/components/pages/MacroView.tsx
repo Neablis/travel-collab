@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { renderMacro, getMacro, type Seg } from "@tc/pages";
+import { renderMacro, getMacro, UNBOUND_GHOSTS, type Seg } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
@@ -43,6 +43,23 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
       {segs.map((seg, i) =>
         seg.kind === "text" ? (
           <span key={i} className="text-ink">{seg.text}</span>
+        ) : seg.kind === "ghost" ? (
+          // The SHAPE of a value that is not bound yet (framework spec, "The
+          // ghost"): mono, hatched, dashed underline, warning ink — an
+          // invitation, never danger and never an alert icon. `.tc-widget-ghost`
+          // carries the hatch and the rule (globals.css).
+          //
+          // `role="img"` so the glyph is presentational and the NAME is what is
+          // read: `$XXX` aloud says nothing, "cost — not set up" says what to do.
+          <span
+            key={i}
+            role="img"
+            aria-label={`${seg.label} — not set up`}
+            data-widget-ghost={seg.valueKind}
+            className="tc-widget-ghost mx-0.5 px-1 font-mono text-warning-ink"
+          >
+            {seg.text}
+          </span>
         ) : (
           // A chip is a resolved value reading as a word in a sentence (§7).
           // `seg.text` is a text node either way — `Seg` has nowhere to put an
@@ -105,12 +122,13 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
  * @param name - The macro name to render
  * @param params - Parameters passed to the macro
  * @param onBindDay - Optional handler for rebinding a widget whose selected day was removed
+ * @param editing - Editing mode: an unbound widget renders its ghost rather than its placeholder
  * @returns The rendered macro widget or an appropriate status chip
  */
-export function MacroView({ detail, context, user = null, globals = null, name, params, onBindDay }: {
+export function MacroView({ detail, context, user = null, globals = null, name, params, onBindDay, editing = false }: {
   detail: TripDetail; context: PageContext; user?: UserPreferences | null;
   globals?: TripGlobals | null; name: string;
-  params: Record<string, unknown>; onBindDay?: () => void;
+  params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean;
 }) {
   const def = getMacro(name);
   // One derivation per render of one widget, memoised on the trip: `cityAccents`
@@ -133,6 +151,12 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   // caught it on #129. Link 4's chrome row passes a handler again, and this
   // goes back to being actionable with no further edit.
   if (outcome.status === "unbound") {
+    // Editing prints the ghost; Reading keeps the label below. Mitchell,
+    // 2026-09-24 (M14 "Decided" item 2): *"keep it during edits, and when done
+    // editing, have a placeholder like it already has"*. `UNBOUND_GHOSTS` says
+    // which `needs` are a ghost at all — a removed day is stale, not unbound,
+    // and keeps its label in both modes.
+    if (editing && UNBOUND_GHOSTS[outcome.needs]) return <Segs segs={outcome.shape} accents={accents} />;
     // **One branch per `UnboundNeeds` member, and the `never` is what keeps it
     // that way.** This used to test for `"trip"` and treat everything else as a
     // day, so widening the union would have rendered "no day set" for a missing

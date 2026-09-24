@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderMacro } from "../../registry";
-import type { WidgetContext } from "../../registry-types";
+import { ghost, type WidgetContext } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
 import { formatMoney } from "../../format";
 
@@ -27,7 +27,7 @@ function valueOf(ctx: WidgetContext, params: Record<string, unknown>): string | 
 describe("field", () => {
   it("asks for a field when none is chosen", () => {
     const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "field", {})).toEqual({ status: "unbound", needs: "field" });
+    expect(renderMacro(ctx, "field", {})).toEqual({ status: "unbound", needs: "field", shape: [ghost("text", "field")] });
   });
 
   it("cannot reach a stop field the manifest does not publish, however the path is spelled", () => {
@@ -39,7 +39,7 @@ describe("field", () => {
     for (const activity of Object.values(fixture.trip.activities)) activity.bookedBy = "user-secret-id";
     const ctx = contextOf(fixture);
     for (const field of ["stop.bookedBy", "stop.participants", "stop.timeWindow", "stop.nope", "trip.name", "bookedBy"]) {
-      expect(renderMacro(ctx, "field", { field }), field).toEqual({ status: "unbound", needs: "field" });
+      expect(renderMacro(ctx, "field", { field }), field).toEqual({ status: "unbound", needs: "field", shape: expect.any(Array) });
     }
   });
 
@@ -86,6 +86,6 @@ describe("field", () => {
   it("needs a trip", () => {
     const { globals } = selectionTrip();
     const ctx: WidgetContext = { page: { tripId: "t" }, user: null, globals, today: null };
-    expect(renderMacro(ctx, "field", { field: "stop.cost" })).toEqual({ status: "unbound", needs: "trip" });
+    expect(renderMacro(ctx, "field", { field: "stop.cost" })).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
   });
 });
