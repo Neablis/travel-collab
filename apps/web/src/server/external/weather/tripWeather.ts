@@ -25,7 +25,8 @@ const CONCURRENCY = 4;
 export const CALL_TIMEOUT_MS = 4000;
 
 export interface WeatherDeps {
-  forecast: Forecast;
+  /** `null` when the source is not configured: its calls are not made, so not charged (review finding 3). */
+  forecast: Forecast | null;
   climate: Climate;
   store: CacheStore;
   /** Charges one upstream call to our own quota; `false` is a refusal. Called only on a cache miss. */
@@ -180,13 +181,16 @@ export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): P
   const normals = new Map<string, MonthlyNormals | null>();
   const jobs = new Map<string, () => Promise<void>>();
   const charge = () => (deps.outOfTime() ? Promise.resolve(false) : deps.charge());
+  const source = deps.forecast;
   for (const { date, point } of planned) {
     const forecastKey = keyOf("met:forecast", point);
-    if (inHorizon(date) && !jobs.has(forecastKey)) {
+    // No source, no job: its points are `unavailable: "source"` below, and
+    // nothing is charged for a call that could never be made.
+    if (source && inHorizon(date) && !jobs.has(forecastKey)) {
       jobs.set(forecastKey, async () => {
         const got = await readThrough({
           key: forecastKey, schema: ForecastSeries, store: deps.store, now: deps.now, charge,
-          timeoutMs: CALL_TIMEOUT_MS, call: (prior) => deps.forecast.forecast(point, prior),
+          timeoutMs: CALL_TIMEOUT_MS, call: (prior) => source.forecast(point, prior),
         });
         series.set(forecastKey, got?.value ?? null);
       });

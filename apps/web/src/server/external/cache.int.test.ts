@@ -71,10 +71,31 @@ describe("external_data_cache read-through", () => {
 
   it("a failed call serves the expired row, with its own older as-of", async () => {
     await harness(async () => fresh({ asOf: "2026-09-24T08:00:00Z", n: 1 }, minutes(30))).read(T0);
-    const down = harness(async () => Promise.reject(new UpstreamError("MET Norway: 503", 503)));
+    const down = harness(async () => Promise.reject(new Error("socket hang up")));
     expect(await down.read(minutes(45))).toEqual({ value: { asOf: "2026-09-24T08:00:00Z", n: 1 }, stale: true });
-    // The row is not touched: the next request tries again.
+    // A failure with no status says nothing about when to come back, so the
+    // row is not touched: the next request tries again.
     expect(await rowOf()).toMatchObject({ expiresAt: minutes(30), backoffUntil: null });
+  });
+
+  // ADR-052 decision 8: a 403 is OUR request being wrong, and asking again
+  // cannot fix it; a 5xx is the source down. Retried on every page load, each
+  // was charged to the shared daily quota until nothing — normals included —
+  // could be asked (M14 PART 3 review, finding 3).
+  it.each([
+    ["a 403 for a day", 403, 24 * 60],
+    ["a 5xx for five minutes", 503, 5],
+  ])("backs the key off after %s, calling and charging nothing until it passes", async (_label, status, backoff) => {
+    await harness(async () => fresh({ asOf: "2026-09-24T08:00:00Z", n: 1 }, minutes(30))).read(T0);
+    const refused = harness(async () => Promise.reject(new UpstreamError(`MET Norway: ${status}`, status)));
+    expect(await refused.read(minutes(45))).toEqual({ value: { asOf: "2026-09-24T08:00:00Z", n: 1 }, stale: true });
+    expect(await rowOf()).toMatchObject({ payload: { n: 1 }, backoffUntil: minutes(45 + backoff) });
+
+    const again = harness(async () => fresh({ asOf: "2026-09-24T09:40:00Z", n: 2 }, minutes(120)));
+    expect(await again.read(minutes(45 + backoff - 1))).toEqual({ value: { asOf: "2026-09-24T08:00:00Z", n: 1 }, stale: true });
+    expect(again.port).not.toHaveBeenCalled();
+    expect(again.charge).not.toHaveBeenCalled();
+    expect(await again.read(minutes(45 + backoff + 1))).toMatchObject({ value: { n: 2 }, stale: false });
   });
 
   it("a call slower than the timeout is a failure, and serves the stale row", async () => {

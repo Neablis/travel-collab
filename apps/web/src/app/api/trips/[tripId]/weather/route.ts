@@ -25,13 +25,16 @@ const START_BUDGET_MS = 5000;
 
 // `getForecast()` throws without `EXTERNAL_DATA_CONTACT`, as `getGeocoder()`
 // does without its key. Here that is one source down, not the route: the
-// forecast is `unavailable` and the reader gets typical, labelled.
-function forecastOrDown(): Forecast {
+// forecast is `unavailable` and the reader gets typical, labelled. `null`
+// rather than a port that always rejects, because a rejecting port was CHARGED
+// to the reader's weather quota on every load, until the normals were refused
+// too (M14 PART 3 review, finding 3).
+function forecastOrNull(): Forecast | null {
   try {
     return getForecast();
   } catch (error) {
     console.error(`[external] ${error instanceof Error ? error.message : String(error)}; forecasts are unavailable`);
-    return { forecast: () => Promise.reject(new Error("no forecast source configured")) };
+    return null;
   }
 }
 
@@ -43,7 +46,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
 
   const started = Date.now();
   const weather = await buildTripWeather(access.detail, {
-    forecast: forecastOrDown(),
+    forecast: forecastOrNull(),
     climate: getClimate(),
     store: pgCacheStore(),
     // Per actor: a demo or invite visitor is `demo-visitor` / `invite-visitor`,

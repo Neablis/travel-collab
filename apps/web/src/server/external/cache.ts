@@ -15,12 +15,13 @@ import { UpstreamError, type CacheValidators, type Fetched } from "./upstream";
 // control. The read path, in order:
 //
 // 1. a fresh row (`now < expires_at`) is served, and nothing is called;
-// 2. a key in back-off (a 429 said to wait) calls nothing, and serves what it has;
+// 2. a key in back-off (a 429 said to wait, a 403 or a 5xx — `backoffAfter`)
+//    calls nothing, and serves what it has;
 // 3. a call is CHARGED to our own quota first — only here, on a miss — and a
 //    refusal serves what it has;
 // 4. an expired row is revalidated with `If-Modified-Since`; a 304 moves
 //    `expires_at` and keeps the payload;
-// 5. a failed call — an error, a timeout, a 429 — serves the expired row if
+// 5. a failed call — an error, a timeout, a 4xx or 5xx — serves the expired row if
 //    there is one, with its own older as-of, and answers `null` only when
 //    there is no row at all.
 //
@@ -96,6 +97,24 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
+const MINUTE_MS = 60_000;
+// Decision 8: a 403 is OUR request being wrong (no User-Agent, too many
+// decimals), so asking again cannot help until someone deploys a fix — a day.
+// A 5xx is the source down, and five minutes is short enough that a recovered
+// source is seen on the next few loads. Before either, each was retried and
+// CHARGED on every page load (M14 PART 3 review, finding 3).
+const FORBIDDEN_BACKOFF_MS = 24 * 60 * MINUTE_MS;
+const SERVER_ERROR_BACKOFF_MS = 5 * MINUTE_MS;
+
+/** How long a failure keeps the key from being asked again, or `null` to try on the next request. */
+function backoffAfter(error: unknown, now: Date): Date | null {
+  if (!(error instanceof UpstreamError)) return null;
+  if (error.status === 429) return error.retryAfter;
+  if (error.status === 403) return new Date(now.getTime() + FORBIDDEN_BACKOFF_MS);
+  if (error.status !== null && error.status >= 500) return new Date(now.getTime() + SERVER_ERROR_BACKOFF_MS);
+  return null;
+}
+
 /**
  * One key through the read path in this file's header. Returns the value and
  * whether it is past its `Expires`, or `null` when there is nothing to serve.
@@ -119,7 +138,8 @@ export async function readThrough<T>(options: ReadThrough<T>): Promise<Cached<T>
   try {
     fetched = await withTimeout(options.call(prior), options.timeoutMs);
   } catch (error) {
-    if (error instanceof UpstreamError && error.status === 429 && error.retryAfter) {
+    const backoffUntil = backoffAfter(error, now);
+    if (backoffUntil) {
       // A row that never held anything is still written, so the back-off
       // outlives this request; it expires at once and serves nothing.
       await store.write({
@@ -129,7 +149,7 @@ export async function readThrough<T>(options: ReadThrough<T>): Promise<Cached<T>
         expiresAt: row?.expiresAt ?? now,
         lastModified: row?.lastModified ?? null,
         sourceUpdatedAt: row?.sourceUpdatedAt ?? null,
-        backoffUntil: error.retryAfter,
+        backoffUntil,
       });
     }
     // 403 and 203 are logged where they are understood, in the adapter.

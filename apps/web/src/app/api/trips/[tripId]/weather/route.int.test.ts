@@ -140,6 +140,29 @@ describe("GET /api/trips/:tripId/weather", () => {
     expect(weather.points[0]!.forecast).toEqual({ unavailable: "source" });
   });
 
+  // A forecast that cannot be asked is not asked, and so not CHARGED: with
+  // the contact unset, every page load used to spend the reader's weather
+  // quota on a call that was never made, until the normals were refused too
+  // and "typical" became "Weather unavailable" (M14 PART 3 review, finding 3).
+  it("with no EXTERNAL_DATA_CONTACT, the forecast costs no quota — typical still gets it", async () => {
+    vi.stubEnv("WEATHER_RATE_LIMIT_PER_USER_DAILY", "1");
+    forecastMissing = true;
+    const tripId = await seedTrip();
+    const normals = vi.fn(async () => ({
+      kind: "fresh" as const,
+      value: {
+        months: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, highC: 12, lowC: 4, precipitationMmPerDay: 2.5 })),
+        period: { fromYear: 2001, throughYear: 2020 },
+      },
+      expiresAt: new Date(Date.now() + 86_400_000), lastModified: null, sourceUpdatedAt: null,
+    }));
+    climatePort = { normals };
+    const weather = await weatherOf(tripId);
+    expect(normals).toHaveBeenCalledOnce();
+    expect(weather.points.every((p) => !("unavailable" in p.typical))).toBe(true);
+    vi.unstubAllEnvs();
+  });
+
   it("caches by rounded point only — one row per source, and nothing that says whose trip asked", async () => {
     const tripId = await seedTrip();
     const series = {
