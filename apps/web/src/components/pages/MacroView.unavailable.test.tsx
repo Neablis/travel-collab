@@ -41,11 +41,11 @@ describe("MacroView — a widget whose outside source did not answer (ADR-052)",
   });
 
   it("stays the placeholder in Editing — never the ghost, which would mean 'set me up'", () => {
-    const { container } = render(
+    render(
       <MacroView detail={detail} context={{ tripId: detail.tripId }} external={{ weather: { state: "failed" } }} name="test.weatherProbe" params={{}} editing />,
     );
     expect(screen.getByText("weather unavailable")).toBeTruthy();
-    expect(container.querySelector("[data-widget-ghost]")).toBeNull();
+    expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
   });
 
