@@ -3,8 +3,11 @@ import { auth } from "@/server/auth";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { listSavedNotebooks, saveNotebook } from "@/server/savedNotebooks";
 
-// A person's saved notebooks (M14 link 10), on `/api/saved-days`' conventions.
-// Per-person: there is no route that takes an ownerId.
+/**
+ * The signed-in person's saved notebooks, newest first, without their
+ * documents (M14 link 10, on `/api/saved-days`' conventions). Per-person:
+ * there is no route that takes an ownerId.
+ */
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -14,6 +17,10 @@ export async function GET() {
   return Response.json({ savedNotebooks: savedNotebooks.map((s) => SavedNotebookSummary.parse(s)) });
 }
 
+/**
+ * Keep one of a trip's notebooks as a template: 201 with the `SavedNotebook`,
+ * 404 for a page not in that trip, 400 for a document this build cannot keep.
+ */
 export async function POST(request: Request) {
   const body = CreateSavedNotebookInput.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-saved-notebook" }, { status: 400 });

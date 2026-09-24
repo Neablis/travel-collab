@@ -69,6 +69,21 @@ describe("PageScreen", () => {
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
   });
 
+  // M14 link 10. What a template keeps is the STORED document, and an open
+  // edit session has not been committed (ADR-036) — so the control is offered
+  // in Reading, where the screen and the store agree, and not in Editing.
+  it("offers Save as template in Reading and not while editing", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByRole("button", { name: "Save as template" })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(screen.queryByRole("button", { name: "Save as template" })).toBeNull();
+  });
+
   // Mitchell, 2026-09-06 on a 411px phone, pointing at the notebook index's
   // Rename button: *"rename shouldn't be a button here, the title should be at
   // the top of the notebook as a h1 and when you edit the title it does the

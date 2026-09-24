@@ -2,10 +2,14 @@ import { SavedNotebook } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { deleteSavedNotebook, getSavedNotebook } from "@/server/savedNotebooks";
 
-// Owner-only, and scoped in the query rather than checked after the read: a
-// template belonging to someone else is indistinguishable from one that does
-// not exist, which is the right answer to both. There is no publish yet, so
-// unlike a saved day there is no second kind of reader to let in.
+/**
+ * One of your saved notebooks, snapshot included; 404 otherwise.
+ *
+ * Owner-only, and scoped in the query rather than checked after the read: a
+ * template belonging to someone else is indistinguishable from one that does
+ * not exist, which is the right answer to both. There is no publish yet, so
+ * unlike a saved day there is no second kind of reader to let in.
+ */
 export async function GET(_request: Request, { params }: { params: Promise<{ savedNotebookId: string }> }) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -17,8 +21,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ sav
   return Response.json({ savedNotebook: SavedNotebook.parse(savedNotebook) });
 }
 
-// A soft delete (`deleteSavedNotebook`). 404 for not yours, never existed, or
-// already deleted — one answer, so ids cannot be probed.
+/**
+ * Remove one of your saved notebooks — a soft delete (`deleteSavedNotebook`).
+ * 404 for not yours, never existed, or already deleted: one answer, so ids
+ * cannot be probed.
+ */
 export async function DELETE(_request: Request, { params }: { params: Promise<{ savedNotebookId: string }> }) {
   const session = await auth();
   if (!session?.user?.id) {
