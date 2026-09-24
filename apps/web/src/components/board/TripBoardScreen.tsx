@@ -92,7 +92,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision, confirmedSeq } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -1037,7 +1037,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   />
                 )}
                 {view === "Overview" && (
-                  <OverviewLens detail={activeTrip} tripId={tripId} remoteRevision={remoteRevision} readOnly={readOnly} />
+                  <OverviewLens
+                    detail={activeTrip}
+                    tripId={tripId}
+                    remoteRevision={remoteRevision}
+                    confirmedSeq={confirmedSeq}
+                    readOnly={readOnly}
+                  />
                 )}
                 {view === "Calendar" && (
                   <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />

@@ -26,17 +26,23 @@ vi.mock("@/lib/pagesClient", async (orig) => {
   };
 });
 
+// Failing by default; the local-command suite gives it an answer to cache.
+const fetchTripGlobalsMock = vi.fn();
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
-  return { ...actual, fetchTripGlobals: async () => ({ ok: false, error: { status: 0, message: "no" } }) };
+  return { ...actual, fetchTripGlobals: (...args: unknown[]) => fetchTripGlobalsMock(...args) };
 });
 
+import { invalidate } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { OverviewLens } from "./OverviewLens";
 
 afterEach(cleanup);
 beforeEach(() => {
   fetchPagesMock.mockReset();
   fetchPageMock.mockReset();
+  fetchTripGlobalsMock.mockReset();
+  fetchTripGlobalsMock.mockResolvedValue({ ok: false, error: { status: 0, message: "no" } });
 });
 
 const failed = { ok: false as const, error: { status: 500, message: "boom" } };
@@ -218,5 +224,34 @@ describe("OverviewLens — a co-traveller's edit arrives without a reload", () =
     rerender(<OverviewLens detail={{ ...detail }} tripId={TRIP_ID} remoteRevision={3} />);
     await new Promise((r) => setTimeout(r, 10));
     expect(fetchPagesMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// #223 review: `day.sun` and `day.fromHome` read a day's place and zone off the
+// globals, and this lens read them only on mount and on a REMOTE change. Your
+// own command moving a day's first stop landed in `detail` and never in the
+// globals, so the widgets paired the new day with the old place until a remount.
+describe("OverviewLens — your own command re-reads the globals", () => {
+  const okGlobals = (homeTimeZone: string) => ({
+    ok: true as const,
+    value: { days: [], cities: [], tags: [], bookedCount: 0, homeTimeZone },
+  });
+
+  it("re-reads them when a local command is confirmed, without re-reading the page", async () => {
+    invalidate(tripKeys.all(TRIP_ID));
+    fetchPagesMock.mockResolvedValue(okPages);
+    fetchPageMock.mockResolvedValue(okPageDoc("page"));
+    fetchTripGlobalsMock.mockResolvedValue(okGlobals("Asia/Tokyo"));
+    const detail = tripDetailFixture();
+    const { rerender } = render(<OverviewLens detail={detail} tripId={TRIP_ID} confirmedSeq={5} />);
+    await waitFor(() => expect(fetchPageMock).toHaveBeenCalledTimes(1));
+    expect(fetchTripGlobalsMock).toHaveBeenCalledTimes(1);
+
+    // What `sendTripCommand`'s write scope does before the outcome confirms.
+    invalidate(tripKeys.all(TRIP_ID));
+    rerender(<OverviewLens detail={{ ...detail }} tripId={TRIP_ID} confirmedSeq={6} />);
+    await waitFor(() => expect(fetchTripGlobalsMock).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(fetchPageMock).toHaveBeenCalledTimes(1);
   });
 });

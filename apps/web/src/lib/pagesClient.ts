@@ -1,5 +1,5 @@
 import { CreatePageInput, Page, PageSummary, type UpdatePageInput } from "@tc/contracts";
-import { apiUrl, type ApiError, type ApiResult } from "@/lib/apiClient";
+import { apiUrl, networkError, refusal, type ApiResult } from "@/lib/apiClient";
 import { beginWrite, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { inviteLookHeaders } from "@/lib/inviteLook";
@@ -22,10 +22,8 @@ import { inviteLookHeaders } from "@/lib/inviteLook";
 //
 // `status: 0` is the shape for "the request never produced a response" — a
 // rejected fetch, or a schema `.parse` throw on a 200, which is why the parse
-// happens inside the `try` rather than after it.
-function networkError(err: unknown): { ok: false; error: ApiError } {
-  return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
-}
+// happens inside the `try` rather than after it. Both failure shapes,
+// `networkError` and `refusal`, live in `apiClient.ts`.
 
 // SECOND INVARIANT, added with the read cache (ADR-046): every WRITE below
 // opens a write SCOPE around itself — `beginWrite` before, `endWrite` in a
@@ -47,13 +45,6 @@ function networkError(err: unknown): { ok: false; error: ApiError } {
 // one file: `createPage`, `updatePage` and `deletePage` have five callers
 // between them, and an invalidation you have to remember to write is one you
 // will one day not write.
-
-// Not-ok responses read the same way everywhere: the body's `error` field when
-// there is one, the status text when there is not.
-async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
-  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
-}
 
 /**
  * The notebook list, plus who is reading it.

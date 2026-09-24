@@ -8,9 +8,12 @@
 // `@tc/contracts` and `zod` — a third for one function would be the larger
 // change. Accuracy is about a minute away from the poles; the tests hold two.
 //
-// Pure: a date string and a point in, UTC instants out. No clock, no zone —
-// turning an instant into "04:25" is `clock.ts`'s job, with the zone the server
-// computed.
+// Pure: a date string, a point and optionally a zone name in, UTC instants
+// out. No clock. Turning an instant into "04:25" is `clock.ts`'s job, with the
+// zone the server computed; the zone is read here only to find which day's sun
+// the date means.
+
+import { noonIn } from "./clock";
 
 /** An instant (UTC ms), or the sun stays `"up"` / `"down"` past that altitude all day. */
 export type SunTime = number | "up" | "down";
@@ -87,16 +90,24 @@ function crossing(dayStart: number, lat: number, lng: number, altitude: number, 
 }
 
 /**
- * The day's sun, for `isoDate` at a point (`lng` east-positive).
+ * The day's sun, for `isoDate` at a point (`lng` east-positive), in `zone`.
  *
- * The date is read as the UTC calendar day, and the events are the ones around
- * that day's solar noon at `lng` — which is the local calendar day's noon
- * wherever the zone roughly follows the sun. Where it does not, a sunset can
+ * The events are the ones around the solar noon nearest local noon on that
+ * date. Without a zone the date is read as the UTC calendar day, which is the
+ * same thing only where the zone roughly follows the sun: at Apia (UTC+13,
+ * west of 180°) local noon on the 15th is 23:00 UTC on the 14th, and the UTC
+ * day's solar noon is the 16th's local one (#223 review). A sunset can still
  * land after local midnight (Reykjavik in June), and that is real: the caller
  * prints it with the date it falls on.
  */
-export function sunEvents(isoDate: string, lat: number, lng: number): SunEvents {
-  const dayStart = Date.parse(`${isoDate}T00:00:00Z`);
+export function sunEvents(isoDate: string, lat: number, lng: number, zone?: string): SunEvents {
+  const utcDay = Date.parse(`${isoDate}T00:00:00Z`);
+  // Solar noon falls at `720 - 4·lng` minutes into each UTC day; take the day
+  // whose solar noon is nearest local noon.
+  const dayStart =
+    zone === undefined
+      ? utcDay
+      : utcDay + Math.round((noonIn(zone, isoDate) - utcDay - (720 - 4 * lng) * 60_000) / 86_400_000) * 86_400_000;
   return {
     sunrise: crossing(dayStart, lat, lng, HORIZON, true),
     sunset: crossing(dayStart, lat, lng, HORIZON, false),

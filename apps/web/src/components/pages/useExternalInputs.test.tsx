@@ -53,6 +53,19 @@ describe("useExternalInputs (ADR-052)", () => {
     expect(weatherCalls).toBe(1);
   });
 
+  // #223 review: the slot outlived the trip it was fetched for, so trip B's
+  // widgets read trip A's forecast until B's request landed.
+  it("never hands one trip's weather to another while the new trip's is in flight", async () => {
+    const OTHER = "22222222-2222-2222-2222-222222222222";
+    server.use(http.get(`/api/trips/${OTHER}/weather`, () => new Promise<never>(() => {})));
+    const { result, rerender } = renderHook(({ tripId }) => useExternalInputs(tripId, WEATHER), {
+      initialProps: { tripId: TRIP },
+    });
+    await waitFor(() => expect(result.current.weather.state).toBe("ready"));
+    rerender({ tripId: OTHER });
+    expect(result.current.weather).toEqual({ state: "pending" });
+  });
+
   it("asks once a weather widget arrives on a page that had none", async () => {
     const { result, rerender } = renderHook(({ needs }) => useExternalInputs(TRIP, needs), {
       initialProps: { needs: NOTHING },

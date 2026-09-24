@@ -105,7 +105,10 @@ export const TripGlobals = z.object({
   // widget can say "Tokyo is 16 h ahead of home". It is the one field here that
   // is about the reader rather than the trip — two members asking get two
   // answers — and `null` when the account has no home airport, when the airport
-  // is not in the table, or when nobody is signed in (the demo, an invite).
+  // is not in the table, or when nobody is signed in (the demo, an invite). On
+  // the public API it is also `null` to a token that could not read the account
+  // (`account:read`, not trip-scoped): a `trips:read` token reads the trip, not
+  // where its owner lives (#223 review).
   //
   // Unannotated: the account's own facts are the `account` manifest root
   // (`homeAirport` is there), and publishing this under `trip` would file a
@@ -115,7 +118,9 @@ export const TripGlobals = z.object({
     .min(1)
     .nullable()
     .default(null)
-    .describe("The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown."),
+    .describe(
+      "The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown, and for an API token without `account:read` or restricted to specific trips.",
+    ),
 });
 export type TripGlobals = z.infer<typeof TripGlobals>;
 export type { ValueKind };

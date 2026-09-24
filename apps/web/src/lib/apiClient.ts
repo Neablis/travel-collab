@@ -83,6 +83,21 @@ export function apiUrl(path: string): string {
   return new URL(path, origin).toString();
 }
 
+// The two failure shapes every client module here resolves to, shared so
+// `pagesClient` and `savedNotebooksClient` read a failure the way this module
+// does rather than each keeping a copy (#223 review).
+
+/** A request that never produced a response: a rejected fetch, or a `.parse` throw on a 200. */
+export function networkError(err: unknown): { ok: false; error: ApiError } {
+  return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+}
+
+/** A not-ok response: the body's `error` field when there is one, the status text when there is not. */
+export async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
+  const data = (await res.json().catch(() => ({}))) as { error?: string };
+  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+}
+
 // Task 7.2 (M10 Phase 7): the new-trip wizard's real step, factored out of
 // what was app/page.tsx's own inline form-submit handler so NewTripWizard can
 // take it as an injectable prop (real implementation here, a mock in tests).

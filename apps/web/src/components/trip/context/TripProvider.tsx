@@ -85,6 +85,16 @@ type TripCtx = {
    * means nothing.
    */
   remoteRevision: number;
+  /**
+   * The head seq of the CONFIRMED log — 0 until the trip loads.
+   *
+   * `remoteRevision`'s counterpart for your own work: it moves when a local
+   * command (or undo, or an applied proposal) is confirmed, and never on an
+   * optimistic prediction, which would race the write it predicts. Readers of
+   * server projections this provider does not hold key a re-read on it — the
+   * Overview's globals, whose places and zones a command can move (#223).
+   */
+  confirmedSeq: number;
 };
 
 const Ctx = createContext<TripCtx | null>(null);
@@ -526,6 +536,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         sync,
         preview: { seq: previewSeq, enter, exit },
         remoteRevision,
+        confirmedSeq: optimistic ? headSeqOf(optimistic.confirmed.history) : 0,
       }}
     >
       {/* The header logo is the save light (SPEC "The logo is the save
