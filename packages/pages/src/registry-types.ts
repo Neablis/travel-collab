@@ -276,15 +276,11 @@ export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rende
 // correspondence is enforced by a registry-wide test rather than by convention.
 export type WidgetInput =
   | { name: string; type: "day"; label: string }
-  // `person` is declared because §18 declares it, and NOTHING MAY USE IT YET:
-  // nothing links an activity to a person — no `assignee`, `paidBy`,
-  // `participant` or `share` on `ActivityView`. The two widgets that wanted it
-  // (`w-person`, `w-personline`) were deferred out of M14 on 2026-09-03 for
-  // exactly that reason. A widget declaring this input would get a control that
-  // resolves against data that does not exist. The field arrives with M13's
-  // `add-stop-who` / M19 link 3; until then this member is vocabulary, not a
-  // capability.
-  | { name: string; type: "person"; label: string }
+  // No `person` input: Mitchell, 2026-09-24, *"person is removed for now"*
+  // (M14 decision 5). Nothing links a stop to a person yet, so a control for
+  // one would resolve against data that does not exist. It comes back with
+  // M13's `add-stop-who` / M19 link 3, as a member here and a case in every
+  // switch the compiler then points at.
   | { name: string; type: "tags"; label: string }
   // The three ADR-039 decision 1 adds, one per filter dimension that had no
   // control before it: a city select, a kind select, and a from/through date
