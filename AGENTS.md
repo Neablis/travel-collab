@@ -428,6 +428,14 @@ point: they describe the change, not the ceremony around it.
   the preview, what does a person click to see this?** "Nothing yet, and here is
   the walk that will exist when link N lands" is a fine answer written down and
   a bad one discovered in review.
+- **A new feature does not owe the public API an endpoint** (Mitchell,
+  2026-09-24). Document the feature; do not add `/api/v1/**` routes, scopes or
+  OpenAPI entries for it unless the task is API work. The public surface is
+  caught up in deliberate passes that find the gap mechanically: see
+  `docs/guidelines/using-the-api.md`, *Features ship before their endpoints*.
+  Changing an endpoint that already exists (a contract it returns grew a field)
+  is still in scope: that is keeping the existing surface honest, not adding
+  to it.
 - No invariant weakened. If one blocked you, that is a finding to report to
   Mitchell, not a rule to bend.
 - Docs updated when behavior or interfaces changed (ADR for irreversible
