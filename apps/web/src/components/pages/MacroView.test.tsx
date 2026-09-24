@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
 import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
@@ -497,7 +497,7 @@ participants: [],
     expect(presetCatalog().length).toBeGreaterThan(10);
   });
 
-  it("renders no block-level element inside a paragraph, for any widget in the registry", () => {
+  it("renders no block-level element inside a paragraph, for any widget in the registry", async () => {
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));
@@ -517,6 +517,10 @@ participants: [],
             />
           </p>,
         );
+        // A chart's code is loaded lazily (`SpendByDayBlock`), and until it
+        // arrives only its placeholder is in the paragraph. Unmounting then
+        // would sweep the placeholder and never the chart, and pass.
+        await waitFor(() => expect(screen.queryAllByRole("img", { busy: true })).toEqual([]));
         unmount();
       }
     } finally {

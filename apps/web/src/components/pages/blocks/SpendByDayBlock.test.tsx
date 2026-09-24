@@ -25,7 +25,7 @@ const set = (trip: TripDetail, id: string, cost: Money, tags: ActivityTag[]) => 
 };
 
 describe("SpendByDayBlock", () => {
-  it("prints every priced day's total over its bar, whichever stack is on top", () => {
+  it("prints every priced day's total over its bar, whichever stack is on top", async () => {
     // Day 1 tops out on "untagged" and day 2 on "meal": a total that rode on
     // the last series alone would vanish from day 2.
     const payload = payloadOf((trip, id) => {
@@ -35,7 +35,8 @@ describe("SpendByDayBlock", () => {
     });
     render(<SpendByDayBlock payload={payload} />);
 
-    const chart = screen.getByRole("img", { name: payload.summary });
+    // The picture is lazy: wait for the frame to stop being busy.
+    const chart = await screen.findByRole("img", { name: payload.summary, busy: false });
     expect(within(chart).getByText("$50.00")).toBeDefined();
     expect(within(chart).getByText("$25.00")).toBeDefined();
   });
