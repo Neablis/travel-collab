@@ -60,7 +60,7 @@ import {
   droppedWriteCalls,
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
-import { validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
+import { insertWidgetParamsRule, validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
 import { placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
 import { newEscalationBuffer, newPageBuffer, newPlaceCache, newProposalBuffer } from "@/server/assistant/deps";
 import { MAX_PLACE_QUERIES } from "@/server/assistant/tools/places";
@@ -1186,6 +1186,7 @@ export function scopeBlock(scope: AskScope): PromptBlock {
  * 3 now asks for day 3 instead of paying for all fourteen.
  */
 function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): PromptBlock[] {
+  const catalogue = primitiveCatalog();
   return [
     rule("You are the travel-collab trip assistant, and on this turn you are ADDING to one page of this trip's Notebook."),
     // **The direct vector, and the reason spec §4 exists.** This read `The page
@@ -1213,7 +1214,11 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): P
     // Found by CodeRabbit and Copilot on PR 139.
     rule("Then write with insert_text and insert_widget. Call them as many times as the answer needs, in the order the content should appear — every call adds to the page, and nothing you insert removes what was there."),
     rule("insert_text takes markdown: headings, bullet lists, ordered lists and paragraphs. Inline formatting like **bold** is NOT interpreted and would appear literally, so write plain sentences."),
-    rule("insert_widget takes a widget name and that widget's own params. Filters are all optional: omit them and the widget covers the whole trip, which is valid and usually what you want. Two widgets also take a NON-filter param — `attribute` needs `field` and renders nothing without one, and `count` takes `of` — and the catalogue below lists both under `params` with the exact values allowed."),
+    // Built from the catalogue below rather than beside it (KI-2026-09-05-i
+    // item 4): the hand-listed version named two params and the catalogue had
+    // three. `attribute` rendering nothing without its `field` is said by the
+    // `insert_widget` tool's own description.
+    rule(insertWidgetParamsRule(catalogue)),
     // The reason the macro registry was worth deriving a tool from at all: a
     // macro renders live trip data every read, so it cannot go stale the way a
     // number typed into a paragraph does the moment someone moves a stop.
@@ -1224,7 +1229,7 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): P
     // Ours either way (the macro registry is `@tc/pages`'), so this is a `data`
     // block for legibility rather than for safety.
     rule("These are the only macros that exist — never invent a name."),
-    data("Macros", primitiveCatalog()),
+    data("Macros", catalogue),
     // A page is about nothing in particular (SPEC §18) — the day a macro reads
     // is that macro's own filter. This sentence used to warn that a day macro
     // drafted with no day renders as a "no day set" placeholder; under ADR-039
