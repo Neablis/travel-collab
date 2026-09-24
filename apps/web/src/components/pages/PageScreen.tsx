@@ -10,6 +10,7 @@ import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
+import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
 import { NodeSelection } from "@tiptap/pm/state";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
@@ -707,6 +708,9 @@ export function PageScreen({
           >
             {editing ? "Done editing" : "Edit page"}
           </Button>
+          {/* Reading only: what is kept is the STORED document, and in Editing
+              the session's changes have not been committed yet (M14 link 10). */}
+          {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
           {/* The phone's entry to the assistant, and it is now the SAME control
               this app puts on Plan, Map and the Notebook index (SPEC §23) —
               this screen's own `◎ Assistant` button was one of the three

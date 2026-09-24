@@ -52,7 +52,7 @@ describe("insertWidget", () => {
 
   it("produces a node whose resolver can read it back", () => {
     // The round trip that matters: what insert writes, resolve reads. A node
-    // this command produced must never be one `resolveMacro` calls bad-params.
+    // this command produced must never be one `renderMacro` calls bad-params.
     for (const name of MACRO_NAMES) {
       const result = insertWidget(name);
       if (!result.ok) throw new Error(`${name} did not insert`);

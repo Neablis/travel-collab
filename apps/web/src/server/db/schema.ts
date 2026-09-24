@@ -27,6 +27,7 @@ import type {
   ReportTargetKind,
   SavedDayAuthorKind,
   SavedDayVisibility,
+  SavedNotebookVisibility,
   SavedStop,
   SubscriptionStatus,
   TripDetail,
@@ -771,6 +772,44 @@ export const savedDayReviews = pgTable(
     check("saved_day_reviews_stars", sql`${t.stars} between 1 and 5`),
     check("saved_day_reviews_note_length", sql`char_length(${t.note}) <= 140`),
   ],
+);
+
+// Saved notebooks (M14 link 10): a person's notebook kept as a template for a
+// future trip. `saved_days`' shape one level down, on ADR-029's terms — owned by
+// a person, ordinary CRUD, NOT event-sourced — and the only writer is
+// `server/savedNotebooks.ts` (`savedNotebooks.soleWriter.test.ts` sweeps for a
+// second). Instantiating one writes no row here: it creates a page through the
+// page command path, into the TARGET trip's stream.
+export const savedNotebooks = pgTable(
+  "saved_notebooks",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on `saved_days.owner_id`'s no-foreign-key terms (ADR-025).
+    ownerId: text("owner_id").notNull(),
+    title: text("title").notNull(),
+    // The snapshot, as `serializePageDoc` writes it: the wire form, at the
+    // version it was taken at — never migrated here. `$type` is a compile-time
+    // cast; the strict parse happens on instantiate (`instantiateTemplate`),
+    // and the read boundary is permissive for `pages.content`'s reason.
+    content: jsonb("content").$type<PageContent>().notNull(),
+    // The snapshot's `v`, written in the same insert (ADR-038). A column so the
+    // list can carry it without reading every document.
+    docVersion: integer("doc_version").notNull(),
+    // Private by default, and the only value today (`SavedNotebookVisibility`).
+    // `text` with a `$type`, following `saved_days.visibility`.
+    visibility: text("visibility").$type<SavedNotebookVisibility>().notNull().default("private"),
+    // Provenance (ADR-040 decision 1): where the snapshot came from. Nothing
+    // reads through these ids; a dangling one is a page or trip that moved on.
+    sourceTripId: uuid("source_trip_id").notNull(),
+    sourceTripName: text("source_trip_name").notNull(),
+    sourcePageId: uuid("source_page_id").notNull(),
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // A SOFT delete, `saved_days.deleted_at`'s rule and reason: every read
+    // filters on it, and nothing writes it back to null yet.
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [index("saved_notebooks_owner").on(t.ownerId)],
 );
 
 // Reports against a published day or a review (M12 link 6), and the

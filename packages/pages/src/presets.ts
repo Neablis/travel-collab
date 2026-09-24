@@ -96,6 +96,18 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "how many days it runs",
   },
   {
+    // KI-2026-09-05-i item 1: `count{of: "city"}` existed and only the
+    // assistant could insert it. `presets.test.ts` now requires a row for
+    // every value of every non-filter param.
+    id: "count.cities",
+    widget: "count",
+    params: { of: "city" },
+    title: "How many cities",
+    keywords: ["number", "count", "how many", "cities", "places", "towns", "stops along the way"],
+    description: "How many cities the trip reaches. Point it at days to count only the cities those days touch.",
+    preview: "how many cities it reaches",
+  },
+  {
     id: "dates",
     widget: "dates",
     params: {},
@@ -145,6 +157,22 @@ export const PRESETS: readonly WidgetPreset[] = [
     // a row by its name.
     title: "Which cities",
     keywords: ["city", "cities", "where", "place", "location"],
+  },
+  {
+    // The field widget (M14 build step 6). **No field in the params**, unlike
+    // `attribute`'s presets: the reader picks one from the manifest, so the
+    // widget lands asking "choose a field" and the insert step offers the
+    // picker. A preset per field is the list the manifest exists to replace.
+    id: "stop.field",
+    widget: "field",
+    params: {},
+    title: "A stop's detail",
+    keywords: [
+      "field", "detail", "any", "pick", "stop", "stops", "cost", "price", "place", "location",
+      "notes", "status", "tags", "name",
+    ],
+    // Fixed, never computed (ADR-037 decision 5).
+    preview: "one detail of a stop, like its cost or its place",
   },
   // ---- `attribute`, one preset per allow-listed field --------------------
   {

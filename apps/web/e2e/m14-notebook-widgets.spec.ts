@@ -882,6 +882,8 @@ async function addStopViaApi(
     dayId?: string;
     timeWindow?: { start: string; end: string };
     location?: { name: string; city: string };
+    cost?: { amountMinor: number; currency: string };
+    kind?: string;
   } = {},
 ): Promise<void> {
   const response = await page.request.post(`/api/trips/${tripId}/commands`, {
@@ -1474,4 +1476,50 @@ test("a long value does not squeeze a repeat table's lead column to nothing", as
     geometry.height,
     `the lead wrapped: ${geometry.height}px tall for one line of ${geometry.line}px ("${geometry.text}")`,
   ).toBeLessThan(geometry.line * 2);
+});
+
+test("a field the reader picks prints in a sentence, and joins a stop list as a column", async ({ page }) => {
+  // M14 field widget, build step 6 — Mitchell's answer 4: *"inline first: a
+  // field chip inside a sentence. The repeat shape follows: a field as a
+  // column"*. Both are chosen from the manifest by label; nobody types a path.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  // One stop, so the field widget reads one value — and a cost the seeded
+  // Overview's own `cost` also prints, which is why every read below is
+  // scoped to a widget rather than to the page.
+  await addStopViaApi(page, tripId, "Tram tour", { cost: { amountMinor: 4200, currency: "USD" }, kind: "booked" });
+  await openSeededPage(page);
+
+  // It lands asking for a field — there is no "every field" to default to.
+  // `toContainText` while Editing: the widget's handle (`▸`) is in its text.
+  await insertFromList(page, /A stop's detail/, "detail");
+  const fieldWidget = page.locator('[data-macro-name="field"]');
+  await expect(fieldWidget).toContainText("choose a field");
+
+  const picker = settingsPanel(page).getByRole("combobox", { name: "Field" });
+  await picker.click();
+  await picker.fill("cost");
+  await page.getByRole("option", { name: "Cost", exact: true }).click();
+  await expect(fieldWidget).toContainText("$42.00");
+  await expect(fieldWidget).not.toContainText("choose a field");
+
+  // The same field vocabulary, as a column on a stop list.
+  await insertFromList(page, /A line for every stop/, "every stop");
+  const addColumn = settingsPanel(page).getByRole("combobox", { name: "Add a column" });
+  await addColumn.click();
+  await addColumn.fill("status");
+  await page.getByRole("option", { name: "Status", exact: true }).click();
+  await expect(settingsPanel(page).getByRole("combobox", { name: "Column 1" })).toHaveValue("Status");
+
+  const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) });
+  await expect(table.getByRole("row").filter({ hasText: "Tram tour" })).toContainText("booked");
+
+  // And both survive the round trip, read in Reading where no control exists.
+  await finishEditing(page);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await expect(page.locator('[data-macro-name="field"]')).toHaveText("$42.00");
+  await expect(
+    page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) }).getByRole("row").filter({ hasText: "Tram tour" }),
+  ).toContainText("booked");
 });
