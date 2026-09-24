@@ -667,60 +667,52 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(afterReload.nth(1)).toContainText("Day 2");
 });
 
-// **The authored repeat** (ADR-035 decision 4; M14 link 6's gate box, and
-// Mitchell's 2026-09-24 call 6). One sentence the author writes, with widgets
-// in it, printed once per day — each widget reading that line's day. The
-// template is written where it sits, the way any sentence is: that IS "Edit
-// the wording" (catalogue row 12), so the walk writes it rather than opening
-// anything. The widgets are inserted from the same rail at the same caret.
-test("a sentence for every day is written once and reads one line per day", async ({ page }) => {
+// **The authored repeat** (ADR-035 decision 4; M14 link 6's gate box), as
+// Mitchell reshaped it on the PR #221 preview: ONE widget, "A sentence for
+// each…", told in its settings what it repeats for and given its sentence as a
+// line of text with a detail dropped in — and Editing shows the lines exactly
+// as Reading will (*"every widget should be shown as it will render in the
+// notebook in edit mode"*). So the walk reads the page's lines BEFORE leaving
+// Editing, then again in Reading, then after a reload.
+test("a sentence for each city is written in its settings and reads the same in Editing and Reading", async ({ page }) => {
   await tripWithTwoDays(page);
   const tripId = new URL(page.url()).pathname.split("/")[2]!;
   const detail = await page.request.get(`/api/trips/${tripId}`);
   const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
-  // A day's city comes from its stops, so each day gets one in its own city.
+  // A city comes from a located stop, so each day gets one in its own city.
   await addStopViaApi(page, tripId, "Landing at Haneda", { dayId: trip.days[0]!.dayId, location: { name: "Haneda", city: "Tokyo" } });
   await addStopViaApi(page, tripId, "Fushimi Inari", { dayId: trip.days[1]!.dayId, location: { name: "Fushimi Inari", city: "Kyoto" } });
   await openSeededPage(page);
 
-  await page.locator(".tc-page-editor h2").first().click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
-  await page.getByRole("searchbox", { name: "Search widgets" }).fill("sentence for every day");
-  await railList(page).getByRole("button", { name: /A sentence for every day/ }).click();
+  // Inserting selects it, so its settings are already open.
+  await insertFromList(page, /A sentence for each/, "sentence");
+  const panel = settingsPanel(page);
+  await expect(panel.getByRole("heading", { name: "A sentence for each day" })).toBeVisible();
+  await panel.getByRole("radio", { name: "City" }).click();
+  await expect(panel.getByRole("heading", { name: "A sentence for each city" })).toBeVisible();
 
-  // The dashed rail names what it repeats over and how many, and the caret is
-  // already in the template — so the next keystrokes are the sentence.
-  const repeat = page.locator('.tc-page-editor [data-repeat-over="day"]');
-  await expect(repeat.getByTestId("repeat-rail")).toHaveText("For every day · 2 days");
-  await page.keyboard.type("Day ");
-  await page.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
-  await railList(page).getByRole("button", { name: /The dates/ }).click();
-  await expect(repeat.locator('[data-macro-name="dates"]')).toHaveCount(1);
+  // The sentence, and the city's name dropped in at the caret by its label —
+  // nobody types a key.
+  const sentence = panel.getByRole("textbox", { name: "Sentence" });
+  await sentence.fill("Welcome to !");
+  await sentence.press("End");
+  await sentence.press("ArrowLeft");
+  await panel.getByRole("button", { name: "The city's name" }).click();
+  await expect(sentence).toHaveValue("Welcome to {name}!");
 
-  // Back to the end of the template, past the widget the insert selected.
-  const template = repeat.locator("p").first();
-  await template.click({ position: { x: (await boxOf(template)).width - 4, y: 4 } });
-  await page.keyboard.press("End");
-  await page.keyboard.type(" — ");
-  await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
-  await railList(page).getByRole("button", { name: /Which cities/ }).click();
-  await expect(repeat.locator('[data-macro-name="city"]')).toHaveCount(1);
+  // Editing: the lines as they will read, on the rail naming what they repeat
+  // over — and the template itself nowhere on the page.
+  const repeat = page.locator('.tc-page-editor [data-repeat-over="city"]');
+  await expect(repeat.getByTestId("repeat-rail")).toHaveText("For every city · 2 cities");
+  const lines = page.locator("[data-repeat-line]");
+  const EXPECTED = ["Welcome to Tokyo!", "Welcome to Kyoto!"];
+  await expect(lines).toHaveText(EXPECTED);
+  await expect(page.locator(".tc-page-editor")).not.toContainText("{name}");
 
-  // Editing shows the template ONCE, its widgets previewing the first day. Per
-  // widget, because each also carries its numbered handle (▸1, ▸2) in Editing.
-  await expect(template).toContainText("Day ");
-  await expect(repeat.locator('[data-macro-name="dates"]')).toContainText("Jun 1, 2027");
-  await expect(repeat.locator('[data-macro-name="city"]')).toContainText("Tokyo");
-  await expect(repeat.locator('[data-macro-name="city"]')).not.toContainText("Kyoto");
-
-  // Reading: one line per day, each filled from its own day. Exactly two, so a
-  // renderer that printed the template once, or three times, fails here.
+  // Reading: the same two lines, and no chrome. Exactly two, so a renderer that
+  // printed the sentence once, or three times, fails here.
   const readLines = async () => {
-    const lines = page.locator("[data-repeat-line]");
-    await expect(lines).toHaveCount(2);
-    await expect(lines.nth(0)).toHaveText(/^Day\s*Jun 1, 2027\s*—\s*Tokyo$/);
-    await expect(lines.nth(1)).toHaveText(/^Day\s*Jun 2, 2027\s*—\s*Kyoto$/);
+    await expect(lines).toHaveText(EXPECTED);
     await expect(page.getByTestId("repeat-rail")).toHaveCount(0);
   };
   await finishEditing(page);
@@ -731,9 +723,9 @@ test("a sentence for every day is written once and reads one line per day", asyn
 });
 
 // A repeat is a block, and inserting one with the caret mid-sentence used to
-// SPLIT the sentence around it: in a repeat, "On d" | the new repeat | "ay X we
-// go" (M14 PART 3 review, finding 2). Walked through the rail, the insert an
-// author actually makes; `insertRepeatAt`'s unit tests hold the drop and slash.
+// SPLIT the sentence around it (M14 PART 3 review, finding 2). Walked through
+// the rail, the insert an author actually makes; `insertRepeatAt`'s unit tests
+// hold the drop and slash.
 test("a sentence inserted mid-sentence lands after it, never splitting it", async ({ page }) => {
   await tripWithTwoDays(page);
   await openSeededPage(page);
@@ -742,21 +734,19 @@ test("a sentence inserted mid-sentence lands after it, never splitting it", asyn
   await page.locator(".tc-page-editor h2").first().click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  await search.fill("sentence for every day");
-  await railList(page).getByRole("button", { name: /A sentence for every day/ }).click();
   await page.keyboard.type("On day X we go");
-
   // The caret between "On d" and "ay": the exact spot the review split.
   await page.keyboard.press("Home");
   for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
-  await search.fill("sentence for every stop");
-  await railList(page).getByRole("button", { name: /A sentence for every stop/ }).click();
+  await search.fill("sentence");
+  await railList(page).getByRole("button", { name: /A sentence for each/ }).click();
 
   const repeats = page.locator(".tc-page-editor [data-repeat-over]");
-  await expect(repeats).toHaveCount(2);
-  await expect(repeats.nth(0)).toHaveAttribute("data-repeat-over", "day");
-  await expect(repeats.nth(0).locator("p").first()).toHaveText("On day X we go");
-  await expect(repeats.nth(1)).toHaveAttribute("data-repeat-over", "stop");
+  await expect(repeats).toHaveCount(1);
+  const written = page.locator(".tc-page-editor p", { hasText: "On d" });
+  await expect(written).toHaveText("On day X we go");
+  // After the sentence, not before it.
+  expect((await boxOf(repeats.first())).y).toBeGreaterThan((await boxOf(written)).y);
 
   // Mid-heading too: the heading keeps every letter, and nothing new nests.
   const heading = page.locator(".tc-page-editor h2").first();
@@ -765,9 +755,9 @@ test("a sentence inserted mid-sentence lands after it, never splitting it", asyn
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
-  await search.fill("sentence for every city");
-  await railList(page).getByRole("button", { name: /A sentence for every city/ }).click();
-  await expect(repeats).toHaveCount(3);
+  await search.fill("sentence");
+  await railList(page).getByRole("button", { name: /A sentence for each/ }).click();
+  await expect(repeats).toHaveCount(2);
   await expect(page.locator(".tc-page-editor h2").first()).toHaveText(title);
   await expect(page.locator(".tc-page-editor [data-repeat-over] [data-repeat-over]")).toHaveCount(0);
 });
