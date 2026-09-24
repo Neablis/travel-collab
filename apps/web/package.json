@@ -17,7 +17,7 @@
     "test": "vitest run -c vitest.unit.config.ts",
     "test:int": "node scripts/with-test-db.mjs vitest run",
     "test:e2e": "NODE_OPTIONS=--import=./scripts/preload-dotenv.mjs node scripts/with-test-db.mjs --with-port playwright test",
-    "test:e2e:ci-like": "pnpm build && CI=true pnpm test:e2e",
+    "test:e2e:ci-like": "NEXT_PUBLIC_SENTRY_DSN='' pnpm build && CI=true pnpm test:e2e",
     "walk:preview": "node --env-file-if-exists=.env.local scripts/walk-preview.mjs",
     "db:generate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/drizzle-kit/bin.cjs migrate",

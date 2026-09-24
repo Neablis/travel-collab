@@ -194,6 +194,17 @@ export default defineConfig({
       // apps/web/.env.local, so this has to be set explicitly here rather
       // than relying on a developer's local file.
       AI_LIVE: "false",
+      // Sentry off: an e2e run must not file its own noise against the shared
+      // project, and must not talk to a third party at all. The empty string,
+      // not unset — `sentry.shared.ts` falls back to the real DSN on `??`, and
+      // `""` is the SDK's documented no-op.
+      //
+      // **This line only covers `pnpm dev`.** `NEXT_PUBLIC_*` is inlined into
+      // the bundles at BUILD time, so under `pnpm start` (CI and
+      // `test:e2e:ci-like`) the value that counts is the one the build saw:
+      // `test:e2e:ci-like` in package.json and the build step in ci.yml set it
+      // there too. Set here as well so the dev lane matches.
+      NEXT_PUBLIC_SENTRY_DSN: "",
       // M11a: every dev user this suite signs in is brand new against a fresh
       // database, and the gate refuses anyone with no `users` row and no
       // credential — so without this the run dies in `auth.setup.ts` and every
