@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   // is the one read on its path that would otherwise have.
   const members = isDemoTripId(tripId)
     ? demoTripMembers()
-    : await withProfiles(access.detail.members);
+    : await withProfiles(access.detail.members, access);
   // **The OWNER's entitlement, not the reader's** (M20 link 6). The owner is
   // the billing subject — collaboration on a trip is paid for by whoever owns
   // it — so an editor reading this learns whether the trip they are on is
