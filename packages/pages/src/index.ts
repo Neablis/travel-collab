@@ -13,6 +13,7 @@ export * from "./insert";
 export * from "./presets";
 export * from "./templates";
 export * from "./writeCheck";
+export * from "./repeat";
 export * from "./needsBooking";
 export * from "./dayCity";
 export * from "./kinds";

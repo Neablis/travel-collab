@@ -53,12 +53,12 @@ export const field: MacroDef<FieldParams, string> = {
     "Any published detail of the selected stops — name, place, notes, status, tags or cost. One stop shows its own value; several show every value, with costs added up. `distinct: true` lists a repeated value once.",
   emptyText: "no stops to show",
   preview: "one detail of a stop, like its cost or its place",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
     if (!trip) return needsTrip();
     const choice = fieldAt("stop", params.field);
     // No kind until a field is chosen, so the ghost claims none: `———`.
     if (!choice) return unbound("field", [ghost("text", "field")]);
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { stops } = selection.value;
     if (stops.length === 0) return empty();

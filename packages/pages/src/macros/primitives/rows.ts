@@ -64,9 +64,9 @@ export const dayRows: MacroDef<DayRowsParams, RepeatPayload> = {
   description: "One line per selected day: its date, its cities and what it costs.",
   emptyText: "no days to show",
   preview: "one line per day, with its date and cost",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     if (selection.value.days.length === 0) return empty();
     // Three columns, always the same three, and empty where a day has no
@@ -116,9 +116,9 @@ export const cityRows: MacroDef<CityRowsParams, RepeatPayload> = {
   description: "One line per selected city: which days are there, and how many stops.",
   emptyText: "no cities to show",
   preview: "one line per city, with its days and stops",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const cities = selection.value.cities;
     if (cities.length === 0) return empty();
@@ -240,9 +240,9 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
   // cannot phrase, and a `kind` filter gets its own words.
   emptyText: "no stops to show",
   preview: "one line per stop, with its time and cost",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const stops = params.only === "needsBooking"
       ? selection.value.stops.filter(({ activity }) => needsBooking(activity))
@@ -325,9 +325,9 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
   // other, reads as a rendering fault rather than as two widgets agreeing.
   emptyText: "nothing priced yet",
   preview: "each day's spend, and the total",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { days, stops } = selection.value;
     const total = costOfStops(stops);

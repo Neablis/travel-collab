@@ -456,10 +456,16 @@ export interface WidgetContext {
 // over resolved items (ADR-035 decision 4). **Never persisted** — storing an
 // item identity is exactly what makes a document go stale when a day moves.
 //
-// One member today because link 6's first repeater iterates days. It widens
-// when a repeater over cities or tags arrives; the union exists now so
-// `resolve`'s signature does not change again when it does.
-export type ItemScope = { kind: "day"; index: number };
+// One member per collection an authored repeat iterates (`repeat.ts`): a day
+// by its index, a city by its name, a stop by its id and the day it sits on
+// (`null` in the backlog). **It is a filter the author did not have to set,
+// and nothing more**: `narrow` applies it to a dimension the widget left
+// unbound, so an unbound widget handed an item renders exactly what it renders
+// bound to that item, and an explicit binding still wins (`repeat.test.ts`).
+export type ItemScope =
+  | { kind: "day"; index: number }
+  | { kind: "city"; name: string }
+  | { kind: "stop"; activityId: string; dayIndex: number | null };
 
 /**
  * What a PRIMITIVE selects over (ADR-039 decision 1: `widget = entity + filters

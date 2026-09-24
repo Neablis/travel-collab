@@ -47,9 +47,9 @@ export const cost: MacroDef<CostParams, string> = {
     "What a selection of stops costs. Unfiltered it is the whole trip's total, including unscheduled stops; filter it to a day, a city, a tag or a kind for the sum of what matches.",
   emptyText: "no costs yet",
   preview: "the running total of what you selected",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
     if (!trip) return needsTrip([ghost("money", "cost")]);
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const total = costOfStops(selection.value.stops);
     // Zero is `empty()` rather than "$0.00", which is what `cost.trip` and
@@ -153,12 +153,12 @@ export const count: MacroDef<CountParams, string> = {
     "How many stops, days or cities a selection holds. Unfiltered it counts everything; filter it for how many match.",
   emptyText: "nothing to count",
   preview: "how many there are",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
     const of = params.of ?? COUNTS_STOPS;
     const [one, many] = PLURAL[of];
     // The noun is known before anything is, so only the number is a ghost.
     if (!trip) return needsTrip([ghost("count", `number of ${many}`), text(` ${many}`)]);
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const n = countOf(of, selection.value);
     return ok(`${n} ${n === 1 ? one : many}`);
@@ -192,9 +192,9 @@ export const dates: MacroDef<DatesParams, string> = {
     "The dates a selection of days covers. Unfiltered it is the trip's whole range; filter it to a day for that day's date.",
   emptyText: "no dates set",
   preview: "Fri 25 Sep – Sun 4 Oct",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
     if (!trip) return needsTrip([ghost("date", "dates")]);
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const dated = selection.value.days
       .map((index) => trip.days[index]!.date)
@@ -236,9 +236,9 @@ export const hours: MacroDef<HoursParams, string> = {
     "When a selection of stops starts and ends, from their times. Unfiltered it spans the whole trip; filter it to a day for that day's window.",
   emptyText: "no times set",
   preview: "09:00 – 21:30",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     let first: string | null = null;
     let last: string | null = null;
@@ -283,9 +283,9 @@ export const city: MacroDef<CityParams, readonly string[]> = {
     "The city or cities a selection of days touches, in arrival order. Unfiltered it is every city on the trip.",
   emptyText: "no cities yet",
   preview: "Tokyo – Kyoto",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<readonly string[]> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<readonly string[]> => {
     if (!trip) return needsTrip([ghost("location", "cities")]);
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const names = selection.value.cities.map((entry) => entry.name);
     return names.length === 0 ? empty() : ok(names);

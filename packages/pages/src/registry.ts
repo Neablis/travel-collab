@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import type { AnyMacroDef, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
+import type { AnyMacroDef, ItemScope, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
 import { ghost, text } from "./registry-types";
 import type { UnavailableReason, UnboundNeeds } from "./result";
 import { fieldChoices } from "./fields";
@@ -97,12 +97,15 @@ export type RenderOutcome =
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
-export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown): RenderOutcome {
+// `item` is the repeat line this widget is being rendered on, when it sits in a
+// repeat's template (ADR-035 decision 4). Render-time only: it never reaches
+// the stored node.
+export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown, item?: ItemScope): RenderOutcome {
   const def = getMacro(name);
   if (!def) return { status: "unknown" };
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
-  const outcome = def.resolve(ctx, parsed.data as never);
+  const outcome = def.resolve(ctx, parsed.data as never, item);
   if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
   if (outcome.status === "unbound") return { ...outcome, shape: outcome.shape ?? fallbackShape(def) };
   return outcome;
