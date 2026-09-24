@@ -737,7 +737,7 @@ milestone opens:**
       order, same option lists (`widgetBind.tsx` is the single source, so the two
       surfaces cannot offer different days) — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
-- [ ] **And two widgets in the SAME BLOCK read two different days** — *"We land on
+- [x] **And two widgets in the SAME BLOCK read two different days** — *"We land on
       Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two
       day-bound widgets pointed at different days, and it must be writable and
       independently rebindable. The chrome row shows **one entry per bound widget
@@ -746,6 +746,23 @@ milestone opens:**
       and day 9, if we lock all widgets to one selection, its not possible"*).
       This is the box that fails if someone adds an aggregate control that
       rebinds a whole block.
+
+      *Met 2026-09-24 (T12).* Since §26 the "chrome row" is the settings panel:
+      the desktop column and the phone sheet both mount `WidgetSettings`. Selecting
+      any widget opens **every widget of its block**, one entry each, in document
+      order. When a block holds more than one, each entry is numbered, and the
+      same number is on the widget's handle in the text (`blockWidgets.ts`,
+      `widgetMarkPlugin.ts`). The number sits in the out-of-flow handle rather
+      than in a superscript after the value as the design draws it, because a
+      superscript would move the prose on entering Editing. Each entry carries its
+      bind controls, *Reads as* and **Remove**. There is no aggregate control. The
+      witness is the e2e walk *"two widgets in ONE sentence read two different
+      days, and each rebinds on its own"*: it writes the gate's sentence, points
+      the two `city` widgets at Day 1 and Day 9 from their own entries, and reads
+      *"We land on Day 1 in Tokyo and by Day 9 we are in Kyoto"* back after a
+      reload. It was run red first: an aggregate rebind fails it at the second
+      widget (`Received string: "▸2Tokyo"`). ci-like green (27/27 across
+      `m14-notebook-widgets` and `m14-mobile-notebook`).
 - [ ] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
 
@@ -916,6 +933,15 @@ in this repo's own hands.
    and **Remove**. The panel renders one selected widget with binds and a static
    *Reads as* preview; there is no numbering, no multi-entry, and no Wording or
    Remove control anywhere.
+
+   **Three of the five closed 2026-09-24 (T12):** one entry per widget of the
+   selected block, numbered to match the handles in the text, and a **Remove**
+   per entry. **Tag filters** were already there as the `tags` bind select of any
+   widget that declares the dimension; the design's chip row for them was not
+   built. **Wording is still open, and it is not a panel ticket.** The design
+   shows it only for a block with authored wording (`hasWording: !!b.editRow`),
+   which means the repeat template, and that is item 3 below. When that template
+   exists, its Wording button belongs in the entry beside Remove.
 3. **§18's author-supplied repeat template is the one real catalogue hole left.**
    The repeat shape renders resolver-supplied rows, not an authored sentence.
    That needs a macro param schema for the template, and it is the *"one new
