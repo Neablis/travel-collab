@@ -583,6 +583,16 @@ export function serializePageNode(node: PageNode): unknown {
     case "bulletList":
     case "orderedList":
       return { ...node, content: node.content.map(serializePageListContentNode) };
+    default: {
+      // The enforcement, not defensive code (KI-2026-09-05-h). The return type
+      // is `unknown` and the repo does not set `noImplicitReturns`, so without
+      // this a `PageNode` member with no case compiles, serialises as
+      // `undefined`, is stored as `null`, and fails `isNodeLike` on the next
+      // read, which leaves the page unreadable. No test can catch that: the
+      // goldens are fixed and the round-trip generator only makes unknown types.
+      const exhaustive: never = node;
+      return exhaustive;
+    }
   }
 }
 

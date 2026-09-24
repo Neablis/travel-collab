@@ -65,6 +65,14 @@ function renderInline(node: PageInlineNode): ReactNode {
       return <span className="rounded bg-moss px-1 text-sm">{node.attrs.name}</span>;
     case "unknown":
       return <span className="text-sm text-slate">[{PLACEHOLDER_LABEL}]</span>;
+    default: {
+      // `ReactNode` admits `undefined` and the repo does not set
+      // `noImplicitReturns`, so a node type with no case would render as
+      // nothing and still compile. This line makes it fail to compile
+      // (KI-2026-09-05-h), the same as `BlockView`.
+      const exhaustive: never = node;
+      return exhaustive;
+    }
   }
 }
 
@@ -150,6 +158,12 @@ function renderBlock(node: PageNode): ReactNode {
       return <hr />;
     case "unknown":
       return <Placeholder label={unknownLabel(node.raw)} />;
+    default: {
+      // As in `renderInline`: a new `PageNode` member fails to compile here
+      // rather than rendering blank.
+      const exhaustive: never = node;
+      return exhaustive;
+    }
   }
 }
 
