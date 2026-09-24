@@ -33,16 +33,15 @@ function runWall(env = process.env) {
 //
 // The directory is MINTED PER CALL by `mkdtempSync`, never fixed, and removed
 // in `finally` — by construction one this call made.
-function runWallAgainst(basename, contents) {
+function runWallAgainst(basename, contents, dir = "fixture") {
   const root = mkdtempSync(join(tmpdir(), "tc-color-wall-"));
-  // One directory BELOW `src`, not in it: the wall's pathspec
-  // `apps/web/src/**/*.ts` needs a `/` after `src/`, so a file directly in
-  // `src` is never listed and every fixture here would pass for nothing.
-  const relative = `apps/web/src/fixture/${basename}`;
+  // One directory below `src` by default; `dir: ""` puts the file directly in
+  // `src`, which the wall's pathspec missed until 2026-09-24 (the test below).
+  const relative = dir ? `apps/web/src/${dir}/${basename}` : `apps/web/src/${basename}`;
   try {
     const init = spawnSync("git", ["init", "--quiet", root], { encoding: "utf8" });
     assert.equal(init.status, 0, `git init failed: ${init.stderr}`);
-    mkdirSync(join(root, "apps", "web", "src", "fixture"), { recursive: true });
+    mkdirSync(join(root, "apps", "web", "src", ...(dir ? [dir] : [])), { recursive: true });
     writeFileSync(join(root, relative), contents);
     return { ...runWall({ ...process.env, COLOR_WALL_SCAN_ROOT: root }), relative };
   } finally {
@@ -307,4 +306,18 @@ test("a token after a url on a LATER LINE of a template literal is still scanned
   const { status, stdout, stderr } = runWallAgainst("token-template.tsx", contents);
   assert.equal(status, 1, `expected the wall to FAIL on bg-amber-50; got: ${stdout}${stderr}`);
   assert.match(`${stdout}${stderr}`, /bg-amber-50/);
+});
+
+// Until 2026-09-24 the pathspec was `apps/web/src/**/*.ts`, and git's `**/`
+// needs a `/` after `src/`, so the five files directly in `src` — `proxy.ts`,
+// `config.ts`, `instrumentation*.ts` — were never scanned. Found by the
+// KI-2026-09-23-g fixer, whose first sandbox put its fixture there and went blind.
+test("a file directly in apps/web/src is scanned, not only files in subfolders", () => {
+  const { status, stderr, relative } = runWallAgainst(
+    "top-level.ts",
+    'export const X = "#0c6b58";\n',
+    "",
+  );
+  assert.notEqual(status, 0, `expected the wall to fail on ${relative}`);
+  assert.match(stderr, /top-level\.ts:1: raw color literal/);
 });

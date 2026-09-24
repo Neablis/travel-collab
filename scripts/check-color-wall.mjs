@@ -71,10 +71,13 @@ const generatedNonProduct = new Set([
 // move: `globals.css` and the pending list are read from the working directory
 // either way, because they are the wall's rules, not its input.
 const scanRoot = process.env.COLOR_WALL_SCAN_ROOT ?? process.cwd();
+// `src/*.ts`, not `src/**/*.ts`: git's default pathspec lets `*` cross `/`, so
+// this matches every depth, while `**/` demanded a subfolder and silently
+// skipped the five files directly in `src` (`proxy.ts`, `config.ts`, …).
 const files = [
   ...new Set(
     execSync(
-      "git ls-files --cached --others --exclude-standard 'apps/web/src/**/*.ts' 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css'",
+      "git ls-files --cached --others --exclude-standard 'apps/web/src/*.ts' 'apps/web/src/*.tsx' 'apps/web/src/*.css'",
       { encoding: "utf8", cwd: scanRoot },
     )
       .split("\n")
