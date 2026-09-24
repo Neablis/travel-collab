@@ -1086,3 +1086,4 @@ gating**. Each entry's own **Milestone:** line points back here.
 | KI-2026-09-22-d | An open notebook editor does not show a co-traveller's edit, deliberately, until it can do so safely | carried |
 | KI-2026-09-24-d | The page write check (KI-2026-09-05-g, fixed 2026-09-24) leaves pre-fix wrapped rows unrepaired and `repeat` nodes unchecked; a stored bad widget now blocks autosave | carried |
 | KI-2026-09-24-n | Know before you go: emergency numbers carry no service label; ~45 countries have none recorded | carried |
+| KI-2026-09-24-o | Weather sends rounded stop locations to MET Norway / NASA POWER; no privacy page says so | carried |
