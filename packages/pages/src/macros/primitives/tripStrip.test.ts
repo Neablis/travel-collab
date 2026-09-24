@@ -93,7 +93,7 @@ describe("trip.strip", () => {
   });
 
   it("asks for a trip when it has none", () => {
-    expect(renderMacro(contextOf(undefined), "trip.strip", {})).toEqual({ status: "unbound", needs: "trip" });
+    expect(renderMacro(contextOf(undefined), "trip.strip", {})).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
   });
 
   it("[property] the runs partition the trip's days, in order, each run one city, neighbours different", () => {

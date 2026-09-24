@@ -127,7 +127,7 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
         "attribute",
         { field: "trip.countdown" },
       );
-      expect(outcome).toEqual({ status: "unbound", needs: "trip" });
+      expect(outcome).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
     });
   });
 
@@ -206,7 +206,7 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
     // depending on which field it reads, and that is the honest answer rather
     // than a uniform one.
     const noTrip: WidgetContext = { page: { tripId: trip.tripId }, user: ctx.user, globals: null, today: null };
-    expect(renderMacro(noTrip, "attribute", { field: "trip.name" })).toEqual({ status: "unbound", needs: "trip" });
+    expect(renderMacro(noTrip, "attribute", { field: "trip.name" })).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
     expect(renderMacro(noTrip, "attribute", { field: "account.name" })).toEqual({
       status: "ok",
       rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: "Priya" }] },
