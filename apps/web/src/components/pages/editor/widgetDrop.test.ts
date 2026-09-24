@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EditorView } from "@tiptap/pm/view";
 import { getSchema } from "@tiptap/react";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { EditorState, type Transaction } from "@tiptap/pm/state";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
 import { allowWidgetDragOver, handleWidgetDrop } from "./widgetDrop";
 import { WIDGET_DRAG_TYPE } from "@/components/pages/WidgetPicker";
@@ -28,7 +30,13 @@ function dragEvent({ type = WIDGET_DRAG_TYPE, data }: { type?: string; data: str
 function stubView({ pos = 3 }: { pos?: number | null } = {}) {
   const dispatch = vi.fn();
   const view = {
-    state: { schema, tr: { insert: (at: number, node: unknown) => ({ at, node }) } },
+    state: {
+      schema,
+      get tr() {
+        const tr = { at: -1, node: null as unknown, insert: (at: number, node: unknown) => Object.assign(tr, { at, node }) };
+        return tr;
+      },
+    },
     posAtCoords: () => (pos === null ? null : { pos, inside: pos }),
     dispatch,
   } as unknown as EditorView;
@@ -56,12 +64,55 @@ describe("dropping a widget onto the page", () => {
     expect(node.attrs.params).toEqual({ kind: "booked" });
   });
 
-  it("drops a sentence-for-every-day preset as a repeat, not as the rows widget it borrows", () => {
-    const { view, dispatch } = stubView({ pos: 4 });
+  // A repeat is a BLOCK, so a drop point inside a sentence must not become a
+  // split: dropped at pos 5 of repeat("On day X we go") it used to yield
+  // repeat("On d"), repeat(), repeat("ay X we go") — the author's sentence cut
+  // in two (M14 PART 3 review, finding 2). A real document, because the bug
+  // IS the document's shape.
+  function realView(doc: ProseMirrorNode) {
+    let state = EditorState.create({ schema, doc });
+    const view = {
+      get state() {
+        return state;
+      },
+      posAtCoords: () => ({ pos: 5, inside: 5 }),
+      dispatch: (tr: Transaction) => {
+        state = state.apply(tr);
+      },
+    } as unknown as EditorView;
+    return { view, doc: () => state.doc.toJSON() as unknown };
+  }
+  const sentence = (text: string) => [{ type: "text", text }];
+
+  it("drops a repeat inside a repeat's sentence AFTER that repeat — no split, no nesting", () => {
+    const { view, doc } = realView(
+      schema.nodeFromJSON({
+        type: "doc",
+        content: [{ type: "repeat", attrs: { name: "day.rows", params: {} }, content: sentence("On day X we go") }],
+      }),
+    );
+    expect(handleWidgetDrop(view, dragEvent({ data: "sentence.stop" }))).toBe(true);
+    expect(doc()).toEqual({
+      type: "doc",
+      content: [
+        { type: "repeat", attrs: { name: "day.rows", params: {} }, content: sentence("On day X we go") },
+        { type: "repeat", attrs: { name: "stop.rows", params: {} } },
+      ],
+    });
+  });
+
+  it("drops a repeat mid-paragraph after the paragraph, leaving the paragraph whole", () => {
+    const { view, doc } = realView(
+      schema.nodeFromJSON({ type: "doc", content: [{ type: "paragraph", content: sentence("Hello world") }] }),
+    );
     expect(handleWidgetDrop(view, dragEvent({ data: "sentence.day" }))).toBe(true);
-    const { node } = dispatch.mock.calls[0]![0] as { node: { type: { name: string }; attrs: Record<string, unknown> } };
-    expect(node.type.name).toBe("repeat");
-    expect(node.attrs).toEqual({ name: "day.rows", params: {} });
+    expect(doc()).toEqual({
+      type: "doc",
+      content: [
+        { type: "paragraph", content: sentence("Hello world") },
+        { type: "repeat", attrs: { name: "day.rows", params: {} } },
+      ],
+    });
   });
 
   // ADR-037 decision 4: "there is no way to put a widget into a document that

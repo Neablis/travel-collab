@@ -15,7 +15,7 @@ import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
-import { repeatCaretIn } from "@/components/pages/editor/RepeatNodeExtension";
+import { insertRepeatAt, repeatCaretIn } from "@/components/pages/editor/RepeatNodeExtension";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type InsertedNode } from "@/components/pages/WidgetInsert";
@@ -644,6 +644,27 @@ export function PageScreen({
     // sheet asking the question they have already answered: §19's "one sheet
     // deep, ever" served twice in a row. `m14-mobile-notebook` is what said so,
     // by watching the insert sheet never close.
+    //
+    // **A repeat is placed by `insertRepeatAt`, on phone and desktop alike**:
+    // after the sentence the caret is in, never splitting it. It has nothing
+    // to configure on arrival and everything to write, so the caret goes into
+    // its template and the next keystroke is the sentence (ADR-035 decision 4).
+    if (!Array.isArray(node) && (node as InsertedNode).type === "repeat") {
+      editor
+        ?.chain()
+        .focus()
+        .command(({ tr }) => {
+          // From the selection's start only: the repeat goes after the host
+          // sentence, so replacing selected text — or a selected widget —
+          // would delete something the author did not ask to lose.
+          const at = insertRepeatAt(tr, tr.doc.type.schema.nodeFromJSON(node), tr.selection.from);
+          const caret = repeatCaretIn(tr.doc, at, at + 1);
+          if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
+          return true;
+        })
+        .run();
+      return;
+    }
     if (isPhone) {
       editor
         ?.chain()
@@ -659,14 +680,6 @@ export function PageScreen({
       .insertContent(node as never)
       .command(({ tr, dispatch }) => {
         if (at === undefined || dispatch === undefined) return true;
-        // A repeat has nothing to configure on arrival and everything to
-        // write: the caret goes into its template, so the next keystroke is
-        // the sentence (ADR-035 decision 4).
-        if (!Array.isArray(node) && (node as InsertedNode).type === "repeat") {
-          const caret = repeatCaretIn(tr.doc, at, tr.selection.to);
-          if (caret !== null) dispatch(tr.setSelection(TextSelection.create(tr.doc, caret)));
-          return true;
-        }
         let macroPos: number | null = null;
         tr.doc.nodesBetween(at, Math.max(at, tr.selection.to), (child, pos) => {
           if (macroPos !== null) return false;

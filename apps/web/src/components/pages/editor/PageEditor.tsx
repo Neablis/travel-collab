@@ -9,7 +9,7 @@ import { MacroEditorContext, type MacroEditorContextValue } from "./MacroEditorC
 import { SlashMenu } from "./SlashMenu";
 import { useSlashMenu } from "./useSlashMenu";
 import { allowWidgetDragOver, handleWidgetDrop } from "./widgetDrop";
-import { repeatCaretIn } from "./RepeatNodeExtension";
+import { insertRepeatAt, repeatCaretIn } from "./RepeatNodeExtension";
 import { TextSelection } from "@tiptap/pm/state";
 
 export interface PageEditorProps {
@@ -240,15 +240,19 @@ export function PageEditor({ detail, context, user = null, globals = null, value
       if (!built.ok) return;
       // Replace the typed `/query` rather than inserting after it, or the
       // document keeps the text that summoned the menu.
+      if (built.node.type !== "repeat") {
+        editor?.chain().focus().insertContentAt(range, built.node).run();
+        return;
+      }
+      // A repeat lands after the sentence it was summoned from, never inside
+      // it (`insertRepeatAt`), and arrives empty, so the caret goes into its
+      // template — the same landing `PageScreen`'s click insert gives it.
       editor
         ?.chain()
         .focus()
-        .insertContentAt(range, built.node)
-        // A repeat arrives empty, so the caret goes into its template — the
-        // same landing `PageScreen`'s click insert gives it.
         .command(({ tr }) => {
-          if (built.node.type !== "repeat") return true;
-          const caret = repeatCaretIn(tr.doc, range.from, tr.selection.to);
+          const at = insertRepeatAt(tr, tr.doc.type.schema.nodeFromJSON(built.node), range.from, range.to);
+          const caret = repeatCaretIn(tr.doc, at, at + 1);
           if (caret !== null) tr.setSelection(TextSelection.create(tr.doc, caret));
           return true;
         })

@@ -1,6 +1,7 @@
 import type { EditorView } from "@tiptap/pm/view";
 import { insertPreset } from "@tc/pages";
 import { WIDGET_DRAG_TYPE } from "@/components/pages/WidgetPicker";
+import { insertRepeatAt } from "./RepeatNodeExtension";
 
 /**
  * Drop a widget onto the page — Mitchell, on the preview: *"I cant drag and drop
@@ -45,7 +46,11 @@ export function handleWidgetDrop(view: EditorView, event: DragEvent): boolean {
   // editor does not understand still falls through to ProseMirror's own drop
   // handling (moving a selection, dropping text from elsewhere).
   event.preventDefault();
-  view.dispatch(view.state.tr.insert(at.pos, type.create(built.node.attrs)));
+  const node = type.create(built.node.attrs);
+  const tr = view.state.tr;
+  if (built.node.type === "repeat") insertRepeatAt(tr, node, at.pos);
+  else tr.insert(at.pos, node);
+  view.dispatch(tr);
   return true;
 }
 

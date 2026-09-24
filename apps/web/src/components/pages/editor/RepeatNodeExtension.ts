@@ -1,5 +1,6 @@
 import { Node, mergeAttributes, ReactNodeViewRenderer } from "@tiptap/react";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { Transaction } from "@tiptap/pm/state";
 import { RepeatNodeView } from "./RepeatNodeView";
 
 // The `repeat` ProseMirror node: an authored sentence repeated once per day,
@@ -33,6 +34,36 @@ export function repeatCaretIn(doc: ProseMirrorNode, from: number, to: number): n
     return caret === null;
   });
   return caret;
+}
+
+/**
+ * Put a repeat into the document at `from` (replacing `from`–`to` first), and
+ * return where it landed. **The one placement rule for all three insert paths**
+ * — click, drop and slash — so none of them can grow its own.
+ *
+ * A repeat is a block, and ProseMirror fits a block into a sentence by
+ * SPLITTING the sentence: inserted at pos 5 of repeat("On day X we go") it
+ * made repeat("On d"), the new repeat, repeat("ay X we go") (M14 PART 3 review,
+ * finding 2). So inside a textblock it goes after the host block instead —
+ * never nested, never splitting. An empty paragraph is replaced rather than
+ * left above it, which is what TipTap's `insertContent` did for a block on an
+ * empty line and what the e2e walk's "Enter, then insert" relies on. An empty
+ * REPEAT is not replaced: that is an author's repeat whose sentence is unwritten.
+ */
+export function insertRepeatAt(tr: Transaction, repeat: ProseMirrorNode, from: number, to = from): number {
+  if (to > from) tr.delete(from, to);
+  const $pos = tr.doc.resolve(from);
+  if ($pos.depth === 0 || !$pos.parent.isTextblock) {
+    tr.insert(from, repeat);
+    return from;
+  }
+  const [before, after] = [$pos.before(), $pos.after()];
+  if ($pos.parent.content.size === 0 && $pos.parent.type.name !== "repeat") {
+    tr.replaceWith(before, after, repeat);
+    return before;
+  }
+  tr.insert(after, repeat);
+  return after;
 }
 
 export const RepeatNodeExtension = Node.create({

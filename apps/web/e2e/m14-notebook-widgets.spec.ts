@@ -730,6 +730,48 @@ test("a sentence for every day is written once and reads one line per day", asyn
   await readLines();
 });
 
+// A repeat is a block, and inserting one with the caret mid-sentence used to
+// SPLIT the sentence around it: in a repeat, "On d" | the new repeat | "ay X we
+// go" (M14 PART 3 review, finding 2). Walked through the rail, the insert an
+// author actually makes; `insertRepeatAt`'s unit tests hold the drop and slash.
+test("a sentence inserted mid-sentence lands after it, never splitting it", async ({ page }) => {
+  await tripWithTwoDays(page);
+  await openSeededPage(page);
+  const search = page.getByRole("searchbox", { name: "Search widgets" });
+
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await search.fill("sentence for every day");
+  await railList(page).getByRole("button", { name: /A sentence for every day/ }).click();
+  await page.keyboard.type("On day X we go");
+
+  // The caret between "On d" and "ay": the exact spot the review split.
+  await page.keyboard.press("Home");
+  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+  await search.fill("sentence for every stop");
+  await railList(page).getByRole("button", { name: /A sentence for every stop/ }).click();
+
+  const repeats = page.locator(".tc-page-editor [data-repeat-over]");
+  await expect(repeats).toHaveCount(2);
+  await expect(repeats.nth(0)).toHaveAttribute("data-repeat-over", "day");
+  await expect(repeats.nth(0).locator("p").first()).toHaveText("On day X we go");
+  await expect(repeats.nth(1)).toHaveAttribute("data-repeat-over", "stop");
+
+  // Mid-heading too: the heading keeps every letter, and nothing new nests.
+  const heading = page.locator(".tc-page-editor h2").first();
+  const title = (await heading.textContent()) ?? "";
+  await heading.click();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await search.fill("sentence for every city");
+  await railList(page).getByRole("button", { name: /A sentence for every city/ }).click();
+  await expect(repeats).toHaveCount(3);
+  await expect(page.locator(".tc-page-editor h2").first()).toHaveText(title);
+  await expect(page.locator(".tc-page-editor [data-repeat-over] [data-repeat-over]")).toHaveCount(0);
+});
+
 test("a multi-filter widget keeps every binding, and each survives a reload", async ({ page }) => {
   // `stop.rows` is the widest widget in the registry — entity `stop`, which the
   // legality matrix gives all six dimensions — so it is the one that proves the
