@@ -7,7 +7,7 @@ import type { SpendBurnDown, SpendByDayBar, SpendByDayPayload, SpendSeriesKey } 
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { costOfStops, narrow, type SelectedStop } from "../../select";
-import { formatDate, formatMoney, ordinal } from "../../format";
+import { dayLabel, formatDate, formatMoney, ordinal } from "../../format";
 import { collapseKind } from "../../kinds";
 import { TAG_LABEL } from "../../enumLabels";
 
@@ -96,14 +96,19 @@ function ticksFor(highest: number, currency: string): SpendByDayPayload["ticks"]
  *
  * The pace is per TRIP day, for `budgetPerDay`'s reason: what a narrowed chart
  * should have left after day 2 is the whole trip's answer. The running total
- * starts at the first day SHOWN, so a range that starts mid-trip does not count
- * the days before it.
+ * drawn starts at the first day SHOWN, so a range that starts mid-trip does not
+ * draw the days before it — but **what is left is always the trip's**:
+ * `tripSpentThrough` counts every trip-currency stop on or before that day,
+ * whatever the chart is narrowed to. A budget less a weekend's meals is not
+ * what is left of it, and held against a whole-trip pace it said "on pace"
+ * when the trip was long past it (PR #221 self-review).
  */
 function burnDownOf(
   bars: readonly SpendByDayBar[],
   dayIndexes: readonly number[],
   budget: SpendBurnDown["budget"],
   tripDays: number,
+  tripSpentThrough: (dayIndex: number) => number,
   currency: string,
 ): SpendBurnDown {
   const running = zeroes();
@@ -115,7 +120,7 @@ function burnDownOf(
     if (budget === null) {
       return { cumulative, spentSoFar, leftMinor: null, left: null, paceMinor: null, pace: null, overPace: false };
     }
-    const leftMinor = budget.amountMinor - spent;
+    const leftMinor = budget.amountMinor - tripSpentThrough(dayIndexes[i]!);
     const paceMinor = Math.round(budget.amountMinor * (1 - (dayIndexes[i]! + 1) / tripDays));
     const left = leftMinor >= 0 ? `${formatMoney(leftMinor, currency)} left` : `${formatMoney(-leftMinor, currency)} over`;
     const pace = formatMoney(paceMinor, currency);
@@ -163,7 +168,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
         key, label: SERIES_LABEL[key], text: formatMoney(amounts[key], trip.currency),
       }));
       return {
-        label: `Day ${index + 1}`,
+        label: dayLabel(index),
         tick: ordinal(index + 1),
         date: date === null ? null : formatDate(date),
         amounts,
@@ -205,9 +210,15 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     const spent = formatMoney(chartedTotal, trip.currency);
     const dayCount = `${bars.length} ${bars.length === 1 ? "day" : "days"}`;
     if (params.view === "burndown") {
+      // Every trip-currency stop on a day, whatever this chart is narrowed to.
+      const whole = narrow(trip, globals, {});
+      const onDays = whole.status === "ok"
+        ? whole.value.stops.filter((s) => s.dayIndex !== null && s.activity.cost?.currency === trip.currency)
+        : [];
+      const tripSpentThrough = (dayIndex: number) => costOfStops(onDays.filter((s) => s.dayIndex! <= dayIndex));
       const burnDown = burnDownOf(
         bars, days, budget === null ? null : { amountMinor: budget, text: formatMoney(budget, trip.currency) },
-        trip.days.length, trip.currency,
+        trip.days.length, tripSpentThrough, trip.currency,
       );
       const last = burnDown.days.at(-1)!;
       return ok({

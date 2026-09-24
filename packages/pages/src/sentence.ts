@@ -76,6 +76,25 @@ function itemValue(ctx: WidgetContext, item: ItemScope, choice: FieldChoice): st
   }
 }
 
+// A token's field, resolved once per sentence rather than once per line:
+// `fieldAt` rebuilds the manifest by reflection on every call, so a stop
+// sentence with four tokens on an 80-stop trip built it 320 times a render.
+type ResolvedPart = { text: string } | { field: string; choice: FieldChoice | undefined };
+
+function resolveParts(over: RepeatOver, parts: readonly SentencePart[]): ResolvedPart[] {
+  return parts.map((part) => ("text" in part ? part : { field: part.field, choice: sentenceFieldAt(over, part.field) }));
+}
+
+function printLine(ctx: WidgetContext, item: ItemScope, parts: readonly ResolvedPart[]): string {
+  return parts
+    .map((part) => {
+      if ("text" in part) return part.text;
+      if (!part.choice) return `{${part.field}}`;
+      return itemValue(ctx, item, part.choice) ?? SENTENCE_NO_VALUE;
+    })
+    .join("");
+}
+
 /**
  * One line of a sentence over `over`, for `item`. Text parts print as they are,
  * a token prints its field's value (or `SENTENCE_NO_VALUE`), and a token whose
@@ -87,23 +106,16 @@ export function sentenceLine(
   item: ItemScope,
   parts: readonly SentencePart[],
 ): string {
-  return parts
-    .map((part) => {
-      if ("text" in part) return part.text;
-      const choice = sentenceFieldAt(over, part.field);
-      if (!choice) return `{${part.field}}`;
-      return itemValue(ctx, item, choice) ?? SENTENCE_NO_VALUE;
-    })
-    .join("");
+  return printLine(ctx, item, resolveParts(over, parts));
 }
 
-/** Every line of a sentence: its template parsed once, then printed per item. */
+/** Every line of a sentence: its template parsed and its fields resolved once, then printed per item. */
 export function sentenceLines(
   ctx: WidgetContext,
   over: RepeatOver,
   items: readonly ItemScope[],
   template: string,
 ): string[] {
-  const parts = parseSentenceTemplate(template);
-  return items.map((item) => sentenceLine(ctx, over, item, parts));
+  const parts = resolveParts(over, parseSentenceTemplate(template));
+  return items.map((item) => printLine(ctx, item, parts));
 }

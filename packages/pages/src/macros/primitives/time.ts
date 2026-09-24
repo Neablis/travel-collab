@@ -8,7 +8,7 @@ import { narrow, pinnedCity } from "../../select";
 import { renderRows } from "./rows";
 import { formatKind } from "../../kinds";
 import { clockIn, isKnownZone, noonIn, offsetMinutes } from "../../clock";
-import { toClockLabel } from "../../format";
+import { dayLabel, toClockLabel } from "../../format";
 import { sunEvents, type SunTime } from "../../sun";
 
 // The two clock widgets of M14 link 11 (widget brainstorm tier B): the sun on a
@@ -140,7 +140,7 @@ export const daySun: MacroDef<TimeParams, RepeatPayload> = {
       const sun = sunEvents(date, located.place.lat, located.place.lng, located.zone);
       const clock = (t: number) => clockOnDay(t, located.zone, date);
       rows.push({
-        lead: rowLabel(`Day ${index + 1}`),
+        lead: rowLabel(dayLabel(index)),
         cells: [located.city === null ? [] : [rowCity(located.city)], ...sunCells(sun, clock)],
       });
     }

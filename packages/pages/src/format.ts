@@ -132,6 +132,15 @@ export function toClockRange(start: string, end: string): string {
 }
 
 /**
+ * A trip day's name from its 0-based index: "Day 1" for the first. The one
+ * place that wording lives, so a chart, a table and a sentence token cannot
+ * name the same day differently.
+ */
+export function dayLabel(index: number): string {
+  return `Day ${index + 1}`;
+}
+
+/**
  * `n` as an English ordinal: "1st", "2nd", "3rd", "4th", "11th", "21st".
  *
  * The 11-13 check comes first because those take "th" whatever their last

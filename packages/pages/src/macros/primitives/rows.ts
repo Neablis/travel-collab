@@ -5,7 +5,7 @@ import { chip, rowCity, rowLabel, rowValue, rowsOf, text } from "../../registry-
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } from "../../select";
-import { formatMoney, formatDate, toClockRange } from "../../format";
+import { dayLabel, formatMoney, formatDate, toClockRange } from "../../format";
 import { needsBooking } from "../../needsBooking";
 import { fieldAt, formatStopField } from "../../fields";
 
@@ -81,7 +81,7 @@ export const dayRows: MacroDef<DayRowsParams, RepeatPayload> = {
       // can only wear one.
       const cities = (globals?.days[index]?.cities ?? []).map(rowCity);
       return {
-        lead: rowLabel(`Day ${index + 1}`),
+        lead: rowLabel(dayLabel(index)),
         cells: [
           day.date === null ? [] : [rowValue(formatDate(day.date))],
           cities,
@@ -286,7 +286,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     for (const stop of stops) {
       if (stop.dayIndex !== current) {
         current = stop.dayIndex;
-        rows.push(headerRow(stop.dayIndex === null ? "Unscheduled" : `Day ${stop.dayIndex + 1}`));
+        rows.push(headerRow(stop.dayIndex === null ? "Unscheduled" : dayLabel(stop.dayIndex)));
       }
       rows.push(lineOf(stop));
     }
@@ -358,7 +358,7 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
         // `formatDate` and drew no complaint, which is why this keeps the
         // abbreviated month it produces rather than inventing a second date
         // format for one widget.
-        lead: rowLabel(`Day ${index + 1}`),
+        lead: rowLabel(dayLabel(index)),
         cells: [date ? [rowValue(formatDate(date))] : [], [rowValue(formatMoney(subtotal, trip.currency))]],
       });
     }

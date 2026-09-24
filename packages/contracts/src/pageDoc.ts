@@ -623,7 +623,10 @@ function v2TemplateOf(scope: RepeatScope | null, content: readonly PageInlineNod
     .map((node) => {
       switch (node.type) {
         case "text":
-          return escapeSentenceText(node.text);
+          // A text node may hold a line break (the API and the assistant write
+          // them); a sentence may not, and a template that fails its schema
+          // would refuse every later save of the page (PR #221 self-review).
+          return escapeSentenceText(node.text.replace(/\r\n|\r|\n/g, " "));
         case "hardBreak":
           return " ";
         case "macro": {
@@ -778,8 +781,11 @@ function retokenize(batch: readonly FieldChange[], scope: RepeatScope, template:
       changed = true;
       return { text: next.removed };
     }
-    if (next.path === prefix + part.field || !next.path.startsWith(prefix)) return part;
+    if (next.path === prefix + part.field) return part;
     changed = true;
+    // Moved out of this item's fields: no token can reach it, so it reads as a
+    // removed field does, as its label (PR #221 self-review).
+    if (!next.path.startsWith(prefix)) return { text: manifestLabel(next.path) ?? part.field };
     return { field: next.path.slice(prefix.length) };
   });
   return changed ? serializeSentenceTemplate(parts) : template;

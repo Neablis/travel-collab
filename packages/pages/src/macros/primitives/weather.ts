@@ -9,7 +9,7 @@ import { ok, empty, needsTrip, unavailable, type MacroResult } from "../../resul
 import { filterInputs, filterParams } from "../../filters";
 import { narrow, pinnedCity } from "../../select";
 import { readSlot } from "../../external";
-import { formatShortDate } from "../../format";
+import { dayLabel, formatShortDate } from "../../format";
 
 // `day.weather` — "Weather" (M14 link 11), the first widget whose data the trip
 // does not hold. ADR-052 is the design; this file is its decisions 3 to 5 and 7.
@@ -157,7 +157,7 @@ function todayValues(day: ForecastDay, units: Units) {
 function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number, units: Units): WeatherRow {
   const base = {
     key: `${dayIndex}:${point.city ?? ""}`,
-    label: `Day ${dayIndex + 1}`,
+    label: dayLabel(dayIndex),
     date: formatShortDate(point.date) ?? point.date,
     city: point.city,
     mode,

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Area, Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import type { SpendByDayPayload } from "@tc/pages";
 import {
@@ -83,7 +84,10 @@ export function SpendByDayChart({
   config: ChartConfig;
   height: number;
 }) {
-  const content = tooltipFor(payload);
+  // Stable per payload: Recharts takes `content` as a component, and a new
+  // function each render is a new component type, so the tooltip remounted
+  // on every editor transaction (PR #221 self-review).
+  const content = useMemo(() => tooltipFor(payload), [payload]);
   return (
     <ChartContainer config={config} height={height} label={payload.summary}>
       {payload.burnDown ? (

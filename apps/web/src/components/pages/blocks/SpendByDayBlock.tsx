@@ -88,26 +88,27 @@ export function SpendByDayBlock({ payload }: { payload: SpendByDayPayload }) {
       {/* The chart's numbers without a pointer: the picture is `role="img"`
           with the summary as its name, its hover is a mouse's alone, and this
           table is the one place that carries EVERY number — for a screen
-          reader, a keyboard, and paper. */}
-      <span role="table" aria-label="Spend by day" className="sr-only">
-        <span role="row">
-          <span role="columnheader">Day</span>
-          <span role="columnheader">Date</span>
-          <span role="columnheader">Total</span>
-          <span role="columnheader">By tag</span>
-          {burn ? <span role="columnheader">So far</span> : null}
-          {budget ? <span role="columnheader">Budget</span> : null}
-          {budget ? <span role="columnheader">Even pace leaves</span> : null}
+          reader, a keyboard, and paper. Hidden on screen, printed as a plain
+          table: the hover that replaced the bar labels does not print. */}
+      <span role="table" aria-label="Spend by day" className="sr-only print:not-sr-only print:table print:w-full print:text-xs">
+        <span role="row" className="print:table-row">
+          <span role="columnheader" className="print:table-cell print:pr-3">Day</span>
+          <span role="columnheader" className="print:table-cell print:pr-3">Date</span>
+          <span role="columnheader" className="print:table-cell print:pr-3">Total</span>
+          <span role="columnheader" className="print:table-cell print:pr-3">By tag</span>
+          {burn ? <span role="columnheader" className="print:table-cell print:pr-3">So far</span> : null}
+          {budget ? <span role="columnheader" className="print:table-cell print:pr-3">Budget</span> : null}
+          {budget ? <span role="columnheader" className="print:table-cell print:pr-3">Even pace leaves</span> : null}
         </span>
         {payload.days.map((day, index) => (
-          <span role="row" key={day.label}>
-            <span role="rowheader">{day.label}</span>
-            <span role="cell">{day.date ?? "—"}</span>
-            <span role="cell">{day.total ?? "nothing priced"}</span>
-            <span role="cell">{day.breakdown ?? "—"}</span>
-            {burn ? <span role="cell">{burn.days[index]!.spentSoFar}</span> : null}
-            {budget ? <span role="cell">{burn!.days[index]!.left}</span> : null}
-            {budget ? <span role="cell">{burn!.days[index]!.pace}</span> : null}
+          <span role="row" key={day.label} className="print:table-row">
+            <span role="rowheader" className="print:table-cell print:pr-3">{day.label}</span>
+            <span role="cell" className="print:table-cell print:pr-3">{day.date ?? "—"}</span>
+            <span role="cell" className="print:table-cell print:pr-3">{day.total ?? "nothing priced"}</span>
+            <span role="cell" className="print:table-cell print:pr-3">{day.breakdown ?? "—"}</span>
+            {burn ? <span role="cell" className="print:table-cell print:pr-3">{burn.days[index]!.spentSoFar}</span> : null}
+            {budget ? <span role="cell" className="print:table-cell print:pr-3">{burn!.days[index]!.left}</span> : null}
+            {budget ? <span role="cell" className="print:table-cell print:pr-3">{burn!.days[index]!.pace}</span> : null}
           </span>
         ))}
       </span>

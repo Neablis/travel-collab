@@ -8,6 +8,7 @@ import {
   WIDGET_NAME_MIGRATION,
   PageContent,
   PageDoc,
+  SentenceTemplate,
   collectPageDocNodeTypes,
   migratePageDoc,
   pageDocMigrations,
@@ -634,6 +635,17 @@ describe("v2 → v3: a repeat's sentence becomes its template", () => {
     expect(doc.content[0]!.attrs.params.template).toBe("What it costs · The trip's name · Weather end");
   });
 
+  it("writes a line break inside a text node as a space, so the sentence is one line", () => {
+    // `PageTextNode` allows "\n" (the API and the assistant write one); a
+    // sentence does not, and a template failing its schema locks every save.
+    const doc = migrate([repeat("city.rows", [text("Welcome\nto\r\n"), widget("city")])]) as {
+      content: { attrs: { params: { template: string } } }[];
+    };
+    const template = doc.content[0]!.attrs.params.template;
+    expect(template).toBe("Welcome to {name}");
+    expect(SentenceTemplate.safeParse(template).success).toBe(true);
+  });
+
   it("escapes the author's own braces, so they still print as braces", () => {
     const doc = migrate([repeat("city.rows", [text("{city} or {{x}} "), widget("city")])]) as {
       content: { attrs: { params: { template: string } } }[];
@@ -691,6 +703,19 @@ describe("a renamed or removed field converts the documents that read it", () =>
         { type: "repeat", attrs: { name: "stop.rows", params: { template: "{title}: {price}" } }, content: [] },
       ],
     });
+  });
+
+  it("turns a token whose field moved out of the item's fields into plain words, not a dead token", () => {
+    // A day's `cities` renamed onto the trip: no day token reaches it, so the
+    // sentence says the words instead of printing "{cities}" on every line.
+    const moved = pageDocMigrations([{ kind: "rename", from: "trip.days.cities", to: "trip.dayCities", since: 4 }]);
+    const doc = migratePageDoc(
+      v2([{ type: "repeat", attrs: { name: "day.rows", params: { template: "{date}: {cities}" } }, content: [] }]),
+      moved,
+    );
+    expect((serializePageDoc(doc) as { content: unknown[] }).content).toEqual([
+      { type: "repeat", attrs: { name: "day.rows", params: { template: "{date}: cities" } }, content: [] },
+    ]);
   });
 
   it("turns a removed field's widget into text naming the old field, not nothing", () => {

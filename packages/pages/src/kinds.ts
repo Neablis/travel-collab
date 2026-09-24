@@ -1,6 +1,6 @@
 import type { Location, Money, ValueKind } from "@tc/contracts";
 import { enumLabel } from "./enumLabels";
-import { formatDate, formatMoney } from "./format";
+import { dayLabel, formatDate, formatMoney } from "./format";
 
 // One formatter per value kind — M14 field widget, build step 3 (gap 3 of the
 // 2026-09-24 review). A generic field widget picks how to print a value by its
@@ -78,7 +78,6 @@ function toMoney(value: Money | number, ctx: KindContext): Money {
   return typeof value === "number" ? { amountMinor: value, currency: ctx.currency } : value;
 }
 
-const dayName = (index: number): string => `Day ${index + 1}`;
 
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -175,10 +174,10 @@ export const VALUE_KIND_FORMATS: KindFormats = {
   // sentence's "Trip day" printed "0" on the first day, #221 preview). Many
   // days list in trip order, each once — a day is not a quantity to sum.
   day: {
-    format: dayName,
+    format: dayLabel,
     ghost: "Day N",
     collapse: (values) =>
-      values.length === 0 ? null : [...new Set(values)].sort((a, b) => a - b).map(dayName).join(LIST_SEPARATOR),
+      values.length === 0 ? null : [...new Set(values)].sort((a, b) => a - b).map(dayLabel).join(LIST_SEPARATOR),
     distinct: false,
   },
 };

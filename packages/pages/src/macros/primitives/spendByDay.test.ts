@@ -225,6 +225,17 @@ describe("cost.chart — burn-down", () => {
     expect(burn.days.map((d) => d.paceMinor)).toEqual([10000, 0]);
   });
 
+  it("says what is left of the TRIP's budget when the chart is narrowed, not the budget less what is drawn", () => {
+    // Narrowed to days 2–3: day 1's $50 is not drawn, but it is spent.
+    const dated = chartOf(crossedMidTrip(), { view: "burndown", dates: { from: "2026-08-02", through: "2026-08-03" } });
+    expect(dated.burnDown!.days.map((d) => d.spentSoFar)).toEqual(["$300.00", "$300.00"]);
+    expect(dated.burnDown!.days.map((d) => d.left)).toEqual(["$50.00 over", "$50.00 over"]);
+    expect(dated.burnDown!.days.map((d) => d.overPace)).toEqual([true, true]);
+    // Narrowed to meals: $50 of meals drawn, but the lodging still spent the budget.
+    const meals = chartOf(crossedMidTrip(), { view: "burndown", tag: "meal" });
+    expect(meals.burnDown!.days.map((d) => d.left)).toEqual(["$250.00 left", "$50.00 over", "$50.00 over"]);
+  });
+
   it("puts the axis above the budget and above the most spent", () => {
     const chart = chartOf(crossedMidTrip(), { view: "burndown" });
     expect(chart.ticks.at(-1)!.value).toBeGreaterThanOrEqual(35000);
