@@ -1,4 +1,4 @@
-### KI-2026-09-22-e — "adopts a co-traveller's edit without a reload" failed once on CI and has not reproduced in seven local runs
+### KI-2026-09-22-e — "adopts a co-traveller's edit without a reload" failed once on CI and has not reproduced in seven local runs — RESOLVED
 
 - **Severity:** unknown, and that is the entry. Either a real timing race in the
   poll → refetch → adopt chain, or a scheduling artefact of a loaded GitHub
@@ -176,3 +176,37 @@
 - **Found by:** CI, 2026-09-22, on a docs-only commit.
 - **Second observation, 2026-09-24 — a SIBLING test, locally.** A full local `pnpm check` (KI pass branch `claude/ki-pass-milestone-review-9iui0u`, load average ~4–5 on 4 cores, no other agent running tests at that moment) failed **only** *"TripProvider broadcast (M13 link 2) > bumps remoteRevision so readers of its own tables can re-read"*: `AssertionError: expected '0' to be '1'` with `dayCount` already `1` and `remoteRevision` still `0` — the poll had been adopted and the revision bump had not rendered yet. `1 failed | 3734 passed | 1 skipped`. That file alone then passed 41/41 three times in a row. The previous full run on the same tree failed elsewhere (two 5000ms timeouts in `soleWriter.test.ts` / `planVersions.fourthPlan.test.ts`) and passed this test. **What it adds:** the failure is no longer one test — it is the same describe block, the same poll → adopt → `setRemoteRevision` step this entry already names as the honest suspect, and it can reproduce locally under full-suite load, not only on a CI runner. Still not a verdict; it moves the entry's suspect from "possible" to "twice observed at the same step".
 - **First noted:** 2026-09-22.
+- **Fix (2026-09-24): a test bug, not a product race.** The third occurrence
+  was right, and the local "second observation" above misreads its own output:
+  `dayCount` = `1` is the *initial* load, not an adopted poll. The poll had not
+  run. **Cause:** each test treated "`dayCount` rendered `1`" as "the broadcast
+  is armed". Those are two steps. The commit that renders the trip comes first.
+  `useTripBroadcast`'s passive effect, which attaches the `visibilitychange`
+  listener, runs later in a separate React Scheduler task. RTL's `waitFor`
+  resolves from a MutationObserver microtask and then returns on a
+  `setTimeout(0)`. If the thread stalls for about 1ms or more after the commit,
+  that timer fires first. `becomeVisible()` then dispatches to no listener, and
+  the next poll is a whole `POLL_INTERVAL_MS` (2000ms) away, past `waitFor`'s
+  1000ms budget. The failure is "never within budget", not "late". The product
+  is not affected. When the effect does attach, it sees the document is visible
+  and starts the interval. The load it follows was itself a fresh server read.
+  **Reproduction on demand:** a temporary `useLayoutEffect` in `RemoteProbe`
+  queued a 50-deep microtask chain and then busy-spun for 5ms. It gave all three
+  CI signatures on every run: `expected '1' to be '2'` (:1068),
+  `expected '0' to be '1'` (:1096) and
+  `expected "vi.fn()" to be called at least once` (:1123). The line numbers are
+from the instrumented copy. Result: **20/20 runs
+  red**. Without the stall the block was 5/5 green. **Fix**
+  (`TripProvider.test.tsx` only): a `vi.spyOn(document, "addEventListener")`
+  per test, plus `broadcastArmed()`, which `waitFor`s the
+  `("visibilitychange", fn)` registration before `becomeVisible()`. Every test
+  that dispatches visibility and expects a poll now calls it. No timeout was
+  raised, no sleep was added and no test was skipped. **Proof:** the same
+  stalled reproduction went **20/20 green**, and the whole file is 41/41 on 6
+  normal runs. `eslint` on the file and `pnpm --filter web typecheck` are clean.
+  Rule 3: I changed the provider's `enabled` gate to `members.length > 2`. Four
+  tests went red at the new wait with
+  `expected "addEventListener" to be called with arguments: [ 'visibilitychange', Any<Function> ]`.
+  Restored, green. So the arming wait also fails loudly on a closed `enabled`
+  gate instead of running into a 1000ms `waitFor` on the effect.
+- **Resolved:** 2026-09-24.
