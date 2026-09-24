@@ -12,29 +12,23 @@
 // anywhere does this", and no runtime test can observe code that has not been
 // called. The same reasoning `grants.retention.test.ts` and
 // `moduleBoundary.test.ts` already use one directory over.
-import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { stripComments } from "@/test-support/stripComments";
+import { sourceFilesUnder, strippedIfMentions, strippedSource } from "@/test-support/sourceSweep";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.resolve(HERE, "../..");
 
-function sourceFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const name of readdirSync(dir)) {
-    const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) out.push(...sourceFiles(full));
-    else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name)) out.push(full);
-  }
-  return out;
-}
-
 const relative = (file: string) => path.relative(SRC, file);
-const code = (file: string) => stripComments(readFileSync(file, "utf8"));
+const code = strippedSource;
 
-const ALL = sourceFiles(SRC);
+// One walk, and each file parsed at most once across every sweep below: the
+// comment-strip is a full TypeScript parse, and doing it for all ~400 files per
+// sweep is what timed out under load (KI-20260924-f). A sweep that needs a
+// literal token asks `strippedIfMentions`, which skips the parse for a file
+// whose raw text lacks it — sound, because stripping never adds a character.
+const ALL = sourceFilesUnder(SRC).filter((file) => !/\.test\.tsx?$/.test(file));
 
 /**
  * The payloads of every write to one table in a file.
@@ -77,7 +71,8 @@ describe("only the webhook writes what an account pays for", () => {
     expect(ALL.length).toBeGreaterThan(100);
     const offenders = ALL.filter((file) => {
       if (MAY_WRITE_SUBSCRIPTIONS.has(relative(file))) return false;
-      const source = code(file);
+      const source = strippedIfMentions(file, /subscriptions/);
+      if (source === null) return false;
       return (
         /\.insert\(\s*subscriptions\s*\)/.test(source) ||
         /\.update\(\s*subscriptions\s*\)/.test(source) ||
@@ -115,7 +110,10 @@ describe("only the webhook writes what an account pays for", () => {
   it("moves an account's held plan from the webhook, account creation and nowhere else", () => {
     const offenders = ALL.filter((file) => {
       if (MAY_WRITE_HELD_PLAN.has(relative(file))) return false;
-      return writePayloads(code(file), "users").some((payload) =>
+      // Every payload pattern below needs `planId` or `planVersion` literally.
+      const source = strippedIfMentions(file, /planId|planVersion/);
+      if (source === null) return false;
+      return writePayloads(source, "users").some((payload) =>
         /\bplanId\s*:|\bplanVersion\s*:/.test(payload),
       );
     }).map(relative);

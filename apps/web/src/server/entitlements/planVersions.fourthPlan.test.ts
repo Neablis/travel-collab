@@ -21,11 +21,11 @@
 // there is no position in an ordering where `studio` can go. That is what is
 // asserted below, and the weaker claim was written first and caught by running
 // it.
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { stripComments } from "@/test-support/stripComments";
+import { sourceFilesUnder, strippedIfMentions } from "@/test-support/sourceSweep";
 import { PLAN_IDS } from "@tc/contracts";
 import { can, entitlementSet } from "./capability";
 import { PLAN_VERSIONS, livePlanVersion, planVersionFromRef } from "./planVersions";
@@ -126,6 +126,9 @@ describe("adding it cost one definition and no change to any gate", () => {
     /case\s+["'](free|plus|premium|studio)["']/,
   ];
 
+  // The token every pattern in COMPARISONS contains.
+  const PLAN_ID_LITERAL = /["'](free|plus|premium|studio)["']/;
+
   // Tests compare plan ids constantly — that is what an assertion is — and the
   // console displays them by name because displaying them is what it is for.
   const MAY_COMPARE = [/\.test\.tsx?$/, /^src\/server\/test-support\//];
@@ -133,22 +136,17 @@ describe("adding it cost one definition and no change to any gate", () => {
   it("compares a plan id in no gate anywhere in the app", () => {
     const web = path.resolve(HERE, "../../..");
     const offenders: string[] = [];
-    const walk = (dir: string): void => {
-      for (const name of readdirSync(dir)) {
-        if (name === "node_modules" || name === ".next" || name.startsWith(".")) continue;
-        const full = path.join(dir, name);
-        if (statSync(full).isDirectory()) {
-          walk(full);
-          continue;
-        }
-        if (!/\.(ts|tsx)$/.test(name)) continue;
-        const rel = path.relative(web, full).split(path.sep).join("/");
-        if (MAY_COMPARE.some((allowed) => allowed.test(rel))) continue;
-        const code = stripComments(readFileSync(full, "utf8"));
-        if (COMPARISONS.some((pattern) => pattern.test(code))) offenders.push(rel);
-      }
-    };
-    walk(path.join(web, "src"));
+    // Every pattern above needs a quoted plan id, so a file whose raw text has
+    // none is skipped before the comment-strip — a full TypeScript parse, and
+    // what made this sweep time out under load when it ran on all ~400 files
+    // (KI-20260924-f). Sound because stripping only ever blanks characters.
+    // The walk no longer skips dot-directories: `app/.well-known/**` ships.
+    for (const full of sourceFilesUnder(path.join(web, "src"))) {
+      const rel = path.relative(web, full).split(path.sep).join("/");
+      if (MAY_COMPARE.some((allowed) => allowed.test(rel))) continue;
+      const code = strippedIfMentions(full, PLAN_ID_LITERAL);
+      if (code !== null && COMPARISONS.some((pattern) => pattern.test(code))) offenders.push(rel);
+    }
     expect(offenders).toEqual([]);
   });
 
