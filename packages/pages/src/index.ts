@@ -14,3 +14,4 @@ export * from "./writeCheck";
 export * from "./needsBooking";
 export * from "./dayCity";
 export * from "./kinds";
+export * from "./fields";

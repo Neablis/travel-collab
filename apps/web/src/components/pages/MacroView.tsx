@@ -162,8 +162,11 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
         return onBindDay
           ? <EmptyChip tone="action" label="that day was removed" onClick={onBindDay} />
           : <EmptyChip tone="muted" label="that day was removed" />;
-      case "days":
-        return <EmptyChip tone="muted" label="no days set" />;
+      // A `field` input with nothing chosen, or a path the manifest no longer
+      // publishes (checked at resolve time, so a stale one never blocked the
+      // save). Both are fixed the same way, from the widget's field picker.
+      case "field":
+        return <EmptyChip tone="muted" label="choose a field" />;
       // **Reachable now, and it says the truth about why.** ADR-039 decision 7
       // declares `person` as a filter dimension and states plainly that it
       // cannot resolve: `TripMember` is `{ userId, role }` with no display

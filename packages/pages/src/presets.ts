@@ -96,6 +96,18 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "how many days it runs",
   },
   {
+    // KI-2026-09-05-i item 1: `count{of: "city"}` existed and only the
+    // assistant could insert it. `presets.test.ts` now requires a row for
+    // every value of every non-filter param.
+    id: "count.cities",
+    widget: "count",
+    params: { of: "city" },
+    title: "How many cities",
+    keywords: ["number", "count", "how many", "cities", "places", "towns", "stops along the way"],
+    description: "How many cities the trip reaches. Point it at days to count only the cities those days touch.",
+    preview: "how many cities it reaches",
+  },
+  {
     id: "dates",
     widget: "dates",
     params: {},

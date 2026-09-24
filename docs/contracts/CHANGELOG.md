@@ -13,6 +13,18 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `MacroKind` removed (M14 T03, KI-2026-09-05-i item 2)
+
+- **Removed:** `MacroKind` (`z.enum(["inline", "block"])`) and its type from
+  `pages.ts`. `WidgetShape` replaced it for widget definitions (ADR-037
+  decision 1), and nothing in the repo imported it afterwards. Its only
+  reference was the comment beside `WidgetShape`.
+- Why: dead vocabulary reads as a seam (review finding F-B06), and the next
+  contributor has to work out that it decides nothing.
+- Consumers updated: none needed; no package or app imported it. Stored page
+  documents never held it (a node stores a widget name and params).
+- Breaking? no.
+
 ## 2026-09-24 — a `stop` manifest root, `described()` as the only opt-in, and one field vocabulary (M14 T06)
 
 - **Added — stop fields are pickable.** `ActivitySnapshot` annotates `title`

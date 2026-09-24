@@ -1,10 +1,11 @@
 "use client";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { getMacro, getPreset, presetParams } from "@tc/pages";
+import { fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DaysFilter, daysSummary } from "./DaysFilter";
+import { FieldPicker } from "./FieldPicker";
 
 // Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
@@ -142,7 +143,7 @@ export function optionsFor(
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
-): readonly { value: string; label: string }[] {
+): readonly { value: string; label: string; group?: string }[] {
   const bound = params[input.name];
   switch (input.type) {
     // Reachable only for a primitive that declares `day` WITHOUT `dates`, which
@@ -185,15 +186,23 @@ export function optionsFor(
           label: tag,
         })),
       ];
-    // No select, so no options. `dates` is `DaysFilter`'s whole control,
-    // `person` is dropped by `bindableInputs` (ADR-039 decision 7), and no
-    // primitive declares the retired `days` and `trip` (KI-2026-09-05-i). Before
-    // these were named, all four fell into a `default:` that offered the TAG
-    // list, and so would any input type added later (KI-2026-09-05-h).
+    // The manifest's published fields for `of`, by label and grouped, for
+    // `FieldPicker`. **No "All" row**: there is no every-field, so an unset one
+    // is a widget with nothing to read (`unbound("field")`), not the widest
+    // answer. A stored path the manifest no longer publishes stays visible
+    // under a label that says so — never under the path itself (ADR-037 oq4),
+    // since it is checked at resolve time and can outlive its field.
+    case "field": {
+      const choices = fieldChoices(input.of).map((c) => ({ value: c.path, label: c.label, group: c.group }));
+      const stale = typeof bound === "string" && bound !== "" && !choices.some((c) => c.value === bound);
+      return stale ? [...choices, { value: bound, label: "A field that is no longer offered" }] : choices;
+    }
+    // No select, so no options. `dates` is `DaysFilter`'s whole control, and
+    // `person` is dropped by `bindableInputs` (ADR-039 decision 7). Before
+    // these were named, they fell into a `default:` that offered the TAG list,
+    // and so would any input type added later (KI-2026-09-05-h).
     case "dates":
     case "person":
-    case "days":
-    case "trip":
       return [];
     default: {
       // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
@@ -318,7 +327,19 @@ export function WidgetBindControls({
     <>
       {inputs.map((input) => {
         const control =
-          input.type === "dates" ? (
+          input.type === "field" ? (
+            // Searchable, because a manifest root lists more fields than a
+            // select can be read down comfortably, and it grows with every
+            // annotation. Same options as the summary line reads.
+            <FieldPicker
+              id={`${idPrefix}-${input.name}`}
+              label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              options={optionsFor(input, params, detail, globals)}
+              value={valueOf(input, params, detail)}
+              onChange={(next) => onChange(withBinding(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "dates" ? (
             <DaysFilter
               params={params}
               detail={detail}
