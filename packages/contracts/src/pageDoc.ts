@@ -468,7 +468,7 @@ function rewriteWidgets(rewrite: WidgetRewrite): PageDocMigration {
   const inline = (node: PageInlineNode): PageInlineNode => {
     if (node.type !== "macro") return node;
     const next = rewrite(node.attrs);
-    return next.type === "text" ? next : { ...node, attrs: next };
+    return "type" in next ? next : { ...node, attrs: next };
   };
   // A text node is not a block, so a replaced block widget is a paragraph —
   // and a replaced repeat keeps its row template after the text, because what
@@ -477,12 +477,12 @@ function rewriteWidgets(rewrite: WidgetRewrite): PageDocMigration {
     switch (node.type) {
       case "macro": {
         const next = rewrite(node.attrs);
-        return next.type === "text" ? { type: "paragraph", content: [next] } : { ...node, attrs: next };
+        return "type" in next ? { type: "paragraph", content: [next] } : { ...node, attrs: next };
       }
       case "repeat": {
         const next = rewrite(node.attrs);
         const content = node.content.map(inline);
-        return next.type === "text"
+        return "type" in next
           ? { type: "paragraph", content: [next, ...content] }
           : { ...node, attrs: next, content };
       }
