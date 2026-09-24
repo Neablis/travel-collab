@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `PageRepeatNode` gets its first writer (M14 T13) — no schema change
+
+- **Nothing in `packages/contracts` changed shape.** `PageRepeatNode` has been in
+  the AST since ADR-038; the editor now writes it (the authored repeat, ADR-035
+  decision 4). The comment in `pageDoc.ts` records the convention: `attrs.name`
+  is the rows widget whose selection the repeat iterates (`day.rows`,
+  `stop.rows`, `city.rows`), `params` are that widget's filters, and `content`
+  is the row template. `@tc/pages`' `insertRepeat` enforces it, as the registry
+  does for `macro` params.
+- **Consumers:** `@tc/pages` (`repeat.ts`, `ItemScope` widened to day / city /
+  stop, `narrow(…, item)`, `findWidgetError` judges repeat attrs);
+  `apps/web` (`RepeatNodeExtension`, which puts `repeat` in the editor's schema,
+  so `inspectStoredPageDoc` stops refusing a document that holds one).
+- **Breaking?** No. A stored repeat that `insertRepeat` refuses (a name that is
+  not a rows widget, a filter its widget does not take, `columns`) is now
+  refused on write, as a bad widget already was (KI-2026-09-24-d item 3). No
+  build ever wrote one.
+
 ## 2026-09-24 — field renames and removals convert stored documents (M14 T08)
 
 - **Added:** `FieldChange` (`{ kind: "rename"; from; to; since }` or
