@@ -151,8 +151,8 @@ export const DEFAULT_SENTENCES: Readonly<Record<RepeatOver, string>> = {
  * **A sentence naming a detail the new collection lacks becomes that
  * collection's starting sentence** (Mitchell, #221 preview: *"Changing repeat
  * pretty much will always break the string templates since they have different
- * names"*). Left alone, `{cities}` in a sentence over stops prints as the
- * literal `{cities}` on every line. Dropping just the stray token would leave
+ * names"*). Left alone, `{cities}` in a sentence over stops prints as a
+ * gap (`SENTENCE_NO_VALUE`) on every line. Dropping just the stray token would leave
  * "Welcome to !", so the sentence is swapped whole; the scope change is one
  * transaction, so undo brings the old sentence and collection back together.
  */
@@ -167,7 +167,21 @@ export function rescopeRepeat(over: RepeatOver, params: Readonly<Record<string, 
 
 // Whether every `{token}` in `template` names a detail `over` publishes.
 function printsEveryDetail(over: RepeatOver, template: string): boolean {
-  return parseSentenceTemplate(template).every((part) => "text" in part || sentenceFieldAt(over, part.field) !== undefined);
+  return unknownSentenceTokens(over, template).length === 0;
+}
+
+/**
+ * The keys of every `{token}` in `template` that `over` does not publish, once
+ * each, in the order they first appear: `{cities}` in a sentence over stops, or
+ * a typo like `{nme}`. The page prints each as a gap (`SENTENCE_NO_VALUE`); the
+ * settings panel names them, so the author learns why while still typing.
+ */
+export function unknownSentenceTokens(over: RepeatOver, template: string): string[] {
+  const unknown = new Set<string>();
+  for (const part of parseSentenceTemplate(template)) {
+    if ("field" in part && sentenceFieldAt(over, part.field) === undefined) unknown.add(part.field);
+  }
+  return [...unknown];
 }
 
 const NOUN: Record<RepeatOver, [one: string, many: string]> = {

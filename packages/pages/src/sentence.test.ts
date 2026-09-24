@@ -81,12 +81,23 @@ describe("sentenceLine — one line per item", () => {
     expect(linesOf(ctx, "city.rows", "{name}: {dayIndexes}")).toEqual(["Rome: Day 1, Day 2", "Kyoto: Day 2"]);
   });
 
-  it("prints an unknown key, a malformed brace and an escape as the author wrote them", () => {
+  it("prints a malformed brace and an escape as the author wrote them", () => {
     const { ctx } = ctxOf();
-    expect(linesOf(ctx, "city.rows", "{nope} { name } {} {title} {{name}} }}{{ {name")[0]).toBe(
-      "{nope} { name } {} {title} {name} }{ {name",
-    );
+    expect(linesOf(ctx, "city.rows", "{ name } {} {{name}} }}{{ {name")[0]).toBe("{ name } {} {name} }{ {name");
     expect(linesOf(ctx, "city.rows", "}}{{")).toEqual(["}{", "}{"]);
+  });
+
+  // Review of #221: a token the collection does not publish used to print as
+  // written, putting raw template syntax on the page. It is a gap instead, the
+  // same one a missing value leaves; the settings panel names it to the author.
+  it("prints a token this collection does not publish as a gap, never as braces", () => {
+    const { ctx } = ctxOf();
+    // A typo, and a key another collection publishes (`title` is a stop's).
+    expect(linesOf(ctx, "city.rows", "{nme} in {name}, {title}")).toEqual([
+      `${SENTENCE_NO_VALUE} in Rome, ${SENTENCE_NO_VALUE}`,
+      `${SENTENCE_NO_VALUE} in Kyoto, ${SENTENCE_NO_VALUE}`,
+    ]);
+    expect(linesOf(ctx, "stop.rows", "{cities}", { kind: "booked" })).toEqual([SENTENCE_NO_VALUE, SENTENCE_NO_VALUE]);
   });
 
   it("prints a template of only tokens as the values alone", () => {

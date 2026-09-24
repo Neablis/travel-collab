@@ -78,8 +78,12 @@ function itemValue(ctx: WidgetContext, item: ItemScope, choice: FieldChoice): st
 
 /**
  * One line of a sentence over `over`, for `item`. Text parts print as they are,
- * a token prints its field's value (or `SENTENCE_NO_VALUE`), and a token whose
- * key this collection does not publish prints as the author wrote it.
+ * and a token prints its field's value, or `SENTENCE_NO_VALUE` when there is
+ * none. **So does a token whose key this collection does not publish** —
+ * `{cities}` in a sentence over stops, or a typo like `{nme}`. Printing it as
+ * written would put raw template syntax on the page, which the product never
+ * shows a reader; the settings panel names such a token to the author instead
+ * (`unknownSentenceTokens`).
  */
 export function sentenceLine(
   ctx: WidgetContext,
@@ -91,7 +95,7 @@ export function sentenceLine(
     .map((part) => {
       if ("text" in part) return part.text;
       const choice = sentenceFieldAt(over, part.field);
-      if (!choice) return `{${part.field}}`;
+      if (!choice) return SENTENCE_NO_VALUE;
       return itemValue(ctx, item, choice) ?? SENTENCE_NO_VALUE;
     })
     .join("");
