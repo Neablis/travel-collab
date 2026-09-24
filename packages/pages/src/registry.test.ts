@@ -392,6 +392,23 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect(checked, "every primitive declared every dimension, so nothing was checked").toBeGreaterThan(0);
   });
 
+  it("declares no `person` input anywhere — the M14 gate box", () => {
+    // *"No `w-person` or `w-personline` … nothing in the registry declares a
+    // `person` input."* Mitchell, 2026-09-24: *"person is removed for now"*.
+    // Swept over every registered widget, not the three that used to carry it,
+    // so one added later cannot bring the control back unnoticed. The contract
+    // enum keeps the member; this is about what the registry offers.
+    let checked = 0;
+    for (const name of MACRO_NAMES) {
+      const def = getMacro(name)!;
+      expect(def.inputs.map((i) => i.type), `${name} declares a person input`).not.toContain("person");
+      expect(def.selection?.filters ?? [], `${name} selects by person`).not.toContain("person");
+      checked += 1;
+    }
+    expect(checked).toBe(MACRO_NAMES.length);
+    expect(checked).toBeGreaterThanOrEqual(13);
+  });
+
   it("derives one control per declared dimension, and no others", () => {
     // SPEC §5: *"the chrome row is generated from the primitive's declared
     // filters — one control per dimension, including the ones you have not

@@ -141,7 +141,7 @@ export const cityRows: MacroDef<CityRowsParams, RepeatPayload> = {
   render: renderRows,
 };
 
-const STOP_ROWS_FILTERS = ["day", "city", "tag", "kind", "person", "dates"] as const satisfies readonly FilterDimension[];
+const STOP_ROWS_FILTERS = ["day", "city", "tag", "kind", "dates"] as const satisfies readonly FilterDimension[];
 // **A derived selection, not a filter dimension.** "Still to book" is not a
 // value of any one field — it is `needsBooking` over `kind` AND `tags`, the
 // rule Mitchell decided on 2026-08-29 — so it cannot be a `{dimension: value}`
