@@ -1,19 +1,18 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
+import { PAGE_CHANGED_CODE, type Page, type PageDoc, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/components/account/PreferencesProvider";
-import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { Banner } from "@/components/ui/banner";
 import { NodeSelection } from "@tiptap/pm/state";
-import { PageEditor } from "@/components/pages/editor/PageEditor";
+import { PageEditor, sameDocument } from "@/components/pages/editor/PageEditor";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
@@ -35,25 +34,21 @@ import { cn } from "@/lib/cn";
 import { Sheet } from "@/components/ui/sheet";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
+import { useEditSession } from "./useEditSession";
+import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } from "./pageDraft";
 import type { ApiError } from "@/lib/apiClient";
 
 type Status = "loading" | "ready" | "error";
-
-// Debounce delay for content autosave. A `setTimeout`-based debounce (no
-// existing utility in this repo — checked `lib/debounce.ts` didn't exist
-// before adding it) is all this needs: keystrokes coalesce into one
-// `updatePage` call ~1s after the user stops typing.
-const AUTOSAVE_DELAY_MS = 800;
 
 // What the assistant says when a turn wanted to write into a page that is being
 // read rather than edited. It names the control that would let it through,
 // because "I can't do that here" without one is a dead end.
 const READING_REFUSAL = "I drafted that, but this page is open for reading — turn on Edit page and ask again to put it in.";
 
-// Why this screen is the place ADR-038 decision 4 lives: it owns the autosave.
+// Why this screen is the place ADR-038 decision 4 lives: it owns the write.
 // The loss the ADR is about is not a bad migration, it is this component
-// writing `getJSON()` back over a document the editor never understood, 800 ms
-// after mounting it. The refusal has to happen before `PageEditor` renders,
+// writing `getJSON()` back over a document the editor never understood, at the
+// end of the first edit session after mounting it. The refusal has to happen before `PageEditor` renders,
 // because by the time TipTap has fallen back to an empty document the content
 // is already gone from memory.
 //
@@ -307,6 +302,25 @@ export function PageScreen({
   // next one too, and a screen that resumes autosaving after a single refusal
   // is a screen that eventually writes one.
   const [unstorable, setUnstorable] = useState(false);
+  // The same latch, readable before the re-render that shows it: the editor
+  // can emit again in the gap, and that document must not reach the session.
+  const unstorableRef = useRef(false);
+  // The server's `updatedAt` for the version this screen last knew, which a
+  // browser-local draft records as its base (`pageDraft.ts`) and every
+  // ordinary commit names as `expectedUpdatedAt`. `baseDocRef` is that
+  // version's document, which is how a refusal caused only by a rename is told
+  // apart from one caused by somebody else's words.
+  const baseRef = useRef<string | null>(null);
+  const baseDocRef = useRef<unknown>(null);
+  // The newest document handed to the session, so a refused save keeps what
+  // was typed while it was in flight as well as what it sent.
+  const latestDocRef = useRef<PageDoc | null>(null);
+  // A draft that cannot simply be applied, because the page has been written
+  // since it was typed: from an earlier visit, or `refused` by the server just
+  // now. Offered, never applied unasked.
+  const [offeredDraft, setOfferedDraft] = useState<(PageDraft & { refused?: boolean }) | null>(null);
+  // The edit session, for the load effect below, which is declared before it.
+  const sessionRef = useRef<{ change: (doc: PageDoc) => void; flush: () => void } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -325,8 +339,32 @@ export function PageScreen({
         setStatus("error");
         return;
       }
-      setPage(pageResult.value);
-      setStored(inspectStoredPageDoc(pageResult.value.content));
+      const loaded = pageResult.value;
+      const inspected = inspectStoredPageDoc(loaded.content);
+      baseRef.current = loaded.updatedAt;
+      baseDocRef.current = loaded.content;
+      latestDocRef.current = null;
+      // A draft only ever meets an editable page: a locked one is locked
+      // precisely so nothing gets written over it.
+      let draft = inspected.status === "mountable" ? readPageDraft(pageId) : null;
+      if (draft !== null && sameDocument(draft.doc, toStoredPageDoc(loaded.content))) {
+        // The write it was kept against landed after all.
+        forgetPageDraft(pageId);
+        draft = null;
+      }
+      if (draft !== null && draft.base === loaded.updatedAt) {
+        // Nobody has written since it was typed, so it IS the newest version:
+        // open on it and send it, as the session it came from would have.
+        setPage({ ...loaded, content: draft.doc });
+        setStored(inspectStoredPageDoc(draft.doc));
+        latestDocRef.current = draft.doc;
+        sessionRef.current?.change(draft.doc);
+        sessionRef.current?.flush();
+      } else {
+        if (draft !== null) setOfferedDraft(draft);
+        setPage(loaded);
+        setStored(inspected);
+      }
       setTrip(tripResult.value);
       setStatus("ready");
     });
@@ -335,20 +373,123 @@ export function PageScreen({
     };
   }, [tripId, pageId]);
 
-  const saveContent = useMemo(
-    () =>
-      debounce((content: PageDoc) => {
-        void updatePage(tripId, pageId, { content });
-      }, AUTOSAVE_DELAY_MS),
-    [tripId, pageId],
-  );
+  // **One write per editing session**, not one per pause (ADR-036, M14 link 9):
+  // the document is committed when the author leaves Editing, when this screen
+  // unmounts, on `pagehide`, or after a minute idle. `useEditSession` holds the
+  // triggers and the reasons. What it costs is written down in ADR-036
+  // decision 3: prose typed since the session last settled is lost on a crash.
+  //
+  // What the server has not confirmed is also kept in this browser
+  // (`pageDraft.ts`): on a failure, and on EVERY `pagehide` commit, before it
+  // is sent. A request made while the page unloads may never complete, and no
+  // one is left to read its result, whatever its size (CodeRabbit, PR #222).
+  // When it did land, the next load finds the page already matching the draft
+  // and drops it unsent.
+  //
+  // A result is acted on only while its commit is the latest started. The
+  // session sends one ordinary commit at a time, but the unload one goes past
+  // it, so an older answer can arrive last; its draft or its `updatedAt` would
+  // be written over a newer state.
+  //
+  // **Every commit names the revision it was typed against** (`expectedUpdatedAt`),
+  // so of two saves racing from this screen the OLDER is refused rather than
+  // landing last and winning (CodeRabbit, PR #222). The exception is a
+  // keepalive `overtaking` an ordinary commit still in flight: the revision it
+  // would name is about to be moved by that commit, so it names none and wins
+  // by arriving, while the commit it passed still names its own and is refused
+  // if it arrives second. The server answers a no-op before it looks at the
+  // revision, so a commit repeating what a keepalive already landed is not a
+  // conflict.
+  const commitSeq = useRef(0);
+  const session = useEditSession(editing, (content, { keepalive, overtaking }) => {
+    const seq = ++commitSeq.current;
+    const draft = { base: baseRef.current ?? "", doc: content };
+    if (keepalive) rememberPageDraft(pageId, draft);
+    const send = (attempt: number): Promise<boolean | "superseded"> => {
+      const expected = overtaking ? null : baseRef.current;
+      const patch = expected === null ? { content } : { content, expectedUpdatedAt: expected };
+      return updatePage(tripId, pageId, patch, { keepalive }).then(async (result) => {
+        if (seq !== commitSeq.current) return result.ok;
+        if (!result.ok && result.error.code === PAGE_CHANGED_CODE) {
+          const next = await pageChanged(seq, draft);
+          return next === "rebased" ? (attempt < 3 ? send(attempt + 1) : false) : next;
+        }
+        if (!result.ok) {
+          rememberPageDraft(pageId, draft);
+          return false;
+        }
+        baseRef.current = result.value.updatedAt;
+        baseDocRef.current = result.value.content;
+        forgetPageDraft(pageId);
+        return true;
+      });
+    };
+    return send(1);
+  });
+  sessionRef.current = session;
+
+  // A save refused as typed against an older page. What the page says NOW
+  // decides what that means:
+  //
+  // - **the same document as the base**: only the title moved (a rename, ours
+  //   or anyone's, landed between send and arrival). Nothing to choose between,
+  //   so the save is `rebased` and sent again against the new revision;
+  // - **a different document**: someone else's words. They are data, not
+  //   something to overwrite unasked (invariant 3), so the page shows them and
+  //   the author's are kept and offered, the offer a reload makes. `superseded`
+  //   tells the session not to retry them as they stand: the same send would be
+  //   refused again, and it would be the older document.
+  //
+  // A page that cannot be re-read says nothing either way, so it is an ordinary
+  // failure: kept, reported, and tried again on the next idle.
+  const pageChanged = async (seq: number, draft: PageDraft): Promise<"rebased" | "superseded" | false> => {
+    const fresh = await fetchPage(tripId, pageId);
+    if (seq !== commitSeq.current) return false;
+    // Read after the refetch, not before: the commit is still in flight until
+    // this returns, so anything typed meanwhile is pending behind it, and
+    // `superseded` is about to drop it from the session.
+    const mine: PageDraft = { base: draft.base, doc: latestDocRef.current ?? draft.doc };
+    if (!fresh.ok) {
+      rememberPageDraft(pageId, mine);
+      return false;
+    }
+    const was = baseDocRef.current;
+    baseRef.current = fresh.value.updatedAt;
+    baseDocRef.current = fresh.value.content;
+    if (sameDocument(toStoredPageDoc(fresh.value.content), toStoredPageDoc(was))) {
+      setPage((prev) => (prev === null ? prev : { ...prev, title: fresh.value.title, updatedAt: fresh.value.updatedAt }));
+      return "rebased";
+    }
+    rememberPageDraft(pageId, mine);
+    const inspected = inspectStoredPageDoc(fresh.value.content);
+    setStored(inspected);
+    setPage(fresh.value);
+    editorRef.current?.commands.setContent(fresh.value.content as never, false);
+    latestDocRef.current = null;
+    // As on load: a draft only ever meets an editable page.
+    if (inspected.status === "mountable") setOfferedDraft({ ...mine, refused: true });
+    return "superseded";
+  };
+
+  // Puts an earlier visit's draft back, over what the page now says: only ever
+  // from the reader pressing Restore. `setContent` directly as well as the
+  // prop, because the editor ignores a new `value` while it is editable.
+  const restoreDraft = (draft: PageDraft) => {
+    setOfferedDraft(null);
+    setStored(inspectStoredPageDoc(draft.doc));
+    setPage((prev) => (prev === null ? prev : { ...prev, content: draft.doc }));
+    editorRef.current?.commands.setContent(draft.doc as never, false);
+    latestDocRef.current = draft.doc;
+    session.change(draft.doc);
+    session.flush();
+  };
+  const discardDraft = () => {
+    setOfferedDraft(null);
+    forgetPageDraft(pageId);
+  };
   // Stable, so `PageEditor`'s effect does not re-run on every render and
   // re-publish the same editor.
   const handleEditorReady = useCallback((next: Editor | null) => setEditor(next), []);
-
-  const saveContentRef = useRef(saveContent);
-  saveContentRef.current = saveContent;
-  useEffect(() => () => saveContentRef.current.cancel(), []);
 
   // The editor, held in a ref as well as in state, so the ask handler below —
   // which is created before `editor` exists and outlives several renders — can
@@ -472,7 +613,7 @@ export function PageScreen({
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
   // screen goes, and a turn still streaming would land its `page-inserts` in a
-  // document the user had just put back into Reading — and autosave it. Found
+  // document the user had just put back into Reading — and save it. Found
   // by Copilot and CodeRabbit on PR 139.
   const closeAssistant = () => {
     ask.cancel();
@@ -491,8 +632,8 @@ export function PageScreen({
   // actual edit/rename"*. Same `updatePage` call the index's inline rename
   // made — only the surface moved.
   //
-  // Not debounced, unlike the content autosave above: a title is committed
-  // once, on blur or Enter, rather than on every keystroke.
+  // Written at once rather than held for the edit session: a title is already
+  // committed once, on blur or Enter, rather than on every keystroke.
   const handleRename = (title: string) => {
     const previousTitle = page?.title ?? null;
     // A rename says nothing about the title once a later one has been sent.
@@ -515,6 +656,8 @@ export function PageScreen({
         setPage((prev) => (prev === null || previousTitle === null ? prev : { ...prev, title: previousTitle }));
         return;
       }
+      baseRef.current = result.value.updatedAt;
+      baseDocRef.current = result.value.content;
       setPage((prev) => (prev === null ? prev : { ...prev, title: result.value.title, updatedAt: result.value.updatedAt }));
     });
   };
@@ -534,15 +677,23 @@ export function PageScreen({
   // `getJSON()` in, a storable document out — or nothing written at all. The
   // parse is not a formality: it stamps `v` (decision 2) and it is the last
   // place a document the editor mangled can be stopped.
+  //
+  // On the first unstorable one, the last GOOD document is committed rather
+  // than dropped — it is the session's work up to the step that broke — and
+  // nothing after it reaches the session, which is what "saving has stopped"
+  // promises.
   const handleContentChange = (content: unknown) => {
+    if (unstorableRef.current) return;
     const storable = toStoredPageDoc(content);
     if (storable === null) {
-      saveContent.cancel();
+      unstorableRef.current = true;
+      session.flush();
       setUnstorable(true);
       return;
     }
     setPage((prev) => (prev === null ? prev : { ...prev, content: storable }));
-    saveContent(storable);
+    latestDocRef.current = storable;
+    session.change(storable);
   };
 
   // Click-to-insert. `insertContent` puts the node at the current selection,
@@ -644,10 +795,10 @@ export function PageScreen({
   // supplies its own.
   const backLink = <PageBreadcrumb tripId={tripId} tripName={trip.name} from={from} title={page.title} />;
 
-  // Read-only, and every write path off: no autosave (nothing calls
-  // `saveContent`), and no ComposePanel — it inserts into an editor this
+  // Read-only, and every write path off: no session write (nothing calls
+  // `session.change`), and no ComposePanel — it inserts into an editor this
   // branch deliberately never mounts, and anything it did land would be
-  // autosaved over the content we just refused to risk.
+  // written over the content we just refused to risk.
   //
   // **No Edit toggle here either.** ADR-038 decision 4's whole point is that
   // this document must not be mounted in an editor at all, so offering a
@@ -744,6 +895,45 @@ export function PageScreen({
             has stopped to protect what&apos;s already here. Copy anything new before reloading.
           </LockedNotice>
         </div>
+      ) : null}
+      {/* A write the server did not take. The session still holds the
+          document and tries again on its own; Retry is the same send now.
+          Shaped like the library's sync-failure banner (`ReadStates.tsx`):
+          `warning`, since what is on screen is still the reader's work. */}
+      {session.failed ? (
+        <Banner
+          variant="warning"
+          className="mb-3"
+          data-testid="page-save-failure"
+          actions={
+            <Button variant="secondary" size="sm" onClick={session.flush}>
+              Retry saving
+            </Button>
+          }
+        >
+          Couldn&apos;t save your latest changes. They&apos;re still here, and saving will be tried again.
+        </Banner>
+      ) : null}
+      {offeredDraft !== null ? (
+        <Banner
+          variant="info"
+          className="mb-3"
+          data-testid="page-draft-offer"
+          actions={
+            <>
+              <Button variant="secondary" size="sm" onClick={() => restoreDraft(offeredDraft)}>
+                Restore mine
+              </Button>
+              <Button variant="ghost" size="sm" onClick={discardDraft}>
+                Discard
+              </Button>
+            </>
+          }
+        >
+          {offeredDraft.refused
+            ? "Your latest changes weren't saved: this page changed since you opened it. It now shows the saved version."
+            : "Changes you made here last time didn't reach the server, and the page has changed since."}
+        </Banner>
       ) : null}
       {/* **The document sits on a page, not on the app's background.**
           Mitchell, on the preview: *"There should be a contrainer over the

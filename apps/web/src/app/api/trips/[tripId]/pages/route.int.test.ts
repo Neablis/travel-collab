@@ -166,6 +166,31 @@ describe("/api/trips/:id/pages", () => {
       expect(body.page.title).toBe("Renamed");
     });
 
+    // The stale-save guard, as the editor meets it: a 409 carrying a code the
+    // client can tell apart from a stream conflict, which it retries, while
+    // this one it must not (CodeRabbit, PR #222).
+    it("409s a PATCH typed against an older revision, with page-changed", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const send = (body: unknown) =>
+        PATCH(
+          new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+          { params: Promise.resolve({ tripId, pageId }) },
+        );
+      const r0 = ((await (await send({ title: "First" })).json()) as { page: { updatedAt: string } }).page.updatedAt;
+      const r1 = ((await (await send({ title: "Second", expectedUpdatedAt: r0 })).json()) as { page: { updatedAt: string } })
+        .page.updatedAt;
+      expect(r1).not.toBe(r0);
+
+      const res = await send({ title: "Third", expectedUpdatedAt: r0 });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: "This page changed since you opened it.", code: "page-changed" });
+    });
+
     it("deletes a page", async () => {
       const tripId = await seedTrip();
       const pageId = await seedPage(tripId);

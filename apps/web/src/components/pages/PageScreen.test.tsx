@@ -9,10 +9,18 @@ import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
+
+// The real save guard, behind a spy, so one test can make the editor's output
+// unstorable on demand. Nothing else here changes what it returns.
+vi.mock("@/components/pages/editor/storedPageDoc", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/pages/editor/storedPageDoc")>();
+  return { ...real, toStoredPageDoc: vi.fn(real.toStoredPageDoc) };
+});
 
 // jsdom has no layout engine, so ProseMirror's coordinate-based cursor
 // placement throws on `elementFromPoint`/`getClientRects`. Stubbed in the same
@@ -44,9 +52,13 @@ const server = setupServer(
   ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+// Unmount FIRST: leaving a page mid-session commits it (ADR-036), and that
+// write has to reach this test's handlers rather than the defaults.
 afterEach(() => {
-  server.resetHandlers();
   cleanup();
+  server.resetHandlers();
+  localStorage.clear();
+  vi.restoreAllMocks();
 });
 afterAll(() => server.close());
 
@@ -349,6 +361,91 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     return { onUpdate };
   }
 
+  // The end of an edit session, which is when a page writes (ADR-036).
+  async function finishEditing() {
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+  }
+
+  // Opening Editing to look and closing it again is the common case, and it
+  // must not manufacture a history entry (ADR-036 decision 5). It also holds
+  // `PageEditor` to `setEditable(…, false)`: a toggle that emitted an update
+  // would start a session nobody typed in.
+  //
+  // Asserted on `fetch` rather than on the handler, and with no wait: a session
+  // settles synchronously in the effect that leaving Editing runs, and
+  // `updatePage` calls `fetch` before its first `await`. So any write this
+  // toggle caused has already been started by the time the click resolves —
+  // where the handler sees it a hop later, which only a sleep could cover.
+  it("writes nothing for an edit session that changed nothing", async () => {
+    await openPage();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await finishEditing();
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await finishEditing();
+    expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toEqual([]);
+  });
+
+  // One write per session means nothing re-sends a failed one behind it, so
+  // the failure has to keep the document, say so, and offer the retry.
+  it("keeps a save the server refused, says so, and sends it again on Retry", async () => {
+    const { onUpdate } = await openPage();
+    let refuse = true;
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", () =>
+        refuse ? HttpResponse.json({ error: "offline" }, { status: 503 }) : undefined,
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    await finishEditing();
+
+    const banner = await screen.findByTestId("page-save-failure");
+    expect(banner.textContent).toContain("Couldn't save");
+    expect(onUpdate).not.toHaveBeenCalled();
+    // ...and kept past this screen too, for a reload before the retry lands.
+    expect(localStorage.getItem(`page_draft:${pageFixture().id}`)).toContain('"name":"cost');
+
+    refuse = false;
+    await userEvent.click(within(banner).getByRole("button", { name: "Retry saving" }));
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain('"name":"cost');
+    await waitFor(() => expect(screen.queryByTestId("page-save-failure")).toBeNull());
+    expect(localStorage.getItem(`page_draft:${pageFixture().id}`)).toBeNull();
+  });
+
+  // The "saving has stopped" notice is a promise: the last good document is
+  // committed rather than thrown away, and nothing after it is written.
+  it("commits the last good document on an unstorable one, then writes nothing more", async () => {
+    await openPage();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const patches = () => fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH").map(([, init]) => String(init!.body));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    vi.mocked(toStoredPageDoc).mockReturnValueOnce(null);
+    await userEvent.type(box, "Z");
+    expect(screen.getAllByRole("status").some((n) => n.textContent?.includes("saving has stopped"))).toBe(true);
+    expect(patches()).toHaveLength(1);
+    expect(patches()[0]).toContain("Q");
+
+    await userEvent.type(box, "K");
+    await finishEditing();
+    cleanup();
+    expect(patches()).toHaveLength(1);
+  });
+
+  // KI-2026-09-24-g: leaving the page mid-session CANCELLED the pending write,
+  // so a client-side navigation lost the last edit. Leaving is stopping.
+  it("keeps the last edit when the page is left mid-session", async () => {
+    const { onUpdate } = await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    expect(await screen.findByText("no costs yet")).toBeTruthy();
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    cleanup();
+
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain('"name":"cost');
+  });
+
   it("opens in Reading, and Reading hides the WHOLE authoring surface", async () => {
     // Reading is the default (Mitchell, 2026-09-04, walking the preview), and
     // Reading is the traveller's view (§18): no insert affordance, no chrome
@@ -488,29 +585,21 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 2/ }),
     );
 
-    // **Waiting for the save that CARRIES the binding, not for any save at
-    // all.** `toHaveBeenCalled()` plus `calls.at(-1)` is a race and it lost one
-    // (2026-09-13, in a full-suite run; it passed on the next). Opening the
-    // panel and clicking through the day picker can each land a save of their
-    // own, so the moment the first one arrives the wait is satisfied and the
-    // LAST call is still the pre-narrowing document. Asserting the content
-    // inside the wait is the same claim without the timing assumption: it
-    // retries until the save that holds the binding shows up, and still fails
-    // if none ever does.
+    // **One save, when Editing ends, and it carries the binding.** The insert,
+    // opening the panel and each pick in the day picker each used to land an
+    // autosave of their own, which is why this wait once had to retry past the
+    // earlier ones. The edit session commits once (ADR-036, M14 link 9).
     //
     // The binding is stored on the widget instance's own params — ADR-035
     // decision 3, and what lets two widgets on one page read two different days.
     // A single day is a range whose ends are equal — `DateRangeRef`'s own shape
     // for one date rather than a second spelling of it.
-    await vi.waitFor(
-      () => {
-        const saved = onUpdate.mock.calls.at(-1)?.[1].content as { content: unknown[] } | undefined;
-        expect(saved).toBeDefined();
-        expect(JSON.stringify(saved!.content)).toContain('"from":"2027-06-02"');
-        expect(JSON.stringify(saved!.content)).toContain('"through":"2027-06-02"');
-      },
-      { timeout: 3000 },
-    );
+    expect(onUpdate).not.toHaveBeenCalled();
+    await finishEditing();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    const saved = JSON.stringify(onUpdate.mock.calls[0]![1].content);
+    expect(saved).toContain('"from":"2027-06-02"');
+    expect(saved).toContain('"through":"2027-06-02"');
   });
 
   // A BLOCK widget rather than the inline ones the other walks use — and a
@@ -689,24 +778,12 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     );
 
     // The document holds both, which is the actual claim — and the only place
-    // both are visible at once now.
-    //
-    // The content assertions go INSIDE the wait, not after it. `onUpdate` has
-    // already fired for the first widget's binding by the time this line runs,
-    // so `toHaveBeenCalled()` returns on that earlier save and `calls.at(-1)`
-    // can be a document that does not carry the second binding yet — the wait
-    // would be satisfied by the very state it exists to wait past (CodeRabbit,
-    // PR 170; the same shape as the integration flake in `narrows a widget to
-    // one day`). Waiting on the CONTENT is the only form of this that cannot
-    // pass early.
-    await vi.waitFor(
-      () => {
-        const saved = JSON.stringify(onUpdate.mock.calls.at(-1)?.[1].content ?? {});
-        expect(saved).toContain('"from":"2027-06-01"');
-        expect(saved).toContain('"from":"2027-06-02"');
-      },
-      { timeout: 3000 },
-    );
+    // both are visible at once now. One save, at the end of the session.
+    await finishEditing();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    const saved = JSON.stringify(onUpdate.mock.calls[0]![1].content);
+    expect(saved).toContain('"from":"2027-06-01"');
+    expect(saved).toContain('"from":"2027-06-02"');
   });
 
   // The globals seam, end to end, and the only test that walks it. `city`
@@ -970,8 +1047,9 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       // document stores (ADR-039 decision 4). A phone insert that landed wide
       // would mean the bind step decided nothing, which is the failure worth
       // catching here.
-      await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-      const saved = JSON.stringify(onUpdate.mock.calls.at(-1)![1].content);
+      await finishEditing();
+      await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+      const saved = JSON.stringify(onUpdate.mock.calls[0]![1].content);
       expect(saved).toContain('"cost"');
       expect(saved).not.toContain('"cost.day"');
       expect(saved).toContain('"from":"2027-06-02"');
@@ -1031,8 +1109,8 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
 // ADR-038 decision 4, end to end and from the reader's side.
 //
-// The loss this prevents is not exotic: open a page, and 800 ms later this
-// screen writes `editor.getJSON()` back over it. When TipTap did not understand
+// The loss this prevents is not exotic: open a page, edit, and when the session
+// ends this screen writes `editor.getJSON()` back over it. When TipTap did not understand
 // one node in the stored document, that `getJSON()` is an EMPTY document —
 // measured in `editor/PageEditor.test.tsx`, and it takes the user's own
 // paragraphs with it. So the assertion that carries the weight here is the
@@ -1133,7 +1211,7 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
-  it("still mounts and still autosaves an ordinary document", async () => {
+  it("still mounts and still saves an ordinary document", async () => {
     // The other half of the trade ADR-038 weighed: a guard that locks pages it
     // did not need to lock costs real editing. This is the test that would
     // catch that, and it is why the two above are worth trusting.
@@ -1144,19 +1222,338 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
 
     await screen.findByText("ordinary");
     // The document mounts in Reading, so the editor exists but is not editable.
-    // Autosave is an EDITING behaviour now, which is the point of Reading — so
-    // this walks the same path a person does: switch on, then type.
+    // Writing is an EDITING behaviour, which is the point of Reading — so this
+    // walks the same path a person does: switch on, type, switch off.
     expect(screen.queryByRole("status")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     const box = editorTextbox();
     expect(box).not.toBeNull();
     await userEvent.type(box!, "x");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
 
-    // The autosave debounce is 800 ms, so the default 1 s poll window is too
-    // tight to be reliable here.
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled());
     // And what it wrote carries its version (decision 2).
     expect(onUpdate.mock.calls[0]![1].content.v).toBe(CURRENT_PAGE_DOC_VERSION);
+  });
+});
+
+// ADR-036 decision 3's browser-local draft: what the server has not confirmed
+// survives the page going away.
+describe("PageScreen — a draft kept in the browser", () => {
+  const draftKey = (pageId: string) => `page_draft:${pageId}`;
+  // The kept document alone, as text. Not the raw entry: its `base` is an ISO
+  // timestamp, which ends in "Z" and made a `toContain("Z")` pass vacuously.
+  const draftText = (pageId: string) =>
+    JSON.stringify((JSON.parse(localStorage.getItem(draftKey(pageId)) ?? "null") as { doc?: unknown } | null)?.doc ?? null);
+  const paragraph = (text: string) => ({
+    v: CURRENT_PAGE_DOC_VERSION,
+    type: "doc" as const,
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  });
+
+  function serve(content: unknown, patch?: Parameters<typeof http.patch>[1]) {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, content: content as never });
+    const onUpdate = vi.fn();
+    // The override goes first: msw takes the first handler that matches, and
+    // `makePagesHandlers` answers every PATCH.
+    server.use(
+      ...(patch ? [http.patch("/api/trips/:tripId/pages/:pageId", patch)] : []),
+      ...makePagesHandlers([page], { onUpdate }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return { trip, page, onUpdate };
+  }
+
+  // Past the 64 KiB `keepalive` cap the unload write goes as a plain request,
+  // which can die with the page and report nothing. So the document is kept.
+  // The PATCH never answers here, which is what an unloading page sees.
+  it("keeps a document too big for keepalive when the page is hidden", async () => {
+    const { trip, page } = serve(paragraph("x".repeat(70_000)), () => new Promise<never>(() => {}));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    window.dispatchEvent(new Event("pagehide"));
+
+    const kept = JSON.parse(localStorage.getItem(draftKey(page.id)) ?? "null") as { base: string; doc: unknown } | null;
+    expect(kept?.base).toBe(page.updatedAt);
+    expect(JSON.stringify(kept?.doc)).toContain("Q");
+  });
+
+  // ...and so is one keepalive CAN carry: a request sent while the page
+  // unloads may still never complete, and nothing is left to read its result
+  // (CodeRabbit, PR #222). The server taking it clears the draft again.
+  it("keeps even a small document when the page is hidden, until the server takes it", async () => {
+    const { trip, page, onUpdate } = serve(paragraph("small"));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    window.dispatchEvent(new Event("pagehide"));
+    expect(draftText(page.id)).toContain("Q");
+
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(localStorage.getItem(draftKey(page.id))).toBeNull());
+  });
+
+  // Commits are one at a time, except the unload one, which cannot wait. So an
+  // older commit can fail after it, and its document is the older of the two.
+  it("does not let an older commit's failure overwrite the unload draft", async () => {
+    let failFirst: () => void = () => {};
+    const firstFails = new Promise<void>((r) => (failFirst = r));
+    let patches = 0;
+    const { trip, page } = serve(paragraph("small"), async () => {
+      if (++patches > 1) return new Promise<never>(() => {});
+      await firstFails;
+      return HttpResponse.error();
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = () => screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box(), "Q");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.type(box(), "Z");
+    window.dispatchEvent(new Event("pagehide"));
+    expect(draftText(page.id)).toContain("Z");
+
+    // Wait on the first PATCH's own promise, then drain the microtasks
+    // `updatePage` and the commit hang off it: no timer, so no sleep.
+    const first = fetchSpy.mock.results.find((_, i) => fetchSpy.mock.calls[i]![1]?.method === "PATCH")!;
+    failFirst();
+    await act(async () => {
+      await (first.value as Promise<Response>).catch(() => {});
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+    expect(draftText(page.id)).toContain("Z");
+  });
+
+  it("opens on a draft nobody has written over, and sends it", async () => {
+    const { trip, page, onUpdate } = serve(paragraph("as stored"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: page.updatedAt, doc: paragraph("from the draft") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByText("from the draft")).toBeTruthy();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain("from the draft");
+    await waitFor(() => expect(localStorage.getItem(draftKey(page.id))).toBeNull());
+  });
+
+  // The page moved since the draft was typed: a co-traveller's write is data,
+  // not something to overwrite unasked (invariant 3).
+  it("offers a draft the page has moved on from, and restores it only when asked", async () => {
+    const { trip, page, onUpdate } = serve(paragraph("theirs"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("mine") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const offer = await screen.findByTestId("page-draft-offer");
+    expect(screen.getByText("theirs")).toBeTruthy();
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    await userEvent.click(within(offer).getByRole("button", { name: "Restore mine" }));
+    expect(await screen.findByText("mine")).toBeTruthy();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain("mine");
+  });
+
+  // What the unload write was racing to deliver arrived after all.
+  it("drops a draft the stored page already matches", async () => {
+    const { trip, page } = serve(paragraph("same"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("same") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("same");
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(localStorage.getItem(draftKey(page.id))).toBeNull();
+  });
+
+  // Every unload now leaves a draft, so the common case is that its keepalive
+  // DID land. Nothing moved the page since, so the base still matches, and it
+  // is dropped as already matching rather than sent again as a no-op edit.
+  it("drops, without sending it, a draft whose unload write landed", async () => {
+    const { trip, page } = serve(paragraph("same"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: page.updatedAt, doc: paragraph("same") }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("same");
+    expect(localStorage.getItem(draftKey(page.id))).toBeNull();
+    expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toEqual([]);
+  });
+
+  // ── The stale-save guard (CodeRabbit, PR #222) ─────────────────────────────
+  //
+  // Every ordinary commit names the revision it was typed against, so that of
+  // two saves racing from this screen the OLDER one is refused rather than
+  // landing last and winning.
+
+  /** A page store whose revisions are known, and every PATCH body it saw. */
+  function serveRevisions(first: unknown) {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, content: first as never });
+    const bodies: Record<string, unknown>[] = [];
+    let current = page;
+    const answer = (body: Record<string, unknown>) => {
+      current = {
+        ...current,
+        ...(body.content === undefined ? {} : { content: body.content as never }),
+        updatedAt: new Date(Date.parse(current.updatedAt) + 1000).toISOString(),
+      };
+      return HttpResponse.json({ page: current });
+    };
+    const store = {
+      trip,
+      page,
+      bodies,
+      /** Replace what the server holds, as another device's save would. */
+      moveTo: (next: Partial<typeof page>) => {
+        current = { ...current, ...next, updatedAt: new Date(Date.parse(current.updatedAt) + 1000).toISOString() };
+        return current;
+      },
+      current: () => current,
+      /** Set per test: what a PATCH is answered with. Defaults to taking it. */
+      onPatch: (body: Record<string, unknown>): Response | Promise<Response> => answer(body),
+      answer,
+    };
+    server.use(
+      http.get("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ page: current })),
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        bodies.push(body);
+        return store.onPatch(body);
+      }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return store;
+  }
+  const pageChanged = () =>
+    HttpResponse.json({ error: "This page changed since you opened it.", code: "page-changed" }, { status: 409 });
+  const editableBox = () =>
+    screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+
+  it("names the revision it last read on every ordinary commit", async () => {
+    const store = serveRevisions(paragraph("small"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(1));
+    expect(store.bodies[0]!.expectedUpdatedAt).toBe(store.page.updatedAt);
+    const afterFirst = store.current().updatedAt;
+
+    // ...and the next session names the revision the first one produced.
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Z");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(store.bodies[1]!.expectedUpdatedAt).toBe(afterFirst);
+  });
+
+  // A keepalive with nothing ahead of it knows the revision like any commit.
+  it("names the revision on a keepalive with nothing in flight", async () => {
+    const store = serveRevisions(paragraph("small"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    window.dispatchEvent(new Event("pagehide"));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(1));
+    expect(store.bodies[0]!.expectedUpdatedAt).toBe(store.page.updatedAt);
+  });
+
+  // **The inverted case, which is the whole fix.** Commit A is in flight when
+  // the page unloads. The keepalive cannot know the revision A is about to
+  // produce, so it names none and wins by arriving; A still names its own, so
+  // if it arrives second it is refused. Naming A's base on the keepalive
+  // instead would get the keepalive, the NEWER words, refused every time A
+  // landed first.
+  it("names no revision on a keepalive that overtakes a commit in flight", async () => {
+    const store = serveRevisions(paragraph("small"));
+    store.onPatch = () => new Promise<never>(() => {});
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Z");
+    window.dispatchEvent(new Event("pagehide"));
+
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(store.bodies[0]!.expectedUpdatedAt).toBe(store.page.updatedAt);
+    expect(store.bodies[1]).not.toHaveProperty("expectedUpdatedAt");
+    expect(JSON.stringify(store.bodies[1]!.content)).toContain("Z");
+  });
+
+  // Somebody else saved the page while this one was being edited. Their words
+  // are data (invariant 3): the page shows them, and the author's are kept and
+  // OFFERED, the same offer a reload makes. Never retried as they stand: the
+  // same save would be refused again, and it would be the older document.
+  it("shows the page as it now stands on page-changed, and offers mine without retrying it", async () => {
+    const store = serveRevisions(paragraph("base"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    const theirs = store.moveTo({ content: paragraph("theirs") as never });
+    store.onPatch = () => pageChanged();
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+
+    const offer = await screen.findByTestId("page-draft-offer");
+    expect(await screen.findByText("theirs")).toBeTruthy();
+    expect(draftText(store.page.id)).toContain("Q");
+    expect(screen.queryByTestId("page-save-failure")).toBeNull();
+    expect(store.bodies).toHaveLength(1);
+
+    store.onPatch = store.answer;
+    await userEvent.click(within(offer).getByRole("button", { name: "Restore mine" }));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(JSON.stringify(store.bodies[1]!.content)).toContain("Q");
+    expect(store.bodies[1]!.expectedUpdatedAt).toBe(theirs.updatedAt);
+  });
+
+  // The refusal is answered by re-reading the page, and the author can still
+  // be typing while that read is out. What they type is on the same stale page
+  // and the session drops it, so it has to be in what is kept.
+  it("keeps what was typed while the refused page was being re-read", async () => {
+    const store = serveRevisions(paragraph("base"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    store.moveTo({ content: paragraph("theirs") as never });
+    store.onPatch = () => pageChanged();
+    let reread: () => void = () => {};
+    const held = new Promise<void>((r) => (reread = r));
+    server.use(
+      http.get("/api/trips/:tripId/pages/:pageId", async () => {
+        await held;
+        return HttpResponse.json({ page: store.current() });
+      }),
+    );
+    // A keepalive with nothing in flight names the revision, and is refused.
+    window.dispatchEvent(new Event("pagehide"));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(1));
+    await userEvent.type(editableBox(), "Z");
+    reread();
+
+    await screen.findByTestId("page-draft-offer");
+    expect(draftText(store.page.id)).toContain("Z");
+  });
+
+  // A rename moves `updatedAt` too, and one can land between a commit being
+  // sent and arriving: the title blurs as Done is pressed. Only the TITLE
+  // changed, so there is nothing to choose between. Sent again, named against
+  // the new revision, with nothing offered.
+  it("sends again, on the new revision, a save refused only because the title moved", async () => {
+    const store = serveRevisions(paragraph("base"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    const renamed = store.moveTo({ title: "Renamed elsewhere" });
+    store.onPatch = (body) => (body.expectedUpdatedAt === renamed.updatedAt ? store.answer(body) : pageChanged());
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(store.bodies[1]!.expectedUpdatedAt).toBe(renamed.updatedAt);
+    expect(JSON.stringify(store.bodies[1]!.content)).toContain("Q");
+    await waitFor(() => expect(localStorage.getItem(draftKey(store.page.id))).toBeNull());
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(screen.queryByTestId("page-save-failure")).toBeNull();
   });
 });
 

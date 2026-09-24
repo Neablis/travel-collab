@@ -1,7 +1,7 @@
 import { newPageDoc } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
 import { executePageCommand } from "./pageCommands";
 import { readStream } from "./eventStore";
@@ -122,9 +122,9 @@ describe("executePageCommand", () => {
     expect((await getTripEventsAfter(tripId, 0)).headSeq).toBeGreaterThan(afterCreate);
   });
 
-  // The 800ms autosave fires on the pause AFTER an already-saved change.
-  // Appending there would wake every co-traveller for a change that did not
-  // happen, and put a row in the history panel for a trailing keystroke.
+  // An edit session that ends where it began still commits. Appending there
+  // would wake every co-traveller for a change that did not happen, and put a
+  // row in the history panel for nothing (ADR-036 decision 5).
   it("appends nothing when the content did not change", async () => {
     const tripId = await seedTrip();
     const pageId = await createPageVia(tripId, "Packing", "socks");
@@ -267,9 +267,86 @@ describe("executePageCommand", () => {
 
     const detail = await getTripDetail(tripId);
     expect(detail?.name).toBe("Rome, later");
-    // And the page row is untouched by a rebuild — it is projected by the
-    // command path, not by this one.
     expect(await db.select().from(pages).where(eq(pages.tripId, tripId))).not.toHaveLength(0);
+  });
+
+  // **GOLDEN, for the `pages` table (ADR-036, M14 link 9).** The row carries
+  // only what the log carries, so throwing rows away and rebuilding must give
+  // back exactly what the command path wrote — with two kinds of row the log
+  // does not fully describe, which is where a naive rebuild destroys notebooks:
+  //
+  //  - rows `listPages` seeded and nobody has commanded since: NO events, so
+  //    the log cannot rebuild them and the rebuild must not delete them;
+  //  - rows that got a BACKFILLED genesis (KI-2026-09-22-c): the event exists,
+  //    but it was written when a sibling was first edited, so its `occurredAt`
+  //    is not the page's `createdAt` — and `createdAt` is the list's order.
+  //
+  // Plus the pre-fix document shapes KI-2026-09-24-d names: a row with no `v`
+  // and a node already stored wrapped as `unknown`. A rebuild that parses
+  // without re-serialising wraps it once more on every run.
+  it("GOLDEN: the pages table rebuilds from the log", async () => {
+    const tripId = await seedTrip();
+    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!; // a row, no event
+    const legacyId = randomUUID();
+    await db.insert(pages).values({
+      id: legacyId,
+      tripId,
+      title: "Old notes",
+      context: { tripId },
+      content: {
+        type: "doc",
+        content: [{ type: "unknown", raw: { type: "fromANewerBuild" } }, { type: "paragraph" }],
+      } as never,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      actorId: OWNER,
+    });
+
+    // The first command backfills both rows; only the Overview is edited, so
+    // "Old notes" is known to the log by its backfilled genesis alone.
+    await executePageCommand({ type: "EditPage", tripId, pageId: overview.id, content: docWith("our plan") }, OWNER);
+    const packing = await createPageVia(tripId, "Packing", "socks");
+    await executePageCommand(
+      { type: "EditPage", tripId, pageId: packing, title: "Packing list", content: docWith("socks, shoes") },
+      OWNER,
+    );
+    const scratch = await createPageVia(tripId, "Scratch", "tmp");
+    await executePageCommand({ type: "DeletePage", tripId, pageId: scratch }, OWNER);
+
+    // A second trip whose notebooks the log has never heard of.
+    const untouchedTrip = await seedTrip();
+    await listPages(untouchedTrip);
+
+    const tripIds = [tripId, untouchedTrip];
+    const rowsOfThisTest = () =>
+      db.select().from(pages).where(inArray(pages.tripId, tripIds)).orderBy(asc(pages.id));
+    const live = await rowsOfThisTest();
+    const liveOrder = (await listPages(tripId)).map((p) => p.title);
+    expect(live).toHaveLength(4);
+    expect(liveOrder).toEqual(["Old notes", overview.title, "Packing list"]);
+    // The backfill did not restamp the row it described. The comparison below
+    // cannot see this — live and rebuilt would move together — so it is its own.
+    const legacy = live.find((r) => r.id === legacyId)!;
+    expect([legacy.createdAt, legacy.updatedAt].map((t) => new Date(t).toISOString())).toEqual([
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-02T00:00:00.000Z",
+    ]);
+    // Nor wrapped its pre-fix node a second time — also invisible to the
+    // comparison, since live and rebuilt would wrap alike. It did gain the `v`
+    // its genesis parse defaulted, which is the log's document and is right.
+    expect(legacy.content).toMatchObject({ v: 1, content: [{ type: "unknown", raw: { type: "fromANewerBuild" } }, {}] });
+
+    // Drift, of every kind a rebuild has to undo: a lost row, a changed row
+    // (one edited, one only ever backfilled), and a row the log deleted.
+    await db.delete(pages).where(eq(pages.id, packing));
+    await db.update(pages).set({ content: docWith("drifted") as never }).where(eq(pages.id, overview.id));
+    await db.update(pages).set({ title: "drifted" }).where(eq(pages.id, legacyId));
+    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch" });
+
+    await rebuildProjections();
+
+    expect(await rowsOfThisTest()).toEqual(live);
+    expect((await listPages(tripId)).map((p) => p.title)).toEqual(liveOrder);
   });
 
   it("refuses the demo trip", async () => {
@@ -286,5 +363,113 @@ describe("executePageCommand", () => {
     );
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.code).toBe("demo-trip-readonly");
+  });
+});
+
+// **The stale-save guard** (CodeRabbit, PR #222). `expectedSeq` cannot refuse
+// an older document that arrives last, because each request reads the head
+// current when IT arrives. `expectedUpdatedAt` is the revision the client
+// typed against, so the older of two racing saves is the one refused.
+describe("executePageCommand with expectedUpdatedAt", () => {
+  async function pageAt(tripId: string, text: string) {
+    const pageId = await createPageVia(tripId, "Packing", text);
+    const [row] = await db.select().from(pages).where(eq(pages.id, pageId));
+    return { pageId, revision: row!.updatedAt };
+  }
+  const edit = (tripId: string, pageId: string, text: string, expectedUpdatedAt?: string) =>
+    executePageCommand(
+      { type: "EditPage", tripId, pageId, content: docWith(text), ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) },
+      OWNER,
+    );
+  const storedText = async (pageId: string) => {
+    const [row] = await db.select().from(pages).where(eq(pages.id, pageId));
+    return JSON.stringify(row?.content);
+  };
+
+  it("refuses an edit typed against an older revision, and appends nothing", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
+    const head = (await getTripEventsAfter(tripId, 0)).headSeq;
+
+    const stale = await edit(tripId, pageId, "socks, hat", revision);
+
+    expect(stale).toEqual({
+      ok: false,
+      error: { code: "page-changed", message: "This page changed since you opened it." },
+    });
+    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBe(head);
+    expect(await storedText(pageId)).toContain("socks, shoes");
+  });
+
+  it("takes an edit typed against the current revision", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    const result = await edit(tripId, pageId, "socks, shoes", revision);
+    expect(result.ok).toBe(true);
+    expect(await storedText(pageId)).toContain("socks, shoes");
+  });
+
+  // The revision is an instant, not a spelling. What a client echoes is
+  // Postgres's text, and a proxy or a future client re-serialising it as ISO
+  // must not turn every save into a conflict.
+  it("takes the current revision however the timestamp is spelled", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    const iso = new Date(revision).toISOString();
+    expect(iso).not.toBe(revision);
+    expect((await edit(tripId, pageId, "socks, shoes", iso)).ok).toBe(true);
+  });
+
+  // Every caller that predates the field: the assistant's page tools,
+  // `/api/v1`, the seeders. Last write wins, as it always has.
+  it("keeps last-write-wins for an edit that names no revision", async () => {
+    const tripId = await seedTrip();
+    const { pageId } = await pageAt(tripId, "socks");
+    expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
+    expect((await edit(tripId, pageId, "socks, hat")).ok).toBe(true);
+    expect(await storedText(pageId)).toContain("socks, hat");
+  });
+
+  // A save of what the page already says is a no-op whatever revision it
+  // names, BEFORE the revision is looked at. The case that matters: a keepalive
+  // that landed, and then the ordinary commit of the same document behind it.
+  // Refusing that would report a conflict with the author's own words.
+  it("answers a no-op edit as a success, even against an older revision", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
+    const head = (await getTripEventsAfter(tripId, 0)).headSeq;
+
+    const same = await edit(tripId, pageId, "socks, shoes", revision);
+
+    expect(same.ok).toBe(true);
+    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBe(head);
+  });
+
+  // A page the log has never heard of is a ROW (lazily seeded), and its
+  // revision is the row's. The first guarded save of it must not be refused.
+  it("takes a guarded edit of a page that existed before the log knew about pages", async () => {
+    const tripId = await seedTrip();
+    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+    const result = await edit(tripId, overview.id, "our plan", overview.updatedAt);
+    expect(result.ok).toBe(true);
+  });
+
+  // **THE interleaving this exists for.** Commit A goes out typed against r0
+  // and is held up in the network. The page unloads and the keepalive K goes
+  // past it with NO revision (the client cannot know one while A is in
+  // flight), lands, and moves the page to r1. Then A arrives. Before this, A
+  // won: the author's older words over their newer ones.
+  it("refuses the older commit that lands after the keepalive which overtook it", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision: r0 } = await pageAt(tripId, "draft");
+
+    const keepalive = await edit(tripId, pageId, "draft, then the newest line");
+    expect(keepalive.ok).toBe(true);
+    const older = await edit(tripId, pageId, "draft, then a line", r0);
+
+    expect(!older.ok && older.error.code).toBe("page-changed");
+    expect(await storedText(pageId)).toContain("draft, then the newest line");
   });
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ActivityKind, ActivityTag } from "./activity.ts";
+import { ATTRIBUTE_FIELD_PATHS } from "./manifest.ts";
 import { PageDoc } from "./pageDoc.ts";
 import { isCalendarDate } from "./trip.ts";
 
@@ -191,14 +192,14 @@ export type DateRangeRef = z.infer<typeof DateRangeRef>;
  * already exports that name for a describable field of a collection, which is a
  * different thing entirely. The `Ref` suffix is what every other stored param
  * value in this file carries anyway.
+ *
+ * **Derived from the manifest's facts roots since M14 T06** (`manifest.ts`),
+ * so a stored `attribute` field is a manifest path — one field vocabulary
+ * rather than a hand-written enum beside it. The five names did not change, so
+ * no stored page needed a `PAGE_DOC_MIGRATIONS` step; renaming a facts field
+ * WOULD rename a stored value, and needs one.
  */
-export const AttributeFieldRef = z.enum([
-  "trip.name",
-  "trip.budgetRemaining",
-  "trip.countdown",
-  "account.name",
-  "account.homeAirport",
-]);
+export const AttributeFieldRef = z.enum(ATTRIBUTE_FIELD_PATHS);
 export type AttributeFieldRef = z.infer<typeof AttributeFieldRef>;
 
 export const FILTER_VALUE_SCHEMAS = {
@@ -257,14 +258,10 @@ export const PageContent = z.object({
 }).passthrough();
 export type PageContent = z.infer<typeof PageContent>;
 
-export const MacroKind = z.enum(["inline", "block"]);
-export type MacroKind = z.infer<typeof MacroKind>;
-
-// What a widget renders AS (ADR-037 decision 1's `shape`). It supersedes
-// `MacroKind` for widget definitions: `MacroKind` can say "inline" or "block"
-// and has nowhere to put a repeater, which link 6 needs. `MacroKind` stays for
-// now because `MacroView`'s older callers and the stored vocabulary still speak
-// it; the widget registry speaks this.
+// What a widget renders AS (ADR-037 decision 1's `shape`). It replaced
+// `MacroKind` (`"inline" | "block"`), which had nowhere to put a repeater; that
+// enum was deleted on 2026-09-24 (KI-2026-09-05-i item 2), when nothing read
+// it any more.
 export const WidgetShape = z.enum(["single", "block", "repeat"]);
 export type WidgetShape = z.infer<typeof WidgetShape>;
 
@@ -322,9 +319,32 @@ export const CreatePageInput = z.object({
 });
 export type CreatePageInput = z.infer<typeof CreatePageInput>;
 
+/**
+ * The page revision a save was typed against: the `Page.updatedAt` the client
+ * last read, echoed back verbatim.
+ *
+ * Not `.datetime()`: `updatedAt` is Postgres's own timestamp text
+ * (`2026-09-24 10:00:00.123+00`), not ISO, and a client must be able to send
+ * back exactly what it was given. It must still be a time, because the server
+ * compares it as an instant rather than as a string.
+ */
+export const PageRevision = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Not a timestamp");
+
+/**
+ * The refusal code for a save whose `expectedUpdatedAt` is no longer the
+ * page's. Read on both sides of the server/UI wall, so it lives here.
+ */
+export const PAGE_CHANGED_CODE = "page-changed";
+
 export const UpdatePageInput = z.object({
   title: z.string().min(1).optional(),
   context: PageContext.optional(),
   content: PageDoc.optional(),
+  /**
+   * Optional, and absent means last write wins, as before. Present, a save
+   * typed against an older revision is refused (409 `page-changed`) instead of
+   * landing over a newer one. The editor sends it; see `EditPage`.
+   */
+  expectedUpdatedAt: PageRevision.optional(),
 });
 export type UpdatePageInput = z.infer<typeof UpdatePageInput>;

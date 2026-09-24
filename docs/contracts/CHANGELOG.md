@@ -13,6 +13,125 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `expectedUpdatedAt` on a page edit: the stale-save guard (M14, CodeRabbit on PR #222)
+
+- **Added:** optional `expectedUpdatedAt` on `EditPage` (`pageEvents.ts`) and on
+  `UpdatePageInput` (`pages.ts`, the BFF PATCH body), typed `PageRevision`: a
+  string that must parse as a time, echoed verbatim from `Page.updatedAt`
+  (Postgres timestamp text, not ISO, hence no `.datetime()`). Also added
+  `PAGE_CHANGED_CODE` (`"page-changed"`), the refusal code, which the server
+  emits and the editor branches on.
+- Why: the notebook editor sends one ordinary commit at a time, but its
+  `pagehide` keepalive cannot wait and can overtake one in flight. If the older
+  one reached the server last it won, and `appendToStream`'s `expectedSeq`
+  could not stop it, because each request reads the head current when it
+  arrives. Present, the field makes `executePageCommand` refuse an edit whose
+  page has moved since (`page-changed`, HTTP 409 from the BFF route), appending
+  nothing. A no-op edit is still answered as a success before the revision is
+  looked at. The field never reaches an event; the domain decision ignores it.
+- Consumers updated: `apps/web` `server/pageCommands.ts` (the check), the BFF
+  PATCH route (forwards it, maps `page-changed` to 409 with `code`),
+  `lib/pagesClient.ts` (carries `code` on a refusal), `PageScreen` /
+  `useEditSession` (send it; a keepalive overtaking an in-flight commit sends
+  none), `mocks/handlers.ts` (honours it). `/api/v1` PATCH parses
+  `UpdatePageInput.omit({ expectedUpdatedAt })`, so its body and the OpenAPI
+  document are unchanged and a v1 caller keeps last-write-wins.
+- Breaking? no. Additive and optional: absent means today's behaviour for every
+  existing caller (the assistant's page tools, `/api/v1`, seeds).
+
+## 2026-09-24 — `MacroKind` removed (M14 T03, KI-2026-09-05-i item 2)
+
+- **Removed:** `MacroKind` (`z.enum(["inline", "block"])`) and its type from
+  `pages.ts`. `WidgetShape` replaced it for widget definitions (ADR-037
+  decision 1), and nothing in the repo imported it afterwards. Its only
+  reference was the comment beside `WidgetShape`.
+- Why: dead vocabulary reads as a seam (review finding F-B06), and the next
+  contributor has to work out that it decides nothing.
+- Consumers updated: none needed; no package or app imported it. Stored page
+  documents never held it (a node stores a widget name and params).
+- Breaking? no.
+
+## 2026-09-24 — a `stop` manifest root, `described()` as the only opt-in, and one field vocabulary (M14 T06)
+
+- **Added — stop fields are pickable.** `ActivitySnapshot` annotates `title`
+  (text), `location` (location), `notes` (text), `kind` (enum), `tags` (enum,
+  list) and `cost` (money). `bookedBy` and `participants` hold user ids and stay
+  unannotated; `anchors` and `timeWindow` have no value kind that prints them.
+  `MANIFEST_ROOTS` gains `stop: [ActivitySnapshot]` and `account`, and is now
+  exported (a test checks each published field against its schema).
+  `MANIFEST_OBJECTS` / `ManifestObject` name the three objects.
+- **Changed — the opt-in gate.** The manifest publishes a field only if
+  `described()` (or the new `describedCollection()` for a collection) annotated
+  it, and reads the label from that annotation. `.describe()` alone no longer
+  publishes anything. Why: `.describe()` is also the public API's OpenAPI text,
+  so API wording could become a picker label, and a field described only for
+  the API was published. `valueKind.ts` gains `annotationOf()` and
+  `describedCollection()`; `valueKindOf()` is unchanged for callers.
+  `TripGlobals.days/cities/tags` use `describedCollection`, with the same labels.
+- **Changed:** `AttributeField.valueKind` and the `value` entry's `valueKind`
+  are **required** (the gate is the kind). Both gain optional `values`, the
+  allowed values, present exactly when the kind is `enum`. `AttributeEntry.object`
+  and `AttributeRef.object` widen from `"trip"` to `ManifestObject`.
+- **Removed:** `AttributeRef.key` and its refinement. It duplicated the `city`
+  filter and would go stale in a template (M14 field-widget review, gap 4).
+- **Changed — one vocabulary:** `AttributeFieldRef` is `z.enum(ATTRIBUTE_FIELD_PATHS)`,
+  the paths of two facts roots in `manifest.ts` (`trip`: name, budgetRemaining,
+  countdown; `account`: name, homeAirport). Each borrows `TripDetail`'s or
+  `UserPreferences`' own field schema. The five values and their order are
+  unchanged.
+- **Added:** `HIDDEN_STOP_FIELDS`, a typed exclusion list (`keyof
+  ActivitySnapshot`), empty. `buildAttributeManifest(hiddenStopFields?)` takes
+  it as an optional argument that can only remove fields.
+- Why: M14 field widget, build step 2 (review and Mitchell's answers,
+  2026-09-24).
+- Consumers updated: none needed outside `packages/contracts`. Nothing outside
+  contracts tests reads the manifest, `AttributeEntry`, `AttributeField` or
+  `AttributeRef`. `@tc/pages`' `attribute` primitive reads `AttributeFieldRef`,
+  whose inferred type and options are identical. OpenAPI (`apps/web/src/app/api/v1/openapi.json`)
+  is unchanged: `ActivitySnapshot` is on no public route, and `described()`
+  and `describedCollection()` still call `.describe(label)`, so `TripGlobals`'
+  documented descriptions are byte-identical. No fixture change: no schema
+  gained a data field.
+- Breaking? no for stored data. `AttributeRef` is stored nowhere, and the
+  `AttributeFieldRef` values stored in pages did not change, so no
+  `PAGE_DOC_MIGRATIONS` step. Code-level, the `AttributeRef.key` removal and
+  the required `valueKind` break only contracts' own tests, which are updated.
+
+## 2026-09-24 — value kinds `enum` and `location`, a `list` flag, and three mislabelled globals (M14 T05)
+
+- **Added:** `VALUE_KINDS` gains `enum` (a closed vocabulary — activity kind,
+  tag, M24's transit `mode`) and `location` (a `Location`, printed as a place).
+  `AttributeField` and `AttributeEntry`'s `value` branch gain an optional
+  `list: true`.
+- **List representation — a flag beside the kind, derived from the schema.**
+  `list` is present exactly when the annotated field unwraps to a `ZodArray`,
+  and `valueKind` then names the element. Not one list-kind per scalar kind
+  (`textList`, `countList`, …), which would double a set whose whole value is
+  being small and closed, and give every future formatter table two entries
+  per kind. Not a declared flag on `described()` either (`{ kind, list }`):
+  that is a second fact the author can get wrong against the schema right next
+  to it — exactly how `cities` came to be labelled a scalar. `described()` and
+  its WeakMap are unchanged.
+- **Fixed labels (`TripGlobals`):** `TripGlobalsTag.tag` is `enum`, not `text`.
+  `TripGlobalsDay.cities` (`text`) and `TripGlobalsCity.dayIndexes` (`count`)
+  keep their kinds, which now name the element, and the manifest reports both
+  with `list: true` — before, a formatter picked by kind would have printed an
+  array as one string or one number. `TripGlobals.days` / `.cities` / `.tags`
+  lose their `"text"` kind for a bare `.describe()`: a collection is walked,
+  never printed, and the manifest had been dropping that kind silently.
+- **Changed:** `buildAttributeManifest()` publishes a described top-level array
+  of scalars as a `value` with `list: true`; it used to skip one. No root has
+  such a field today.
+- Why: M14's field-widget review (2026-09-24, gap 3) — the widget will expose
+  activity fields the old five kinds could not describe.
+- Consumers updated: none needed. Nothing outside `packages/contracts` reads
+  `ValueKind`, `valueKindOf` or the manifest yet (the per-kind formatter table
+  in `@tc/pages` is the next build step and will be exhaustive over this set).
+  No fixture change: `TripGlobals`' parsed shape is identical, so no data field
+  was added.
+- Breaking? no — both schema changes are additive and optional, and
+  `TripGlobals` parses exactly what it did.
+
 ## 2026-09-24 — `ASK_FAILED_MESSAGE`: `/ask` stops sending provider text (wire)
 
 - Added: `ASK_FAILED_MESSAGE` in `packages/contracts/src/assistant.ts`,

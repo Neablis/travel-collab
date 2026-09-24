@@ -1,4 +1,4 @@
-### KI-2026-09-24-n — the unit and integration network guard blocks `fetch` only; `http`/`https`, XHR, `sendBeacon` and WebSocket can still reach a third party
+### KI-2026-09-24-u — the unit and integration network guard blocks `fetch` only; `http`/`https`, XHR, `sendBeacon` and WebSocket can still reach a third party
 
 - **Severity:** process. There's no known leak today. This is a gap in the backstop behind the "no automated test talks to a real third party" policy (Mitchell, 2026-09-24).
 - **Area:** `apps/web/src/test-support/networkGuard.ts`, installed by `networkGuard.setup.ts`, which both lanes run (`vitest.config.ts` names it; `apps/web/vitest.setup.ts` imports it).

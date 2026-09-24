@@ -73,15 +73,13 @@ describe("cost", () => {
     expect(renderMacro(ctx, "cost", {}).status).toBe("empty");
   });
 
-  it("needs a trip, and needs a person field", () => {
+  it("needs a trip", () => {
+    // It also answered "needs a person" for a bound person until 2026-09-24,
+    // when `person` left every widget (*"person is removed for now"*). A stored
+    // one now strips; `writeCheck.test.ts` pins that.
     const { globals } = selectionTrip();
     const noTrip: WidgetContext = { page: { tripId: "11111111-1111-1111-1111-111111111111" }, user: null, globals, today: null };
     expect(renderMacro(noTrip, "cost", {})).toEqual({ status: "unbound", needs: "trip" });
-    const fixture = selectionTrip();
-    expect(renderMacro(contextOf(fixture), "cost", { person: "dev-alice" })).toEqual({
-      status: "unbound",
-      needs: "person",
-    });
   });
 });
 

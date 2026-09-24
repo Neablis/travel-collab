@@ -35,6 +35,68 @@ widgets, better filtering" resolved to*; the third was **not here and is not any
 link 7 seeds templates, and nothing lets a person keep their own notebook for reuse. That is
 **link 10**, and it is named as this milestone's natural carve-out if it splits.
 
+**Pulled forward whole, 2026-09-24, on Mitchell's instruction — M24 stays the current
+milestone.** Asked what *"just make everything on this one PR"* meant, he chose *"Build all
+of M14 here"*: every remaining link, on `claude/cool-curie-t34x8h` (PR #221), ahead of
+M24. This is AGENTS.md's *"do not build ahead of the current milestone"* set aside
+knowingly, as it was for this milestone's navigation half on 2026-09-03. **The one link
+that cannot move is the route map block** (link 11), which draws M24's legs and waits for
+them.
+
+**Decided 2026-09-24, before opening — three calls by Mitchell.**
+
+1. **External calendar sync is dropped.** Not deferred and not split into a milestone
+   of its own: *"we arent going to do calendar sync"*. It leaves this milestone and the
+   roadmap. It had no design and no ADR, so nothing is un-built.
+2. **Ghosts are an Editing-mode rendering; Reading keeps today's placeholder.**
+   *"keep it during edits, and when done editing, have a placeholder like it already
+   has."* This answers SPEC §21's open rule **against** the framework's *"prints nothing
+   in Reading, plus one quiet line at the top of the page"*: in Reading an unbound widget
+   still renders the short `EmptyChip` label it renders today (*"needs a trip"*, *"that
+   day was removed"*), and there is **no** page-top *"N widgets aren't set up"* line. The
+   ghost (shape of the value, per-part fill, hatched mono) is built for Editing only.
+3. **The `days` and `trip` input types are retired.** Neither maps to a filter dimension
+   and no primitive declares either. Picking days is **not** lost: it is `DaysFilter`,
+   one control writing the `dates` dimension and still reading a stored `day`
+   (`apps/web/src/components/pages/editor/widgetBind.tsx:45-66`). The code removal —
+   both `WidgetInput` members, `UnboundNeeds.days` and `MacroView`'s unreachable *"no
+   days set"* branch — is KI-2026-09-05-i item 2's work, done inside this milestone.
+
+**Four more calls, 2026-09-24, taken after the re-baseline audit** (asked as choices, answered by Mitchell):
+
+4. **A removed field's widget converts to a plain-text placeholder** naming the old field, not dropped
+   silently. This is the removal half of the conversion decided in the field-widget section.
+5. **`person` is removed for now.** M13 shipped `bookedBy` and `participants` on stops, so the data exists,
+   but the person filter and the two person widgets stay out of M14. That means taking the unused `person`
+   dimension off `cost`, `count` and `stop.rows` (`single.ts:25,81`, `rows.ts:143`), which makes gate box
+   *"No `w-person` … nothing declares a `person` input"* true. Today it is false.
+6. **The authored repeat is still wanted** alongside field columns. That is the dashed rail, a row template
+   the author writes in the editor, and the empty case (link 6, box 9). Catalogue row 12's *"Edit the
+   wording"* therefore needs a design. The build proposes one and walks it on the preview.
+7. **Weather after the trip shows "typical for those dates", labelled as such.** The free climate source
+   has no observations, so there are three real modes plus a labelled fallback.
+
+**Defaults taken by the build, stated so they can be overruled** (none has been approved yet):
+
+- **Timezones are computed on the server into `TripGlobals`**, per day from the stop coordinates and for
+  home from the account's home airport, rather than shipping a timezone dataset to the browser. Datasets
+  are chosen for licence (for example the timezone-boundary-builder data and OurAirports) and named in the
+  change that adds them.
+- **The *know before you go* table is compiled into the repo** from public-domain facts (the CIA World
+  Factbook for calling codes and driving side, and similar), with every source named in the file.
+- **ADR-036 decision 2 is amended to match what M13 shipped:** page events live on the **trip** stream,
+  not a per-page stream. Link 9's single write per editing session commits when the author leaves Editing,
+  when the page unmounts, on `pagehide`, and after 60 seconds idle.
+
+**The gate below is behind the tree — re-baseline it before building.** Two boxes are
+ticked, but much of what the unticked boxes describe has shipped since 2026-09-03 (the
+Reading/Editing control, the widget rail with drag-and-drop and `/`, ADR-039's primitives
+and presets, the assistant's insert tools, notebooks joining the event log with M13). The
+first act of opening M14 is to walk each box against `main` and tick, reword or strike it,
+so the remaining work is a list rather than an archaeology exercise. *Embedded community
+objects* and *a TipTap/Yjs adoption* stay out (see *Deliberately not here*; TipTap is
+already the editor, `@tiptap/react`).
+
 ## Why this exists
 
 M7 shipped the Notebook as a substrate and M8 pulled it back to plain notes. The
@@ -129,9 +191,12 @@ Mitchell's framing, 2026-09-03:
    accordingly. **This link now also owns deleting `PageScreen`'s 800ms autosave and
    `lib/debounce.ts`'s use here** — that is part of the link, not a follow-up.)* Notebook content joins the event
    log, completing the parenthesis ADR-003 left open (*"and later, trip-page content"*).
-   A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
+   ~~A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
    800ms cadence for durability while history commits **one event per settled edit
-   session**. The `pages` table becomes a projection rather than the authority — that is
+   session**.~~ **As built (2026-09-24, T14):** page events stay on the trip stream M13
+   put them on (ADR-036 decision 2, amended), and board ⌘Z is kept off prose because a
+   history decision carries trip events only and a notebook save is never the undo target.
+   Autosave is gone, and history commits **one event per edit session**. The `pages` table becomes a projection rather than the authority — that is
    the real work in this link.
 
 10. **A notebook can be saved as a template for a future trip.** *(**Added 2026-09-18** on
@@ -154,6 +219,45 @@ Mitchell's framing, 2026-09-03:
     at document version N must still instantiate once the AST has moved.
     **This is the natural carve-out if M14 splits**, which this file already leaves open.
 
+11. **Widgets that draw, compute and know the world.** *(**Added 2026-09-24** on
+    Mitchell's call: *"All in M14"*, answering which of
+    `docs/specs/2026-09-24-widget-brainstorm.md` §6 goes here.)* The seven first-wave
+    widgets: **trip strip**, **still to book**, **sunrise / sunset** and **time
+    difference from home**, **know before you go** (a bundled per-country table),
+    **spend by day** (the first chart), **weather**, and the **route map block**
+    (after M24, so it can draw real legs). The decisions that shape them, all from
+    Mitchell on 2026-09-24:
+    - **Weather source: MET Norway**, not Open-Meteo, whose free tier excludes apps
+      with subscriptions. The forecast comes from Locationforecast 2.0 (free for
+      commercial use under NLOD 2.0 / CC BY 4.0, with attribution, an identifying
+      User-Agent, cache headers honoured, and coordinates to 4 decimals). The
+      *typical for these dates* mode needs a separate free climate-normals source,
+      still **to verify** (NASA POWER is the candidate). The widget keeps the
+      brainstorm's four date-driven modes.
+    - **Sending a stop's rounded location to an outside service is accepted.** It is
+      the first feature that does. The ADR below states it, and rounds to what the
+      provider needs and no finer.
+    - **Charts use a library matched to the aesthetic: shadcn/ui's chart component
+      (Recharts).** Chosen because the component library is already shadcn/ui,
+      heavily re-themed (ADR-010), and its charts take colours from the same CSS
+      theme variables, so a chart reads *Field Kit* tokens rather than bringing a
+      palette of its own. Recharts renders SVG, which the CSP already permits (no
+      canvas, no remote assets). Axis and value text go through IBM Plex Mono, as
+      every data value must (`docs/guidelines/design-system.md`). The trip strip and
+      the day × hour grid are layouts, not charts, and stay plain SVG/Tailwind.
+    **Prerequisite, inside this link: an external-data ADR** covering the brainstorm's
+    §5 seven points. That is a server-side port per source, a coarse cache, a
+    pre-fetched `WidgetContext` slot so `resolve` stays pure, an `unavailable` result
+    state, attribution rendered by the block, what leaves the building, and a visible
+    as-of time. It is accepted before the weather widget's code lands; the Tier B
+    widgets need none of it and go first.
+    **Drafted as ADR-052** (`docs/architecture/ADR-052-external-data-enters-a-widget-as-a-server-fetched-input.md`),
+    *Accepted 2026-09-24 on Mitchell's delegation, pending his review*, so it is effectively
+    still Proposed and the gate box below stays unticked until he has read it.
+    The brainstorm's *later and ambitious* list (trip in numbers, an assistant-drafted
+    packing list, now / next) and its other Tier A–C candidates are **not** in this
+    link until picked.
+
 ### What "more widgets, better filtering" resolved to — 2026-09-18
 
 Mitchell asked for *"more widgets, better widget filtering, saving notebook templates for
@@ -163,6 +267,9 @@ next session does not re-derive it.
 - **More widgets** is **item H** (~14 more, six of them needing `kind: "repeat"`), standing
   on **item B** (ADR-037 — a widget is a module, which deletes `MacroView`'s
   `switch (name)`) and **item E** (the attribute manifest).
+  **Brainstormed further 2026-09-24**: `docs/specs/2026-09-24-widget-brainstorm.md`
+  (charts, maps, computed and external-data widgets, including weather). Its §6 first
+  wave **is in scope as link 11** (Mitchell, 2026-09-24); the rest is not until picked.
 - **"Better filtering" is two things, and Mitchell confirmed he meant both.**
   1. **A dynamic widget that can grab arbitrary fields.** This is *stronger* than item E as
      written. E gives a developer a widget free when they add an attribute; this is **one
@@ -172,11 +279,88 @@ next session does not re-derive it.
   2. **Finding a widget in the UI is hard today.** That is **item G** (sidebar,
      drag-and-drop, slash menu) with **link 5**'s two-step Sheet and its search.
 - **A trap to fix *with* this work, not after it.**
-  `docs/known-issues/open/KI-20260905-h-widget-and-ast-exhaustiveness-holes.md` records that
+  `docs/known-issues/resolved/KI-20260905-h-widget-and-ast-exhaustiveness-holes.md` (resolved 2026-09-24, T02) records that
   a new filter dimension today is accepted, stored, rendered as a control and **silently
   ignored** — `select.ts:106-108`'s own comment calls *"a control that says narrowed while
   the widget renders wide"* the worst of the three available answers. More filtering built
   on that seam multiplies the defect rather than adding a feature.
+
+### The field widget ("pick any field") — reviewed and decided 2026-09-24
+
+The *"dynamic widget that can grab arbitrary fields"* above was designed as ADR-037 open
+question 4 (a generated manifest of annotated fields; the reader picks from labels and
+never types a path). Mitchell asked on 2026-09-24 whether it still holds. A read-only
+review against `main` said **sound, with gaps: nothing above the manifest is built.**
+
+**What exists.** `packages/contracts/src/manifest.ts` builds the manifest, opt-in by
+`.describe()`, with `AttributeRef` as the stored shape, but **nothing outside contracts
+tests calls it**. Its only root is `TripGlobals` (days, cities, tags). The shipped
+`attribute` primitive reads a separate hand-written enum, `AttributeFieldRef`
+(`contracts/src/pages.ts`), so there are two field vocabularies today. `KI-20260905-o` is
+**resolved** (2026-09-21): `ActivitySnapshot` is the one declaration of activity fields,
+but none of them is annotated, so no stop field can be picked.
+
+**The gaps, most serious first:**
+
+1. **A field that disappears locks the page.** `writeCheck.ts`'s `findWidgetError`
+   rejects the *whole* document on one bad widget, so after a field rename a prose edit
+   to that page is refused, and Reading shows a red bad-params chip. `MacroResult` has no
+   stale state.
+2. **There is no control for a field.** Non-filter params are "chosen once, by the
+   preset". `widgetBind.tsx`'s `optionsFor` falls through to the **tag list** for any
+   input type it does not know. That is the same class of hole as KI-2026-09-05-h, so the
+   `default:` becomes a `never`.
+3. **No formatter per value kind.** `VALUE_KINDS` is money, date, count, text and
+   duration. There is no enum (transit `mode`), location or list, and no table dispatches
+   on kind. Some existing labels are wrong: `cities` is "text" and `dayIndexes` is "count".
+4. **"All stops" had no rule** (settled below). `AttributeRef.key` duplicates the `city`
+   filter, and it is trip-specific, so it would go stale in a link-10 template. **Drop
+   `key`**: choose the item with the existing filters and `narrow`, never a private lookup.
+5. **The assistant cannot see valid fields.** `nonFilterParams` lists only `ZodEnum`
+   values, so manifest entries have to go into `primitiveCatalog()`.
+6. **Privacy holds only while the resolver reads through the manifest.** `AttributeRef.field`
+   is any string. A resolver that indexed the raw object by that name could reach
+   unannotated fields such as `bookedBy`, which holds user ids. Always look the field up
+   in the manifest.
+
+**Mitchell's answers, 2026-09-24:**
+
+1. **A renamed or removed field is handled by converting documents**, not left as a
+   *"field removed"* state. That means a `PAGE_DOC_MIGRATIONS` step (`contracts/src/pageDoc.ts`,
+   ADR-038), so a stored page never names a field the manifest no longer has and gap 1
+   cannot occur for a deliberate change. **Still open:** what a *removed* field's widget
+   becomes after conversion. The candidates are dropped from the document, or turned into
+   a plain-text placeholder carrying the old label. This must be decided before the first
+   field is removed.
+2. **Every annotated field is pickable for now, with a typed exclusion list ready.** The
+   list is a TypeScript key list over the snapshot (a `Pick`/`Omit`-style `keyof
+   ActivitySnapshot` array, "pluck"), so a field that makes no sense in testing can be
+   hidden in one line, and a renamed field fails the build rather than silently
+   un-hiding.
+3. **"All stops" on a text field lists every value** (it may be long, and that is
+   accepted), and **a distinct option collapses duplicates**. *(Recorded as understood
+   from "let user pick too much, but also support distinct for duplicates". Confirm when
+   building.)* Money and counts still need their own all-rule (sum is the default).
+4. **Inline first**: a field chip inside a sentence. **The repeat shape follows**: a
+   field as a column on the existing `day.rows` / `city.rows` / `stop.rows`, before the
+   author-written row template. Both are in scope.
+
+**Build order:**
+
+1. KI-2026-09-05-h's exhaustiveness holes, plus the `never` default in `optionsFor`.
+2. `described()` on `ActivitySnapshot`, a `stop` manifest root, the typed exclusion list,
+   and `AttributeFieldRef` derived from the manifest (one vocabulary).
+3. A `Record<ValueKind, formatter>` in `packages/pages`, adding enum, location and list
+   kinds. The same table gives the Editing ghost its per-kind glyph (`$XXX`, `NN`).
+4. The conversion path for renames and removals in `PAGE_DOC_MIGRATIONS`, with a test
+   that pins an old document and converts it.
+5. A `field` `WidgetInput` type with a searchable control reading the manifest, exposed
+   through `primitiveCatalog()`. This goes in the same change that retires `days`/`trip`
+   (KI-2026-09-05-i).
+6. The inline field widget, then `columns` on the row widgets.
+
+M24's `mode` and `endLocation` join the picker by being annotated when M24 adds them.
+That is worth doing there, so the field is ready before this milestone opens.
 
 ### Rescoped a second time, 2026-09-03 (evening) — and it no longer fits in one milestone
 
@@ -455,6 +639,7 @@ milestone opens:**
   Notebook**, and it is the one part of this milestone that is not §7. It is
   large enough to be its own milestone and should either be scoped here
   deliberately or split out — flagged 2026-09-01, not decided.
+  **DECIDED 2026-09-24: dropped entirely** — see *Decided 2026-09-24* at the top.
 
 ## Exit gate
 
@@ -558,7 +743,7 @@ milestone opens:**
       order, same option lists (`widgetBind.tsx` is the single source, so the two
       surfaces cannot offer different days) — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
-- [ ] **And two widgets in the SAME BLOCK read two different days** — *"We land on
+- [x] **And two widgets in the SAME BLOCK read two different days** — *"We land on
       Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two
       day-bound widgets pointed at different days, and it must be writable and
       independently rebindable. The chrome row shows **one entry per bound widget
@@ -567,6 +752,23 @@ milestone opens:**
       and day 9, if we lock all widgets to one selection, its not possible"*).
       This is the box that fails if someone adds an aggregate control that
       rebinds a whole block.
+
+      *Met 2026-09-24 (T12).* Since §26 the "chrome row" is the settings panel:
+      the desktop column and the phone sheet both mount `WidgetSettings`. Selecting
+      any widget opens **every widget of its block**, one entry each, in document
+      order. When a block holds more than one, each entry is numbered, and the
+      same number is on the widget's handle in the text (`blockWidgets.ts`,
+      `widgetMarkPlugin.ts`). The number sits in the out-of-flow handle rather
+      than in a superscript after the value as the design draws it, because a
+      superscript would move the prose on entering Editing. Each entry carries its
+      bind controls, *Reads as* and **Remove**. There is no aggregate control. The
+      witness is the e2e walk *"two widgets in ONE sentence read two different
+      days, and each rebinds on its own"*: it writes the gate's sentence, points
+      the two `city` widgets at Day 1 and Day 9 from their own entries, and reads
+      *"We land on Day 1 in Tokyo and by Day 9 we are in Kyoto"* back after a
+      reload. It was run red first: an aggregate rebind fails it at the second
+      widget (`Received string: "▸2Tokyo"`). ci-like green (27/27 across
+      `m14-notebook-widgets` and `m14-mobile-notebook`).
 - [ ] A repeater renders one line per day/stop/city with chips filled from each
       item, and renders its empty case the way the ADR says it should.
 
@@ -605,11 +807,27 @@ milestone opens:**
       be able to destroy prose, because there is no mid-session row state left to
       destroy** — that is the whole content of the 2026-09-03 decision and the box
       that proves it was honoured.
-- [ ] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
+      *(**Built 2026-09-24 (T14); not ticked until `test:e2e:ci-like` is green on the
+      three specs it changed.** One write per session: `useEditSession` commits on leaving
+      Editing, unmount, `pagehide` (with `keepalive`) and 60s idle, and a session with no
+      change sends nothing. `PageScreen`'s debounce and `lib/debounce.ts` are deleted.
+      `rebuildProjections` replays page events through the command path's own writer, and
+      the golden page case (`pageCommands.int.test.ts`, *"GOLDEN: the pages table rebuilds
+      from the log"*) covers a lost row, drifted rows, a row the log deleted, and a
+      pre-fix row with no `v` and a wrapped node. It also covers a trip whose notebooks the
+      log has never seen. **The one thing short of the wording:** that trip's rows are
+      left alone by a rebuild rather than rebuilt, because `listPages` seeds them without
+      an event and the log cannot rebuild what it never recorded. Closing that means
+      seeding through the log or a backfill migration, which is a design call not taken
+      here. ADR-036 decision 2 is amended to the trip stream. Board ⌘Z never reverting a
+      page event is pinned by `pageHistory.property.test.ts`. e2e specs changed:
+      `m14-notebook-widgets`, `m14-mobile-notebook`, `m7-solo-delight`.)*
+- [x] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
       the registry declares a `person` input. They left this milestone on
       2026-09-03 with item F; a build that quietly adds them back is building on a
       domain concept that does not exist. `w-people` is unaffected — it needs a
       display name on `TripMember`, not attribution.
+      *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
 - [ ] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
@@ -619,12 +837,24 @@ milestone opens:**
 - [ ] **A template snapshotted at one document version still instantiates after
       the AST has moved** — ADR-038's versioning is exercised by link 10 rather
       than assumed by it, with a test that pins an older version and renders it.
-- [ ] **Adding a filter dimension cannot be silently ignored.** The
+- [x] **Adding a filter dimension cannot be silently ignored.** *(Ticked 2026-09-24, T02 on PR #221: `narrow` is total through a compile-checked `NARROWS` record, `optionsFor` and the page-document switches end in `never`, and KI-2026-09-05-h is resolved with its proof line.)* The
       `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
       control and dropped by `narrow` — fails before the change and passes after,
       and the entry moves to `resolved/` with its proof line. *(Added 2026-09-18
       with the filtering work; a control that says narrowed while the widget
       renders wide is the defect, not the feature.)*
+- [ ] **The external-data ADR is accepted before any external-data code lands**,
+      and it answers the widget brainstorm's §5 seven points. *(Link 11, added 2026-09-24.)*
+- [ ] **Weather renders in all four date-driven modes**, each naming its mode in
+      words, with MET Norway's attribution on the block, an as-of time, and a quiet
+      `unavailable` placeholder when the source is down. That state is proved with a
+      failing port stub, not by assertion.
+- [ ] **The other six link-11 widgets ship and resolve against a real trip**: trip
+      strip, still to book (reading `needsBooking`, not a second rule), sunrise /
+      sunset, time difference from home, know before you go, spend by day. The route
+      map block follows once M24's legs exist.
+- [ ] **Charts go through the one adopted chart component**, and none carries a
+      colour or font outside the design-system tokens.
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.
@@ -656,7 +886,8 @@ what the session already carries (name, email) and says so.
 larger architectural lift and this milestone is long. Nothing in §7 reads a
 realtime transport.
 
-**A decision on external calendar sync** — see the second bullet under Scope.
+~~**A decision on external calendar sync**~~ — **taken 2026-09-24: dropped.** See
+*Decided 2026-09-24* at the top.
 
 ## 2026-09-19 — what the design-parity survey found in the Notebook, and routed here
 
@@ -724,6 +955,15 @@ in this repo's own hands.
    and **Remove**. The panel renders one selected widget with binds and a static
    *Reads as* preview; there is no numbering, no multi-entry, and no Wording or
    Remove control anywhere.
+
+   **Three of the five closed 2026-09-24 (T12):** one entry per widget of the
+   selected block, numbered to match the handles in the text, and a **Remove**
+   per entry. **Tag filters** were already there as the `tags` bind select of any
+   widget that declares the dimension; the design's chip row for them was not
+   built. **Wording is still open, and it is not a panel ticket.** The design
+   shows it only for a block with authored wording (`hasWording: !!b.editRow`),
+   which means the repeat template, and that is item 3 below. When that template
+   exists, its Wording button belongs in the entry beside Remove.
 3. **§18's author-supplied repeat template is the one real catalogue hole left.**
    The repeat shape renders resolver-supplied rows, not an authored sentence.
    That needs a macro param schema for the template, and it is the *"one new
@@ -743,6 +983,9 @@ in this repo's own hands.
   *"that day was removed"* printed into the document. The count itself already
   exists — `phoneAskContext.ts:191` spends `page.unsetUpWidgets` on a phone
   quick-ask — so the page-top line is cheap once the rule is settled.
+  **ANSWERED 2026-09-24 (Mitchell): ghosts in Editing only; Reading keeps the
+  current placeholder label, and there is no page-top line.** See *Decided
+  2026-09-24* at the top.
 - **What do the Save-a-day dialog's four *Include* chips do to the snapshot?**
   `specs/save-a-day-as-a-playbook.md` says that in the design *"these only
   toast"* and asks the question outright; the built dialog carries no such chip
@@ -758,7 +1001,9 @@ activity to a person. That blocks SPEC §18's two person widgets and is **M13
 link 5's field** (see that milestone's 2026-09-19 note, which lists all three
 consumers together). `days` and `trip` map to no dimension either and are
 called *dead vocabulary* by `KI-20260905-i` — **keep-or-retire is a decision
-this milestone should make**, since it owns the vocabulary.
+this milestone should make**, since it owns the vocabulary. **Made 2026-09-24:
+both retired** (`person` stays, pending M13/M19's field). See *Decided
+2026-09-24* at the top.
 
 ### One place the design is behind the build
 
@@ -778,12 +1023,13 @@ gating**. Each entry's own **Milestone:** line points back here.
 
 | KI | What it is | Gate? |
 |---|---|---|
-| KI-2026-09-05-h | `narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default | **gate box** |
+| ~~KI-2026-09-05-h~~ | ~~`narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default~~ — **resolved 2026-09-24 (T02)**: a `NARROWS` record beside `narrow`, a mapped `WidgetFilterValues`, and `never` defaults in `optionsFor`, `serializePageNode` and `ReadOnlyPageDoc`. A probe dimension now fails to compile, and a sweep over `FilterDimension.options` covers the runtime path | **gate box** |
 | KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | carried |
 | ~~KI-2026-09-15-b~~ | ~~The phone Notebook insert e2e spec intermittently finds the widget bound to "All days"~~ — **resolved 2026-09-24**: the spec waited for any PATCH and caught the unchanged save a mode switch sent (fixed in `PageEditor`), then reloaded over the insert's pending save | — |
-| KI-2026-09-24-g | An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it | carried |
+| ~~KI-2026-09-24-g~~ | ~~An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it~~ — **resolved 2026-09-24 (T14)**: the debounce is gone, and the edit session commits on unmount and on `pagehide` instead of cancelling | — |
 | KI-2026-09-20-g | The widget container is built four times and none matches the design | carried |
 | KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
 | KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |
 | KI-2026-09-22-d | An open notebook editor does not show a co-traveller's edit, deliberately, until it can do so safely | carried |
 | KI-2026-09-24-d | The page write check (KI-2026-09-05-g, fixed 2026-09-24) leaves pre-fix wrapped rows unrepaired and `repeat` nodes unchecked; a stored bad widget now blocks autosave | carried |
+| KI-2026-09-24-n | Know before you go: emergency numbers carry no service label; ~45 countries have none recorded | carried |

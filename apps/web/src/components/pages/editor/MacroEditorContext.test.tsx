@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
+import type { Editor } from "@tiptap/react";
 import { winningReport, type SelectedWidget } from "./MacroEditorContext";
 
 const widget = (key: string, name: string): SelectedWidget => ({
   key,
   name,
   params: {},
-  onChange: () => {},
+  // `winningReport` never touches the editor; it picks between reports.
+  editor: {} as Editor,
 });
 
 // **The rule that decides which widget's settings are on screen**, and the one

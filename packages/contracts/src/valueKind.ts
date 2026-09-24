@@ -9,7 +9,18 @@ import type { z } from "zod";
 // Closed on purpose. A generic attribute widget picks a formatter by this and
 // nothing else, so an open string here would be a formatter lookup that can
 // miss at render time — the failure decision 6's "not set up" exists to avoid.
-export const VALUE_KINDS = ["money", "date", "count", "text", "duration"] as const;
+//
+// `enum` and `location` were added for M14's field widget (reviewed
+// 2026-09-24, gap 3): an activity's kind or tag is a closed vocabulary that
+// prints as a label rather than as free text, and a `Location` is an object
+// that prints as a place rather than as any one of its fields.
+//
+// **A list is not a kind.** `cities: string[]` is `text`, and the manifest says
+// `list: true` beside it — derived from the schema being a `ZodArray`, never
+// declared. One list-kind per scalar kind would double this set, and a declared
+// flag is a second fact that can disagree with the schema it describes, which
+// is the drift the WeakMap below exists to avoid.
+export const VALUE_KINDS = ["money", "date", "count", "text", "duration", "enum", "location"] as const;
 export type ValueKind = (typeof VALUE_KINDS)[number];
 
 // One line per field, and the line carries BOTH facts.
@@ -21,14 +32,35 @@ export type ValueKind = (typeof VALUE_KINDS)[number];
 // hand-maintained second list invariant 5 exists to forbid, and it would drift
 // from the schema the first time a field was renamed.
 //
-// `.describe()` is still what carries the label, so a field annotated the old
-// way keeps its label and simply has no kind. That is deliberate: it degrades
-// to "listed but not printable" rather than to "silently absent".
-const KINDS = new WeakMap<object, ValueKind>();
+// **The label rides in the WeakMap too, and this map — not `.describe()` — is
+// the manifest's opt-in** (M14 T06). `.describe()` is also the OpenAPI text of
+// every public-API schema, so gating on it let API wording reach the picker
+// and made a field described for the API alone a published one. `described()`
+// still calls `.describe(label)`: that clone is what gives the WeakMap a key of
+// its own (annotating a shared `ActivityTag` in place would annotate it
+// everywhere), and `TripGlobals` is served by the public API, whose generated
+// document carries these labels today.
+//
+// No kind means a collection — see `describedCollection`.
+export interface Annotation {
+  kind?: ValueKind;
+  label: string;
+}
+const ANNOTATIONS = new WeakMap<object, Annotation>();
 
 export function described<T extends z.ZodTypeAny>(kind: ValueKind, label: string, schema: T): T {
   const annotated = schema.describe(label) as T;
-  KINDS.set(annotated, kind);
+  ANNOTATIONS.set(annotated, { kind, label });
+  return annotated;
+}
+
+/**
+ * Publish an array of objects as a collection: walked for its members' own
+ * `described()` fields, never printed itself, so it takes a label and no kind.
+ */
+export function describedCollection<T extends z.ZodArray<z.AnyZodObject>>(label: string, schema: T): T {
+  const annotated = schema.describe(label) as T;
+  ANNOTATIONS.set(annotated, { label });
   return annotated;
 }
 
@@ -50,8 +82,14 @@ export function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   }
 }
 
+/** The kind `described()` attached, or `undefined` for a bare `.describe()` or a collection. */
+export function valueKindOf(schema: object): ValueKind | undefined {
+  return annotationOf(schema)?.kind;
+}
+
 /**
- * The kind `described()` attached, or `undefined` for a bare `.describe()`.
+ * What `described()` or `describedCollection()` recorded, or `undefined` for a
+ * bare `.describe()` — the manifest's opt-in and its label, in one lookup.
  *
  * **It walks wrappers, and reading only the outer schema was a real bug.** The
  * kind is attached to the exact object `described()` returned, so a normal later
@@ -65,15 +103,15 @@ export function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
  * Checked at every level rather than only at the bottom, so both orders work —
  * `described(...).nullable()` and `described(kind, label, z.string().nullable())`.
  */
-export function valueKindOf(schema: object): ValueKind | undefined {
-  const own = KINDS.get(schema);
+export function annotationOf(schema: object): Annotation | undefined {
+  const own = ANNOTATIONS.get(schema);
   if (own !== undefined) return own;
   let current = schema as z.ZodTypeAny;
   for (;;) {
     const def = current._def as { innerType?: z.ZodTypeAny } | undefined;
     if (!def?.innerType) return undefined;
     current = def.innerType;
-    const kind = KINDS.get(current);
-    if (kind !== undefined) return kind;
+    const note = ANNOTATIONS.get(current);
+    if (note !== undefined) return note;
   }
 }

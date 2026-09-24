@@ -1,10 +1,12 @@
 "use client";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { getMacro, getPreset, presetParams } from "@tc/pages";
+import { fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DaysFilter, daysSummary } from "./DaysFilter";
+import { FieldPicker } from "./FieldPicker";
+import { FieldColumns } from "./FieldColumns";
 
 // Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
@@ -28,18 +30,11 @@ import { DaysFilter, daysSummary } from "./DaysFilter";
 // Nothing here writes to a document. Callers own that: the chrome row writes
 // node attrs, the insert sheet builds params for `insertWidget`.
 
-// Which of a widget's declared filters this app can render a control for.
-//
-// **`person` is filtered out, and it is the only one.** ADR-039 decision 7
-// declares the dimension and says plainly that it cannot resolve: `TripMember`
-// is `{ userId, role }` with no display name, so an option list built today
-// would show ids, and no stop carries a person at all, so the filter would have
-// nothing to narrow by. A control here would be a choice that changes nothing
-// except turning the widget into "needs a person field". The vocabulary exists
-// so the shape is settled; the control arrives with M13 `add-stop-who` / M19
-// link 3.
+// Which of a widget's declared filters this app can render a control for: all
+// of them, with `day` and `dates` as one. There is no `person` input to leave
+// out any more — it was retired from `WidgetInput` (M14 decision 5).
 export function bindableInputs(name: string): readonly WidgetInput[] {
-  return collapseDays((getMacro(name)?.inputs ?? []).filter((i) => i.type !== "person"));
+  return collapseDays(getMacro(name)?.inputs ?? []);
 }
 
 /**
@@ -142,7 +137,7 @@ export function optionsFor(
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
-): readonly { value: string; label: string }[] {
+): readonly { value: string; label: string; group?: string }[] {
   const bound = params[input.name];
   switch (input.type) {
     // Reachable only for a primitive that declares `day` WITHOUT `dates`, which
@@ -173,7 +168,7 @@ export function optionsFor(
         // up in this select the day it exists.
         ...withBound(ActivityKind.options, bound).map((kind) => ({ value: kind, label: kind })),
       ];
-    default:
+    case "tags":
       return [
         { value: "", label: "Every stop" },
         // The trip's tags in use, plus whatever this widget is already bound to.
@@ -185,6 +180,28 @@ export function optionsFor(
           label: tag,
         })),
       ];
+    // The manifest's published fields for `of`, by label and grouped, for
+    // `FieldPicker`. **No "All" row**: there is no every-field, so an unset one
+    // is a widget with nothing to read (`unbound("field")`), not the widest
+    // answer. A stored path the manifest no longer publishes stays visible
+    // under a label that says so — never under the path itself (ADR-037 oq4),
+    // since it is checked at resolve time and can outlive its field.
+    case "field": {
+      const choices = fieldChoices(input.of).map((c) => ({ value: c.path, label: c.label, group: c.group }));
+      const stale = typeof bound === "string" && bound !== "" && !choices.some((c) => c.value === bound);
+      return stale ? [...choices, { value: bound, label: "A field that is no longer offered" }] : choices;
+    }
+    // No select, so no options: `dates` is `DaysFilter`'s whole control. Before
+    // it was named, it fell into a `default:` that offered the TAG list, and so
+    // would any input type added later (KI-2026-09-05-h).
+    case "dates":
+      return [];
+    default: {
+      // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
+      // fails to compile here until someone decides what its control offers.
+      const exhaustive: never = input;
+      return exhaustive;
+    }
   }
 }
 
@@ -210,6 +227,21 @@ export function withBinding(
   return merged;
 }
 
+// A `multiple` field input's stored list, read as `withList` writes it. Anything
+// else stored there reads as no columns rather than as a crash.
+function listOf(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
+}
+
+// `withBinding` for a list: merge, and an empty list deletes the key so `{}`
+// stays the one spelling of "nothing chosen".
+function withList(params: Record<string, unknown>, input: WidgetInput, next: string[]): Record<string, unknown> {
+  const merged = { ...params };
+  if (next.length === 0) delete merged[input.name];
+  else merged[input.name] = next;
+  return merged;
+}
+
 /**
  * What this widget is showing, as one line — §19's button label.
  *
@@ -218,7 +250,8 @@ export function withBinding(
  * declares up to five controls, so listing every one would give a phone button
  * reading *"All days → All cities → Every stop → Any kind → All dates"* — five
  * words for "everything", on a 44px control. The unset ones are exactly the
- * ones with nothing to say.
+ * ones with nothing to say. Except a single `field`: unset, it is "choose a
+ * field", because there is no every-field for "everything" to mean.
  *
  * `null` for a widget that declares no filters at all: there is no button to
  * label, and rendering "Showing everything" would be purposeless UI (project
@@ -232,6 +265,12 @@ export function bindSummary(
   inputs: readonly WidgetInput[] = bindableInputs(name),
 ): string | null {
   if (inputs.length === 0) return null;
+  // An unset single field is no answer at all rather than the widest one — the
+  // widget renders `unbound("field")` whatever else is bound — so the summary
+  // says what the widget says. Columns are different: none is a real value.
+  if (inputs.some((i) => i.type === "field" && !i.multiple && valueOf(i, params, detail) === "")) {
+    return "choose a field";
+  }
   const bound = inputs
     .map((input) => {
       if (input.type === "dates") {
@@ -266,6 +305,12 @@ export function bindSummary(
  * `inputs` is passed in rather than looked up, because the insert step binds a
  * PRESET and a preset offers only the dimensions its name has not already
  * answered (`presetBindableInputs`).
+ *
+ * `title` names the controls, and defaults to the widget's own title. The
+ * settings panel passes a NUMBERED one when a sentence holds two widgets (§26):
+ * "We land in {city} and fly home from {city}" is two widgets both called "The
+ * cities", and two controls with one accessible name are one control to a
+ * screen reader — the number is what tells them apart for everyone else.
  */
 export function WidgetBindControls({
   name,
@@ -276,6 +321,7 @@ export function WidgetBindControls({
   layout,
   idPrefix,
   inputs = bindableInputs(name),
+  title: titleOverride,
 }: {
   name: string;
   params: Record<string, unknown>;
@@ -285,14 +331,41 @@ export function WidgetBindControls({
   layout: "inline" | "stacked";
   idPrefix: string;
   inputs?: readonly WidgetInput[];
+  title?: string;
 }) {
-  const title = getMacro(name)?.title ?? name;
-
+  const title = titleOverride ?? getMacro(name)?.title ?? name;
+  // A stacked select is otherwise named by its visible `FormField` label alone
+  // ("Tags"), which is unique only while the panel holds one widget.
+  const namedByTitle = layout === "inline" || titleOverride !== undefined;
   return (
     <>
       {inputs.map((input) => {
         const control =
-          input.type === "dates" ? (
+          input.type === "field" && input.multiple ? (
+            // A LIST of fields, one per column (`stop.rows`' `columns`). Each
+            // picker reads `optionsFor` as the single one does, so a stale path
+            // keeps its "no longer offered" row.
+            <FieldColumns
+              id={`${idPrefix}-${input.name}`}
+              name={(part) => (namedByTitle ? `${title}: ${part}` : part.charAt(0).toUpperCase() + part.slice(1))}
+              value={listOf(params[input.name])}
+              optionsOf={(path) => optionsFor(input, { [input.name]: path }, detail, globals)}
+              onChange={(next) => onChange(withList(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "field" ? (
+            // Searchable, because a manifest root lists more fields than a
+            // select can be read down comfortably, and it grows with every
+            // annotation. Same options as the summary line reads.
+            <FieldPicker
+              id={`${idPrefix}-${input.name}`}
+              label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              options={optionsFor(input, params, detail, globals)}
+              value={valueOf(input, params, detail)}
+              onChange={(next) => onChange(withBinding(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "dates" ? (
             <DaysFilter
               params={params}
               detail={detail}
@@ -304,7 +377,7 @@ export function WidgetBindControls({
           ) : (
             <NativeSelect
               id={`${idPrefix}-${input.name}`}
-              aria-label={layout === "inline" ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              aria-label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
               className={layout === "inline" ? "h-7 py-0 text-xs" : "min-h-11 w-full"}
               value={valueOf(input, params, detail)}
               onChange={(e) => onChange(withBinding(params, input, e.target.value))}

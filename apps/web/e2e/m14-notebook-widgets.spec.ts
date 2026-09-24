@@ -32,9 +32,8 @@ async function waitForConfirmedCommand(page: Page, action: () => Promise<unknown
   ]);
 }
 
-// The autosave is debounced, so an assertion made straight after a click can
-// pass on the optimistic DOM and still describe a document that never reached
-// the server. Every write below goes through this.
+// A RENAME writes at once, so an assertion made straight after it can pass on
+// the optimistic DOM and still describe a title that never reached the server.
 async function waitForPageSaved(page: Page, action: () => Promise<unknown>): Promise<void> {
   await Promise.all([
     page.waitForResponse(
@@ -42,6 +41,15 @@ async function waitForPageSaved(page: Page, action: () => Promise<unknown>): Pro
     ),
     action(),
   ]);
+}
+
+// **The document writes once, when the edit session ends** (ADR-036, M14
+// link 9) — not per insert or per pick, as the 800ms autosave did. So inside a
+// session there is nothing to wait for, and "it is saved" means leaving Editing
+// and seeing that one PATCH land. Every reload that checks a round trip is
+// preceded by this.
+async function finishEditing(page: Page): Promise<void> {
+  await waitForPageSaved(page, () => page.getByRole("button", { name: "Done editing" }).click());
 }
 
 async function openNotebookIndex(page: Page): Promise<void> {
@@ -201,7 +209,7 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   if (search !== undefined) {
     await page.getByRole("searchbox", { name: "Search widgets" }).fill(search);
   }
-  await waitForPageSaved(page, () => list.getByRole("button", { name }).click());
+  await list.getByRole("button", { name }).click();
   // **The rail does NOT close behind the insert** — it has nothing to close.
   // What changes is the column's state: inserting selects what it inserted
   // (§26), so the settings take the column and the rail is out of view until
@@ -338,13 +346,12 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   await expect(days).toHaveText("All days");
   await expect(page.getByText("no day set")).toHaveCount(0);
   await days.click();
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
   await page.keyboard.press("Escape");
 
   // The whole point: reload and the binding is still there. The unit tests
   // assert the PATCH body; only this asserts the round trip.
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // Reading is the default, so no widget control is on screen until Editing —
@@ -434,9 +441,7 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // open at the moment it lands, and that is when it gets pointed.
   const bindSelectedTo = async (control: RegExp, day: RegExp) => {
     await settingsPanel(page).getByRole("button", { name: control }).click();
-    await waitForPageSaved(page, () =>
-      page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
-    );
+    await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click();
     await page.keyboard.press("Escape");
   };
 
@@ -450,6 +455,7 @@ test("two widgets on one page read two different days", async ({ page }) => {
     settingsPanel(page).getByRole("button", { name: /The days in detail: dates/ }),
   ).toHaveText("2027-06-02");
 
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // Each widget kept ITS OWN binding, which is the assertion an aggregated
@@ -471,6 +477,107 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // round trip would make the second one wide too, and this line is what
   // notices.
   await expect(page.getByText("no days yet")).toBeVisible();
+});
+
+test("two widgets in ONE sentence read two different days, and each rebinds on its own", async ({ page }) => {
+  // The M14 gate box *"And two widgets in the SAME BLOCK read two different
+  // days"*, in its own words: "We land on Day 1 in Tokyo and by Day 9 we are in
+  // Kyoto" is one paragraph holding two day-bound widgets. SPEC §26: the panel
+  // shows one entry per widget of the block, numbered to match the marks in the
+  // text, and never a single aggregated control — ADR-037 open question 1, as
+  // Mitchell settled it.
+  //
+  // `city` rather than `dates`, because it is the sentence the gate names and
+  // because a city pointed at a day is a value the day actually decides: wide it
+  // reads "Tokyo – Kyoto", and each binding narrows it to a different word.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  // Nine days, so "Day 9" in the sentence is a day the trip has. Through the
+  // API: adding them is not what this walk is about.
+  for (let i = 0; i < 7; i++) {
+    const added = await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: { type: "AddDay", tripId, dayId: crypto.randomUUID() },
+    });
+    expect(added.ok()).toBe(true);
+  }
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  expect(trip.days).toHaveLength(9);
+  // A day's city is derived from the stops on it, so each end of the sentence
+  // gets one.
+  await addStopViaApi(page, tripId, "Landing at Haneda", {
+    dayId: trip.days[0]!.dayId,
+    location: { name: "Haneda", city: "Tokyo" },
+  });
+  await addStopViaApi(page, tripId, "Fushimi Inari", {
+    dayId: trip.days[8]!.dayId,
+    location: { name: "Fushimi Inari", city: "Kyoto" },
+  });
+
+  await openSeededPage(page);
+
+  // Writing the sentence, the way a person does: type, insert at the caret,
+  // type on after it, insert again. A fresh paragraph under the first heading,
+  // so nothing the template seeded shares the block.
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("We land on Day 1 in ");
+  await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
+  await railList(page).getByRole("button", { name: /Which cities/ }).click();
+  const sentence = page.locator(".tc-page-editor p", { hasText: "We land on Day 1 in" });
+  await expect(sentence.locator('[data-macro-name="city"]')).toHaveCount(1);
+
+  // Back into the sentence after the widget. The click lands in the empty part
+  // of the line, which ProseMirror puts at the end of the paragraph — and a
+  // caret there is a text selection, so the column returns to the rail.
+  await sentence.click({ position: { x: (await boxOf(sentence)).width - 4, y: 4 } });
+  await page.keyboard.press("End");
+  await expect(settingsPanel(page)).toHaveCount(0);
+  await page.keyboard.type(" and by Day 9 we are in ");
+  await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
+  await railList(page).getByRole("button", { name: /Which cities/ }).click();
+  await expect(sentence.locator('[data-macro-name="city"]')).toHaveCount(2);
+  const [first, second] = [sentence.locator('[data-macro-name="city"]').nth(0), sentence.locator('[data-macro-name="city"]').nth(1)];
+
+  // Inserting selected the second widget, and the panel holds the SENTENCE:
+  // two entries, numbered, and the same numbers on the widgets in the text.
+  const one = settingsPanel(page).getByRole("region", { name: "1 · The cities" });
+  const two = settingsPanel(page).getByRole("region", { name: "2 · The cities" });
+  await expect(one).toBeVisible();
+  await expect(two).toBeVisible();
+  await expect(first.getByTestId("widget-handle")).toHaveText("▸1");
+  await expect(second.getByTestId("widget-handle")).toHaveText("▸2");
+  // Both land wide — the whole trip's cities.
+  await expect(first).toContainText("Kyoto");
+  await expect(second).toContainText("Kyoto");
+
+  // Entry 1 to Day 1. Only widget 1 narrows: widget 2 is still wide, which is
+  // exactly what an aggregated control would have changed.
+  await one.getByRole("button", { name: "1 · The cities: dates" }).click();
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 1\b/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(first).not.toContainText("Kyoto");
+  await expect(first).toContainText("Tokyo");
+  await expect(second).toContainText("Kyoto");
+  await expect(second).toContainText("Tokyo");
+
+  // Entry 2 to Day 9 — from the same panel, without reselecting anything — and
+  // widget 1 keeps the day it was just given.
+  await two.getByRole("button", { name: "2 · The cities: dates" }).click();
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 9\b/ }).click();
+  await page.keyboard.press("Escape");
+  await expect(second).not.toContainText("Tokyo");
+  await expect(first).not.toContainText("Kyoto");
+
+  // What persisted, read in Reading after a reload: the gate's sentence, with
+  // each widget resolved against its own day.
+  await finishEditing(page);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await expect(page.locator(".tc-page-editor p", { hasText: "We land on Day 1 in" })).toHaveText(
+    /^We land on Day 1 in\s*Tokyo\s*and by Day 9 we are in\s*Kyoto\s*$/,
+  );
 });
 
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
@@ -548,6 +655,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(rows.nth(0)).toContainText("Day 1");
   await expect(rows.nth(1)).toContainText("Day 2");
 
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which
@@ -612,12 +720,10 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // and both were right: a test that never exercises the second input cannot
   // witness the second input clobbering the first.
   await days.click();
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
   await page.keyboard.press("Escape");
   await expect(days).not.toHaveText("All days");
-  await waitForPageSaved(page, () => tags.selectOption("meal"));
+  await tags.selectOption("meal");
   await expect(tags).toHaveValue("meal");
   // The days binding is still there AFTER the tag was set. This is the
   // assertion the whole widget exists to make possible.
@@ -634,15 +740,16 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // reduces to is the geocoder's business, not this test's.
   // Index 1 is the first real city — index 0 is "All cities", the unbound
   // answer every filter control leads with (ADR-039 decision 2).
-  await waitForPageSaved(page, () => cities.selectOption({ index: 1 }));
+  await cities.selectOption({ index: 1 });
   await expect(cities).not.toHaveValue("");
-  await waitForPageSaved(page, () => kinds.selectOption("booked"));
+  await kinds.selectOption("booked");
   await expect(kinds).toHaveValue("booked");
   // Every earlier binding still standing after the last one was set — the
   // replace-instead-of-merge failure, checked at the widest point.
   await expect(tags).toHaveValue("meal");
   await expect(days).not.toHaveText("All days");
 
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
@@ -710,9 +817,7 @@ test("a block widget's bindings are reachable by keyboard, not only by hover", a
   await days.press("Enter");
   // The day list itself is a portalled dialog, not part of the popover, so
   // clicking in it says nothing about the reveal either way.
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
   await page.keyboard.press("Escape");
   await expect(days).toHaveText("2027-06-02");
 });
@@ -774,7 +879,13 @@ async function addStopViaApi(
   page: Page,
   tripId: string,
   title: string,
-  extra: { dayId?: string; timeWindow?: { start: string; end: string } } = {},
+  extra: {
+    dayId?: string;
+    timeWindow?: { start: string; end: string };
+    location?: { name: string; city: string };
+    cost?: { amountMinor: number; currency: string };
+    kind?: string;
+  } = {},
 ): Promise<void> {
   const response = await page.request.post(`/api/trips/${tripId}/commands`, {
     data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title, ...extra },
@@ -830,7 +941,7 @@ test("the bindings of the last widget in a page are reachable, not clipped by th
   await page.keyboard.press("Enter");
   const list = railList(page);
   await expect(list).toBeVisible();
-  await waitForPageSaved(page, () => list.getByRole("button", { name: /The days, in detail/ }).click());
+  await list.getByRole("button", { name: /The days, in detail/ }).click();
 
   // Inserting selects what it inserted (§26), so the panel is already showing
   // the widget that just landed at the end of the document.
@@ -1093,7 +1204,7 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
     const list = railList(page);
     await expect(list).toBeVisible();
     await page.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
-    await waitForPageSaved(page, () => list.getByRole("button", { name: /The dates/ }).click());
+    await list.getByRole("button", { name: /The dates/ }).click();
   };
 
   // **The walk makes its own empty paragraph, because the seeded page has none
@@ -1366,4 +1477,50 @@ test("a long value does not squeeze a repeat table's lead column to nothing", as
     geometry.height,
     `the lead wrapped: ${geometry.height}px tall for one line of ${geometry.line}px ("${geometry.text}")`,
   ).toBeLessThan(geometry.line * 2);
+});
+
+test("a field the reader picks prints in a sentence, and joins a stop list as a column", async ({ page }) => {
+  // M14 field widget, build step 6 — Mitchell's answer 4: *"inline first: a
+  // field chip inside a sentence. The repeat shape follows: a field as a
+  // column"*. Both are chosen from the manifest by label; nobody types a path.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  // One stop, so the field widget reads one value — and a cost the seeded
+  // Overview's own `cost` also prints, which is why every read below is
+  // scoped to a widget rather than to the page.
+  await addStopViaApi(page, tripId, "Tram tour", { cost: { amountMinor: 4200, currency: "USD" }, kind: "booked" });
+  await openSeededPage(page);
+
+  // It lands asking for a field — there is no "every field" to default to.
+  // `toContainText` while Editing: the widget's handle (`▸`) is in its text.
+  await insertFromList(page, /A stop's detail/, "detail");
+  const fieldWidget = page.locator('[data-macro-name="field"]');
+  await expect(fieldWidget).toContainText("choose a field");
+
+  const picker = settingsPanel(page).getByRole("combobox", { name: "Field" });
+  await picker.click();
+  await picker.fill("cost");
+  await page.getByRole("option", { name: "Cost", exact: true }).click();
+  await expect(fieldWidget).toContainText("$42.00");
+  await expect(fieldWidget).not.toContainText("choose a field");
+
+  // The same field vocabulary, as a column on a stop list.
+  await insertFromList(page, /A line for every stop/, "every stop");
+  const addColumn = settingsPanel(page).getByRole("combobox", { name: "Add a column" });
+  await addColumn.click();
+  await addColumn.fill("status");
+  await page.getByRole("option", { name: "Status", exact: true }).click();
+  await expect(settingsPanel(page).getByRole("combobox", { name: "Column 1" })).toHaveValue("Status");
+
+  const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) });
+  await expect(table.getByRole("row").filter({ hasText: "Tram tour" })).toContainText("booked");
+
+  // And both survive the round trip, read in Reading where no control exists.
+  await finishEditing(page);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await expect(page.locator('[data-macro-name="field"]')).toHaveText("$42.00");
+  await expect(
+    page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) }).getByRole("row").filter({ hasText: "Tram tour" }),
+  ).toContainText("booked");
 });

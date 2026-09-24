@@ -1,6 +1,23 @@
 import { z } from "zod";
 import { describe, expect, it } from "vitest";
-import { AttributeEntry, AttributeRef, buildAttributeManifest, described, TripGlobals, valueKindOf } from "../src";
+import {
+  ActivityKind,
+  ActivityTag,
+  annotationOf,
+  AttributeEntry,
+  AttributeFieldRef,
+  AttributeRef,
+  buildAttributeManifest,
+  described,
+  HIDDEN_STOP_FIELDS,
+  Location,
+  MANIFEST_OBJECTS,
+  MANIFEST_ROOTS,
+  Money,
+  TripGlobals,
+  unwrapSchema,
+  valueKindOf,
+} from "../src";
 
 describe("the attribute manifest", () => {
   it("lists the trip's collections with the fields readable off each member", () => {
@@ -59,7 +76,7 @@ describe("the attribute manifest", () => {
   // reflects it, which is exactly "a developer adding an attribute gets it for
   // free" — proved against the real root rather than a stand-in.
 
-  it("lists exactly the root's described fields — add one and it is published, with no other edit", () => {
+  it("lists exactly the roots' annotated fields — add one and it is published, with no other edit", () => {
     // The failure this prevents: `TripDetail` carries `dismissedConflictIds`,
     // `forkedFrom` and internal uuids. If exposure were opt-OUT, every future
     // contract field would be published into a user-facing picker until someone
@@ -71,39 +88,204 @@ describe("the attribute manifest", () => {
         for (const f of entry.fields) expect(f.label).toBeTruthy();
       }
     }
-    // Every entry corresponds to a described field on the root, and nothing
-    // else on the root is missing from it — the two sets agree exactly.
-    const described = Object.entries(TripGlobals.shape)
-      .filter(([, s]) => (s as z.ZodTypeAny).description !== undefined)
-      .map(([k]) => k)
+    // Every entry corresponds to an annotated field on a root, and nothing
+    // annotated on a root is missing from it — the two sets agree exactly.
+    // "Annotated" is what `described()` or `describedCollection()` recorded; a
+    // bare `.describe()` does not count, which is the gate pinned below.
+    // `HIDDEN_STOP_FIELDS` is empty, so nothing is subtracted for it.
+    const annotated = Object.entries(MANIFEST_ROOTS)
+      .flatMap(([object, roots]) => roots.flatMap((root) => Object.entries(root.shape as z.ZodRawShape)
+        .filter(([, s]) => annotationOf(s) !== undefined)
+        .map(([k]) => `${object}.${k}`)))
       .sort();
-    const listed = manifest.map((e) => (e.kind === "collection" ? e.collection : e.field)).sort();
-    expect(listed).toEqual(described);
+    const listed = manifest.map((e) => `${e.object}.${e.kind === "collection" ? e.collection : e.field}`).sort();
+    expect(listed).toEqual(annotated);
+    expect(listed.length, "the witness: an empty manifest agrees with an empty root").toBeGreaterThan(10);
   });
 
   it("walks only the declared roots, never the whole contracts package", () => {
     // There is no "walk everything" entry point, so this asserts the shape of
-    // what came back rather than the absence of a call: every entry is the trip.
-    for (const entry of buildAttributeManifest()) expect(entry.object).toBe("trip");
+    // what came back rather than the absence of a call: every entry is one of
+    // the declared objects.
+    for (const entry of buildAttributeManifest()) expect(MANIFEST_OBJECTS).toContain(entry.object);
+  });
+
+  it("never lets two schemas under one object claim the same field name", () => {
+    // `trip` is read off two schemas — the delivered globals and the facts
+    // `attribute` reads. A key on both would publish two entries with one
+    // path, and a stored `trip.<key>` could not say which it meant.
+    for (const [object, roots] of Object.entries(MANIFEST_ROOTS)) {
+      const keys = roots.flatMap((root) => Object.keys(root.shape));
+      expect(new Set(keys).size, object).toBe(keys.length);
+    }
+  });
+});
+
+// ADR-037 open question 4 made `.describe()` the opt-in, and `.describe()` is
+// ALSO the OpenAPI text of every public-API schema (`zod-to-json-schema` reads
+// it). One call with two meanings let API wording reach the picker, and made a
+// field described for the API alone a published one. M14 T06 moved the gate to
+// the annotation `described()` records; `.description` decides nothing here.
+describe("the opt-in gate is described(), not .describe()", () => {
+  it("reads the picker's label from the annotation, not from a later .describe()", () => {
+    const schema = described("text", "Picker label", z.string()).nullable().describe("API wording");
+    expect(annotationOf(schema)?.label).toBe("Picker label");
+    expect(annotationOf(z.string().describe("API wording"))).toBeUndefined();
+  });
+});
+
+// M14 field widget, build step 2: the stop's fields become pickable.
+describe("the stop root", () => {
+  const stopFields = (manifest = buildAttributeManifest()) =>
+    manifest.flatMap((e) => (e.object === "stop" && e.kind === "value" ? [e.field] : []));
+
+  it("publishes the stop fields a reader may pick", () => {
+    expect(stopFields()).toEqual(["title", "location", "notes", "kind", "tags", "cost"]);
+  });
+
+  it("never publishes a field holding user ids", () => {
+    // `bookedBy` and `participants` are member user ids (M13 link 5). A page is
+    // a shared document, so an id printed into it is handed to everyone who can
+    // read the page — and `person` is out of M14 (Decided 2026-09-24, item 5).
+    const published = stopFields();
+    expect(published.length, "the witness").toBeGreaterThan(0);
+    for (const field of ["bookedBy", "participants"]) expect(published).not.toContain(field);
+  });
+
+  it("hides a field named on the exclusion list, and nothing else", () => {
+    expect(stopFields(buildAttributeManifest(["cost"]))).toEqual(["title", "location", "notes", "kind", "tags"]);
+    expect(HIDDEN_STOP_FIELDS).toEqual([]);
+    // Typed over the snapshot's keys, so a renamed field fails the build rather
+    // than silently un-hiding. `tsc` is the assertion on this line.
+    // @ts-expect-error — not a field of ActivitySnapshot
+    buildAttributeManifest(["titel"]);
+  });
+});
+
+// T05 found a kind is accepted whatever the schema under it — `enum` on a
+// string, `location` on any object — and a formatter chosen by kind then meets
+// a value it cannot print. Checked over the manifest, since that is every field
+// a formatter will ever be handed.
+describe("a value kind fits the schema it labels", () => {
+  const fits = (kind: string, schema: z.ZodTypeAny): boolean => {
+    let inner = unwrapSchema(schema);
+    if (inner instanceof z.ZodArray) inner = unwrapSchema(inner.element as z.ZodTypeAny);
+    switch (kind) {
+      case "text":
+      case "date":
+        return inner instanceof z.ZodString;
+      case "count":
+      case "duration":
+        return inner instanceof z.ZodNumber;
+      case "money":
+        // Two shapes today: an integer in the trip's currency (`costSubtotal`)
+        // and a stop's own `Money`, which carries its currency.
+        return inner instanceof z.ZodNumber || (inner instanceof z.ZodObject && inner.shape === Money.shape);
+      case "enum":
+        return inner instanceof z.ZodEnum;
+      case "location":
+        // `Location` is a refined object, so `described()`'s clone of it is a
+        // ZodEffects sharing the original's inner schema.
+        return inner instanceof z.ZodEffects && inner._def.schema === Location._def.schema;
+      default:
+        return false;
+    }
+  };
+
+  const schemaOf = (object: string, name: string, member?: string): z.ZodTypeAny => {
+    const roots: readonly z.AnyZodObject[] = MANIFEST_ROOTS[object as keyof typeof MANIFEST_ROOTS];
+    const field = roots.find((r) => name in r.shape)!.shape[name] as z.ZodTypeAny;
+    if (member === undefined) return field;
+    const element = (unwrapSchema(field) as z.ZodArray<z.AnyZodObject>).element;
+    return element.shape[member] as z.ZodTypeAny;
+  };
+
+  it("rejects the two mismatches T05 found silently accepted", () => {
+    // The sweep below proves nothing unless this check can say no.
+    expect(fits("enum", z.string())).toBe(false);
+    expect(fits("location", z.object({ name: z.string() }))).toBe(false);
+    expect(fits("location", described("location", "Where", Location).nullable())).toBe(true);
+  });
+
+  it("holds for every published field", () => {
+    let checked = 0;
+    for (const entry of buildAttributeManifest()) {
+      if (entry.kind === "value") {
+        checked += 1;
+        expect(fits(entry.valueKind, schemaOf(entry.object, entry.field)), `${entry.object}.${entry.field}`).toBe(true);
+      } else {
+        for (const f of entry.fields) {
+          checked += 1;
+          expect(fits(f.valueKind, schemaOf(entry.object, entry.collection, f.field)), `${entry.collection}.${f.field}`).toBe(true);
+        }
+      }
+    }
+    expect(checked, "the witness").toBeGreaterThan(15);
+  });
+});
+
+// "Distinct" (answer 3) and an enum's formatter both need the vocabulary, and
+// a picker is never handed the schema to read it off.
+describe("an enum field's allowed values", () => {
+  it("are published beside it, element-wise for a list", () => {
+    const manifest = buildAttributeManifest();
+    const value = (field: string) => manifest.find((e) => e.object === "stop" && e.kind === "value" && e.field === field);
+    expect(value("kind")).toMatchObject({ valueKind: "enum", values: ActivityKind.options });
+    expect(value("tags")).toMatchObject({ valueKind: "enum", list: true, values: ActivityTag.options });
+    const tags = manifest.find((e) => e.kind === "collection" && e.collection === "tags");
+    expect(tags?.kind === "collection" && tags.fields.find((f) => f.field === "tag")?.values).toEqual(ActivityTag.options);
+  });
+
+  it("are absent on every field that is not an enum", () => {
+    let checked = 0;
+    for (const entry of buildAttributeManifest()) {
+      for (const f of entry.kind === "value" ? [entry] : entry.fields) {
+        if (f.valueKind === "enum") continue;
+        checked += 1;
+        expect(f, JSON.stringify(f)).not.toHaveProperty("values");
+      }
+    }
+    expect(checked, "the witness").toBeGreaterThan(10);
+  });
+});
+
+// Two vocabularies were one too many (M14 field-widget review): `attribute`
+// read a hand-written enum while the manifest described the same kind of
+// thing. The enum is now the paths of the facts roots, so every field a stored
+// `attribute` widget names is a manifest entry.
+describe("AttributeFieldRef", () => {
+  it("names only fields the manifest publishes", () => {
+    const published = new Set(buildAttributeManifest().flatMap((e) => (e.kind === "value" ? [`${e.object}.${e.field}`] : [])));
+    expect(AttributeFieldRef.options.length, "the witness").toBeGreaterThan(0);
+    for (const path of AttributeFieldRef.options) expect(published, path).toContain(path);
+  });
+
+  it("keeps every name a stored page may already hold", () => {
+    // Stored documents carry these strings; renaming one needs a
+    // PAGE_DOC_MIGRATIONS step, so a change to this list must be deliberate.
+    expect(AttributeFieldRef.options).toEqual([
+      "trip.name",
+      "trip.budgetRemaining",
+      "trip.countdown",
+      "account.name",
+      "account.homeAirport",
+    ]);
   });
 });
 
 describe("AttributeRef", () => {
-  it("accepts a collection lookup and a bare value", () => {
-    expect(AttributeRef.parse({ object: "trip", collection: "cities", key: "Tokyo", field: "activityCount" }))
-      .toEqual({ object: "trip", collection: "cities", key: "Tokyo", field: "activityCount" });
+  it("accepts a collection field, a bare value and a stop field", () => {
+    expect(AttributeRef.parse({ object: "trip", collection: "cities", field: "activityCount" }))
+      .toEqual({ object: "trip", collection: "cities", field: "activityCount" });
     expect(AttributeRef.parse({ object: "trip", field: "bookedCount" }).field).toBe("bookedCount");
+    expect(AttributeRef.parse({ object: "stop", field: "cost" }).object).toBe("stop");
   });
 
-  it("refuses a key that names a member of no collection", () => {
-    // Found by Copilot on PR 134: `collection` and `key` were independently
-    // optional, so a member of nothing parsed cleanly. A format described as
-    // "closed and validated" should not accept a reference with no referent.
-    expect(AttributeRef.safeParse({ object: "trip", key: "Tokyo", field: "bookedCount" }).success).toBe(false);
-    // The two legitimate shapes still parse: a collection member, and a
-    // collection itself with no key.
-    expect(AttributeRef.safeParse({ object: "trip", collection: "cities", key: "Tokyo", field: "activityCount" }).success).toBe(true);
-    expect(AttributeRef.safeParse({ object: "trip", collection: "cities", field: "activityCount" }).success).toBe(true);
+  it("refuses a member key — the item is chosen by the filters, never stored here", () => {
+    // M14 field-widget review, gap 4: `key: "Tokyo"` duplicated the `city`
+    // filter, and in a link-10 template it named a city of some other trip.
+    // Which member is read is the widget's filters plus `narrow`.
+    expect(AttributeRef.safeParse({ object: "trip", collection: "cities", key: "Tokyo", field: "activityCount" }).success).toBe(false);
   });
 
   it("refuses a string expression, which is the point of storing it structured", () => {
@@ -161,6 +343,30 @@ describe("value kinds", () => {
     expect(checked, "no field was inspected").toBeGreaterThan(5);
   });
 
+  // M14's field-widget review (2026-09-24, gap 3): `days.cities` was published
+  // as a scalar "text" and `cities.dayIndexes` as a scalar "count", so a
+  // formatter picked by kind alone would print an array as one string or one
+  // number. The kind names the element; `list` says there are many of them.
+  it("marks an array field as a list of its kind, and leaves a scalar unmarked", () => {
+    const fields = days().fields;
+    expect(fields.find((f) => f.field === "cities")).toEqual({
+      field: "cities",
+      label: "The cities this day touches, in arrival order",
+      valueKind: "text",
+      list: true,
+    });
+    const cities = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "cities");
+    if (!cities || cities.kind !== "collection") throw new Error("cities collection missing");
+    expect(cities.fields.find((f) => f.field === "dayIndexes")).toMatchObject({ valueKind: "count", list: true });
+    expect(fields.find((f) => f.field === "date")).not.toHaveProperty("list");
+  });
+
+  it("labels a closed vocabulary as an enum, not free text", () => {
+    const tags = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "tags");
+    if (!tags || tags.kind !== "collection") throw new Error("tags collection missing");
+    expect(tags.fields.find((f) => f.field === "tag")?.valueKind).toBe("enum");
+  });
+
   it("parses its own output through AttributeEntry", () => {
     // The point of making `AttributeEntry` a schema rather than a bare type
     // (Copilot, PR 134): the builder's output is now checkable, so a malformed
@@ -187,6 +393,15 @@ describe("a value kind through a schema wrapper", () => {
     // The other order, which worked before and must keep working: the kind is
     // on the OUTER object here, and the walk must not skip past it.
     expect(valueKindOf(described("text", "Notes", z.string().nullable()))).toBe("text");
+  });
+
+  it("gives a collection no kind — it is walked for its fields, never printed", () => {
+    // `days`, `cities` and `tags` were each `described("text", …)`, a kind the
+    // manifest silently dropped because a collection entry has nowhere to put
+    // one. A wrong label that nothing reads is still a wrong label.
+    for (const name of ["days", "cities", "tags"] as const) {
+      expect(valueKindOf(TripGlobals.shape[name]), name).toBeUndefined();
+    }
   });
 
   it("answers undefined for a bare describe(), wrapped or not", () => {

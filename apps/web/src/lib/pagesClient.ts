@@ -1,6 +1,7 @@
 import { CreatePageInput, Page, PageSummary, type UpdatePageInput } from "@tc/contracts";
 import { apiUrl, type ApiError, type ApiResult } from "@/lib/apiClient";
 import { beginWrite, endWrite } from "@/lib/queryCache";
+import { fitsKeepalive } from "@/lib/keepalive";
 import { tripKeys } from "@/lib/queryKeys";
 import { inviteLookHeaders } from "@/lib/inviteLook";
 
@@ -49,10 +50,13 @@ function networkError(err: unknown): { ok: false; error: ApiError } {
 // will one day not write.
 
 // Not-ok responses read the same way everywhere: the body's `error` field when
-// there is one, the status text when there is not.
+// there is one, the status text when there is not. `code` when the route sent
+// one: two refusals can share a status and want different handling (a 409
+// `page-changed` must not be retried, a stream conflict may be).
 async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
-  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  const data = (await res.json().catch(() => ({}))) as { error?: string; code?: unknown };
+  const code = typeof data.code === "string" ? { code: data.code } : {};
+  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, ...code } };
 }
 
 /**
@@ -120,6 +124,12 @@ export async function updatePage(
   tripId: string,
   pageId: string,
   patch: UpdatePageInput,
+  /**
+   * `keepalive` for a write sent from `pagehide`, so it outlives the page that
+   * sent it: the end of an edit session on a reload or a closed tab
+   * (`useEditSession`).
+   */
+  options: { keepalive?: boolean } = {},
 ): Promise<ApiResult<Page>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
@@ -128,6 +138,7 @@ export async function updatePage(
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
+      keepalive: options.keepalive === true && fitsKeepalive(patch),
     });
     if (!res.ok) return await refusal(res);
     const data = (await res.json()) as { page: unknown };

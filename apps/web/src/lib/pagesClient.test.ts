@@ -59,6 +59,20 @@ describe("pagesClient", () => {
     expect(result.value.title).toBe("Renamed");
   });
 
+  // The editor tells a stale-save refusal from any other 409 by its code, so
+  // the code has to survive the trip through `refusal`.
+  it("sends expectedUpdatedAt, and reports a stale save by its code", async () => {
+    const page = pageFixture({ tripId: TRIP_ID });
+    server.use(...makePagesHandlers([page]));
+    const stale = await updatePage(TRIP_ID, page.id, { title: "Renamed", expectedUpdatedAt: "2020-01-01T00:00:00.000Z" });
+    expect(stale).toEqual({
+      ok: false,
+      error: { status: 409, message: "This page changed since you opened it.", code: "page-changed" },
+    });
+    const current = await updatePage(TRIP_ID, page.id, { title: "Renamed", expectedUpdatedAt: page.updatedAt });
+    expect(current.ok).toBe(true);
+  });
+
   it("deletes a page", async () => {
     const page = pageFixture({ tripId: TRIP_ID });
     server.use(...makePagesHandlers([page]));

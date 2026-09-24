@@ -1,5 +1,14 @@
+import { FilterDimension } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
-import { cityDayOrdinals, costOfStops, dayIndexOf, narrow, stopsInCity, type Narrowed } from "./select";
+import {
+  cityDayOrdinals,
+  costOfStops,
+  dayIndexOf,
+  narrow,
+  stopsInCity,
+  type Narrowed,
+  type WidgetFilterValues,
+} from "./select";
 import { selectionTrip } from "./test-support/selectionTrip";
 
 // `narrow` is the one place ADR-039's selection is implemented, so it is the one
@@ -134,6 +143,49 @@ describe("narrow — what a filter selects (ADR-039 decisions 1 and 2)", () => {
     // with no city bound, an absent projection costs nothing and the backlog is
     // still selected.
     expect(titles(selected(trip, null, {}))).toContain("Souvenirs");
+  });
+});
+
+describe("narrow — every dimension means something (KI-2026-09-05-h)", () => {
+  // One binding per dimension that the fixture's stops do NOT all share.
+  // `Required<WidgetFilterValues>` is keyed by `FilterDimension`, so a new
+  // dimension fails to compile here until it has a row.
+  const BITES: Required<WidgetFilterValues> = {
+    day: { kind: "index", index: 0 },
+    city: "Rome",
+    tag: "meal",
+    kind: "hold",
+    person: "dev-alice",
+    dates: { from: "2027-06-01", through: "2027-06-01" },
+  };
+
+  it("narrows or refuses for every dimension, never ignores one", () => {
+    // The sweep is over the ENUM, not over this file's table: the runtime half
+    // of the type error in `select.ts`, for a value that reached `narrow`
+    // without passing through the type checker (a stored document, an AI
+    // insert). A dimension `narrow` dropped would select exactly the wide set
+    // under a control saying narrowed — the answer `narrow`'s own comment
+    // calls the worst of three.
+    //
+    // A refusal is only allowed where it is THE refusal: `person`, retired from
+    // every widget but still in the contract's enum (KI-2026-09-24-q). Any other
+    // dimension answering "not set up" is a filter that stopped working, and the
+    // count below is the witness that every one of them was actually narrowed.
+    const { trip, globals } = selectionTrip();
+    const wide = selected(trip, globals, {});
+    let narrowed = 0;
+    for (const dimension of FilterDimension.options) {
+      const result = narrow(trip, globals, { [dimension]: BITES[dimension] });
+      if (result.status !== "ok") {
+        expect({ dimension, result }).toEqual({ dimension: "person", result: { status: "unbound", needs: "person" } });
+        continue;
+      }
+      expect(result.value.stops.length, `${dimension} was bound and selected every stop`).toBeLessThan(
+        wide.stops.length,
+      );
+      narrowed++;
+    }
+    expect(narrowed).toBe(FilterDimension.options.length - 1);
   });
 });
 

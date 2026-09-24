@@ -226,6 +226,85 @@ describe("stop.rows", () => {
     const ctx = contextOf(selectionTrip());
     expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 } })).toHaveLength(2);
   });
+
+  it("keeps only what `needsBooking` flags when asked — the Still to book list", () => {
+    // Every branch of the rule has a stop to bite on: Lunch is `planned` and
+    // made ticketed here, Free morning is made a `hold`, Maybe a hike and the
+    // backlog's Souvenirs are `idea`. The Colosseum is ticketed too but
+    // `booked`, and the Ryokan and the train are settled, so the list is the
+    // rule's answer rather than the fixture's.
+    const fixture = selectionTrip();
+    const { s1, s4 } = fixture.ids;
+    fixture.trip.activities[s1] = { ...fixture.trip.activities[s1]!, tags: ["meal", "ticketed"] };
+    fixture.trip.activities[s4] = { ...fixture.trip.activities[s4]!, kind: "hold" };
+    const ctx = contextOf(fixture);
+    expect(lines(ctx, "stop.rows", { only: "needsBooking" }).map((r) => r.split(" ")[0])).toEqual([
+      "Day", "Lunch",
+      "Day", "Free", "Maybe",
+      "Unscheduled", "Souvenirs",
+    ]);
+    // It composes with the filters rather than replacing them.
+    expect(lines(ctx, "stop.rows", { only: "needsBooking", day: { kind: "index", index: 0 } }).map((r) => r.split(" ")[0])).toEqual([
+      "Lunch",
+    ]);
+  });
+
+  it("says nothing is left to book when the rule is what emptied it", () => {
+    // Day 2 is a train and a booked ryokan. "no stops to show" under a Still
+    // to book heading reads as a fault; this reads as the good news it is.
+    const ctx = contextOf(selectionTrip());
+    expect(renderMacro(ctx, "stop.rows", { only: "needsBooking", day: { kind: "index", index: 1 } })).toEqual({
+      status: "empty",
+      because: "nothing left to book",
+    });
+  });
+
+  // Field columns (M14 field widget, build step 6; Mitchell's answer 4: *"a
+  // field as a column on the existing … stop.rows"*).
+  describe("columns", () => {
+    const headingsOf = (ctx: WidgetContext, params: Record<string, unknown>) => {
+      const outcome = renderMacro(ctx, "stop.rows", params);
+      if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") throw new Error(outcome.status);
+      return outcome.rendered.headings;
+    };
+
+    it("adds a cell per chosen field after the built-in two, in the chosen order, headed by label", () => {
+      const fixture = selectionTrip();
+      const ctx = contextOf(fixture);
+      const params = { day: { kind: "index", index: 0 }, columns: ["stop.location", "stop.kind", "stop.tags"] };
+      const cost = (id: string) => {
+        const { amountMinor, currency } = fixture.trip.activities[id]!.cost!;
+        return formatMoney(amountMinor, currency);
+      };
+      expect(cellsOf(ctx, "stop.rows", params)).toEqual([
+        ["09:00 – 10:00", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "booked", "ticketed"],
+        // Lunch has no place: its cell stays, empty, so the column stays one.
+        ["12:00 – 13:00", cost(fixture.ids.s1), "", "planned", "meal"],
+      ]);
+      expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Place", "Status", "Tags"]);
+    });
+
+    it("leaves a group header cell-less, and adds no heading row without columns", () => {
+      const ctx = contextOf(selectionTrip());
+      const cells = cellsOf(ctx, "stop.rows", { columns: ["stop.kind"] });
+      expect(cells[0]).toEqual([]);
+      expect(new Set(cells.filter((row) => row.length > 0).map((row) => row.length))).toEqual(new Set([3]));
+      expect(headingsOf(ctx, {})).toBeUndefined();
+      expect(headingsOf(ctx, { columns: [] })).toBeUndefined();
+    });
+
+    it("drops a column the manifest does not publish rather than reading the stop by its name", () => {
+      // Gap 6: `bookedBy` is a user id and unannotated. Set, so a raw read
+      // would find it.
+      const fixture = selectionTrip();
+      for (const activity of Object.values(fixture.trip.activities)) activity.bookedBy = "user-secret-id";
+      const ctx = contextOf(fixture);
+      const params = { day: { kind: "index", index: 0 }, columns: ["stop.bookedBy", "stop.kind", "stop.nope"] };
+      expect(cellsOf(ctx, "stop.rows", params).map((row) => row.length)).toEqual([3, 3]);
+      expect(JSON.stringify(renderMacro(ctx, "stop.rows", params))).not.toContain("user-secret-id");
+      expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Status"]);
+    });
+  });
 });
 
 describe("cost.rows", () => {

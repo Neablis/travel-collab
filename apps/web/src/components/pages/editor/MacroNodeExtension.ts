@@ -1,6 +1,7 @@
 import { Node, mergeAttributes, ReactNodeViewRenderer } from "@tiptap/react";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { MacroNodeView, macroShape } from "./MacroNodeView";
+import { widgetMarkPlugin } from "./widgetMarkPlugin";
 
 // The `macro` ProseMirror node. Its attrs shape mirrors `@tc/contracts`'
 // MacroNode exactly (`{ name: string, params: Record<string, unknown> }`) so
@@ -107,6 +108,10 @@ export const MacroNodeExtension = Node.create({
           .run();
       },
     };
+  },
+
+  addProseMirrorPlugins() {
+    return [widgetMarkPlugin];
   },
 
   addNodeView() {

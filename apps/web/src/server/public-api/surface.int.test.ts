@@ -501,6 +501,28 @@ describe("a patch changes what it names, and nothing else", () => {
     expect(refused.status).toBe(400);
     expect((await refused.json()).error.code).toBe("invalid-request");
   });
+
+  // The editor's stale-save guard is not v1 surface (CodeRabbit, PR #222): a
+  // v1 PATCH naming an old revision is stripped of it and lands, last write
+  // wins, exactly as before the field existed.
+  it("keeps last-write-wins on a page PATCH, even one naming an old revision", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["notebook:read", "notebook:write"]);
+    const { tripId } = await seed(await tokenFor(owner, ["trips:read", "trips:write"]));
+    const added = await ADD_PAGE(
+      req(secret, { title: "Ideas", context: { tripId }, content: { type: "doc", content: [] } }, "POST"),
+      P({ tripId }),
+    );
+    const page = await added.json();
+    expect((await PATCH_PAGE(req(secret, { title: "Second" }, "PATCH"), P({ tripId, pageId: page.id }))).status).toBe(200);
+
+    const late = await PATCH_PAGE(
+      req(secret, { title: "Third", expectedUpdatedAt: page.updatedAt }, "PATCH"),
+      P({ tripId, pageId: page.id }),
+    );
+    expect(late.status).toBe(200);
+    expect((await late.json()).title).toBe("Third");
+  });
 });
 
 // **A pager that skips a row is worse than one that repeats it**, because the
