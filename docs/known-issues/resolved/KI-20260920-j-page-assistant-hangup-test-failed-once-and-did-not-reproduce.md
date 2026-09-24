@@ -66,3 +66,17 @@
   guard removed (and a wait past the debounce) the new assertion goes red on
   `"Bring a raincoat"`. Unrelated: the no-op autosave on every Reading/Editing
   toggle is a real (harmless-content) PATCH, reported, not changed here.
+- **Superseded the same day: the fix moved from the test to the cause.** The
+  test-side helper above accepted "unchanged" saves, which left the product
+  sending a pointless PATCH on every Reading/Editing switch (and once on mount).
+  `PageEditor.tsx` now calls `setEditable(editable, false)` — `emitUpdate: false`,
+  the same rule the file already states for `setContent` — so a mode switch is
+  not an edit, and `PageAssistant.test.tsx` is back to its strict
+  `expect(onUpdate).not.toHaveBeenCalled()`. **Proof:** a new
+  `PageEditor.test.tsx` case, *"does not report a change when the document
+  merely becomes editable"*, failed before the fix with `expected "vi.fn()" to
+  not be called at all, but actually been called 2 times` (mount + switch) and
+  passes after. With a temporary 1s wait after `openRail()` in the PageAssistant
+  tests (the on-demand reproduction), the strict file passes 11/11 with the fix;
+  reverting only the `false` makes the three strict assertions fail with
+  `called 1 times`. `components/pages/` 159/159, web typecheck and eslint clean.

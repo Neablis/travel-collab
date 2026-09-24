@@ -32,6 +32,23 @@ const detail = tripDetailFixture();
 const context = { tripId: detail.tripId };
 
 describe("PageEditor", () => {
+  // Switching Reading → Editing changes nothing in the document, so it must not
+  // look like an edit: TipTap's `setEditable` emits `update` unless told not
+  // to, and `onChange` feeds PageScreen's autosave, which then saved the
+  // unchanged page 800ms after every mode switch. Found as the cause of
+  // KI-2026-09-20-j's flaky "nothing was saved" assertions in PageAssistant.
+  it("does not report a change when the document merely becomes editable", async () => {
+    const onChange = vi.fn();
+    const value = newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }]);
+    const { rerender } = render(
+      <PageEditor detail={detail} context={context} value={value} onChange={onChange} editable={false} />,
+    );
+    await waitFor(() => expect(screen.getByRole("textbox").getAttribute("contenteditable")).toBe("false"));
+    rerender(<PageEditor detail={detail} context={context} value={value} onChange={onChange} editable />);
+    await waitFor(() => expect(screen.getByRole("textbox").getAttribute("contenteditable")).toBe("true"));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("offers no macro autocomplete", async () => {
     render(
       <PageEditor

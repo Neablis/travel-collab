@@ -116,8 +116,12 @@ export function PageEditor({ detail, context, user = null, globals = null, value
   // `editable` is a MOUNT-TIME option, so flipping Reading/Editing later has to
   // be pushed onto the live editor — without this the toggle changes the
   // sidebar and the chrome row but leaves the document itself read-only.
+  // `emitUpdate: false` for the same reason as `setContent` below: TipTap
+  // emits `update` on `setEditable` by default, `onUpdate` calls `onChange`,
+  // and PageScreen's autosave then saved the UNCHANGED page 800ms after every
+  // mode switch (and once on mount). Found via KI-2026-09-20-j.
   useEffect(() => {
-    editor?.setEditable(editable);
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   /**
