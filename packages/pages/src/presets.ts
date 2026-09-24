@@ -158,6 +158,22 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "Which cities",
     keywords: ["city", "cities", "where", "place", "location"],
   },
+  {
+    // The field widget (M14 build step 6). **No field in the params**, unlike
+    // `attribute`'s presets: the reader picks one from the manifest, so the
+    // widget lands asking "choose a field" and the insert step offers the
+    // picker. A preset per field is the list the manifest exists to replace.
+    id: "stop.field",
+    widget: "field",
+    params: {},
+    title: "A stop's detail",
+    keywords: [
+      "field", "detail", "any", "pick", "stop", "stops", "cost", "price", "place", "location",
+      "notes", "status", "tags", "name",
+    ],
+    // Fixed, never computed (ADR-037 decision 5).
+    preview: "one detail of a stop, like its cost or its place",
+  },
   // ---- `attribute`, one preset per allow-listed field --------------------
   {
     id: "trip.name",

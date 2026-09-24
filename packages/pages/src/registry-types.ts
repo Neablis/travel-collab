@@ -179,7 +179,17 @@ export interface RepeatRow {
 export const rowLabel = (t: string): RepeatValue => ({ name: "label", text: t });
 export const rowValue = (t: string): RepeatValue => ({ name: "value", text: t });
 export const rowCity = (t: string): RepeatValue => ({ name: "city", text: t });
-export interface RepeatPayload { kind: "repeat-rows"; rows: RepeatRow[]; }
+export interface RepeatPayload {
+  kind: "repeat-rows";
+  rows: RepeatRow[];
+  /**
+   * Column headings, the lead's first and then one per cell — present only
+   * when a widget has columns a reader CHOSE (field columns, M14 build step
+   * 6). A table whose columns are always the same needed none, and one the
+   * reader assembled cannot be read without them.
+   */
+  headings?: readonly string[];
+}
 
 // ---------------------------------------------------------------------------
 // What a widget RENDERS (ADR-037 decision 3 — the CSR protection)
@@ -236,7 +246,8 @@ export interface RenderedRow {
 export type Rendered =
   | { kind: "inline"; segs: Seg[] }
   | { kind: "block"; block: BlockPayload }
-  | { kind: "rows"; rows: RenderedRow[] };
+  // `headings` is `RepeatPayload.headings`, passed through.
+  | { kind: "rows"; rows: RenderedRow[]; headings?: readonly string[] };
 
 // Convenience constructors, so a widget's `render` reads as data rather than as
 // object literals with a discriminator repeated seven times.
@@ -244,7 +255,8 @@ export const text = (t: string): Seg => ({ kind: "text", text: t });
 export const chip = (name: string, t: string): Seg => ({ kind: "chip", name, text: t });
 export const inlineOf = (...segs: Seg[]): Rendered => ({ kind: "inline", segs });
 export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", block });
-export const rowsOf = (rows: RenderedRow[]): Rendered => ({ kind: "rows", rows });
+export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
+  headings === undefined ? { kind: "rows", rows } : { kind: "rows", rows, headings };
 
 // What a widget TAKES, declared so a UI can choose a control for it
 // (ADR-035 decision 2, SPEC §18). A Zod schema says a param is a string; it
@@ -297,7 +309,12 @@ export type WidgetInput =
   // filters. Its control is a searchable picker over `fieldChoices(of)`, which
   // shows labels and stores a path. The stored path is checked at RESOLVE time
   // (`fieldAt`), never at write time, so a stale one cannot block a save.
-  | { name: string; type: "field"; label: string; of: ManifestObject };
+  //
+  // `multiple` is the repeat widgets' `columns` (build step 6): an ordered
+  // LIST of paths, one column each, where the plain form is one path. Same
+  // vocabulary and same resolve-time check; its control is a list of pickers.
+  // Empty or absent means no extra columns — never "waiting for a choice".
+  | { name: string; type: "field"; label: string; of: ManifestObject; multiple?: true };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];

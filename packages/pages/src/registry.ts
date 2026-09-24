@@ -12,6 +12,7 @@ import { open } from "./macros/primitives/open";
 import { countryFactsWidget } from "./macros/primitives/countryFacts";
 import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
+import { field } from "./macros/primitives/field";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -43,6 +44,9 @@ const DEFS: AnyMacroDef[] = [
   tripStripWidget,
   // "Spend by day" (M14 link 11): a primitive, `stop` + filters drawn as a chart.
   costChart,
+  // The field widget (M14 build step 6): `stop` + filters + a reader-chosen
+  // manifest field. The first registered widget with a `field` input.
+  field,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -117,18 +121,15 @@ export interface CatalogueEntry {
   /**
    * For each `field` input, the fields it may name: the stored path and the
    * label a person would use, so a model asked for "what each stop costs" can
-   * find `stop.cost`. **Absent, not `{}`, on a widget with no field input** —
+   * find `stop.cost`. A `multiple` input (`stop.rows`' `columns`) takes a list
+   * of these paths; its entry in `inputs` says so. **Absent, not `{}`, on a widget with no field input** —
    * the catalogue rides in every page turn's prompt.
    */
   fields?: Record<string, readonly { path: string; label: string }[]>;
 }
 
-/**
- * One def's catalogue entry. Exported because the first widget with a `field`
- * input is not registered yet (M14 T10), and the entry it will get has to be
- * provable before it is.
- */
-export function catalogueEntry(d: AnyMacroDef): CatalogueEntry {
+/** One def's catalogue entry. */
+function catalogueEntry(d: AnyMacroDef): CatalogueEntry {
   const fields = fieldInputChoices(d);
   return {
     name: d.name, title: d.title, shape: d.shape,

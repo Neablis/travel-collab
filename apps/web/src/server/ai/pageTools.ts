@@ -46,7 +46,7 @@ export function insertWidgetParamsRule(catalogue: readonly CatalogueEntry[]): st
       ? ""
       : `Some widgets also take a NON-filter param — ${taking.join("; ")} — and the catalogue below lists each under \`params\` with the exact values allowed.`,
     hasFields
-      ? "A widget that reads a field also lists its fields under `fields`, each with the label a person would call it: match what the user asked for to a label, then pass that entry's `path`."
+      ? "A widget that reads a field also lists its fields under `fields`, each with the label a person would call it: match what the user asked for to a label, then pass that entry's `path`. An input marked `multiple` takes a list of paths, in the order they should appear."
       : "",
   ]
     .filter(Boolean)

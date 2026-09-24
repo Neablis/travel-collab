@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { getMacro, presetCatalog, renderMacro } from "@tc/pages";
+import { fieldChoices, getMacro, presetCatalog, renderMacro } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
 
@@ -140,9 +140,44 @@ describe("MacroView", () => {
     expect(screen.getByText(/\$/)).toBeTruthy();
   });
 
+  // The `field` branch of the unbound switch, unexercised from T09 (which added
+  // it) until a registered widget could reach it. Both roads lead here: nothing
+  // chosen, and a stored path the manifest does not publish — `bookedBy` is a
+  // real stop key, and holds user ids, which is why it must not print.
+  it("asks for a field when none is chosen, or the chosen one is not offered", () => {
+    for (const params of [{}, { field: "stop.bookedBy" }]) {
+      const { unmount } = render(<MacroView detail={costedDetail} context={ctx} name="field" params={params} />);
+      expect(screen.getByText("choose a field")).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it("prints the chosen field of the selected stops", () => {
+    render(<MacroView detail={costedDetail} context={ctx} name="field" params={{ field: "stop.cost" }} />);
+    expect(screen.getByText("$123.45")).toBeTruthy();
+  });
+
   // The `rows` branch, which existed unexercised from the day the widget
   // framework landed until a repeater reached it.
   describe("a repeater's rows", () => {
+    // Field columns (M14 build step 6): a table the reader assembled needs
+    // its columns named, and one that never changes shape does not.
+    it("heads a table whose columns the reader chose, one heading per column", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="stop.rows" params={{ columns: ["stop.kind"] }} />);
+      const [head, ...rows] = screen.getAllByRole("row");
+      expect(within(head!).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+        "Stop", "Time", "Cost", "Status",
+      ]);
+      // Lined up with the data: a lead and a cell under every other heading.
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00 – 10:00", "$123.45", "planned"]);
+    });
+
+    it("has no heading row when no column was chosen", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="stop.rows" params={{}} />);
+      expect(screen.queryAllByRole("columnheader")).toHaveLength(0);
+    });
+
     // A widget node is INLINE — it sits inside a paragraph so a chip can read
     // as a word in a sentence — so the rows have to be legal there. `<div>` in
     // `<p>` is not merely unusual: the parser closes the paragraph at it, and
@@ -369,6 +404,10 @@ describe("every widget is legal where widgets actually go", () => {
     const params: Record<string, unknown> = { ...entry.params };
     for (const input of getMacro(entry.widget)?.inputs ?? []) {
       if (input.type === "day") params[input.name] = { kind: "index", index: 0 };
+      // A field the preset leaves to the reader: the picker's first entry.
+      if (input.type === "field" && !input.multiple && !(input.name in params)) {
+        params[input.name] = fieldChoices(input.of)[0]!.path;
+      }
     }
     return params;
   }

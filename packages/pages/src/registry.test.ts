@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { z } from "zod";
-import { getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, catalogueEntry, primitiveCatalog } from "./registry";
+import { getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { fieldChoices } from "./fields";
 import { insertWidget } from "./insert";
-import type { AnyMacroDef, WidgetInput } from "./registry-types";
+import type { WidgetInput } from "./registry-types";
 
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
 
@@ -29,7 +28,7 @@ describe("registry", () => {
     // `open`'s terms: no selection, so not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
-      "count", "country.facts", "dates", "day.detail", "day.rows", "hours", "open", "stop.rows", "trip.strip",
+      "count", "country.facts", "dates", "day.detail", "day.rows", "field", "hours", "open", "stop.rows", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -108,7 +107,9 @@ describe("registry", () => {
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       if (def.inputs.length === 0) continue;
-      const bound = Object.fromEntries(def.inputs.map((i) => [i.name, SAMPLE[i.type]]));
+      // A `multiple` field input stores a list of what the single one stores.
+      const sampleOf = (i: WidgetInput) => (i.type === "field" && i.multiple ? [SAMPLE.field] : SAMPLE[i.type]);
+      const bound = Object.fromEntries(def.inputs.map((i) => [i.name, sampleOf(i)]));
       const parsed = def.params.safeParse(bound);
       // A declared input the validator drops is a binding the UI can set and
       // the resolver will never see — silent, and exactly the drift this seam
@@ -231,10 +232,15 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01" },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
-      // widgets reach `ok` instead of `unbound`.
+      // widgets reach `ok` instead of `unbound`. A field the preset leaves for
+      // the reader to pick gets the manifest's first, which is what the picker
+      // would offer at the top.
       {
         ...entry.params,
         ...(entry.inputs.some((i) => i.type === "day") ? { day: { kind: "index", index: 0 } } : {}),
+        ...Object.fromEntries(
+          entry.inputs.flatMap((i) => (i.type === "field" && !i.multiple ? [[i.name, fieldChoices(i.of)[0]!.path]] : [])),
+        ),
       },
     );
 
@@ -425,9 +431,14 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // set"*, and *"both surfaces read one declaration, so they cannot offer
     // different things"*. A primitive whose `inputs` and `filters` disagree is
     // exactly two declarations.
+    //
+    // **A `field` input is not a control over a dimension**, so it is left out
+    // of the comparison: it chooses what a widget reads, not which members, and
+    // no filter maps to it (`WidgetInput`'s own comment).
     for (const name of PRIMITIVE_NAMES) {
       const def = getMacro(name)!;
-      expect(def.inputs.map((i) => i.name), `${name}'s controls`).toEqual([...def.selection!.filters]);
+      const filterControls = def.inputs.filter((i) => i.type !== "field").map((i) => i.name);
+      expect(filterControls, `${name}'s controls`).toEqual([...def.selection!.filters]);
     }
   });
 
@@ -447,7 +458,8 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect(paramsOf("count")).toEqual({ of: ["stop", "day", "city"] });
     // "Still to book" is `stop.rows` plus this param, so a model can compose it
     // without the preset list — with no edit to the catalogue to get there.
-    expect(paramsOf("stop.rows")).toEqual({ only: ["needsBooking"] });
+    // `columns` is a field input, so its vocabulary is the manifest's paths.
+    expect(paramsOf("stop.rows")).toEqual({ only: ["needsBooking"], columns: fieldChoices("stop").map((c) => c.path) });
     // And a primitive that takes only filters says so with an empty object
     // rather than by omission, so "no extra params" is a statement.
     expect(paramsOf("cost")).toEqual({});
@@ -464,23 +476,27 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // Gap 5 of the M14 field-widget review: `nonFilterParams` read only `ZodEnum`
     // values, and a field param is a plain string (validated at resolve time,
     // so a stale one never blocks a save), so the model would have been told
-    // "any string" and guessed. No registered widget declares a `field` input
-    // yet (T10 adds the first), so this one exists only here.
-    const testOnly = {
-      ...getMacro("cost")!,
-      name: "test.field",
-      params: z.object({ field: z.string().min(1).optional() }).strip(),
-      inputs: [{ name: "field", type: "field", label: "Field", of: "stop" }],
-    } as unknown as AnyMacroDef;
-    const entry = catalogueEntry(testOnly);
+    // "any string" and guessed.
+    //
+    // Read off the REGISTERED catalogue, the one `handleAskRequest` sends, so
+    // the field widget reaching the assistant is proved rather than a test-only
+    // def's entry (M14 T10).
+    const catalogue = primitiveCatalog();
+    const entry = catalogue.find((e) => e.name === "field")!;
     const choices = fieldChoices("stop");
     expect(choices.length, "the stop root publishes nothing").toBeGreaterThan(0);
-    expect(entry.params).toEqual({ field: choices.map((c) => c.path) });
+    // `distinct` is a boolean, so it has no list to give.
+    expect(entry.params).toEqual({ field: choices.map((c) => c.path), distinct: null });
     expect(entry.fields).toEqual({ field: choices.map(({ path, label }) => ({ path, label })) });
     // And a widget with no field input carries no `fields` key at all: the
     // catalogue rides in every page turn's prompt, so absence is the cheap
     // spelling of "none".
-    for (const registered of primitiveCatalog()) expect(registered, registered.name).not.toHaveProperty("fields");
+    const withFields = catalogue.filter((e) => e.fields !== undefined).map((e) => e.name);
+    expect(withFields.sort()).toEqual(["field", "stop.rows"]);
+    // `stop.rows`' columns, from the same manifest and marked as a list.
+    const rows = catalogue.find((e) => e.name === "stop.rows")!;
+    expect(rows.fields).toEqual({ columns: choices.map(({ path, label }) => ({ path, label })) });
+    expect(rows.inputs).toContainEqual({ name: "columns", type: "field", label: "Columns", of: "stop", multiple: true });
   });
 
   it("gives every registered widget a title and a preview, catalogued or not", () => {

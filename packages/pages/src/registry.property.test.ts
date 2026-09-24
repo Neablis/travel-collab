@@ -118,12 +118,26 @@ const FILTER_VALUES: { [D in FilterDimension]: fc.Arbitrary<z.input<(typeof FILT
 // The non-filter params (`count`'s `of`, `attribute`'s `field`, …), read off
 // the same catalogue the assistant composes from, so a new one is generated
 // the day it exists.
-const NON_FILTER_VALUES: Record<string, fc.Arbitrary<string>> = {};
+//
+// Pooled per key across widgets: `attribute` and `field` both call theirs
+// `field`, and letting the last one win handed `attribute` only stop paths,
+// which its enum refuses — so it ran 21 cases and the witness said so.
+// A `multiple` field input (`stop.rows`' `columns`) stores a LIST of those
+// values, so it gets ordered subsets of them rather than one.
+const NON_FILTER_POOL: Record<string, Set<string>> = {};
+const LIST_PARAMS = new Set<string>();
 for (const entry of primitiveCatalog()) {
+  for (const input of entry.inputs) if (input.type === "field" && input.multiple) LIST_PARAMS.add(input.name);
   for (const [key, values] of Object.entries(entry.params)) {
-    if (values !== null && values.length > 0) NON_FILTER_VALUES[key] = fc.constantFrom(...values);
+    for (const value of values ?? []) (NON_FILTER_POOL[key] ??= new Set()).add(value);
   }
 }
+const NON_FILTER_VALUES: Record<string, fc.Arbitrary<string | string[]>> = Object.fromEntries(
+  Object.entries(NON_FILTER_POOL).map(([key, values]) => [
+    key,
+    LIST_PARAMS.has(key) ? fc.subarray([...values]) : fc.constantFrom(...values),
+  ]),
+);
 
 const paramsArb = fc.oneof(
   { weight: 8, arbitrary: fc.record({ ...FILTER_VALUES, ...NON_FILTER_VALUES }, { requiredKeys: [] }) },

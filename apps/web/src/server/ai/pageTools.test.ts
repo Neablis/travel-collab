@@ -200,17 +200,18 @@ describe("the insert_widget params rule", () => {
     );
     const expected = catalogue.flatMap((entry) => Object.keys(entry.params).map((param) => `${entry.name}.${param}`));
     expect(named.sort()).toEqual(expected.sort());
-    expect(expected).toEqual(expect.arrayContaining(["count.of", "attribute.field", "stop.rows.only"]));
+    expect(expected).toEqual(
+      expect.arrayContaining(["count.of", "attribute.field", "stop.rows.only", "field.field", "stop.rows.columns"]),
+    );
   });
 
   it("points a model at `fields` only when some widget has a field input", () => {
+    // The registered catalogue has two since M14 T10 — the field widget and
+    // `stop.rows`' columns — so the "only when" half strips them.
     const catalogue = primitiveCatalog();
-    expect(insertWidgetParamsRule(catalogue)).not.toContain("`fields`");
-    const withField = [
-      ...catalogue,
-      { ...catalogue[0]!, name: "test.field", params: { field: ["stop.cost"] }, fields: { field: [{ path: "stop.cost", label: "Cost" }] } },
-    ];
-    expect(insertWidgetParamsRule(withField)).toContain("`test.field` takes `field`");
-    expect(insertWidgetParamsRule(withField)).toContain("`fields`");
+    expect(insertWidgetParamsRule(catalogue)).toContain("`fields`");
+    expect(insertWidgetParamsRule(catalogue)).toContain("`multiple` takes a list of paths");
+    const withoutFields = catalogue.map(({ fields: _fields, ...entry }) => entry);
+    expect(insertWidgetParamsRule(withoutFields)).not.toContain("`fields`");
   });
 });
