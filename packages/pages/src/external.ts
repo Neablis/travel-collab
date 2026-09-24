@@ -1,5 +1,5 @@
 import type { TripWeather } from "@tc/contracts";
-import { MacroNode } from "@tc/contracts";
+import { MacroNode, PageRepeatNode } from "@tc/contracts";
 import { ok, unavailable, type MacroResult } from "./result";
 
 // Data the trip does not hold, reaching a widget as a PRE-FETCHED input
@@ -63,7 +63,8 @@ export function readSlot<K extends ExternalNeed>(
  * asks for an input only when this names it, so a notebook with no weather
  * widget sends no location anywhere. Walks `content` at any depth, the way
  * `findWidgetError` does; a node that is not a valid macro, or names a widget
- * this build does not know, declares nothing.
+ * this build does not know, declares nothing. A repeater is a widget too (its
+ * `attrs.name`), and its row template is walked for the widgets inside it.
  *
  * `lookup` is injected so a test can supply a widget that declares a need
  * before any registered one does.
@@ -81,6 +82,10 @@ export function externalNeedsOf(
         const parsed = MacroNode.safeParse(node);
         if (parsed.success) for (const need of lookup(parsed.data.attrs.name)?.needs ?? []) found.add(need);
         continue;
+      }
+      if (record.type === "repeat") {
+        const parsed = PageRepeatNode.safeParse(node);
+        if (parsed.success) for (const need of lookup(parsed.data.attrs.name)?.needs ?? []) found.add(need);
       }
       if (Array.isArray(record.content)) walk(record.content);
     }
