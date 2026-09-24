@@ -1,5 +1,5 @@
 import { newPageDoc, type MacroNode, type PageDoc, type PageRepeatNode } from "@tc/contracts";
-import { MACRO_NAMES, PRESETS, insertPreset, insertWidget } from "@tc/pages";
+import { MACRO_NAMES, PRESETS, insertPreset, insertWidget, type RepeatValue } from "@tc/pages";
 
 // The M14 gate box: *"No user-visible macro syntax anywhere, in either mode. A
 // test fails if raw syntax reaches the DOM."* SPEC §7: users never see or type
@@ -21,6 +21,13 @@ import { MACRO_NAMES, PRESETS, insertPreset, insertWidget } from "@tc/pages";
 //   `[[…]]`, and `@name(…)`.
 // - **Renderer fallbacks that print the stored name** (`unknown macro: …`,
 //   `bad params: …`) and a stringified object.
+//
+// - **A segment name as a whole attribute.** A chip's `name` (`value`, `city`,
+//   `label`) says which part of a widget's output it is, for the renderer. It
+//   was the chip's `title`, so hovering "$45.00" showed a tooltip reading
+//   "value" (Mitchell, PR #221 preview). Only an attribute that IS the bare
+//   name is flagged: "value" and "city" are English, and a sentence using them
+//   is not a leak.
 //
 // What counts as visible: text, plus the attributes a person or a screen reader
 // is actually given — `title`, `aria-label`, `placeholder`, `alt`. `data-*` are
@@ -100,11 +107,20 @@ export const RAW_SYNTAX: readonly (readonly [string, RegExp])[] = [
   ["a renderer fallback naming the widget", /unknown macro|bad params|no renderer/i],
 ];
 
+// Keyed by the type, so a segment name added to `RepeatValue` fails to compile
+// here until the guard knows it. `chip()` takes any string, but every name a
+// resolver passes it today is one of these.
+const SEGMENT_NAMES: Record<RepeatValue["name"], true> = { label: true, value: true, city: true };
+
+/** The category a bare segment name in a visible attribute is reported under. */
+export const SEGMENT_NAME_LEAK = "an internal segment name as an attribute";
+
 const VISIBLE_ATTRIBUTES = ["title", "aria-label", "placeholder", "alt"] as const;
 
 /** Every visible string under `root` (itself included) that carries syntax, and which. */
 export function rawSyntaxLeaks(root: Element): string[] {
   const surfaces: [string, string][] = [];
+  const segmentLeaks: string[] = [];
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
     surfaces.push([`text in <${n.parentElement?.tagName.toLowerCase()}>`, n.textContent ?? ""]);
@@ -113,13 +129,19 @@ export function rawSyntaxLeaks(root: Element): string[] {
     for (const attr of VISIBLE_ATTRIBUTES) {
       const value = el.getAttribute(attr);
       if (value) surfaces.push([`${attr} on <${el.tagName.toLowerCase()}>`, value]);
+      if (value && Object.hasOwn(SEGMENT_NAMES, value.trim())) {
+        segmentLeaks.push(`${SEGMENT_NAME_LEAK} — ${attr} on <${el.tagName.toLowerCase()}>: ${JSON.stringify(value)}`);
+      }
     }
   }
-  const found = surfaces.flatMap(([where, text]) =>
-    RAW_SYNTAX.filter(([, pattern]) => pattern.test(text)).map(
-      ([what]) => `${what} — ${where}: ${JSON.stringify(text)}`,
+  const found = [
+    ...segmentLeaks,
+    ...surfaces.flatMap(([where, text]) =>
+      RAW_SYNTAX.filter(([, pattern]) => pattern.test(text)).map(
+        ([what]) => `${what} — ${where}: ${JSON.stringify(text)}`,
+      ),
     ),
-  );
+  ];
   // The whole text too, for a leak split across two text nodes — reported only
   // when no single node already showed it, or one leak prints the page twice.
   const whole = root.textContent ?? "";

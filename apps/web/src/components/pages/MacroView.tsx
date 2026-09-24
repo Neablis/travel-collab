@@ -79,7 +79,10 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
           // `data-widget-value` is the non-presentational handle: "how many
           // values on this page came from a widget" is a question a test can
           // ask without asserting a class, which the test-quality wall forbids
-          // outside `components/ui/**`.
+          // outside `components/ui/**`. The segment name goes there and
+          // nowhere visible: as the `title` it put a tooltip reading "value"
+          // on every widget value (Mitchell, PR #221 preview), and the
+          // no-raw-syntax guard now fails on that.
           //
           // **`mx-0.5 px-1`, and the margin is the half that was missing.**
           // Mitchell, on the PR 141 preview: *"These inline elements should
@@ -106,7 +109,6 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
               // the trip's colour, not the widget's — see `cityAccents`.
               seg.name === "city" ? CITY_INK[accents.ofCity(seg.text)] : "text-ink",
             )}
-            title={seg.name}
           >
             {seg.text}
           </span>

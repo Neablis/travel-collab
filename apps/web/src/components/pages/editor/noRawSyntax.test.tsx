@@ -5,6 +5,7 @@ import { MACRO_NAMES, PRESETS } from "@tc/pages";
 import { newPageDoc, type MacroNode, type TripGlobals } from "@tc/contracts";
 import {
   RAW_SYNTAX,
+  SEGMENT_NAME_LEAK,
   STORED_IDENTIFIERS,
   WIDGET_PRESETS,
   everyRepeat,
@@ -79,11 +80,16 @@ describe("no macro syntax reaches the DOM", () => {
     const probe = document.createElement("p");
     probe.textContent = 'day.detail {{cost}} [[Kyoto]] @cost(day=1) {"dates":{}} [object Object]';
     probe.title = "unknown macro: stop.rows";
+    // A chip's segment name as its tooltip, the way `MacroView` once set it.
+    const chip = document.createElement("span");
+    chip.title = "value";
+    probe.append(chip);
     const categories = new Set(rawSyntaxLeaks(probe).map((l) => l.split(" — ")[0]));
     expect([...categories].sort()).toEqual(
       [
         "stored identifier day.detail",
         "stored identifier stop.rows",
+        SEGMENT_NAME_LEAK,
         ...RAW_SYNTAX.filter(([what]) => !what.startsWith("stored identifier")).map(([what]) => what),
       ].sort(),
     );
@@ -91,6 +97,10 @@ describe("no macro syntax reaches the DOM", () => {
     // tuned down the first time it cried wolf.
     const prose = document.createElement("p");
     prose.textContent = "Day 1 · 2027-06-01 — Kyoto, $1,200.00 of the cost; 3 stops, 2 booked (see: dates).";
+    // The segment names are English: in a sentence, or as a capitalised
+    // label, they are the page talking, not the renderer.
+    prose.title = "The value of every city";
+    prose.setAttribute("aria-label", "City");
     expect(rawSyntaxLeaks(prose)).toEqual([]);
   });
 
