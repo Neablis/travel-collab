@@ -73,7 +73,7 @@ whole list, because it needs no API **and** no new data.
 | **Trip strip** | block | One horizontal band, one cell per day, filled with that day's **city accent**, with city names over the runs | Uses `cityAccents`/`dayAccents`, which already reach the notebook. The single most "at a glance" picture of a trip |
 | **Route map** | block | A static map of the trip or of one day, with stops and, after M24, real legs drawn by mode | MapLibre + OpenFreeMap are already in the app and the CSP (`connect-src … tiles.openfreemap.org`). Needs a non-interactive, fixed-height embed (ADR-044: a widget edits without reflowing) |
 | **Spend by day** | block (chart) | A bar per day, stacked by tag or kind, and a budget line | `costs.table`'s data drawn as a chart. Gets better when M19 adds a cost's kind |
-| **Budget burn-down** | block (chart) | Budget left falling across the days against an even pace | Same data as `budget.remaining`, over time |
+| **Budget burn-down** | block (chart) | Budget left falling across the days against an even pace | **Built in M14** (2026-09-24), as the "Burn-down" view of Spend by day (`cost.chart`'s `view` param) rather than a widget of its own: the same stops, stacked by tag as a running total under the budget line, with an even-pace diagonal |
 | **How full is each day** | block (chart) | A day × hour grid, shaded where stops sit (`timeWindow`) | Shows overpacked days and free afternoons at once |
 | **Free time** | inline / repeat | "Tue 14:00–18:00 is open" | The gaps between `timeWindow`s |
 | **Still to book** | repeat | A line for every stop `needsBooking` flags | The rule is written and decided (2026-08-29) but only the board uses it |

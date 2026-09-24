@@ -925,6 +925,10 @@ milestone opens:**
       words, with MET Norway's attribution on the block, an as-of time, and a quiet
       `unavailable` placeholder when the source is down. That state is proved with a
       failing port stub, not by assertion.
+- [ ] Weather walked against the real MET Norway and NASA POWER on a preview, per
+      docs/guidelines/external-data-manual-check.md. *(Added 2026-09-24: no automated test
+      may call either source, so the e2e server runs with `EXTERNAL_DATA_OFFLINE=true` and
+      this walk is the only real-service check.)*
 - [ ] **The other six link-11 widgets ship and resolve against a real trip**: trip
       strip, still to book (reading `needsBooking`, not a second rule), sunrise /
       sunset, time difference from home, know before you go, spend by day. The route
