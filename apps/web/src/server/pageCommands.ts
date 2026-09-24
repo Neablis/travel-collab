@@ -1,4 +1,5 @@
 import {
+  PAGE_CHANGED_CODE,
   PageCommand,
   PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
@@ -142,8 +143,35 @@ export async function executePageCommand(
     // that turned out to be a no-op would move `headSeq` and wake every
     // co-traveller for nothing, which is the exact cost this branch exists to
     // avoid. They cost nothing to re-derive on the next real command.
+    //
+    // **Before the revision check, on purpose.** A document identical to the
+    // stored one loses nothing whatever revision it was typed against, and the
+    // common way to get here is exactly that: a `pagehide` keepalive landed,
+    // then the ordinary commit of the same words arrived behind it naming the
+    // revision the keepalive just moved past. Refusing it would report a
+    // conflict with the author's own words.
     if (decision.events.length === 0) {
       return { ok: true, tripId: command.tripId, page: await readPage(tx, command.pageId) };
+    }
+
+    // **The stale-save guard** (CodeRabbit, PR #222). `expectedSeq` below is
+    // the head as of THIS request's read, so it cannot refuse an older
+    // document that simply arrives last; this can. See `EditPage`.
+    //
+    // Read from the `pages` row, the only place a page's `updatedAt` lives
+    // (the fold carries no timestamps, and a lazily seeded page has no event to
+    // carry one). It is consistent with `history` without a lock: this read is
+    // a later statement in the same transaction, so it sees at least every
+    // commit the stream read saw, and any page write that lands after it moves
+    // the stream too and is refused by `expectedSeq` instead.
+    //
+    // Compared as instants, not strings: the client echoes Postgres's text,
+    // and nothing should hang on its formatting.
+    if (command.type === "EditPage" && command.expectedUpdatedAt !== undefined) {
+      const [row] = await tx.select({ updatedAt: pages.updatedAt }).from(pages).where(eq(pages.id, command.pageId));
+      if (row === undefined || Date.parse(row.updatedAt) !== Date.parse(command.expectedUpdatedAt)) {
+        return { ok: false, error: { code: PAGE_CHANGED_CODE, message: "This page changed since you opened it." } };
+      }
     }
 
     const appended = await appendToStream(tx, {

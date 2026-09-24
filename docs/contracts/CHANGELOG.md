@@ -13,6 +13,32 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `expectedUpdatedAt` on a page edit: the stale-save guard (M14, CodeRabbit on PR #222)
+
+- **Added:** optional `expectedUpdatedAt` on `EditPage` (`pageEvents.ts`) and on
+  `UpdatePageInput` (`pages.ts`, the BFF PATCH body), typed `PageRevision`: a
+  string that must parse as a time, echoed verbatim from `Page.updatedAt`
+  (Postgres timestamp text, not ISO, hence no `.datetime()`). Also added
+  `PAGE_CHANGED_CODE` (`"page-changed"`), the refusal code, which the server
+  emits and the editor branches on.
+- Why: the notebook editor sends one ordinary commit at a time, but its
+  `pagehide` keepalive cannot wait and can overtake one in flight. If the older
+  one reached the server last it won, and `appendToStream`'s `expectedSeq`
+  could not stop it, because each request reads the head current when it
+  arrives. Present, the field makes `executePageCommand` refuse an edit whose
+  page has moved since (`page-changed`, HTTP 409 from the BFF route), appending
+  nothing. A no-op edit is still answered as a success before the revision is
+  looked at. The field never reaches an event; the domain decision ignores it.
+- Consumers updated: `apps/web` `server/pageCommands.ts` (the check), the BFF
+  PATCH route (forwards it, maps `page-changed` to 409 with `code`),
+  `lib/pagesClient.ts` (carries `code` on a refusal), `PageScreen` /
+  `useEditSession` (send it; a keepalive overtaking an in-flight commit sends
+  none), `mocks/handlers.ts` (honours it). `/api/v1` PATCH parses
+  `UpdatePageInput.omit({ expectedUpdatedAt })`, so its body and the OpenAPI
+  document are unchanged and a v1 caller keeps last-write-wins.
+- Breaking? no. Additive and optional: absent means today's behaviour for every
+  existing caller (the assistant's page tools, `/api/v1`, seeds).
+
 ## 2026-09-24 — `TripGlobalsDay.place.city`: the place names its own stop's city (#223 review)
 
 - **Added:** `TripGlobalsDay.place` gains `city: string | null`, defaulted to

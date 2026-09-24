@@ -365,3 +365,111 @@ describe("executePageCommand", () => {
     expect(!result.ok && result.error.code).toBe("demo-trip-readonly");
   });
 });
+
+// **The stale-save guard** (CodeRabbit, PR #222). `expectedSeq` cannot refuse
+// an older document that arrives last, because each request reads the head
+// current when IT arrives. `expectedUpdatedAt` is the revision the client
+// typed against, so the older of two racing saves is the one refused.
+describe("executePageCommand with expectedUpdatedAt", () => {
+  async function pageAt(tripId: string, text: string) {
+    const pageId = await createPageVia(tripId, "Packing", text);
+    const [row] = await db.select().from(pages).where(eq(pages.id, pageId));
+    return { pageId, revision: row!.updatedAt };
+  }
+  const edit = (tripId: string, pageId: string, text: string, expectedUpdatedAt?: string) =>
+    executePageCommand(
+      { type: "EditPage", tripId, pageId, content: docWith(text), ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) },
+      OWNER,
+    );
+  const storedText = async (pageId: string) => {
+    const [row] = await db.select().from(pages).where(eq(pages.id, pageId));
+    return JSON.stringify(row?.content);
+  };
+
+  it("refuses an edit typed against an older revision, and appends nothing", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
+    const head = (await getTripEventsAfter(tripId, 0)).headSeq;
+
+    const stale = await edit(tripId, pageId, "socks, hat", revision);
+
+    expect(stale).toEqual({
+      ok: false,
+      error: { code: "page-changed", message: "This page changed since you opened it." },
+    });
+    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBe(head);
+    expect(await storedText(pageId)).toContain("socks, shoes");
+  });
+
+  it("takes an edit typed against the current revision", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    const result = await edit(tripId, pageId, "socks, shoes", revision);
+    expect(result.ok).toBe(true);
+    expect(await storedText(pageId)).toContain("socks, shoes");
+  });
+
+  // The revision is an instant, not a spelling. What a client echoes is
+  // Postgres's text, and a proxy or a future client re-serialising it as ISO
+  // must not turn every save into a conflict.
+  it("takes the current revision however the timestamp is spelled", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    const iso = new Date(revision).toISOString();
+    expect(iso).not.toBe(revision);
+    expect((await edit(tripId, pageId, "socks, shoes", iso)).ok).toBe(true);
+  });
+
+  // Every caller that predates the field: the assistant's page tools,
+  // `/api/v1`, the seeders. Last write wins, as it always has.
+  it("keeps last-write-wins for an edit that names no revision", async () => {
+    const tripId = await seedTrip();
+    const { pageId } = await pageAt(tripId, "socks");
+    expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
+    expect((await edit(tripId, pageId, "socks, hat")).ok).toBe(true);
+    expect(await storedText(pageId)).toContain("socks, hat");
+  });
+
+  // A save of what the page already says is a no-op whatever revision it
+  // names, BEFORE the revision is looked at. The case that matters: a keepalive
+  // that landed, and then the ordinary commit of the same document behind it.
+  // Refusing that would report a conflict with the author's own words.
+  it("answers a no-op edit as a success, even against an older revision", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision } = await pageAt(tripId, "socks");
+    expect((await edit(tripId, pageId, "socks, shoes")).ok).toBe(true);
+    const head = (await getTripEventsAfter(tripId, 0)).headSeq;
+
+    const same = await edit(tripId, pageId, "socks, shoes", revision);
+
+    expect(same.ok).toBe(true);
+    expect((await getTripEventsAfter(tripId, 0)).headSeq).toBe(head);
+  });
+
+  // A page the log has never heard of is a ROW (lazily seeded), and its
+  // revision is the row's. The first guarded save of it must not be refused.
+  it("takes a guarded edit of a page that existed before the log knew about pages", async () => {
+    const tripId = await seedTrip();
+    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!;
+    const result = await edit(tripId, overview.id, "our plan", overview.updatedAt);
+    expect(result.ok).toBe(true);
+  });
+
+  // **THE interleaving this exists for.** Commit A goes out typed against r0
+  // and is held up in the network. The page unloads and the keepalive K goes
+  // past it with NO revision (the client cannot know one while A is in
+  // flight), lands, and moves the page to r1. Then A arrives. Before this, A
+  // won: the author's older words over their newer ones.
+  it("refuses the older commit that lands after the keepalive which overtook it", async () => {
+    const tripId = await seedTrip();
+    const { pageId, revision: r0 } = await pageAt(tripId, "draft");
+
+    const keepalive = await edit(tripId, pageId, "draft, then the newest line");
+    expect(keepalive.ok).toBe(true);
+    const older = await edit(tripId, pageId, "draft, then a line", r0);
+
+    expect(!older.ok && older.error.code).toBe("page-changed");
+    expect(await storedText(pageId)).toContain("draft, then the newest line");
+  });
+});

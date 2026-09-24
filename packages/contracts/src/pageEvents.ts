@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PageContext } from "./pages.ts";
+import { PageContext, PageRevision } from "./pages.ts";
 import { PageDoc } from "./pageDoc.ts";
 
 /**
@@ -64,6 +64,15 @@ export type CreatePage = z.infer<typeof CreatePage>;
  * Omitted means unchanged, following `UpdateActivity`'s rule rather than
  * inventing a second one. Neither field is nullable: a page always has a
  * title, and an emptied page is an empty document, not an absent one.
+ *
+ * **`expectedUpdatedAt` is the one guard `expectedSeq` cannot be.** The stream
+ * check reads the head current when each request ARRIVES, so of two saves
+ * racing from one editor the older can land last and win. This names the
+ * revision the edit was typed against, and a page that has moved since is
+ * refused (`page-changed`), never overwritten. Optional: every caller that
+ * predates it keeps last-write-wins. It is not part of the decision (the
+ * domain folds no timestamps) and never reaches an event; the server checks it
+ * against the `pages` row. CodeRabbit, PR #222.
  */
 export const EditPage = z.object({
   type: z.literal("EditPage"),
@@ -71,6 +80,7 @@ export const EditPage = z.object({
   pageId: z.string().uuid(),
   title: z.string().min(1).optional(),
   content: PageDoc.optional(),
+  expectedUpdatedAt: PageRevision.optional(),
 });
 export type EditPage = z.infer<typeof EditPage>;
 
