@@ -6,6 +6,7 @@ import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DaysFilter, daysSummary } from "./DaysFilter";
 import { FieldPicker } from "./FieldPicker";
+import { FieldColumns } from "./FieldColumns";
 
 // Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
@@ -235,6 +236,21 @@ export function withBinding(
   return merged;
 }
 
+// A `multiple` field input's stored list, read as `withList` writes it. Anything
+// else stored there reads as no columns rather than as a crash.
+function listOf(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
+}
+
+// `withBinding` for a list: merge, and an empty list deletes the key so `{}`
+// stays the one spelling of "nothing chosen".
+function withList(params: Record<string, unknown>, input: WidgetInput, next: string[]): Record<string, unknown> {
+  const merged = { ...params };
+  if (next.length === 0) delete merged[input.name];
+  else merged[input.name] = next;
+  return merged;
+}
+
 /**
  * What this widget is showing, as one line — §19's button label.
  *
@@ -327,7 +343,19 @@ export function WidgetBindControls({
     <>
       {inputs.map((input) => {
         const control =
-          input.type === "field" ? (
+          input.type === "field" && input.multiple ? (
+            // A LIST of fields, one per column (`stop.rows`' `columns`). Each
+            // picker reads `optionsFor` as the single one does, so a stale path
+            // keeps its "no longer offered" row.
+            <FieldColumns
+              id={`${idPrefix}-${input.name}`}
+              name={(part) => (namedByTitle ? `${title}: ${part}` : part.charAt(0).toUpperCase() + part.slice(1))}
+              value={listOf(params[input.name])}
+              optionsOf={(path) => optionsFor(input, { [input.name]: path }, detail, globals)}
+              onChange={(next) => onChange(withList(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "field" ? (
             // Searchable, because a manifest root lists more fields than a
             // select can be read down comfortably, and it grows with every
             // annotation. Same options as the summary line reads.

@@ -8,14 +8,22 @@ import { WidgetBindControls, bindSummary, optionsFor } from "./widgetBind";
 
 afterEach(cleanup);
 
-// The `field` input's control (M14 field widget, build step 5). No registered
-// widget declares one yet — T10 adds the first — so the widget here is a
-// test-only declaration: `WidgetBindControls` takes its `inputs` from the
+// The `field` input's control (M14 field widget, build step 5). The inputs here
+// are declared by the test: `WidgetBindControls` takes its `inputs` from the
 // caller, which is the same seam the insert step uses for a preset.
 const FIELD: WidgetInput = { name: "field", type: "field", label: "Field", of: "stop" };
+const COLUMNS: WidgetInput = { name: "columns", type: "field", label: "Columns", of: "stop", multiple: true };
 const detail = tripDetailFixture();
 
-function Harness({ initial = {}, layout = "stacked" as const }: { initial?: Record<string, unknown>; layout?: "inline" | "stacked" }) {
+function Harness({
+  initial = {},
+  layout = "stacked" as const,
+  inputs = [FIELD],
+}: {
+  initial?: Record<string, unknown>;
+  layout?: "inline" | "stacked";
+  inputs?: readonly WidgetInput[];
+}) {
   const [params, setParams] = useState<Record<string, unknown>>(initial);
   return (
     <>
@@ -27,7 +35,7 @@ function Harness({ initial = {}, layout = "stacked" as const }: { initial?: Reco
         onChange={setParams}
         layout={layout}
         idPrefix="t"
-        inputs={[FIELD]}
+        inputs={inputs}
         title="One stop's detail"
       />
       <output data-testid="params">{JSON.stringify(params)}</output>
@@ -81,6 +89,44 @@ describe("the field picker", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     // The box shows the label it stored the path for.
     expect((box as HTMLInputElement).value).toBe("Cost");
+  });
+
+  it("builds an ordered list of columns: add, reorder, change and remove", async () => {
+    // `stop.rows`' `columns` (M14 build step 6). One picker per column, one
+    // more to add with, and every button named for the column it acts on.
+    const user = userEvent.setup();
+    render(<Harness inputs={[COLUMNS]} />);
+    const add = () => screen.getByRole("combobox", { name: "One stop's detail: add a column" });
+    const pick = async (box: HTMLElement, label: string) => {
+      await user.click(box);
+      await user.click(screen.getByRole("option", { name: label }));
+    };
+
+    await pick(add(), "Place");
+    await pick(add(), "Status");
+    expect(stored()).toEqual({ columns: ["stop.location", "stop.kind"] });
+    // The add box stays empty for the next one; each column shows its label.
+    expect((add() as HTMLInputElement).value).toBe("");
+    expect((screen.getByRole("combobox", { name: "One stop's detail: column 2" }) as HTMLInputElement).value).toBe("Status");
+
+    // The first cannot move up and the last cannot move down.
+    expect(screen.getByRole("button", { name: "One stop's detail: move column 1 up" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "One stop's detail: move column 2 down" })).toHaveProperty("disabled", true);
+    await user.click(screen.getByRole("button", { name: "One stop's detail: move column 2 up" }));
+    expect(stored()).toEqual({ columns: ["stop.kind", "stop.location"] });
+
+    await pick(screen.getByRole("combobox", { name: "One stop's detail: column 1" }), "Cost");
+    expect(stored()).toEqual({ columns: ["stop.cost", "stop.location"] });
+
+    await user.click(screen.getByRole("button", { name: "One stop's detail: remove column 1" }));
+    expect(stored()).toEqual({ columns: ["stop.location"] });
+    // Removing the last leaves no key: `{}` is the one spelling of "no columns".
+    await user.click(screen.getByRole("button", { name: "One stop's detail: remove column 1" }));
+    expect(stored()).toEqual({});
+  });
+
+  it("leaves columns out of the one-line summary", () => {
+    expect(bindSummary("stop.rows", { columns: ["stop.cost"] }, detail, null, [COLUMNS])).toBe("everything");
   });
 
   it("picks by click, and Escape leaves the stored field alone", async () => {
