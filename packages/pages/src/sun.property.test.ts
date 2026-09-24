@@ -5,6 +5,7 @@
 // still reaches 6.56°), so no case is skipped and the floor is exact.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { clockIn } from "./clock";
 import { sunEvents } from "./sun";
 import { witness } from "./test-support/witness";
 
@@ -36,6 +37,43 @@ describe("sunEvents properties", () => {
       { numRuns: RUNS },
     );
     // No guard clause: every run asserts, so the floor is exact.
+    w.atLeast(RUNS);
+  });
+
+  // A place near a city, in that city's zone: the zone has to be the one the
+  // place actually keeps, or "local date" means nothing. The list leans on the
+  // zones far from their meridian — west of 180° on the Asian side of the date
+  // line (Apia, Tonga, Kiritimati, Chatham), and Kashgar on Beijing's clock.
+  const ZONED: readonly [zone: string, lat: number, lng: number][] = [
+    ["Pacific/Apia", -13.83, -171.77],
+    ["Pacific/Tongatapu", -21.14, -175.2],
+    ["Pacific/Kiritimati", 1.87, -157.43],
+    ["Pacific/Chatham", -43.95, -176.56],
+    ["Pacific/Auckland", -36.85, 174.76],
+    ["Pacific/Honolulu", 21.31, -157.86],
+    ["America/Los_Angeles", 34.05, -118.24],
+    ["Europe/London", 51.51, -0.13],
+    ["Asia/Kolkata", 28.61, 77.21],
+    ["Asia/Shanghai", 39.47, 75.99],
+    ["Asia/Tokyo", 35.68, 139.77],
+  ];
+  const zonedPlace = fc
+    .tuple(fc.constantFrom(...ZONED), fc.double({ min: -2, max: 2, noNaN: true }), fc.double({ min: -2, max: 2, noNaN: true }))
+    .map(([[zone, lat, lng], dLat, dLng]) => ({ zone, lat: lat + dLat, lng: lng + dLng }));
+
+  it("the sunrise for a date falls on that date, on the place's own clock", () => {
+    const w = witness("sunrise local date");
+    fc.assert(
+      fc.property(dateArb, zonedPlace, (date, { zone, lat, lng }) => {
+        const { sunrise } = sunEvents(date, lat, lng, zone);
+        // Every place listed is within 60° of the equator, so the sun rises on
+        // every date — no guard, and a non-number is a failure, not a skip.
+        expect(typeof sunrise, `${zone} ${date}`).toBe("number");
+        expect(clockIn(zone, sunrise as number).date, `${zone} ${date}`).toBe(date);
+        w.tick();
+      }),
+      { numRuns: RUNS },
+    );
     w.atLeast(RUNS);
   });
 });

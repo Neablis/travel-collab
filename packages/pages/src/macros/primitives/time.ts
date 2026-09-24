@@ -119,7 +119,7 @@ export const daySun: MacroDef<TimeParams, RepeatPayload> = {
         undated = true;
         continue;
       }
-      const sun = sunEvents(date, located.place.lat, located.place.lng);
+      const sun = sunEvents(date, located.place.lat, located.place.lng, located.zone);
       const clock = (t: number) => clockOnDay(t, located.zone, date);
       rows.push({
         lead: rowLabel(`Day ${index + 1}`),

@@ -50,6 +50,23 @@ describe("sunEvents", () => {
     expect([december.goldenMorningEnd, december.goldenEveningStart]).toEqual(["down", "down"]);
   });
 
+  // UTC+13 and +14 west of 180°: local noon on the 15th is 23:00 UTC on the
+  // 14th, so a search anchored on the UTC day found the 16th's sun (#223
+  // review). Values: SunCalc, 2026-09-24 — timeanddate was unreachable from the
+  // session. Auckland is the control: same offset, east of 180°.
+  it.each([
+    ["Pacific/Apia", -13.8333, -171.7667, "06:11", "19:02"],
+    ["Pacific/Tongatapu", -21.1394, -175.2049, "06:12", "19:29"],
+    ["Pacific/Kiritimati", 1.8721, -157.4278, "06:39", "18:40"],
+    ["Pacific/Auckland", -36.8485, 174.7633, "06:18", "20:43"],
+  ])("%s on 2027-01-15: that day's sun, not the next day's", (zone, lat, lng, rise, set) => {
+    const sun = sunEvents("2027-01-15", lat, lng, zone);
+    expect(at(sun.sunrise, zone).date).toBe("2027-01-15");
+    expect(at(sun.sunset, zone).date).toBe("2027-01-15");
+    near(at(sun.sunrise, zone).time, rise);
+    near(at(sun.sunset, zone).time, set);
+  });
+
   it("puts the golden hour inside the day: sunrise, then six degrees up, then six down, then sunset", () => {
     const sun = sunEvents("2026-06-21", 35.6812, 139.7671);
     const times = [sun.sunrise, sun.goldenMorningEnd, sun.goldenEveningStart, sun.sunset];
