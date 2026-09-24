@@ -983,6 +983,39 @@ export const rateLimitCounters = pgTable("rate_limit_counters", {
   hits: integer("hits").notNull(),
 });
 
+// **Outside data, cached per source and rounded point** (ADR-052 decision 2):
+// MET Norway forecasts and NASA POWER normals, in the NORMALIZED shape the
+// adapters return, never a vendor body. Infrastructure in `rate_limit_counters`'
+// sense — not event-sourced (Invariant 1 scopes the log to planning), and
+// dropping every row costs one round of refetches and nothing else.
+//
+// Keyed by point and not by date: one call returns a point's whole forecast
+// series or all twelve months, so a date in the key would multiply calls by the
+// trip's length for the same bytes. The key holds only the rounded point, so
+// the table cannot say whose trip asked. Rows are overwritten, never swept.
+//
+// **One writer**: `server/external/cache.ts`. `external.soleWriter.test.ts`
+// sweeps the tree for a second.
+export const externalDataCache = pgTable("external_data_cache", {
+  // "met:forecast:59.91,10.75" | "power:normals:59.91,10.75"
+  key: text("key").primaryKey(),
+  // `null` only on a row that exists to hold a back-off (`backoff_until`) for a
+  // key that has never been fetched: there is nothing to serve, but the 429
+  // still has to stop the next request from calling.
+  payload: jsonb("payload"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "date" }).notNull(),
+  // MET: its `Expires` header. POWER: fetched_at + 30 days.
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  // MET's `Last-Modified`, sent back as `If-Modified-Since`.
+  lastModified: text("last_modified"),
+  // MET's `meta.updated_at`: the as-of the reader sees (decision 7).
+  sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true, mode: "date" }),
+  // Set by a 429: no call is made for this key until it passes (decision 8).
+  // Not in the ADR's column list, which says only that "a 429 records a
+  // back-off on the row" — this is that record.
+  backoffUntil: timestamp("backoff_until", { withTimezone: true, mode: "date" }),
+});
+
 // **What an account pays for** (M21 link 1).
 //
 // The Billing module's only store. It holds what Stripe told us, pinned to the
