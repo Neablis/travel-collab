@@ -26,7 +26,7 @@ const view = (external?: ExternalInputs) =>
 describe("MacroView — a widget whose outside source did not answer (ADR-052)", () => {
   it("shows the quiet placeholder, with no control on it", () => {
     view({ weather: { state: "failed" } });
-    expect(screen.queryByText("weather unavailable")).not.toBeNull();
+    expect(screen.getByText("weather unavailable")).toBeTruthy();
     // Not the ghost's bind action, and not a retry: nothing here is the
     // author's to fix.
     expect(screen.queryByRole("button")).toBeNull();
@@ -34,14 +34,14 @@ describe("MacroView — a widget whose outside source did not answer (ADR-052)",
 
   it("says it is loading while the request is in flight, and when no slot was handed", () => {
     view({ weather: { state: "pending" } });
-    expect(screen.queryByText("loading weather")).not.toBeNull();
+    expect(screen.getByText("loading weather")).toBeTruthy();
     cleanup();
     view();
-    expect(screen.queryByText("loading weather")).not.toBeNull();
+    expect(screen.getByText("loading weather")).toBeTruthy();
   });
 
   it("renders the value once it lands", () => {
     view({ weather: { state: "ready", value: { points: [] } } });
-    expect(screen.queryByText("0 points")).not.toBeNull();
+    expect(screen.getByText("0 points")).toBeTruthy();
   });
 });
