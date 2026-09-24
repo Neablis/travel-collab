@@ -285,6 +285,31 @@ export function geocodeQuota(): QuotaPolicy[] {
 }
 
 /**
+ * Outside-data quota (ADR-052 decision 8): our own ceiling on calls to MET
+ * Norway and NASA POWER, charged per upstream call and **only on a cache
+ * miss** — a notebook served from `external_data_cache` costs nothing here. A
+ * refusal is not a 429 to the page: the point is served from the cache if it
+ * can be, and is `unavailable` otherwise.
+ *
+ * Neither source sells calls, so this protects their goodwill rather than a
+ * bill: MET asks to be contacted before 20 req/s, and POWER throttles
+ * "repetitive and rapid requests" without a number. One trip's page is a
+ * forecast and a normals call per distinct rounded point, normals are kept a
+ * month and forecasts until MET's `Expires`, so 200 a day per person is many
+ * trips opened many times; the global one bounds sign-up-and-repeat.
+ */
+export function weatherQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "weather-daily",
+      windowMs: DAY_MS,
+      perUser: envCeiling("WEATHER_RATE_LIMIT_PER_USER_DAILY", 200),
+      global: envCeiling("WEATHER_RATE_LIMIT_GLOBAL_DAILY", 5000),
+    },
+  ];
+}
+
+/**
  * Charge one request against every policy, in order. Returns the first refusal.
  *
  * FAILS CLOSED. A counter-store error refuses the request rather than waving it

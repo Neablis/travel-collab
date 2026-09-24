@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { TripHistory } from "@tc/contracts";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { headSeqOf, POLL_INTERVAL_MS, useTripBroadcast } from "./broadcast";
 
 const fetchTripEventsMock = vi.fn();
@@ -65,6 +66,7 @@ describe("useTripBroadcast", () => {
       useTripBroadcast({
         tripId: "t",
         enabled: true,
+        interval: true,
         cursor: () => 0,
         onChanged,
         ...over,
@@ -73,9 +75,70 @@ describe("useTripBroadcast", () => {
     return { onChanged, ...r };
   };
 
-  it("does not poll at all when disabled — a solo trip has no second writer", async () => {
+  it("does not poll at all when disabled, not even when the tab comes back", async () => {
     mount({ enabled: false });
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
+    setVisibility("hidden");
+    setVisibility("visible");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchTripEventsMock).not.toHaveBeenCalled();
+  });
+
+  // ADR-049 Decision 2: a solo trip has no second writer, so no TIMER — but the
+  // same person in another tab is one, and coming back here asks once. Both
+  // halves were one flag until KI-2026-09-05-i item 5, so a solo notebook never
+  // heard about a stop moved elsewhere.
+  it("with no interval, polls only when the tab comes back", async () => {
+    mount({ interval: false });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
+    expect(fetchTripEventsMock).not.toHaveBeenCalled();
+
+    setVisibility("hidden");
+    setVisibility("visible");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+    // …and coming back did not start a timer either.
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
+    expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Two windows side by side — the board in one, the notebook in the other —
+  // are both VISIBLE, so moving between them fires no `visibilitychange`.
+  // Focus is what changes, and it is the KI's own advice ("a focus /
+  // visibilitychange refetch").
+  it("polls when the window regains focus, even with no interval", async () => {
+    mount({ interval: false });
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Coming back to a tab fires `focus` AND `visibilitychange`; that is one
+  // return, and it asks once.
+  it("does not start a second poll while one is in flight", async () => {
+    let settle!: (v: unknown) => void;
+    fetchTripEventsMock.mockReturnValue(new Promise((res) => (settle = res)));
+    mount({ interval: false });
+    setVisibility("hidden");
+    setVisibility("visible");
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+    settle(page());
+    await vi.advanceTimersByTimeAsync(0);
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchTripEventsMock).toHaveBeenCalledTimes(2);
+  });
+
+  // The demo is a fixture that never moves (ADR-031), refused here so no caller
+  // has to remember it.
+  it("never polls the demo trip", async () => {
+    mount({ tripId: DEMO_TRIP_ID });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+    setVisibility("hidden");
+    setVisibility("visible");
+    await vi.advanceTimersByTimeAsync(0);
     expect(fetchTripEventsMock).not.toHaveBeenCalled();
   });
 
@@ -104,6 +167,8 @@ describe("useTripBroadcast", () => {
     const { onChanged } = mount({ cursor: () => 3 });
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     expect(onChanged).toHaveBeenCalledTimes(1);
+    // The head it saw, so a caller with no history can keep it as its cursor.
+    expect(onChanged).toHaveBeenCalledWith(5);
   });
 
   it("says nothing when the head has not moved", async () => {

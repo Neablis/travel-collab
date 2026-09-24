@@ -19,7 +19,39 @@
 // reject. /ask rejects: a doc that fails here never reaches the client.
 import { PageDoc, migratePageDoc, newPageDoc } from "@tc/contracts";
 import type { PageNode } from "@tc/contracts";
-import { findWidgetError } from "@tc/pages";
+import { findWidgetError, type CatalogueEntry } from "@tc/pages";
+
+const quoted = (names: readonly string[]): string =>
+  names.map((n) => `\`${n}\``).join(", ").replace(/, ([^,]*)$/, " and $1");
+
+/**
+ * The page prompt's rule about `insert_widget`'s params, built FROM the
+ * catalogue it sits above.
+ *
+ * It hand-listed `attribute`'s `field` and `count`'s `of` until
+ * KI-2026-09-05-i item 4 — beside the catalogue that already derived them, and
+ * ten lines below the `compose_page` comment recording that exact hand-list
+ * going stale. It had gone stale again: `stop.rows`' `only` reached the
+ * catalogue and never this sentence.
+ */
+export function insertWidgetParamsRule(catalogue: readonly CatalogueEntry[]): string {
+  const taking = catalogue
+    .filter((entry) => Object.keys(entry.params).length > 0)
+    .map((entry) => `\`${entry.name}\` takes ${quoted(Object.keys(entry.params))}`);
+  const hasFields = catalogue.some((entry) => entry.fields !== undefined);
+  return [
+    "insert_widget takes a widget name and that widget's own params.",
+    "Filters are all optional: omit them and the widget covers the whole trip, which is valid and usually what you want.",
+    taking.length === 0
+      ? ""
+      : `Some widgets also take a NON-filter param — ${taking.join("; ")} — and the catalogue below lists each under \`params\` with the exact values allowed.`,
+    hasFields
+      ? "A widget that reads a field also lists its fields under `fields`, each with the label a person would call it: match what the user asked for to a label, then pass that entry's `path`. An input marked `multiple` takes a list of paths, in the order they should appear."
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 export type { PageInserts } from "@/server/assistant/deps";
 

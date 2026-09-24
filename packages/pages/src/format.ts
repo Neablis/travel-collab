@@ -25,6 +25,13 @@ export function formatDate(iso: string | null): string {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
+/** `formatDate` without the year ("Jun 1"), for a cell too narrow to repeat it; `null` for no date. */
+export function formatShortDate(iso: string | null): string | null {
+  const ms = iso === null ? null : isoToUtcMs(iso);
+  if (ms === null) return null;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(ms));
+}
+
 /**
  * Whole days from `from` to `to`, both `yyyy-mm-dd`. Negative when `to` is
  * earlier.

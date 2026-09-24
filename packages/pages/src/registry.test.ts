@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { getMacro, resolveMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
+import { getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
+import { fieldChoices } from "./fields";
 import { insertWidget } from "./insert";
 import type { WidgetInput } from "./registry-types";
 
@@ -24,30 +25,37 @@ describe("registry", () => {
     // `MACRO_NAMES` and deliberately NOT in `PRIMITIVE_NAMES`, and the sweep
     // below that once equated the two is what caught it.
     // `country.facts` ("Know before you go", M14 link 11) is registered on
-    // `open`'s terms: no selection, so not a primitive.
+    // `open`'s terms: no selection, so not a primitive. `day.sun` and
+    // `day.fromHome` (the same link) ARE primitives — day entity, day filters —
+    // and so is `day.weather`, which also declares `needs` (ADR-052).
     expect([...MACRO_NAMES].sort()).toEqual([
-      "attribute", "city", "city.detail", "city.rows", "cost", "cost.rows",
-      "count", "country.facts", "dates", "day.detail", "day.rows", "hours", "open", "stop.rows",
+      "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
+      "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
+      "open", "stop.rows", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
-  it("resolveMacro dispatches to the right resolver", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "attribute", { field: "trip.name" })).toEqual({
+  // `renderMacro` is the one dispatcher. `resolveMacro` sat beside it with only
+  // these tests calling it, and was deleted (KI-2026-09-05-i item 2).
+  const ctx = { trip: detail, page: { tripId: detail.tripId }, user: null, globals: null, today: null };
+  it("renderMacro dispatches to the right resolver", () => {
+    expect(renderMacro(ctx, "attribute", { field: "trip.name" })).toEqual({
       status: "ok",
-      value: "T",
+      rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: "T" }] },
     });
   });
-  it("resolveMacro reports unknown macros without throwing", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "nope.nope", {}).status).toBe("unknown");
+  it("renderMacro reports unknown macros without throwing", () => {
+    expect(renderMacro(ctx, "nope.nope", {}).status).toBe("unknown");
   });
   it("reports a RETIRED name as unknown rather than resolving it", () => {
     // A node still carrying `cost.day` reached this build without going through
     // `parsePageDoc`, which is a bug in the caller, not a page to render
     // silently. `MacroView` has a legible answer for `unknown`.
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "cost.day", {}).status).toBe("unknown");
+    expect(renderMacro(ctx, "cost.day", {}).status).toBe("unknown");
   });
-  it("resolveMacro reports bad params without throwing", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "cost", { junk: 1 }).status).toBe("empty"); // strip() ignores extras
+  it("renderMacro reports bad params without throwing", () => {
+    expect(renderMacro(ctx, "cost", { junk: 1 }).status).toBe("empty"); // strip() ignores extras
+    expect(renderMacro(ctx, "cost", { kind: "reserved" }).status).toBe("bad-params");
   });
   it("presetCatalog exposes what the picker and the slash menu read", () => {
     const cat = presetCatalog();
@@ -77,7 +85,6 @@ describe("registry", () => {
   // exercise each macro's own validator rather than just reading its keys.
   const SAMPLE: Record<WidgetInput["type"], unknown> = {
     day: { kind: "index", index: 0 },
-    days: { from: { kind: "index", index: 0 }, through: { kind: "index", index: 1 } },
     person: "u1",
     // ONE tag, and a real `ActivityTag` member. This was `["Meal"]` — an array,
     // and capitalised when the enum is lowercase — written speculatively before
@@ -86,7 +93,8 @@ describe("registry", () => {
     // working: §18's table reads "every stop, or ONE", so a tag binding is a
     // single optional member, not a list, and "Meal" is not a member at all.
     tags: "meal",
-    trip: "11111111-1111-1111-1111-111111111111",
+    // A manifest path, the only shape a `field` param stores.
+    field: "stop.title",
     // The three ADR-039 decision 1 adds. Real members of their contract shapes,
     // not placeholders: a `CityRef` is a name, a `KindRef` is an `ActivityKind`
     // member, and a `DateRangeRef` is an ordered pair of `YYYY-MM-DD` dates —
@@ -102,7 +110,9 @@ describe("registry", () => {
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
       if (def.inputs.length === 0) continue;
-      const bound = Object.fromEntries(def.inputs.map((i) => [i.name, SAMPLE[i.type]]));
+      // A `multiple` field input stores a list of what the single one stores.
+      const sampleOf = (i: WidgetInput) => (i.type === "field" && i.multiple ? [SAMPLE.field] : SAMPLE[i.type]);
+      const bound = Object.fromEntries(def.inputs.map((i) => [i.name, sampleOf(i)]));
       const parsed = def.params.safeParse(bound);
       // A declared input the validator drops is a binding the UI can set and
       // the resolver will never see — silent, and exactly the drift this seam
@@ -200,11 +210,19 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // `TripDetail` (they are derived by `citiesOfDay` in `@tc/domain`, which this
   // package may not import). The sweep passed `globals: null` while nothing
   // consumed it; now something does.
+  //
+  // The day's place and zone, and the reader's home zone, are what the server
+  // computes for "Sunrise and sunset" and "Time difference from home": without
+  // them both answer `empty` and the floor refuses, as above.
   const globals = {
-    days: [{ index: 0, date: "2026-08-01", cities: ["Tokyo"], activityCount: 1, costSubtotal: 5000 }],
+    days: [{
+      index: 0, date: "2026-08-01", cities: ["Tokyo"], activityCount: 1, costSubtotal: 5000,
+      place: { lat: 35.7188, lng: 139.7765 }, timeZone: "Asia/Tokyo",
+    }],
     cities: [{ name: "Tokyo", dayIndexes: [0], activityCount: 1 }],
     tags: [],
     bookedCount: 0,
+    homeTimeZone: "America/Los_Angeles",
   };
 
   // A loaded account. The sweep below needs one: `account.name` and
@@ -212,6 +230,25 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // reach `render` and the witness floor would fail — which is the floor doing
   // exactly its job rather than a reason to lower it.
   const user = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" as const };
+
+  // What the weather route would hand in for the day (ADR-052): with no slot
+  // "Weather" answers `unavailable` and never reaches `render` — the floor
+  // refusing, as above. The day is before `today` below, so this is the
+  // labelled-typical row.
+  const external = {
+    weather: {
+      state: "ready" as const,
+      value: {
+        points: [{
+          date: "2026-08-01", city: "Tokyo", forecast: { unavailable: "not-in-horizon" as const },
+          typical: {
+            source: "nasa-power" as const, month: 8, highC: 31, lowC: 24, precipitationMmPerDay: 4.8,
+            period: { fromYear: 2001, throughYear: 2020 },
+          },
+        }],
+      },
+    },
+  };
 
   // **The sweep runs over PRESETS, not over registered names.** A primitive
   // asked to render with `{}` is not always meaningful — `attribute` with no
@@ -222,13 +259,18 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01" },
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", external },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
-      // widgets reach `ok` instead of `unbound`.
+      // widgets reach `ok` instead of `unbound`. A field the preset leaves for
+      // the reader to pick gets the manifest's first, which is what the picker
+      // would offer at the top.
       {
         ...entry.params,
         ...(entry.inputs.some((i) => i.type === "day") ? { day: { kind: "index", index: 0 } } : {}),
+        ...Object.fromEntries(
+          entry.inputs.flatMap((i) => (i.type === "field" && !i.multiple ? [[i.name, fieldChoices(i.of)[0]!.path]] : [])),
+        ),
       },
     );
 
@@ -342,7 +384,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // containment it always meant: every primitive is registered, and a
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
-    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual(["country.facts", "open"]);
+    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual(["country.facts", "open", "trip.strip"]);
   });
 
   it("declares only dimensions its entity permits", () => {
@@ -419,9 +461,14 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // set"*, and *"both surfaces read one declaration, so they cannot offer
     // different things"*. A primitive whose `inputs` and `filters` disagree is
     // exactly two declarations.
+    //
+    // **A `field` input is not a control over a dimension**, so it is left out
+    // of the comparison: it chooses what a widget reads, not which members, and
+    // no filter maps to it (`WidgetInput`'s own comment).
     for (const name of PRIMITIVE_NAMES) {
       const def = getMacro(name)!;
-      expect(def.inputs.map((i) => i.name), `${name}'s controls`).toEqual([...def.selection!.filters]);
+      const filterControls = def.inputs.filter((i) => i.type !== "field").map((i) => i.name);
+      expect(filterControls, `${name}'s controls`).toEqual([...def.selection!.filters]);
     }
   });
 
@@ -441,7 +488,8 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect(paramsOf("count")).toEqual({ of: ["stop", "day", "city"] });
     // "Still to book" is `stop.rows` plus this param, so a model can compose it
     // without the preset list — with no edit to the catalogue to get there.
-    expect(paramsOf("stop.rows")).toEqual({ only: ["needsBooking"] });
+    // `columns` is a field input, so its vocabulary is the manifest's paths.
+    expect(paramsOf("stop.rows")).toEqual({ only: ["needsBooking"], columns: fieldChoices("stop").map((c) => c.path) });
     // And a primitive that takes only filters says so with an empty object
     // rather than by omission, so "no extra params" is a statement.
     expect(paramsOf("cost")).toEqual({});
@@ -452,6 +500,33 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
         expect(FilterDimension.options, `${entry.name} lists the filter ${key} as an extra param`).not.toContain(key);
       }
     }
+  });
+
+  it("hands the assistant every valid field, by path and label, for a widget with a `field` input", () => {
+    // Gap 5 of the M14 field-widget review: `nonFilterParams` read only `ZodEnum`
+    // values, and a field param is a plain string (validated at resolve time,
+    // so a stale one never blocks a save), so the model would have been told
+    // "any string" and guessed.
+    //
+    // Read off the REGISTERED catalogue, the one `handleAskRequest` sends, so
+    // the field widget reaching the assistant is proved rather than a test-only
+    // def's entry (M14 T10).
+    const catalogue = primitiveCatalog();
+    const entry = catalogue.find((e) => e.name === "field")!;
+    const choices = fieldChoices("stop");
+    expect(choices.length, "the stop root publishes nothing").toBeGreaterThan(0);
+    // `distinct` is a boolean, so it has no list to give.
+    expect(entry.params).toEqual({ field: choices.map((c) => c.path), distinct: null });
+    expect(entry.fields).toEqual({ field: choices.map(({ path, label }) => ({ path, label })) });
+    // And a widget with no field input carries no `fields` key at all: the
+    // catalogue rides in every page turn's prompt, so absence is the cheap
+    // spelling of "none".
+    const withFields = catalogue.filter((e) => e.fields !== undefined).map((e) => e.name);
+    expect(withFields.sort()).toEqual(["field", "stop.rows"]);
+    // `stop.rows`' columns, from the same manifest and marked as a list.
+    const rows = catalogue.find((e) => e.name === "stop.rows")!;
+    expect(rows.fields).toEqual({ columns: choices.map(({ path, label }) => ({ path, label })) });
+    expect(rows.inputs).toContainEqual({ name: "columns", type: "field", label: "Columns", of: "stop", multiple: true });
   });
 
   it("gives every registered widget a title and a preview, catalogued or not", () => {

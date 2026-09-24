@@ -258,6 +258,53 @@ describe("stop.rows", () => {
       because: "nothing left to book",
     });
   });
+
+  // Field columns (M14 field widget, build step 6; Mitchell's answer 4: *"a
+  // field as a column on the existing … stop.rows"*).
+  describe("columns", () => {
+    const headingsOf = (ctx: WidgetContext, params: Record<string, unknown>) => {
+      const outcome = renderMacro(ctx, "stop.rows", params);
+      if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") throw new Error(outcome.status);
+      return outcome.rendered.headings;
+    };
+
+    it("adds a cell per chosen field after the built-in two, in the chosen order, headed by label", () => {
+      const fixture = selectionTrip();
+      const ctx = contextOf(fixture);
+      const params = { day: { kind: "index", index: 0 }, columns: ["stop.location", "stop.kind", "stop.tags"] };
+      const cost = (id: string) => {
+        const { amountMinor, currency } = fixture.trip.activities[id]!.cost!;
+        return formatMoney(amountMinor, currency);
+      };
+      expect(cellsOf(ctx, "stop.rows", params)).toEqual([
+        ["09:00 – 10:00", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "booked", "ticketed"],
+        // Lunch has no place: its cell stays, empty, so the column stays one.
+        ["12:00 – 13:00", cost(fixture.ids.s1), "", "planned", "meal"],
+      ]);
+      expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Place", "Status", "Tags"]);
+    });
+
+    it("leaves a group header cell-less, and adds no heading row without columns", () => {
+      const ctx = contextOf(selectionTrip());
+      const cells = cellsOf(ctx, "stop.rows", { columns: ["stop.kind"] });
+      expect(cells[0]).toEqual([]);
+      expect(new Set(cells.filter((row) => row.length > 0).map((row) => row.length))).toEqual(new Set([3]));
+      expect(headingsOf(ctx, {})).toBeUndefined();
+      expect(headingsOf(ctx, { columns: [] })).toBeUndefined();
+    });
+
+    it("drops a column the manifest does not publish rather than reading the stop by its name", () => {
+      // Gap 6: `bookedBy` is a user id and unannotated. Set, so a raw read
+      // would find it.
+      const fixture = selectionTrip();
+      for (const activity of Object.values(fixture.trip.activities)) activity.bookedBy = "user-secret-id";
+      const ctx = contextOf(fixture);
+      const params = { day: { kind: "index", index: 0 }, columns: ["stop.bookedBy", "stop.kind", "stop.nope"] };
+      expect(cellsOf(ctx, "stop.rows", params).map((row) => row.length)).toEqual([3, 3]);
+      expect(JSON.stringify(renderMacro(ctx, "stop.rows", params))).not.toContain("user-secret-id");
+      expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Status"]);
+    });
+  });
 });
 
 describe("cost.rows", () => {

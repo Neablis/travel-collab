@@ -476,15 +476,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
 
   useTripBroadcast({
     tripId,
-    // A solo trip has no second writer, so the interval would be pure cost; and
-    // while the board is previewing an older seq, the present moving underneath
-    // it is noise rather than news. The demo trip is a fixture that never moves
-    // (ADR-031), so polling it can only ever return "nothing happened".
-    enabled:
-      status === "ready" &&
-      previewSeq === null &&
-      !isDemoTripId(tripId) &&
-      (optimistic?.confirmed.detail.members.length ?? 0) > 1,
+    // While the board is previewing an older seq, the present moving underneath
+    // it is noise rather than news. The demo trip is refused inside the hook.
+    enabled: status === "ready" && previewSeq === null,
+    // A solo trip has no second writer, so a TIMER would be pure cost — but the
+    // same person in a second tab is a writer, and coming back to this one
+    // still asks once (ADR-049 Decision 2).
+    interval: (optimistic?.confirmed.detail.members.length ?? 0) > 1,
     // Read at poll time, not captured: the confirmed head advances every time
     // the user's own work lands, and a stale cursor would re-report those as
     // remote news on every tick.

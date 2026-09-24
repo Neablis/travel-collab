@@ -27,6 +27,7 @@ import type {
   ReportTargetKind,
   SavedDayAuthorKind,
   SavedDayVisibility,
+  SavedNotebookVisibility,
   SavedStop,
   SubscriptionStatus,
   TripDetail,
@@ -773,6 +774,44 @@ export const savedDayReviews = pgTable(
   ],
 );
 
+// Saved notebooks (M14 link 10): a person's notebook kept as a template for a
+// future trip. `saved_days`' shape one level down, on ADR-029's terms — owned by
+// a person, ordinary CRUD, NOT event-sourced — and the only writer is
+// `server/savedNotebooks.ts` (`savedNotebooks.soleWriter.test.ts` sweeps for a
+// second). Instantiating one writes no row here: it creates a page through the
+// page command path, into the TARGET trip's stream.
+export const savedNotebooks = pgTable(
+  "saved_notebooks",
+  {
+    id: uuid("id").primaryKey(),
+    // A `users.id`, on `saved_days.owner_id`'s no-foreign-key terms (ADR-025).
+    ownerId: text("owner_id").notNull(),
+    title: text("title").notNull(),
+    // The snapshot, as `serializePageDoc` writes it: the wire form, at the
+    // version it was taken at — never migrated here. `$type` is a compile-time
+    // cast; the strict parse happens on instantiate (`instantiateTemplate`),
+    // and the read boundary is permissive for `pages.content`'s reason.
+    content: jsonb("content").$type<PageContent>().notNull(),
+    // The snapshot's `v`, written in the same insert (ADR-038). A column so the
+    // list can carry it without reading every document.
+    docVersion: integer("doc_version").notNull(),
+    // Private by default, and the only value today (`SavedNotebookVisibility`).
+    // `text` with a `$type`, following `saved_days.visibility`.
+    visibility: text("visibility").$type<SavedNotebookVisibility>().notNull().default("private"),
+    // Provenance (ADR-040 decision 1): where the snapshot came from. Nothing
+    // reads through these ids; a dangling one is a page or trip that moved on.
+    sourceTripId: uuid("source_trip_id").notNull(),
+    sourceTripName: text("source_trip_name").notNull(),
+    sourcePageId: uuid("source_page_id").notNull(),
+    // `mode: "date"` — see the `savedDays` note above (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // A SOFT delete, `saved_days.deleted_at`'s rule and reason: every read
+    // filters on it, and nothing writes it back to null yet.
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [index("saved_notebooks_owner").on(t.ownerId)],
+);
+
 // Reports against a published day or a review (M12 link 6), and the
 // operator's queue over them. Ordinary CRUD, like the reviews above.
 //
@@ -942,6 +981,39 @@ export const rateLimitCounters = pgTable("rate_limit_counters", {
   // `mode: "date"` — the Access-module convention, see the `savedDays` note (KI-53).
   windowStart: timestamp("window_start", { withTimezone: true, mode: "date" }).notNull(),
   hits: integer("hits").notNull(),
+});
+
+// **Outside data, cached per source and rounded point** (ADR-052 decision 2):
+// MET Norway forecasts and NASA POWER normals, in the NORMALIZED shape the
+// adapters return, never a vendor body. Infrastructure in `rate_limit_counters`'
+// sense — not event-sourced (Invariant 1 scopes the log to planning), and
+// dropping every row costs one round of refetches and nothing else.
+//
+// Keyed by point and not by date: one call returns a point's whole forecast
+// series or all twelve months, so a date in the key would multiply calls by the
+// trip's length for the same bytes. The key holds only the rounded point, so
+// the table cannot say whose trip asked. Rows are overwritten, never swept.
+//
+// **One writer**: `server/external/cache.ts`. `external.soleWriter.test.ts`
+// sweeps the tree for a second.
+export const externalDataCache = pgTable("external_data_cache", {
+  // "met:forecast:59.91,10.75" | "power:normals:59.91,10.75"
+  key: text("key").primaryKey(),
+  // `null` only on a row that exists to hold a back-off (`backoff_until`) for a
+  // key that has never been fetched: there is nothing to serve, but the 429
+  // still has to stop the next request from calling.
+  payload: jsonb("payload"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true, mode: "date" }).notNull(),
+  // MET: its `Expires` header. POWER: fetched_at + 30 days.
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  // MET's `Last-Modified`, sent back as `If-Modified-Since`.
+  lastModified: text("last_modified"),
+  // MET's `meta.updated_at`: the as-of the reader sees (decision 7).
+  sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true, mode: "date" }),
+  // Set by a 429: no call is made for this key until it passes (decision 8).
+  // Not in the ADR's column list, which says only that "a 429 records a
+  // back-off on the row" — this is that record.
+  backoffUntil: timestamp("backoff_until", { withTimezone: true, mode: "date" }),
 });
 
 // **What an account pays for** (M21 link 1).

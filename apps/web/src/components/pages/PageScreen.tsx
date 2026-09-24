@@ -1,16 +1,17 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
+import type { Page, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
-import { fetchTripAccess, fetchTripDetail, fetchTripGlobals } from "@/lib/apiClient";
-import { cachedRead } from "@/lib/queryCache";
+import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
+import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
 import { usePreferences } from "@/components/account/PreferencesProvider";
-import { debounce } from "@/lib/debounce";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
+import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
 import { NodeSelection } from "@tiptap/pm/state";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
@@ -35,25 +36,20 @@ import { cn } from "@/lib/cn";
 import { Sheet } from "@/components/ui/sheet";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
+import { useEditSession } from "./useEditSession";
 import type { ApiError } from "@/lib/apiClient";
 
 type Status = "loading" | "ready" | "error";
-
-// Debounce delay for content autosave. A `setTimeout`-based debounce (no
-// existing utility in this repo — checked `lib/debounce.ts` didn't exist
-// before adding it) is all this needs: keystrokes coalesce into one
-// `updatePage` call ~1s after the user stops typing.
-const AUTOSAVE_DELAY_MS = 800;
 
 // What the assistant says when a turn wanted to write into a page that is being
 // read rather than edited. It names the control that would let it through,
 // because "I can't do that here" without one is a dead end.
 const READING_REFUSAL = "I drafted that, but this page is open for reading — turn on Edit page and ask again to put it in.";
 
-// Why this screen is the place ADR-038 decision 4 lives: it owns the autosave.
+// Why this screen is the place ADR-038 decision 4 lives: it owns the write.
 // The loss the ADR is about is not a bad migration, it is this component
-// writing `getJSON()` back over a document the editor never understood, 800 ms
-// after mounting it. The refusal has to happen before `PageEditor` renders,
+// writing `getJSON()` back over a document the editor never understood, at the
+// end of the first edit session after mounting it. The refusal has to happen before `PageEditor` renders,
 // because by the time TipTap has fallen back to an empty document the content
 // is already gone from memory.
 //
@@ -308,10 +304,20 @@ export function PageScreen({
   // is a screen that eventually writes one.
   const [unstorable, setUnstorable] = useState(false);
 
+  // The trip's head as far as this screen knows it — the cursor
+  // `useTripBroadcast` polls from. See the subscription below.
+  const headSeq = useRef(0);
   useEffect(() => {
     let cancelled = false;
     void fetchTripGlobals(tripId).then((r) => {
       if (!cancelled && r.ok) setGlobals(r.value);
+    });
+    // Through the cache TripProvider reads, so arriving from the board reuses
+    // the history it just fetched. A stale or failed read can only put the
+    // cursor BEHIND the detail, which costs one redundant refetch on the first
+    // poll — the safe direction, where ahead would hide a change.
+    void cachedRead(tripKeys.history(tripId), () => fetchTripHistory(tripId)).then((r) => {
+      if (!cancelled && r.ok) headSeq.current = headSeqOf(r.value);
     });
     void Promise.all([fetchPage(tripId, pageId), fetchTripDetail(tripId)]).then(([pageResult, tripResult]) => {
       if (cancelled) return;
@@ -335,20 +341,66 @@ export function PageScreen({
     };
   }, [tripId, pageId]);
 
-  const saveContent = useMemo(
-    () =>
-      debounce((content: PageDoc) => {
-        void updatePage(tripId, pageId, { content });
-      }, AUTOSAVE_DELAY_MS),
-    [tripId, pageId],
+  // **Live chips: the trip moving re-resolves every widget, with nobody
+  // editing the page** (M14 gate; KI-2026-09-05-i item 5). This screen used to
+  // read the trip once, so a stop moved in another tab or by a co-traveller
+  // kept rendering until a reload.
+  //
+  // **The board's poll, not a second refresh model.** `useTripBroadcast` is
+  // the one seam that knows how news of this trip arrives (ADR-049 Decision 3),
+  // and it is gated the way the board is: a timer only when there is a second
+  // member, one read on coming back to the tab regardless. The KI's warning was
+  // that a notebook-only refresh would create the asymmetry it described, so
+  // this subscribes to the same source rather than growing its own.
+  //
+  // **Only `trip` and `globals` are refetched — never the page.** The
+  // document is not what moved, and replacing it would clobber an author
+  // mid-edit (KI-2026-09-22-d is where a remote edit to the DOCUMENT stays
+  // deliberately unshown). Widget values resolve from `trip` on every render
+  // through `MacroEditorContext`, so new detail is all a chip needs, in Reading
+  // and in Editing alike.
+  const refreshes = useRef(0);
+  const refreshTrip = useCallback(
+    (head: number) => {
+      // Latest wins. Two polls' refetches can land out of order, and the older
+      // one arriving second would put back the trip the newer one replaced.
+      const mine = ++refreshes.current;
+      // So the next arrival at the board is not answered out of a cache entry
+      // this poll has just proved stale.
+      invalidate(tripKeys.all(tripId));
+      void Promise.all([fetchTripDetail(tripId), fetchTripGlobals(tripId)]).then(([tripResult, globalsResult]) => {
+        if (mine !== refreshes.current) return;
+        // Silent on failure, as the board's refetch is: the cursor stays put,
+        // so the next poll reports the same news and this tries again.
+        if (!tripResult.ok) return;
+        setTrip(tripResult.value);
+        // The detail was read after the poll saw `head`, so it is at least
+        // that new — a later poll from here reports only what is newer.
+        headSeq.current = Math.max(headSeq.current, head);
+        if (globalsResult.ok) setGlobals(globalsResult.value);
+      });
+    },
+    [tripId],
   );
+  useTripBroadcast({
+    tripId,
+    enabled: status === "ready",
+    interval: (trip?.members.length ?? 0) > 1,
+    cursor: () => headSeq.current,
+    onChanged: refreshTrip,
+  });
+
+  // **One write per editing session**, not one per pause (ADR-036, M14 link 9):
+  // the document is committed when the author leaves Editing, when this screen
+  // unmounts, on `pagehide`, or after a minute idle. `useEditSession` holds the
+  // triggers and the reasons. What it costs is written down in ADR-036
+  // decision 3: prose typed since the session last settled is lost on a crash.
+  const session = useEditSession(editing, (content, { keepalive }) => {
+    void updatePage(tripId, pageId, { content }, { keepalive });
+  });
   // Stable, so `PageEditor`'s effect does not re-run on every render and
   // re-publish the same editor.
   const handleEditorReady = useCallback((next: Editor | null) => setEditor(next), []);
-
-  const saveContentRef = useRef(saveContent);
-  saveContentRef.current = saveContent;
-  useEffect(() => () => saveContentRef.current.cancel(), []);
 
   // The editor, held in a ref as well as in state, so the ask handler below —
   // which is created before `editor` exists and outlives several renders — can
@@ -472,7 +524,7 @@ export function PageScreen({
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
   // screen goes, and a turn still streaming would land its `page-inserts` in a
-  // document the user had just put back into Reading — and autosave it. Found
+  // document the user had just put back into Reading — and save it. Found
   // by Copilot and CodeRabbit on PR 139.
   const closeAssistant = () => {
     ask.cancel();
@@ -491,8 +543,8 @@ export function PageScreen({
   // actual edit/rename"*. Same `updatePage` call the index's inline rename
   // made — only the surface moved.
   //
-  // Not debounced, unlike the content autosave above: a title is committed
-  // once, on blur or Enter, rather than on every keystroke.
+  // Written at once rather than held for the edit session: a title is already
+  // committed once, on blur or Enter, rather than on every keystroke.
   const handleRename = (title: string) => {
     const previousTitle = page?.title ?? null;
     // A rename says nothing about the title once a later one has been sent.
@@ -537,12 +589,12 @@ export function PageScreen({
   const handleContentChange = (content: unknown) => {
     const storable = toStoredPageDoc(content);
     if (storable === null) {
-      saveContent.cancel();
+      session.discard();
       setUnstorable(true);
       return;
     }
     setPage((prev) => (prev === null ? prev : { ...prev, content: storable }));
-    saveContent(storable);
+    session.change(storable);
   };
 
   // Click-to-insert. `insertContent` puts the node at the current selection,
@@ -644,10 +696,10 @@ export function PageScreen({
   // supplies its own.
   const backLink = <PageBreadcrumb tripId={tripId} tripName={trip.name} from={from} title={page.title} />;
 
-  // Read-only, and every write path off: no autosave (nothing calls
-  // `saveContent`), and no ComposePanel — it inserts into an editor this
+  // Read-only, and every write path off: no session write (nothing calls
+  // `session.change`), and no ComposePanel — it inserts into an editor this
   // branch deliberately never mounts, and anything it did land would be
-  // autosaved over the content we just refused to risk.
+  // written over the content we just refused to risk.
   //
   // **No Edit toggle here either.** ADR-038 decision 4's whole point is that
   // this document must not be mounted in an editor at all, so offering a
@@ -716,6 +768,9 @@ export function PageScreen({
           >
             {editing ? "Done editing" : "Edit page"}
           </Button>
+          {/* Reading only: what is kept is the STORED document, and in Editing
+              the session's changes have not been committed yet (M14 link 10). */}
+          {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
           {/* The phone's entry to the assistant, and it is now the SAME control
               this app puts on Plan, Map and the Notebook index (SPEC §23) —
               this screen's own `◎ Assistant` button was one of the three

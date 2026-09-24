@@ -191,9 +191,12 @@ Mitchell's framing, 2026-09-03:
    accordingly. **This link now also owns deleting `PageScreen`'s 800ms autosave and
    `lib/debounce.ts`'s use here** — that is part of the link, not a follow-up.)* Notebook content joins the event
    log, completing the parenthesis ADR-003 left open (*"and later, trip-page content"*).
-   A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
+   ~~A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
    800ms cadence for durability while history commits **one event per settled edit
-   session**. The `pages` table becomes a projection rather than the authority — that is
+   session**.~~ **As built (2026-09-24, T14):** page events stay on the trip stream M13
+   put them on (ADR-036 decision 2, amended), and board ⌘Z is kept off prose because a
+   history decision carries trip events only and a notebook save is never the undo target.
+   Autosave is gone, and history commits **one event per edit session**. The `pages` table becomes a projection rather than the authority — that is
    the real work in this link.
 
 10. **A notebook can be saved as a template for a future trip.** *(**Added 2026-09-18** on
@@ -671,12 +674,42 @@ milestone opens:**
       future mitigation. ADR-036 decision 3 is rewritten and its rejected
       alternatives now record the draft column and `PageDraftSaved` as considered
       and dropped.)*
-- [ ] A page reads as prose with live chips, and **moving a day or a stop
+- [x] A page reads as prose with live chips, and **moving a day or a stop
       changes the page with nobody editing it** — walked, not asserted.
-- [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if
-      raw syntax reaches the DOM.
-- [ ] Reading and Editing are one control; Reading shows no insert affordance and
+      *(Ticked 2026-09-24, T04 on `m14/t04-live-chips`. The walk is
+      `e2e/m14-notebook-widgets.spec.ts` *a co-traveller moves a stop and shifts
+      the days, and the open notebook follows without a reload*, green first
+      time on `test:e2e:ci-like` (twice). The file's one red test at the time,
+      *a field the reader picks…* at line 1499, was already on the base branch.
+      It expects "choose a field" in Editing, and T11's ghosts print `———`
+      there. Alice reads "On 1 June we are in **Tokyo**", Bob moves
+      a stop onto that day and the chip gains Kyoto, then Bob shifts the trip's
+      start date and 1 June's chip empties. No reload, and nobody leaves
+      Reading. The notebook subscribes to the board's poll
+      (`useTripBroadcast`, ADR-049) and refetches the trip, never the page. A
+      solo trip hears the same news when its tab or window comes back, which the
+      walk cannot do honestly and `broadcast.test.tsx` / `PageScreen.test.tsx`
+      prove instead. KI-2026-09-05-i item 5; model recorded in ADR-012's
+      2026-09-24 note.)*
+- [x] **No user-visible macro syntax anywhere**, in either mode. A test fails if
+      raw syntax reaches the DOM. *(Ticked 2026-09-24 on PR #221. T04's `apps/web/src/components/pages/editor/noRawSyntax.test.tsx` scans every preset and every registered widget in Reading, Editing and the read-only fallback, and the screen around it (`PageScreen.test.tsx`), for stored identifiers and `{{ }}` / `[[ ]]` / `@name(` syntax. The last leak it found — `MacroView` printing `unknown macro: <name>` / `bad params: <name>` — now reads "this widget isn't available in this version" / "this widget's settings no longer fit it", covered in both modes (red first). `m14-notebook-widgets.spec.ts` ci-like: 23/23.)*
+      *(Built 2026-09-24, T04, **not ticked: one known leak.** The guard is
+      `test-support/rawSyntax.ts`: stored widget names, preset ids and
+      param paths, `{{ }}`, `[[ ]]`, `@name(`, a JSON params blob, a stringified
+      object, and renderer fallbacks, in text and in `title`/`aria-label`/
+      `placeholder`/`alt`. It scans every preset and every registered widget in
+      Reading, in Editing, and in the read-only fallback
+      (`editor/noRawSyntax.test.tsx`), plus the whole screen with the insert
+      rail and a widget's settings open (`PageScreen.test.tsx`). It found
+      `ReadOnlyPageDoc` printing stored names (`day.detail`), now fixed. **What
+      keeps the box open:** `MacroView` still renders `unknown macro: <name>`
+      and `bad params: <name>` for a stored widget this build does not know or
+      can no longer parse. Measured, rendered in Reading:
+      `"unknown macro: trip.fromTheFuture"`, `"bad params: count"`. Tick when
+      those say something a person can read and the case joins the guard.)*
+- [x] Reading and Editing are one control; Reading shows no insert affordance and
       no repeat-rail chrome.
+      *(**Re-baselined and ticked 2026-09-24** (T01, PR #221), on the audit's evidence: one aria-pressed control in `PageScreen.tsx`; `m14-notebook-widgets.spec.ts` "Reading takes the whole authoring surface away, and the widget stays" and `m14-mobile-notebook.spec.ts` "Reading is the default, and it takes the phone's authoring surface away too"; the desktop spec green ci-like 23/23 on 2026-09-24. The repeat-rail chrome half is carried by the repeater box below.)*
 - [ ] The insert Sheet offers search + *how it reads* over a flat list, each row
       carrying its shape tag, a **real resolved preview**, and a mono line naming
       what it takes; then **Point it at** for widgets with inputs, and immediate
@@ -732,7 +765,7 @@ milestone opens:**
       it (the two that would have were deferred out of M14 with the attribution
       model), so a badge for it would be a branch nothing can reach and no test
       could honestly cover.*
-- [ ] **Two widgets on one page read two different days**, bound at insert and
+- [x] **Two widgets on one page read two different days**, bound at insert and
       rebindable from the chrome row — on the phone the chrome row is a 44px
       *"Pointed at …"* button opening a bind sheet, which is the ONE divergence
       handoff `SPEC.md` §19 allows and it is density, not model: at 390px a name
@@ -740,6 +773,7 @@ milestone opens:**
       order, same option lists (`widgetBind.tsx` is the single source, so the two
       surfaces cannot offer different days) — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
+      *(**Re-baselined and ticked 2026-09-24** (T01, PR #221). "Chrome row" now reads **settings panel**: SPEC §26 replaced the chrome row, and T12 built one numbered entry per widget there. Proof: `m14-notebook-widgets.spec.ts` "two widgets on one page read two different days" (ci-like 23/23) and the phone bind sheet in `m14-mobile-notebook.spec.ts` "rebinding is a sheet, and the inline select row is gone".)*
 - [x] **And two widgets in the SAME BLOCK read two different days** — *"We land on
       Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two
       day-bound widgets pointed at different days, and it must be writable and
@@ -804,21 +838,58 @@ milestone opens:**
       be able to destroy prose, because there is no mid-session row state left to
       destroy** — that is the whole content of the 2026-09-03 decision and the box
       that proves it was honoured.
+      *(**Built 2026-09-24 (T14); not ticked until `test:e2e:ci-like` is green on the
+      three specs it changed.** One write per session: `useEditSession` commits on leaving
+      Editing, unmount, `pagehide` (with `keepalive`) and 60s idle, and a session with no
+      change sends nothing. `PageScreen`'s debounce and `lib/debounce.ts` are deleted.
+      `rebuildProjections` replays page events through the command path's own writer, and
+      the golden page case (`pageCommands.int.test.ts`, *"GOLDEN: the pages table rebuilds
+      from the log"*) covers a lost row, drifted rows, a row the log deleted, and a
+      pre-fix row with no `v` and a wrapped node. It also covers a trip whose notebooks the
+      log has never seen. **The one thing short of the wording:** that trip's rows are
+      left alone by a rebuild rather than rebuilt, because `listPages` seeds them without
+      an event and the log cannot rebuild what it never recorded. Closing that means
+      seeding through the log or a backfill migration, which is a design call not taken
+      here. ADR-036 decision 2 is amended to the trip stream. Board ⌘Z never reverting a
+      page event is pinned by `pageHistory.property.test.ts`. e2e specs changed:
+      `m14-notebook-widgets`, `m14-mobile-notebook`, `m7-solo-delight`.)*
 - [x] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
       the registry declares a `person` input. They left this milestone on
       2026-09-03 with item F; a build that quietly adds them back is building on a
       domain concept that does not exist. `w-people` is unaffected — it needs a
       display name on `TripMember`, not attribution.
       *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
-- [ ] Both prebuilt pages ship with a new trip and resolve against it.
-- [ ] **A notebook is saved as a template from one trip and instantiated into a
+- [x] Both prebuilt pages ship with a new trip and resolve against it.
+      *(**Reworded and ticked 2026-09-24** (T01, PR #221). Voided as written by the 2026-09-12 gallery change: a new trip seeds **one** page, the Overview, and the rest are a gallery. It now reads: **the Overview seeds with every new trip and resolves readably against it, and every gallery template parses and holds only widgets `insertWidget` accepts** — `packages/pages/src/templates.test.ts` ("seeds exactly one notebook into a new trip, and it is the Overview", "seeds only widgets that say something readable on a brand-new empty trip", "every widget in every template is one insertWidget would accept").)*
+- [x] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
       not an event stream, which a test asserts by sweeping for a second writer
       the way `soleWriter.test.ts` does for subscriptions. *(Link 10, added
       2026-09-18.)*
-- [ ] **A template snapshotted at one document version still instantiates after
+      *(Ticked 2026-09-24, T15/T16 on `m14/t15-saved-notebooks`. The walk is
+      `e2e/m14-saved-notebooks.spec.ts`, green on `test:e2e:ci-like`: Save as
+      template in trip A, then *Your templates* in trip B's gallery, then a
+      reload. The table is `saved_notebooks` (migration `0029_saved_notebooks`),
+      written only by `server/savedNotebooks.ts`, and
+      `savedNotebooks.soleWriter.test.ts` sweeps for a second writer, for raw
+      SQL naming the table, and for an event append from the module.
+      Instantiating creates the page with a `CreatePage` command, so the target
+      trip's stream gets a `PageCreated`, which `route.int.test.ts` asserts.
+      **The re-binding rule:** a `day` pinned by `dayId` to a day the target
+      trip lacks is re-pointed at the nil UUID (`UNRESOLVED_DAY_ID`), so it
+      renders *"that day was removed"* rather than widening to every day, and no
+      source-trip id reaches the target stream. `index` refs, cities, tags,
+      kinds and date ranges carry over as written. The context is the target
+      trip alone, so a template saved from an Overview is an ordinary notebook.)*
+- [x] **A template snapshotted at one document version still instantiates after
       the AST has moved** — ADR-038's versioning is exercised by link 10 rather
       than assumed by it, with a test that pins an older version and renders it.
+      *(Ticked 2026-09-24, T15: `packages/pages/src/savedTemplate.test.ts` pins
+      a v1 snapshot (old widget names, `dayRef`, no `v`), asserts the current
+      version is above 1, migrates it through `instantiateTemplate` and resolves
+      every widget with `renderMacro` against a new trip. The integration test
+      stores a v1 row in Postgres and checks that it becomes a page at the
+      current version.)*
 - [x] **Adding a filter dimension cannot be silently ignored.** *(Ticked 2026-09-24, T02 on PR #221: `narrow` is total through a compile-checked `NARROWS` record, `optionsFor` and the page-document switches end in `never`, and KI-2026-09-05-h is resolved with its proof line.)* The
       `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
       control and dropped by `narrow` — fails before the change and passes after,
@@ -835,8 +906,8 @@ milestone opens:**
       strip, still to book (reading `needsBooking`, not a second rule), sunrise /
       sunset, time difference from home, know before you go, spend by day. The route
       map block follows once M24's legs exist.
-- [ ] **Charts go through the one adopted chart component**, and none carries a
-      colour or font outside the design-system tokens.
+- [x] **Charts go through the one adopted chart component**, and none carries a
+      colour or font outside the design-system tokens. *(Ticked 2026-09-24, T21 on PR #221: `apps/web/src/components/ui/chart.test.tsx` fails on a literal colour or font in any chart file, on Recharts imported without `ChartContainer`, and on a rendered chart carrying Recharts' default `#ccc`/`#666`; each case seen red first.)*
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.
@@ -1008,10 +1079,11 @@ gating**. Each entry's own **Milestone:** line points back here.
 | ~~KI-2026-09-05-h~~ | ~~`narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default~~ — **resolved 2026-09-24 (T02)**: a `NARROWS` record beside `narrow`, a mapped `WidgetFilterValues`, and `never` defaults in `optionsFor`, `serializePageNode` and `ReadOnlyPageDoc`. A probe dimension now fails to compile, and a sweep over `FilterDimension.options` covers the runtime path | **gate box** |
 | KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | carried |
 | ~~KI-2026-09-15-b~~ | ~~The phone Notebook insert e2e spec intermittently finds the widget bound to "All days"~~ — **resolved 2026-09-24**: the spec waited for any PATCH and caught the unchanged save a mode switch sent (fixed in `PageEditor`), then reloaded over the insert's pending save | — |
-| KI-2026-09-24-g | An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it | carried |
+| ~~KI-2026-09-24-g~~ | ~~An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it~~ — **resolved 2026-09-24 (T14)**: the debounce is gone, and the edit session commits on unmount and on `pagehide` instead of cancelling | — |
 | KI-2026-09-20-g | The widget container is built four times and none matches the design | carried |
 | KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
 | KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |
 | KI-2026-09-22-d | An open notebook editor does not show a co-traveller's edit, deliberately, until it can do so safely | carried |
 | KI-2026-09-24-d | The page write check (KI-2026-09-05-g, fixed 2026-09-24) leaves pre-fix wrapped rows unrepaired and `repeat` nodes unchecked; a stored bad widget now blocks autosave | carried |
 | KI-2026-09-24-n | Know before you go: emergency numbers carry no service label; ~45 countries have none recorded | carried |
+| KI-2026-09-24-o | Weather sends rounded stop locations to MET Norway / NASA POWER; no privacy page says so | carried |

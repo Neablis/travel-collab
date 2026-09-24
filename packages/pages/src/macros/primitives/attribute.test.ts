@@ -112,7 +112,7 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
 
     it("refuses to guess when it does not know what day it is", () => {
       // `today: null` is the honest state of a widget resolved outside a
-      // reader's browser — `resolveMacro`, the AI path, a server check. A
+      // reader's browser — the AI path, a server check. A
       // countdown against a date it does not have would be a number on a page
       // that is simply wrong.
       const trip = tripOn(["2026-08-01", "2026-08-02", "2026-08-03"]);
@@ -127,7 +127,7 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
         "attribute",
         { field: "trip.countdown" },
       );
-      expect(outcome).toEqual({ status: "unbound", needs: "trip" });
+      expect(outcome).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
     });
   });
 
@@ -193,9 +193,10 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
   });
 
   it("is empty with no field chosen, rather than reporting itself unbound", () => {
-    // `UnboundNeeds` has one member per INPUT type that can be waiting for a
-    // choice, and `field` is not an input — it is chosen once, by the preset,
-    // and no control could fill it in afterwards. "Not set up" is what this is.
+    // `unbound("field")` answers a declared `field` INPUT, which has a picker.
+    // `attribute` does not declare one — its field is chosen once, by the
+    // preset, and no control could fill it in afterwards. "Not set up" is what
+    // this is.
     expect(renderMacro(ctx, "attribute", {}).status).toBe("empty");
   });
 
@@ -205,7 +206,7 @@ describe("attribute's allow-list is closed (ADR-039 decision 6)", () => {
     // depending on which field it reads, and that is the honest answer rather
     // than a uniform one.
     const noTrip: WidgetContext = { page: { tripId: trip.tripId }, user: ctx.user, globals: null, today: null };
-    expect(renderMacro(noTrip, "attribute", { field: "trip.name" })).toEqual({ status: "unbound", needs: "trip" });
+    expect(renderMacro(noTrip, "attribute", { field: "trip.name" })).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
     expect(renderMacro(noTrip, "attribute", { field: "account.name" })).toEqual({
       status: "ok",
       rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: "Priya" }] },

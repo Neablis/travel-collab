@@ -1,14 +1,21 @@
 import { z } from "zod";
-import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
+import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
-import type { MacroResult, UnboundNeeds } from "./result";
+import type { AnyMacroDef, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
+import { ghost, text } from "./registry-types";
+import type { UnavailableReason, UnboundNeeds } from "./result";
+import { fieldChoices } from "./fields";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
 import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows";
 import { open } from "./macros/primitives/open";
 import { countryFactsWidget } from "./macros/primitives/countryFacts";
+import { tripStripWidget } from "./macros/primitives/tripStrip";
+import { costChart } from "./macros/primitives/spendByDay";
+import { field } from "./macros/primitives/field";
+import { daySun, dayFromHome } from "./macros/primitives/time";
+import { dayWeather } from "./macros/primitives/weather";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -36,6 +43,19 @@ const DEFS: AnyMacroDef[] = [
   // "Know before you go" (M14 link 11) — registered and not a primitive, for
   // `open`'s reason: it has no entity to narrow. See `countryFacts.ts`.
   countryFactsWidget,
+  // "Trip strip" (M14 link 11), on the same terms. See `tripStrip.ts`.
+  tripStripWidget,
+  // "Spend by day" (M14 link 11): a primitive, `stop` + filters drawn as a chart.
+  costChart,
+  // The field widget (M14 build step 6): `stop` + filters + a reader-chosen
+  // manifest field. The first registered widget with a `field` input.
+  field,
+  // The clock pair (M14 link 11): day primitives over the zone and place the
+  // server put on each day of the globals projection. See `time.ts`.
+  daySun, dayFromHome,
+  // "Weather" (M14 link 11): a day primitive over data the trip does not hold,
+  // handed in pre-fetched (ADR-052). The first registered widget with `needs`.
+  dayWeather,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -56,31 +76,6 @@ export function getMacro(name: string): AnyMacroDef | undefined {
   return MACRO_REGISTRY[name];
 }
 
-export type ResolveOutcome =
-  | MacroResult<InlinePayload | BlockPayload | RepeatPayload>
-  | { status: "unknown" }
-  | { status: "bad-params"; message: string };
-
-export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string, rawParams: unknown): ResolveOutcome {
-  const def = getMacro(name);
-  if (!def) return { status: "unknown" };
-  const parsed = def.params.safeParse(rawParams ?? {});
-  if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
-  // `resolveMacro` predates the account being in scope and has no user to
-  // pass. Callers that need account widgets go through `renderMacro`, which
-  // takes a whole `WidgetContext`; this one keeps working for everything that
-  // reads the trip.
-  //
-  // `today: null` for the same reason, and it is the honest value rather than a
-  // placeholder: this entry point has no reader and therefore no calendar day.
-  // The one widget that reads it (`attribute{field: "trip.countdown"}`) answers
-  // "no dates set yet" here, which is what a countdown with no today is.
-  return def.resolve(
-    { trip: detail, page: ctx, user: null, globals: null, today: null },
-    parsed.data as never,
-  );
-}
-
 // Resolve AND render in one call, which is what every UI wants and what keeps
 // `Rendered` the only thing `apps/web` ever sees.
 //
@@ -95,7 +90,10 @@ export type RenderOutcome =
   // only useful thing it had, and dropping it here would have made
   // `MacroResult.because` unreachable from the one call site that renders.
   | { status: "empty"; because?: string }
-  | { status: "unbound"; needs: UnboundNeeds }
+  // `shape` is always present here: the resolver's own, or `fallbackShape`.
+  | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
+  // No shape, and never one: ADR-052's `unavailable` is not a ghost.
+  | { status: "unavailable"; reason: UnavailableReason }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
@@ -105,9 +103,21 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
   const outcome = def.resolve(ctx, parsed.data as never);
-  return outcome.status === "ok"
-    ? { status: "ok", rendered: def.render(outcome.value) }
-    : outcome;
+  if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
+  if (outcome.status === "unbound") return { ...outcome, shape: outcome.shape ?? fallbackShape(def) };
+  return outcome;
+}
+
+/**
+ * The ghost of a widget whose resolver did not describe its own, from the one
+ * thing every widget declares: its shape. A value for `single` — `text`, whose
+ * `———` claims no format it cannot keep — and `NN rows` for a block or a
+ * repeat, the framework spec's ghost caption, because how many is exactly what
+ * nobody has chosen yet. Named by the widget's title, since that is all a
+ * generic ghost knows about what it stands for.
+ */
+function fallbackShape(def: AnyMacroDef): readonly Seg[] {
+  return def.shape === "single" ? [ghost("text", def.title)] : [ghost("count", def.title), text(" rows")];
 }
 
 /**
@@ -123,12 +133,29 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
  * ADR-039 decision 5: *"the combination space is not the browsable list; the
  * preset list is"* — and the model works in the combination space.
  */
-export function primitiveCatalog(): {
+export function primitiveCatalog(): CatalogueEntry[] {
+  return DEFS.map(catalogueEntry);
+}
+
+/** One widget as the assistant's catalogue lists it. */
+export interface CatalogueEntry {
   name: string; title: string; shape: WidgetShape; description: string; emptyText: string;
   preview: string; inputs: readonly WidgetInput[]; selection: WidgetSelection | undefined;
   params: Record<string, readonly string[] | null>;
-}[] {
-  return DEFS.map((d) => ({
+  /**
+   * For each `field` input, the fields it may name: the stored path and the
+   * label a person would use, so a model asked for "what each stop costs" can
+   * find `stop.cost`. A `multiple` input (`stop.rows`' `columns`) takes a list
+   * of these paths; its entry in `inputs` says so. **Absent, not `{}`, on a widget with no field input** —
+   * the catalogue rides in every page turn's prompt.
+   */
+  fields?: Record<string, readonly { path: string; label: string }[]>;
+}
+
+/** One def's catalogue entry. */
+function catalogueEntry(d: AnyMacroDef): CatalogueEntry {
+  const fields = fieldInputChoices(d);
+  return {
     name: d.name, title: d.title, shape: d.shape,
     description: d.description, emptyText: d.emptyText, preview: d.preview,
     // What the widget takes, so a caller can say so BEFORE a choice rather than
@@ -137,8 +164,24 @@ export function primitiveCatalog(): {
     // `entity + filters`, so a model composing the general form can see which
     // dimensions are legal for this widget rather than guessing from `inputs`.
     selection: d.selection,
-    params: nonFilterParams(d),
-  }));
+    params: {
+      ...nonFilterParams(d),
+      // A field param is a plain string in its schema — checked at resolve
+      // time, never at write time — so the schema walk reports "no list". The
+      // manifest is its list.
+      ...Object.fromEntries(Object.entries(fields).map(([name, choices]) => [name, choices.map((c) => c.path)])),
+    },
+    ...(Object.keys(fields).length > 0 ? { fields } : {}),
+  };
+}
+
+// The published fields behind each `field` input a def declares, by input name.
+function fieldInputChoices(d: AnyMacroDef): Record<string, { path: string; label: string }[]> {
+  return Object.fromEntries(
+    d.inputs.flatMap((input) =>
+      input.type === "field" ? [[input.name, fieldChoices(input.of).map(({ path, label }) => ({ path, label }))]] : [],
+    ),
+  );
 }
 
 /**

@@ -4,6 +4,11 @@
 the acceptance. The one thing acceptance left open — where an unsettled draft lives once
 `pages` is a projection — was **settled by Mitchell the same day: there is only one clock.**
 Autosave is dropped rather than reconciled; see decision 3. **Link 9 is unblocked.**
+**Amended 2026-09-24, when link 9 was built (M14 T14), on Mitchell's recorded default:**
+decision 2 now describes the stream M13 actually shipped (**the trip's**, not a page's own)
+and says how the guarantee it existed for still holds; decision 3's idle number is chosen;
+decision 5 gains `pagehide`. The title's "per page" is kept for its links. It now means the
+page as the unit of history, not a stream per page.
 **Deciders:** Mitchell (product/eng); Claude (architect) — drafted
 Related: **ADR-003** (what the event log covers — this completes a space it reserved),
 ADR-035 (the widget model this stores), ADR-013/M2 (the history UI vocabulary),
@@ -44,15 +49,45 @@ Not a peer history module. ADR-003 rejected that option for the dual-write probl
 code path that writes content without recording history and revert is silently broken
 forever — and that argument applies to a document exactly as it applies to a trip.
 
-### 2. A page is its own stream: `streamId = pageId`
+### 2. ~~A page is its own stream~~ — AMENDED 2026-09-24: page events share the trip's stream
 
-Notebook events do **not** share the trip's stream.
+**As accepted,** this decision gave each page its own stream (`streamId = pageId`). The
+reason was undo. If a page's edits interleave into the trip's stream, ⌘Z on the board walks
+"the newest not-yet-undone entry" and can silently revert somebody's prose, an action the
+person pressing the key cannot see and did not mean.
 
-The reason is undo. If a page's edits interleave into the trip's stream, ⌘Z on the board
-walks "the newest not-yet-undone entry" and can silently revert somebody's prose — an
-action the person pressing the key cannot see and did not mean. Per-page streams give a
-page its own undo/redo over its own timeline, which is what a document editor should do,
-and cost nothing: `stream_id` is already a bare uuid.
+**As built,** M13 put page events on the **trip** stream (`pageCommands.ts`,
+`streamId: command.tripId`), and link 9 keeps them there. Moving them would be a data
+migration to undo something that already works. The trip stream is also what makes a
+notebook save move the trip's `headSeq`, which is how a co-traveller's Overview learns of
+it (the poll, ADR-049). And one `expectedSeq` over the whole stream serialises a notebook
+save against a board command, which two streams would not.
+
+**The reason for per-page streams still has to hold, and on the trip stream it holds
+structurally.** Board ⌘Z never reverts prose, for two reasons, and each is enforced
+rather than conventional:
+
+1. **A history decision carries trip events only.** `HistoryDecision.events` is typed
+   `TripEvent[]`. `decideHistoryCommand` diffs `foldEnvelopes`, which skips page events,
+   so undo, redo and revert to any seq cannot emit a `PageCreated`, `PageEdited` or
+   `PageDeleted`. Every notebook reads the same before and after.
+2. **A notebook save never becomes the undo target.** `deriveUndoRedo` skips a batch with
+   no trip events. So ⌘Z always reaches the last itinerary change instead of wedging on a
+   batch it has nothing to undo in, and a save does not clear the trip's redo stack.
+
+Both are pinned for arbitrary interleavings of itinerary changes, notebook saves, undo, redo
+and revert by `packages/domain/test/pageHistory.property.test.ts`. That test goes red if
+`diffPageStates` is spliced into the undo decision (counterexample: add a day, create a
+notebook, undo → `PageDeleted`) or if the page-only skip is removed. At the next layer up,
+`pageCommands.int.test.ts` reverts a trip behind a notebook's genesis and finds the notebook
+still there, and `m7-solo-delight.spec.ts` walks a revert and an undo in a browser with
+typed prose surviving both.
+
+**What this costs:** a notebook edit is not undoable from anywhere yet, the page itself
+included. When page undo is built, it must be scoped by page id: it must undo only the batch
+for that page and diff only that page. It must also treat a backfilled genesis as a floor
+and not a create, or reverting behind it deletes the notebook. That is KI-2026-09-22-c, and
+it is why the naive version of page undo is not built.
 
 **The trip's history still shows notebook edits.** Display reads across the trip's pages;
 only *undo* is stream-scoped. A reader of trip history should see "Mei edited *Hakone,
@@ -98,6 +133,14 @@ ways: a short idle commits often (small loss window, noisy history — which is 
 window. **Resolve it in favour of readable history** — that is what this ADR is for — and let
 local drafts cover durability when they land.
 
+**Link 9 chose 60 seconds** (`EDIT_SESSION_IDLE_MS`, `useEditSession.ts`). A pause for
+thought inside a paragraph is well under that, and the explicit triggers in decision 5 end
+most sessions before the idle does. The loss window is smaller than "a whole session"
+because a reload or closed tab also commits (`pagehide`, decision 5). What remains exposed
+is a crash, or a `pagehide` request that does not arrive: it is sent with `keepalive`,
+which the browser may drop, and a document over the Fetch spec's 64 KiB `keepalive` cap is
+sent without it.
+
 ### 4. One event per settled edit session, carrying the settled document
 
 The event records the document as it stands when the session settles — a snapshot, not a
@@ -118,6 +161,8 @@ The session closes on whichever comes first:
 - **leaving Editing mode** — §18 gives the page a Reading/Editing control, which is the
   most explicit signal available and should be the primary one;
 - **the editor unmounting or the route changing** — navigating away is stopping;
+- **`pagehide`**, because a reload or a closed tab never unmounts. *(Added 2026-09-24 by
+  link 9: without it, "leaving" meant only client-side navigation.)*
 - **an idle period long enough that a pause for thought inside one paragraph does not
   split the session.** A concrete floor rather than a feeling. It used to be phrased
   against the autosave debounce ("materially longer than 800ms"); with decision 3 rewritten
@@ -126,6 +171,10 @@ The session closes on whichever comes first:
 
 A session that closes with content identical to the last event writes **nothing** — the
 common case of entering Editing mode, reading, and leaving must not manufacture an entry.
+
+*Built 2026-09-24 as `useEditSession` (`apps/web/src/components/pages/`).* A session with no
+change sends nothing at all. One that changed and then changed back sends its document, and
+`decidePageCommand` appends nothing for it.
 
 ## Consequences
 
@@ -137,6 +186,15 @@ common case of entering Editing mode, reading, and leaving must not manufacture 
 - **The existing `pages` table becomes a projection**, rebuilt from the log like every
   other read model, rather than the authority. That is the part that is real work, and it
   is what makes revert trustworthy rather than best-effort.
+  *Built 2026-09-24:* `rebuildProjections` replays every page event through
+  `applyPageEvents`, the same writer the command path uses. It does **not** truncate
+  first, and two kinds of row are why. (a) Rows `listPages` seeded that no command has
+  touched have no events yet, because a read must not append and the genesis is backfilled
+  lazily. The log cannot rebuild them, so the rebuild leaves them alone rather than delete
+  notebooks. (b) A backfilled `PageCreated` landing on an existing row takes the event's
+  title, context, content and owner, and **keeps the row's `createdAt`/`updatedAt`**. The
+  event's `occurredAt` is when a sibling was first edited, not when the page was made, and
+  `createdAt` orders the list. Everything about the document itself is the log's.
 - **The projection-rebuild golden test gains a page case**, which is the Definition of
   Done's own check for anything that touches events or reducers.
 - **Undo/redo UI is reused, not rebuilt.** The History popover's vocabulary (undo walks to
@@ -159,13 +217,17 @@ common case of entering Editing mode, reading, and leaving must not manufacture 
   fires does not change *what* it writes. The guard sits upstream of mounting either way,
   and `toStoredPageDoc` becomes the parse in front of the history event instead of the
   parse in front of the autosave.
+  *Done 2026-09-24: `lib/debounce.ts` is deleted, and `toStoredPageDoc` sits in front of
+  `useEditSession.change`.*
 
 ## Alternatives rejected
 
 - **A peer history/audit table for pages.** ADR-003's Option B, rejected there for the
   dual-write problem; nothing about documents weakens that argument.
-- **Sharing the trip's stream.** Cheaper by one decision, and it makes board-level ⌘Z able
-  to revert prose the presser cannot see. See decision 2.
+- ~~**Sharing the trip's stream.** Cheaper by one decision, and it makes board-level ⌘Z able
+  to revert prose the presser cannot see. See decision 2.~~ **Taken after all, 2026-09-24**:
+  M13 shipped it, and board ⌘Z is kept off prose structurally rather than by the stream
+  boundary. See decision 2 as amended.
 - **An event per autosave.** Correct and useless: a readable history is the point, and
   this produces one entry per 800ms of typing. Note this is also the failure mode a *short*
   idle threshold reintroduces now that one clock carries both jobs — see decision 3.

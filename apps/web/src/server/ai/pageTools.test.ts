@@ -3,7 +3,8 @@
 import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
-import { validateComposedPage, validatePageInserts } from "./pageTools";
+import { insertWidgetParamsRule, validateComposedPage, validatePageInserts } from "./pageTools";
+import { primitiveCatalog } from "@tc/pages";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { newPageBuffer } from "@/server/assistant/deps";
 import { aiToolsFor } from "@/server/assistant/registry";
@@ -184,5 +185,33 @@ describe("validateComposedPage", () => {
 
     const result = validateComposedPage(content);
     expect(result).toHaveProperty("error");
+  });
+});
+
+describe("the insert_widget params rule", () => {
+  // KI-2026-09-05-i item 4: this sentence hand-listed `attribute`'s `field`
+  // and `count`'s `of` beside the catalogue that already derived them, and
+  // `stop.rows`' `only` joined the catalogue without joining the sentence.
+  it("names exactly the non-filter params the catalogue carries", () => {
+    const catalogue = primitiveCatalog();
+    const sentence = insertWidgetParamsRule(catalogue);
+    const named = [...sentence.matchAll(/`([^`]+)` takes ((?:`[^`]+`(?:, | and )?)+)/g)].flatMap(([, widget, params]) =>
+      [...params!.matchAll(/`([^`]+)`/g)].map(([, param]) => `${widget}.${param}`),
+    );
+    const expected = catalogue.flatMap((entry) => Object.keys(entry.params).map((param) => `${entry.name}.${param}`));
+    expect(named.sort()).toEqual(expected.sort());
+    expect(expected).toEqual(
+      expect.arrayContaining(["count.of", "attribute.field", "stop.rows.only", "field.field", "stop.rows.columns"]),
+    );
+  });
+
+  it("points a model at `fields` only when some widget has a field input", () => {
+    // The registered catalogue has two since M14 T10 — the field widget and
+    // `stop.rows`' columns — so the "only when" half strips them.
+    const catalogue = primitiveCatalog();
+    expect(insertWidgetParamsRule(catalogue)).toContain("`fields`");
+    expect(insertWidgetParamsRule(catalogue)).toContain("`multiple` takes a list of paths");
+    const withoutFields = catalogue.map(({ fields: _fields, ...entry }) => entry);
+    expect(insertWidgetParamsRule(withoutFields)).not.toContain("`fields`");
   });
 });

@@ -47,8 +47,10 @@ describe("where an invite token is accepted", () => {
     expect(takesToken.map((h) => `${h.verb} ${h.route}`).sort()).toEqual(
       servesDemo.map((h) => `${h.verb} ${h.route}`).sort(),
     );
-    // Witness: the eight reads M27 D12 names. Without a floor, a regex that
-    // matched no handler at all would pass both assertions above over nothing.
-    expect(takesToken).toHaveLength(8);
+    // Witness: the eight reads M27 D12 names, and the weather read beside
+    // `globals` (ADR-052: the same guard, so an invite that may read the
+    // notebook may read its weather). Without a floor, a regex that matched no
+    // handler at all would pass both assertions above over nothing.
+    expect(takesToken).toHaveLength(9);
   });
 });

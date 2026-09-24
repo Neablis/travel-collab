@@ -106,12 +106,15 @@ export function selectionTrip(): SelectionTrip {
     timeWindow: null,
   });
 
+  // No stop here carries coordinates, so no day has a place or a zone — which
+  // is what the server would say. The clock widgets have their own trip.
+  const NO_PLACE = { place: null, timeZone: null };
   const globals: TripGlobals = {
     days: [
-      { index: 0, date: "2027-06-01", cities: ["Rome"], activityCount: 2, costSubtotal: trip.days[0]!.costSubtotal },
+      { index: 0, date: "2027-06-01", cities: ["Rome"], activityCount: 2, costSubtotal: trip.days[0]!.costSubtotal, ...NO_PLACE },
       // Two cities, in arrival order — the travel day `citiesOfDay` orders by time.
-      { index: 1, date: "2027-06-02", cities: ["Rome", "Kyoto"], activityCount: 2, costSubtotal: trip.days[1]!.costSubtotal },
-      { index: 2, date: null, cities: [], activityCount: 2, costSubtotal: trip.days[2]!.costSubtotal },
+      { index: 1, date: "2027-06-02", cities: ["Rome", "Kyoto"], activityCount: 2, costSubtotal: trip.days[1]!.costSubtotal, ...NO_PLACE },
+      { index: 2, date: null, cities: [], activityCount: 2, costSubtotal: trip.days[2]!.costSubtotal, ...NO_PLACE },
     ],
     // Stop counts are by the stop's OWN city, days by which days touch it —
     // exactly how `buildTripGlobals` accumulates them. Rome: s0 and s2. Kyoto:
@@ -128,6 +131,7 @@ export function selectionTrip(): SelectionTrip {
       { tag: "outdoors", activityCount: 1 },
     ],
     bookedCount: 2,
+    homeTimeZone: null,
   };
 
   return { trip, globals, ids: { s0, s1, s2, s3, s4, s5, b0 } };

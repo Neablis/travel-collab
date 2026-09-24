@@ -475,6 +475,22 @@ html[data-look="ledger"] .shadow-raised {
     user-select: none;
   }
 
+  /* **The ghost** — an unbound widget's value, printed as its SHAPE in Editing
+     (notebook-widget-framework spec, "The ghost": *"Monospace, hatched ground,
+     dashed underline"*, warning ink). The hatch and the dashed rule are the two
+     parts no utility spells without an arbitrary value, which the colour wall
+     refuses; font and ink stay utilities on the element (`MacroView`). Warning,
+     never danger: nothing has gone wrong, the author has not finished. */
+  .tc-widget-ghost {
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--color-warning-tint) 0 3px,
+      transparent 3px 6px
+    );
+    border-bottom: 1px dashed var(--color-warning);
+    white-space: nowrap;
+  }
+
   /* **The widget rail's height, so its LIST scrolls and the page does not.**
 
      SPEC §26 puts the insert rail in the desktop right column, and the design

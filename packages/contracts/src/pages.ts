@@ -258,14 +258,10 @@ export const PageContent = z.object({
 }).passthrough();
 export type PageContent = z.infer<typeof PageContent>;
 
-export const MacroKind = z.enum(["inline", "block"]);
-export type MacroKind = z.infer<typeof MacroKind>;
-
-// What a widget renders AS (ADR-037 decision 1's `shape`). It supersedes
-// `MacroKind` for widget definitions: `MacroKind` can say "inline" or "block"
-// and has nowhere to put a repeater, which link 6 needs. `MacroKind` stays for
-// now because `MacroView`'s older callers and the stored vocabulary still speak
-// it; the widget registry speaks this.
+// What a widget renders AS (ADR-037 decision 1's `shape`). It replaced
+// `MacroKind` (`"inline" | "block"`), which had nowhere to put a repeater; that
+// enum was deleted on 2026-09-24 (KI-2026-09-05-i item 2), when nothing read
+// it any more.
 export const WidgetShape = z.enum(["single", "block", "repeat"]);
 export type WidgetShape = z.infer<typeof WidgetShape>;
 

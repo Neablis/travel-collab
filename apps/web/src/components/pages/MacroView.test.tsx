@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { getMacro, presetCatalog, renderMacro } from "@tc/pages";
+import { fieldChoices, getMacro, presetCatalog, renderMacro, type ExternalInputs } from "@tc/pages";
 import { withCostRollups } from "@tc/factories";
 import { MacroView } from "./MacroView";
 
@@ -140,9 +140,44 @@ describe("MacroView", () => {
     expect(screen.getByText(/\$/)).toBeTruthy();
   });
 
+  // The `field` branch of the unbound switch, unexercised from T09 (which added
+  // it) until a registered widget could reach it. Both roads lead here: nothing
+  // chosen, and a stored path the manifest does not publish — `bookedBy` is a
+  // real stop key, and holds user ids, which is why it must not print.
+  it("asks for a field when none is chosen, or the chosen one is not offered", () => {
+    for (const params of [{}, { field: "stop.bookedBy" }]) {
+      const { unmount } = render(<MacroView detail={costedDetail} context={ctx} name="field" params={params} />);
+      expect(screen.getByText("choose a field")).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it("prints the chosen field of the selected stops", () => {
+    render(<MacroView detail={costedDetail} context={ctx} name="field" params={{ field: "stop.cost" }} />);
+    expect(screen.getByText("$123.45")).toBeTruthy();
+  });
+
   // The `rows` branch, which existed unexercised from the day the widget
   // framework landed until a repeater reached it.
   describe("a repeater's rows", () => {
+    // Field columns (M14 build step 6): a table the reader assembled needs
+    // its columns named, and one that never changes shape does not.
+    it("heads a table whose columns the reader chose, one heading per column", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="stop.rows" params={{ columns: ["stop.kind"] }} />);
+      const [head, ...rows] = screen.getAllByRole("row");
+      expect(within(head!).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+        "Stop", "Time", "Cost", "Status",
+      ]);
+      // Lined up with the data: a lead and a cell under every other heading.
+      expect(rows).toHaveLength(1);
+      expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00 – 10:00", "$123.45", "planned"]);
+    });
+
+    it("has no heading row when no column was chosen", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="stop.rows" params={{}} />);
+      expect(screen.queryAllByRole("columnheader")).toHaveLength(0);
+    });
+
     // A widget node is INLINE — it sits inside a paragraph so a chip can read
     // as a word in a sentence — so the rows have to be legal there. `<div>` in
     // `<p>` is not merely unusual: the parser closes the paragraph at it, and
@@ -243,9 +278,12 @@ describe("MacroView", () => {
 
     it("marks a city as a city, so it can carry the trip's own colour for it", () => {
       const globals = {
-        days: [{ index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 1, costSubtotal: 12345 }],
+        days: [{
+          index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 1, costSubtotal: 12345,
+          place: null, timeZone: null,
+        }],
         cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
-        tags: [], bookedCount: 0,
+        tags: [], bookedCount: 0, homeTimeZone: null,
       };
       render(<MacroView detail={costedDetail} context={ctx} globals={globals} name="day.rows" params={{}} />);
       expect(screen.getByText("Kyoto").getAttribute("data-widget-value")).toBe("city");
@@ -369,6 +407,10 @@ describe("every widget is legal where widgets actually go", () => {
     const params: Record<string, unknown> = { ...entry.params };
     for (const input of getMacro(entry.widget)?.inputs ?? []) {
       if (input.type === "day") params[input.name] = { kind: "index", index: 0 };
+      // A field the preset leaves to the reader: the picker's first entry.
+      if (input.type === "field" && !input.multiple && !(input.name in params)) {
+        params[input.name] = fieldChoices(input.of)[0]!.path;
+      }
     }
     return params;
   }
@@ -404,12 +446,38 @@ participants: [],
       },
     },
   };
+  // A place, a zone and a home zone, so the clock widgets (M14 link 11) resolve
+  // here too rather than answering `empty` and skipping the nesting walk.
   const richGlobals: TripGlobals = {
-    days: [{ index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345 }],
+    days: [{
+      index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345,
+      place: { lat: 35.0116, lng: 135.7681 }, timeZone: "Asia/Tokyo",
+    }],
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
-    tags: [], bookedCount: 1,
+    tags: [], bookedCount: 1, homeTimeZone: "America/Los_Angeles",
   };
   const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" };
+  // Weather for the day, as the route would hand it in (ADR-052); without it
+  // "Weather" answers `unavailable` and skips the nesting walk. Both sources
+  // are up, so whichever mode the day lands in has something to render.
+  const richExternal: ExternalInputs = {
+    weather: {
+      state: "ready",
+      value: {
+        points: [{
+          date: "2026-08-01", city: "Kyoto",
+          forecast: {
+            source: "met-norway", asOf: "2026-07-31T06:00:00Z", highC: 33, lowC: 25, precipitationMm: 1.2,
+            symbol: "partlycloudy_day", hours: [{ at: "2026-08-01T00:00:00Z", tempC: 27, precipitationMm: 0, symbol: "fair_day" }],
+          },
+          typical: {
+            source: "nasa-power", month: 8, highC: 33.4, lowC: 24.8, precipitationMmPerDay: 4.6,
+            period: { fromYear: 2001, throughYear: 2020 },
+          },
+        }],
+      },
+    },
+  };
 
   it("resolves every widget in the registry against this fixture", () => {
     // The witness for the test below, and a real assertion in its own right: if
@@ -420,7 +488,7 @@ participants: [],
         // A fixed `today` well before the fixture's dates, so `trip.countdown`
         // resolves rather than reporting "no dates set yet" — and so this
         // sweep's answer does not change with the calendar.
-        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01" },
+        { trip: richDetail, page: ctx, user: richUser, globals: richGlobals, today: "2027-01-01", external: richExternal },
         widget.widget,
         boundParams(widget),
       );
@@ -443,6 +511,7 @@ participants: [],
               context={ctx}
               user={richUser}
               globals={richGlobals}
+              external={richExternal}
               name={widget.widget}
               params={boundParams(widget)}
             />
