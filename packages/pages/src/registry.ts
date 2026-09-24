@@ -1,8 +1,9 @@
 import { z } from "zod";
-import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
+import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
-import type { MacroResult, UnboundNeeds } from "./result";
+import type { AnyMacroDef, Rendered, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
+import type { UnboundNeeds } from "./result";
+import { fieldChoices } from "./fields";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
@@ -56,31 +57,6 @@ export function getMacro(name: string): AnyMacroDef | undefined {
   return MACRO_REGISTRY[name];
 }
 
-export type ResolveOutcome =
-  | MacroResult<InlinePayload | BlockPayload | RepeatPayload>
-  | { status: "unknown" }
-  | { status: "bad-params"; message: string };
-
-export function resolveMacro(detail: TripDetail, ctx: PageContext, name: string, rawParams: unknown): ResolveOutcome {
-  const def = getMacro(name);
-  if (!def) return { status: "unknown" };
-  const parsed = def.params.safeParse(rawParams ?? {});
-  if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
-  // `resolveMacro` predates the account being in scope and has no user to
-  // pass. Callers that need account widgets go through `renderMacro`, which
-  // takes a whole `WidgetContext`; this one keeps working for everything that
-  // reads the trip.
-  //
-  // `today: null` for the same reason, and it is the honest value rather than a
-  // placeholder: this entry point has no reader and therefore no calendar day.
-  // The one widget that reads it (`attribute{field: "trip.countdown"}`) answers
-  // "no dates set yet" here, which is what a countdown with no today is.
-  return def.resolve(
-    { trip: detail, page: ctx, user: null, globals: null, today: null },
-    parsed.data as never,
-  );
-}
-
 // Resolve AND render in one call, which is what every UI wants and what keeps
 // `Rendered` the only thing `apps/web` ever sees.
 //
@@ -123,12 +99,32 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
  * ADR-039 decision 5: *"the combination space is not the browsable list; the
  * preset list is"* — and the model works in the combination space.
  */
-export function primitiveCatalog(): {
+export function primitiveCatalog(): CatalogueEntry[] {
+  return DEFS.map(catalogueEntry);
+}
+
+/** One widget as the assistant's catalogue lists it. */
+export interface CatalogueEntry {
   name: string; title: string; shape: WidgetShape; description: string; emptyText: string;
   preview: string; inputs: readonly WidgetInput[]; selection: WidgetSelection | undefined;
   params: Record<string, readonly string[] | null>;
-}[] {
-  return DEFS.map((d) => ({
+  /**
+   * For each `field` input, the fields it may name: the stored path and the
+   * label a person would use, so a model asked for "what each stop costs" can
+   * find `stop.cost`. **Absent, not `{}`, on a widget with no field input** —
+   * the catalogue rides in every page turn's prompt.
+   */
+  fields?: Record<string, readonly { path: string; label: string }[]>;
+}
+
+/**
+ * One def's catalogue entry. Exported because the first widget with a `field`
+ * input is not registered yet (M14 T10), and the entry it will get has to be
+ * provable before it is.
+ */
+export function catalogueEntry(d: AnyMacroDef): CatalogueEntry {
+  const fields = fieldInputChoices(d);
+  return {
     name: d.name, title: d.title, shape: d.shape,
     description: d.description, emptyText: d.emptyText, preview: d.preview,
     // What the widget takes, so a caller can say so BEFORE a choice rather than
@@ -137,8 +133,24 @@ export function primitiveCatalog(): {
     // `entity + filters`, so a model composing the general form can see which
     // dimensions are legal for this widget rather than guessing from `inputs`.
     selection: d.selection,
-    params: nonFilterParams(d),
-  }));
+    params: {
+      ...nonFilterParams(d),
+      // A field param is a plain string in its schema — checked at resolve
+      // time, never at write time — so the schema walk reports "no list". The
+      // manifest is its list.
+      ...Object.fromEntries(Object.entries(fields).map(([name, choices]) => [name, choices.map((c) => c.path)])),
+    },
+    ...(Object.keys(fields).length > 0 ? { fields } : {}),
+  };
+}
+
+// The published fields behind each `field` input a def declares, by input name.
+function fieldInputChoices(d: AnyMacroDef): Record<string, { path: string; label: string }[]> {
+  return Object.fromEntries(
+    d.inputs.flatMap((input) =>
+      input.type === "field" ? [[input.name, fieldChoices(input.of).map(({ path, label }) => ({ path, label }))]] : [],
+    ),
+  );
 }
 
 /**

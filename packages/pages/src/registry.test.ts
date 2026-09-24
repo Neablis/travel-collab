@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { getMacro, resolveMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
+import { z } from "zod";
+import { getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, catalogueEntry, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
+import { fieldChoices } from "./fields";
 import { insertWidget } from "./insert";
-import type { WidgetInput } from "./registry-types";
+import type { AnyMacroDef, WidgetInput } from "./registry-types";
 
 const detail = { tripId: "11111111-1111-1111-1111-111111111111", name: "T", startDate: null, currency: "USD", budget: null, status: "active", members: [{ userId: "u1", role: "owner" }], forkedFrom: null, days: [], backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-20T00:00:00.000Z", unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null } as TripDetail;
 
@@ -31,23 +33,27 @@ describe("registry", () => {
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
-  it("resolveMacro dispatches to the right resolver", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "attribute", { field: "trip.name" })).toEqual({
+  // `renderMacro` is the one dispatcher. `resolveMacro` sat beside it with only
+  // these tests calling it, and was deleted (KI-2026-09-05-i item 2).
+  const ctx = { trip: detail, page: { tripId: detail.tripId }, user: null, globals: null, today: null };
+  it("renderMacro dispatches to the right resolver", () => {
+    expect(renderMacro(ctx, "attribute", { field: "trip.name" })).toEqual({
       status: "ok",
-      value: "T",
+      rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: "T" }] },
     });
   });
-  it("resolveMacro reports unknown macros without throwing", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "nope.nope", {}).status).toBe("unknown");
+  it("renderMacro reports unknown macros without throwing", () => {
+    expect(renderMacro(ctx, "nope.nope", {}).status).toBe("unknown");
   });
   it("reports a RETIRED name as unknown rather than resolving it", () => {
     // A node still carrying `cost.day` reached this build without going through
     // `parsePageDoc`, which is a bug in the caller, not a page to render
     // silently. `MacroView` has a legible answer for `unknown`.
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "cost.day", {}).status).toBe("unknown");
+    expect(renderMacro(ctx, "cost.day", {}).status).toBe("unknown");
   });
-  it("resolveMacro reports bad params without throwing", () => {
-    expect(resolveMacro(detail, { tripId: detail.tripId }, "cost", { junk: 1 }).status).toBe("empty"); // strip() ignores extras
+  it("renderMacro reports bad params without throwing", () => {
+    expect(renderMacro(ctx, "cost", { junk: 1 }).status).toBe("empty"); // strip() ignores extras
+    expect(renderMacro(ctx, "cost", { kind: "reserved" }).status).toBe("bad-params");
   });
   it("presetCatalog exposes what the picker and the slash menu read", () => {
     const cat = presetCatalog();
@@ -77,7 +83,6 @@ describe("registry", () => {
   // exercise each macro's own validator rather than just reading its keys.
   const SAMPLE: Record<WidgetInput["type"], unknown> = {
     day: { kind: "index", index: 0 },
-    days: { from: { kind: "index", index: 0 }, through: { kind: "index", index: 1 } },
     person: "u1",
     // ONE tag, and a real `ActivityTag` member. This was `["Meal"]` — an array,
     // and capitalised when the enum is lowercase — written speculatively before
@@ -86,7 +91,8 @@ describe("registry", () => {
     // working: §18's table reads "every stop, or ONE", so a tag binding is a
     // single optional member, not a list, and "Meal" is not a member at all.
     tags: "meal",
-    trip: "11111111-1111-1111-1111-111111111111",
+    // A manifest path, the only shape a `field` param stores.
+    field: "stop.title",
     // The three ADR-039 decision 1 adds. Real members of their contract shapes,
     // not placeholders: a `CityRef` is a name, a `KindRef` is an `ActivityKind`
     // member, and a `DateRangeRef` is an ordered pair of `YYYY-MM-DD` dates —
@@ -452,6 +458,29 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
         expect(FilterDimension.options, `${entry.name} lists the filter ${key} as an extra param`).not.toContain(key);
       }
     }
+  });
+
+  it("hands the assistant every valid field, by path and label, for a widget with a `field` input", () => {
+    // Gap 5 of the M14 field-widget review: `nonFilterParams` read only `ZodEnum`
+    // values, and a field param is a plain string (validated at resolve time,
+    // so a stale one never blocks a save), so the model would have been told
+    // "any string" and guessed. No registered widget declares a `field` input
+    // yet (T10 adds the first), so this one exists only here.
+    const testOnly = {
+      ...getMacro("cost")!,
+      name: "test.field",
+      params: z.object({ field: z.string().min(1).optional() }).strip(),
+      inputs: [{ name: "field", type: "field", label: "Field", of: "stop" }],
+    } as unknown as AnyMacroDef;
+    const entry = catalogueEntry(testOnly);
+    const choices = fieldChoices("stop");
+    expect(choices.length, "the stop root publishes nothing").toBeGreaterThan(0);
+    expect(entry.params).toEqual({ field: choices.map((c) => c.path) });
+    expect(entry.fields).toEqual({ field: choices.map(({ path, label }) => ({ path, label })) });
+    // And a widget with no field input carries no `fields` key at all: the
+    // catalogue rides in every page turn's prompt, so absence is the cheap
+    // spelling of "none".
+    for (const registered of primitiveCatalog()) expect(registered, registered.name).not.toHaveProperty("fields");
   });
 
   it("gives every registered widget a title and a preview, catalogued or not", () => {

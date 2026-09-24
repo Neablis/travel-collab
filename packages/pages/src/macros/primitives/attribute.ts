@@ -138,11 +138,11 @@ export const attribute: MacroDef<AttributeParams, string> = {
   emptyText: "nothing to show",
   preview: "a single fact, spelled out",
   resolve: ({ trip, user, today }: WidgetContext, params): MacroResult<string> => {
-    // No field chosen. Not `unbound`: `UnboundNeeds` has one member per input
-    // type that can be WAITING for a choice, and `field` is not an input at all
-    // — it is chosen once, by the preset, and there is no control that could
-    // fill it in afterwards. `empty()` is the state ADR-037 decision 6 calls
-    // "not set up", which is what this is.
+    // No field chosen. Not `unbound("field")`: that answers a `field` INPUT,
+    // which has a picker to fill it in. This `field` is not declared as one —
+    // it is chosen once, by the preset, and no control could fill it in
+    // afterwards. `empty()` is the state ADR-037 decision 6 calls "not set
+    // up", which is what this is.
     if (!params.field) return empty();
     const value = read(params.field, trip, user, today);
     if (value === "needs-trip") return needsTrip();
