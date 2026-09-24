@@ -78,12 +78,11 @@ import {
   DEMO_TRIP_UNSUPPORTED_CODE,
   badRequest,
   capRawBody,
-  errorMessage,
   evaluateAiGrant,
   parseRequest,
 } from "@/server/assistant/admission";
 import { admissionPorts } from "@/server/ai/admissionPorts";
-import { SIMULATED_HEADER, type AskStreamMetadata, type Page, type TripDetail } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, SIMULATED_HEADER, type AskStreamMetadata, type Page, type TripDetail } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/assistant/askAnalytics";
@@ -636,10 +635,16 @@ export async function handleAskRequest(
         // the message went out on the stream and nothing wrote it down. The
         // whole diagnosis was "step 1 finished, step 2 did not".
         recorder.abandon("error", error);
-        // The client sees the real reason rather than "An error occurred.",
-        // which is the SDK's default and is indistinguishable from a network
-        // failure in the rail.
-        return errorMessage(error);
+        // **The client sees `ASK_FAILED_MESSAGE`, never the provider's text**
+        // (2026-09-24). This used to return `errorMessage(error)` so the rail
+        // said something better than the SDK's default "An error occurred.",
+        // which reads like a dropped connection — but what it printed was
+        // whatever the provider threw: gateway JSON, request ids, stack-shaped
+        // strings. The fixed sentence still says "the assistant failed, try
+        // again" rather than "your network failed", and the real reason goes
+        // where diagnosis happens: the `abandon` call above puts the error
+        // itself on the turn's `ai.ask` record as its `cause`.
+        return ASK_FAILED_MESSAGE;
       },
     });
   } catch (err) {
@@ -647,11 +652,10 @@ export async function handleAskRequest(
     // and the caps passed. What remains is the agent failing to start, which
     // is a model that could not be reached: 503, the same shape model SELECTION
     // failing returns above, so a client sees one code for "no model answered".
+    // The body carries the same fixed sentence as the stream's error chunk
+    // above, and for the same reason; the cause is recorded by `abandon`.
     recorder.abandon("error", err);
-    return Response.json(
-      { error: `model call failed: ${errorMessage(err)}`, simulated: grant.simulated },
-      { status: 503 },
-    );
+    return Response.json({ error: ASK_FAILED_MESSAGE, simulated: grant.simulated }, { status: 503 });
   }
 }
 

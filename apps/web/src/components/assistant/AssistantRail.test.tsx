@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ASK_FAILED_MESSAGE } from "@tc/contracts";
 import { AssistantRail } from "./AssistantRail";
 import type { AssistantTurn } from "./Transcript";
 
@@ -142,9 +143,11 @@ describe("AssistantRail", () => {
     expect((screen.getByRole("button", { name: "Asking…" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  // The sentence `/ask` actually sends when the model fails (its 503 body and
+  // its stream error chunk alike) — never the provider's own text.
   it("shows an inline error when the last ask failed", () => {
-    renderRail({ askError: "The model is unavailable right now." });
-    expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now.");
+    renderRail({ askError: ASK_FAILED_MESSAGE });
+    expect(screen.getByRole("alert").textContent).toBe(ASK_FAILED_MESSAGE);
   });
 
   // **An upgrade path, not a permission error** (M20 link 4's gate box). The
@@ -235,20 +238,20 @@ describe("AssistantRail", () => {
     // **A transport failure is not a paywall, even on a gated account.**
     // `askError` outlives the ask that set it, so a dropped connection before
     // the plan read landed leaves it set with `askUpgrade` false — printing it
-    // in the upgrade block would put "The model is unavailable right now"
+    // in the upgrade block would put "The assistant couldn't answer just now"
     // above a See plans button.
     it("does not read a transport failure as the entitlement refusal", () => {
-      renderRail({ aiEntitled: false, askError: "The model is unavailable right now." });
+      renderRail({ aiEntitled: false, askError: ASK_FAILED_MESSAGE });
       const status = screen.getByRole("status").textContent ?? "";
       expect(status).toContain("The assistant is part of Plus.");
-      expect(status).not.toContain("unavailable");
+      expect(status).not.toContain(ASK_FAILED_MESSAGE);
     });
 
     // Every OTHER refusal is still a failure and still red. The flag is what
     // separates them, and it comes from the server's `code` rather than from
     // the prose.
     it("leaves an ordinary failure as an alert", () => {
-      renderRail({ askError: "The model is unavailable right now." });
+      renderRail({ askError: ASK_FAILED_MESSAGE });
       expect(screen.getByRole("alert")).not.toBeNull();
     });
 

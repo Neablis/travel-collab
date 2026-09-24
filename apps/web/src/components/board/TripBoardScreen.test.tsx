@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { TripCommand, type TripDetail } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
@@ -910,14 +910,16 @@ describe("TripBoardScreen", () => {
     // A second ask that fails must not leave the previous answer's Simulated
     // badge on screen next to the new error — that would misattribute a
     // request that never produced a new answer at all.
+    // Exactly what `askAssistant` makes of `/ask`'s 503: its body is
+    // `{ error: ASK_FAILED_MESSAGE, simulated }`, and there is no `code`.
     askAssistantMock.mockResolvedValueOnce({
       ok: false,
-      error: { status: 503, message: "The model is unavailable right now." },
+      error: { status: 503, message: ASK_FAILED_MESSAGE, code: undefined },
     });
     fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "Second ask" } });
     fireEvent.click(askButton());
 
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The model is unavailable right now."));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe(ASK_FAILED_MESSAGE));
     expect(screen.queryByText("Simulated")).toBeNull();
   });
 
@@ -971,8 +973,8 @@ describe("TripBoardScreen", () => {
     server.use(...makeTripHandlers(fixture));
     askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
       args[3]!({ type: "text", delta: "Rome 2027 runs to " });
-      args[3]!({ type: "error", message: "model call failed: upstream 500" });
-      return { ok: false as const, error: { status: 200, message: "model call failed: upstream 500", code: "ask-stream-error" } };
+      args[3]!({ type: "error", message: ASK_FAILED_MESSAGE });
+      return { ok: false as const, error: { status: 200, message: ASK_FAILED_MESSAGE, code: "ask-stream-error" } };
     });
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
@@ -982,7 +984,7 @@ describe("TripBoardScreen", () => {
     fireEvent.click(askButton());
 
     await waitFor(() =>
-      expect(screen.getByRole("alert").textContent).toBe("model call failed: upstream 500"),
+      expect(screen.getByRole("alert").textContent).toBe(ASK_FAILED_MESSAGE),
     );
     expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("Rome 2027 runs to ");
   });
@@ -1020,10 +1022,10 @@ describe("TripBoardScreen", () => {
       // single word is — which is the whole reason it is a header.
       args[3]!({ type: "meta", simulated: true });
       args[3]!({ type: "text", delta: "Rome 2027 runs to 0 days. " });
-      args[3]!({ type: "error", message: "model call failed: upstream 500" });
+      args[3]!({ type: "error", message: ASK_FAILED_MESSAGE });
       return {
         ok: false as const,
-        error: { status: 200, message: "model call failed: upstream 500", code: "ask-stream-error" },
+        error: { status: 200, message: ASK_FAILED_MESSAGE, code: "ask-stream-error" },
       };
     });
     renderScreen(fixture.tripId);

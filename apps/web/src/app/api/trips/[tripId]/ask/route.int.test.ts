@@ -1,4 +1,5 @@
-import { newPageDoc } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, newPageDoc } from "@tc/contracts";
+import { ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
@@ -2099,7 +2100,13 @@ describe("POST /api/trips/:id/ask", () => {
   // The two turns most worth measuring are the failed one and the abandoned
   // one, and neither reaches `onEnd`. Before this they wrote nothing at all.
   describe("turns that do not finish", () => {
-    it("records a failed turn, and tells the client what actually broke", async () => {
+    // **The person gets a fixed sentence; the record gets the provider's own
+    // words** (2026-09-24). This used to assert the opposite — that the
+    // provider's text reached the client — which was the right fix for "the
+    // client was the only thing that ever saw the cause" and the wrong place
+    // to stop: the rail then printed raw provider errors to users. The cause
+    // now lives on the record, and the test holds both halves.
+    it("records a failed turn with its cause, and tells the client only that it failed", async () => {
       const tripId = await seedTrip();
       const records: AskAnalyticsRecord[] = [];
       const res = await handleAskRequest(
@@ -2114,10 +2121,10 @@ describe("POST /api/trips/:id/ask", () => {
       expect(res.status).toBe(200);
       const chunks = await chunksOf(res);
       const error = chunks.find((c) => c.type === "error");
-      expect(error).toBeDefined();
-      // Not the SDK's default "An error occurred.", which is indistinguishable
-      // from a network failure in the rail.
-      expect(JSON.stringify(error)).toContain("provider exploded");
+      // Not the SDK's default "An error occurred.", which reads as a network
+      // failure in the rail — and not the provider's text either.
+      expect(error).toEqual({ type: "error", errorText: ASK_FAILED_MESSAGE });
+      expect(JSON.stringify(chunks)).not.toContain("provider exploded");
 
       expect(records).toHaveLength(1);
       expect(records[0]).toMatchObject({ finishReason: "error", outcome: "error", answered: false, toolCallCount: 0 });
@@ -2125,6 +2132,36 @@ describe("POST /api/trips/:id/ask", () => {
       // nothing about why, so the client was the only thing that ever saw the
       // provider's own words.
       expect(records[0]!.cause).toMatchObject({ message: expect.stringContaining("provider exploded") });
+    });
+
+    // The other failure path: the agent could not even start, so there is no
+    // stream to put an error chunk on and the endpoint answers 503. Nothing a
+    // model object does reliably throws at that point — `streamText` is lazy —
+    // so the agent's own `stream` is made to reject, which is the throw this
+    // `catch` exists for.
+    it("answers 503 with the fixed sentence, and records the cause, when the turn cannot start", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const stream = vi
+        .spyOn(ToolLoopAgent.prototype, "stream")
+        .mockRejectedValueOnce(new Error("some provider detail: 529 overloaded req_abc123"));
+      try {
+        const res = await handleAskRequest(
+          req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }),
+          tripId,
+          simulatedModel(),
+          (r) => records.push(r),
+        );
+
+        expect(res.status).toBe(503);
+        const body = await res.text();
+        expect(JSON.parse(body)).toEqual({ error: ASK_FAILED_MESSAGE, simulated: true });
+        expect(body).not.toContain("some provider detail");
+        expect(records[0]).toMatchObject({ outcome: "error" });
+        expect(records[0]!.cause).toMatchObject({ message: expect.stringContaining("some provider detail") });
+      } finally {
+        stream.mockRestore();
+      }
     });
 
     it("records an abandoned turn", async () => {
