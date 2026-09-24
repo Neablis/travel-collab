@@ -97,7 +97,7 @@ export function SpendByDayBlock({ payload }: { payload: SpendByDayPayload }) {
           <span role="columnheader" className="print:table-cell print:pr-3">Total</span>
           <span role="columnheader" className="print:table-cell print:pr-3">By tag</span>
           {burn ? <span role="columnheader" className="print:table-cell print:pr-3">So far</span> : null}
-          {budget ? <span role="columnheader" className="print:table-cell print:pr-3">Budget</span> : null}
+          {budget ? <span role="columnheader" className="print:table-cell print:pr-3">Budget left</span> : null}
           {budget ? <span role="columnheader" className="print:table-cell print:pr-3">Even pace leaves</span> : null}
         </span>
         {payload.days.map((day, index) => (

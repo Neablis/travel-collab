@@ -234,6 +234,10 @@ describe("cost.chart — burn-down", () => {
     // Narrowed to meals: $50 of meals drawn, but the lodging still spent the budget.
     const meals = chartOf(crossedMidTrip(), { view: "burndown", tag: "meal" });
     expect(meals.burnDown!.days.map((d) => d.left)).toEqual(["$250.00 left", "$50.00 over", "$50.00 over"]);
+    // The summary's spent, budget and left add up: the trip's $350, not the
+    // $300 or $50 the narrowed chart draws.
+    expect(dated.summary).toBe("Budget burn-down in USD: $350.00 spent against a budget of $300.00 — $50.00 over.");
+    expect(meals.summary).toBe("Budget burn-down in USD: $350.00 spent against a budget of $300.00 — $50.00 over.");
   });
 
   it("puts the axis above the budget and above the most spent", () => {

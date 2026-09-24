@@ -104,7 +104,7 @@ describe("SpendByDayBlock", () => {
     render(<SpendByDayBlock payload={payload} />);
     const table = screen.getByRole("table", { name: "Spend by day" });
     expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Day", "Date", "Total", "By tag", "So far", "Budget", "Even pace leaves",
+      "Day", "Date", "Total", "By tag", "So far", "Budget left", "Even pace leaves",
     ]);
     const second = within(table).getAllByRole("row")[2]!;
     expect(within(second).getAllByRole("cell").slice(3).map((c) => c.textContent)).toEqual([

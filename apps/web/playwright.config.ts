@@ -179,7 +179,11 @@ export default defineConfig({
     // whatever `.env.local` names — the run would look isolated, create its
     // rows in the shared database, and quietly reintroduce every symptom the
     // wrapper exists to remove. A wrapped run always starts its own server.
-    reuseExistingServer: !process.env.CI && !process.env.TC_TEST_DB,
+    // Never reuse: a server this config did not start did not get `env` below,
+    // so it may be calling MET Norway and NASA POWER (EXTERNAL_DATA_OFFLINE
+    // unset) — a direct `playwright test` next to `pnpm dev` could do exactly that
+    // (CodeRabbit, PR 221). `test:e2e` already never reused (TC_TEST_DB).
+    reuseExistingServer: false,
     env: {
       AUTH_DEV_LOGIN: "true",
       AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-secret",

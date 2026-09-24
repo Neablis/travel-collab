@@ -70,7 +70,7 @@ describe("the weather block", () => {
     const rows = dataRows();
     expect(rows.map((row) => row.getAttribute("data-mode"))).toEqual(["past", "today", "forecast", "typical"]);
     expect(rows.map((row) => within(row).getAllByRole("cell")[0]!.textContent)).toEqual([
-      "November average (past day)",
+      "Past day · Nov avg",
       "Today · Cloudy",
       "Forecast · Light rain",
       "November average",

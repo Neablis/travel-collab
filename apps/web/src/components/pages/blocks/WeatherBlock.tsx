@@ -106,7 +106,11 @@ function Row({ row, showNow, headed }: { row: WeatherRow; showNow: boolean; head
           </DataText>
         )}
       </span>
-      <span role="cell" className={cn(COL.conditions, "truncate text-sm text-ink")}>
+      <span
+        role="cell"
+        className={cn(COL.conditions, "truncate text-sm text-ink")}
+        title={row.sky ? `${row.modeText} · ${row.sky}` : row.modeText}
+      >
         {row.modeText}
         {row.sky ? <span className="text-slate"> · {row.sky}</span> : null}
       </span>

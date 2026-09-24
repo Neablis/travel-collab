@@ -221,6 +221,9 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
         trip.days.length, tripSpentThrough, trip.currency,
       );
       const last = burnDown.days.at(-1)!;
+      // The sentence's three numbers must add up: spent and left are both the
+      // TRIP's through the last day shown, whatever the chart is narrowed to.
+      const tripSpent = formatMoney(tripSpentThrough(days.at(-1)!), trip.currency);
       return ok({
         kind: "spend-by-day",
         view: "burndown",
@@ -231,7 +234,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
         // The running total only rises, so the last day is the most spent.
         ticks: ticksFor(Math.max(chartedTotal, budget ?? 0), trip.currency),
         summary: burnDown.budget
-          ? `Budget burn-down in ${trip.currency}: ${spent} spent against a budget of ${burnDown.budget.text} — ${last.left}.`
+          ? `Budget burn-down in ${trip.currency}: ${tripSpent} spent against a budget of ${burnDown.budget.text} — ${last.left}.`
           : `Spend so far in ${trip.currency}: ${spent} over ${dayCount}. No budget set.`,
         notCharted: left.length === 0 ? null : `Not charted: ${left.join("; ")}.`,
       });

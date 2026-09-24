@@ -40,7 +40,7 @@ export function tooltipFor(payload: SpendByDayPayload) {
           { label: "Spent that day", value: day.total ?? "nothing priced" },
           ...stacks,
           { label: "Spent so far", value: burn.spentSoFar },
-          ...(burn.left ? [{ label: "Budget", value: burn.left }] : []),
+          ...(burn.left ? [{ label: "Budget left", value: burn.left }] : []),
           ...(burn.pace ? [{ label: "Even pace leaves", value: burn.pace }] : []),
         ]
       : [{ label: "Total", value: day.total ?? "nothing priced" }, ...stacks];

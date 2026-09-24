@@ -175,9 +175,11 @@ function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number, uni
       // in words a reader needs no footer for (Mitchell, #221 preview).
       return { ...base, modeText: `${month} average`, ...typicalValues(typical!, units) };
     case "past":
-      return { ...base, modeText: `${month} average (past day)`, ...typicalValues(typical!, units) };
+      // Qualifier first and short: the column can be ~48px, and a truncated
+      // "November average (pa…" hid the one word that told the rows apart.
+      return { ...base, modeText: `Past day · ${month!.slice(0, 3)} avg`, ...typicalValues(typical!, units) };
     case "no-forecast":
-      return { ...base, modeText: `${month} average (no forecast)`, ...typicalValues(typical!, units) };
+      return { ...base, modeText: `No forecast · ${month!.slice(0, 3)} avg`, ...typicalValues(typical!, units) };
     case "unavailable":
       return { ...base, modeText: "Weather unavailable", now: null, high: null, low: null, rain: null, sky: null };
     default: {

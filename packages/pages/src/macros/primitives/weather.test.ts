@@ -123,7 +123,7 @@ describe("day.weather", () => {
   it("names every row's mode in words", () => {
     const payload = payloadOf(ctxOf(trip(), "2026-11-10"));
     expect(payload.rows.map((row) => [row.label, row.modeText])).toEqual([
-      ["Day 1", "November average (past day)"],
+      ["Day 1", "Past day · Nov avg"],
       ["Day 2", "Today"],
       ["Day 3", "Forecast"],
       ["Day 4", "November average"],
