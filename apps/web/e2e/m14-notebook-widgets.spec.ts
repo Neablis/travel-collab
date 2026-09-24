@@ -2,6 +2,8 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
 import { createEmptyTripViaWizard } from "./helpers";
+import { E2E_SUPER_CODE } from "./admission";
+import { grantCollaborators } from "./adminBootstrap";
 
 // M14's builder half, walked the way a person walks it.
 //
@@ -1522,4 +1524,124 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   await expect(
     page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) }).getByRole("row").filter({ hasText: "Tram tour" }),
   ).toContainText("booked");
+});
+
+// **The M14 gate box, walked: *"moving a day or a stop changes the page with
+// nobody editing it"*** (KI-2026-09-05-i item 5). Alice has a notebook open in
+// Reading; Bob, a co-traveller in his own browser, moves a stop and then shifts
+// the trip's days. Nobody touches Alice's page, and it changes anyway.
+//
+// A real second member, because that is the path that runs without a tab
+// switch: the notebook subscribes to the board's poll (`useTripBroadcast`,
+// ADR-049), which runs on a timer only for a trip with more than one member. A
+// solo trip hears the same news when its tab comes back, which Playwright cannot
+// do honestly — every page it opens is visible — so that half is the unit
+// suites' (`broadcast.test.tsx`, `PageScreen.test.tsx`).
+//
+// Everything before the walk is set up through the API: inviting and joining
+// are `m11-invites`' to prove, and the page is built against `PageDoc`'s own
+// shape so the widget's binding is exact rather than clicked into being.
+test("a co-traveller moves a stop and shifts the days, and the open notebook follows without a reload", async ({
+  page,
+  browser,
+}) => {
+  // Two browser contexts, two sign-ins and a grant — `m11-invites`' reason for
+  // the same budget.
+  test.slow();
+  // Inviting needs the owner's `trip.collaborators` (M20 link 6).
+  await grantCollaborators(browser, "dev-alice");
+
+  const trip = await page.request
+    .post("/api/trips", { data: { name: e2eTripName("Kansai") } })
+    .then((r) => r.json());
+  const tripId = trip.tripId as string;
+  const command = async (actor: Page, data: Record<string, unknown>) => {
+    const response = await actor.request.post(`/api/trips/${tripId}/commands`, { data: { tripId, ...data } });
+    expect(response.ok(), `${String(data.type)}: ${await response.text()}`).toBe(true);
+  };
+  const [day1, day2] = [crypto.randomUUID(), crypto.randomUUID()];
+  await command(page, { type: "AddDay", dayId: day1 });
+  await command(page, { type: "AddDay", dayId: day2 });
+  await command(page, { type: "SetTripStartDate", startDate: "2027-06-01" });
+  await addStopViaApi(page, tripId, "Landing at Haneda", { dayId: day1, location: { name: "Haneda", city: "Tokyo" } });
+  const fushimi = crypto.randomUUID();
+  await command(page, {
+    type: "AddActivity",
+    activityId: fushimi,
+    title: "Fushimi Inari",
+    dayId: day2,
+    location: { name: "Fushimi Inari", city: "Kyoto" },
+  });
+
+  // "On 1 June we are in <the cities of 1 June>." Bound by DATE, as the days
+  // filter stores it — which is what makes shifting the days a change to it.
+  const created = await page.request
+    .post(`/api/trips/${tripId}/pages`, {
+      data: {
+        title: "Where we are",
+        context: { tripId },
+        content: newPageDoc([
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "On 1 June we are in " },
+              { type: "macro", attrs: { name: "city", params: { dates: { from: "2027-06-01", through: "2027-06-01" } } } },
+            ],
+          },
+        ]),
+      },
+    })
+    .then((r) => r.json());
+  const pageId = created.page.id as string;
+
+  // Bob joins as an editor.
+  const invite = await page.request
+    .post(`/api/trips/${tripId}/invites`, { data: { email: null, role: "editor" } })
+    .then((r) => r.json());
+  const bobContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  try {
+    const bob = await bobContext.newPage();
+    await bob.goto("/signup");
+    await bob.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    await bob.fill('input[name="username"]', `bob${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`);
+    await Promise.all([
+      bob.waitForURL((url) => !/^\/sign(in|up)$/.test(url.pathname)),
+      bob.getByRole("button", { name: /sign in with dev login/i }).click(),
+    ]);
+    const joined = await bob.request.post(`/api/invites/${invite.invite.token as string}/accept`);
+    expect(joined.ok(), await joined.text()).toBe(true);
+
+    // Alice opens the page — in Reading, which is how a notebook opens.
+    await page.goto(`/trips/${tripId}/pages/${pageId}`);
+    await expect(page.getByRole("heading", { name: "Where we are", level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+    const chip = page.locator('.tc-page-editor [data-macro-name="city"]');
+    await expect(chip).toHaveText("Tokyo");
+    // A reload would clear this, so its survival is the proof there was none.
+    await page.evaluate(() => {
+      (window as unknown as { __notReloaded: boolean }).__notReloaded = true;
+    });
+
+    // **Within one poll.** The interval is 2s (`POLL_INTERVAL_MS`), and the
+    // refetch it triggers is one more round trip — so this waits on the
+    // product's own stated latency, and CI's 5s default sits too close to it.
+    const onePoll = { timeout: 10_000 };
+
+    // 1. Bob moves a stop: Fushimi Inari to Day 1.
+    await command(bob, { type: "MoveActivity", activityId: fushimi, toDayId: day1, position: 1 });
+    await expect(chip).toContainText("Kyoto", onePoll);
+    await expect(chip).toContainText("Tokyo");
+
+    // 2. Bob moves the days: the trip now starts on 31 May, so 1 June is Day 2,
+    //    which he has just emptied.
+    await command(bob, { type: "SetTripStartDate", startDate: "2027-05-31" });
+    await expect(chip).not.toContainText("Tokyo", onePoll);
+    await expect(chip).not.toContainText("Kyoto");
+
+    expect(await page.evaluate(() => (window as unknown as { __notReloaded?: boolean }).__notReloaded)).toBe(true);
+    // And the reader never left Reading: nobody edited anything.
+    await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+  } finally {
+    await bobContext.close();
+  }
 });
