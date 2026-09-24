@@ -62,6 +62,32 @@ them.
    both `WidgetInput` members, `UnboundNeeds.days` and `MacroView`'s unreachable *"no
    days set"* branch — is KI-2026-09-05-i item 2's work, done inside this milestone.
 
+**Four more calls, 2026-09-24, taken after the re-baseline audit** (asked as choices, answered by Mitchell):
+
+4. **A removed field's widget converts to a plain-text placeholder** naming the old field, not dropped
+   silently. This is the removal half of the conversion decided in the field-widget section.
+5. **`person` is removed for now.** M13 shipped `bookedBy` and `participants` on stops, so the data exists,
+   but the person filter and the two person widgets stay out of M14. That means taking the unused `person`
+   dimension off `cost`, `count` and `stop.rows` (`single.ts:25,81`, `rows.ts:143`), which makes gate box
+   *"No `w-person` … nothing declares a `person` input"* true. Today it is false.
+6. **The authored repeat is still wanted** alongside field columns. That is the dashed rail, a row template
+   the author writes in the editor, and the empty case (link 6, box 9). Catalogue row 12's *"Edit the
+   wording"* therefore needs a design. The build proposes one and walks it on the preview.
+7. **Weather after the trip shows "typical for those dates", labelled as such.** The free climate source
+   has no observations, so there are three real modes plus a labelled fallback.
+
+**Defaults taken by the build, stated so they can be overruled** (none has been approved yet):
+
+- **Timezones are computed on the server into `TripGlobals`**, per day from the stop coordinates and for
+  home from the account's home airport, rather than shipping a timezone dataset to the browser. Datasets
+  are chosen for licence (for example the timezone-boundary-builder data and OurAirports) and named in the
+  change that adds them.
+- **The *know before you go* table is compiled into the repo** from public-domain facts (the CIA World
+  Factbook for calling codes and driving side, and similar), with every source named in the file.
+- **ADR-036 decision 2 is amended to match what M13 shipped:** page events live on the **trip** stream,
+  not a per-page stream. Link 9's single write per editing session commits when the author leaves Editing,
+  when the page unmounts, on `pagehide`, and after 60 seconds idle.
+
 **The gate below is behind the tree — re-baseline it before building.** Two boxes are
 ticked, but much of what the unticked boxes describe has shipped since 2026-09-03 (the
 Reading/Editing control, the widget rail with drag-and-drop and `/`, ADR-039's primitives
