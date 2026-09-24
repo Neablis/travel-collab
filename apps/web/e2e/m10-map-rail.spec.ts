@@ -313,11 +313,20 @@ test("map lens: loads its tile-decoding worker", async ({ page, network }) => {
  * and the reader must be told the map could not load and offered Plan — not
  * left looking at a paper-coloured rectangle.
  *
- * `route.abort()` produces MapLibre's "Failed to fetch", which names no style
- * and no source, so `isFatalMapError` rightly does not treat it as fatal on
- * its own. What turns it into the panel is the style-load ladder
- * (`mapRecovery.ts`): two rebuilds, then a fall-back at its last deadline. The
- * timeout is that deadline plus room, read from the ladder rather than
+ * **Which path shows the panel: `isFatalMapError`, at once, not the ladder.**
+ * The refused style fetch reaches MapLibre as `AJAXError: Failed to fetch (0):
+ * https://tiles.openfreemap.org/styles/positron`. The message carries the
+ * style's URL, whose `/styles/` matches the predicate's `/style/i`, so the map's
+ * first `error` event is fatal and the panel is up about half a second after
+ * the navigation (497-573ms over three ci-like runs, 2026-09-24). This doc
+ * used to say the opposite: that the error named no style, and that only the
+ * style-load ladder's last deadline (`mapRecovery.ts`, 11s) produced the panel.
+ *
+ * The timeout still allows for that deadline, deliberately. The fatal match
+ * rides on the URL's path, so a `STYLE_URL` without "style" in it would drop
+ * the map back onto the ladder. The reader would then wait 11s, and this test
+ * should still pass, because they would still be told. It asserts that they
+ * are told, not how fast. The bound is read from the ladder rather than
  * written down twice.
  */
 test("map lens: says the map could not load when the basemap host is unreachable", async ({ page }) => {
