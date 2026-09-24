@@ -707,8 +707,9 @@ milestone opens:**
       can no longer parse. Measured, rendered in Reading:
       `"unknown macro: trip.fromTheFuture"`, `"bad params: count"`. Tick when
       those say something a person can read and the case joins the guard.)*
-- [ ] Reading and Editing are one control; Reading shows no insert affordance and
+- [x] Reading and Editing are one control; Reading shows no insert affordance and
       no repeat-rail chrome.
+      *(**Re-baselined and ticked 2026-09-24** (T01, PR #221), on the audit's evidence: one aria-pressed control in `PageScreen.tsx`; `m14-notebook-widgets.spec.ts` "Reading takes the whole authoring surface away, and the widget stays" and `m14-mobile-notebook.spec.ts` "Reading is the default, and it takes the phone's authoring surface away too"; the desktop spec green ci-like 23/23 on 2026-09-24. The repeat-rail chrome half is carried by the repeater box below.)*
 - [ ] The insert Sheet offers search + *how it reads* over a flat list, each row
       carrying its shape tag, a **real resolved preview**, and a mono line naming
       what it takes; then **Point it at** for widgets with inputs, and immediate
@@ -764,7 +765,7 @@ milestone opens:**
       it (the two that would have were deferred out of M14 with the attribution
       model), so a badge for it would be a branch nothing can reach and no test
       could honestly cover.*
-- [ ] **Two widgets on one page read two different days**, bound at insert and
+- [x] **Two widgets on one page read two different days**, bound at insert and
       rebindable from the chrome row — on the phone the chrome row is a 44px
       *"Pointed at …"* button opening a bind sheet, which is the ONE divergence
       handoff `SPEC.md` §19 allows and it is density, not model: at 390px a name
@@ -772,6 +773,7 @@ milestone opens:**
       order, same option lists (`widgetBind.tsx` is the single source, so the two
       surfaces cannot offer different days) — the replacement the rescope section named
       for the voided box above, and the one check that actually proves the model.
+      *(**Re-baselined and ticked 2026-09-24** (T01, PR #221). "Chrome row" now reads **settings panel**: SPEC §26 replaced the chrome row, and T12 built one numbered entry per widget there. Proof: `m14-notebook-widgets.spec.ts` "two widgets on one page read two different days" (ci-like 23/23) and the phone bind sheet in `m14-mobile-notebook.spec.ts` "rebinding is a sheet, and the inline select row is gone".)*
 - [x] **And two widgets in the SAME BLOCK read two different days** — *"We land on
       Day 1 in Tokyo and by Day 9 we are in Kyoto"* is one sentence with two
       day-bound widgets pointed at different days, and it must be writable and
@@ -857,7 +859,8 @@ milestone opens:**
       domain concept that does not exist. `w-people` is unaffected — it needs a
       display name on `TripMember`, not attribution.
       *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
-- [ ] Both prebuilt pages ship with a new trip and resolve against it.
+- [x] Both prebuilt pages ship with a new trip and resolve against it.
+      *(**Reworded and ticked 2026-09-24** (T01, PR #221). Voided as written by the 2026-09-12 gallery change: a new trip seeds **one** page, the Overview, and the rest are a gallery. It now reads: **the Overview seeds with every new trip and resolves readably against it, and every gallery template parses and holds only widgets `insertWidget` accepts** — `packages/pages/src/templates.test.ts` ("seeds exactly one notebook into a new trip, and it is the Overview", "seeds only widgets that say something readable on a brand-new empty trip", "every widget in every template is one insertWidget would accept").)*
 - [x] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
       not an event stream, which a test asserts by sweeping for a second writer
