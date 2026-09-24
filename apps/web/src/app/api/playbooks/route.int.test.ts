@@ -544,6 +544,70 @@ describe("GET /api/playbooks", () => {
     expect(exact.body.truncated).toBe(false);
   });
 
+  // KI-2026-09-23-h: the results sentence read `days.length`, so a query
+  // matching 30 days said "24 shared days". `matchCount` is how many days the
+  // same filters match, not how many fit on the page.
+  it("counts every matching day, not just the page", async () => {
+    currentUserId = `disc-count-${RUN}`;
+    const only = city("count");
+    for (let i = 0; i < 30; i += 1) {
+      await publish(await saveDay(`Count ${i} ${RUN}`, [{ city: only }]));
+    }
+    const { body } = await discover(`city=${only}`);
+    expect(body.days).toHaveLength(24);
+    expect(body.matchCount).toBe(30);
+    expect(body.matchCountExact).toBe(true);
+
+    // A complete answer counts exactly what it shows.
+    const single = city("countone");
+    await publish(await saveDay(`Count single ${RUN}`, [{ city: single }]));
+    const exact = await discover(`city=${single}`);
+    expect(exact.body.matchCount).toBe(1);
+    expect(exact.body.matchCountExact).toBe(true);
+  });
+
+  // Past the 200-row candidate window the count cannot come from the rows that
+  // were read — it is a count under the same WHERE, filters included. Rows are
+  // inserted directly: 205 trips through the routes would take minutes.
+  it("counts past the candidate window, under the same filters", async () => {
+    const owner = `disc-window-${RUN}`;
+    currentUserId = owner;
+    const only = city("window");
+    const createdAt = new Date("2026-06-01T12:00:00.000Z");
+    await db.insert(savedDays).values(
+      Array.from({ length: 205 }, (_, i) => ({
+        id: randomUUID(),
+        ownerId: owner,
+        name: `Window ${i} ${RUN}`,
+        stops: [],
+        cities: [only],
+        // Five are two-day sequences, so `length=two-three` narrows the count to them.
+        dayCount: i < 5 ? 2 : 1,
+        visibility: "private" as const,
+        sourceTripId: randomUUID(),
+        sourceTripName: "Source",
+        createdAt,
+      })),
+    );
+
+    const all = await discover(`city=${only}&scope=yours`);
+    expect(all.body.days).toHaveLength(24);
+    expect(all.body.truncated).toBe(true);
+    expect(all.body.matchCount).toBe(205);
+    expect(all.body.matchCountExact).toBe(true);
+
+    const narrowed = await discover(`city=${only}&scope=yours&length=two-three`);
+    expect(narrowed.body.matchCount).toBe(5);
+
+    // The budget band runs in application code over the window, so past the
+    // window the count is a floor and says so rather than claiming exactness.
+    // These rows carry no priced stops, so no band admits any of them.
+    const banded = await discover(`city=${only}&scope=yours&budget=under200`);
+    expect(banded.body.days).toHaveLength(0);
+    expect(banded.body.matchCountExact).toBe(false);
+    expect(banded.body.matchCount).toBe(0);
+  });
+
   it("marks your own day as yours in the everyone scope", async () => {
     const only = city("own");
     const name = `Own ${RUN}`;

@@ -142,6 +142,21 @@ function FilterMenu({
   );
 }
 
+/**
+ * §33.2's results sentence — `128 shared days` — stating how many days the
+ * query MATCHES, not how many fit on the page (KI-2026-09-23-h: with 148
+ * published days it said "24 shared days"). When the page shows fewer than
+ * matched it says so, `24 of 148 shared days`; a count that is only a floor
+ * (`matchCountExact` false, see `DiscoverResponse`) carries a `+` rather than
+ * being stated as a total.
+ */
+function resultsSentence(data: DiscoverResponse): string {
+  const total = `${data.matchCount}${data.matchCountExact ? "" : "+"}`;
+  const noun = data.matchCount === 1 && data.matchCountExact ? "day" : "days";
+  const shown = data.days.length;
+  return shown < data.matchCount ? `${shown} of ${total} shared ${noun}` : `${total} shared ${noun}`;
+}
+
 // `initial` comes from the URL (`parseDiscoverUrl`) — a profile's "Knows" chip
 // is a link to `/playbooks?city=Kyoto`, because §15 wants a profile to be a way
 // INTO the library rather than a dead end. It seeds state once rather than
@@ -568,7 +583,7 @@ export function DiscoverScreen({ initial = {} }: { initial?: Partial<DiscoverUrl
       <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-2 border-t border-hairline pt-2">
         {feed.data !== null && (
           <Text as="span" className="text-sm text-ink" data-testid="discover-results-line">
-            {feed.data.days.length} shared {feed.data.days.length === 1 ? "day" : "days"}
+            {resultsSentence(feed.data)}
           </Text>
         )}
         <div className="hidden md:contents">
