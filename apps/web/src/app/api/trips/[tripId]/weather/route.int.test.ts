@@ -130,7 +130,7 @@ describe("GET /api/trips/:tripId/weather", () => {
     if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "weather") {
       throw new Error(`expected the weather block, got ${JSON.stringify(outcome)}`);
     }
-    expect(outcome.rendered.block.rows[0]!.modeText).toMatch(/^Typical for \w+ — no forecast right now$/);
+    expect(outcome.rendered.block.rows[0]!.modeText).toMatch(/^\w+ average \(no forecast\)$/);
   });
 
   it("with no EXTERNAL_DATA_CONTACT, the forecast is down and the route is not", async () => {

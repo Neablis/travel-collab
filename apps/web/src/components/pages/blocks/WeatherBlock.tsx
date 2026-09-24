@@ -7,12 +7,19 @@ import { toClockLabel } from "@/lib/time";
 import { localTodayIso, useToday } from "@/lib/today";
 
 // "Weather" (M14 link 11, ADR-052) — one row per (day, city), each saying its
-// mode in words, over a footer that says how old the data is and whose it is.
+// mode in words, over a footer that says whose the data is and how old.
 //
 // **The footer is the block's, not the author's** (decision 5): the credit for
-// every source whose data is on the block, and the as-of line before it
+// every source whose data is on the block, with the as-of beside the forecast's
 // (decision 7). A widget has no param that could remove either, and the one
 // URL here comes from the payload's fixed table, never from fetched data.
+//
+// **One plain line, not a section** (Mitchell, PR 221 preview: *"I dont
+// understand what this section is? Typical lines? are they needed?"*). It was
+// three stacked lines — an as-of, "Typical: 2001–2020 averages", and two
+// credits — that read as content of their own. Now each source says what its
+// data IS on the block: *"Forecast: Norwegian Meteorological Institute, CC BY
+// 4.0 (updated 9:10 am) · Monthly averages: NASA POWER, 2001–2020"*.
 //
 // **Every row is one fixed height whatever its mode** (ADR-044): a forecast
 // row and a typical row carry the same columns, and a column a mode has no
@@ -42,12 +49,13 @@ const clockOf = (at: Date) =>
  * when it is from today, the date as well when it is not — a stale row served
  * after a failed revalidation must not read as this morning's. On the house
  * 12-hour clock (Mitchell: *"All times should be in AM/PM not military time"*).
+ * Printed beside the forecast's credit, so it needs no "Forecast" of its own.
  */
 export function asOfText(iso: string, today: string): string {
   const at = new Date(iso);
   const day = localTodayIso(at);
   const clock = toClockLabel(clockOf(at));
-  return `Forecast as of ${day === today ? clock : `${formatTripDate(day)}, ${clock}`}`;
+  return `updated ${day === today ? clock : `${formatTripDate(day)}, ${clock}`}`;
 }
 
 // One place for each column's width, so the heading row and the data rows
@@ -122,18 +130,35 @@ export function WeatherBlock({ payload }: { payload: WeatherPayload }) {
           <Row key={row.key} row={row} showNow={showNow} headed={payload.headings} />
         ))}
       </span>
-      <span className="flex flex-col gap-0.5 border-t border-hairline bg-paper px-3 py-2 text-xs text-slate">
-        {payload.forecastAsOf ? <DataText size="xs">{asOfText(payload.forecastAsOf, today)}</DataText> : null}
-        {payload.typicalPeriod ? <span>Typical: {payload.typicalPeriod}</span> : null}
-        {payload.credits.map((credit) =>
-          credit.href ? (
-            <a key={credit.source} href={credit.href} target="_blank" rel="noreferrer" className="underline">
-              {credit.text}
-            </a>
-          ) : (
-            <span key={credit.source}>{credit.text}</span>
-          ),
-        )}
+      <span
+        role="note"
+        aria-label="Weather sources"
+        className="block border-t border-hairline bg-paper px-3 py-2 text-xs text-slate"
+      >
+        {payload.credits.map((credit, i) => {
+          // What each source's data is on the block, beside it: the forecast's
+          // as-of, the averages' period.
+          const aside =
+            credit.source === "met-norway" && payload.forecastAsOf
+              ? ` (${asOfText(payload.forecastAsOf, today)})`
+              : credit.source === "nasa-power" && payload.typicalPeriod
+                ? `, ${payload.typicalPeriod}`
+                : "";
+          return (
+            <span key={credit.source}>
+              {i > 0 ? " · " : null}
+              {credit.label}:{" "}
+              {credit.href ? (
+                <a href={credit.href} target="_blank" rel="noreferrer" className="underline">
+                  {credit.text}
+                </a>
+              ) : (
+                credit.text
+              )}
+              {aside}
+            </span>
+          );
+        })}
       </span>
     </span>
   );

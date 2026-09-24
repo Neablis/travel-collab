@@ -61,16 +61,27 @@ export function weatherModeOf(point: TripWeatherPoint, today: string): WeatherMo
   return point.forecast.unavailable === "not-in-horizon" && point.date > today ? "typical" : "no-forecast";
 }
 
-/** Decision 5: the credit text is this package's, keyed by the adapter's source id. */
+/**
+ * Decision 5: the credit text is this package's, keyed by the adapter's source id.
+ *
+ * `label` is what the source's data IS on the block, in a reader's words, and
+ * `text` is the credit itself. The block prints them as one short line —
+ * *"Forecast: Norwegian Meteorological Institute, CC BY 4.0 (updated 9:10 am)
+ * · Monthly averages: NASA POWER, 2001–2020"* — because the three stacked
+ * lines it replaced ("Forecast as of…", "Typical: 2001–2020 averages",
+ * "Typical: NASA Langley…") read as a section of their own (Mitchell, #221
+ * preview: *"I dont understand what this section is? Typical lines? are they
+ * needed?"*). MET's credit keeps the institute's name and the licence, which
+ * CC BY asks for; NASA's is a courtesy (ADR-052's sources table).
+ */
 const CREDITS: Record<WeatherSource, WeatherCredit> = {
   "met-norway": {
     source: "met-norway",
-    text: "Forecast: The Norwegian Meteorological Institute (MET Norway), CC BY 4.0",
+    label: "Forecast",
+    text: "Norwegian Meteorological Institute, CC BY 4.0",
     href: "https://api.met.no/doc/License",
   },
-  // A courtesy NASA requests rather than a licence condition — ADR-052's
-  // sources table marks the terms as still to verify.
-  "nasa-power": { source: "nasa-power", text: "Typical: NASA Langley Research Center POWER Project", href: null },
+  "nasa-power": { source: "nasa-power", label: "Monthly averages", text: "NASA POWER", href: null },
 };
 
 /**
@@ -160,11 +171,13 @@ function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number, uni
     case "today":
       return { ...base, modeText: "Today", ...todayValues(forecast!, units) };
     case "typical":
-      return { ...base, modeText: `Typical for ${month}`, ...typicalValues(typical!, units) };
+      // "November average", not "Typical for November": what the numbers ARE,
+      // in words a reader needs no footer for (Mitchell, #221 preview).
+      return { ...base, modeText: `${month} average`, ...typicalValues(typical!, units) };
     case "past":
-      return { ...base, modeText: `Typical for ${month} — not what it was`, ...typicalValues(typical!, units) };
+      return { ...base, modeText: `${month} average (past day)`, ...typicalValues(typical!, units) };
     case "no-forecast":
-      return { ...base, modeText: `Typical for ${month} — no forecast right now`, ...typicalValues(typical!, units) };
+      return { ...base, modeText: `${month} average (no forecast)`, ...typicalValues(typical!, units) };
     case "unavailable":
       return { ...base, modeText: "Weather unavailable", now: null, high: null, low: null, rain: null, sky: null };
     default: {
@@ -234,7 +247,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
     for (const { point, mode } of picked) {
       if (USES_FORECAST.has(mode) && !("unavailable" in point.forecast)) asOfs.push(point.forecast.asOf);
       if (USES_TYPICAL.has(mode) && !("unavailable" in point.typical)) {
-        periods.add(`${point.typical.period.fromYear}–${point.typical.period.throughYear} averages`);
+        periods.add(`${point.typical.period.fromYear}–${point.typical.period.throughYear}`);
       }
     }
     asOfs.sort((a, b) => Date.parse(a) - Date.parse(b));

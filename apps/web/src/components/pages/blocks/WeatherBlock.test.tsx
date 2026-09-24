@@ -68,10 +68,10 @@ describe("the weather block", () => {
     const rows = dataRows();
     expect(rows.map((row) => row.getAttribute("data-mode"))).toEqual(["past", "today", "forecast", "typical"]);
     expect(rows.map((row) => within(row).getAllByRole("cell")[0]!.textContent)).toEqual([
-      "Typical for November — not what it was",
+      "November average (past day)",
       "Today · Cloudy",
       "Forecast · Light rain",
-      "Typical for November",
+      "November average",
     ]);
     // Under a "Now" heading the value needs no word of its own.
     expect(within(rows[1]!).getByRole("cell", { name: "now" }).textContent).toBe("12°");
@@ -122,13 +122,25 @@ describe("the weather block", () => {
     expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["KyotoDay 1", "KyotoDay 2"]);
   });
 
-  it("credits MET Norway with its licence link, and NASA POWER when typical is shown, under an as-of line", () => {
+  // Mitchell, on the PR 221 preview: *"I dont understand what this section is?
+  // Typical lines? are they needed?"* The credits are required (ADR-052
+  // decision 5), so they stay — as ONE plain line naming what each source's
+  // data is on the block, with the as-of and the period beside their source.
+  it("credits its sources on one plain line: the forecast with its licence link and as-of, the averages with their period", () => {
     view(trip(), { points: [point(TODAY), point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } })] });
-    const met = screen.getByRole("link", { name: "Forecast: The Norwegian Meteorological Institute (MET Norway), CC BY 4.0" });
+    const sources = screen.getByRole("note", { name: "Weather sources" });
+    expect(sources.textContent).toMatch(
+      /^Forecast: Norwegian Meteorological Institute, CC BY 4\.0 \(updated \d{1,2}(:\d\d)? (am|pm)\) · Monthly averages: NASA POWER, 2001–2020$/,
+    );
+    const met = within(sources).getByRole("link", { name: "Norwegian Meteorological Institute, CC BY 4.0" });
     expect(met.getAttribute("href")).toBe("https://api.met.no/doc/License");
-    expect(screen.getByText("Typical: NASA Langley Research Center POWER Project")).toBeTruthy();
-    expect(screen.getByText("Typical: 2001–2020 averages")).toBeTruthy();
-    expect(screen.getByText(/^Forecast as of \d{1,2}(:\d\d)? (am|pm)$/)).toBeTruthy();
+  });
+
+  it("names only the sources on the block: averages alone carry no forecast credit", () => {
+    view(trip(), { points: [point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } })] });
+    expect(screen.getByRole("note", { name: "Weather sources" }).textContent).toBe(
+      "Monthly averages: NASA POWER, 2001–2020",
+    );
   });
 
   // The gate box's placeholder, from the body the route sends when both ports
@@ -152,8 +164,8 @@ describe("the weather block", () => {
 // time."* The house clock (`toClockLabel`), never a second format.
 describe("asOfText", () => {
   it("says the time alone for today, and the date too when it is older, on a 12-hour clock", () => {
-    expect(asOfText(new Date(2026, 10, 10, 9, 10).toISOString(), TODAY)).toBe("Forecast as of 9:10 am");
-    expect(asOfText(new Date(2026, 10, 10, 13, 0).toISOString(), TODAY)).toBe("Forecast as of 1 pm");
-    expect(asOfText(new Date(2026, 10, 9, 21, 5).toISOString(), TODAY)).toBe("Forecast as of Mon, Nov 9, 9:05 pm");
+    expect(asOfText(new Date(2026, 10, 10, 9, 10).toISOString(), TODAY)).toBe("updated 9:10 am");
+    expect(asOfText(new Date(2026, 10, 10, 13, 0).toISOString(), TODAY)).toBe("updated 1 pm");
+    expect(asOfText(new Date(2026, 10, 9, 21, 5).toISOString(), TODAY)).toBe("updated Mon, Nov 9, 9:05 pm");
   });
 });

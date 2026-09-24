@@ -123,10 +123,10 @@ describe("day.weather", () => {
   it("names every row's mode in words", () => {
     const payload = payloadOf(ctxOf(trip(), "2026-11-10"));
     expect(payload.rows.map((row) => [row.label, row.modeText])).toEqual([
-      ["Day 1", "Typical for November — not what it was"],
+      ["Day 1", "November average (past day)"],
       ["Day 2", "Today"],
       ["Day 3", "Forecast"],
-      ["Day 4", "Typical for November"],
+      ["Day 4", "November average"],
     ]);
   });
 
@@ -142,10 +142,10 @@ describe("day.weather", () => {
   it("carries the oldest forecast as-of shown, the averaging period, and both credits", () => {
     const payload = payloadOf(ctxOf(trip(), "2026-11-10"));
     expect(payload.forecastAsOf).toBe("2026-11-10T06:00:00Z");
-    expect(payload.typicalPeriod).toBe("2001–2020 averages");
-    expect(payload.credits.map((c) => c.text)).toEqual([
-      "Forecast: The Norwegian Meteorological Institute (MET Norway), CC BY 4.0",
-      "Typical: NASA Langley Research Center POWER Project",
+    expect(payload.typicalPeriod).toBe("2001–2020");
+    expect(payload.credits.map((c) => [c.label, c.text])).toEqual([
+      ["Forecast", "Norwegian Meteorological Institute, CC BY 4.0"],
+      ["Monthly averages", "NASA POWER"],
     ]);
     expect(payload.credits[0]!.href).toBe("https://api.met.no/doc/License");
   });

@@ -213,6 +213,14 @@ fetched data:
 - *"Typical: NASA Langley Research Center POWER Project"* — a courtesy NASA requests, not a
   licence condition (to verify with the terms above).
 
+*Amended 2026-09-24 (Mitchell, #221 preview: "I dont understand what this section is?
+Typical lines? are they needed?").* The credits, the as-of and the averaging period are now
+**one line**, each source labelled by what its data is on the block: *"Forecast: Norwegian
+Meteorological Institute, CC BY 4.0 (updated 9:10 am) · Monthly averages: NASA POWER,
+2001–2020"*, the MET part still linked to its licence. Only sources whose data is on the
+block appear, as before. The table's typical rows say *"November average"* rather than
+*"Typical for November"*, so the word needs no footer to explain it.
+
 **Weather ships as a block only.** The brainstorm's inline chip (`18° · rain likely`) has
 nowhere to carry a credit line, and CC BY needs one wherever the value appears. The chip
 waits for a page-level credit footer, which is its own small decision.
