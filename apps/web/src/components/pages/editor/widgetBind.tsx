@@ -1,6 +1,6 @@
 "use client";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
+import { enumLabel, fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -173,7 +173,8 @@ export function optionsFor(
         { value: "", label: "Any kind" },
         // The enum itself, not a list copied here: a sixth `ActivityKind` shows
         // up in this select the day it exists.
-        ...withBound(ActivityKind.options, bound).map((kind) => ({ value: kind, label: kind })),
+        // Labelled as the stop card labels them; a stale value prints as itself.
+        ...withBound(ActivityKind.options, bound).map((kind) => ({ value: kind, label: enumLabel(kind) })),
       ];
     case "tags":
       return [
@@ -184,7 +185,7 @@ export function optionsFor(
         // offering an empty result.
         ...withBound((globals?.tags ?? []).map((t) => t.tag as string), bound).map((tag) => ({
           value: tag,
-          label: tag,
+          label: enumLabel(tag),
         })),
       ];
     // The manifest's published fields for `of`, by label and grouped, for

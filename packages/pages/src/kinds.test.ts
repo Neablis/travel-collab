@@ -50,9 +50,10 @@ describe("formatKind", () => {
     expect(formatKind("duration", 0, ctx)).toBe("0m");
   });
 
-  it("prints text and enum values verbatim, and a location as its name", () => {
+  it("prints text verbatim, an enum value as its label, and a location as its name", () => {
     expect(formatKind("text", "Kyoto", ctx)).toBe("Kyoto");
-    expect(formatKind("enum", "meal", ctx)).toBe("meal");
+    expect(formatKind("enum", "meal", ctx)).toBe("Meal");
+    expect(formatKind("enum", "hold", ctx)).toBe("Holding");
     expect(formatKind("location", { name: "Fushimi Inari", lat: 34.97, lng: 135.77 }, ctx)).toBe("Fushimi Inari");
   });
 });
@@ -103,7 +104,7 @@ describe("collapseKind — the 'All' rule", () => {
 
   it("lists every text, enum and location value in order, duplicates included", () => {
     expect(collapseKind("text", ["Kyoto", "Osaka", "Kyoto"], ctx)).toBe("Kyoto, Osaka, Kyoto");
-    expect(collapseKind("enum", ["meal", "meal"], ctx)).toBe("meal, meal");
+    expect(collapseKind("enum", ["meal", "meal"], ctx)).toBe("Meal, Meal");
     expect(collapseKind("location", [place("Gion"), place("Gion")], ctx)).toBe("Gion, Gion");
   });
 

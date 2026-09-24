@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import type { TripGlobals } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { fieldChoices, type WidgetInput } from "@tc/pages";
 import { WidgetBindControls, bindSummary, optionsFor } from "./widgetBind";
@@ -44,6 +45,31 @@ function Harness({
 }
 
 const stored = () => JSON.parse(screen.getByTestId("params").textContent ?? "{}") as Record<string, unknown>;
+
+// The kind and tag selects print the words the stop card prints ("Holding",
+// "Meal"), never the stored value, and still store the value.
+describe("optionsFor a kind or tag input", () => {
+  const KIND: WidgetInput = { name: "kind", type: "kind", label: "Kind" };
+  const TAGS: WidgetInput = { name: "tag", type: "tags", label: "Tag" };
+
+  it("labels every kind and stores the value", () => {
+    const options = optionsFor(KIND, {}, detail, null);
+    expect(options.find((o) => o.value === "hold")).toEqual({ value: "hold", label: "Holding" });
+    expect(options.find((o) => o.value === "transit")).toEqual({ value: "transit", label: "Travel" });
+  });
+
+  it("labels the trip's tags", () => {
+    const globals = { cities: [], tags: [{ tag: "meal", activityCount: 1 }] } as unknown as TripGlobals;
+    expect(optionsFor(TAGS, {}, detail, globals)).toEqual([
+      { value: "", label: "Every stop" },
+      { value: "meal", label: "Meal" },
+    ]);
+  });
+
+  it("says the bound kind in words in the summary line", () => {
+    expect(bindSummary("cost", { kind: "booked" }, detail, null, [KIND])).toBe("Booked");
+  });
+});
 
 describe("optionsFor a field input", () => {
   it("offers the manifest's fields by label and group, and stores the path", () => {

@@ -1,4 +1,5 @@
 import type { Location, Money, ValueKind } from "@tc/contracts";
+import { enumLabel } from "./enumLabels";
 import { formatDate, formatMoney } from "./format";
 
 // One formatter per value kind — M14 field widget, build step 3 (gap 3 of the
@@ -143,11 +144,10 @@ export const VALUE_KIND_FORMATS: KindFormats = {
     collapse: (values) => (values.length === 0 ? null : formatDuration(sum(values))),
   },
   enum: {
-    // Verbatim. A closed vocabulary with display labels needs a label map,
-    // and the manifest does not carry one yet.
-    format: (value) => value,
+    // By label ("Holding", not "hold"), from the one map the board reads too.
+    format: (value) => enumLabel(value),
     ghost: "———",
-    collapse: listing((value) => value),
+    collapse: listing(enumLabel),
   },
   location: {
     format: (value) => value.name,

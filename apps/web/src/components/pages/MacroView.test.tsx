@@ -170,7 +170,7 @@ describe("MacroView", () => {
       ]);
       // Lined up with the data: a lead and a cell under every other heading.
       expect(rows).toHaveLength(1);
-      expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00 – 10:00", "$123.45", "planned"]);
+      expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["09:00 – 10:00", "$123.45", "Planned"]);
     });
 
     it("has no heading row when no column was chosen", () => {
