@@ -9,6 +9,7 @@ import { dayDetail, cityDetail } from "./macros/primitives/block";
 import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows";
 import { open } from "./macros/primitives/open";
 import { countryFactsWidget } from "./macros/primitives/countryFacts";
+import { costChart } from "./macros/primitives/spendByDay";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -36,6 +37,8 @@ const DEFS: AnyMacroDef[] = [
   // "Know before you go" (M14 link 11) — registered and not a primitive, for
   // `open`'s reason: it has no entity to narrow. See `countryFacts.ts`.
   countryFactsWidget,
+  // "Spend by day" (M14 link 11): a primitive, `stop` + filters drawn as a chart.
+  costChart,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));

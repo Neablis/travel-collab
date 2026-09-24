@@ -266,6 +266,14 @@ export const PRESETS: readonly WidgetPreset[] = [
       "emergency", "police", "ambulance", "currency", "money", "calling code", "phone", "tipping", "tip",
     ],
   },
+  // M14 link 11, the first chart. Unfiltered: every day, every tag.
+  {
+    id: "spend-by-day",
+    widget: "cost.chart",
+    params: {},
+    title: "Spend by day",
+    keywords: ["spend", "spending", "chart", "graph", "bar", "costs", "money", "budget", "daily", "per day"],
+  },
   {
     id: "costs.table",
     widget: "cost.rows",

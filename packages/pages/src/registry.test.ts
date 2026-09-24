@@ -26,7 +26,7 @@ describe("registry", () => {
     // `country.facts` ("Know before you go", M14 link 11) is registered on
     // `open`'s terms: no selection, so not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual([
-      "attribute", "city", "city.detail", "city.rows", "cost", "cost.rows",
+      "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.rows", "hours", "open", "stop.rows",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);

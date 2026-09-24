@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type { FilterDimension, TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
+import type { SpendByDayPayload } from "./chartPayloads";
 
 // Inline payloads are display-ready strings; block payloads are structured data
 // the renderer turns into a component (NOT markup — the C-era swap point).
@@ -102,7 +103,8 @@ export interface CountryFactsPayload { kind: "country-facts"; countries: Country
 // This is an implementation decision the ADR did not make; it is recorded in
 // ADR-037 under decision 3 rather than only here.
 export type BlockPayload =
-  | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload;
+  | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload
+  | SpendByDayPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
