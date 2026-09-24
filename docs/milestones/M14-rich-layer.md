@@ -856,7 +856,8 @@ milestone opens:**
       a v1 snapshot (old widget names, `dayRef`, no `v`), asserts the current
       version is above 1, migrates it through `instantiateTemplate` and resolves
       every widget with `renderMacro` against a new trip. The integration test
-      does the same against a v1 row in Postgres.)*
+      stores a v1 row in Postgres and checks that it becomes a page at the
+      current version.)*
 - [x] **Adding a filter dimension cannot be silently ignored.** *(Ticked 2026-09-24, T02 on PR #221: `narrow` is total through a compile-checked `NARROWS` record, `optionsFor` and the page-document switches end in `never`, and KI-2026-09-05-h is resolved with its proof line.)* The
       `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
       control and dropped by `narrow` — fails before the change and passes after,
