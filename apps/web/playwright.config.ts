@@ -72,22 +72,24 @@ export default defineConfig({
     video: "off",
     // **No automated test talks to a real third party** (Mitchell,
     // 2026-09-24). The map was the one place this suite's pages did: both maps
-    // load their basemap from `tiles.openfreemap.org`. The map specs now serve
-    // that style from a committed fixture (`e2e/fixtures/mapTiles.ts`) and
-    // assert nothing else left the machine; whether the REAL service renders
-    // is a manual check on a Vercel preview
+    // load their basemap from `tiles.openfreemap.org`. Every browser context
+    // in this suite now serves that style from a committed fixture, by
+    // default: specs import `test` from `e2e/fixtures/test.ts`, which routes
+    // the tile host on every context it creates (and `eslint.config.mjs`
+    // refuses `test` from `@playwright/test` in a spec, so a new one cannot
+    // skip it). The map specs also assert nothing else left the machine; whether
+    // the REAL service renders is a manual check on a Vercel preview
     // (`docs/guidelines/third-party-services-on-a-preview.md`).
     //
-    // This flag is the backstop that makes the rule hold for every spec, not
-    // just the ones that remember it: every hostname except the app's own
-    // resolves to nothing, so a request no route answered fails in the browser
-    // instead of reaching the network. Playwright's routes are consulted before
-    // a request is sent, so a fulfilled route never resolves a name and the
-    // fixture is unaffected. **A spec that opens a map must call
-    // `serveMapTilesLocally`**; one that forgets gets the map's offline panel
-    // over its chrome — a loud failure, where before it silently depended on
-    // a third party being up. Measured 2026-09-24: m10-growth,
-    // m17-account-preferences and responsive's phone-map case all did.
+    // This flag is the backstop behind that default: every hostname except
+    // the app's own resolves to nothing, so a request no route answered fails
+    // in the browser instead of reaching the network. Playwright's routes are
+    // consulted before a request is sent, so a fulfilled route never resolves
+    // a name and the fixture is unaffected. It is what made the old opt-in
+    // version fail loudly — a map spec that forgot the call got the map's
+    // offline panel over its chrome (m10-growth, m17-account-preferences and
+    // responsive's phone-map case, measured 2026-09-24) — and it is what still
+    // catches any third-party host the fixture does not know about.
     //
     // It is also why `scripts/container-chromium.mjs`'s CA pin (KI-49) is no
     // longer passed here: that existed so a cloud container's Chromium would

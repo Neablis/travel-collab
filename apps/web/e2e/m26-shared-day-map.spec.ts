@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
-import { serveMapTilesLocally } from "./fixtures/mapTiles";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
 import { watchMapWorker } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -71,10 +71,9 @@ async function keepDay(page: Page, tripId: string, dayId: string, name: string):
 }
 
 test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
-  test("draws the located stops, numbered as the list numbers them", async ({ page }) => {
+  test("draws the located stops, numbered as the list numbers them", async ({ page, network }) => {
     test.slow();
     const worker = watchMapWorker(page);
-    const network = await serveMapTilesLocally(page);
     const dayName = `Kyoto on foot ${randomUUID().slice(0, 8)}`;
     const trip = await tripWithLocatedStops(page, e2eTripName("SharedDayMap"), [
       { title: "Fushimi Inari at opening", at: "07:30", ...FUSHIMI },
@@ -121,10 +120,9 @@ test.describe("M26 — SPEC §16's shared day is a map plus a list", () => {
   // whenever there is anything to place — and one located stop is something.
   // This test used to assert the map's ABSENCE here; it now asserts the lone
   // pin, with no line, and the note that says why there is none.
-  test("draws a lone located stop as a pin, with no route", async ({ page }) => {
+  test("draws a lone located stop as a pin, with no route", async ({ page, network }) => {
     test.slow();
     const worker = watchMapWorker(page);
-    const network = await serveMapTilesLocally(page);
     const dayName = `One pin only ${randomUUID().slice(0, 8)}`;
     const trip = await tripWithLocatedStops(page, e2eTripName("SharedDayOnePin"), [
       { title: "Fushimi Inari at opening", at: "07:30", ...FUSHIMI },

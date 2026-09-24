@@ -29,9 +29,10 @@ the URL is not a check anybody can rely on.
 `tiles.openfreemap.org` (`STYLE_URL` in `src/components/lenses/mapBootstrap.ts`).
 The CSP in `next.config.ts` allows that host in `connect-src` and `img-src`.
 
-**What the automated tests do instead:** the e2e map specs serve a
+**What the automated tests do instead:** every e2e browser context serves a
 background-only style from `apps/web/e2e/fixtures/map-style.json` at the real
-URL (`e2e/fixtures/mapTiles.ts`) and assert no request left for a third party.
+URL. That's the default in `e2e/fixtures/test.ts`, which every spec imports.
+The map specs also assert that no request left for a third party.
 One spec blocks the host and asserts the placeholder, *"The map could not
 load"* (`MapOfflineState`). A plain, featureless background in a local run is
 the fixture working — it says nothing about the real tiles.

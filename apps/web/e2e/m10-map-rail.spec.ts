@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
-import { blockMapTiles, serveMapTilesLocally } from "./fixtures/mapTiles";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
+import { blockMapTiles } from "./fixtures/mapTiles";
 import { createMappedTrip, watchMapWorker } from "./helpers";
 import { e2eTripName } from "./tripNames";
 import { gearedTravel } from "../src/components/lenses/mapRailFocus";
@@ -51,14 +52,13 @@ async function scrollRailTo(page: Page, scrollTop: number): Promise<void> {
   }, scrollTop);
 }
 
-test("map rail: scrolling tracks focus through every day", async ({ page }) => {
+test("map rail: scrolling tracks focus through every day", async ({ page, network }) => {
   // Fixture setup through the command API plus the full-rail scan exceeds
   // Playwright's default 30s per-test budget; this is a slow-but-worthwhile
   // browser test, not a hung one. Deliberately left generous rather than
   // trimmed to the new (much cheaper) scan: an unhit ceiling costs nothing,
   // and a tight one buys flakes on a loaded machine.
   test.setTimeout(90_000);
-  const network = await serveMapTilesLocally(page);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("MapRail");
   await page.goto("/");
@@ -238,9 +238,8 @@ test("map rail: scrolling tracks focus through every day", async ({ page }) => {
 // and the camera are all driven by the same one selection — which is the point
 // of fixing it by giving that selection a value rather than teaching the camera
 // a second mode.
-test("map: opens on the current day, and on the first one when none is chosen", async ({ page }) => {
+test("map: opens on the current day, and on the first one when none is chosen", async ({ page, network }) => {
   test.setTimeout(90_000);
-  const network = await serveMapTilesLocally(page);
   const tripName = e2eTripName("MapDefault");
   const tripId = await createMappedTrip(page, tripName, DAY_COUNT);
 
@@ -276,10 +275,9 @@ test("map: opens on the current day, and on the first one when none is chosen", 
  * assert on chrome that renders perfectly well over a map that never drew a
  * tile.
  */
-test("map lens: loads its tile-decoding worker", async ({ page }) => {
+test("map lens: loads its tile-decoding worker", async ({ page, network }) => {
   // Armed before the navigation that triggers it.
   const worker = watchMapWorker(page);
-  const network = await serveMapTilesLocally(page);
   // Distinct prefix from other specs' trip names — parallel workers share a DB.
   const tripName = e2eTripName("MapWorker");
   await page.goto("/");

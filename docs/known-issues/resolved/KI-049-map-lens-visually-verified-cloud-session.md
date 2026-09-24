@@ -90,10 +90,11 @@
   placeholder covered by a stubbed test plus a manual preview check instead.
   - **The e2e half no longer touches the tile host at all.** The map specs
     serve a background-only style from `apps/web/e2e/fixtures/map-style.json`
-    at the real style URL (`e2e/fixtures/mapTiles.ts`, via `page.route`, so the
-    CSP stays in the path) and assert that no request left for a third party;
+    at the real style URL (`e2e/fixtures/mapTiles.ts`, routed on every browser
+    context by `e2e/fixtures/test.ts` since the PR #224 review, so the CSP
+    stays in the path) and assert that no request left for a third party;
     `playwright.config.ts` resolves every hostname but the app's own to nothing
-    as a backstop for the specs that do not ask for the fixture; and
+    as a backstop for any host the fixture does not answer; and
     `containerChromiumArgs()` is no longer passed to the lane (it stays in
     `walk-preview.mjs`). A new test blocks the host and asserts *"The map could
     not load"*. So the proxy, its certificate and this entry's diagnosis are

@@ -95,9 +95,10 @@ false both times it was used.
 
 **The e2e lane does not reach the tile host at all, as of 2026-09-24** — nor
 any other third party. Mitchell's rule: no automated test talks to a real
-third-party service. The map specs serve the basemap style from a committed
-fixture (`apps/web/e2e/fixtures/mapTiles.ts`) and assert nothing else left the
-machine, and `playwright.config.ts` resolves every hostname but the app's own
+third-party service. Every browser context the suite creates serves the
+basemap style from a committed fixture (`apps/web/e2e/fixtures/mapTiles.ts`,
+the default in `e2e/fixtures/test.ts`), the map specs assert nothing else left
+the machine, and `playwright.config.ts` resolves every hostname but the app's own
 to nothing, so a request no route answered fails in the browser instead of
 reaching the network. So the proxy and its certificate are irrelevant to e2e
 here: the map specs pass in a container for the same reason they pass on a
