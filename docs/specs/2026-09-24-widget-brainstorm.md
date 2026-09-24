@@ -8,6 +8,12 @@ external data or charts or other unique ways of representing the trip."*
 Nothing here goes into M14 until Mitchell picks from it. The picks, and the ADR external
 data needs (§5), are what turn it into scope.
 
+**Decided 2026-09-24 (answers to §7):** (1) weather comes from **MET Norway**, not
+Open-Meteo; (2) sending a stop's rounded location to an outside service is **accepted**;
+(3) charts use a **library matched to the aesthetic**, recorded in M14 as **shadcn/ui's
+chart component (Recharts)**; (4) **all of §6's first wave goes into M14**, as its link
+11. The later-and-ambitious items and the other candidates stay candidates.
+
 Facts about the tree are checked against `main` on 2026-09-24. Facts about third-party
 APIs are marked **verified** (terms read on 2026-09-24) or **to verify** (believed, not
 read). That matters because the app takes subscriptions (M21), and "free" usually means

@@ -182,6 +182,42 @@ Mitchell's framing, 2026-09-03:
     at document version N must still instantiate once the AST has moved.
     **This is the natural carve-out if M14 splits**, which this file already leaves open.
 
+11. **Widgets that draw, compute and know the world.** *(**Added 2026-09-24** on
+    Mitchell's call: *"All in M14"*, answering which of
+    `docs/specs/2026-09-24-widget-brainstorm.md` §6 goes here.)* The seven first-wave
+    widgets: **trip strip**, **still to book**, **sunrise / sunset** and **time
+    difference from home**, **know before you go** (a bundled per-country table),
+    **spend by day** (the first chart), **weather**, and the **route map block**
+    (after M24, so it can draw real legs). The decisions that shape them, all from
+    Mitchell on 2026-09-24:
+    - **Weather source: MET Norway**, not Open-Meteo, whose free tier excludes apps
+      with subscriptions. The forecast comes from Locationforecast 2.0 (free for
+      commercial use under NLOD 2.0 / CC BY 4.0, with attribution, an identifying
+      User-Agent, cache headers honoured, and coordinates to 4 decimals). The
+      *typical for these dates* mode needs a separate free climate-normals source,
+      still **to verify** (NASA POWER is the candidate). The widget keeps the
+      brainstorm's four date-driven modes.
+    - **Sending a stop's rounded location to an outside service is accepted.** It is
+      the first feature that does. The ADR below states it, and rounds to what the
+      provider needs and no finer.
+    - **Charts use a library matched to the aesthetic: shadcn/ui's chart component
+      (Recharts).** Chosen because the component library is already shadcn/ui,
+      heavily re-themed (ADR-010), and its charts take colours from the same CSS
+      theme variables, so a chart reads *Field Kit* tokens rather than bringing a
+      palette of its own. Recharts renders SVG, which the CSP already permits (no
+      canvas, no remote assets). Axis and value text go through IBM Plex Mono, as
+      every data value must (`docs/guidelines/design-system.md`). The trip strip and
+      the day × hour grid are layouts, not charts, and stay plain SVG/Tailwind.
+    **Prerequisite, inside this link: an external-data ADR** covering the brainstorm's
+    §5 seven points. That is a server-side port per source, a coarse cache, a
+    pre-fetched `WidgetContext` slot so `resolve` stays pure, an `unavailable` result
+    state, attribution rendered by the block, what leaves the building, and a visible
+    as-of time. It is accepted before the weather widget's code lands; the Tier B
+    widgets need none of it and go first.
+    The brainstorm's *later and ambitious* list (trip in numbers, an assistant-drafted
+    packing list, now / next) and its other Tier A–C candidates are **not** in this
+    link until picked.
+
 ### What "more widgets, better filtering" resolved to — 2026-09-18
 
 Mitchell asked for *"more widgets, better widget filtering, saving notebook templates for
@@ -192,9 +228,8 @@ next session does not re-derive it.
   on **item B** (ADR-037 — a widget is a module, which deletes `MacroView`'s
   `switch (name)`) and **item E** (the attribute manifest).
   **Brainstormed further 2026-09-24**: `docs/specs/2026-09-24-widget-brainstorm.md`
-  (charts, maps, computed and external-data widgets, including weather). It is **not
-  scope** until Mitchell picks from it, and its external-data tier needs its own ADR
-  first.
+  (charts, maps, computed and external-data widgets, including weather). Its §6 first
+  wave **is in scope as link 11** (Mitchell, 2026-09-24); the rest is not until picked.
 - **"Better filtering" is two things, and Mitchell confirmed he meant both.**
   1. **A dynamic widget that can grab arbitrary fields.** This is *stronger* than item E as
      written. E gives a developer a widget free when they add an attribute; this is **one
@@ -735,6 +770,18 @@ milestone opens:**
       and the entry moves to `resolved/` with its proof line. *(Added 2026-09-18
       with the filtering work; a control that says narrowed while the widget
       renders wide is the defect, not the feature.)*
+- [ ] **The external-data ADR is accepted before any external-data code lands**,
+      and it answers the widget brainstorm's §5 seven points. *(Link 11, added 2026-09-24.)*
+- [ ] **Weather renders in all four date-driven modes**, each naming its mode in
+      words, with MET Norway's attribution on the block, an as-of time, and a quiet
+      `unavailable` placeholder when the source is down. That state is proved with a
+      failing port stub, not by assertion.
+- [ ] **The other six link-11 widgets ship and resolve against a real trip**: trip
+      strip, still to book (reading `needsBooking`, not a second rule), sunrise /
+      sunset, time difference from home, know before you go, spend by day. The route
+      map block follows once M24's legs exist.
+- [ ] **Charts go through the one adopted chart component**, and none carries a
+      colour or font outside the design-system tokens.
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.
