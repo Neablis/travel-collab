@@ -35,6 +35,14 @@ widgets, better filtering" resolved to*; the third was **not here and is not any
 link 7 seeds templates, and nothing lets a person keep their own notebook for reuse. That is
 **link 10**, and it is named as this milestone's natural carve-out if it splits.
 
+**Pulled forward whole, 2026-09-24, on Mitchell's instruction — M24 stays the current
+milestone.** Asked what *"just make everything on this one PR"* meant, he chose *"Build all
+of M14 here"*: every remaining link, on `claude/cool-curie-t34x8h` (PR #221), ahead of
+M24. This is AGENTS.md's *"do not build ahead of the current milestone"* set aside
+knowingly, as it was for this milestone's navigation half on 2026-09-03. **The one link
+that cannot move is the route map block** (link 11), which draws M24's legs and waits for
+them.
+
 **Decided 2026-09-24, before opening — three calls by Mitchell.**
 
 1. **External calendar sync is dropped.** Not deferred and not split into a milestone

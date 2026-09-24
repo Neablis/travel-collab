@@ -306,6 +306,8 @@ reorder and the one place a reorder updates.
       retired. The M8 macro vocabulary is superseded by the widget framework
       (ADR-035/037/039). The milestone file's gate is behind the tree and is
       re-baselined first when M14 opens — see its *Decided 2026-09-24*.)*
+      *(**Pulled forward 2026-09-24 by Mitchell — being built now on PR #221**,
+      ahead of M24, which stays current. The route map block waits for M24.)*
       *(**Widened 2026-09-24 by link 11**: the widget brainstorm's first wave,
       `docs/specs/2026-09-24-widget-brainstorm.md` §6, including MET Norway
       weather and shadcn/ui charts (Recharts). An external-data ADR is its
