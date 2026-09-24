@@ -273,7 +273,7 @@ next session does not re-derive it.
   2. **Finding a widget in the UI is hard today.** That is **item G** (sidebar,
      drag-and-drop, slash menu) with **link 5**'s two-step Sheet and its search.
 - **A trap to fix *with* this work, not after it.**
-  `docs/known-issues/open/KI-20260905-h-widget-and-ast-exhaustiveness-holes.md` records that
+  `docs/known-issues/resolved/KI-20260905-h-widget-and-ast-exhaustiveness-holes.md` (resolved 2026-09-24, T02) records that
   a new filter dimension today is accepted, stored, rendered as a control and **silently
   ignored** — `select.ts:106-108`'s own comment calls *"a control that says narrowed while
   the widget renders wide"* the worst of the three available answers. More filtering built
@@ -975,7 +975,7 @@ gating**. Each entry's own **Milestone:** line points back here.
 
 | KI | What it is | Gate? |
 |---|---|---|
-| KI-2026-09-05-h | `narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default | **gate box** |
+| ~~KI-2026-09-05-h~~ | ~~`narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default~~ — **resolved 2026-09-24 (T02)**: a `NARROWS` record beside `narrow`, a mapped `WidgetFilterValues`, and `never` defaults in `optionsFor`, `serializePageNode` and `ReadOnlyPageDoc`. A probe dimension now fails to compile, and a sweep over `FilterDimension.options` covers the runtime path | **gate box** |
 | KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | carried |
 | ~~KI-2026-09-15-b~~ | ~~The phone Notebook insert e2e spec intermittently finds the widget bound to "All days"~~ — **resolved 2026-09-24**: the spec waited for any PATCH and caught the unchanged save a mode switch sent (fixed in `PageEditor`), then reloaded over the insert's pending save | — |
 | KI-2026-09-24-g | An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it | carried |
