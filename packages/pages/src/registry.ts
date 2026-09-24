@@ -4,7 +4,8 @@ import { FilterDimension } from "@tc/contracts";
 import type { AnyMacroDef, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
 import { ghost, text } from "./registry-types";
 import type { UnavailableReason, UnboundNeeds } from "./result";
-import { fieldChoices } from "./fields";
+import { fieldAt, fieldChoices } from "./fields";
+import { VALUE_KIND_FORMATS } from "./kinds";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
@@ -212,4 +213,27 @@ function nonFilterParams(def: AnyMacroDef): Record<string, readonly string[] | n
     out[key] = inner instanceof z.ZodEnum ? (inner.options as readonly string[]) : null;
   }
   return out;
+}
+
+/**
+ * Whether "Remove duplicates" means anything for this widget as it is bound.
+ *
+ * Two facts, both read rather than listed: the widget's params schema declares
+ * a boolean `distinct` (today only `field`; `stop.rows` has field inputs but a
+ * row per stop, so nothing to collapse), and its one field input points at a
+ * published field whose kind's "All" rule `distinct` changes (`kinds.ts` —
+ * text, enum, place list; money, dates, counts and durations sum or span). No
+ * field chosen, or one no longer published, is `false`: there is nothing yet
+ * for the setting to act on.
+ */
+export function distinctApplies(name: string, params: Record<string, unknown>): boolean {
+  const def = getMacro(name);
+  const shape = (def?.params as Partial<z.ZodObject<z.ZodRawShape>> | undefined)?.shape;
+  const declared = shape?.distinct;
+  const inner = declared instanceof z.ZodOptional ? (declared.unwrap() as z.ZodTypeAny) : declared;
+  if (!(inner instanceof z.ZodBoolean)) return false;
+  const input = def!.inputs.find((i) => i.type === "field" && !i.multiple);
+  if (input?.type !== "field") return false;
+  const choice = fieldAt(input.of, params[input.name]);
+  return choice !== undefined && VALUE_KIND_FORMATS[choice.valueKind].distinct;
 }

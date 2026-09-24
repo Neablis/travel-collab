@@ -54,6 +54,12 @@ export interface KindFormat<V> {
    * total of nothing that reads as `$0.00`.
    */
   collapse(values: readonly V[], ctx: KindContext, opts?: CollapseOptions): string | null;
+  /**
+   * Whether `CollapseOptions.distinct` changes `collapse` — true only for the
+   * listing kinds. The editor offers "Remove duplicates" by this flag, and
+   * `kinds.test.ts` checks it against what `collapse` does for every kind.
+   */
+  distinct: boolean;
 }
 
 export type KindFormats = { [K in ValueKind]: KindFormat<KindValues[K]> };
@@ -81,11 +87,14 @@ function formatDuration(minutes: number): string {
 // (Mitchell's answer 3, 2026-09-24), and `distinct` collapses repeats. Repeats
 // are judged on the printed string — two pins with one name read as the same
 // place to the person reading the page.
-function listing<V>(format: (value: V, ctx: KindContext) => string): KindFormat<V>["collapse"] {
-  return (values, ctx, opts) => {
-    if (values.length === 0) return null;
-    const printed = values.map((v) => format(v, ctx));
-    return (opts?.distinct ? [...new Set(printed)] : printed).join(LIST_SEPARATOR);
+function listing<V>(format: (value: V, ctx: KindContext) => string): Pick<KindFormat<V>, "collapse" | "distinct"> {
+  return {
+    collapse: (values, ctx, opts) => {
+      if (values.length === 0) return null;
+      const printed = values.map((v) => format(v, ctx));
+      return (opts?.distinct ? [...new Set(printed)] : printed).join(LIST_SEPARATOR);
+    },
+    distinct: true,
   };
 }
 
@@ -113,6 +122,7 @@ export const VALUE_KIND_FORMATS: KindFormats = {
         .map(([currency, amountMinor]) => formatMoney(amountMinor, currency))
         .join(" + ");
     },
+    distinct: false,
   },
   date: {
     format: (value) => formatDate(value),
@@ -127,32 +137,35 @@ export const VALUE_KIND_FORMATS: KindFormats = {
       const last = sorted[sorted.length - 1]!;
       return first === last ? formatDate(first) : `${formatDate(first)} – ${formatDate(last)}`;
     },
+    distinct: false,
   },
   count: {
     format: (value) => countFormat.format(value),
     ghost: "NN",
     collapse: (values) => (values.length === 0 ? null : countFormat.format(sum(values))),
+    distinct: false,
   },
   text: {
     format: (value) => value,
     ghost: "———",
-    collapse: listing((value) => value),
+    ...listing((value) => value),
   },
   duration: {
     format: (value) => formatDuration(value),
     ghost: "Nh NNm",
     collapse: (values) => (values.length === 0 ? null : formatDuration(sum(values))),
+    distinct: false,
   },
   enum: {
     // By label ("Holding", not "hold"), from the one map the board reads too.
     format: (value) => enumLabel(value),
     ghost: "———",
-    collapse: listing(enumLabel),
+    ...listing(enumLabel),
   },
   location: {
     format: (value) => value.name,
     ghost: "———",
-    collapse: listing((value) => value.name),
+    ...listing((value) => value.name),
   },
 };
 

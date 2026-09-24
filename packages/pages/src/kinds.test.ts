@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { VALUE_KINDS } from "@tc/contracts";
 import { formatDate, formatMoney } from "./format";
-import { VALUE_KIND_FORMATS, collapseKind, formatKind, formatKindList } from "./kinds";
+import { VALUE_KIND_FORMATS, collapseKind, formatKind, formatKindList, type KindValues } from "./kinds";
 
 const ctx = { currency: "USD" };
 const place = (name: string) => ({ name });
@@ -106,6 +106,22 @@ describe("collapseKind — the 'All' rule", () => {
     expect(collapseKind("text", ["Kyoto", "Osaka", "Kyoto"], ctx)).toBe("Kyoto, Osaka, Kyoto");
     expect(collapseKind("enum", ["meal", "meal"], ctx)).toBe("Meal, Meal");
     expect(collapseKind("location", [place("Gion"), place("Gion")], ctx)).toBe("Gion, Gion");
+  });
+
+  // `distinct` on a kind is what decides whether the editor offers "Remove
+  // duplicates" for a field of that kind, so the flag must say what the
+  // collapse actually does: for EVERY kind, a repeated value collapses
+  // differently under `distinct` exactly when the kind claims it does.
+  it("declares `distinct` on exactly the kinds whose collapse it changes", () => {
+    const sample: KindValues = {
+      money: 100, date: "2026-10-01", count: 2, text: "Kyoto", duration: 30, enum: "meal", location: place("Gion"),
+    };
+    for (const kind of VALUE_KINDS) {
+      const twice = [sample[kind], sample[kind]] as never[];
+      const changes = collapseKind(kind, twice, ctx, { distinct: true }) !== collapseKind(kind, twice, ctx);
+      expect(changes, kind).toBe(VALUE_KIND_FORMATS[kind].distinct);
+    }
+    expect(VALUE_KINDS.filter((kind) => VALUE_KIND_FORMATS[kind].distinct).sort()).toEqual(["enum", "location", "text"]);
   });
 
   it("drops repeats under `distinct`, keeping first appearance", () => {

@@ -1,7 +1,8 @@
 "use client";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { enumLabel, fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
+import { distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
+import { CheckboxField } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DaysFilter, daysSummary } from "./DaysFilter";
@@ -243,6 +244,15 @@ function listOf(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
 }
 
+// `withBinding` for a boolean: merge, and off deletes the key, so a widget
+// never given the flag and one ticked then unticked are the same `{}`.
+function withFlag(params: Record<string, unknown>, key: string, on: boolean): Record<string, unknown> {
+  const merged = { ...params };
+  if (on) merged[key] = true;
+  else delete merged[key];
+  return merged;
+}
+
 // `withBinding` for a list: merge, and an empty list deletes the key so `{}`
 // stays the one spelling of "nothing chosen".
 function withList(params: Record<string, unknown>, input: WidgetInput, next: string[]): Record<string, unknown> {
@@ -399,6 +409,21 @@ export function WidgetBindControls({
           </FormField>
         );
       })}
+      {/* Not a filter, so not in `inputs`: a param of the widget's own, shown
+          only while it changes what the widget prints (`distinctApplies`). A
+          field that sums, or no field yet, has no duplicates to remove. */}
+      {distinctApplies(name, params) ? (
+        <div className={layout === "inline" ? "inline-flex items-center" : "flex min-h-11 items-center"}>
+          <CheckboxField
+            id={`${idPrefix}-distinct`}
+            aria-label={namedByTitle ? `${title}: remove duplicates` : undefined}
+            checked={params.distinct === true}
+            onCheckedChange={(on) => onChange(withFlag(params, "distinct", on))}
+            title="Remove duplicates"
+            description={layout === "stacked" ? "List a repeated value once." : undefined}
+          />
+        </div>
+      ) : null}
     </>
   );
 }
