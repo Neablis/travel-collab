@@ -41,6 +41,17 @@ Format:
 - Breaking? no — the client passes the text through and branches on status and
   `code`, neither of which moved. Anything parsing the provider's words out of
   the old message loses them, which is the point
+- Added, same day: `ASK_INTERNAL_ERROR_MESSAGE`, *"The assistant hit a problem
+  on our side, and it has been logged."* The stream's `error` chunk and the
+  agent-could-not-start catch now send `ASK_FAILED_MESSAGE` only for a
+  model-side failure (the AI SDK's provider, gateway, retry and network error
+  types, listed at `isModelSideFailure` in `handleAskRequest.ts`), and this
+  sentence for anything our own code threw, because "try again" is false of a
+  bug. That catch answers **500** rather than 503 for our own failure. The
+  model-selection 503 is unchanged. Consumers: `route.int.test.ts`, where
+  `failingModel` now throws an `APICallError` (what a provider throws) and two
+  cases cover our own throw. Breaking? no. The body shape is unchanged, and the
+  client passes any non-200 `error` through
 
 ## 2026-09-24 — `TripSummary.startDate` (KI-034)
 

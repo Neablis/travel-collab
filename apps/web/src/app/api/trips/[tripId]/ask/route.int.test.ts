@@ -1,5 +1,5 @@
-import { ASK_FAILED_MESSAGE, newPageDoc } from "@tc/contracts";
-import { ToolLoopAgent } from "ai";
+import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, newPageDoc } from "@tc/contracts";
+import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
@@ -56,6 +56,37 @@ vi.mock("@/server/ai/modelSelection", async (importOriginal) => {
           { outcome: "denied" as const, reason: actual.AI_NOT_ENTITLED_REASON }
         : actual.selectAiModel(actor),
     ),
+  };
+});
+
+// A bug in OUR code, mid-turn. `prepareStep` (handleAskRequest.ts) reads the
+// escalation buffer before every step, and an error thrown there reaches the
+// stream's `onError` exactly as a provider's would — nothing a model does can
+// make our own code throw on purpose, so the one test that needs it arms this
+// flag and the NEXT read throws. Every other read is the real buffer's, which
+// matters: `recorder.abandon` reads it again to write the record.
+//
+// Not `buildProposal` in `messageMetadata`, which was the obvious candidate: a
+// throw there never reaches `onError` at all — it errors the response body
+// (KI-2026-09-24-p).
+let failNextEscalationRead = false;
+vi.mock("@/server/assistant/deps", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/assistant/deps")>();
+  return {
+    ...actual,
+    newEscalationBuffer: () => {
+      const buffer = actual.newEscalationBuffer();
+      return {
+        ...buffer,
+        escalated: () => {
+          if (failNextEscalationRead) {
+            failNextEscalationRead = false;
+            throw new TypeError("Cannot read properties of undefined (reading 'dayIndex')");
+          }
+          return buffer.escalated();
+        },
+      };
+    },
   };
 });
 
@@ -437,6 +468,20 @@ function escalatingModel() {
   return { model, turnOffers: () => offeredPerCall.slice(1) };
 }
 
+// What a provider throws when its HTTP call fails — the SDK's own error type,
+// which `@ai-sdk/provider-utils` also wraps a dropped connection in. Not
+// retryable, so the SDK's retry loop rethrows it as-is rather than wrapping it
+// in a `RetryError` after two backoffs.
+function providerError(message: string) {
+  return new APICallError({
+    message,
+    url: "https://ai-gateway.test/v1/responses",
+    requestBodyValues: {},
+    statusCode: 529,
+    isRetryable: false,
+  });
+}
+
 // A model that fails the way a provider outage does: the stream opens and then
 // errors. Typed structurally for the same reason simulatedModel is — the
 // LanguageModelV4 interface lives in a package apps/web does not depend on.
@@ -447,10 +492,10 @@ function failingModel(message: string) {
     modelId: "test/failing",
     supportedUrls: {},
     doGenerate: async () => {
-      throw new Error(message);
+      throw providerError(message);
     },
     doStream: async () => {
-      throw new Error(message);
+      throw providerError(message);
     },
   } as unknown as Parameters<typeof handleAskRequest>[2];
 }
@@ -2144,7 +2189,7 @@ describe("POST /api/trips/:id/ask", () => {
       const records: AskAnalyticsRecord[] = [];
       const stream = vi
         .spyOn(ToolLoopAgent.prototype, "stream")
-        .mockRejectedValueOnce(new Error("some provider detail: 529 overloaded req_abc123"));
+        .mockRejectedValueOnce(providerError("some provider detail: 529 overloaded req_abc123"));
       try {
         const res = await handleAskRequest(
           req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }),
@@ -2159,6 +2204,53 @@ describe("POST /api/trips/:id/ask", () => {
         expect(body).not.toContain("some provider detail");
         expect(records[0]).toMatchObject({ outcome: "error" });
         expect(records[0]!.cause).toMatchObject({ message: expect.stringContaining("some provider detail") });
+      } finally {
+        stream.mockRestore();
+      }
+    });
+
+    // **Our bug is not the provider's outage** (the lead, 2026-09-24). Both
+    // cases below fail in code this repo owns, where "try again in a moment"
+    // is false — it fails the same way every time — so the person gets the
+    // other fixed sentence. Still never the error's own text, and the cause
+    // still goes on the record.
+    it("tells the client the failure was ours, not to retry, when our own code throws mid-answer", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      failNextEscalationRead = true;
+      const res = await ask(
+        tripId,
+        { messages: [userMessage("how does this look?")], scope: { kind: "trip" } },
+        (r) => records.push(r),
+      );
+
+      expect(res.status).toBe(200);
+      const chunks = await chunksOf(res);
+      expect(chunks.find((c) => c.type === "error")).toEqual({ type: "error", errorText: ASK_INTERNAL_ERROR_MESSAGE });
+      expect(JSON.stringify(chunks)).not.toContain("reading 'dayIndex'");
+      expect(records[0]).toMatchObject({ outcome: "error" });
+      expect(records[0]!.cause).toMatchObject({ message: expect.stringContaining("reading 'dayIndex'") });
+    });
+
+    it("answers 500, not 503, with the not-a-retry sentence when our own code throws before the turn starts", async () => {
+      const tripId = await seedTrip();
+      const records: AskAnalyticsRecord[] = [];
+      const stream = vi
+        .spyOn(ToolLoopAgent.prototype, "stream")
+        .mockRejectedValueOnce(new TypeError("Cannot read properties of undefined (reading 'stops')"));
+      try {
+        const res = await handleAskRequest(
+          req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }),
+          tripId,
+          simulatedModel(),
+          (r) => records.push(r),
+        );
+
+        expect(res.status).toBe(500);
+        const body = await res.text();
+        expect(JSON.parse(body)).toEqual({ error: ASK_INTERNAL_ERROR_MESSAGE, simulated: true });
+        expect(body).not.toContain("reading 'stops'");
+        expect(records[0]!.cause).toMatchObject({ message: expect.stringContaining("reading 'stops'") });
       } finally {
         stream.mockRestore();
       }

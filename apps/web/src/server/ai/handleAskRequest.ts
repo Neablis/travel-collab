@@ -46,7 +46,22 @@
 // nothing to admit: the agent, the stream, `messageMetadata`, `onError` and the
 // step settlement.
 import { z } from "zod";
-import { convertToModelMessages, isStepCount, safeValidateUIMessages, ToolLoopAgent } from "ai";
+import {
+  APICallError,
+  convertToModelMessages,
+  EmptyResponseBodyError,
+  InvalidResponseDataError,
+  InvalidToolInputError,
+  isStepCount,
+  NoContentGeneratedError,
+  NoOutputGeneratedError,
+  NoSuchToolError,
+  RetryError,
+  safeValidateUIMessages,
+  StreamProviderError,
+  ToolLoopAgent,
+} from "ai";
+import { GatewayError } from "@ai-sdk/gateway";
 import { primitiveCatalog } from "@tc/pages";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
@@ -82,7 +97,14 @@ import {
   parseRequest,
 } from "@/server/assistant/admission";
 import { admissionPorts } from "@/server/ai/admissionPorts";
-import { ASK_FAILED_MESSAGE, SIMULATED_HEADER, type AskStreamMetadata, type Page, type TripDetail } from "@tc/contracts";
+import {
+  ASK_FAILED_MESSAGE,
+  ASK_INTERNAL_ERROR_MESSAGE,
+  SIMULATED_HEADER,
+  type AskStreamMetadata,
+  type Page,
+  type TripDetail,
+} from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
 import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/assistant/askAnalytics";
@@ -635,28 +657,99 @@ export async function handleAskRequest(
         // the message went out on the stream and nothing wrote it down. The
         // whole diagnosis was "step 1 finished, step 2 did not".
         recorder.abandon("error", error);
-        // **The client sees `ASK_FAILED_MESSAGE`, never the provider's text**
+        // **The client sees a fixed sentence, never the error's text**
         // (2026-09-24). This used to return `errorMessage(error)` so the rail
         // said something better than the SDK's default "An error occurred.",
         // which reads like a dropped connection — but what it printed was
-        // whatever the provider threw: gateway JSON, request ids, stack-shaped
-        // strings. The fixed sentence still says "the assistant failed, try
-        // again" rather than "your network failed", and the real reason goes
-        // where diagnosis happens: the `abandon` call above puts the error
-        // itself on the turn's `ai.ask` record as its `cause`.
-        return ASK_FAILED_MESSAGE;
+        // whatever was thrown: gateway JSON, request ids, stack-shaped
+        // strings. The real reason goes where diagnosis happens: the `abandon`
+        // call above puts the error itself on the turn's `ai.ask` record as
+        // its `cause`.
+        //
+        // **Which sentence depends on whose failure it was** (the lead, same
+        // day). This callback also receives errors from OUR code — anything
+        // `prepareStep` or a step callback throws arrives here exactly as a
+        // provider's outage does — and "try again in a moment" is false of a
+        // bug that fails the same way every time. See `isModelSideFailure`.
+        return askFailureMessage(error);
       },
     });
   } catch (err) {
     // Nothing in the body is left to be wrong — the messages validated above
-    // and the caps passed. What remains is the agent failing to start, which
-    // is a model that could not be reached: 503, the same shape model SELECTION
-    // failing returns above, so a client sees one code for "no model answered".
-    // The body carries the same fixed sentence as the stream's error chunk
-    // above, and for the same reason; the cause is recorded by `abandon`.
+    // and the caps passed. What remains is the agent failing to start. When
+    // that is a model that could not be reached: 503, the same shape model
+    // SELECTION failing returns above, so a client sees one code for "no model
+    // answered". But `convertToModelMessages` and the agent's own setup are
+    // code too, and a bug there is not an outage: 500, with the sentence that
+    // does not promise a retry will help. Either way the body carries the same
+    // fixed sentence the stream's error chunk would, and the cause is recorded
+    // by `abandon`.
     recorder.abandon("error", err);
-    return Response.json({ error: ASK_FAILED_MESSAGE, simulated: grant.simulated }, { status: 503 });
+    const modelSide = isModelSideFailure(err);
+    return Response.json(
+      { error: askFailureMessage(err), simulated: grant.simulated },
+      { status: modelSide ? 503 : 500 },
+    );
   }
+}
+
+/**
+ * The AI SDK's own types for a failure that happened on the far side of the
+ * model call — so "try again" is honest about it.
+ *
+ *   * `APICallError` — the provider's HTTP call failed. Also what
+ *     `@ai-sdk/provider-utils` wraps a dropped or refused connection in, so it
+ *     is the network case too.
+ *   * `RetryError` — the SDK retried a retryable `APICallError` and ran out.
+ *   * `GatewayError` — the base of every typed AI Gateway failure (rate limit,
+ *     auth, model not found, upstream 5xx).
+ *   * `StreamProviderError` — the provider reported an error inside an open
+ *     stream ("overloaded").
+ *   * `EmptyResponseBodyError`, `InvalidResponseDataError` — the provider
+ *     answered with nothing, or with something that was not a response.
+ *   * `NoContentGeneratedError`, `NoOutputGeneratedError` — the model produced
+ *     nothing.
+ *   * `NoSuchToolError`, `InvalidToolInputError` — the model called a tool that
+ *     does not exist, or with input its schema refuses. The model's mistake,
+ *     and a fresh attempt often does not repeat it.
+ *
+ * Deliberately NOT here: `LoadAPIKeyError` (a missing key is our deployment's
+ * fault and retrying cannot fix it) and the parsing and validation errors
+ * (`JSONParseError`, `TypeValidationError`), which our own code raises as
+ * readily as a provider's response does. Anything not listed is ours.
+ */
+const MODEL_SIDE_ERRORS = [
+  APICallError,
+  RetryError,
+  GatewayError,
+  StreamProviderError,
+  EmptyResponseBodyError,
+  InvalidResponseDataError,
+  NoContentGeneratedError,
+  NoOutputGeneratedError,
+  NoSuchToolError,
+  InvalidToolInputError,
+] as const;
+
+/**
+ * Did this failure come from the model, its provider, or the network between
+ * us and them — rather than from code in this repo?
+ *
+ * Checked with each class's own `isInstance`, not `instanceof`: the SDK marks
+ * its errors with a symbol precisely so the check survives two copies of a
+ * package in one bundle, where `instanceof` silently answers false.
+ */
+function isModelSideFailure(error: unknown): boolean {
+  return MODEL_SIDE_ERRORS.some((type) => type.isInstance(error));
+}
+
+/**
+ * The one sentence a person sees for a failed turn: `ASK_FAILED_MESSAGE` ("try
+ * again") for a model-side failure, `ASK_INTERNAL_ERROR_MESSAGE` (logged, no
+ * retry) for ours. Never the error's own text.
+ */
+function askFailureMessage(error: unknown): string {
+  return isModelSideFailure(error) ? ASK_FAILED_MESSAGE : ASK_INTERNAL_ERROR_MESSAGE;
 }
 
 /**

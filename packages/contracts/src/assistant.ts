@@ -69,6 +69,20 @@ export const SIMULATED_HEADER = "x-tc-ai-simulated";
  */
 export const ASK_FAILED_MESSAGE = "The assistant couldn't answer just now. Try again in a moment.";
 
+// The lead, 2026-09-24: `ASK_FAILED_MESSAGE` says "try again", which is true of
+// a provider outage, a rate limit or a dropped connection and false of a bug
+// in our own code — `buildProposal` throwing on the final chunk fails the same
+// way on every retry. So a failure that did not come from the model, its
+// provider or the network gets this sentence instead. Same rule as above: a
+// fixed string, never the error's own text; the cause goes to the turn's
+// `ai.ask` record.
+/**
+ * What `/ask` tells the person when the turn failed in OUR code rather than the
+ * model's: the `error` of its 500 body, or the text of the stream's `error`
+ * chunk. Deliberately does not suggest retrying.
+ */
+export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our side, and it has been logged.";
+
 // Derived from `BatchableCommand`'s own options rather than spelled again, for
 // the reason `describeProposedChange`'s exhaustive switch exists: a thirteenth
 // command joins this for free and can never drift from the union it describes.

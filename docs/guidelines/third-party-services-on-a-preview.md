@@ -88,6 +88,10 @@ provider throw and asserts that the client gets `ASK_FAILED_MESSAGE`
 (`packages/contracts/src/assistant.ts`), *"The assistant couldn't answer just
 now. Try again in a moment."*, and never the provider's own text. The real
 cause goes to the `ai.ask` log record. The rail tests assert that same constant.
+A failure in our own code gets `ASK_INTERNAL_ERROR_MESSAGE` instead, *"The
+assistant hit a problem on our side, and it has been logged."*, because telling
+someone to retry a bug is false. `isModelSideFailure` in `handleAskRequest.ts`
+lists the SDK error types that count as the provider's.
 
 **Manual check:**
 
@@ -95,5 +99,7 @@ cause goes to the `ai.ask` log record. The rail tests assert that same constant.
    trip. Confirm a real answer streams in.
 2. The failure path is not something to force on a shared preview (it means
    breaking the key). If a real failure happens during a walk, confirm the rail
-   shows exactly the sentence above with no provider detail, and that the
-   Vercel runtime log's `ai.ask` line carries the real cause.
+   shows exactly the "try again" sentence above with no provider detail, and
+   that the Vercel runtime log's `ai.ask` line carries the real cause. If the
+   rail shows the "on our side" sentence during a provider outage instead, the
+   error type the provider threw is missing from `isModelSideFailure`.
