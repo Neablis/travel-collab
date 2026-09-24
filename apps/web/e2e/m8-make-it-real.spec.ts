@@ -185,10 +185,13 @@ test("an open trip-actions menu does not drift when the cost lines land", async 
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   // **A second trip after it, so the anchor is a CARD** (SPEC §35.2). The
-  // newest trip is the hero, and the hero is not in *Other trips* — so the
-  // trip just made would have no card to anchor a menu on. Other spec files
-  // only ever add NEWER trips, so once this one is not the newest it stays a
-  // card for the rest of the test.
+  // hero is not in *Other trips*, so a trip that is the hero has no card to
+  // anchor a menu on. Home picks the hero by date (`orderHomeTrips`, KI-034):
+  // the soonest upcoming dated trip, else the NEWEST undated one. Both trips
+  // here are undated, so this one — never the newest once the second exists,
+  // since other spec files only ever add newer trips — is the hero under
+  // neither branch, and stays a card for the rest of the test. (Before KI-034
+  // the hero was the head of an unordered list, and this held only by luck.)
   await createEmptyTripViaWizard(page, e2eTripName("Anchor hero"));
   await expect(page.getByRole("heading", { name: tripName, level: 3 })).toBeVisible();
 

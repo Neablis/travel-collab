@@ -13,6 +13,29 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `TripSummary.startDate` (KI-034)
+
+- **Changed:** `TripSummary` gains `startDate: string (YYYY-MM-DD) | null`,
+  `.default(null)`. Shape-only regex, as on `TripStartDateSetV1`, since the
+  value is copied from that event. No event or command changed.
+- Why: KI-034 — Home's "Next trip" was `visibleTrips[0]` of a list query with
+  no `ORDER BY`, so the hero was whichever row the heap returned first, and
+  trip cards printed "Created {date}" because the summary had no real date.
+- Consumers updated: `packages/domain` (`projectTripSummaries` folds
+  `TripStartDateSet`); `apps/web` — `trip_summaries.start_date` (migration
+  `0028_trip_summary_start_date`, nullable `text`, backfilled from
+  `trip_details.doc->>'startDate'`), `applyTripEvents` writes it,
+  `listTripSummariesVisibleTo` now orders `created_at DESC, trip_id DESC`
+  (the same order as `listTripSummariesPage`), Home picks its hero with the new
+  `lib/homeTripOrder.ts`, and `TripCard` / `NextTripHero` print the date.
+  Test fixtures building a `TripSummary` add `startDate: null`.
+  `openapi.json` regenerated: `GET /v1/trips` items gain `startDate`; nothing
+  else moved.
+- Breaking? no — additive. A payload without the key parses to `null`.
+  **Deploy note:** the code reads and writes `start_date`, so migration `0028`
+  must be applied before (or with) the deploy that ships this; dispatch
+  `migrate-production` as usual (`docs/guidelines/environments-and-deploys.md`).
+
 ## 2026-09-24 — `SetTripDates` / `SetTripStartDate` refuse a date that is not on the calendar (KI-92)
 
 - **Changed:** `SetTripStartDate.startDate` and `SetTripDates.startDate` /

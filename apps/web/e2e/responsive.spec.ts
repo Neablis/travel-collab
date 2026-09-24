@@ -335,11 +335,12 @@ test.describe("responsive (narrow viewport)", () => {
 // below before the fix. At 1440px the left column sets the row height and the
 // jump is 0.19px, which is why this is asserted at a phone width only.
 //
-// **A fresh account, because the hero has to be THIS trip.** The hero is
-// `visibleTrips[0]` of a list query with no ORDER BY (KI-034), so on the
-// shared dev user it is whichever row Postgres returns first — a first draft
-// here assumed "newest" and measured another spec's trip. One account, one
-// trip, one hero.
+// **A fresh account, because the hero has to be THIS trip.** When this was
+// written the hero was the head of a list query with no ORDER BY (KI-034,
+// since fixed: it is now picked by start date), so on the shared dev user it
+// was whichever row Postgres returned first — a first draft here assumed
+// "newest" and measured another spec's trip. The shared user's other trips can
+// still outrank this one by date. One account, one trip, one hero.
 //
 // The trip is chosen to exercise both halves: one row of city pills (Rome,
 // Barcelona, Kyoto fit on one line at 390px), and an actionable line with both

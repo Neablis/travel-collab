@@ -33,6 +33,7 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
       { userId: "dev-bob", role: "owner" },
     ],
     createdAt: "2026-07-08T12:00:00.000Z",
+    startDate: null,
     ...overrides,
   };
 }
@@ -440,6 +441,18 @@ describe("NextTripHero", () => {
     expect(screen.queryByText(/not booked/)).toBeNull();
   });
 
+  // KI-034: the meta row used to say "Created …" until the detail landed,
+  // because the summary had no start date to show. It has one now, so the
+  // hero shows the real date from its first frame.
+  it("shows the trip's start date before the trip detail has loaded", () => {
+    const trip = tripSummaryFixture({ startDate: "2026-10-01" });
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={trip} />);
+
+    expect(screen.getByText("Thu, Oct 1")).toBeTruthy();
+    expect(screen.queryByText(/^Created /)).toBeNull();
+  });
+
   // Task 8.5: the traveler count used to say "travelers" unconditionally,
   // even for a solo trip. It is the avatar stack's name now that the tile
   // that printed it is gone (§35.2).
@@ -530,11 +543,9 @@ describe("NextTripHero", () => {
 
 // DRIFT D6, M26 link 9d: "Upcoming-by-date hero + 'in 47 days' countdown".
 //
-// D6 is two things and only one of them is blocked. WHICH trip this hero picks
-// needs a start date on `TripSummary` (KI-034, still open — `nextTrip` is
-// `visibleTrips[0]`), but the hero already fetches the whole `TripDetail` for
-// its sparkline, so the date it counts to is real and always was.
-describe("NextTripHero — the countdown (D6's unblocked half)", () => {
+// WHICH trip is the hero is Home's choice, by start date (`orderHomeTrips`,
+// KI-034); this block covers the countdown to the date of whichever it is.
+describe("NextTripHero — the countdown", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -559,10 +570,10 @@ describe("NextTripHero — the countdown (D6's unblocked half)", () => {
     expect(await screen.findByText("in 47 days")).toBeTruthy();
   });
 
-  // **Honest about a trip that has already gone**, which KI-034 makes likely
-  // rather than theoretical: with nothing to sort by, `visibleTrips[0]` can be
-  // any trip at all. A countdown that only counted down would print nothing —
-  // or a negative — in exactly the case D6 warns this hero can land on.
+  // **Honest about a trip that has already gone.** Home still lands the hero
+  // on one when every trip is past, or when a trip is under way (a summary has
+  // no end date). A countdown that only counted down would print nothing — or
+  // a negative — in exactly that case.
   it("says how long ago a trip that has passed was", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date(2026, 7, 4));

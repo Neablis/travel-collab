@@ -364,7 +364,6 @@
   "apps/web/src/server/playbooks.ts::discoverDays",
   "apps/web/src/server/projections.ts::applyTripEvents",
   "apps/web/src/server/projections.ts::listTripSummaries",
-  "apps/web/src/server/projections.ts::listTripSummariesVisibleTo",
   "apps/web/src/server/projections.ts::rebuildProjections",
   "apps/web/src/server/projections.ts::upsertTripDetail",
   "apps/web/src/server/public-api/locations.ts::resolveStopLocation",
