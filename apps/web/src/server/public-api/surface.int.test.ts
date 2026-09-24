@@ -465,6 +465,42 @@ describe("a patch changes what it names, and nothing else", () => {
     expect(confused.status).toBe(400);
     expect((await confused.json()).error.code).toBe("invalid-request");
   });
+
+  // KI-2026-09-05-g: v1 writes pages through the same command as the BFF, so
+  // it gets the same two guarantees — a newer build's node survives verbatim,
+  // and a widget the registry would not insert is refused, not stored.
+  it("stores a page's document canonically and refuses a widget the registry would not insert", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["notebook:read", "notebook:write"]);
+    const { tripId } = await seed(await tokenFor(owner, ["trips:read", "trips:write"]));
+    const future = { type: "futureNode", foo: 1 };
+
+    const added = await ADD_PAGE(
+      req(secret, { title: "Ideas", context: { tripId }, content: { type: "doc", content: [future] } }, "POST"),
+      P({ tripId }),
+    );
+    expect(added.status).toBe(201);
+    const page = await added.json();
+    expect(page.content.content).toEqual([future]);
+
+    const edited = await PATCH_PAGE(
+      req(secret, { content: { ...page.content, content: [future, future] } }, "PATCH"),
+      P({ tripId, pageId: page.id }),
+    );
+    expect(edited.status).toBe(200);
+    expect((await edited.json()).content.content).toEqual([future, future]);
+
+    const refused = await PATCH_PAGE(
+      req(
+        secret,
+        { content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "macro", attrs: { name: "attribute", params: { field: "account.email" } } }] }] } },
+        "PATCH",
+      ),
+      P({ tripId, pageId: page.id }),
+    );
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error.code).toBe("invalid-request");
+  });
 });
 
 // **A pager that skips a row is worse than one that repeats it**, because the

@@ -17,9 +17,9 @@
 // it parses the AST and re-walks every macro node against the registry. Any
 // failure returns { error } — the caller decides whether to downgrade or
 // reject. /ask rejects: a doc that fails here never reaches the client.
-import { MacroNode, PageDoc, migratePageDoc, newPageDoc } from "@tc/contracts";
+import { PageDoc, migratePageDoc, newPageDoc } from "@tc/contracts";
 import type { PageNode } from "@tc/contracts";
-import { getMacro } from "@tc/pages";
+import { findWidgetError } from "@tc/pages";
 
 export type { PageInserts } from "@/server/assistant/deps";
 
@@ -64,38 +64,9 @@ export function validateComposedPage(content: unknown): PageDoc | { error: strin
     // the same answer `parsePageDoc` gives, and the caller (/ask) rejects.
     return { error: `Invalid page document: ${(error as Error).message}` };
   }
-  const error = walkForError(doc.content);
+  // The registry walk is `findWidgetError` in `@tc/pages` now — lifted so the
+  // page WRITE path runs the identical check (KI-2026-09-05-g).
+  const error = findWidgetError(doc.content);
   if (error) return { error };
   return doc;
-}
-
-function walkForError(nodes: readonly unknown[]): string | null {
-  for (const node of nodes) {
-    if (typeof node !== "object" || node === null) continue;
-    const record = node as Record<string, unknown>;
-
-    if (record.type === "macro") {
-      const parsed = MacroNode.safeParse(node);
-      if (!parsed.success) {
-        return `Invalid macro node: ${parsed.error.message}`;
-      }
-      const { name, params } = parsed.data.attrs;
-      const def = getMacro(name);
-      if (!def) {
-        return `Unknown macro "${name}" is not in the registry.`;
-      }
-      const paramsResult = def.params.safeParse(params);
-      if (!paramsResult.success) {
-        return `Macro "${name}" params failed validation: ${paramsResult.error.message}`;
-      }
-      continue;
-    }
-
-    const nestedContent = record.content;
-    if (Array.isArray(nestedContent)) {
-      const nestedError = walkForError(nestedContent);
-      if (nestedError) return nestedError;
-    }
-  }
-  return null;
 }

@@ -1,4 +1,4 @@
-import { UpdatePageInput } from "@tc/contracts";
+import { UpdatePageInput, serializePageDoc } from "@tc/contracts";
 import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
 import { isUuid } from "@/server/ids";
@@ -49,13 +49,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tripId
   // already refused to write it (CodeRabbit, PR 170) precisely so a PATCH
   // restating its own tripId could not strip the Overview marker. There is no
   // third field, so the whole object is either checked or forbidden.
+  //
+  // `serializePageDoc`, not the parse output: `executePageCommand` parses its
+  // input again, and a node wrapped as `unknown` by the first parse would be
+  // wrapped a second time by that one (KI-2026-09-05-g). The wire form is what
+  // the command takes.
   const result = await executePageCommand(
     {
       type: "EditPage",
       tripId,
       pageId,
       ...(body.data.title === undefined ? {} : { title: body.data.title }),
-      ...(body.data.content === undefined ? {} : { content: body.data.content }),
+      ...(body.data.content === undefined ? {} : { content: serializePageDoc(body.data.content) }),
     },
     g.userId,
   );
