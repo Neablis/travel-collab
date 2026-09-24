@@ -29,7 +29,7 @@ type TripStripParams = z.infer<typeof TripStripParams>;
  * naming no place group the same way, under `city: null`.
  */
 function runsOf(trip: TripDetail): TripStripRun[] {
-  const runs: TripStripRun[] = [];
+  const runs: Omit<TripStripRun, "phrase">[] = [];
   trip.days.forEach((day, index) => {
     const city = dayCity(day, trip.activities);
     const entry: TripStripDay = { dayId: day.dayId, ordinal: index + 1, date: formatShortDate(day.date), city };
@@ -37,13 +37,14 @@ function runsOf(trip: TripDetail): TripStripRun[] {
     if (last && last.city === city) last.days.push(entry);
     else runs.push({ city, days: [entry] });
   });
-  return runs;
+  return runs.map((run) => ({ ...run, phrase: phraseOf(run) }));
 }
 
-// "Days 1–4 Tokyo (Jun 1 – Jun 4)", "day 5 Kyoto (Jun 5)". The strip is a
+// "days 1–4 Tokyo (Jun 1 – Jun 4)", "day 5 Kyoto (Jun 5)". The strip is a
 // picture, so this is what a screen reader hears in its place — every run, not
-// a count of them. Capitalised once, at the front of the whole sentence.
-function phraseOf(run: TripStripRun): string {
+// a count of them — and what a pointer sees over a run whose name or dates the
+// picture had no room for. Capitalised once, at the front of the whole summary.
+function phraseOf(run: Omit<TripStripRun, "phrase">): string {
   const first = run.days[0]!;
   const last = run.days.at(-1)!;
   const one = first === last;
@@ -54,7 +55,7 @@ function phraseOf(run: TripStripRun): string {
 }
 
 function summaryOf(runs: TripStripRun[]): string {
-  const sentence = runs.map(phraseOf).join(", ");
+  const sentence = runs.map((run) => run.phrase).join(", ");
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }
 

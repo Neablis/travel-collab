@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { commandsFor } from "@tc/factories";
 import { e2eTripName } from "./tripNames";
+import { createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
 
 // The phone Notebook — design handoff 2026-09-03, `SPEC.md` §19, `DRIFT.md`
 // §2f. Runs in the "phone" project (playwright.config.ts, 411×852), the same
@@ -413,5 +414,33 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     await sheet.getByRole("button", { name: "Insert it" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByRole("columnheader", { name: "Status" })).toBeVisible();
+  });
+
+  // Mitchell on the PR #221 preview: the strip should fit without scrolling,
+  // "but might be hard, especially on mobile". This is the mobile half; the
+  // desktop half and the reason for 20 days are in `m14-notebook-widgets`.
+  test("the trip strip fits a phone's width on a 20-day trip", async ({ page }) => {
+    const tripId = await createMappedTrip(page, e2eTripName("PhoneStrip"), 20, { locations: TWENTY_DAYS_IN_JAPAN });
+    await page.goto(`/trips/${tripId}/pages`);
+    await page.getByRole("link", { name: /Overview/ }).first().click();
+    await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+    await page.getByRole("button", { name: "Edit page" }).click();
+
+    await page.getByRole("button", { name: "Insert a widget" }).click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByRole("searchbox", { name: "Search widgets" }).fill("strip");
+    // No bind step: the strip takes no params, so the pick is the insert.
+    await sheet.getByRole("button", { name: /Trip strip/ }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    const strip = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
+    await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
+    await expect.poll(() => stripOverhang(strip), { message: "strip overflow on a phone" }).toBeLessThanOrEqual(0);
+    // And it still reads: `TripStripBlock`'s header says a four-day stay keeps
+    // its name at this width and a one-day stay keeps only its colour — whole
+    // words or nothing, never "Ha…". Asserted here so that sentence stays true.
+    await expect(strip.getByText("Tokyo", { exact: true }).first()).toBeVisible();
+    await expect(strip.getByText("Kyoto", { exact: true })).toBeVisible();
+    await expect(strip.getByText("Hakone", { exact: true })).toBeHidden();
   });
 });

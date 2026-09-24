@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { commandsFor } from "@tc/factories";
+import type { Location } from "@tc/contracts";
+import { commandsFor, type CommandsForOverrides } from "@tc/factories";
 import { E2E_SUPER_CODE } from "./admission";
 
 // @atlaskit/pragmatic-drag-and-drop is built on the browser's native HTML5
@@ -105,7 +106,12 @@ export async function signInAsDevUser(page: Page, username: string): Promise<voi
  * `@tc/factories`'s `commandsFor("mappedTrip", ...)` — the same command
  * vocabulary unit tests, other e2e specs, and `db:seed` all share (ADR-020).
  */
-export async function createMappedTrip(page: Page, name: string, dayCount: number): Promise<string> {
+export async function createMappedTrip(
+  page: Page,
+  name: string,
+  dayCount: number,
+  overrides: CommandsForOverrides = {},
+): Promise<string> {
   const post = async (path: string, body: unknown) => {
     const response = await page.request.post(path, { data: body });
     if (!response.ok()) {
@@ -115,11 +121,48 @@ export async function createMappedTrip(page: Page, name: string, dayCount: numbe
   };
 
   const { tripId } = await post("/api/trips", { name });
-  for (const command of commandsFor("mappedTrip", tripId, { dayCount })) {
+  for (const command of commandsFor("mappedTrip", tripId, { ...overrides, dayCount })) {
     await post(`/api/trips/${tripId}/commands`, command);
   }
 
   return tripId as string;
+}
+
+// A 20-day trip in nine stays, one of them a return to Tokyo — the shape of a
+// real two-and-a-half-week trip, and longer than the ~14-day preview trip the
+// trip strip was reported on (PR #221). Runs of one day are in it on purpose:
+// they are the narrowest thing the strip has to label.
+const STAY_LENGTHS: readonly (readonly [string, number])[] = [
+  ["Tokyo", 4], ["Hakone", 1], ["Kyoto", 4], ["Nara", 1], ["Osaka", 3],
+  ["Hiroshima", 2], ["Miyajima", 1], ["Kanazawa", 2], ["Tokyo", 2],
+];
+// Coordinates so the stops are what the board gets from a real geocode; their
+// values mean nothing to the strip, which reads only `city`.
+export const TWENTY_DAYS_IN_JAPAN: readonly Location[] = STAY_LENGTHS.flatMap(([city, days]) =>
+  Array.from({ length: days }, (_, i) => ({ name: `${city} stop ${i + 1}`, city, lat: 35, lng: 135 + i * 0.1, countryCode: "JP" })),
+);
+
+/**
+ * How far the trip strip reaches past its own box, in px: the larger of its
+ * scroll overflow and its last day cell's overhang. `<= 0` is "fits".
+ *
+ * Both, because they fail differently: `overflow-x-auto` turns overflow into
+ * a scrollbar (scrollWidth), and a cell pushed out of an `overflow-visible`
+ * box shows up only as geometry. jsdom has no layout, so this is the only
+ * layer that can say the strip fits (Mitchell on PR #221: "fit without having
+ * to scroll").
+ */
+export async function stripOverhang(strip: Locator): Promise<number> {
+  return strip.evaluate((el) => {
+    const cells = el.querySelectorAll('[data-testid="trip-strip-day"]');
+    const last = cells[cells.length - 1];
+    if (last === undefined) throw new Error("the strip has no day cells, so this measures nothing");
+    // Rounded: twenty equal fractions of a column land on sub-pixel edges, and
+    // the first green run measured the last one 0.015625px (1/64) past its box.
+    // That is layout rounding, not a scroll — `scrollWidth` is whole pixels.
+    const overhang = Math.round(last.getBoundingClientRect().right - el.getBoundingClientRect().right);
+    return Math.max(el.scrollWidth - el.clientWidth, overhang);
+  });
 }
 
 /**

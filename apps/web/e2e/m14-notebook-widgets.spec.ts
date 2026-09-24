@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
-import { createEmptyTripViaWizard } from "./helpers";
+import { createEmptyTripViaWizard, createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
 import { E2E_SUPER_CODE } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 
@@ -1583,6 +1583,36 @@ test("a long value does not squeeze a repeat table's lead column to nothing", as
     geometry.height,
     `the lead wrapped: ${geometry.height}px tall for one line of ${geometry.line}px ("${geometry.text}")`,
   ).toBeLessThan(geometry.line * 2);
+});
+
+test("the trip strip fits its column on a 20-day trip, with no sideways scroll", async ({ page }) => {
+  // Mitchell, on the PR #221 preview, on this widget: *"I would love if this
+  // could fit without having to scroll, and be more space efficient, but might
+  // be hard, especially on mobile."* The preview trip was about 14 days; this
+  // one is 20, so a strip that fits here has room to spare there. The phone
+  // half is `m14-mobile-notebook.spec.ts`'s, in the phone project.
+  const tripId = await createMappedTrip(page, e2eTripName("Strip"), 20, { locations: TWENTY_DAYS_IN_JAPAN });
+  await page.goto(`/trips/${tripId}/pages`);
+  await page.getByRole("link", { name: /Overview/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await insertFromList(page, /Trip strip/, "strip");
+
+  const strip = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
+  await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
+  // Editing first: the 320px rail makes this the narrowest the column gets.
+  await expect.poll(() => stripOverhang(strip), { message: "strip overflow while editing" }).toBeLessThanOrEqual(0);
+  // "More space efficient" in height too, and one height whatever the length
+  // (ADR-044): a 16px line (`h-4`), a 2px gap, a 12px bar. Exact, because every
+  // part of it is a fixed box — a label that wrapped instead of dropping out
+  // would add a line here. (Comparing editing to reading alone was tried and
+  // did not catch that: a wrap happened at both widths, so they still agreed.)
+  expect((await strip.boundingBox())!.height, "strip height while editing").toBe(30);
+
+  await finishEditing(page);
+  await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+  await expect.poll(() => stripOverhang(strip), { message: "strip overflow while reading" }).toBeLessThanOrEqual(0);
+  expect((await strip.boundingBox())!.height, "strip height while reading").toBe(30);
 });
 
 test("a field the reader picks prints in a sentence, and joins a stop list as a column", async ({ page }) => {
