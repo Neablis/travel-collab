@@ -44,6 +44,7 @@ if (existsSync(target)) {
     console.log(`Generated a local API_TOKEN_PEPPER (random, this checkout only).`);
   }
   console.log(`Defaults match docker-compose (postgres on :5433). Start it, then:`);
-  console.log(`  pnpm --filter web db:reseed   # seed local data`);
-  console.log(`  pnpm dev                      # or pnpm --filter web dev`);
+  console.log(`  pnpm --filter web db:migrate   # create the schema (db:reseed does not migrate)`);
+  console.log(`  pnpm --filter web dev         # leave it running; the seed goes through it`);
+  console.log(`  pnpm --filter web db:reseed   # in a second terminal, once the server answers`);
 }
