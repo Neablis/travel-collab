@@ -191,6 +191,10 @@ next session does not re-derive it.
 - **More widgets** is **item H** (~14 more, six of them needing `kind: "repeat"`), standing
   on **item B** (ADR-037 — a widget is a module, which deletes `MacroView`'s
   `switch (name)`) and **item E** (the attribute manifest).
+  **Brainstormed further 2026-09-24**: `docs/specs/2026-09-24-widget-brainstorm.md`
+  (charts, maps, computed and external-data widgets, including weather). It is **not
+  scope** until Mitchell picks from it, and its external-data tier needs its own ADR
+  first.
 - **"Better filtering" is two things, and Mitchell confirmed he meant both.**
   1. **A dynamic widget that can grab arbitrary fields.** This is *stronger* than item E as
      written. E gives a developer a widget free when they add an attribute; this is **one
