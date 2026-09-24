@@ -250,7 +250,8 @@ function withList(params: Record<string, unknown>, input: WidgetInput, next: str
  * declares up to five controls, so listing every one would give a phone button
  * reading *"All days → All cities → Every stop → Any kind → All dates"* — five
  * words for "everything", on a 44px control. The unset ones are exactly the
- * ones with nothing to say.
+ * ones with nothing to say. Except a single `field`: unset, it is "choose a
+ * field", because there is no every-field for "everything" to mean.
  *
  * `null` for a widget that declares no filters at all: there is no button to
  * label, and rendering "Showing everything" would be purposeless UI (project
@@ -264,6 +265,12 @@ export function bindSummary(
   inputs: readonly WidgetInput[] = bindableInputs(name),
 ): string | null {
   if (inputs.length === 0) return null;
+  // An unset single field is no answer at all rather than the widest one — the
+  // widget renders `unbound("field")` whatever else is bound — so the summary
+  // says what the widget says. Columns are different: none is a real value.
+  if (inputs.some((i) => i.type === "field" && !i.multiple && valueOf(i, params, detail) === "")) {
+    return "choose a field";
+  }
   const bound = inputs
     .map((input) => {
       if (input.type === "dates") {
