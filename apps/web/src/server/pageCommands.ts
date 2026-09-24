@@ -3,8 +3,11 @@ import {
   PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
+  serializePageDoc,
   type EventEnvelope,
   type Page,
+  type PageContent,
+  type PageDoc,
   type PageEvent,
 } from "@tc/contracts";
 import {
@@ -23,6 +26,7 @@ import { appendToStream, readStream } from "./eventStore";
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { checkPageDocForWrite } from "./pages";
 
 export type PageCommandResult =
   | { ok: true; tripId: string; page: Page | null }
@@ -70,7 +74,8 @@ async function applyPageEvents(
             tripId: event.payload.tripId,
             title: event.payload.title,
             context: event.payload.context,
-            content: event.payload.content,
+            // Serialised, not the parse output: see `storedPageEvent`.
+            content: storedContent(event.payload.content),
             createdAt: envelope.occurredAt,
             updatedAt: envelope.occurredAt,
             actorId: event.payload.actorId,
@@ -83,7 +88,7 @@ async function applyPageEvents(
           .update(pages)
           .set({
             ...(event.payload.title === undefined ? {} : { title: event.payload.title }),
-            ...(event.payload.content === undefined ? {} : { content: event.payload.content }),
+            ...(event.payload.content === undefined ? {} : { content: storedContent(event.payload.content) }),
             updatedAt: envelope.occurredAt,
           })
           .where(eq(pages.id, event.payload.pageId));
@@ -111,6 +116,12 @@ async function applyPageEvents(
  * save landing together must still serialise, because they take `seq` numbers
  * from the same sequence. Folding pages separately does not make them separate
  * writers.
+ *
+ * **`input` is the WIRE form** — a command's `content` exactly as a client
+ * would send it, or `serializePageDoc` of a parsed one — never a `PageDoc`
+ * parse output. This function parses it, and a parse output fed back through
+ * a parse wraps every node from a newer build one level deeper
+ * (KI-2026-09-05-g).
  */
 export async function executePageCommand(
   input: unknown,
@@ -120,7 +131,18 @@ export async function executePageCommand(
   if (!parsed.success) {
     return { ok: false, error: { code: "invalid-command", message: parsed.error.message } };
   }
-  const command = parsed.data;
+  let command = parsed.data;
+
+  // **The save is checked, not merely parsed** (KI-2026-09-05-g). `PageDoc`
+  // can say a widget node is well-formed; only the registry knows whether it
+  // exists and what it takes, and contracts cannot import the registry. Here,
+  // rather than at the routes, because every page write — both BFF routes and
+  // both `/api/v1` ones — reaches this function and no other.
+  if (command.type !== "DeletePage" && command.content !== undefined) {
+    const checked = checkPageDocForWrite(command.content);
+    if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
+    command = { ...command, content: checked.doc };
+  }
 
   // The demo trip is read-only all the way down (ADR-031, KI-2026-09-05-d).
   // Refused here rather than at the route, so no caller can reach the write
@@ -200,7 +222,7 @@ export async function executePageCommand(
       // Genesis first: an edit to a backfilled page must fold after the create
       // that introduces it, in the same batch so the two cannot be separated by
       // a crash.
-      events: [...genesis, ...decision.events],
+      events: [...genesis, ...decision.events].map(storedPageEvent),
       actorId,
       occurredAt: new Date().toISOString(),
       batchId: crypto.randomUUID(),
@@ -216,6 +238,36 @@ export async function executePageCommand(
     await applyPageEvents(tx, appended.envelopes);
     return { ok: true, tripId: command.tripId, page: await readPage(tx, command.pageId) };
   });
+}
+
+/**
+ * `serializePageDoc`, typed for the `pages.content` column. The serialiser
+ * returns `unknown` because an unknown node's `raw` is whatever came in; the
+ * envelope it builds is always `{ v, type: "doc", content: [...] }`, which is
+ * exactly the permissive `PageContent` the column holds.
+ */
+function storedContent(doc: PageDoc): PageContent {
+  return serializePageDoc(doc) as PageContent;
+}
+
+/**
+ * A page event as it is WRITTEN — its document serialised, not the parse output.
+ *
+ * `PageDoc`'s parse output is an in-memory shape: a node this build does not
+ * know becomes `{ type: "unknown", raw }` (ADR-038 decision 3), and
+ * `KNOWN_NODE_TYPES` deliberately excludes `"unknown"`, so storing that shape
+ * means the next parse wraps it AGAIN. Both the log and the `pages` projection
+ * stored it, so a newer build's node saved through an older server was
+ * reclassified for good and `collectPageDocNodeTypes` never reported it again
+ * (KI-2026-09-05-g, F-B09) — exactly the rolling-deploy window decision 3 was
+ * written for. `serializePageDoc` unwraps it back to the bytes that came in.
+ *
+ * Applied to the log AND the projection (`applyPageEvents`), so a rebuild from
+ * the log writes the same row this did.
+ */
+function storedPageEvent(event: PageEvent): { type: string; version: number; payload: unknown } {
+  if (event.type === "PageDeleted" || event.payload.content === undefined) return event;
+  return { ...event, payload: { ...event.payload, content: serializePageDoc(event.payload.content) } };
 }
 
 /**

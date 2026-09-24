@@ -1,4 +1,4 @@
-import { CreatePageInput } from "@tc/contracts";
+import { CreatePageInput, serializePageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
@@ -30,8 +30,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ tripId:
   // needs: `CreatePage` names the page it creates, so the event is the same
   // whoever replays it. Activity ids have always worked this way; `createPage`
   // let Postgres mint one because a direct insert could.
+  // `serializePageDoc`, not the parse output: `executePageCommand` parses its
+  // input again, and a node wrapped as `unknown` by the first parse would be
+  // wrapped a second time by that one (KI-2026-09-05-g). The wire form is what
+  // the command takes.
   const result = await executePageCommand(
-    { type: "CreatePage", tripId, pageId: randomUUID(), title: body.data.title, context: body.data.context, content: body.data.content },
+    {
+      type: "CreatePage",
+      tripId,
+      pageId: randomUUID(),
+      title: body.data.title,
+      context: body.data.context,
+      content: serializePageDoc(body.data.content),
+    },
     g.userId,
   );
   if (!result.ok) {

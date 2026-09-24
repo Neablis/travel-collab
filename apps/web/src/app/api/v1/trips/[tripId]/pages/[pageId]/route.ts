@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Page, UpdatePageInput } from "@tc/contracts";
+import { Page, UpdatePageInput, serializePageDoc } from "@tc/contracts";
 import { getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { PublicApiError } from "@/server/public-api/commands";
@@ -53,7 +53,8 @@ export const { GET, PATCH, DELETE } = route({
           tripId: params["tripId"]!,
           pageId: params["pageId"]!,
           ...(patch.title === undefined ? {} : { title: patch.title }),
-          ...(patch.content === undefined ? {} : { content: patch.content }),
+          // The wire form, not the parse output — see the BFF route.
+          ...(patch.content === undefined ? {} : { content: serializePageDoc(patch.content) }),
         },
         actor.userId,
       );

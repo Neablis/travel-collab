@@ -1,12 +1,43 @@
 import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { SYSTEM_ACTOR_ID } from "@tc/contracts";
-import type { Page, PageSummary, CreatePageInput } from "@tc/contracts";
-import { instantiateDefaults } from "@tc/pages";
+import { SYSTEM_ACTOR_ID, migratePageDoc } from "@tc/contracts";
+import type { Page, PageDoc, PageSummary, CreatePageInput } from "@tc/contracts";
+import { findWidgetError, instantiateDefaults } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
 import { isUuid } from "@/server/ids";
+
+/**
+ * The server's judgement on a document about to be SAVED, and the version of
+ * it that should be stored: parsed already, refused if it is from a version
+ * this build cannot write back, migrated to the current version, and refused
+ * if any widget in it is one the registry would not insert.
+ *
+ * This is the write-path half of KI-2026-09-05-g. Before it, both page routes
+ * persisted the parse output as-is — any `v`, any widget name, any params — so
+ * ADR-037 decision 4 ("no way to put a widget into a document that skips
+ * validation") held for every insert path and was bypassed by the save. The
+ * read path stays permissive (ADR-038 decision 4): a stored document this build
+ * would refuse still opens, it just cannot be saved in that state.
+ *
+ * Storing the migrated document CANONICALLY is the caller's job, and it is
+ * `serializePageDoc` — see `executePageCommand`, which is the one place every
+ * page write passes through.
+ */
+export function checkPageDocForWrite(doc: PageDoc): { ok: true; doc: PageDoc } | { ok: false; message: string } {
+  let migrated: PageDoc;
+  try {
+    // Throws for `v > CURRENT_PAGE_DOC_VERSION`: a document from the future has
+    // a shape this build has no rule for writing back.
+    migrated = migratePageDoc(doc);
+  } catch (error) {
+    return { ok: false, message: `Invalid page document: ${(error as Error).message}` };
+  }
+  const widgetError = findWidgetError(migrated.content);
+  if (widgetError !== null) return { ok: false, message: widgetError };
+  return { ok: true, doc: migrated };
+}
 
 function toPage(row: typeof pages.$inferSelect): Page {
   return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, content: row.content, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
