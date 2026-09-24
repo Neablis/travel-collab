@@ -161,6 +161,30 @@ describe("value kinds", () => {
     expect(checked, "no field was inspected").toBeGreaterThan(5);
   });
 
+  // M14's field-widget review (2026-09-24, gap 3): `days.cities` was published
+  // as a scalar "text" and `cities.dayIndexes` as a scalar "count", so a
+  // formatter picked by kind alone would print an array as one string or one
+  // number. The kind names the element; `list` says there are many of them.
+  it("marks an array field as a list of its kind, and leaves a scalar unmarked", () => {
+    const fields = days().fields;
+    expect(fields.find((f) => f.field === "cities")).toEqual({
+      field: "cities",
+      label: "The cities this day touches, in arrival order",
+      valueKind: "text",
+      list: true,
+    });
+    const cities = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "cities");
+    if (!cities || cities.kind !== "collection") throw new Error("cities collection missing");
+    expect(cities.fields.find((f) => f.field === "dayIndexes")).toMatchObject({ valueKind: "count", list: true });
+    expect(fields.find((f) => f.field === "date")).not.toHaveProperty("list");
+  });
+
+  it("labels a closed vocabulary as an enum, not free text", () => {
+    const tags = buildAttributeManifest().find((e) => e.kind === "collection" && e.collection === "tags");
+    if (!tags || tags.kind !== "collection") throw new Error("tags collection missing");
+    expect(tags.fields.find((f) => f.field === "tag")?.valueKind).toBe("enum");
+  });
+
   it("parses its own output through AttributeEntry", () => {
     // The point of making `AttributeEntry` a schema rather than a bare type
     // (Copilot, PR 134): the builder's output is now checkable, so a malformed
@@ -187,6 +211,15 @@ describe("a value kind through a schema wrapper", () => {
     // The other order, which worked before and must keep working: the kind is
     // on the OUTER object here, and the walk must not skip past it.
     expect(valueKindOf(described("text", "Notes", z.string().nullable()))).toBe("text");
+  });
+
+  it("gives a collection no kind — it is walked for its fields, never printed", () => {
+    // `days`, `cities` and `tags` were each `described("text", …)`, a kind the
+    // manifest silently dropped because a collection entry has nowhere to put
+    // one. A wrong label that nothing reads is still a wrong label.
+    for (const name of ["days", "cities", "tags"] as const) {
+      expect(valueKindOf(TripGlobals.shape[name]), name).toBeUndefined();
+    }
   });
 
   it("answers undefined for a bare describe(), wrapped or not", () => {

@@ -9,7 +9,18 @@ import type { z } from "zod";
 // Closed on purpose. A generic attribute widget picks a formatter by this and
 // nothing else, so an open string here would be a formatter lookup that can
 // miss at render time — the failure decision 6's "not set up" exists to avoid.
-export const VALUE_KINDS = ["money", "date", "count", "text", "duration"] as const;
+//
+// `enum` and `location` were added for M14's field widget (reviewed
+// 2026-09-24, gap 3): an activity's kind or tag is a closed vocabulary that
+// prints as a label rather than as free text, and a `Location` is an object
+// that prints as a place rather than as any one of its fields.
+//
+// **A list is not a kind.** `cities: string[]` is `text`, and the manifest says
+// `list: true` beside it — derived from the schema being a `ZodArray`, never
+// declared. One list-kind per scalar kind would double this set, and a declared
+// flag is a second fact that can disagree with the schema it describes, which
+// is the drift the WeakMap below exists to avoid.
+export const VALUE_KINDS = ["money", "date", "count", "text", "duration", "enum", "location"] as const;
 export type ValueKind = (typeof VALUE_KINDS)[number];
 
 // One line per field, and the line carries BOTH facts.
