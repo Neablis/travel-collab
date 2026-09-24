@@ -249,10 +249,10 @@ export function decidePageCommand(
         command.content !== undefined && !docsEqual(command.content, current.content)
           ? command.content
           : undefined;
-      // **Nothing changed is not an error, and not an event either.** The
-      // editor autosaves on an 800ms debounce, and a debounce fires on the
-      // pause after a change that was already saved — writing that would put a
-      // no-op edit in the history panel for every trailing keystroke pause.
+      // **Nothing changed is not an error, and not an event either.** An
+      // edit session can end where it began, and more than one of its commit
+      // triggers can fire (leaving Editing, then `pagehide`) — writing that
+      // would put a no-op entry in the history panel (ADR-036 decision 5).
       if (title === undefined && content === undefined) return { ok: true, events: [] };
       return {
         ok: true,

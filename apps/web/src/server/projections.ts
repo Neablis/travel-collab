@@ -1,10 +1,19 @@
-import { TripDetail, TripEvent, type EventEnvelope } from "@tc/contracts";
+import {
+  PageEvent,
+  TripDetail,
+  TripEvent,
+  isPageEventType,
+  serializePageDoc,
+  type EventEnvelope,
+  type PageContent,
+  type PageDoc,
+} from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Db } from "./db/client";
-import { tripDetails, tripSummaries } from "./db/schema";
+import { pages, tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
 import { isUuid } from "./ids";
 
@@ -55,6 +64,85 @@ export async function applyTripEvents(
       // Other planning events don't touch the summaries read model.
     }
   }
+}
+
+/**
+ * The `pages` table, brought into line with page events. **The ONLY code
+ * allowed to write `pages` from the log** (AGENTS.md invariant 1): the command
+ * path runs it inside the command's transaction, so the row and the event land
+ * together or not at all, and `rebuildProjections` replays the whole log
+ * through it, so a rebuild writes what the command path wrote by construction
+ * rather than through a second copy that could drift.
+ *
+ * It applies EVENTS rather than reconciling folded state against the table:
+ * a trip with thirty notebooks does not rewrite twenty-nine of them to save one.
+ *
+ * **Timestamps are the log's, with one exception, and the exception is the
+ * backfill.** `createdAt`/`updatedAt` come from `occurredAt`, so a replay
+ * writes the times the events say. But a `PageCreated` that lands on a row
+ * which already exists is a BACKFILLED genesis (`missingGenesis`): the row
+ * predates the log, the event was written the first time a page on its trip
+ * was commanded, and its `occurredAt` is that moment, not when the page was
+ * made. `createdAt` orders the notebook list and `updatedAt` is its "edited …"
+ * line, so adopting the event's time would reorder the notebooks and mark each
+ * one edited just now. Those two stay; every field the event DOES know (title,
+ * context, content, owner) is taken from it, so the row holds nothing about the
+ * document that the log does not.
+ */
+export async function applyPageEvents(tx: Queryable, envelopes: EventEnvelope[]): Promise<void> {
+  for (const envelope of envelopes) {
+    // Parsed, not cast: the same function has to be correct for a replay
+    // reading rows off disk, and a parse is what makes the switch narrow
+    // honestly instead of being told what to believe.
+    const event = PageEvent.parse({ type: envelope.type, version: envelope.version, payload: envelope.payload });
+    switch (event.type) {
+      case "PageCreated": {
+        const fromLog = {
+          title: event.payload.title,
+          context: event.payload.context,
+          content: storedContent(event.payload.content),
+          actorId: event.payload.actorId,
+        };
+        await tx
+          .insert(pages)
+          .values({
+            id: event.payload.pageId,
+            tripId: event.payload.tripId,
+            ...fromLog,
+            createdAt: envelope.occurredAt,
+            updatedAt: envelope.occurredAt,
+          })
+          .onConflictDoUpdate({ target: pages.id, set: fromLog });
+        break;
+      }
+      case "PageEdited":
+        await tx
+          .update(pages)
+          .set({
+            ...(event.payload.title === undefined ? {} : { title: event.payload.title }),
+            ...(event.payload.content === undefined ? {} : { content: storedContent(event.payload.content) }),
+            updatedAt: envelope.occurredAt,
+          })
+          .where(eq(pages.id, event.payload.pageId));
+        break;
+      case "PageDeleted":
+        await tx.delete(pages).where(eq(pages.id, event.payload.pageId));
+        break;
+    }
+  }
+}
+
+/**
+ * `serializePageDoc`, typed for the `pages.content` column, and never the
+ * parse output. `PageDoc`'s parse wraps a node this build does not know as
+ * `{ type: "unknown", raw }`, and storing THAT means the next parse wraps it
+ * again (KI-2026-09-05-g). Serialising unwraps it back to the bytes that came
+ * in, which is also what keeps a replay idempotent over a document stored
+ * wrapped before that fix (KI-2026-09-24-d item 1): the parse wraps once, this
+ * unwraps once, and the row comes back as it was.
+ */
+function storedContent(doc: PageDoc): PageContent {
+  return serializePageDoc(doc) as PageContent;
 }
 
 // The ONLY code allowed to write trip_details (AGENTS.md invariant 1).
@@ -113,6 +201,20 @@ export async function getTripDetail(tripId: string): Promise<TripDetail | null> 
   return parsed.data;
 }
 
+/**
+ * Every projection, rebuilt from the log.
+ *
+ * **`pages` is REPLAYED, not truncated**, and the difference is the rows the
+ * log has never heard of. `listPages` still seeds a trip's default notebook as
+ * a row on first read (a read must not append events), and a page gets its
+ * genesis only when some page on its trip is first commanded, so until then
+ * the row is the only record there is. Deleting every row and re-inserting from
+ * the log would delete those notebooks. Replaying every page event through
+ * `applyPageEvents` instead rewrites each page the log knows (recreating a lost
+ * row, restoring a changed one, removing one the log deleted) and leaves the
+ * rest alone. The rows it leaves are also the ones the backfill skipped as
+ * unreadable (ADR-038 decision 4), which must not be rewritten either.
+ */
 export async function rebuildProjections(): Promise<void> {
   await db.transaction(async (tx) => {
     const envelopes = await readAll(tx);
@@ -126,6 +228,7 @@ export async function rebuildProjections(): Promise<void> {
     for (const d of details) {
       await tx.insert(tripDetails).values({ tripId: d.tripId, doc: d });
     }
+    await applyPageEvents(tx, envelopes.filter((e) => isPageEventType(e.type)));
   });
 }
 
