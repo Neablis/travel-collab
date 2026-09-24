@@ -1,15 +1,15 @@
-import type {
-  ActivityView,
-  CityRef,
-  DateRangeRef,
-  DayRef,
-  KindRef,
-  PersonRef,
-  TagRef,
-  TripDetail,
-  TripGlobals,
-  TripGlobalsCity,
+import {
+  FilterDimension,
+  type ActivityView,
+  type CityRef,
+  type DateRangeRef,
+  type DayRef,
+  type FILTER_VALUE_SCHEMAS,
+  type TripDetail,
+  type TripGlobals,
+  type TripGlobalsCity,
 } from "@tc/contracts";
+import type { z } from "zod";
 import { ok, unbound, type MacroResult } from "./result";
 
 // **The selection, in one place.** ADR-039 decision 1 says a widget is a
@@ -28,15 +28,13 @@ import { ok, unbound, type MacroResult } from "./result";
  * Every member optional, and **absent means every member of the set** — not
  * "unset". The key names are the dimension names, which is what `paramKeyOf`
  * declares and what the spec's preset table writes (`cost{day: N}`).
+ *
+ * Mapped from `FILTER_VALUE_SCHEMAS` rather than written out, so a dimension
+ * added to the contract is a key here the same day (KI-2026-09-05-h).
  */
-export interface WidgetFilterValues {
-  day?: DayRef;
-  city?: CityRef;
-  tag?: TagRef;
-  kind?: KindRef;
-  person?: PersonRef;
-  dates?: DateRangeRef;
-}
+export type WidgetFilterValues = {
+  [K in FilterDimension]?: z.infer<(typeof FILTER_VALUE_SCHEMAS)[K]>;
+};
 
 /** One stop that survived the filters, with the day it sits on. */
 export interface SelectedStop {
@@ -93,6 +91,29 @@ export function dayIndexOf(trip: TripDetail, ref: DayRef | undefined): number | 
 // (Invariant 4).
 const inRange = (date: string | null, range: DateRangeRef): boolean =>
   date !== null && date >= range.from && date <= range.through;
+
+/**
+ * What each dimension narrows in `narrow` — **the line a new dimension cannot
+ * compile past** (KI-2026-09-05-h).
+ *
+ * Every other `Record<FilterDimension, …>` (the value schemas, the control
+ * types, the labels) goes red when the enum grows, and before this one existed
+ * that was the trap: all three were satisfied, the params schema kept the new
+ * key, the chrome drew a control, and `narrow` — the one place a dimension gets
+ * MEANING — named each dimension by hand and silently ignored it. Answering
+ * this row is answering "which predicate below did you write". `select.test.ts`
+ * sweeps `FilterDimension.options` for a value that arrives untyped.
+ *
+ * It is read, not just declared: `contentNarrowed` is derived from it.
+ */
+const NARROWS: Record<FilterDimension, "days" | "contents" | "days and contents" | "refused"> = {
+  day: "days",
+  dates: "days",
+  city: "days and contents",
+  tag: "contents",
+  kind: "contents",
+  person: "refused",
+};
 
 /**
  * Narrow the trip to what a widget's filters select, or refuse.
@@ -221,8 +242,9 @@ export function narrow(
     stops,
     cities,
     narrowed: Object.values(filters).some((v) => v !== undefined),
-    contentNarrowed:
-      filters.city !== undefined || filters.tag !== undefined || filters.kind !== undefined,
+    contentNarrowed: FilterDimension.options.some(
+      (dimension) => filters[dimension] !== undefined && NARROWS[dimension].endsWith("contents"),
+    ),
   });
 }
 
