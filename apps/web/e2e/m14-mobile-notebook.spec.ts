@@ -76,18 +76,20 @@ function widget(page: import("@playwright/test").Page) {
 }
 
 /**
- * Runs `action` and waits for the page PATCH it causes to land.
+ * Leaves Editing and waits for the one page PATCH the edit session writes.
  *
- * `carrying` narrows "a page PATCH" to "the PATCH that holds this edit".
- * Without it, the wait takes any autosave that happens to be in flight. That
- * is KI-2026-09-15-b: a save of the UNCHANGED document, sent before the insert
- * and answered after the click, satisfied the wait. The reload that followed
- * then threw away the insert's own save, which was still waiting out its
- * 800 ms debounce, and the widget came back as "All days".
+ * A page writes once per edit session (ADR-036, M14 link 9), not per insert or
+ * per pick as the 800ms autosave did, so inside a session there is nothing to
+ * wait for and "it is saved" means this.
+ *
+ * `carrying` narrows "a page PATCH" to "the PATCH that holds this edit". It was
+ * written for KI-2026-09-15-b, when a stray autosave of the UNCHANGED document
+ * could satisfy a looser wait; with one write per session there is no second
+ * save to confuse it with, and it stays as the statement of what the write
+ * must contain.
  */
-async function waitForPageSaved(
+async function finishEditing(
   page: import("@playwright/test").Page,
-  action: () => Promise<unknown>,
   carrying: (content: unknown) => boolean = () => true,
 ): Promise<void> {
   await Promise.all([
@@ -97,7 +99,7 @@ async function waitForPageSaved(
       const body = r.request().postDataJSON() as { content?: unknown } | null;
       return carrying(body?.content);
     }),
-    action(),
+    page.getByRole("button", { name: "Done editing" }).click(),
   ]);
 }
 
@@ -147,13 +149,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
     await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
     await page.keyboard.press("Escape");
 
-    // The save that carries the BOUND widget, not merely the next save: the
-    // reload below would discard one still pending (KI-2026-09-15-b).
-    await waitForPageSaved(
-      page,
-      () => sheet.getByRole("button", { name: "Insert it" }).click(),
-      (content) => firstCostParams(content)?.dates !== undefined,
-    );
+    await sheet.getByRole("button", { name: "Insert it" }).click();
 
     // **The sheet closes and NOTHING opens behind it**, which is §19's "one
     // sheet deep, ever" applied to the moment after an insert rather than
@@ -182,6 +178,12 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // And it survives the round trip, which is the thing no unit test sees —
     // nor can: jsdom does not turn a click on a node view into a ProseMirror
     // NodeSelection, so the phone inspector has no witness above this layer.
+    //
+    // The settings sheet is modal, so it is closed before the header's toggle
+    // can be reached; then the session's one write must carry the BOUND widget.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await finishEditing(page, (content) => firstCostParams(content)?.dates !== undefined);
     await page.reload();
     await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "Edit page" }).click();
@@ -198,7 +200,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
     const insertSheet = page.getByRole("dialog");
     await insertSheet.getByRole("searchbox", { name: "Search widgets" }).fill("costs");
     await insertSheet.getByRole("button", { name: /What it costs/ }).click();
-    await waitForPageSaved(page, () => insertSheet.getByRole("button", { name: "Insert it" }).click());
+    await insertSheet.getByRole("button", { name: "Insert it" }).click();
 
     // §19's divergence was that at 390px the desktop chrome row — a name chip
     // plus a select per input, inline — wraps into unreadability, so the phone
@@ -233,9 +235,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // desktop walk asserts the same string on the same control.
     await expect(days).toHaveText("All days");
     await days.click();
-    await waitForPageSaved(page, () =>
-      page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 3/ }).click(),
-    );
+    await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 3/ }).click();
 
     // The control follows the DOCUMENT rather than echoing its own click — the
     // half that was a real defect on desktop (§26, the rebind that closed the
@@ -286,7 +286,7 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     const list = page.getByRole("dialog");
     await list.getByRole("searchbox", { name: "Search widgets" }).fill("costs");
     await list.getByRole("button", { name: /What it costs/ }).click();
-    await waitForPageSaved(page, () => list.getByRole("button", { name: "Insert it" }).click());
+    await list.getByRole("button", { name: "Insert it" }).click();
 
     await widget(page).click();
     await expect(page.getByTestId("widget-settings")).toBeVisible();
@@ -355,7 +355,7 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     const list = page.getByRole("dialog");
     await list.getByRole("searchbox", { name: "Search widgets" }).fill("costs");
     await list.getByRole("button", { name: /What it costs/ }).click();
-    await waitForPageSaved(page, () => list.getByRole("button", { name: "Insert it" }).click());
+    await list.getByRole("button", { name: "Insert it" }).click();
 
     // Measured from the handle of the widget that just landed, against the
     // block that precedes it in the document. `-14px` of overhang into a 12px

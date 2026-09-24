@@ -31,9 +31,8 @@ async function waitForConfirmedCommand(page: Page, action: () => Promise<unknown
   ]);
 }
 
-// The autosave is debounced, so an assertion made straight after a click can
-// pass on the optimistic DOM and still describe a document that never reached
-// the server. Every write below goes through this.
+// A RENAME writes at once, so an assertion made straight after it can pass on
+// the optimistic DOM and still describe a title that never reached the server.
 async function waitForPageSaved(page: Page, action: () => Promise<unknown>): Promise<void> {
   await Promise.all([
     page.waitForResponse(
@@ -41,6 +40,15 @@ async function waitForPageSaved(page: Page, action: () => Promise<unknown>): Pro
     ),
     action(),
   ]);
+}
+
+// **The document writes once, when the edit session ends** (ADR-036, M14
+// link 9) — not per insert or per pick, as the 800ms autosave did. So inside a
+// session there is nothing to wait for, and "it is saved" means leaving Editing
+// and seeing that one PATCH land. Every reload that checks a round trip is
+// preceded by this.
+async function finishEditing(page: Page): Promise<void> {
+  await waitForPageSaved(page, () => page.getByRole("button", { name: "Done editing" }).click());
 }
 
 async function openNotebookIndex(page: Page): Promise<void> {
@@ -200,7 +208,7 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   if (search !== undefined) {
     await page.getByRole("searchbox", { name: "Search widgets" }).fill(search);
   }
-  await waitForPageSaved(page, () => list.getByRole("button", { name }).click());
+  await list.getByRole("button", { name }).click();
   // **The rail does NOT close behind the insert** — it has nothing to close.
   // What changes is the column's state: inserting selects what it inserted
   // (§26), so the settings take the column and the rail is out of view until
@@ -337,13 +345,12 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   await expect(days).toHaveText("All days");
   await expect(page.getByText("no day set")).toHaveCount(0);
   await days.click();
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
   await page.keyboard.press("Escape");
 
   // The whole point: reload and the binding is still there. The unit tests
   // assert the PATCH body; only this asserts the round trip.
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // Reading is the default, so no widget control is on screen until Editing —
@@ -433,9 +440,7 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // open at the moment it lands, and that is when it gets pointed.
   const bindSelectedTo = async (control: RegExp, day: RegExp) => {
     await settingsPanel(page).getByRole("button", { name: control }).click();
-    await waitForPageSaved(page, () =>
-      page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click(),
-    );
+    await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: day }).click();
     await page.keyboard.press("Escape");
   };
 
@@ -449,6 +454,7 @@ test("two widgets on one page read two different days", async ({ page }) => {
     settingsPanel(page).getByRole("button", { name: /The days in detail: dates/ }),
   ).toHaveText("2027-06-02");
 
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // Each widget kept ITS OWN binding, which is the assertion an aggregated
@@ -547,6 +553,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await expect(rows.nth(0)).toContainText("Day 1");
   await expect(rows.nth(1)).toContainText("Day 2");
 
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // And the same two after a round trip — not just that Day 2 survived, which
@@ -611,12 +618,10 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // and both were right: a test that never exercises the second input cannot
   // witness the second input clobbering the first.
   await days.click();
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
   await page.keyboard.press("Escape");
   await expect(days).not.toHaveText("All days");
-  await waitForPageSaved(page, () => tags.selectOption("meal"));
+  await tags.selectOption("meal");
   await expect(tags).toHaveValue("meal");
   // The days binding is still there AFTER the tag was set. This is the
   // assertion the whole widget exists to make possible.
@@ -633,15 +638,16 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // reduces to is the geocoder's business, not this test's.
   // Index 1 is the first real city — index 0 is "All cities", the unbound
   // answer every filter control leads with (ADR-039 decision 2).
-  await waitForPageSaved(page, () => cities.selectOption({ index: 1 }));
+  await cities.selectOption({ index: 1 });
   await expect(cities).not.toHaveValue("");
-  await waitForPageSaved(page, () => kinds.selectOption("booked"));
+  await kinds.selectOption("booked");
   await expect(kinds).toHaveValue("booked");
   // Every earlier binding still standing after the last one was set — the
   // replace-instead-of-merge failure, checked at the widest point.
   await expect(tags).toHaveValue("meal");
   await expect(days).not.toHaveText("All days");
 
+  await finishEditing(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
@@ -709,9 +715,7 @@ test("a block widget's bindings are reachable by keyboard, not only by hover", a
   await days.press("Enter");
   // The day list itself is a portalled dialog, not part of the popover, so
   // clicking in it says nothing about the reveal either way.
-  await waitForPageSaved(page, () =>
-    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click(),
-  );
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
   await page.keyboard.press("Escape");
   await expect(days).toHaveText("2027-06-02");
 });
@@ -829,7 +833,7 @@ test("the bindings of the last widget in a page are reachable, not clipped by th
   await page.keyboard.press("Enter");
   const list = railList(page);
   await expect(list).toBeVisible();
-  await waitForPageSaved(page, () => list.getByRole("button", { name: /The days, in detail/ }).click());
+  await list.getByRole("button", { name: /The days, in detail/ }).click();
 
   // Inserting selects what it inserted (§26), so the panel is already showing
   // the widget that just landed at the end of the document.
@@ -1092,7 +1096,7 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
     const list = railList(page);
     await expect(list).toBeVisible();
     await page.getByRole("searchbox", { name: "Search widgets" }).fill("dates");
-    await waitForPageSaved(page, () => list.getByRole("button", { name: /The dates/ }).click());
+    await list.getByRole("button", { name: /The dates/ }).click();
   };
 
   // **The walk makes its own empty paragraph, because the seeded page has none

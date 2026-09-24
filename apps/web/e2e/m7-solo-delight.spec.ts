@@ -239,13 +239,11 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await expect(page.getByText(/what's happening today/i)).toBeVisible();
 });
 
-// Waits for a page's debounced content autosave (PageScreen.tsx's
-// AUTOSAVE_DELAY_MS) to actually PATCH before returning. Needed before any
-// navigation away from the editor: the debounce is cancelled outright on
-// unmount (`saveContentRef.current.cancel()`), so typing and immediately
-// navigating away would silently drop the keystrokes rather than persist
-// them — a much stricter version of the optimistic-command race
-// `waitForConfirmedCommand` guards against above.
+// Waits for a page's content write to actually PATCH before returning. A page
+// writes once per edit session (ADR-036, M14 link 9), so the action is leaving
+// Editing. Needed before a hard `goto` away from the editor: the session also
+// commits on `pagehide`, but that request races the next page's reads, which
+// is the optimistic-command race `waitForConfirmedCommand` guards against above.
 async function waitForPageSaved(page: Page, action: () => Promise<void>): Promise<void> {
   await Promise.all([
     page.waitForResponse(
@@ -310,8 +308,9 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   await page.locator(".tc-page-editor h2", { hasText: PROSE_HEADING }).click();
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  await waitForPageSaved(page, () => page.keyboard.type(proseText));
+  await page.keyboard.type(proseText);
   await expect(page.getByText(proseText)).toBeVisible();
+  await waitForPageSaved(page, () => page.getByRole("button", { name: "Done editing" }).click());
   const overviewUrl = page.url();
 
   // -- add a second day, then revert to the 1-day state via the History panel --
