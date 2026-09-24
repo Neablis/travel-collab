@@ -69,6 +69,16 @@ describe("the weather block", () => {
     expect(within(rows[1]!).getByRole("cell", { name: "now" }).textContent).toBe("now 12°");
   });
 
+  // Mitchell, on the #221 preview: a longer date wrapped the header out of its
+  // fixed-height row. The row names its day and nothing else; a reader who
+  // wants the dates puts them at the top of the page.
+  it("heads each row with its place and day, never the date", () => {
+    view(trip(), { points: [point("2026-11-09"), point(TODAY)] });
+    // A header's lines are its accessible text, in order; the date is gone
+    // from both. (Staying on one line is layout — the preview walk's to see.)
+    expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["KyotoDay 1", "KyotoDay 2"]);
+  });
+
   it("credits MET Norway with its licence link, and NASA POWER when typical is shown, under an as-of line", () => {
     view(trip(), { points: [point(TODAY), point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } })] });
     const met = screen.getByRole("link", { name: "Forecast: The Norwegian Meteorological Institute (MET Norway), CC BY 4.0" });

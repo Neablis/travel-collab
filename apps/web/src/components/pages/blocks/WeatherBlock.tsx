@@ -52,11 +52,16 @@ function Value({ text, label, wide = false }: { text: string | null; label: stri
 function Row({ row }: { row: WeatherRow }) {
   return (
     <span role="row" data-mode={row.mode} className="flex h-10 w-max min-w-full items-center gap-3 border-b border-hairline px-3 last:border-b-0">
+      {/* The place and the day, one line each and never the date: a date
+          range wrapped out of the row's fixed height on the #221 preview, and
+          a reader who wants the dates puts them at the top of the page. */}
       <span role="rowheader" className="flex w-24 shrink-0 flex-col leading-tight">
         <span className="truncate text-sm font-semibold text-ink">{row.city ?? row.label}</span>
-        <DataText size="xs">
-          {row.city === null ? row.date : `${row.label} · ${row.date}`}
-        </DataText>
+        {row.city === null ? null : (
+          <DataText size="xs" className="truncate">
+            {row.label}
+          </DataText>
+        )}
       </span>
       <span role="cell" className="w-60 shrink-0 truncate text-sm text-ink">
         {row.modeText}
