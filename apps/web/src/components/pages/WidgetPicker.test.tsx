@@ -129,6 +129,25 @@ describe("WidgetPicker", () => {
     expect(shown.some((row) => row.textContent?.includes("What it costs"))).toBe(true);
   });
 
+  // Mitchell, PR #221 preview: "A line for every day / city / stop" became one
+  // row, "A line for each…", its collection picked in its settings. Whoever
+  // types the collection they want still has to land on it — and `booking`
+  // (the slash menu's `/booking`, which reads this same match) still finds the
+  // booking shortcut, which stayed a row of its own.
+  it("finds the one line-for-each row by any collection, and the booking row by booking", async () => {
+    render(<WidgetPicker onPick={vi.fn()} />);
+    const box = screen.getByRole("searchbox", { name: "Search widgets" });
+    for (const query of ["day", "stop", "city", "stop.line", "city.line"]) {
+      await userEvent.clear(box);
+      await userEvent.type(box, query);
+      expect(screen.getAllByRole("button", { name: /A line for each/ }), `"${query}"`).toHaveLength(1);
+    }
+    await userEvent.clear(box);
+    await userEvent.type(box, "booking");
+    expect(screen.getByRole("button", { name: /A line for every booking/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /A line for every (day|stop|city)/ })).toBeNull();
+  });
+
   // Keywords are what somebody types when they do not know the title. "spend"
   // appears in no title, no description and no id.
   it("finds a preset by a keyword that appears nowhere on the row", async () => {
@@ -166,7 +185,7 @@ describe("WidgetPicker", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
     expect(within(screen.getByRole("button", { name: /The days, in detail/ })).getByText("a block")).toBeTruthy();
     expect(within(screen.getByRole("button", { name: /The trip's name/ })).getByText("inline")).toBeTruthy();
-    expect(within(screen.getByRole("button", { name: /A line for every day/ })).getByText("a list")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: /A line for each/ })).getByText("a list")).toBeTruthy();
   });
 
   describe("filtering by kind", () => {

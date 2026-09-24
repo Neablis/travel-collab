@@ -121,12 +121,13 @@ export function selectedRepeat(state: EditorState): SelectedRepeat | null {
 }
 
 /**
- * Points a repeat at another collection: its `name` and its params in one
- * transaction, so no state exists in which the node names one collection with
- * the other's filters. Attribute steps, like `rebindWidget`, so it stays selected.
+ * Points a repeat or a rows table at another collection: its `name` and its
+ * params in one transaction — so one undo step, and no state in which the node
+ * names one collection with the other's filters. It is `rebindWidget` plus the
+ * name: attribute steps, so the node stays selected and its panel stays up.
  */
-export function rescopeRepeatAt(state: EditorState, pos: number, name: string, params: Record<string, unknown>): Transaction {
-  return state.tr.setNodeAttribute(pos, "name", name).setNodeAttribute(pos, "params", params);
+export function rescopeWidgetAt(state: EditorState, pos: number, name: string, params: Record<string, unknown>): Transaction {
+  return rebindWidget(state, pos, params).setNodeAttribute(pos, "name", name);
 }
 
 /**

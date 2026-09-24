@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   REPEAT_SCOPES, REPEAT_SCOPE_ORDER, SentenceTemplate, parseSentenceTemplate, repeatScopeOf, type PageRepeatNode, type RepeatScope,
 } from "@tc/contracts";
@@ -140,6 +141,34 @@ export const DEFAULT_SENTENCES: Readonly<Record<RepeatOver, string>> = {
 };
 
 /**
+ * The params the rows primitive over `over` takes, of `params`; every other
+ * key dropped. **The primitive's own params schema decides** — its object
+ * shape, the same one `insertWidget` parses with — so `columns` survives only
+ * onto `stop.rows`, `kind` only onto `stop.rows`, and `day` onto `day.rows` and
+ * `stop.rows` but not `city.rows`. Shared by both collection pickers: the
+ * sentence's ("Repeat for each") and the table's ("Lines for each").
+ */
+function paramsAcceptedBy(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const schema = getMacro(REPEAT_WIDGETS[over])?.params;
+  const accepted = new Set(schema instanceof z.ZodObject ? Object.keys(schema.shape as object) : []);
+  return Object.fromEntries(Object.entries(params).filter(([key]) => accepted.has(key)));
+}
+
+/**
+ * A rows TABLE ("A line for each…", `day.rows` / `stop.rows` / `city.rows`)
+ * moved to another collection, as the settings panel's "Lines for each" picker
+ * writes it (Mitchell, #221 preview: *"We combined a 'Sentence for every ...'
+ * and added a picker for type, can we do the same for 'A line for every....'?"*).
+ * Every param the new primitive takes travels; the rest are dropped rather than
+ * left to make the node invalid — "every stop in Kyoto" becomes "every city in
+ * Kyoto", and "every booked stop" becomes "every city", since a city is not
+ * booked. The result is what `insertWidget(REPEAT_WIDGETS[over], …)` accepts.
+ */
+export function rescopeRows(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  return paramsAcceptedBy(over, params);
+}
+
+/**
  * The same repeat over another collection, as the scope picker writes it:
  * every filter the new collection also takes travels, and so does the sentence
  * — when the new collection can print every detail in it.
@@ -147,6 +176,7 @@ export const DEFAULT_SENTENCES: Readonly<Record<RepeatOver, string>> = {
  * A filter it does not take is dropped rather than left to make the node
  * invalid — "every stop in Kyoto" becomes "every city in Kyoto", but
  * "every booked stop" becomes "every city", because a city is not booked.
+ * Which filters travel is `rescopeRows`' rule, less the table-only `columns`.
  *
  * **A sentence naming a detail the new collection lacks becomes that
  * collection's starting sentence** (Mitchell, #221 preview: *"Changing repeat
@@ -157,11 +187,11 @@ export const DEFAULT_SENTENCES: Readonly<Record<RepeatOver, string>> = {
  * transaction, so undo brings the old sentence and collection back together.
  */
 export function rescopeRepeat(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
-  const accepted = new Set((getMacro(REPEAT_WIDGETS[over])?.inputs ?? []).map((input) => input.name));
-  const next = Object.fromEntries(
-    Object.entries(params).filter(([key]) => key === "template" || (accepted.has(key) && !TABLE_ONLY_PARAMS.includes(key))),
-  );
-  if (typeof next.template === "string" && !printsEveryDetail(over, next.template)) next.template = DEFAULT_SENTENCES[over];
+  const { template, ...filters } = params;
+  const next = paramsAcceptedBy(over, filters);
+  for (const key of TABLE_ONLY_PARAMS) delete next[key];
+  if (typeof template === "string") next.template = printsEveryDetail(over, template) ? template : DEFAULT_SENTENCES[over];
+  else if ("template" in params) next.template = template;
   return next;
 }
 

@@ -165,6 +165,56 @@ describe("WidgetSettings — one entry per widget in the block (SPEC §26)", () 
   });
 });
 
+// Mitchell, PR #221 preview: *"We combined a 'Sentence for every ...' and added
+// a picker for type, can we do the same for 'A line for every....'?"*. A rows
+// table's entry opens with "Lines for each", and switching it rewrites the
+// widget's name and keeps only the params the new primitive takes — as ONE
+// edit, so one undo puts both back.
+describe("WidgetSettings for a line for each…", () => {
+  const tableDoc = (name: string, params: Record<string, unknown>) =>
+    newPageDoc([{ type: "paragraph", content: [{ type: "macro", attrs: { name, params } }] }]);
+  const tableAttrs = (editor: Editor) => editor.state.doc.child(0).child(0).attrs;
+
+  async function openTable(value: PageDoc): Promise<Editor> {
+    let editor: Editor | undefined;
+    render(<Harness onEditor={(e) => (editor = e)} value={value} />);
+    await waitFor(() => expect(editor).toBeDefined());
+    editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 1)));
+    await screen.findByTestId("widget-settings");
+    return editor!;
+  }
+
+  it("moves a stop table to cities, keeping only what a city list takes, in one undoable edit", async () => {
+    const stops = { city: "Kyoto", kind: "booked", columns: ["stop.cost"] };
+    const editor = await openTable(tableDoc("stop.rows", stops));
+    const picker = within(screen.getByRole("radiogroup", { name: "Lines for each" }));
+    expect(picker.getByRole("radio", { name: "Stop" }).getAttribute("aria-checked")).toBe("true");
+
+    await userEvent.click(picker.getByRole("radio", { name: "City" }));
+    await waitFor(() => expect(tableAttrs(editor)).toEqual({ name: "city.rows", params: { city: "Kyoto" } }));
+    // Still selected, so the panel is still up — now about the city table.
+    const panel = within(screen.getByTestId("widget-settings"));
+    expect(panel.getByRole("heading", { name: "A line for every city" })).toBeTruthy();
+    expect(panel.getByRole("radio", { name: "City" }).getAttribute("aria-checked")).toBe("true");
+
+    editor.commands.undo();
+    expect(tableAttrs(editor)).toEqual({ name: "stop.rows", params: stops });
+  });
+
+  it("keeps a stop table's columns only while it lists stops", async () => {
+    const editor = await openTable(tableDoc("day.rows", { city: "Tokyo" }));
+    await userEvent.click(within(screen.getByRole("radiogroup", { name: "Lines for each" })).getByRole("radio", { name: "Stop" }));
+    await waitFor(() => expect(tableAttrs(editor)).toEqual({ name: "stop.rows", params: { city: "Tokyo" } }));
+    // Stops take columns, so the panel now offers them.
+    expect(within(screen.getByTestId("widget-settings")).getByRole("combobox", { name: /add a column/i })).toBeTruthy();
+  });
+
+  it("offers no collection to a widget that is not a table", async () => {
+    await openOn(0);
+    expect(screen.queryByRole("radiogroup", { name: /lines for each/i })).toBeNull();
+  });
+});
+
 // The authored repeat's panel (PR #221 preview, 2026-09-24): which collection,
 // the sentence, and the details it can print — and every write shows on the
 // page at once, because the page resolves the sentence in Editing too.

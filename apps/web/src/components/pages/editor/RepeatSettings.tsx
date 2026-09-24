@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
-import { rebindWidget, removeWidget, rescopeRepeatAt, type SelectedRepeat } from "./blockWidgets";
+import { rebindWidget, removeWidget, rescopeWidgetAt, type SelectedRepeat } from "./blockWidgets";
 import { WidgetBindControls, bindableInputs } from "./widgetBind";
 
 // The settings of an authored repeat (Mitchell's preview comment on PR #221,
@@ -38,6 +38,37 @@ import { WidgetBindControls, bindableInputs } from "./widgetBind";
 // keystroke, and the repeat stays selected throughout.
 
 const SCOPE_LABEL: Record<RepeatOver, string> = { day: "Day", stop: "Stop", city: "City" };
+
+/**
+ * The Day / Stop / City choice at the top of a settings panel: what a sentence
+ * repeats for ("Repeat for each") or what a table lists ("Lines for each").
+ * One control for both, so the two panels cannot come to offer different
+ * collections or look different. Choosing the current one again is no edit.
+ */
+export function CollectionPicker({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: RepeatOver;
+  onChange: (next: RepeatOver) => void;
+}) {
+  return (
+    <FormField id={id} label={label}>
+      <SegmentedControl
+        aria-label={label}
+        value={value}
+        options={REPEAT_SCOPE_ORDER.map((scope) => ({ value: scope, label: SCOPE_LABEL[scope] }))}
+        onValueChange={(next) => {
+          if (next !== value) onChange(next);
+        }}
+      />
+    </FormField>
+  );
+}
 
 /**
  * The settings panel for the selected repeat: what it repeats for, which of
@@ -115,16 +146,14 @@ export function RepeatSettings({
         A sentence for each {noun}
       </Heading>
 
-      <FormField id="repeat-settings-over" label="Repeat for each">
-        <SegmentedControl
-          aria-label="Repeat for each"
-          value={over}
-          options={REPEAT_SCOPE_ORDER.map((scope) => ({ value: scope, label: SCOPE_LABEL[scope] }))}
-          onValueChange={(next) =>
-            editor.view.dispatch(rescopeRepeatAt(editor.state, repeat.pos, REPEAT_WIDGETS[next], rescopeRepeat(next, repeat.params)))
-          }
-        />
-      </FormField>
+      <CollectionPicker
+        id="repeat-settings-over"
+        label="Repeat for each"
+        value={over}
+        onChange={(next) =>
+          editor.view.dispatch(rescopeWidgetAt(editor.state, repeat.pos, REPEAT_WIDGETS[next], rescopeRepeat(next, repeat.params)))
+        }
+      />
 
       {filterInputs.length > 0 ? (
         <section className="flex flex-col gap-3" aria-label={`Which ${noun} it is for`}>

@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
 import type { ItemScope, WidgetContext } from "./registry-types";
 import { REPEAT_SCOPE_ORDER, SENTENCE_TEMPLATE_MAX, parseSentenceTemplate } from "@tc/contracts";
-import { DEFAULT_SENTENCES, REPEAT_WIDGETS, insertRepeat, repeatLabel, repeatOver, rescopeRepeat, resolveRepeat, unknownSentenceTokens, type RepeatOver } from "./repeat";
+import { DEFAULT_SENTENCES, REPEAT_WIDGETS, insertRepeat, repeatLabel, repeatOver, rescopeRepeat, rescopeRows, resolveRepeat, unknownSentenceTokens, type RepeatOver } from "./repeat";
 import { sentenceFieldAt, sentenceFields } from "./sentence";
 import { findWidgetError } from "./writeCheck";
+import { insertWidget } from "./insert";
 import { PRESETS, insertPreset, presetCatalog } from "./presets";
 import { selectionTrip } from "./test-support/selectionTrip";
 
@@ -306,6 +307,46 @@ describe("rescopeRepeat — the collection picker", () => {
   });
 });
 
+// Mitchell, #221 preview: *"can we do the same for 'A line for every....'?"* —
+// the table's "Lines for each" picker moves `day.rows` / `stop.rows` /
+// `city.rows` between collections through `rescopeRows`, which keeps the params
+// the new primitive takes. A table has columns, so unlike a sentence it keeps
+// `columns` — onto `stop.rows`, the one primitive that takes them.
+describe("rescopeRows — the table's collection picker", () => {
+  const june = { from: "2027-06-01", through: "2027-06-02" };
+  // Every param a rows primitive takes, set: the widest starting point, so a
+  // key the picker should drop is always there to be dropped.
+  const EVERYTHING: Record<RepeatOver, Record<string, unknown>> = {
+    day: { day: { kind: "index", index: 0 }, city: "Kyoto", dates: june },
+    stop: { day: { kind: "index", index: 0 }, city: "Kyoto", tag: "meal", kind: "booked", dates: june, only: "needsBooking", columns: ["stop.cost"] },
+    city: { city: "Kyoto", dates: june },
+  };
+
+  it("keeps what the new collection takes and drops the rest — columns only onto stops", () => {
+    expect(rescopeRows("city", EVERYTHING.stop)).toEqual({ city: "Kyoto", dates: june });
+    expect(rescopeRows("day", EVERYTHING.stop)).toEqual({ day: { kind: "index", index: 0 }, city: "Kyoto", dates: june });
+    expect(rescopeRows("stop", { columns: ["stop.cost"], city: "Kyoto" })).toEqual({ columns: ["stop.cost"], city: "Kyoto" });
+    expect(rescopeRows("day", { columns: ["stop.cost"] })).toEqual({});
+  });
+
+  it("always leaves params the new primitive accepts and keeps, from any collection to any other", () => {
+    let checked = 0;
+    for (const from of REPEAT_SCOPE_ORDER) {
+      // The starting point is itself valid, or the sweep proves nothing.
+      expect(insertWidget(REPEAT_WIDGETS[from], EVERYTHING[from]).ok, `${from}'s full params`).toBe(true);
+      for (const to of REPEAT_SCOPE_ORDER) {
+        const next = rescopeRows(to, EVERYTHING[from]);
+        const inserted = insertWidget(REPEAT_WIDGETS[to], next);
+        expect(inserted.ok, `${from} → ${to}: ${JSON.stringify(next)}`).toBe(true);
+        // Nothing the target takes was lost on the way: the node carries every key.
+        expect(inserted.ok && inserted.node.attrs.params).toEqual(next);
+        checked += 1;
+      }
+    }
+    expect(checked).toBe(9);
+  });
+});
+
 // Review of #221: what the settings panel names under the sentence, so the
 // author sees why a line shows a gap rather than a value.
 describe("unknownSentenceTokens — what the settings panel warns about", () => {
@@ -360,6 +401,6 @@ describe("the repeat preset — how a person reaches one", () => {
 
   it("answers to no retired widget name — those were widgets, not sentences", () => {
     expect(presetCatalog().find((entry) => entry.name === "sentence")!.aliases).toEqual([]);
-    expect(presetCatalog().find((entry) => entry.name === "day.line")!.aliases).toEqual(["day.line"]);
+    expect([...presetCatalog().find((entry) => entry.name === "line")!.aliases].sort()).toEqual(["city.line", "day.line", "stop.line"]);
   });
 });

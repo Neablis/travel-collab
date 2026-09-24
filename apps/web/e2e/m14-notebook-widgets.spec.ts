@@ -219,6 +219,23 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
   await expect(page.getByTestId("widget-settings")).toBeVisible();
 }
 
+// **"A line for each…" is one row, and its collection is a setting** (Mitchell,
+// PR #221 preview: *"We combined a 'Sentence for every ...' and added a picker
+// for type, can we do the same for 'A line for every....'?"*). It lands as
+// `day.rows`, selected, so a walk that wants stops or cities picks them in the
+// panel's "Lines for each" — the way an author does — and waits for the panel
+// to be about that table (its heading is the widget's title) before going on.
+// Not a `[data-macro-name]` wait: the seeded Overview already holds a
+// `stop.rows` ("What's booked"), so that would find the wrong widget.
+async function insertLinesFor(page: Page, scope: "Day" | "Stop" | "City"): Promise<void> {
+  await insertFromList(page, /A line for each/, "line for each");
+  const panel = page.getByTestId("widget-settings");
+  const picker = panel.getByRole("radiogroup", { name: "Lines for each" });
+  await picker.getByRole("radio", { name: scope }).click();
+  await expect(picker.getByRole("radio", { name: scope })).toHaveAttribute("aria-checked", "true");
+  await expect(panel.getByRole("heading", { name: `A line for every ${scope.toLowerCase()}` })).toBeVisible();
+}
+
 // **The rail is a flex sibling now, so it TAKES 320px the popover never did.**
 // CodeRabbit on PR 198, asking for cover at 768 / 852 / 1024: the popover was
 // portalled and cost the document nothing, and a column that shrinks the
@@ -637,7 +654,7 @@ test("a repeater renders one line per day", async ({ page }) => {
   await tripWithTwoDays(page);
   await openSeededPage(page);
 
-  await insertFromList(page, /A line for every day/, "every day");
+  await insertLinesFor(page, "Day");
 
   // **Exactly two rows, one per day.** Asserting only that both labels appear
   // allows a renderer that duplicates a row or puts both leads in one — and
@@ -778,7 +795,7 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
   await openSeededPage(page);
 
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
 
   // **Its controls are in the side channel (SPEC §26)**, and it is already the
   // selected widget because inserting selects what it inserted.
@@ -937,7 +954,7 @@ test("a repeat widget is one table as wide as the card it sits in", async ({ pag
   await addTaggedStop(page, "Ramen", "Meal");
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
   await openSeededPage(page);
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
 
   const table = page.getByRole("table").first();
   const tableBox = await boxOf(table);
@@ -1094,7 +1111,7 @@ test("a group header in a repeat table is as wide as the table", async ({ page }
   await addStopViaApi(page, tripId, "Someday: the tram museum");
 
   await openSeededPage(page);
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
 
   const table = page.getByRole("table").first();
   // Day 1 and Unscheduled: two groups, so two headers.
@@ -1223,7 +1240,7 @@ test("a repeat widget's rows are striped, and its values are text rather than ch
   // a dated day's row carries its date as a value.
   await tripWithTwoDays(page);
   await openSeededPage(page);
-  await insertFromList(page, /A line for every day/, "every day");
+  await insertLinesFor(page, "Day");
 
   const table = page.getByRole("table").first();
   const backgrounds = await table
@@ -1633,7 +1650,7 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   await expect(fieldWidget).not.toContainText("choose a field");
 
   // The same field vocabulary, as a column on a stop list.
-  await insertFromList(page, /A line for every stop/, "every stop");
+  await insertLinesFor(page, "Stop");
   const addColumn = settingsPanel(page).getByRole("combobox", { name: "Add a column" });
   await addColumn.click();
   await addColumn.fill("status");

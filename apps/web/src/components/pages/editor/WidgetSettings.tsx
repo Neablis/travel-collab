@@ -1,13 +1,13 @@
 "use client";
 import { useEditorState } from "@tiptap/react";
 import type { TripDetail, TripGlobals } from "@tc/contracts";
-import { getMacro } from "@tc/pages";
+import { REPEAT_WIDGETS, getMacro, repeatOver, rescopeRows, type RepeatOver } from "@tc/pages";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { WidgetBindControls, bindableInputs } from "./widgetBind";
-import { rebindWidget, removeWidget, selectedBlock, selectedRepeat, type BlockWidget } from "./blockWidgets";
-import { RepeatSettings } from "./RepeatSettings";
+import { rebindWidget, removeWidget, rescopeWidgetAt, selectedBlock, selectedRepeat, type BlockWidget } from "./blockWidgets";
+import { CollectionPicker, RepeatSettings } from "./RepeatSettings";
 import type { SelectedWidget } from "./MacroEditorContext";
 
 // SPEC §26 — **where a widget's settings live, now that they are not in the
@@ -40,6 +40,14 @@ import type { SelectedWidget } from "./MacroEditorContext";
 // which is the repeat's sentence — so a selected repeat gets `RepeatSettings`
 // (its collection, its sentence, the details it can print), and a widget gets
 // the entries below, which have no wording to edit.
+//
+// **A rows table's entry opens with "Lines for each"** (Mitchell, PR 221
+// preview: *"We combined a 'Sentence for every ...' and added a picker for
+// type, can we do the same for 'A line for every....'?"*): the same Day / Stop /
+// City control the sentence's "Repeat for each" is, moving `day.rows`,
+// `stop.rows` and `city.rows` into one another. The switch is ONE transaction —
+// the name and the params the new primitive takes (`rescopeRows`) — through
+// `rescopeWidgetAt`, `rebindWidget` plus the name, so it is one undo step.
 export function WidgetSettings({
   selection,
   detail,
@@ -91,6 +99,9 @@ export function WidgetSettings({
           detail={detail}
           globals={globals}
           onChange={(params) => editor.view.dispatch(rebindWidget(editor.state, entry.pos, params))}
+          onRescope={(over) =>
+            editor.view.dispatch(rescopeWidgetAt(editor.state, entry.pos, REPEAT_WIDGETS[over], rescopeRows(over, entry.params)))
+          }
           onRemove={() => editor.view.dispatch(removeWidget(editor.state, entry.pos))}
         />
       ))}
@@ -108,6 +119,7 @@ function WidgetEntry({
   detail,
   globals,
   onChange,
+  onRescope,
   onRemove,
 }: {
   entry: BlockWidget;
@@ -115,6 +127,7 @@ function WidgetEntry({
   detail: TripDetail;
   globals: TripGlobals | null;
   onChange: (params: Record<string, unknown>) => void;
+  onRescope: (over: RepeatOver) => void;
   onRemove: () => void;
 }) {
   const def = getMacro(entry.name);
@@ -124,6 +137,8 @@ function WidgetEntry({
   // its controls have always had.
   const label = numbered ? `${entry.mark} · ${title}` : title;
   const hasInputs = bindableInputs(entry.name).length > 0;
+  // `day.rows`, `stop.rows`, `city.rows` — a table whose collection is a choice.
+  const over = repeatOver(entry.name);
 
   return (
     <section className="flex flex-col gap-3" aria-label={label} data-testid="widget-settings-entry">
@@ -136,6 +151,15 @@ function WidgetEntry({
             {title}
           </Text>
         </div>
+      ) : null}
+
+      {over !== null ? (
+        <CollectionPicker
+          id={`widget-settings-${entry.mark}-over`}
+          label={numbered ? `${label}: lines for each` : "Lines for each"}
+          value={over}
+          onChange={onRescope}
+        />
       ) : null}
 
       {hasInputs ? (

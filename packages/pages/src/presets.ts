@@ -3,7 +3,7 @@ import { WIDGET_NAME_MIGRATION } from "@tc/contracts";
 import type { WidgetInput } from "./registry-types";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
-import { insertRepeat, type RepeatInsertResult } from "./repeat";
+import { REPEAT_WIDGETS, insertRepeat, type RepeatInsertResult } from "./repeat";
 
 /**
  * **A named widget is a preset, and a preset is data** (ADR-039 decision 4).
@@ -49,6 +49,22 @@ export interface WidgetPreset {
    * sentence are chosen in the settings panel after it lands.
    */
   repeat?: true;
+  /**
+   * A rows table whose collection is chosen after it lands: it inserts
+   * `widget` (`day.rows`), and the settings panel's "Lines for each" picker
+   * moves it between every rows primitive (`REPEAT_WIDGETS`). So it stands for
+   * all three unfiltered tables — in the retired-name aliases and in the
+   * "every primitive is reachable" check — without three rows in the picker.
+   */
+  anyCollection?: true;
+}
+
+/**
+ * Every primitive a preset can leave in the document: its own `widget`, or —
+ * for an `anyCollection` preset — each rows primitive its picker offers.
+ */
+export function presetWidgets(preset: WidgetPreset): readonly string[] {
+  return preset.anyCollection ? Object.values(REPEAT_WIDGETS) : [preset.widget];
 }
 
 /**
@@ -261,26 +277,26 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "your own sentence, once per day, stop or city",
   },
   // ---- a line each --------------------------------------------------------
+  // ONE row for the three plain tables, as the sentence above is one row for
+  // its three collections: Mitchell, on the PR #221 preview, *"We combined a
+  // 'Sentence for every ...' and added a picker for type, can we do the same
+  // for 'A line for every....'?"*. It inserts `day.rows`, the first choice the
+  // settings panel's "Lines for each" picker offers, and the picker moves it to
+  // `stop.rows` or `city.rows` (`rescopeRows`). The document still names the
+  // primitive, so nothing stored changes. "A line for every booking" and
+  // "Still to book" stay rows of their own: each is a filter worth naming.
   {
-    id: "day.line",
+    id: "line",
     widget: "day.rows",
     params: {},
-    title: "A line for every day",
-    keywords: ["day", "days", "list", "line", "summary", "overview"],
-  },
-  {
-    id: "city.line",
-    widget: "city.rows",
-    params: {},
-    title: "A line for every city",
-    keywords: ["city", "cities", "list", "line", "where"],
-  },
-  {
-    id: "stop.line",
-    widget: "stop.rows",
-    params: {},
-    title: "A line for every stop",
-    keywords: ["stop", "stops", "activities", "things to do", "list", "line"],
+    anyCollection: true,
+    title: "A line for each…",
+    keywords: [
+      "list", "line", "lines", "table", "rows", "each", "every", "summary", "overview",
+      "day", "days", "stop", "stops", "activities", "things to do", "city", "cities", "where",
+    ],
+    description: "One line for each day, stop or city, in a table — pick which in its settings.",
+    preview: "one line per day, stop or city",
   },
   {
     id: "booking.line",
@@ -519,7 +535,7 @@ const paramsKey = (params: Readonly<Record<string, unknown>>): string =>
 // sentence the author writes.
 const RETIRED_NAMES_BY_PRESET: Record<string, string[]> = {};
 for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
-  const onPrimitive = PRESETS.filter((preset) => preset.widget === step.name && !preset.repeat);
+  const onPrimitive = PRESETS.filter((preset) => presetWidgets(preset).includes(step.name) && !preset.repeat);
   const exact = onPrimitive.filter((preset) => paramsKey(preset.params) === paramsKey(step.set ?? {}));
   for (const preset of exact.length > 0 ? exact : onPrimitive) {
     (RETIRED_NAMES_BY_PRESET[preset.id] ??= []).push(retired);
