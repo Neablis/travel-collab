@@ -87,8 +87,12 @@ export default async function SignUpPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { callbackUrl } = await searchParams;
+  const { callbackUrl, code } = await searchParams;
   const initialCallbackUrl = safeCallbackUrl(typeof callbackUrl === "string" ? callbackUrl : null);
+  // `?code=` is the referral link Account → "Bring someone in" copies, so the
+  // person it was sent to lands with the field already filled. It only seeds
+  // the field — the gate still validates whatever is submitted.
+  const initialAdmissionCode = normalizePendingAdmission(typeof code === "string" ? code : null) ?? "";
   return (
     <AuthScreen
       mode="signup"
@@ -96,6 +100,7 @@ export default async function SignUpPage({
       googleAvailable={isGoogleSignInAvailable()}
       storeAdmissionCode={storeAdmissionCode}
       initialCallbackUrl={initialCallbackUrl}
+      initialAdmissionCode={initialAdmissionCode}
     />
   );
 }

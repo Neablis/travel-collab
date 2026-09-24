@@ -107,6 +107,7 @@ function AuthSearchParams({ onCallbackUrl }: { onCallbackUrl: (url: string) => v
  * @param googleAvailable - Whether Google authentication is configured and available.
  * @param storeAdmissionCode - Optional callback that stores a submitted invite code before authentication.
  * @param initialCallbackUrl - The safe destination to preserve when switching between authentication modes.
+ * @param initialAdmissionCode - Invite code to prefill on signup, from a referral link's `?code=`.
  */
 export function AuthScreen({
   mode,
@@ -114,6 +115,7 @@ export function AuthScreen({
   googleAvailable,
   storeAdmissionCode,
   initialCallbackUrl = "/",
+  initialAdmissionCode = "",
 }: {
   mode: AuthMode;
   devLoginEnabled: boolean;
@@ -131,6 +133,7 @@ export function AuthScreen({
   // so every existing caller (tests included) that doesn't pass it keeps the
   // old effect-only behaviour.
   initialCallbackUrl?: string;
+  initialAdmissionCode?: string;
 }) {
   const copy = AUTH_COPY[mode];
   // Both of the design's Google-presuming strings, suppressed only in the
@@ -182,7 +185,7 @@ export function AuthScreen({
   // gate waves them through untouched) or arrived on a trip invite link,
   // which `proxy.ts` has already banked in the same cookie — neither has a
   // code to type, and a field asking for one would read as a requirement.
-  const [admissionCode, setAdmissionCode] = useState("");
+  const [admissionCode, setAdmissionCode] = useState(initialAdmissionCode);
   const showAdmissionCode = mode === "signup";
 
   // The swap link has to carry `?callbackUrl=` across, and this is not a

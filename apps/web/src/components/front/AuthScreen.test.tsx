@@ -345,6 +345,23 @@ describe("AuthScreen", () => {
     );
   });
 
+  // A referral link (`/signup?code=`) arrives with the field filled, and the
+  // code reaches the gate without the invited person typing anything.
+  it("stores a code prefilled from a referral link without it being typed", async () => {
+    render(
+      <AuthScreen
+        mode="signup"
+        devLoginEnabled={false}
+        googleAvailable
+        storeAdmissionCode={storeAdmissionCodeMock}
+        initialAdmissionCode="REFER23456"
+      />,
+    );
+    expect((screen.getByLabelText("Invite code") as HTMLInputElement).value).toBe("REFER23456");
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(storeAdmissionCodeMock).toHaveBeenCalledWith("REFER23456"));
+  });
+
   it("trims a pasted code before storing it", async () => {
     render(
       <AuthScreen
