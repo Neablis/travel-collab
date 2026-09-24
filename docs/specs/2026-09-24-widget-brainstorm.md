@@ -108,6 +108,7 @@ have no vendor terms, no rate limit and never go down.
 | **About this place** | A short summary of a city or sight | Wikivoyage / Wikipedia via the Wikimedia REST API. CC BY-SA; wants an identifying User-Agent (**to verify**). Wikivoyage is written as a travel guide, which fits better than Wikipedia |
 | **Elevation profile** | A hike's climb, drawn as a chart | OpenTopoData or similar (**to verify**); only meaningful once a leg has a real path (M24) |
 | **What's on** | Concerts and events in a city during the trip | Ticketmaster Discovery (keyed, free tier; **to verify**). Most ambitious, patchiest coverage |
+| **Travel advisories** (asked for by Mitchell, 2026-09-24; a follow-up, not M14) | Each trip country's US State Department advisory level (1 "Exercise normal precautions" to 4 "Do not travel"), its date, and a link to the full advisory. Never paraphrased | travel.state.gov's public advisory feed (RSS; a JSON data API may also exist). US government work, public domain: no key, attribution only (endpoint and format **to verify** from a network that reaches it). Fetch the whole list and match countries locally, so no trip data leaves the app. Say plainly that it is written for US citizens |
 
 **Not recommended, with the reason:**
 
