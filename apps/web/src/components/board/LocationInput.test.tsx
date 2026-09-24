@@ -53,6 +53,21 @@ describe("LocationInput", () => {
     );
   });
 
+  // The geocoder is a third party (LocationIQ, behind our own /api/geocode),
+  // and no test may reach it — so what a test CAN pin is what a person sees
+  // when it is down. A 5xx is the case worth naming: `fetch` resolves, and
+  // only the `res.ok` check stands between it and parsing an error page as
+  // results. A network error lands in the same `catch`, so it is not a
+  // second failure mode and has no test of its own.
+  it("tells the user the search failed when the geocoder answers with a 5xx", async () => {
+    server.use(http.get("/api/geocode", () => HttpResponse.json({ error: "upstream unavailable" }, { status: 502 })));
+    render(<LocationInput value={null} onChange={vi.fn()} />);
+    await user.type(screen.getByPlaceholderText(/place/i), "Colosseum");
+    await user.click(screen.getByRole("button", { name: /search/i }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not search for that place");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
   it("renders results as a listbox with primary and secondary text", async () => {
     const onChange = vi.fn();
     render(<LocationInput value={null} onChange={onChange} />);
