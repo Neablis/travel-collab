@@ -1,5 +1,5 @@
 "use client";
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
 
@@ -33,6 +33,25 @@ function matches(option: FieldOption, query: string): boolean {
     .split(/\s+/)
     .filter(Boolean)
     .every((word) => haystack.includes(word));
+}
+
+// The list's tallest (`max-h-64`), and the gap it keeps from the screen's edge.
+const LIST_MAX_PX = 256;
+const EDGE_PX = 8;
+
+/**
+ * Where the open list goes: below the box when a full list fits there, else on
+ * whichever side has more room, capped to that room. On a phone the last
+ * picker in the insert sheet's bind step sits near the bottom of the screen,
+ * and a list that always opened downward ran 44% of itself off it (measured,
+ * PR #222's CI) — reachable by nobody. Pure, so the rule is testable without
+ * a layout engine.
+ */
+export function listPlacement(box: { top: number; bottom: number }, viewportHeight: number) {
+  const below = viewportHeight - box.bottom - EDGE_PX;
+  const above = box.top - EDGE_PX;
+  if (below >= LIST_MAX_PX || below >= above) return { side: "below" as const, maxHeight: Math.min(LIST_MAX_PX, Math.max(below, 0)) };
+  return { side: "above" as const, maxHeight: Math.min(LIST_MAX_PX, above) };
 }
 
 /**
@@ -82,8 +101,19 @@ export function FieldPicker({
   });
   const optionId = (index: number) => `${listId}-o${index}`;
 
+  // Measured when the list opens, not while it is open: a list that moved
+  // under the finger as the person typed would be worse than one that stays
+  // where it first appeared.
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<ReturnType<typeof listPlacement>>({ side: "below", maxHeight: LIST_MAX_PX });
+  useLayoutEffect(() => {
+    if (!open || !boxRef.current) return;
+    const viewport = window.visualViewport?.height ?? window.innerHeight;
+    setPlacement(listPlacement(boxRef.current.getBoundingClientRect(), viewport));
+  }, [open]);
+
   return (
-    <div className={cn("relative", layout === "inline" ? "inline-block w-48" : "w-full")}>
+    <div ref={boxRef} className={cn("relative", layout === "inline" ? "inline-block w-48" : "w-full")}>
       <Input
         id={id}
         role="combobox"
@@ -126,7 +156,13 @@ export function FieldPicker({
           id={listId}
           role="listbox"
           aria-label={label ?? "Fields"}
-          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-sm border border-border-input bg-surface py-1 text-sm shadow-overlay"
+          className={cn(
+            "absolute left-0 right-0 z-20 overflow-y-auto rounded-sm border border-border-input bg-surface py-1 text-sm shadow-overlay",
+            placement.side === "below" ? "top-full mt-1" : "bottom-full mb-1",
+          )}
+          // eslint-disable-next-line no-restricted-syntax -- the cap is the room measured on the screen when the list opens; no token can say it.
+          style={{ maxHeight: placement.maxHeight }}
+          data-side={placement.side}
         >
           {shown.length === 0 ? <p className="px-3 py-2 text-slate">No field matches</p> : null}
           {groups.map((group, g) => (
