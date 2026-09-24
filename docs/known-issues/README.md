@@ -85,6 +85,12 @@ which git merges with no conflict at all.
   `ai`, `tc`, `db` as the discriminator. `scripts/check-ki-filenames.mjs`
   enforces both halves and its tests pin the asymmetry.
 
+  **Check `ls open/ resolved/ dormant/` for your date and letter before
+  filing** — a parallel branch picking "the next free letter" from its own view
+  of `open/` is how eight ids ended up shared by two entries each (found
+  2026-09-24). `scripts/check-ki-filenames.mjs` now fails a new shared id; the
+  eight old ones are grandfathered, so cite those by filename slug.
+
   Sequential ids needed an allocator and parallel agents have none: on the
   2026-08-29 sweep, five branches independently allocated **KI-77** the same
   night, and two more collided on KI-78. A date needs no allocator, so that
