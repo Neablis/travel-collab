@@ -187,6 +187,15 @@ export default defineConfig({
       // apps/web/.env.local, so this has to be set explicitly here rather
       // than relying on a developer's local file.
       AI_LIVE: "false",
+      // The same rule for outside data (Mitchell: no automated test may call a
+      // real third party). Both weather ports refuse before any request, so a
+      // spec rendering weather sees "weather unavailable" — MET was off here
+      // only because `EXTERNAL_DATA_CONTACT` happened to be unset, and NASA
+      // POWER needs no key, so without this the first weather spec called
+      // power.larc.nasa.gov. Explicit rather than trusted to a developer's
+      // `.env.local` (`server/external/weather/index.ts`); the real services
+      // are walked by hand (`docs/guidelines/external-data-manual-check.md`).
+      EXTERNAL_DATA_OFFLINE: "true",
       // M11a: every dev user this suite signs in is brand new against a fresh
       // database, and the gate refuses anyone with no `users` row and no
       // credential — so without this the run dies in `auth.setup.ts` and every

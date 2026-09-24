@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
-import { createEmptyTripViaWizard } from "./helpers";
+import { createEmptyTripViaWizard, createMappedTrip } from "./helpers";
 import { E2E_SUPER_CODE } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 
@@ -1751,4 +1751,82 @@ test("a co-traveller moves a stop and shifts the days, and the open notebook fol
   } finally {
     await bobContext.close();
   }
+});
+
+// Opens a seeded trip's Overview in Editing, with the insert rail on screen.
+async function openOverviewOf(page: Page, tripId: string): Promise<void> {
+  await page.goto(`/trips/${tripId}/pages`);
+  await page.getByRole("link", { name: /Overview/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
+}
+
+// **Weather, with the outside world switched off** (Mitchell's policy: no
+// automated test may call a real third party). The e2e server runs with
+// `EXTERNAL_DATA_OFFLINE=true` (`playwright.config.ts`), so both ports refuse
+// before any request and the widget must land in its quiet down state — in
+// Editing and in Reading, and without a console error on the way.
+//
+// The trip is dated 2027-06-01, past MET's horizon, so its rows are NASA
+// POWER's "typical": the source that needs no key and would have been called
+// for real before the switch. The route's own answer is asserted too, because
+// "weather unavailable" alone is also what a sandbox with no egress shows.
+test("the weather widget is the quiet placeholder while outside data is offline, in Editing and Reading", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  await openOverviewOf(page, await createMappedTrip(page, e2eTripName("Weather"), 2));
+
+  // The page asks for weather only once it holds a widget that needs it.
+  const answered = page.waitForResponse((r) => /\/api\/trips\/[^/]+\/weather$/.test(new URL(r.url()).pathname));
+  await insertFromList(page, /Weather/, "weather");
+  const response = await answered;
+  expect(response.status()).toBe(200);
+  const { weather } = (await response.json()) as { weather: { points: { typical: unknown }[] } };
+  expect(weather.points.length).toBeGreaterThan(0);
+  for (const point of weather.points) expect(point.typical).toEqual({ unavailable: "source" });
+
+  await expect(page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
+
+  await finishEditing(page);
+  await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+  await expect(page.locator('[data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+// **The table fits the column** (Mitchell, #221 preview: *"We need to scroll to
+// the right to see all the data here"*), and says what its columns are. The
+// weather route is answered in the browser: this is about layout, and the
+// route's own answer is the offline walk's business above — no third party is
+// involved either way.
+test("the weather table heads its columns and fits the notebook column without scrolling", async ({ page }) => {
+  const tripId = await createMappedTrip(page, e2eTripName("WeatherFit"), 2);
+  const forecastOn = (date: string) => ({
+    date,
+    city: "Kyoto",
+    forecast: {
+      source: "met-norway", asOf: "2027-05-31T06:00:00Z", highC: 27.4, lowC: 18.1, precipitationMm: 2.14,
+      symbol: "lightrainshowersandthunder_day", hours: [],
+    },
+    typical: {
+      source: "nasa-power", month: 6, highC: 28, lowC: 19, precipitationMmPerDay: 6.2,
+      period: { fromYear: 2001, throughYear: 2020 },
+    },
+  });
+  await page.route("**/api/trips/*/weather", (route) =>
+    route.fulfill({ json: { weather: { points: [forecastOn("2027-06-01"), forecastOn("2027-06-02")] } } }),
+  );
+  await openOverviewOf(page, tripId);
+  await insertFromList(page, /Weather/, "weather");
+
+  const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Day", "Conditions", "High", "Low", "Rain"]);
+  await expect(table.getByRole("row")).toHaveCount(3);
+  const overflow = await table.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(overflow, "the weather table scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
 });
