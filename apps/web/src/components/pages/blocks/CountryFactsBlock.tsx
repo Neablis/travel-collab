@@ -26,6 +26,7 @@ const FACTS: readonly { key: keyof CountryFactsCard; label: string; data: boolea
   { key: "tipping", label: "Tipping", data: false },
 ];
 
+/** "Know before you go": one fixed-shape card per country the trip stops in, built from spans so it can sit inside a paragraph. */
 export function CountryFactsBlock({ payload }: { payload: CountryFactsPayload }) {
   return (
     <span role="list" className="flex flex-col gap-3">
