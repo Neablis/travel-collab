@@ -60,9 +60,12 @@ closed.** Every box still open needs a person, not code:
    `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro;
    the milestone's own retro is still owed.
 
-**Operator items, unless already done:**
-- dispatch `migrate-production` for `0029_saved_notebooks` and
-  `0030_external_data_cache`;
+**Operator items:**
+- **`migrate-production` has NOT run for M14.** Its last run was
+  2026-09-24 06:54 UTC (`0c45caf`), before #222 merged at 19:42, so
+  `0029_saved_notebooks` and `0030_external_data_cache` are not on production.
+  Until it runs, saving a notebook as a template and weather will fail there.
+  Dispatch it from `main`: `gh workflow run migrate-production.yml -f confirm=migrate`.
 - set `EXTERNAL_DATA_CONTACT` in Vercel for Production and Preview. Without it,
   forecasts are skipped and only typical weather shows.
 
