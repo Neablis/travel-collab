@@ -166,19 +166,26 @@ describe("narrow — every dimension means something (KI-2026-09-05-h)", () => {
     // insert). A dimension `narrow` dropped would select exactly the wide set
     // under a control saying narrowed — the answer `narrow`'s own comment
     // calls the worst of three.
+    //
+    // A refusal is only allowed where it is THE refusal: `person`, retired from
+    // every widget but still in the contract's enum (KI-2026-09-24-q). Any other
+    // dimension answering "not set up" is a filter that stopped working, and the
+    // count below is the witness that every one of them was actually narrowed.
     const { trip, globals } = selectionTrip();
     const wide = selected(trip, globals, {});
-    const swept: FilterDimension[] = [];
+    let narrowed = 0;
     for (const dimension of FilterDimension.options) {
       const result = narrow(trip, globals, { [dimension]: BITES[dimension] });
-      if (result.status === "ok") {
-        expect(result.value.stops.length, `${dimension} was bound and selected every stop`).toBeLessThan(
-          wide.stops.length,
-        );
+      if (result.status !== "ok") {
+        expect({ dimension, result }).toEqual({ dimension: "person", result: { status: "unbound", needs: "person" } });
+        continue;
       }
-      swept.push(dimension);
+      expect(result.value.stops.length, `${dimension} was bound and selected every stop`).toBeLessThan(
+        wide.stops.length,
+      );
+      narrowed++;
     }
-    expect(swept).toEqual(FilterDimension.options);
+    expect(narrowed).toBe(FilterDimension.options.length - 1);
   });
 });
 

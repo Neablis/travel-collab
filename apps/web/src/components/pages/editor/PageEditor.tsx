@@ -67,7 +67,7 @@ export interface PageEditorProps {
  * imported here: `@tc/domain` is walled off from UI code, and widening that
  * wall to share nine lines would be the wrong trade.
  */
-function sameDocument(a: unknown, b: unknown): boolean {
+export function sameDocument(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
   if (Array.isArray(a) !== Array.isArray(b)) return false;

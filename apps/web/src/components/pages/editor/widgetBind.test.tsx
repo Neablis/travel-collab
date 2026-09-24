@@ -94,6 +94,12 @@ describe("optionsFor a field input", () => {
   it("summarises a bound field by its label", () => {
     expect(bindSummary("cost", { field: "stop.cost" }, detail, null, [FIELD])).toBe("Cost");
   });
+
+  // There is no every-field, so an unset one is not "everything": the widget
+  // itself says "choose a field", and the line describing it must agree.
+  it("summarises an unset field as the choice still to make", () => {
+    expect(bindSummary("field", {}, detail, null, [FIELD])).toBe("choose a field");
+  });
 });
 
 describe("the field picker", () => {

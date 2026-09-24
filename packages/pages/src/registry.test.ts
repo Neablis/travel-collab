@@ -85,7 +85,6 @@ describe("registry", () => {
   // exercise each macro's own validator rather than just reading its keys.
   const SAMPLE: Record<WidgetInput["type"], unknown> = {
     day: { kind: "index", index: 0 },
-    person: "u1",
     // ONE tag, and a real `ActivityTag` member. This was `["Meal"]` — an array,
     // and capitalised when the enum is lowercase — written speculatively before
     // any widget declared a `tags` input, so nothing ever exercised it. The
