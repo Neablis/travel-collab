@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Money } from "./money.ts";
+import { described } from "./valueKind.ts";
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -312,12 +313,19 @@ export type RemoveActivity = z.infer<typeof RemoveActivity>;
  * like the same eight fields, but its header states a different rule about
  * `.default()` and its `kind`/`tags` are required, not defaulted; deriving it
  * would silently change how already-saved `saved_days.stops` jsonb parses.
+ *
+ * **`described()` marks what a page may print** (the attribute manifest's
+ * `stop` root, M14 field widget). Opt-in, so a field added here is unpublished
+ * until someone labels it. `bookedBy` and `participants` hold user ids and stay
+ * unlabelled: a page is a shared document. `anchors` and `timeWindow` have no
+ * value kind that prints them yet. `HIDDEN_STOP_FIELDS` (manifest.ts) hides a
+ * labelled one without touching this file.
  */
 export const ActivitySnapshot = z.object({
-  title: z.string().min(1).max(200),
+  title: described("text", "Name", z.string().min(1).max(200)),
   timeWindow: TimeWindow.nullable(),
-  location: Location.nullable(),
-  notes: z.string().max(2000).nullable(),
+  location: described("location", "Place", Location).nullable(),
+  notes: described("text", "Notes", z.string().max(2000)).nullable(),
   anchors: z.array(Anchor).default([]),
   // `kind` and `tags` are DEFAULTED rather than required, and on the event
   // payload that is what lets a pre-M18 payload replay off jsonb at all.
@@ -335,9 +343,9 @@ export const ActivitySnapshot = z.object({
   // They are also the zero values the rest of the stack already agrees on:
   // `AddActivity.kind` is optional and documented "omitted = planned", and
   // `state.ts` calls "planned" the zero value outright.
-  kind: ActivityKind.default("planned"), // never null — "planned" is the zero value
-  tags: z.array(ActivityTag).default([]), // never null — [] is the zero value
-  cost: Money.nullable().default(null),
+  kind: described("enum", "Status", ActivityKind).default("planned"), // never null — "planned" is the zero value
+  tags: described("enum", "Tags", z.array(ActivityTag)).default([]), // never null — [] is the zero value
+  cost: described("money", "Cost", Money).nullable().default(null),
   // ---- Per-stop attribution (M13 link 5) ----
   //
   // **Two relations, not one.** Mitchell, 2026-09-03 (recorded in

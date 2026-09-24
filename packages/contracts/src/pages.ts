@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ActivityKind, ActivityTag } from "./activity.ts";
+import { ATTRIBUTE_FIELD_PATHS } from "./manifest.ts";
 import { PageDoc } from "./pageDoc.ts";
 import { isCalendarDate } from "./trip.ts";
 
@@ -191,14 +192,14 @@ export type DateRangeRef = z.infer<typeof DateRangeRef>;
  * already exports that name for a describable field of a collection, which is a
  * different thing entirely. The `Ref` suffix is what every other stored param
  * value in this file carries anyway.
+ *
+ * **Derived from the manifest's facts roots since M14 T06** (`manifest.ts`),
+ * so a stored `attribute` field is a manifest path — one field vocabulary
+ * rather than a hand-written enum beside it. The five names did not change, so
+ * no stored page needed a `PAGE_DOC_MIGRATIONS` step; renaming a facts field
+ * WOULD rename a stored value, and needs one.
  */
-export const AttributeFieldRef = z.enum([
-  "trip.name",
-  "trip.budgetRemaining",
-  "trip.countdown",
-  "account.name",
-  "account.homeAirport",
-]);
+export const AttributeFieldRef = z.enum(ATTRIBUTE_FIELD_PATHS);
 export type AttributeFieldRef = z.infer<typeof AttributeFieldRef>;
 
 export const FILTER_VALUE_SCHEMAS = {
