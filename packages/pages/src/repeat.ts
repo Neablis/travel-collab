@@ -1,10 +1,13 @@
-import { REPEAT_SCOPES, REPEAT_SCOPE_ORDER, SentenceTemplate, repeatScopeOf, type PageRepeatNode, type RepeatScope } from "@tc/contracts";
+import {
+  REPEAT_SCOPES, REPEAT_SCOPE_ORDER, SentenceTemplate, parseSentenceTemplate, repeatScopeOf, type PageRepeatNode, type RepeatScope,
+} from "@tc/contracts";
 import type { ItemScope, WidgetContext } from "./registry-types";
 import type { UnboundNeeds } from "./result";
 import { getMacro } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
 import { narrow } from "./select";
 import { needsBooking } from "./needsBooking";
+import { sentenceFieldAt } from "./sentence";
 
 // The authored repeat (ADR-035 decision 4, M14 link 6): one sentence the
 // author writes, rendered once per day, stop or city, each line reading its own
@@ -126,17 +129,45 @@ export function resolveRepeat(ctx: WidgetContext, name: string, rawParams: unkno
 }
 
 /**
- * The same repeat over another collection, as the scope picker writes it: the
- * sentence travels, and so does every filter the new collection also takes.
+ * Each collection's starting sentence: what a sentence becomes when the scope
+ * picker moves it to a collection that cannot print one of its details. Every
+ * token is one its collection publishes (`repeat.test.ts` holds that).
+ */
+export const DEFAULT_SENTENCES: Readonly<Record<RepeatOver, string>> = {
+  day: "{index}: {cities}",
+  stop: "{title}",
+  city: "Welcome to {name}",
+};
+
+/**
+ * The same repeat over another collection, as the scope picker writes it:
+ * every filter the new collection also takes travels, and so does the sentence
+ * — when the new collection can print every detail in it.
+ *
  * A filter it does not take is dropped rather than left to make the node
  * invalid — "every stop in Kyoto" becomes "every city in Kyoto", but
  * "every booked stop" becomes "every city", because a city is not booked.
+ *
+ * **A sentence naming a detail the new collection lacks becomes that
+ * collection's starting sentence** (Mitchell, #221 preview: *"Changing repeat
+ * pretty much will always break the string templates since they have different
+ * names"*). Left alone, `{cities}` in a sentence over stops prints as the
+ * literal `{cities}` on every line. Dropping just the stray token would leave
+ * "Welcome to !", so the sentence is swapped whole; the scope change is one
+ * transaction, so undo brings the old sentence and collection back together.
  */
 export function rescopeRepeat(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
   const accepted = new Set((getMacro(REPEAT_WIDGETS[over])?.inputs ?? []).map((input) => input.name));
-  return Object.fromEntries(
+  const next = Object.fromEntries(
     Object.entries(params).filter(([key]) => key === "template" || (accepted.has(key) && !TABLE_ONLY_PARAMS.includes(key))),
   );
+  if (typeof next.template === "string" && !printsEveryDetail(over, next.template)) next.template = DEFAULT_SENTENCES[over];
+  return next;
+}
+
+// Whether every `{token}` in `template` names a detail `over` publishes.
+function printsEveryDetail(over: RepeatOver, template: string): boolean {
+  return parseSentenceTemplate(template).every((part) => "text" in part || sentenceFieldAt(over, part.field) !== undefined);
 }
 
 const NOUN: Record<RepeatOver, [one: string, many: string]> = {

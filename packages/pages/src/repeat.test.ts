@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
 import type { ItemScope, WidgetContext } from "./registry-types";
-import { SENTENCE_TEMPLATE_MAX } from "@tc/contracts";
-import { insertRepeat, repeatLabel, rescopeRepeat, resolveRepeat } from "./repeat";
+import { REPEAT_SCOPE_ORDER, SENTENCE_TEMPLATE_MAX, parseSentenceTemplate } from "@tc/contracts";
+import { DEFAULT_SENTENCES, REPEAT_WIDGETS, insertRepeat, repeatLabel, rescopeRepeat, resolveRepeat, type RepeatOver } from "./repeat";
+import { sentenceFieldAt, sentenceFields } from "./sentence";
 import { findWidgetError } from "./writeCheck";
 import { PRESETS, insertPreset, presetCatalog } from "./presets";
 import { selectionTrip } from "./test-support/selectionTrip";
@@ -261,7 +262,43 @@ describe("rescopeRepeat — the collection picker", () => {
     // The other way, nothing is lost that a stop takes.
     expect(rescopeRepeat("stop", { template: "x", city: "Kyoto" })).toEqual({ template: "x", city: "Kyoto" });
   });
+
+  // Mitchell, #221 preview: *"Changing repeat pretty much will always break the
+  // string templates since they have different names"*. A sentence whose every
+  // detail the new collection has travels as written; one naming a detail it
+  // lacks becomes that collection's starting sentence, never raw braces.
+  it("keeps a sentence whose details the new collection has, word for word", () => {
+    expect(rescopeRepeat("city", { template: "{activityCount} stops, {{wow}}" }).template).toBe("{activityCount} stops, {{wow}}");
+    expect(rescopeRepeat("stop", { template: "Just words" }).template).toBe("Just words");
+    expect(rescopeRepeat("stop", {})).toEqual({});
+  });
+
+  it("swaps a sentence naming a detail the new collection lacks for that collection's starting sentence", () => {
+    expect(rescopeRepeat("city", { template: "{index}: {cities}" }).template).toBe(DEFAULT_SENTENCES.city);
+    expect(rescopeRepeat("stop", { template: "Welcome to {name}" }).template).toBe(DEFAULT_SENTENCES.stop);
+    expect(rescopeRepeat("day", { template: "{title} costs {cost}" }).template).toBe(DEFAULT_SENTENCES.day);
+  });
+
+  it("never leaves a token the new collection cannot print, from any collection to any other", () => {
+    const templates = [...Object.values(DEFAULT_SENTENCES), ...REPEAT_SCOPE_ORDER.flatMap((from) => sentenceFields(from).map((f) => `a {${f.key}} b`))];
+    let checked = 0;
+    for (const to of REPEAT_SCOPE_ORDER) {
+      // Each starting sentence fits its own collection, and prints no raw token.
+      expect(printsEveryToken(to, DEFAULT_SENTENCES[to]), `${to}'s starting sentence`).toBe(true);
+      for (const template of templates) {
+        checked += 1;
+        const next = rescopeRepeat(to, { template }).template as string;
+        expect(printsEveryToken(to, next), `"${template}" → ${to} became "${next}"`).toBe(true);
+        expect(insertRepeat(REPEAT_WIDGETS[to], { template: next }).ok).toBe(true);
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
 });
+
+// Every token in `template` is a detail `over` publishes.
+const printsEveryToken = (over: RepeatOver, template: string) =>
+  parseSentenceTemplate(template).every((part) => "text" in part || sentenceFieldAt(over, part.field) !== undefined);
 
 describe("findWidgetError inside a repeat (KI-2026-09-24-d item 3)", () => {
   const repeat = (name: string, params: Record<string, unknown>, content: unknown[] = []) => ({
