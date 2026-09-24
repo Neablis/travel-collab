@@ -630,7 +630,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // ordinary path, with nothing lost either way.
     //
     // **The batch is the head of the outcome's own history** — the apply is
-    // one batch (ADR-013), and the server reads history after committing it.
+    // one batch (ADR-013), and the server builds that history inside the
+    // committing transaction (`executeTripCommandBatch`), so no later write
+    // can be on top of it (KI-2026-09-23-f's second half, checked 2026-09-24).
     // Recorded so the card can tell whether its change is still the trip's
     // last one (M27 D17); on the queued-edits path below the board has not
     // taken this history, so the card reads "changed since" as soon as those
