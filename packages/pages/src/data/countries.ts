@@ -392,6 +392,7 @@ export const COUNTRIES: Readonly<Record<string, CountryFacts>> = Object.fromEntr
   Object.entries(ROWS).map(([code, r]) => [code, row(r)]),
 );
 
+/** The facts for one country by ISO 3166-1 alpha-2 code (any case); `undefined` when the table has no row. */
 export function countryFacts(code: string): CountryFacts | undefined {
   return COUNTRIES[code.toUpperCase()];
 }

@@ -5,6 +5,7 @@
 // dependency of everything that names a day — and put it in import cycles
 // with three of them. The component keeps the rendering; this keeps the data.
 import type { TripDetail } from "@tc/contracts";
+import { dayCity } from "@tc/pages";
 
 export type ChipDay = {
   dow: string;
@@ -32,48 +33,12 @@ function parseLocalDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
-// The LAST scheduled activity's location.city (packages/contracts'
-// Location.city — the geocoder's own structured city/town/village, distinct
-// from the full place-name label).
-//
-// Last, not first (Mitchell, 2026-08-29): the day label compares yesterday's
-// last activity city with today's, because where you END a day is where you
-// start the next one — SPEC §12's own framing is that the day belongs to
-// where you end up. On the Japan fixture first and last coincide (whole days
-// sit in one city) so nothing rendered differently when this flipped; the
-// case it fixes is a day that genuinely spans two cities, which is the only
-// case the "Tokyo → Kyoto" transition line exists for. Reading the first stop
-// there named the travel day by the city it was leaving and pushed the arrow
-// onto the FOLLOWING day, which never moved.
-//
-// `city` stays FIRST here, unlike shortPlace() (lib/place.ts), which leads
-// with `area`. This value names the day and drives the day accent and the
-// "Tokyo → Nikkō" transition, so a ward or neighbourhood in this slot would
-// split one city's days apart and invent transitions inside a single city.
-//
-// `area` is the ONLY fallback, and there is deliberately no `name` one.
-// Resolved here when #72 (KI-35) merged into this branch: #72 was written off
-// a `main` that predated Mitchell's instruction on the #71 preview — "Never
-// fall back to name, if you have absolutely no city, then make a new bucket
-// with no city in title" — and so restored `?? location.name`. That rule
-// stands: a venue name is not a place, and it is how a restaurant came to
-// label a whole day. `area` does not violate it, because a real locality
-// ("Higashiyama") IS a place; the venue name ("Kiyomizu-dera") never was.
-// So a day whose stops carry neither city nor area has no city, and says so
-// by returning null — the callers all handle that.
-//
-// Walks back through earlier activityIds if the last has no location; null if
-// none of the day's activities name a city or an area.
-/** The city (or, failing that, the area) of a day's last located activity, or `null` when none of its stops names either. */
-export function cityFor(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
-  for (let index = day.activityIds.length - 1; index >= 0; index--) {
-    const activityId = day.activityIds[index]!;
-    const location = activities[activityId]?.location;
-    const place = location?.city ?? location?.area;
-    if (place !== undefined && place !== "") return place;
-  }
-  return null;
-}
+// The city a day is named for — the last located stop's city, else its area,
+// else null. The rule and its reasons (last not first; no `name` fallback) live
+// with the function in `@tc/pages`' `dayCity.ts` since 2026-09-24, so the
+// notebook's "Trip strip" labels a run by the same answer this colours it by.
+// Re-exported under this name so no web caller changed.
+export const cityFor = dayCity;
 
 // Pure: one ChipDay per TripDetail day, no DOM — testable standalone
 // (mirrors Sparkline.tsx's sparklineBars). transitionTo is set only when

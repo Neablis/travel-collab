@@ -10,9 +10,10 @@
 // form "for ALL inputs" was unavailable here.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { TripDetail } from "@tc/contracts";
+import type { z } from "zod";
+import { ActivityKind, ActivityTag, FILTER_VALUE_SCHEMAS, FilterDimension, type TripDetail } from "@tc/contracts";
 import type { ExternalInputs } from "./external";
-import { MACRO_REGISTRY } from "./registry";
+import { MACRO_REGISTRY, primitiveCatalog } from "./registry";
 import type { AnyMacroDef } from "./registry-types";
 import { weatherProbe } from "./test-support/weatherProbe";
 import { witness } from "./test-support/witness";
@@ -38,8 +39,13 @@ const detailArb: fc.Arbitrary<TripDetail> = fc
       ),
       { nil: null },
     ),
+    // `ActivityView` defaults both on parse, so every real `TripDetail` has
+    // them. Absent here, they went unnoticed only while no case bound a tag or
+    // a kind (KI-2026-09-05-i item 3).
+    kind: fc.constantFrom(...ActivityKind.options),
+    tags: fc.subarray([...ActivityTag.options]),
   })
-  .map(({ nDays, nActs, startDate, currency, budget, cost }) => {
+  .map(({ nDays, nActs, startDate, currency, budget, cost, kind, tags }) => {
     const activities: Record<string, unknown> = {};
     const ids: string[] = [];
     for (let i = 0; i < nActs; i++) {
@@ -53,6 +59,8 @@ const detailArb: fc.Arbitrary<TripDetail> = fc
         notes: null,
         anchors: [],
         cost,
+        kind,
+        tags,
       };
     }
     const days = Array.from({ length: nDays }, (_, i) => ({
@@ -84,27 +92,60 @@ const detailArb: fc.Arbitrary<TripDetail> = fc
 // to vary is nothing, so this stays a constant rather than pretending otherwise.
 const contextArb = fc.constant({ tripId: TRIP });
 
-// Params a model or a stale document could plausibly hand a macro — including
-// the day binding itself, since that is where a day lives now. The refs
-// deliberately include ones the trip cannot satisfy (a day removed under the
-// widget, an index past the end), which is the `unbound` path. Anything the
-// macro's own Zod schema rejects is skipped — that is the schema's job, not the
-// resolver's.
+// Params a model or a stale document could plausibly hand a macro, generated
+// in the CURRENT vocabulary: one arbitrary per filter dimension, keyed by
+// `FilterDimension` so a new dimension fails to compile here until it has one.
+//
+// It spoke the retired v1 vocabulary (`dayRef`, `dayId`, `dayNumber`) until
+// KI-2026-09-05-i item 3: every schema is `filterParams(...).strip()`, so every
+// case parsed to `{}` and the `unbound` path the comment claimed was never
+// reached — and the witness could not see it, because the assertion count was
+// unchanged. The day refs below deliberately include ones the trip cannot
+// satisfy (an index past the end, a day id that was removed), and the test now
+// asserts that `unbound` is OBSERVED rather than merely allowed.
+const FILTER_VALUES: { [D in FilterDimension]: fc.Arbitrary<z.input<(typeof FILTER_VALUE_SCHEMAS)[D]>> } = {
+  day: fc.oneof(
+    fc.record({ kind: fc.constant("index" as const), index: fc.integer({ min: 0, max: 6 }) }),
+    fc.record({ kind: fc.constant("dayId" as const), dayId: fc.constantFrom(uuid(100), uuid(101), uuid(777)) }),
+  ),
+  city: fc.constantFrom("Tokyo", "Nowhere"),
+  tag: fc.constantFrom(...ActivityTag.options),
+  kind: fc.constantFrom(...ActivityKind.options),
+  person: fc.constantFrom("u1", "me"),
+  dates: fc.constantFrom(
+    { from: "2026-10-01", through: "2026-10-01" },
+    { from: "2026-01-01", through: "2026-12-31" },
+    { from: "2027-01-01", through: "2027-01-02" },
+  ),
+};
+
+// The non-filter params (`count`'s `of`, `attribute`'s `field`, …), read off
+// the same catalogue the assistant composes from, so a new one is generated
+// the day it exists.
+//
+// Pooled per key across widgets: `attribute` and `field` both call theirs
+// `field`, and letting the last one win handed `attribute` only stop paths,
+// which its enum refuses — so it ran 21 cases and the witness said so.
+// A `multiple` field input (`stop.rows`' `columns`) stores a LIST of those
+// values, so it gets ordered subsets of them rather than one.
+const NON_FILTER_POOL: Record<string, Set<string>> = {};
+const LIST_PARAMS = new Set<string>();
+for (const entry of primitiveCatalog()) {
+  for (const input of entry.inputs) if (input.type === "field" && input.multiple) LIST_PARAMS.add(input.name);
+  for (const [key, values] of Object.entries(entry.params)) {
+    for (const value of values ?? []) (NON_FILTER_POOL[key] ??= new Set()).add(value);
+  }
+}
+const NON_FILTER_VALUES: Record<string, fc.Arbitrary<string | string[]>> = Object.fromEntries(
+  Object.entries(NON_FILTER_POOL).map(([key, values]) => [
+    key,
+    LIST_PARAMS.has(key) ? fc.subarray([...values]) : fc.constantFrom(...values),
+  ]),
+);
+
 const paramsArb = fc.oneof(
-  fc.constant({}),
-  fc.constant({ dayRef: { kind: "index", index: 0 } }),
-  fc.constant({ dayRef: { kind: "index", index: 3 } }),
-  fc.constant({ dayRef: { kind: "index", index: 99 } }),
-  fc.constant({ dayRef: { kind: "dayId", dayId: uuid(100) } }),
-  fc.constant({ dayRef: { kind: "dayId", dayId: uuid(777) } }),
-  fc.constant({ dayId: uuid(100) }),
-  fc.constant({ dayId: uuid(777) }),
-  fc.constant({ dayNumber: 1 }),
-  fc.constant({ dayNumber: 0 }),
-  fc.constant({ dayNumber: -1 }),
-  fc.constant({ dayNumber: 99 }),
-  fc.constant(null),
-  fc.constant(undefined),
+  { weight: 8, arbitrary: fc.record({ ...FILTER_VALUES, ...NON_FILTER_VALUES }, { requiredKeys: [] }) },
+  { weight: 1, arbitrary: fc.constantFrom(null, undefined) },
 );
 
 // Every state an outside input can be in when a widget resolves (ADR-052
@@ -130,6 +171,22 @@ describe("macro registry — every resolver is pure and total", () => {
 
   it(`covers all ${names.length} registered macros`, () => {
     expect(names.length).toBeGreaterThan(0);
+  });
+
+  it("generates only values the filter schemas accept", () => {
+    // Otherwise a drifted generator is skipped by the schema check below and
+    // the input space shrinks with nothing failing — witness failure mode 2.
+    const w = witness("filter values parse");
+    for (const dimension of FilterDimension.options) {
+      fc.assert(
+        fc.property(FILTER_VALUES[dimension], (value) => {
+          w.tick();
+          expect(FILTER_VALUE_SCHEMAS[dimension].safeParse(value).success, `${dimension}: ${JSON.stringify(value)}`).toBe(true);
+        }),
+        { numRuns: 50 },
+      );
+    }
+    w.atLeast(FilterDimension.options.length * 50);
   });
 
   for (const [name, def] of SWEPT) {
@@ -162,6 +219,12 @@ describe("macro registry — every resolver is pure and total", () => {
       w.atLeast(50);
       // The widening is only a claim if the sweep reaches the new state.
       if (def.needs?.length) expect([...seen]).toEqual(expect.arrayContaining(["ok", "unavailable"]));
+      // The path the old generator never reached. A widget that takes a day is
+      // handed removed and out-of-range day refs, and must have answered
+      // `unbound` for at least one of them.
+      if (def.selection?.filters.includes("day")) {
+        expect(seen, `${name} never reported unbound across 200 runs`).toContain("unbound");
+      }
     });
   }
 });

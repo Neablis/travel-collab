@@ -1,7 +1,7 @@
 import { newPageDoc } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
 import { executePageCommand } from "./pageCommands";
 import { readStream } from "./eventStore";
@@ -122,9 +122,9 @@ describe("executePageCommand", () => {
     expect((await getTripEventsAfter(tripId, 0)).headSeq).toBeGreaterThan(afterCreate);
   });
 
-  // The 800ms autosave fires on the pause AFTER an already-saved change.
-  // Appending there would wake every co-traveller for a change that did not
-  // happen, and put a row in the history panel for a trailing keystroke.
+  // An edit session that ends where it began still commits. Appending there
+  // would wake every co-traveller for a change that did not happen, and put a
+  // row in the history panel for nothing (ADR-036 decision 5).
   it("appends nothing when the content did not change", async () => {
     const tripId = await seedTrip();
     const pageId = await createPageVia(tripId, "Packing", "socks");
@@ -267,9 +267,86 @@ describe("executePageCommand", () => {
 
     const detail = await getTripDetail(tripId);
     expect(detail?.name).toBe("Rome, later");
-    // And the page row is untouched by a rebuild — it is projected by the
-    // command path, not by this one.
     expect(await db.select().from(pages).where(eq(pages.tripId, tripId))).not.toHaveLength(0);
+  });
+
+  // **GOLDEN, for the `pages` table (ADR-036, M14 link 9).** The row carries
+  // only what the log carries, so throwing rows away and rebuilding must give
+  // back exactly what the command path wrote — with two kinds of row the log
+  // does not fully describe, which is where a naive rebuild destroys notebooks:
+  //
+  //  - rows `listPages` seeded and nobody has commanded since: NO events, so
+  //    the log cannot rebuild them and the rebuild must not delete them;
+  //  - rows that got a BACKFILLED genesis (KI-2026-09-22-c): the event exists,
+  //    but it was written when a sibling was first edited, so its `occurredAt`
+  //    is not the page's `createdAt` — and `createdAt` is the list's order.
+  //
+  // Plus the pre-fix document shapes KI-2026-09-24-d names: a row with no `v`
+  // and a node already stored wrapped as `unknown`. A rebuild that parses
+  // without re-serialising wraps it once more on every run.
+  it("GOLDEN: the pages table rebuilds from the log", async () => {
+    const tripId = await seedTrip();
+    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!; // a row, no event
+    const legacyId = randomUUID();
+    await db.insert(pages).values({
+      id: legacyId,
+      tripId,
+      title: "Old notes",
+      context: { tripId },
+      content: {
+        type: "doc",
+        content: [{ type: "unknown", raw: { type: "fromANewerBuild" } }, { type: "paragraph" }],
+      } as never,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+      actorId: OWNER,
+    });
+
+    // The first command backfills both rows; only the Overview is edited, so
+    // "Old notes" is known to the log by its backfilled genesis alone.
+    await executePageCommand({ type: "EditPage", tripId, pageId: overview.id, content: docWith("our plan") }, OWNER);
+    const packing = await createPageVia(tripId, "Packing", "socks");
+    await executePageCommand(
+      { type: "EditPage", tripId, pageId: packing, title: "Packing list", content: docWith("socks, shoes") },
+      OWNER,
+    );
+    const scratch = await createPageVia(tripId, "Scratch", "tmp");
+    await executePageCommand({ type: "DeletePage", tripId, pageId: scratch }, OWNER);
+
+    // A second trip whose notebooks the log has never heard of.
+    const untouchedTrip = await seedTrip();
+    await listPages(untouchedTrip);
+
+    const tripIds = [tripId, untouchedTrip];
+    const rowsOfThisTest = () =>
+      db.select().from(pages).where(inArray(pages.tripId, tripIds)).orderBy(asc(pages.id));
+    const live = await rowsOfThisTest();
+    const liveOrder = (await listPages(tripId)).map((p) => p.title);
+    expect(live).toHaveLength(4);
+    expect(liveOrder).toEqual(["Old notes", overview.title, "Packing list"]);
+    // The backfill did not restamp the row it described. The comparison below
+    // cannot see this — live and rebuilt would move together — so it is its own.
+    const legacy = live.find((r) => r.id === legacyId)!;
+    expect([legacy.createdAt, legacy.updatedAt].map((t) => new Date(t).toISOString())).toEqual([
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-02T00:00:00.000Z",
+    ]);
+    // Nor wrapped its pre-fix node a second time — also invisible to the
+    // comparison, since live and rebuilt would wrap alike. It did gain the `v`
+    // its genesis parse defaulted, which is the log's document and is right.
+    expect(legacy.content).toMatchObject({ v: 1, content: [{ type: "unknown", raw: { type: "fromANewerBuild" } }, {}] });
+
+    // Drift, of every kind a rebuild has to undo: a lost row, a changed row
+    // (one edited, one only ever backfilled), and a row the log deleted.
+    await db.delete(pages).where(eq(pages.id, packing));
+    await db.update(pages).set({ content: docWith("drifted") as never }).where(eq(pages.id, overview.id));
+    await db.update(pages).set({ title: "drifted" }).where(eq(pages.id, legacyId));
+    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch" });
+
+    await rebuildProjections();
+
+    expect(await rowsOfThisTest()).toEqual(live);
+    expect((await listPages(tripId)).map((p) => p.title)).toEqual(liveOrder);
   });
 
   it("refuses the demo trip", async () => {

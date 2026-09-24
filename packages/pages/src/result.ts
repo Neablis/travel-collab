@@ -18,8 +18,13 @@
  * absent tag means "every stop", which is a real binding — a `tags` input is
  * never waiting for a choice, so a widget that reported `unbound: "tags"` would
  * be describing a state it cannot be in.
+ *
+ * **`trip` outlived its input.** The `trip` and `days` input types were retired
+ * on 2026-09-24 (KI-2026-09-05-i item 2), and `days` went with them because
+ * nothing could report it. `trip` stays: a notebook with no trip is a state
+ * every resolver must answer (`needsTrip`), not a choice any control makes.
  */
-export type UnboundNeeds = "day" | "days" | "person" | "trip";
+export type UnboundNeeds = "day" | "person" | "trip" | "field";
 
 /**
  * Why a widget that reads outside data has nothing to show (ADR-052 decision 4).

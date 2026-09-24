@@ -1,10 +1,12 @@
 "use client";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { getMacro, getPreset, presetParams } from "@tc/pages";
+import { fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { FormField } from "@/components/ui/form-field";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DaysFilter, daysSummary } from "./DaysFilter";
+import { FieldPicker } from "./FieldPicker";
+import { FieldColumns } from "./FieldColumns";
 
 // Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
@@ -142,7 +144,7 @@ export function optionsFor(
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
-): readonly { value: string; label: string }[] {
+): readonly { value: string; label: string; group?: string }[] {
   const bound = params[input.name];
   switch (input.type) {
     // Reachable only for a primitive that declares `day` WITHOUT `dates`, which
@@ -185,15 +187,23 @@ export function optionsFor(
           label: tag,
         })),
       ];
-    // No select, so no options. `dates` is `DaysFilter`'s whole control,
-    // `person` is dropped by `bindableInputs` (ADR-039 decision 7), and no
-    // primitive declares the retired `days` and `trip` (KI-2026-09-05-i). Before
-    // these were named, all four fell into a `default:` that offered the TAG
-    // list, and so would any input type added later (KI-2026-09-05-h).
+    // The manifest's published fields for `of`, by label and grouped, for
+    // `FieldPicker`. **No "All" row**: there is no every-field, so an unset one
+    // is a widget with nothing to read (`unbound("field")`), not the widest
+    // answer. A stored path the manifest no longer publishes stays visible
+    // under a label that says so — never under the path itself (ADR-037 oq4),
+    // since it is checked at resolve time and can outlive its field.
+    case "field": {
+      const choices = fieldChoices(input.of).map((c) => ({ value: c.path, label: c.label, group: c.group }));
+      const stale = typeof bound === "string" && bound !== "" && !choices.some((c) => c.value === bound);
+      return stale ? [...choices, { value: bound, label: "A field that is no longer offered" }] : choices;
+    }
+    // No select, so no options. `dates` is `DaysFilter`'s whole control, and
+    // `person` is dropped by `bindableInputs` (ADR-039 decision 7). Before
+    // these were named, they fell into a `default:` that offered the TAG list,
+    // and so would any input type added later (KI-2026-09-05-h).
     case "dates":
     case "person":
-    case "days":
-    case "trip":
       return [];
     default: {
       // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
@@ -223,6 +233,21 @@ export function withBinding(
   } else {
     merged[input.name] = input.type === "day" ? { kind: "index", index: Number(next) } : next;
   }
+  return merged;
+}
+
+// A `multiple` field input's stored list, read as `withList` writes it. Anything
+// else stored there reads as no columns rather than as a crash.
+function listOf(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === "string") : [];
+}
+
+// `withBinding` for a list: merge, and an empty list deletes the key so `{}`
+// stays the one spelling of "nothing chosen".
+function withList(params: Record<string, unknown>, input: WidgetInput, next: string[]): Record<string, unknown> {
+  const merged = { ...params };
+  if (next.length === 0) delete merged[input.name];
+  else merged[input.name] = next;
   return merged;
 }
 
@@ -318,7 +343,31 @@ export function WidgetBindControls({
     <>
       {inputs.map((input) => {
         const control =
-          input.type === "dates" ? (
+          input.type === "field" && input.multiple ? (
+            // A LIST of fields, one per column (`stop.rows`' `columns`). Each
+            // picker reads `optionsFor` as the single one does, so a stale path
+            // keeps its "no longer offered" row.
+            <FieldColumns
+              id={`${idPrefix}-${input.name}`}
+              name={(part) => (namedByTitle ? `${title}: ${part}` : part.charAt(0).toUpperCase() + part.slice(1))}
+              value={listOf(params[input.name])}
+              optionsOf={(path) => optionsFor(input, { [input.name]: path }, detail, globals)}
+              onChange={(next) => onChange(withList(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "field" ? (
+            // Searchable, because a manifest root lists more fields than a
+            // select can be read down comfortably, and it grows with every
+            // annotation. Same options as the summary line reads.
+            <FieldPicker
+              id={`${idPrefix}-${input.name}`}
+              label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              options={optionsFor(input, params, detail, globals)}
+              value={valueOf(input, params, detail)}
+              onChange={(next) => onChange(withBinding(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "dates" ? (
             <DaysFilter
               params={params}
               detail={detail}

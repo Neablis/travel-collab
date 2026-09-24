@@ -191,9 +191,12 @@ Mitchell's framing, 2026-09-03:
    accordingly. **This link now also owns deleting `PageScreen`'s 800ms autosave and
    `lib/debounce.ts`'s use here** — that is part of the link, not a follow-up.)* Notebook content joins the event
    log, completing the parenthesis ADR-003 left open (*"and later, trip-page content"*).
-   A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
+   ~~A page is its own stream so board-level ⌘Z cannot revert prose; autosave keeps its
    800ms cadence for durability while history commits **one event per settled edit
-   session**. The `pages` table becomes a projection rather than the authority — that is
+   session**.~~ **As built (2026-09-24, T14):** page events stay on the trip stream M13
+   put them on (ADR-036 decision 2, amended), and board ⌘Z is kept off prose because a
+   history decision carries trip events only and a notebook save is never the undo target.
+   Autosave is gone, and history commits **one event per edit session**. The `pages` table becomes a projection rather than the authority — that is
    the real work in this link.
 
 10. **A notebook can be saved as a template for a future trip.** *(**Added 2026-09-18** on
@@ -804,6 +807,21 @@ milestone opens:**
       be able to destroy prose, because there is no mid-session row state left to
       destroy** — that is the whole content of the 2026-09-03 decision and the box
       that proves it was honoured.
+      *(**Built 2026-09-24 (T14); not ticked until `test:e2e:ci-like` is green on the
+      three specs it changed.** One write per session: `useEditSession` commits on leaving
+      Editing, unmount, `pagehide` (with `keepalive`) and 60s idle, and a session with no
+      change sends nothing. `PageScreen`'s debounce and `lib/debounce.ts` are deleted.
+      `rebuildProjections` replays page events through the command path's own writer, and
+      the golden page case (`pageCommands.int.test.ts`, *"GOLDEN: the pages table rebuilds
+      from the log"*) covers a lost row, drifted rows, a row the log deleted, and a
+      pre-fix row with no `v` and a wrapped node. It also covers a trip whose notebooks the
+      log has never seen. **The one thing short of the wording:** that trip's rows are
+      left alone by a rebuild rather than rebuilt, because `listPages` seeds them without
+      an event and the log cannot rebuild what it never recorded. Closing that means
+      seeding through the log or a backfill migration, which is a design call not taken
+      here. ADR-036 decision 2 is amended to the trip stream. Board ⌘Z never reverting a
+      page event is pinned by `pageHistory.property.test.ts`. e2e specs changed:
+      `m14-notebook-widgets`, `m14-mobile-notebook`, `m7-solo-delight`.)*
 - [x] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
       the registry declares a `person` input. They left this milestone on
       2026-09-03 with item F; a build that quietly adds them back is building on a
@@ -811,14 +829,34 @@ milestone opens:**
       display name on `TripMember`, not attribution.
       *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
-- [ ] **A notebook is saved as a template from one trip and instantiated into a
+- [x] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
       not an event stream, which a test asserts by sweeping for a second writer
       the way `soleWriter.test.ts` does for subscriptions. *(Link 10, added
       2026-09-18.)*
-- [ ] **A template snapshotted at one document version still instantiates after
+      *(Ticked 2026-09-24, T15/T16 on `m14/t15-saved-notebooks`. The walk is
+      `e2e/m14-saved-notebooks.spec.ts`, green on `test:e2e:ci-like`: Save as
+      template in trip A, then *Your templates* in trip B's gallery, then a
+      reload. The table is `saved_notebooks` (migration `0029_saved_notebooks`),
+      written only by `server/savedNotebooks.ts`, and
+      `savedNotebooks.soleWriter.test.ts` sweeps for a second writer, for raw
+      SQL naming the table, and for an event append from the module.
+      Instantiating creates the page with a `CreatePage` command, so the target
+      trip's stream gets a `PageCreated`, which `route.int.test.ts` asserts.
+      **The re-binding rule:** a `day` pinned by `dayId` to a day the target
+      trip lacks is re-pointed at the nil UUID (`UNRESOLVED_DAY_ID`), so it
+      renders *"that day was removed"* rather than widening to every day, and no
+      source-trip id reaches the target stream. `index` refs, cities, tags,
+      kinds and date ranges carry over as written. The context is the target
+      trip alone, so a template saved from an Overview is an ordinary notebook.)*
+- [x] **A template snapshotted at one document version still instantiates after
       the AST has moved** — ADR-038's versioning is exercised by link 10 rather
       than assumed by it, with a test that pins an older version and renders it.
+      *(Ticked 2026-09-24, T15: `packages/pages/src/savedTemplate.test.ts` pins
+      a v1 snapshot (old widget names, `dayRef`, no `v`), asserts the current
+      version is above 1, migrates it through `instantiateTemplate` and resolves
+      every widget with `renderMacro` against a new trip. The integration test
+      does the same against a v1 row in Postgres.)*
 - [x] **Adding a filter dimension cannot be silently ignored.** *(Ticked 2026-09-24, T02 on PR #221: `narrow` is total through a compile-checked `NARROWS` record, `optionsFor` and the page-document switches end in `never`, and KI-2026-09-05-h is resolved with its proof line.)* The
       `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
       control and dropped by `narrow` — fails before the change and passes after,
@@ -1008,7 +1046,7 @@ gating**. Each entry's own **Milestone:** line points back here.
 | ~~KI-2026-09-05-h~~ | ~~`narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default~~ — **resolved 2026-09-24 (T02)**: a `NARROWS` record beside `narrow`, a mapped `WidgetFilterValues`, and `never` defaults in `optionsFor`, `serializePageNode` and `ReadOnlyPageDoc`. A probe dimension now fails to compile, and a sweep over `FilterDimension.options` covers the runtime path | **gate box** |
 | KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | carried |
 | ~~KI-2026-09-15-b~~ | ~~The phone Notebook insert e2e spec intermittently finds the widget bound to "All days"~~ — **resolved 2026-09-24**: the spec waited for any PATCH and caught the unchanged save a mode switch sent (fixed in `PageEditor`), then reloaded over the insert's pending save | — |
-| KI-2026-09-24-g | An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it | carried |
+| ~~KI-2026-09-24-g~~ | ~~An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it~~ — **resolved 2026-09-24 (T14)**: the debounce is gone, and the edit session commits on unmount and on `pagehide` instead of cancelling | — |
 | KI-2026-09-20-g | The widget container is built four times and none matches the design | carried |
 | KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
 | KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |

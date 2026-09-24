@@ -48,6 +48,43 @@ Format:
 - Breaking? no — every addition is new or optional, and no registered widget
   can return `unavailable`.
 
+## 2026-09-24 — `SavedNotebook`: a notebook kept as a template (M14 T15, link 10)
+
+- **Added** `savedNotebook.ts`: `SavedNotebookVisibility` (`"private"` only),
+  `SavedNotebookProvenance` (`sourceTripId`, `sourceTripName`, `sourcePageId`,
+  `savedAt`), `SavedNotebookSummary` (no document), `SavedNotebook` (summary +
+  `content: PageContent`), `CreateSavedNotebookInput` (`tripId`, `pageId`,
+  optional trimmed `title`), and the envelopes `SavedNotebookListResponse` and
+  `SavedNotebookResponse`.
+- Why: M14 link 10, *"saving notebook templates for future trips"*. The shape
+  reuses ADR-029 (personal, CRUD, not event-sourced, private) and ADR-040 (a
+  snapshot with provenance). `docVersion` records the `PageDoc.v` the snapshot
+  was taken at (ADR-038), because instantiating migrates it forward first.
+  Visibility has one member because publishing is not built: a contract that
+  accepted `"public"` would describe a state no endpoint produces.
+  `CreateSavedNotebookInput` carries no document on purpose. The server
+  snapshots what the page's stored projection holds, so a template is always a
+  document the trip's log contains.
+- Consumers updated: `apps/web` (the `saved_notebooks` table and
+  `server/savedNotebooks.ts`, routes under `/api/saved-notebooks` and
+  `/api/trips/:tripId/saved-notebooks/:id`, `lib/savedNotebooksClient.ts`,
+  `NotebookScreen`'s gallery, `PageScreen`'s *Save as template*, and
+  `makeSavedNotebookHandlers` in `mocks/handlers.ts`). Nothing else reads these
+  schemas.
+- Breaking? no. Additive: new schemas only, no existing one changed.
+
+## 2026-09-24 — `MacroKind` removed (M14 T03, KI-2026-09-05-i item 2)
+
+- **Removed:** `MacroKind` (`z.enum(["inline", "block"])`) and its type from
+  `pages.ts`. `WidgetShape` replaced it for widget definitions (ADR-037
+  decision 1), and nothing in the repo imported it afterwards. Its only
+  reference was the comment beside `WidgetShape`.
+- Why: dead vocabulary reads as a seam (review finding F-B06), and the next
+  contributor has to work out that it decides nothing.
+- Consumers updated: none needed; no package or app imported it. Stored page
+  documents never held it (a node stores a widget name and params).
+- Breaking? no.
+
 ## 2026-09-24 — a `stop` manifest root, `described()` as the only opt-in, and one field vocabulary (M14 T06)
 
 - **Added — stop fields are pickable.** `ActivitySnapshot` annotates `title`

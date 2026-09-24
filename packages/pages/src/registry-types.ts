@@ -1,8 +1,9 @@
 import type { z } from "zod";
-import type { FilterDimension, TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
+import type { FilterDimension, ManifestObject, TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
+import type { SpendByDayPayload } from "./chartPayloads";
 
 // Inline payloads are display-ready strings; block payloads are structured data
 // the renderer turns into a component (NOT markup — the C-era swap point).
@@ -86,6 +87,15 @@ export interface CountryFactsCard {
   emergency: string | null; currency: string; callingCode: string; tipping: string | null;
 }
 export interface CountryFactsPayload { kind: "country-facts"; countries: CountryFactsCard[]; }
+// "Trip strip" (`trip.strip`): every day of the trip, grouped into runs of
+// consecutive days in one city (`city: null` is a run of days naming no place).
+// The runs partition the days in order, so the renderer draws cells from them
+// alone. `dayId` is what the colour is keyed on (`cityAccents.ofDayId`); `date`
+// is display-ready and short ("Jun 1"), `null` for an undated trip; `summary`
+// is the strip in words, for its accessible name.
+export interface TripStripDay { dayId: string; ordinal: number; date: string | null; city: string | null; }
+export interface TripStripRun { city: string | null; days: TripStripDay[]; }
+export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; summary: string; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
 // no longer switches on a widget's name.
@@ -103,7 +113,9 @@ export interface CountryFactsPayload { kind: "country-facts"; countries: Country
 // This is an implementation decision the ADR did not make; it is recorded in
 // ADR-037 under decision 3 rather than only here.
 export type BlockPayload =
-  | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload;
+  | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload
+  | TripStripPayload
+  | SpendByDayPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -168,7 +180,17 @@ export interface RepeatRow {
 export const rowLabel = (t: string): RepeatValue => ({ name: "label", text: t });
 export const rowValue = (t: string): RepeatValue => ({ name: "value", text: t });
 export const rowCity = (t: string): RepeatValue => ({ name: "city", text: t });
-export interface RepeatPayload { kind: "repeat-rows"; rows: RepeatRow[]; }
+export interface RepeatPayload {
+  kind: "repeat-rows";
+  rows: RepeatRow[];
+  /**
+   * Column headings, the lead's first and then one per cell — present only
+   * when a widget has columns a reader CHOSE (field columns, M14 build step
+   * 6). A table whose columns are always the same needed none, and one the
+   * reader assembled cannot be read without them.
+   */
+  headings?: readonly string[];
+}
 
 // ---------------------------------------------------------------------------
 // What a widget RENDERS (ADR-037 decision 3 — the CSR protection)
@@ -225,7 +247,8 @@ export interface RenderedRow {
 export type Rendered =
   | { kind: "inline"; segs: Seg[] }
   | { kind: "block"; block: BlockPayload }
-  | { kind: "rows"; rows: RenderedRow[] };
+  // `headings` is `RepeatPayload.headings`, passed through.
+  | { kind: "rows"; rows: RenderedRow[]; headings?: readonly string[] };
 
 // Convenience constructors, so a widget's `render` reads as data rather than as
 // object literals with a discriminator repeated seven times.
@@ -233,7 +256,8 @@ export const text = (t: string): Seg => ({ kind: "text", text: t });
 export const chip = (name: string, t: string): Seg => ({ kind: "chip", name, text: t });
 export const inlineOf = (...segs: Seg[]): Rendered => ({ kind: "inline", segs });
 export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", block });
-export const rowsOf = (rows: RenderedRow[]): Rendered => ({ kind: "rows", rows });
+export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
+  headings === undefined ? { kind: "rows", rows } : { kind: "rows", rows, headings };
 
 // What a widget TAKES, declared so a UI can choose a control for it
 // (ADR-035 decision 2, SPEC §18). A Zod schema says a param is a string; it
@@ -242,19 +266,17 @@ export const rowsOf = (rows: RenderedRow[]): Rendered => ({ kind: "rows", rows }
 // descriptive field.
 //
 // `type` is what the control is chosen from, so a NEW widget taking a day needs
-// no new UI. Five types, per §18's table:
-//   day    → one day select        "Day 6 · Hakone"
-//   days   → from / through        "Day 6 – Day 8", or "Day 6" when equal
-//   person → who                   "Priya"
-//   tags   → every stop, or one    "meal stops"
-//   trip   → which trip            the trip name
+// no new UI. §18's table named five types; `days` and `trip` were retired on
+// 2026-09-24 (M14 "Decided" item 3, KI-2026-09-05-i item 2): neither maps to a
+// filter dimension and no widget ever declared either. Picking days is
+// `DaysFilter` over the `dates` dimension, and a notebook's trip is fixed at
+// creation (`WidgetContext.trip`), so neither needed a control of its own.
 //
 // `name` is not decoration: it must be a key the macro's OWN `params` schema
 // accepts, or the widget declares a binding the validator ignores. That
 // correspondence is enforced by a registry-wide test rather than by convention.
 export type WidgetInput =
   | { name: string; type: "day"; label: string }
-  | { name: string; type: "days"; label: string }
   // `person` is declared because §18 declares it, and NOTHING MAY USE IT YET:
   // nothing links an activity to a person — no `assignee`, `paidBy`,
   // `participant` or `share` on `ActivityView`. The two widgets that wanted it
@@ -265,7 +287,6 @@ export type WidgetInput =
   // capability.
   | { name: string; type: "person"; label: string }
   | { name: string; type: "tags"; label: string }
-  | { name: string; type: "trip"; label: string }
   // The three ADR-039 decision 1 adds, one per filter dimension that had no
   // control before it: a city select, a kind select, and a from/through date
   // range. They are `WidgetInput`s rather than a parallel list because SPEC
@@ -281,7 +302,20 @@ export type WidgetInput =
   // rather than a list of its own.
   | { name: string; type: "city"; label: string }
   | { name: string; type: "kind"; label: string }
-  | { name: string; type: "dates"; label: string };
+  | { name: string; type: "dates"; label: string }
+  // **The one input that is not a filter** (M14 field widget, build step 5).
+  // It chooses WHAT a widget reads — a field of `of`, from the attribute
+  // manifest — rather than narrowing a set, so no dimension maps to it and
+  // `filterInputs` never produces it; a widget declares it by hand beside its
+  // filters. Its control is a searchable picker over `fieldChoices(of)`, which
+  // shows labels and stores a path. The stored path is checked at RESOLVE time
+  // (`fieldAt`), never at write time, so a stale one cannot block a save.
+  //
+  // `multiple` is the repeat widgets' `columns` (build step 6): an ordered
+  // LIST of paths, one column each, where the plain form is one path. Same
+  // vocabulary and same resolve-time check; its control is a list of pickers.
+  // Empty or absent means no extra columns — never "waiting for a choice".
+  | { name: string; type: "field"; label: string; of: ManifestObject; multiple?: true };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];
@@ -311,6 +345,11 @@ type Assert<T extends true> = T;
  * why decision 2 retiring `unbound` for filters does not retire it for `day`.
  * (The seventeen named widgets also still report it for an unset day, until the
  * migration in spec §8 step 3 turns them into presets.)
+ *
+ * `field` does not join them either, for a stronger reason than `day`: there
+ * is no "every field", so an absent one is a widget with nothing to read, and a
+ * path the manifest no longer publishes is aimed at nothing. Both are
+ * `unbound("field")`, which the field picker can fix.
  */
 type NeverUnbound = "tags" | "city" | "kind" | "dates";
 

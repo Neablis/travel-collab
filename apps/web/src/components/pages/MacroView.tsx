@@ -167,8 +167,11 @@ export function MacroView({ detail, context, user = null, globals = null, extern
         return onBindDay
           ? <EmptyChip tone="action" label="that day was removed" onClick={onBindDay} />
           : <EmptyChip tone="muted" label="that day was removed" />;
-      case "days":
-        return <EmptyChip tone="muted" label="no days set" />;
+      // A `field` input with nothing chosen, or a path the manifest no longer
+      // publishes (checked at resolve time, so a stale one never blocked the
+      // save). Both are fixed the same way, from the widget's field picker.
+      case "field":
+        return <EmptyChip tone="muted" label="choose a field" />;
       // **Reachable now, and it says the truth about why.** ADR-039 decision 7
       // declares `person` as a filter dimension and states plainly that it
       // cannot resolve: `TripMember` is `{ userId, role }` with no display
@@ -295,6 +298,22 @@ export function MacroView({ detail, context, user = null, globals = null, extern
           // eslint-disable-next-line no-restricted-syntax -- the column count is data, not design: it comes from the widget's own rows and no token can name it
           style={{ gridTemplateColumns: `minmax(min-content, 1fr)${" auto".repeat(columns)}` }}
         >
+          {/* Only a table whose columns the reader chose carries headings
+              (field columns, M14 build step 6) — lead's first, aligned as the
+              cells below them are. */}
+          {rendered.headings ? (
+            <span role="row" className="tc-widget-row text-xs font-semibold text-slate">
+              {rendered.headings.map((heading, c) => (
+                <span
+                  role="columnheader"
+                  key={c}
+                  className={cn("tc-widget-cell px-3 py-2", c > 0 && c === columns ? "text-right" : "text-left")}
+                >
+                  {heading}
+                </span>
+              ))}
+            </span>
+          ) : null}
           {rendered.rows.map((row, i) => (
             <span
               role="row"

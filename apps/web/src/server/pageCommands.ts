@@ -2,12 +2,8 @@ import {
   PageCommand,
   PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
-  PageEvent as PageEventSchema,
   serializePageDoc,
-  type EventEnvelope,
   type Page,
-  type PageContent,
-  type PageDoc,
   type PageEvent,
 } from "@tc/contracts";
 import {
@@ -27,78 +23,11 @@ import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { checkPageDocForWrite } from "./pages";
+import { applyPageEvents } from "./projections";
 
 export type PageCommandResult =
   | { ok: true; tripId: string; page: Page | null }
   | { ok: false; error: { code: string; message: string } };
-
-/**
- * The `pages` table, brought into line with events just appended.
- *
- * **The table is now a PROJECTION, not the source of truth**, and this is the
- * function that makes that true. It runs inside the command's transaction, so
- * the row and the event that caused it land together or not at all — the same
- * guarantee `applyTripEvents` gives the trip's own projections, and the reason
- * neither can drift.
- *
- * It applies the EVENTS rather than reconciling the whole folded state against
- * the table. Both are correct; this one touches only the rows that changed,
- * and a trip with thirty notebooks does not rewrite twenty-nine of them to
- * save one.
- *
- * `createdAt`/`updatedAt` come from the envelope's `occurredAt` rather than
- * from `new Date()`, so a replay writes the times the events say rather than
- * the time the replay ran. `PageState` deliberately carries neither — see its
- * docstring.
- */
-async function applyPageEvents(
-  tx: Parameters<typeof appendToStream>[0],
-  envelopes: EventEnvelope[],
-): Promise<void> {
-  for (const envelope of envelopes) {
-    // Parsed, not cast. These envelopes were built from events this process
-    // just decided, so a cast would "work" — but the same function has to be
-    // correct for a replay reading rows off disk, and a parse is what makes
-    // the switch below narrow honestly instead of being told what to believe.
-    const event = PageEventSchema.parse({
-      type: envelope.type,
-      version: envelope.version,
-      payload: envelope.payload,
-    });
-    switch (event.type) {
-      case "PageCreated":
-        await tx
-          .insert(pages)
-          .values({
-            id: event.payload.pageId,
-            tripId: event.payload.tripId,
-            title: event.payload.title,
-            context: event.payload.context,
-            // Serialised, not the parse output: see `storedPageEvent`.
-            content: storedContent(event.payload.content),
-            createdAt: envelope.occurredAt,
-            updatedAt: envelope.occurredAt,
-            actorId: event.payload.actorId,
-          })
-          // A replay re-applying a create it already applied is not an error.
-          .onConflictDoNothing();
-        break;
-      case "PageEdited":
-        await tx
-          .update(pages)
-          .set({
-            ...(event.payload.title === undefined ? {} : { title: event.payload.title }),
-            ...(event.payload.content === undefined ? {} : { content: storedContent(event.payload.content) }),
-            updatedAt: envelope.occurredAt,
-          })
-          .where(eq(pages.id, event.payload.pageId));
-        break;
-      case "PageDeleted":
-        await tx.delete(pages).where(eq(pages.id, event.payload.pageId));
-        break;
-    }
-  }
-}
 
 /**
  * The command pipeline for notebook pages.
@@ -204,9 +133,10 @@ export async function executePageCommand(
     }
     if (!decision.ok) return { ok: false, error: decision.rejection };
 
-    // A no-op edit — the 800ms autosave firing on the pause after an
-    // already-saved change. Nothing is appended, so `headSeq` does not move and
-    // no co-traveller is woken for a change that did not happen.
+    // A no-op edit: an edit session that ended where it began (typed, then
+    // undone), or a second commit trigger racing the first. Nothing is
+    // appended, so `headSeq` does not move and no co-traveller is woken for a
+    // change that did not happen.
     //
     // **The genesis is dropped with it.** Writing backfill events for an edit
     // that turned out to be a no-op would move `headSeq` and wake every
@@ -241,16 +171,6 @@ export async function executePageCommand(
 }
 
 /**
- * `serializePageDoc`, typed for the `pages.content` column. The serialiser
- * returns `unknown` because an unknown node's `raw` is whatever came in; the
- * envelope it builds is always `{ v, type: "doc", content: [...] }`, which is
- * exactly the permissive `PageContent` the column holds.
- */
-function storedContent(doc: PageDoc): PageContent {
-  return serializePageDoc(doc) as PageContent;
-}
-
-/**
  * A page event as it is WRITTEN — its document serialised, not the parse output.
  *
  * `PageDoc`'s parse output is an in-memory shape: a node this build does not
@@ -262,8 +182,8 @@ function storedContent(doc: PageDoc): PageContent {
  * (KI-2026-09-05-g, F-B09) — exactly the rolling-deploy window decision 3 was
  * written for. `serializePageDoc` unwraps it back to the bytes that came in.
  *
- * Applied to the log AND the projection (`applyPageEvents`), so a rebuild from
- * the log writes the same row this did.
+ * Applied to the log AND the projection (`applyPageEvents` in `projections.ts`),
+ * so a rebuild from the log writes the same row this did.
  */
 function storedPageEvent(event: PageEvent): { type: string; version: number; payload: unknown } {
   if (event.type === "PageDeleted" || event.payload.content === undefined) return event;

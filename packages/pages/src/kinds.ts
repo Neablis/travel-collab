@@ -156,6 +156,7 @@ export const VALUE_KIND_FORMATS: KindFormats = {
   },
 };
 
+/** One value of `kind`, formatted for display — the table's `format`, typed by kind. */
 export function formatKind<K extends ValueKind>(kind: K, value: KindValues[K], ctx: KindContext): string {
   return VALUE_KIND_FORMATS[kind].format(value, ctx);
 }
@@ -169,6 +170,10 @@ export function formatKindList<K extends ValueKind>(kind: K, values: readonly Ki
   return values.map((v) => format(v, ctx)).join(LIST_SEPARATOR);
 }
 
+/**
+ * Many values of `kind` reduced to one display string — the "All" rule
+ * (sum, span, or every value with optional `distinct`); `null` when there are none.
+ */
 export function collapseKind<K extends ValueKind>(
   kind: K,
   values: readonly KindValues[K][],

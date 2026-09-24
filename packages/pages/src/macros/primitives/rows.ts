@@ -1,12 +1,13 @@
 import { z } from "zod";
 import type { FilterDimension, KindRef } from "@tc/contracts";
-import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext } from "../../registry-types";
+import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext, WidgetInput } from "../../registry-types";
 import { chip, rowCity, rowLabel, rowValue, rowsOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } from "../../select";
 import { formatMoney, formatDate } from "../../format";
 import { needsBooking } from "../../needsBooking";
+import { fieldAt, formatStopField } from "../../fields";
 
 // The `repeat` primitives (ADR-039 decision 1): a shape that **lists** its
 // selection as rows.
@@ -29,6 +30,7 @@ const renderRows = (payload: RepeatPayload) =>
       cells: row.cells.map((cell) => cell.map(segOf)),
       ...(row.kind === undefined ? {} : { kind: row.kind }),
     })),
+    payload.headings,
   );
 
 const DAY_ROWS_FILTERS = ["day", "city", "dates"] as const satisfies readonly FilterDimension[];
@@ -151,8 +153,23 @@ const STOP_ROWS_FILTERS = ["day", "city", "tag", "kind", "dates"] as const satis
 // `primitiveCatalog` straight off this enum. It narrows AFTER `narrow`, so it
 // composes with every filter rather than replacing one.
 const StopRowsOnly = z.enum(["needsBooking"]);
-const StopRowsParams = filterParams(STOP_ROWS_FILTERS, { only: StopRowsOnly.optional() });
+// **Field columns** (M14 field widget, build step 6; Mitchell's answer 4). Paths,
+// in the order the reader chose, each checked at resolve time like any `field`
+// param — so a stale one drops out of the table rather than blocking the save.
+//
+// `stop.rows` only. `day.rows` and `city.rows` iterate `TripGlobals`
+// collections, and every field those publish is either a column the row
+// already has (date, cities, cost; days, stop count) or a 0-based `index` that
+// would print "Day 0" beside a lead reading "Day 1".
+const StopRowsParams = filterParams(STOP_ROWS_FILTERS, {
+  only: StopRowsOnly.optional(),
+  columns: z.array(z.string()).optional(),
+});
 type StopRowsParams = z.infer<typeof StopRowsParams>;
+const STOP_ROWS_INPUTS: readonly WidgetInput[] = [
+  ...filterInputs(STOP_ROWS_FILTERS),
+  { name: "columns", type: "field", label: "Columns", of: "stop", multiple: true },
+];
 
 // The header a group of stops sits under: a row whose lead is a label and which
 // has no cells at all, which `renderRows` turns into a single text segment and
@@ -204,10 +221,10 @@ const NOTHING_MATCHED: Partial<Record<KindRef, string>> = {
  */
 export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
   name: "stop.rows", title: "A line for every stop", shape: "repeat",
-  params: StopRowsParams, inputs: filterInputs(STOP_ROWS_FILTERS),
+  params: StopRowsParams, inputs: STOP_ROWS_INPUTS,
   selection: { entity: "stop", filters: STOP_ROWS_FILTERS },
   description:
-    "One line per selected stop: when it is, and what it cost. Filter it to a day, a tag, or a kind — booked, for instance, gives a line for every booking. `only: needsBooking` keeps just the stops still to book.",
+    "One line per selected stop: when it is, and what it cost. Filter it to a day, a tag, or a kind — booked, for instance, gives a line for every booking. `only: needsBooking` keeps just the stops still to book. `columns` adds a column per chosen field, in order.",
   // True whether the selection held no stops at all or the filters matched none
   // of them. `emptyText` is a fixed string on the definition and cannot see the
   // params, so "no stops on this day" would be a claim the widget cannot keep.
@@ -232,13 +249,24 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
       return empty(params.kind === undefined ? undefined : NOTHING_MATCHED[params.kind]);
     }
 
+    // Only what the manifest publishes; see `StopRowsParams`.
+    const columns = (params.columns ?? []).flatMap((path) => fieldAt("stop", path) ?? []);
+    const headings = columns.length === 0 ? undefined : ["Stop", "Time", "Cost", ...columns.map((c) => c.label)];
+    const kindCtx = { currency: trip.currency };
+
     // Two columns: when it is, and what it cost. A stop with no time still
     // leaves the time column open, so the costs stay in one line down the page.
+    // Then one per chosen field, empty where the stop has no value, for the
+    // same reason.
     const lineOf = ({ activity }: SelectedStop): RepeatRow => ({
       lead: rowLabel(activity.title),
       cells: [
         activity.timeWindow ? [rowValue(`${activity.timeWindow.start} – ${activity.timeWindow.end}`)] : [],
         activity.cost ? [rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency))] : [],
+        ...columns.map((choice) => {
+          const value = formatStopField(choice, [activity], kindCtx);
+          return value === null ? [] : [rowValue(value)];
+        }),
       ],
     });
 
@@ -246,7 +274,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     // already in board order — the selected days in order, then the backlog —
     // so a header is due whenever the day changes.
     const groups = new Set(stops.map((stop) => stop.dayIndex));
-    if (groups.size <= 1) return ok({ kind: "repeat-rows", rows: stops.map(lineOf) });
+    if (groups.size <= 1) return ok({ kind: "repeat-rows", rows: stops.map(lineOf), ...(headings ? { headings } : {}) });
 
     const rows: RepeatRow[] = [];
     let current: number | null | undefined;
@@ -257,7 +285,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
       }
       rows.push(lineOf(stop));
     }
-    return ok({ kind: "repeat-rows", rows });
+    return ok({ kind: "repeat-rows", rows, ...(headings ? { headings } : {}) });
   },
   render: renderRows,
 };
