@@ -62,6 +62,25 @@ describe("PageEditor", () => {
     expect(JSON.stringify(lastCall)).toContain('"macro"');
     expect(JSON.stringify(lastCall)).toContain("cost.trip");
   });
+
+  // KI-2026-09-15-b. `onChange` is what autosaves, so a call here is a PATCH.
+  // TipTap's `setEditable` emits `update` unless told not to, and this file's
+  // mode-flip effect did not tell it — so mounting, and every Reading/Editing
+  // toggle, wrote the unchanged document back 800 ms later. The phone insert
+  // walk's save-wait caught that stray write instead of the insert's own, then
+  // reloaded over the insert's still-pending save.
+  it("does not report a change when only the mode flips", async () => {
+    const onChange = vi.fn();
+    const value = newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "unchanged" }] }]);
+    const { rerender } = render(
+      <PageEditor detail={detail} context={context} value={value} onChange={onChange} editable={false} />,
+    );
+    await screen.findByText("unchanged");
+    rerender(<PageEditor detail={detail} context={context} value={value} onChange={onChange} editable />);
+    await waitFor(() => expect(screen.getByRole("textbox").getAttribute("contenteditable")).toBe("true"));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
 
 // ADR-038 asked an open empirical question and refused to design around a guess:

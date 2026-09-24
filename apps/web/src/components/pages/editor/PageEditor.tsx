@@ -116,8 +116,15 @@ export function PageEditor({ detail, context, user = null, globals = null, value
   // `editable` is a MOUNT-TIME option, so flipping Reading/Editing later has to
   // be pushed onto the live editor — without this the toggle changes the
   // sidebar and the chrome row but leaves the document itself read-only.
+  //
+  // **`false` is `emitUpdate`, and it is load-bearing** for the same reason as
+  // the content effect below: TipTap's `setEditable` emits `update` by default,
+  // `onUpdate` is `onChange`, and `onChange` autosaves. Without it, mounting and
+  // every mode flip wrote the unchanged document back 800 ms later — a PATCH
+  // nobody asked for, which the phone insert walk mistook for its own save and
+  // then reloaded over the real one (KI-2026-09-15-b).
   useEffect(() => {
-    editor?.setEditable(editable);
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   /**
