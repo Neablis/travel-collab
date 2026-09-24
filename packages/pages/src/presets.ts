@@ -275,6 +275,14 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "Trip strip",
     keywords: ["strip", "timeline", "overview", "cities", "route", "days", "at a glance", "band"],
   },
+  // M14 link 11, the first chart. Unfiltered: every day, every tag.
+  {
+    id: "spend-by-day",
+    widget: "cost.chart",
+    params: {},
+    title: "Spend by day",
+    keywords: ["spend", "spending", "chart", "graph", "bar", "costs", "money", "budget", "daily", "per day"],
+  },
   {
     id: "costs.table",
     widget: "cost.rows",
