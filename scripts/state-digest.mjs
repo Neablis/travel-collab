@@ -235,8 +235,10 @@ function render(d) {
   }
   out.push(
     d.todo.first
-      ? `FIRST UNCHECKED TODO: ${d.todo.first.text}${cite(d.todo.rel, d.todo.first.line)}`
-      : `FIRST UNCHECKED TODO: none${cite(d.todo.rel)}`,
+      ? `ORDER (TODO.md rows, top down): ${d.todo.order.map((r) => r.id).join(" → ")}` +
+          (d.todo.paused?.length ? `  (paused: ${d.todo.paused.map((r) => r.id).join(", ")})` : "") +
+          cite(d.todo.rel, d.todo.first.line)
+      : `ORDER (TODO.md rows, top down): none${cite(d.todo.rel)}`,
   );
   if (d.todo.marker) {
     out.push(

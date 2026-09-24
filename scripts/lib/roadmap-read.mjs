@@ -176,34 +176,45 @@ export function readMilestoneGate(root, id) {
 }
 
 /**
- * TODO.md carries two claims about the current work and they are allowed to
- * disagree: the first unchecked item (the file's own stated rule) and the
- * explicit `← current milestone` marker (which the file says records a
- * Mitchell decision that overrides position). Read both; report both.
+ * TODO.md's unticked MILESTONE rows, top to bottom, ARE the execution order
+ * (Mitchell, 2026-09-24, closing KI-2026-09-21-a): a reorder moves the rows.
+ * A row whose text says `PAUSED` keeps its place in the file but is not in the
+ * sequence — it is neither current nor next until the word is removed.
+ *
+ * `first` is the first row in that sequence, i.e. what should be current.
+ * `marker` is the explicit `← current milestone` row. They should agree; when
+ * they do not, that is drift for a person to resolve (move the row or the
+ * marker), and it is reported rather than picked between.
  */
 export function readTodo(root) {
   const rel = "TODO.md";
   const lines = readLines(join(root, rel));
   if (!lines) return { rel, missing: true, anchorMissing: true };
-  let first = null;
+  const order = [];
+  const paused = [];
   let marker = null;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (!/^\s*[-*]\s+\[/.test(line)) continue;
-    if (!first && /^\s*[-*]\s+\[ \]/.test(line)) {
-      // Cut at the `←` marker: what follows it is commentary on the decision,
-      // and the marker itself is reported on its own line below.
-      const text = plain(line.replace(/^\s*[-*]\s+\[ \]\s*/, "")).split("←")[0];
-      first = { line: i + 1, text: truncate(text.trim(), 72) };
-      first.id = milestoneId(first.text);
-    }
     if (!marker && /←\s*\**current milestone/i.test(line)) {
       marker = { line: i + 1, id: milestoneId(plain(line)) };
     }
+    if (!/^\s*[-*]\s+\[ \]/.test(line)) continue;
+    // Cut at the `←` marker: what follows it is commentary on the decision,
+    // and the marker itself is reported on its own line above.
+    const text = plain(line.replace(/^\s*[-*]\s+\[ \]\s*/, "")).split("←")[0];
+    // A milestone row opens with its bold id (`- [ ] **M24 …`), the shape
+    // readMilestoneIndex keys on; a task row that merely mentions one is not.
+    const id = /^\s*[-*]\s+\[ \]\s*\*\*(M\d+[a-z]?)\b/.exec(line)?.[1] ?? null;
+    if (!id) continue;
+    const row = { line: i + 1, id, text: truncate(text.trim(), 72) };
+    if (/\bPAUSED\b/.test(line)) paused.push(row);
+    else order.push(row);
   }
-  // No unchecked item at all means the roadmap is finished or the file moved;
-  // either way a caller that writes must not proceed on the assumption.
-  return { rel, first, marker, anchorMissing: !first && !marker };
+  const first = order[0] ?? null;
+  // No unchecked milestone at all means the roadmap is finished or the file
+  // moved; either way a caller that writes must not proceed on the assumption.
+  return { rel, first, order, paused, marker, anchorMissing: !first && !marker };
 }
 
 /**
@@ -268,7 +279,7 @@ export function findDrift({ milestone, todo, gate, status }) {
   if (current && todo.first?.id && todo.first.id !== current) {
     drift.push(
       `TODO.md's first unchecked item is ${todo.first.id}, not ${current} ` +
-        `(fine if the marker names a decision — check it)  [${todo.rel}:${todo.first.line}]`,
+        `— the row order IS the execution order, so move the row (or the marker)  [${todo.rel}:${todo.first.line}]`,
     );
   }
   if (current && status.mentions && !new RegExp(`\\b${current}\\b`).test(status.mentions)) {

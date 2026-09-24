@@ -27,9 +27,10 @@
 //   the anchor contract in scripts/lib/roadmap-read.mjs. Writing four files
 //   off a silent miss is how you corrupt four files.
 // - Apply anything without --confirm. It prints a unified diff and stops.
-// - Guess which milestone becomes current. `--next <id>` is required, because
-//   nothing in this repo states the execution order in a form a script can
-//   read — see the comment at that check, and KI-2026-09-21-a.
+// - Guess which milestone becomes current. It reads it: TODO.md's unticked
+//   milestone rows, top down and skipping PAUSED ones, are the execution order
+//   (2026-09-24, KI-2026-09-21-a). `--next <id>` is an optional assertion of
+//   the same answer, and a disagreement is refused, not obeyed.
 //
 // WHAT IT DOES THAT NO CHECKLIST STEP SAYS
 //
@@ -220,77 +221,61 @@ function close(id, { confirm, nextId }) {
     process.exit(1);
   }
 
-  // The next milestone is the first unticked one after this in the index —
-  // that is, TODO.md's ROW ORDER.
+  // **The next milestone is the next unticked MILESTONE ROW in TODO.md**,
+  // skipping rows marked PAUSED. Row order is the execution order (Mitchell,
+  // 2026-09-24): a reorder moves the rows, so position carries the order and
+  // this can read it.
   //
-  // **That default is wrong whenever the roadmap has been reordered, and
-  // TODO.md's own header says so:** "read the marker, not the position. The
-  // list is deliberately out of order: Mitchell reorders it, and a reorder
-  // moves the marker without moving the rows." So position tells you nothing
-  // about what comes next, and this derivation is reading it as if it did.
+  // History, because it is why the rule exists: until 2026-09-24 TODO.md's
+  // header said "read the marker, not the position", reorders moved only the
+  // marker, and closing M26 on 2026-09-21 this derivation proposed M12 when
+  // the recorded order was M26 → M13 → M12. The interim answer was to REQUIRE
+  // `--next` (PR #200). KI-2026-09-21-a asked for one machine-readable order
+  // instead; making the rows that order is the choice that was taken.
   //
-  // Caught 2026-09-21 closing M26: the recorded order is
-  // `… → M26 → M13 → M12 → …` (README's order line, and STATUS's), but M13
-  // sits BELOW M12 in TODO.md, so this would have quietly made **M12**
-  // current — four files written to the wrong milestone, which is the exact
-  // class of corruption assertAnchors() exists to prevent one door along.
-  //
-  // `--next <id>` is the escape hatch, not the fix. The fix is a
-  // machine-readable order this could read instead of a row position; the
-  // seven arrow-lines in README.md are prose and six of them are historical,
-  // so parsing one would be a guess and this script does not guess. Filed as
-  // KI-2026-09-21-a.
-  const rowOrderGuess = idx.items.filter((m) => m.ticked === false && m.id !== id)[0];
+  // `--next` survives as an ASSERTION, not an override: if it disagrees with
+  // the rows, this refuses and says to move the row. Accepting it would put the
+  // marker somewhere the rows do not agree with — the drift this closed.
+  const todo = readers["TODO.md"];
+  const sequence = todo.order.filter((row) => row.id !== id);
+  const derived = sequence[0] ?? null;
+  const pausedNote = todo.paused.length
+    ? `  (skipped as PAUSED: ${todo.paused.map((row) => row.id).join(", ")})\n`
+    : ``;
 
-  // **`--next` is REQUIRED, and the row-order candidate above is printed only
-  // to be distrusted.** The first version of this shipped `--next` as an
-  // optional override and left the row-order derivation as the default, which
-  // CodeRabbit correctly called out on PR #200: a default that the file's own
-  // comment, a regression test and a known-issue entry all say is wrong is
-  // still what runs when nobody passes the flag. Documenting a trap and then
-  // leaving it armed is the `.gitignore` mistake from earlier on this same
-  // branch — a guard that covers most of a case reads as covering the case.
-  //
-  // Refusing is this script's idiom, not a new posture: it already refuses an
-  // open gate, a parse that found nothing, and a write without `--confirm`.
-  // One more refusal is cheaper than one wrong four-file write, and this
-  // command runs about once per milestone.
-  if (!nextId) {
+  if (!derived) {
     console.error(
-      `milestone close: --next <id> is required. Nothing written.\n` +
-        `  Which milestone becomes current is NOT derivable from this repo: TODO.md's\n` +
-        `  header says "read the marker, not the position", so a row order carries no\n` +
-        `  information about what comes next, and the arrow-lines in\n` +
-        `  docs/milestones/README.md are prose (six of the seven are historical).\n` +
-        (rowOrderGuess
-          ? `  For reference only, the next unticked ROW is ${rowOrderGuess.id} — that is a\n` +
-            `  guess with no authority, and on M26 it was wrong. Check the live order line\n` +
-            `  near "Current milestone" before choosing.\n`
-          : ``) +
-        `  See KI-2026-09-21-a.`,
+      `milestone close: no unticked, un-paused milestone row follows ${id} in TODO.md, ` +
+        `so there is nothing to make current. Nothing written.\n` +
+        pausedNote +
+        `  Add or un-pause the next milestone's row, then re-run.`,
+    );
+    process.exit(1);
+  }
+  if (nextId && nextId !== derived.id) {
+    const known = idx.items.find((m) => m.id === nextId);
+    console.error(
+      (known
+        ? `milestone close: --next ${nextId} disagrees with TODO.md's row order, whose next ` +
+          `un-paused row is ${derived.id} [TODO.md:${derived.line}]. Nothing written.\n` +
+          `  The rows ARE the order: move ${nextId}'s row above ${derived.id}'s (and record the ` +
+          `reorder in docs/milestones/README.md), then re-run.\n`
+        : `milestone close: --next ${nextId} is not a milestone in TODO.md. Nothing written.\n`) +
+        pausedNote,
     );
     process.exit(1);
   }
 
-  const next = idx.items.find((m) => m.id === nextId);
+  const next = idx.items.find((m) => m.id === derived.id);
   if (!next) {
-    console.error(`milestone close: --next ${nextId} is not a milestone in TODO.md. Nothing written.`);
-    process.exit(1);
-  }
-  if (next.ticked) {
-    console.error(`milestone close: --next ${nextId} is already ticked, so it cannot become current. Nothing written.`);
-    process.exit(1);
-  }
-  if (next.id === id) {
-    console.error(`milestone close: --next ${nextId} is the milestone being closed. Nothing written.`);
-    process.exit(1);
-  }
-  if (rowOrderGuess && rowOrderGuess.id !== next.id) {
-    console.log(
-      `NOTE: --next ${next.id} differs from the first unticked ROW (${rowOrderGuess.id}). ` +
-        `That is expected whenever the roadmap has been reordered; see KI-2026-09-21-a.`,
+    console.error(
+      `milestone close: TODO.md's next row names ${derived.id}, which has no file in ` +
+        `docs/milestones/. Nothing written.`,
     );
+    process.exit(1);
   }
+  console.log(`next: ${next.id} — the next un-paused row in TODO.md [TODO.md:${derived.line}]`);
+  if (pausedNote) console.log(pausedNote.trimEnd());
 
   const files = {
     "TODO.md": read("TODO.md"),
@@ -357,9 +342,10 @@ function close(id, { confirm, nextId }) {
 function main() {
   const [cmd, id, ...rest] = process.argv.slice(2);
   if (cmd !== "close" || !id) {
-    console.error("usage: pnpm milestone close <id> --next <id> [--confirm]");
+    console.error("usage: pnpm milestone close <id> [--next <id>] [--confirm]");
     console.error("  Runs the gate-close checklist across TODO.md, milestones/README.md");
-    console.error("  and candidates.md. Prints a diff and stops unless --confirm.");
+    console.error("  and candidates.md. Prints a diff and stops unless --confirm. The next");
+    console.error("  milestone is TODO.md's next un-paused row; --next only asserts it.");
     process.exit(1);
   }
   const nextFlag = rest.indexOf("--next");
