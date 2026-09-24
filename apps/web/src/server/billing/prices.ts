@@ -183,6 +183,14 @@ export interface PriceCheckRow {
 }
 
 /**
+ * The plan file's price narrowed to what a row reports. A spread would also
+ * carry `stripePriceId` to the console under a type that does not declare it.
+ */
+function committedOf(price: { minor: number; currency: string }): { minor: number; currency: string } {
+  return { minor: price.minor, currency: price.currency };
+}
+
+/**
  * **The gate box, as a function**: every published priced version's Stripe
  * Price resolves to one with the same amount and currency.
  *
@@ -200,7 +208,7 @@ export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
     if (entry.price === null || lookupKey === null) {
       rows.push({
         ref,
-        committed: entry.price === null ? null : { ...entry.price },
+        committed: entry.price === null ? null : committedOf(entry.price),
         stripe: null,
         verdict: "unpriced",
       });
@@ -208,7 +216,7 @@ export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
     }
     const price = await findPriceByLookupKey(lookupKey);
     if (price === null) {
-      rows.push({ ref, committed: { ...entry.price }, stripe: null, verdict: "missing" });
+      rows.push({ ref, committed: committedOf(entry.price), stripe: null, verdict: "missing" });
       continue;
     }
     const matches =
@@ -217,7 +225,7 @@ export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
       price.recurring?.interval === "month";
     rows.push({
       ref,
-      committed: { ...entry.price },
+      committed: committedOf(entry.price),
       stripe: { id: price.id, ...statedBy(price) },
       verdict: matches ? "ok" : "mismatch",
     });
@@ -249,9 +257,32 @@ export type PriceConsistencyReport =
  */
 export async function priceConsistencyReport(): Promise<PriceConsistencyReport> {
   if (!billingConfigured()) return { status: "unconfigured" };
+  // **Bounded here, not by shortening `stripeRequest`'s own timeout**, which
+  // checkout shares and which is right for a buyer waiting on one call. The
+  // sweep makes its calls one version after another, so a stalled Stripe would
+  // otherwise hold the whole console for that timeout per priced version.
+  // Losing the race abandons the sweep's result, not its requests: those run
+  // on to their own timeout, and they are GETs.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<PriceConsistencyReport>((resolve) => {
+    timer = setTimeout(
+      () => resolve({ status: "unavailable", reason: "timed out" }),
+      PRICE_CHECK_DEADLINE_MS,
+    );
+  });
+  const sweep = checkPriceConsistency().then(
+    (rows): PriceConsistencyReport => ({ status: "checked", rows }),
+    (error: unknown): PriceConsistencyReport => ({
+      status: "unavailable",
+      reason: error instanceof Error ? error.message : String(error),
+    }),
+  );
   try {
-    return { status: "checked", rows: await checkPriceConsistency() };
-  } catch (error) {
-    return { status: "unavailable", reason: error instanceof Error ? error.message : String(error) };
+    return await Promise.race([sweep, deadline]);
+  } finally {
+    clearTimeout(timer);
   }
 }
+
+/** How long the console waits for the price sweep before reporting it `unavailable`. */
+export const PRICE_CHECK_DEADLINE_MS = 3_000;
