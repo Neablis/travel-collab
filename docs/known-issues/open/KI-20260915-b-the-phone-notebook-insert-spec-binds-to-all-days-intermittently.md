@@ -1,6 +1,7 @@
 ### KI-2026-09-15-b — the phone Notebook insert spec intermittently finds the widget bound to "All days"
 
 - **Severity:** test reliability — one e2e spec, phone lane. No evidence yet of a product defect; the same walk passes on the next run with no change.
+- **Milestone:** **M14, carried (assigned 2026-09-24, KI pass)** — owned by M14 (the notebook/widget builder), not a gate box. Listed in `docs/milestones/M14-rich-layer.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/e2e/m14-mobile-notebook.spec.ts:94` — *"insert is one sheet with a bind step, and the widget lands already pointed"*. The assertion is `expect(widget-settings button /: dates/).not.toHaveText("All days")`.
 - **What is wrong:** the inserted widget is expected to land bound to the day chosen in the sheet's bind step, and sometimes lands on the default `All days` instead. The failure is an assertion, not a timeout, and it names the same locator every time.
 - **How it came to light:** three consecutive `pnpm --filter web test:e2e:ci-like` runs on `claude/keen-darwin-qkkq41` (2026-09-15, M21 Phase 3/4). Run A: failed on the first attempt AND on Playwright's retry. Run B: passed. Run C: failed once, passed on retry — reported as `1 flaky`. So it is intermittent rather than broken, and intermittent in a way that survives one retry.

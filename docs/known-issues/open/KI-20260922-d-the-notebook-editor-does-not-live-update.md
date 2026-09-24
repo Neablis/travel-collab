@@ -2,6 +2,7 @@
 
 - **Severity:** a gap in live collaboration, deliberately left. Not a defect —
   the alternative that "fixes" it destroys work.
+- **Milestone:** **M14, carried (assigned 2026-09-24, KI pass)** — owned by M14 (the notebook/widget builder), not a gate box. Listed in `docs/milestones/M14-rich-layer.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/components/pages/PageScreen.tsx`.
 
 - **What happens.** Two people open the same notebook page. One edits and the

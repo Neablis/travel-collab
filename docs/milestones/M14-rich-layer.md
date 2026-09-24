@@ -767,3 +767,21 @@ this milestone should make**, since it owns the vocabulary.
 binds afterwards in §26's settings panel, because ADR-039 decision 2 makes an
 unbound filter mean *everything*, so every row is ready as soon as it lands.
 That is convergent, not drift, and **the handoff owes the reconciliation.**
+
+## Parked 2026-09-24 — notebook and widget entries with no owner
+
+A KI pass on 2026-09-24 found seven open entries about the notebook, its widgets
+or its history that named no milestone. They are this milestone's surface, so
+they are parked here. **One is a gate box already** (KI-2026-09-05-h — *"Adding a
+filter dimension cannot be silently ignored"*); the rest are **carried, not
+gating**. Each entry's own **Milestone:** line points back here.
+
+| KI | What it is | Gate? |
+|---|---|---|
+| KI-2026-09-05-h | `narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default | **gate box** |
+| KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | carried |
+| KI-2026-09-15-b | The phone Notebook insert e2e spec intermittently finds the widget bound to "All days" | carried |
+| KI-2026-09-20-g | The widget container is built four times and none matches the design | carried |
+| KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
+| KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |
+| KI-2026-09-22-d | An open notebook editor does not show a co-traveller's edit, deliberately, until it can do so safely | carried |

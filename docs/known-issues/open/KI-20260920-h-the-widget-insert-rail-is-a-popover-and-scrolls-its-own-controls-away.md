@@ -4,6 +4,7 @@
   remains is a structural gap between the build's insert surface and the
   design's, plus the row treatment — cosmetic, but it is the panel a person
   looks at every time they add anything to a page.
+- **Milestone:** **M14, carried (assigned 2026-09-24, KI pass)** — owned by M14 (the notebook/widget builder), not a gate box. Listed in `docs/milestones/M14-rich-layer.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/components/pages/WidgetInsert.tsx` (the desktop
   Popover), `apps/web/src/components/pages/WidgetPicker.tsx` (the header and the
   rows). Design: `.design-sync/handoff/design/Trip Planner Redesign.dc.html:3956-4000`;

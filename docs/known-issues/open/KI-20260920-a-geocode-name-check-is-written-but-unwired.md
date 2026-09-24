@@ -3,6 +3,7 @@
 - **Severity:** real, silent, and already shipping. Every defect KI-39 describes
   is live today: the module written to reject a wrong-VENUE geocode match has no
   caller anywhere in the repo, so nothing rejects one.
+- **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/server/ai/geocodeNameMatch.ts` (`placeNameVerdict`,
   `candidateOwnName`, `distinctiveTokens`, `nameTokens`) and whichever geocode
   acceptance path should consult it — `geocodeRegion.ts`'s `withinBox` is the

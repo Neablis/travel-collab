@@ -222,6 +222,12 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
 - [ ] The full Definition of Done is green, and a retro is appended at gate
       close.
 
+## Parked 2026-09-24
+
+| KI | What it is |
+|---|---|
+| KI-2026-08-30-g | The UI barely reads `kind`, so a stop that IS travel looks like any other stop. This milestone's `mode` and two-location legs are the first surfaces that must read it; **carried, not gating** — a fixer here should take it while the leg rendering is open |
+
 ## Deliberately not here
 
 - **Rebuilding the Calendar's travel-day split.** This milestone makes it

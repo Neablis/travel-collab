@@ -4,6 +4,7 @@
   *Already done* below). The remaining three are drift rather than defect: the
   boxes differ from the design and from each other in ways a person notices as
   "these two widgets look like different products" rather than as breakage.
+- **Milestone:** **M14, carried (assigned 2026-09-24, KI pass)** — owned by M14 (the notebook/widget builder), not a gate box. Listed in `docs/milestones/M14-rich-layer.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/components/pages/MacroView.tsx:259`,
   `apps/web/src/components/pages/blocks/ItineraryTripBlock.tsx:52`,
   `apps/web/src/components/pages/blocks/CityDetailBlock.tsx:28`,

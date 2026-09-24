@@ -1,6 +1,7 @@
 ### KI-2026-09-17-b — LocationIQ pacing is per-invocation, so concurrent lookups can exceed the key's rate limit
 
 - **Severity:** reliability (a 429 degrades a lookup to `unavailable`; it loses grounding for that query rather than corrupting anything)
+- **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/server/ai/assistantPorts.ts` (`createPlaceSearchPort`'s `vendorCalled` pacing), `apps/web/src/server/ai/geocodeEnrichment.ts` (`mapRateLimited`), `apps/web/src/server/ai/rateLimit.ts` (`REQUESTS_PER_SECOND = 2`), `apps/web/src/server/savedDayPins.ts` (`pinStops`, `MIN_INTERVAL_MS`)
 - **Symptom:** both callers pace themselves correctly and neither paces against the other. `vendorCalled` is a local in one `search` invocation, and `mapRateLimited` sequences one enrichment call. Two turns in flight — or one turn's `search_places` overlapping another's enrichment — each honour two requests per second on their own while the shared LocationIQ key sees four. The vendor answers 429; `search` catches it and records `skipped: "unavailable"` for that query, so a grounded plan silently loses a citation.
 - **Found by:** CodeRabbit, PR #188, with static analysis. M9's grounding is what made it reachable: before `search_places`, enrichment was the only door into the key.

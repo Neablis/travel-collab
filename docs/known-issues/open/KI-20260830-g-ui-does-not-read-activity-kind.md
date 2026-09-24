@@ -1,5 +1,6 @@
 ### KI-2026-08-30-g — The UI barely reads `kind`, so a stop that IS travel looks like any other stop
 - **Severity:** cosmetic / design delta (nothing is wrong on screen; the app just knows something it does not use)
+- **Milestone:** **M24, carried (assigned 2026-09-24, KI pass)** — owned by M24 (a leg knows where it goes and by what), not a gate box. Listed in `docs/milestones/M24-travel-legs.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/components/lenses/TimelineLens.tsx` (`Leg`), and more generally every surface that renders a stop — `packages/contracts/src/activity.ts` (`ActivityKind`), `apps/web/src/components/board/activityKind.ts`.
 - **What is true today.** M18 gave a stop a real `kind` (`booked` / `hold` / `idea` / `transit` / `planned`), and exactly three things read it:
   1. `activityKind.ts` — the badge on a stop card (`transit` shows **Travel**), and the picker.

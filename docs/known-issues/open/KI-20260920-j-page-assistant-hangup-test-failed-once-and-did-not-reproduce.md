@@ -3,6 +3,7 @@
 - **Severity:** unknown, and that is the entry. Either a real race in the
   hang-up path or a scheduling artefact of running twelve files together. One
   observation is not enough to say which.
+- **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/components/pages/PageAssistant.test.tsx` → *"hangs up
   on a turn in flight when the assistant is closed"*.
 

@@ -1,4 +1,4 @@
-### KI-2026-09-08-b — `pnpm --filter` aborts in a cloud session: the installed `node_modules` was written by a different pnpm major than the one on PATH
+### KI-2026-09-08-b — `pnpm --filter` aborts in a cloud session: the installed `node_modules` was written by a different pnpm major than the one on PATH — RESOLVED
 
 - **Severity:** friction (blocks every documented per-package command in a cloud container until a workaround is found; no product impact)
 - **Area:** the container image / `node_modules/.modules.yaml` vs the repo's pinned `packageManager`; affects every command in `docs/guidelines/` and in the `minimal-check-subset` skill that is written as `pnpm --filter <pkg> <script>`
@@ -46,5 +46,6 @@
   workaround is still what they need, and the image-level fix (install with the
   pnpm major that is on PATH, or an `.npmrc` line) is still unmade.
 
+- **Resolved 2026-09-24 (KI pass) — the session's own install closed it, and a probe watches it.** `.claude/hooks/session-start.sh`'s `CLAUDE_CODE_REMOTE` branch runs `pnpm install` with the pnpm on PATH before anything else, so `node_modules/.modules.yaml` is rewritten by the same major that later runs `pnpm --filter`, and `scripts/lane-probe.mjs` (probe 2) compares the two at every session start. Proof, in a cloud session on 2026-09-24: `.modules.yaml` records `"packageManager": "pnpm@11.25.0"`, `pnpm --version` prints `11.25.0`, the lane probe prints `OK  pnpm --filter  pnpm 11.x wrote node_modules`, and the bare, flag-less commands this entry said abort now run — `pnpm --filter web exec node -e "console.log('web filter ok')"` → `web filter ok`, `pnpm --filter @tc/contracts exec node -e …` → `filter ok`. **What this does not cover:** an agent worktree that never runs `SessionStart` (KI-2026-09-12-b, still open) has no `node_modules` at all — a different failure, owned by that entry; a sweep's fixers run `pnpm install` in their worktree first. No check subset applies — nothing but this file changed.
 - **Cross-reference:** `docs/guidelines/cloud-agent-sessions.md` (the natural home for the workaround once confirmed on a second session); KI-2026-09-02 (Node 26 breaking the local unit lane while CI stays green — the same shape: a toolchain skew that only bites outside CI); `.claude/skills/minimal-check-subset/`.
 - **First noted:** 2026-09-08, in a Claude Code cloud session, while running the Tier 2 subset for the shared-day → new-trip branch.

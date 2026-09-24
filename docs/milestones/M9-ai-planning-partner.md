@@ -467,6 +467,28 @@ open — but **not gate boxes**, and the gate does not wait on them.
 The full inventory each of those rows summarises, with severities, is in the
 audit: `docs/reviews/2026-09-01-milestone-audit.md` §3a.
 
+### Parked 2026-09-24 — nine AI entries filed after the 2026-09-01 audit
+
+The 2026-09-01 rule — *every open AI known issue belongs to this milestone* — was
+applied once, to the entries open that day. Nine more have been filed since and
+named no owner. A KI pass on 2026-09-24 parked them here, each **carried, not
+gating**, by the same test as above (none has to be true before `ai-live` flips;
+KI-2026-09-17-c and KI-2026-09-14-b come closest, and both are accounting on a
+path that already records usage). Each entry's own **Milestone:** line points
+back here.
+
+| KI | What it is |
+|---|---|
+| KI-2026-09-05-ad | The notebook assistant is page-scoped but has no page read, so it cannot answer what is on the page |
+| KI-2026-09-08-c | The simulated assistant answers a library request with invented sample stops |
+| KI-2026-09-12-f | `ProposalBuffer.collected()` is a shallow copy; the comment promises a real one |
+| KI-2026-09-14-b | The `ai_usage` row is best-effort on the abort and error paths |
+| KI-2026-09-16-a (truncated tool input) | A tool call with cut-off arguments ends the whole turn — found by the replay harness, cited above |
+| KI-2026-09-17-b | LocationIQ pacing is per invocation, so concurrent lookups can exceed the key's rate |
+| KI-2026-09-17-c | An escalated turn records all of its usage against the model it started on |
+| KI-2026-09-20-a | KI-39's wrong-venue geocode check is written, tested, and wired to nothing — grounding's to wire |
+| KI-2026-09-20-j | The page assistant's "hangs up on a turn in flight" test failed once and has not reproduced |
+
 ## 2026-09-19 — three designed surfaces routed here by the parity survey
 
 From M26's five-survey sweep (`docs/milestones/M26-design-parity.md`). M26 is a
