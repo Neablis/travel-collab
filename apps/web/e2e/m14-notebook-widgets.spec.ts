@@ -1806,9 +1806,18 @@ test("the weather widget is the quiet placeholder while outside data is offline,
 // involved either way.
 test("the weather table heads its columns and fits the notebook column without scrolling", async ({ page }) => {
   const tripId = await createMappedTrip(page, e2eTripName("WeatherFit"), 2);
-  const forecastOn = (date: string) => ({
+  // Answered for the trip's OWN days and cities: `mappedTrip` starts ten days
+  // from today, and a point that matches no day is not drawn at all.
+  const detail = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as {
+    trip: { days: { date: string | null; activityIds: string[] }[]; activities: Record<string, { location?: { city?: string } | null }> };
+  };
+  const located = detail.trip.days.map((day) => ({
+    date: day.date!,
+    city: day.activityIds.map((id) => detail.trip.activities[id]?.location?.city).find((c) => c !== undefined)!,
+  }));
+  const forecastOn = ({ date, city }: { date: string; city: string }) => ({
     date,
-    city: "Kyoto",
+    city,
     forecast: {
       source: "met-norway", asOf: "2027-05-31T06:00:00Z", highC: 27.4, lowC: 18.1, precipitationMm: 2.14,
       symbol: "lightrainshowersandthunder_day", hours: [],
@@ -1819,7 +1828,7 @@ test("the weather table heads its columns and fits the notebook column without s
     },
   });
   await page.route("**/api/trips/*/weather", (route) =>
-    route.fulfill({ json: { weather: { points: [forecastOn("2027-06-01"), forecastOn("2027-06-02")] } } }),
+    route.fulfill({ json: { weather: { points: located.map(forecastOn) } } }),
   );
   await openOverviewOf(page, tripId);
   await insertFromList(page, /Weather/, "weather");
