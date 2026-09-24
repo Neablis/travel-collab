@@ -13,6 +13,41 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — value kinds `enum` and `location`, a `list` flag, and three mislabelled globals (M14 T05)
+
+- **Added:** `VALUE_KINDS` gains `enum` (a closed vocabulary — activity kind,
+  tag, M24's transit `mode`) and `location` (a `Location`, printed as a place).
+  `AttributeField` and `AttributeEntry`'s `value` branch gain an optional
+  `list: true`.
+- **List representation — a flag beside the kind, derived from the schema.**
+  `list` is present exactly when the annotated field unwraps to a `ZodArray`,
+  and `valueKind` then names the element. Not one list-kind per scalar kind
+  (`textList`, `countList`, …), which would double a set whose whole value is
+  being small and closed, and give every future formatter table two entries
+  per kind. Not a declared flag on `described()` either (`{ kind, list }`):
+  that is a second fact the author can get wrong against the schema right next
+  to it — exactly how `cities` came to be labelled a scalar. `described()` and
+  its WeakMap are unchanged.
+- **Fixed labels (`TripGlobals`):** `TripGlobalsTag.tag` is `enum`, not `text`.
+  `TripGlobalsDay.cities` (`text`) and `TripGlobalsCity.dayIndexes` (`count`)
+  keep their kinds, which now name the element, and the manifest reports both
+  with `list: true` — before, a formatter picked by kind would have printed an
+  array as one string or one number. `TripGlobals.days` / `.cities` / `.tags`
+  lose their `"text"` kind for a bare `.describe()`: a collection is walked,
+  never printed, and the manifest had been dropping that kind silently.
+- **Changed:** `buildAttributeManifest()` publishes a described top-level array
+  of scalars as a `value` with `list: true`; it used to skip one. No root has
+  such a field today.
+- Why: M14's field-widget review (2026-09-24, gap 3) — the widget will expose
+  activity fields the old five kinds could not describe.
+- Consumers updated: none needed. Nothing outside `packages/contracts` reads
+  `ValueKind`, `valueKindOf` or the manifest yet (the per-kind formatter table
+  in `@tc/pages` is the next build step and will be exhaustive over this set).
+  No fixture change: `TripGlobals`' parsed shape is identical, so no data field
+  was added.
+- Breaking? no — both schema changes are additive and optional, and
+  `TripGlobals` parses exactly what it did.
+
 ## 2026-09-24 — `TripSummary.startDate` (KI-034)
 
 - **Changed:** `TripSummary` gains `startDate: string (YYYY-MM-DD) | null`,

@@ -59,6 +59,9 @@ import { VALUE_KINDS, unwrapSchema as unwrap, valueKindOf } from "./valueKind.ts
 // parses the builder's output through it, so a malformed entry is a test
 // failure rather than a shape nobody checks.
 const ValueKindSchema = z.enum(VALUE_KINDS);
+// Present only on an array field; `valueKind` then names each element. Never
+// declared by hand — see `VALUE_KINDS` for why a list is not a kind.
+const ListFlag = z.literal(true).optional();
 
 /** What can be read off one member of a collection. */
 export const AttributeField = z.object({
@@ -68,6 +71,7 @@ export const AttributeField = z.object({
   // A picker can list it and a generic widget cannot print it, which is the
   // honest degradation rather than guessing a formatter.
   valueKind: ValueKindSchema.optional(),
+  list: ListFlag,
 }).strict();
 export type AttributeField = z.infer<typeof AttributeField>;
 
@@ -78,6 +82,7 @@ export const AttributeEntry = z.discriminatedUnion("kind", [
     field: z.string().min(1),
     label: z.string().min(1),
     valueKind: ValueKindSchema.optional(),
+    list: ListFlag,
   }).strict(),
   z.object({
     kind: z.literal("collection"),
@@ -130,6 +135,16 @@ function describedLabel(schema: z.ZodTypeAny): string | undefined {
   return schema.description ?? unwrap(schema).description;
 }
 
+// How to print one field: its kind, and whether there are many. `list` is read
+// off the schema rather than declared, so it cannot disagree with it.
+function printable(schema: z.ZodTypeAny): Pick<AttributeField, "valueKind" | "list"> {
+  const valueKind = valueKindOf(schema);
+  return {
+    ...(valueKind ? { valueKind } : {}),
+    ...(unwrap(schema) instanceof z.ZodArray ? { list: true as const } : {}),
+  };
+}
+
 /**
  * The manifest, computed by reflection over the declared roots.
  *
@@ -146,23 +161,20 @@ export function buildAttributeManifest(): AttributeEntry[] {
       // Gate 2: no description, not in the manifest.
       if (label === undefined) continue;
       const inner = unwrap(field);
-      if (inner instanceof z.ZodArray) {
-        const element = unwrap(inner.element as z.ZodTypeAny);
-        // An array of anything but an object is not addressable as a
-        // collection — there are no fields to pick from — so it is skipped
-        // rather than published as a collection with none.
-        if (!(element instanceof z.ZodObject)) continue;
+      const element = inner instanceof z.ZodArray ? unwrap(inner.element as z.ZodTypeAny) : undefined;
+      // Only an array of objects is a collection — it has fields to pick from.
+      // An array of scalars used to be skipped here; it is now a list value,
+      // since `list` gives a formatter what it needs to print one.
+      if (element instanceof z.ZodObject) {
         const fields = Object.entries(element.shape as Record<string, z.ZodTypeAny>)
           .flatMap(([name, member]): AttributeField[] => {
             const memberLabel = describedLabel(member);
             if (memberLabel === undefined) return [];
-            const memberKind = valueKindOf(member);
-            return [{ field: name, label: memberLabel, ...(memberKind ? { valueKind: memberKind } : {}) }];
+            return [{ field: name, label: memberLabel, ...printable(member) }];
           });
         entries.push({ kind: "collection", object, collection: key, label, fields });
       } else {
-        const fieldKind = valueKindOf(field);
-        entries.push({ kind: "value", object, field: key, label, ...(fieldKind ? { valueKind: fieldKind } : {}) });
+        entries.push({ kind: "value", object, field: key, label, ...printable(field) });
       }
     }
   }

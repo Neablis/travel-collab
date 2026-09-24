@@ -37,6 +37,13 @@ import { described, type ValueKind } from "./valueKind.ts";
 // `costSubtotal` was indistinguishable from `activityCount`, so the manifest
 // could name a field and still not say how to print it — which is most of what
 // it exists to do.
+//
+// For an array the kind names the ELEMENT, and the manifest adds `list: true`
+// from the schema itself — so `cities` below is `text`, not a list-kind. The
+// collections on `TripGlobals` take a bare `.describe()`: a collection is walked
+// for its members' fields and never printed, so a kind on it has nothing to
+// mean. All three were once `described("text", …)`, a kind the manifest dropped
+// without a word (M14 field-widget review, 2026-09-24).
 
 export const TripGlobalsDay = z.object({
   index: described("count", "Day number, counting from 0", z.number().int().nonnegative()),
@@ -59,7 +66,7 @@ export const TripGlobalsCity = z.object({
 export type TripGlobalsCity = z.infer<typeof TripGlobalsCity>;
 
 export const TripGlobalsTag = z.object({
-  tag: described("text", "The tag", ActivityTag),
+  tag: described("enum", "The tag", ActivityTag),
   activityCount: described("count", "How many stops carry this tag", z.number().int().nonnegative()),
 });
 export type TripGlobalsTag = z.infer<typeof TripGlobalsTag>;
@@ -70,9 +77,9 @@ export type TripGlobalsTag = z.infer<typeof TripGlobalsTag>;
 // empty `people: []` here would be worse than its absence — it would read as
 // "this trip has nobody on it" rather than "this build cannot answer that".
 export const TripGlobals = z.object({
-  days: described("text", "Every day of the trip", z.array(TripGlobalsDay)),
-  cities: described("text", "Every city the trip touches", z.array(TripGlobalsCity)),
-  tags: described("text", "Every tag in use on this trip", z.array(TripGlobalsTag)),
+  days: z.array(TripGlobalsDay).describe("Every day of the trip"),
+  cities: z.array(TripGlobalsCity).describe("Every city the trip touches"),
+  tags: z.array(TripGlobalsTag).describe("Every tag in use on this trip"),
   bookedCount: described("count", "How many stops are booked", z.number().int().nonnegative()),
 });
 export type TripGlobals = z.infer<typeof TripGlobals>;
