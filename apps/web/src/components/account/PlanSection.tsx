@@ -75,6 +75,11 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
   );
 }
 
+/** The signup URL that arrives with `code` already in the invite-code field. */
+function referralLink(code: string): string {
+  return `${window.location.origin}/signup?code=${encodeURIComponent(code)}`;
+}
+
 /**
  * **This took an `onNavigate` prop until M26 link 1, and it is gone.**
  *
@@ -92,11 +97,6 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
  * threading a plan through every one of them would make an unrelated surface
  * care about entitlements.
  */
-/** The signup URL that arrives with `code` already in the invite-code field. */
-function referralLink(code: string): string {
-  return `${window.location.origin}/signup?code=${encodeURIComponent(code)}`;
-}
-
 export function PlanSection() {
   const [plan, setPlan] = useState<AccountPlanView | null>(null);
   const [failed, setFailed] = useState(false);
