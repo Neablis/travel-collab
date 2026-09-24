@@ -1,13 +1,15 @@
 name: ci
 
-# Path filters, draft gating and the concurrency block below exist because CI
-# minutes are a real budget, not a free resource: this repo is private on a
-# GitHub Free plan, so it gets 2,000 Linux minutes/month and nothing more. A
-# measured 30-day sample (2026-07-28 → 2026-08-27) burned 1,956 of them, and
-# the last six days of that window ran at ~281 min/day — a ~8,400 min/month
-# pace. `docs/guidelines/ci-cost-and-capacity.md` has the full accounting and
-# the reasoning behind each lever here; change these blocks against that
-# document rather than against intuition about what "looks wasteful".
+# Path filters, draft gating and the concurrency block below were introduced
+# when CI minutes were a hard budget (private repo, GitHub Free, 2,000
+# min/month; a 30-day sample to 2026-08-27 burned 1,956). The repo went public
+# on 2026-08-31, so hosted-runner minutes are now unlimited and the minute
+# figures in the comments below are history, not a cap. The levers stay for
+# wall clock and signal: every run an agent or reviewer waits on costs session
+# time and Claude tokens. `docs/guidelines/ci-cost-and-capacity.md` has the
+# full accounting and the current reasoning behind each lever; change these
+# blocks against that document rather than against intuition about what
+# "looks wasteful".
 on:
   # Pull requests only. A push to `main` used to re-run all of this to gate an
   # automatic production migration; that migration is now dispatched
@@ -98,7 +100,8 @@ jobs:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     # Runaway cap, not a performance budget. The default is 360 minutes: one
-    # wedged run would bill 18% of the 2,000-minute monthly cap on its own.
+    # wedged run would hold a runner and a waiting PR for six hours (and, when
+    # the repo was private, would have billed 18% of its 2,000-minute cap).
     # This job averages 4.6 min of measured job time (see
     # docs/guidelines/ci-cost-and-capacity.md) and its slowest step is
     # `pnpm test` at ~160s, so 15 leaves >3x headroom for a slow runner or a

@@ -2,10 +2,11 @@
 #
 # Why this file exists: CodeRabbit ran unconfigured until 2026-08-24 and was
 # producing 26-30 inline comments per PR (#32: 26, #27: 30 across 26 separate
-# review events), most of them nitpick-tier, all of them triaged by hand. It
-# stays a required check — it caught a real fire-and-forget navigation race in
-# M10 Wave 2 Phase 7 that no test covered — but it should spend its comments on
-# this repo's actual invariants rather than on prose style in `docs/`.
+# review events), most of them nitpick-tier, all of them triaged by hand. It is
+# worth keeping — it caught a real fire-and-forget navigation race in M10 Wave
+# 2 Phase 7 that no test covered — but it is NOT a required check (see the
+# correction and decision below), and it should spend its comments on this
+# repo's actual invariants rather than on prose style in `docs/`.
 #
 # CORRECTION 2026-09-01 (KI-2026-09-01): "required check" is not true and
 # `auto_review.enabled: true` below is no longer sufficient. This repo is
