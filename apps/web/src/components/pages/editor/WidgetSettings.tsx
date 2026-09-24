@@ -57,7 +57,7 @@ export function WidgetSettings({
   // elsewhere in the page does not re-render the panel.
   const block = useEditorState({ editor, selector: ({ editor: e }) => selectedBlock(e.state) });
   const repeat = useEditorState({ editor, selector: ({ editor: e }) => selectedRepeat(e.state) });
-  if (repeat !== null) return <RepeatSettings editor={editor} repeat={repeat} />;
+  if (repeat !== null) return <RepeatSettings editor={editor} repeat={repeat} detail={detail} globals={globals} />;
   // A frame where the report has landed and the editor's selection has already
   // moved on (the selected widget was just removed). The screen closes the
   // panel on the next flush; rendering nothing until then beats rendering

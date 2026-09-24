@@ -535,8 +535,9 @@ for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
  * name should not immediately offer to unpick it.
  *
  * A repeat preset offers none at insert: which collection it reads decides
- * which filters apply, and that is chosen in the settings panel once it lands,
- * beside the sentence it is chosen for.
+ * which filters apply, and the collection is chosen in the settings panel once
+ * it lands. That panel (`RepeatSettings`) renders the chosen collection's
+ * filters beside the sentence they are chosen for.
  */
 export function presetInputs(preset: WidgetPreset): readonly WidgetInput[] {
   if (preset.repeat) return [];

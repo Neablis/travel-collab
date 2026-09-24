@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
 import type { ItemScope, WidgetContext } from "./registry-types";
 import { REPEAT_SCOPE_ORDER, SENTENCE_TEMPLATE_MAX, parseSentenceTemplate } from "@tc/contracts";
-import { DEFAULT_SENTENCES, REPEAT_WIDGETS, insertRepeat, repeatLabel, repeatOver, rescopeRepeat, resolveRepeat, type RepeatOver } from "./repeat";
+import { DEFAULT_SENTENCES, REPEAT_WIDGETS, insertRepeat, repeatLabel, repeatOver, rescopeRepeat, resolveRepeat, unknownSentenceTokens, type RepeatOver } from "./repeat";
 import { sentenceFieldAt, sentenceFields } from "./sentence";
 import { findWidgetError } from "./writeCheck";
 import { PRESETS, insertPreset, presetCatalog } from "./presets";
@@ -303,6 +303,19 @@ describe("rescopeRepeat — the collection picker", () => {
       }
     }
     expect(checked).toBeGreaterThan(20);
+  });
+});
+
+// Review of #221: what the settings panel names under the sentence, so the
+// author sees why a line shows a gap rather than a value.
+describe("unknownSentenceTokens — what the settings panel warns about", () => {
+  it("names each token the collection does not publish, once, in the order written", () => {
+    expect(unknownSentenceTokens("stop", "{nme} at {title}, {cities} and {nme} again")).toEqual(["nme", "cities"]);
+    expect(unknownSentenceTokens("day", "{index}: {cities}")).toEqual([]);
+  });
+
+  it("reads only tokens: a malformed brace or an escape is prose, not an unknown detail", () => {
+    expect(unknownSentenceTokens("city", "{ nme } {} {{nme}} {nme")).toEqual([]);
   });
 });
 

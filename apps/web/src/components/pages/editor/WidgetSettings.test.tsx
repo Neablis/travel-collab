@@ -245,6 +245,44 @@ describe("WidgetSettings for a sentence for each…", () => {
     expect((screen.getByRole("textbox", { name: "Sentence" }) as HTMLInputElement).value).toBe("Welcome to {name}");
   });
 
+  // Review of #221: the rows primitive's filters are the repeat's selection,
+  // and the panel used to offer none of them — "every city but Tokyo" could not
+  // be built, and a migrated repeat's stored filter could not be seen.
+  it("narrows which items it is for with the collection's own filters, keeping the sentence", async () => {
+    const editor = await openRepeat(repeatDoc("city.rows", { template: "Welcome to {name}" }));
+    const panel = within(screen.getByTestId("widget-settings"));
+    await userEvent.selectOptions(panel.getByRole("combobox", { name: "A sentence for each city: city" }), "Kyoto");
+    await waitFor(() => expect(repeatAttrs(editor).params).toEqual({ city: "Kyoto", template: "Welcome to {name}" }));
+    expect(lines()).toEqual(["Welcome to Kyoto"]);
+  });
+
+  it("shows a stored filter and clears it back to every item, and offers no table columns", async () => {
+    const editor = await openRepeat(repeatDoc("stop.rows", { kind: "booked", template: "{title}" }));
+    const panel = within(screen.getByTestId("widget-settings"));
+    const kind = panel.getByRole("combobox", { name: "A sentence for each stop: kind" }) as HTMLSelectElement;
+    expect(kind.value).toBe("booked");
+    // `columns` is a table's; a sentence prints a detail instead.
+    expect(panel.queryByText("Columns")).toBeNull();
+    await userEvent.selectOptions(kind, "");
+    await waitFor(() => expect(repeatAttrs(editor).params).toEqual({ template: "{title}" }));
+  });
+
+  // Review of #221: a token the collection does not publish prints as a gap on
+  // the page, so the panel says which one while the author is still typing.
+  it("names a detail the sentence asks for that the collection does not have", async () => {
+    await openRepeat(repeatDoc("city.rows", { template: "{nme} in {name}" }));
+    const sentence = screen.getByRole("textbox", { name: "Sentence" });
+    // eslint-disable-next-line testing-library/no-node-access -- the warning is found by the id the input points at, which is the relationship under test.
+    const warning = document.getElementById(sentence.getAttribute("aria-describedby") ?? "");
+    expect(warning?.textContent).toBe("{nme} isn't a detail of each city, so the page leaves a gap there.");
+    expect(lines()).toEqual(["— in Tokyo", "— in Kyoto"]);
+    await userEvent.clear(sentence);
+    // `{{` is user-event's escape for one typed `{`: this types "Hi {name}".
+    await userEvent.type(sentence, "Hi {{name}");
+    await waitFor(() => expect(lines()).toEqual(["Hi Tokyo", "Hi Kyoto"]));
+    expect(sentence.getAttribute("aria-describedby")).toBeNull();
+  });
+
   it("removes the sentence", async () => {
     const editor = await openRepeat(repeatDoc("day.rows", { template: "Day {date}" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove the sentence for each day" }));

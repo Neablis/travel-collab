@@ -89,7 +89,7 @@ function printLine(ctx: WidgetContext, item: ItemScope, parts: readonly Resolved
   return parts
     .map((part) => {
       if ("text" in part) return part.text;
-      if (!part.choice) return `{${part.field}}`;
+      if (!part.choice) return SENTENCE_NO_VALUE;
       return itemValue(ctx, item, part.choice) ?? SENTENCE_NO_VALUE;
     })
     .join("");
@@ -97,8 +97,12 @@ function printLine(ctx: WidgetContext, item: ItemScope, parts: readonly Resolved
 
 /**
  * One line of a sentence over `over`, for `item`. Text parts print as they are,
- * a token prints its field's value (or `SENTENCE_NO_VALUE`), and a token whose
- * key this collection does not publish prints as the author wrote it.
+ * and a token prints its field's value, or `SENTENCE_NO_VALUE` when there is
+ * none. **So does a token whose key this collection does not publish** —
+ * `{cities}` in a sentence over stops, or a typo like `{nme}`. Printing it as
+ * written would put raw template syntax on the page, which the product never
+ * shows a reader; the settings panel names such a token to the author instead
+ * (`unknownSentenceTokens`).
  */
 export function sentenceLine(
   ctx: WidgetContext,

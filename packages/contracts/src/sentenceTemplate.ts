@@ -12,9 +12,11 @@ import type { ManifestObject } from "./manifest.ts";
 // - `{{` is a literal `{` and `}}` a literal `}`.
 // - Anything else — a lone brace, `{ key }`, `{}`, `{a.b}` — is literal text.
 //
-// So parsing cannot fail. A malformed brace is prose the author typed, and an
-// unknown key is prose too; the resolver prints both as written. Neither is an
-// error and neither is dropped.
+// So parsing cannot fail. A malformed brace is prose the author typed, and the
+// resolver prints it as written. A well-formed token whose key the collection
+// does not publish is still a token: the resolver prints it as a gap, never as
+// raw braces, and the settings panel names it to the author. Neither is an
+// error and neither is dropped from the stored sentence.
 //
 // **Why it lives in `packages/contracts` rather than beside the resolver.** It is
 // part of the stored format — a field rename has to rewrite the tokens in every
