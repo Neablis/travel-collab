@@ -1378,6 +1378,183 @@ describe("PageScreen — a draft kept in the browser", () => {
     expect(localStorage.getItem(draftKey(page.id))).toBeNull();
     expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toEqual([]);
   });
+
+  // ── The stale-save guard (CodeRabbit, PR #222) ─────────────────────────────
+  //
+  // Every ordinary commit names the revision it was typed against, so that of
+  // two saves racing from this screen the OLDER one is refused rather than
+  // landing last and winning.
+
+  /** A page store whose revisions are known, and every PATCH body it saw. */
+  function serveRevisions(first: unknown) {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, content: first as never });
+    const bodies: Record<string, unknown>[] = [];
+    let current = page;
+    const answer = (body: Record<string, unknown>) => {
+      current = {
+        ...current,
+        ...(body.content === undefined ? {} : { content: body.content as never }),
+        updatedAt: new Date(Date.parse(current.updatedAt) + 1000).toISOString(),
+      };
+      return HttpResponse.json({ page: current });
+    };
+    const store = {
+      trip,
+      page,
+      bodies,
+      /** Replace what the server holds, as another device's save would. */
+      moveTo: (next: Partial<typeof page>) => {
+        current = { ...current, ...next, updatedAt: new Date(Date.parse(current.updatedAt) + 1000).toISOString() };
+        return current;
+      },
+      current: () => current,
+      /** Set per test: what a PATCH is answered with. Defaults to taking it. */
+      onPatch: (body: Record<string, unknown>): Response | Promise<Response> => answer(body),
+      answer,
+    };
+    server.use(
+      http.get("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ page: current })),
+      http.patch("/api/trips/:tripId/pages/:pageId", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        bodies.push(body);
+        return store.onPatch(body);
+      }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return store;
+  }
+  const pageChanged = () =>
+    HttpResponse.json({ error: "This page changed since you opened it.", code: "page-changed" }, { status: 409 });
+  const editableBox = () =>
+    screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+
+  it("names the revision it last read on every ordinary commit", async () => {
+    const store = serveRevisions(paragraph("small"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(1));
+    expect(store.bodies[0]!.expectedUpdatedAt).toBe(store.page.updatedAt);
+    const afterFirst = store.current().updatedAt;
+
+    // ...and the next session names the revision the first one produced.
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Z");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(store.bodies[1]!.expectedUpdatedAt).toBe(afterFirst);
+  });
+
+  // A keepalive with nothing ahead of it knows the revision like any commit.
+  it("names the revision on a keepalive with nothing in flight", async () => {
+    const store = serveRevisions(paragraph("small"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    window.dispatchEvent(new Event("pagehide"));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(1));
+    expect(store.bodies[0]!.expectedUpdatedAt).toBe(store.page.updatedAt);
+  });
+
+  // **The inverted case, which is the whole fix.** Commit A is in flight when
+  // the page unloads. The keepalive cannot know the revision A is about to
+  // produce, so it names none and wins by arriving; A still names its own, so
+  // if it arrives second it is refused. Naming A's base on the keepalive
+  // instead would get the keepalive, the NEWER words, refused every time A
+  // landed first.
+  it("names no revision on a keepalive that overtakes a commit in flight", async () => {
+    const store = serveRevisions(paragraph("small"));
+    store.onPatch = () => new Promise<never>(() => {});
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Z");
+    window.dispatchEvent(new Event("pagehide"));
+
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(store.bodies[0]!.expectedUpdatedAt).toBe(store.page.updatedAt);
+    expect(store.bodies[1]).not.toHaveProperty("expectedUpdatedAt");
+    expect(JSON.stringify(store.bodies[1]!.content)).toContain("Z");
+  });
+
+  // Somebody else saved the page while this one was being edited. Their words
+  // are data (invariant 3): the page shows them, and the author's are kept and
+  // OFFERED, the same offer a reload makes. Never retried as they stand: the
+  // same save would be refused again, and it would be the older document.
+  it("shows the page as it now stands on page-changed, and offers mine without retrying it", async () => {
+    const store = serveRevisions(paragraph("base"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    const theirs = store.moveTo({ content: paragraph("theirs") as never });
+    store.onPatch = () => pageChanged();
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+
+    const offer = await screen.findByTestId("page-draft-offer");
+    expect(await screen.findByText("theirs")).toBeTruthy();
+    expect(draftText(store.page.id)).toContain("Q");
+    expect(screen.queryByTestId("page-save-failure")).toBeNull();
+    expect(store.bodies).toHaveLength(1);
+
+    store.onPatch = store.answer;
+    await userEvent.click(within(offer).getByRole("button", { name: "Restore mine" }));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(JSON.stringify(store.bodies[1]!.content)).toContain("Q");
+    expect(store.bodies[1]!.expectedUpdatedAt).toBe(theirs.updatedAt);
+  });
+
+  // The refusal is answered by re-reading the page, and the author can still
+  // be typing while that read is out. What they type is on the same stale page
+  // and the session drops it, so it has to be in what is kept.
+  it("keeps what was typed while the refused page was being re-read", async () => {
+    const store = serveRevisions(paragraph("base"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    store.moveTo({ content: paragraph("theirs") as never });
+    store.onPatch = () => pageChanged();
+    let reread: () => void = () => {};
+    const held = new Promise<void>((r) => (reread = r));
+    server.use(
+      http.get("/api/trips/:tripId/pages/:pageId", async () => {
+        await held;
+        return HttpResponse.json({ page: store.current() });
+      }),
+    );
+    // A keepalive with nothing in flight names the revision, and is refused.
+    window.dispatchEvent(new Event("pagehide"));
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(1));
+    await userEvent.type(editableBox(), "Z");
+    reread();
+
+    await screen.findByTestId("page-draft-offer");
+    expect(draftText(store.page.id)).toContain("Z");
+  });
+
+  // A rename moves `updatedAt` too, and one can land between a commit being
+  // sent and arriving: the title blurs as Done is pressed. Only the TITLE
+  // changed, so there is nothing to choose between. Sent again, named against
+  // the new revision, with nothing offered.
+  it("sends again, on the new revision, a save refused only because the title moved", async () => {
+    const store = serveRevisions(paragraph("base"));
+    render(<PageScreen tripId={store.trip.tripId} pageId={store.page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(editableBox(), "Q");
+    const renamed = store.moveTo({ title: "Renamed elsewhere" });
+    store.onPatch = (body) => (body.expectedUpdatedAt === renamed.updatedAt ? store.answer(body) : pageChanged());
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+
+    await vi.waitFor(() => expect(store.bodies).toHaveLength(2));
+    expect(store.bodies[1]!.expectedUpdatedAt).toBe(renamed.updatedAt);
+    expect(JSON.stringify(store.bodies[1]!.content)).toContain("Q");
+    await waitFor(() => expect(localStorage.getItem(draftKey(store.page.id))).toBeNull());
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(screen.queryByTestId("page-save-failure")).toBeNull();
+  });
 });
 
 // SPEC §35.3 / M27 D6: *"Editing a notebook page always has a way back to the
