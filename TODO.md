@@ -300,6 +300,12 @@ reorder and the one place a reorder updates.
       a call before it opens**: the M8 macro vocabulary, and **external calendar
       sync**, which has no design, no ADR and no relationship to the Notebook,
       and may deserve its own milestone.)*
+      *(**Decided 2026-09-24 by Mitchell**: external calendar sync is
+      **dropped**, not split out; ghosts render in Editing only and Reading
+      keeps today's placeholder label; the `days` and `trip` input types are
+      retired. The M8 macro vocabulary is superseded by the widget framework
+      (ADR-035/037/039). The milestone file's gate is behind the tree and is
+      re-baselined first when M14 opens — see its *Decided 2026-09-24*.)*
       *(Also owns the whole Notebook redesign from the 2026-08-23 design sync —
       `.design-sync/handoff/SPEC.md` §7. Opens with a **repeaters ADR**: a loop
       macro with an author-supplied row template is the one genuinely new

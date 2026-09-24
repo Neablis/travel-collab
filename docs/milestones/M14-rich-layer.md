@@ -35,6 +35,34 @@ widgets, better filtering" resolved to*; the third was **not here and is not any
 link 7 seeds templates, and nothing lets a person keep their own notebook for reuse. That is
 **link 10**, and it is named as this milestone's natural carve-out if it splits.
 
+**Decided 2026-09-24, before opening — three calls by Mitchell.**
+
+1. **External calendar sync is dropped.** Not deferred and not split into a milestone
+   of its own: *"we arent going to do calendar sync"*. It leaves this milestone and the
+   roadmap. It had no design and no ADR, so nothing is un-built.
+2. **Ghosts are an Editing-mode rendering; Reading keeps today's placeholder.**
+   *"keep it during edits, and when done editing, have a placeholder like it already
+   has."* This answers SPEC §21's open rule **against** the framework's *"prints nothing
+   in Reading, plus one quiet line at the top of the page"*: in Reading an unbound widget
+   still renders the short `EmptyChip` label it renders today (*"needs a trip"*, *"that
+   day was removed"*), and there is **no** page-top *"N widgets aren't set up"* line. The
+   ghost (shape of the value, per-part fill, hatched mono) is built for Editing only.
+3. **The `days` and `trip` input types are retired.** Neither maps to a filter dimension
+   and no primitive declares either. Picking days is **not** lost: it is `DaysFilter`,
+   one control writing the `dates` dimension and still reading a stored `day`
+   (`apps/web/src/components/pages/editor/widgetBind.tsx:45-66`). The code removal —
+   both `WidgetInput` members, `UnboundNeeds.days` and `MacroView`'s unreachable *"no
+   days set"* branch — is KI-2026-09-05-i item 2's work, done inside this milestone.
+
+**The gate below is behind the tree — re-baseline it before building.** Two boxes are
+ticked, but much of what the unticked boxes describe has shipped since 2026-09-03 (the
+Reading/Editing control, the widget rail with drag-and-drop and `/`, ADR-039's primitives
+and presets, the assistant's insert tools, notebooks joining the event log with M13). The
+first act of opening M14 is to walk each box against `main` and tick, reword or strike it,
+so the remaining work is a list rather than an archaeology exercise. *Embedded community
+objects* and *a TipTap/Yjs adoption* stay out (see *Deliberately not here*; TipTap is
+already the editor, `@tiptap/react`).
+
 ## Why this exists
 
 M7 shipped the Notebook as a substrate and M8 pulled it back to plain notes. The
@@ -455,6 +483,7 @@ milestone opens:**
   Notebook**, and it is the one part of this milestone that is not §7. It is
   large enough to be its own milestone and should either be scoped here
   deliberately or split out — flagged 2026-09-01, not decided.
+  **DECIDED 2026-09-24: dropped entirely** — see *Decided 2026-09-24* at the top.
 
 ## Exit gate
 
@@ -656,7 +685,8 @@ what the session already carries (name, email) and says so.
 larger architectural lift and this milestone is long. Nothing in §7 reads a
 realtime transport.
 
-**A decision on external calendar sync** — see the second bullet under Scope.
+~~**A decision on external calendar sync**~~ — **taken 2026-09-24: dropped.** See
+*Decided 2026-09-24* at the top.
 
 ## 2026-09-19 — what the design-parity survey found in the Notebook, and routed here
 
@@ -743,6 +773,9 @@ in this repo's own hands.
   *"that day was removed"* printed into the document. The count itself already
   exists — `phoneAskContext.ts:191` spends `page.unsetUpWidgets` on a phone
   quick-ask — so the page-top line is cheap once the rule is settled.
+  **ANSWERED 2026-09-24 (Mitchell): ghosts in Editing only; Reading keeps the
+  current placeholder label, and there is no page-top line.** See *Decided
+  2026-09-24* at the top.
 - **What do the Save-a-day dialog's four *Include* chips do to the snapshot?**
   `specs/save-a-day-as-a-playbook.md` says that in the design *"these only
   toast"* and asks the question outright; the built dialog carries no such chip
@@ -758,7 +791,9 @@ activity to a person. That blocks SPEC §18's two person widgets and is **M13
 link 5's field** (see that milestone's 2026-09-19 note, which lists all three
 consumers together). `days` and `trip` map to no dimension either and are
 called *dead vocabulary* by `KI-20260905-i` — **keep-or-retire is a decision
-this milestone should make**, since it owns the vocabulary.
+this milestone should make**, since it owns the vocabulary. **Made 2026-09-24:
+both retired** (`person` stays, pending M13/M19's field). See *Decided
+2026-09-24* at the top.
 
 ### One place the design is behind the build
 
