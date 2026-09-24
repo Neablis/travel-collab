@@ -254,6 +254,18 @@ export const PRESETS: readonly WidgetPreset[] = [
     // Fixed, never computed (ADR-037 decision 5): no count, no names.
     preview: "one line per stop you still have to book",
   },
+  // ---- a card per country -------------------------------------------------
+  // M14 link 11. No params: the widget takes none and inserts immediately.
+  {
+    id: "know-before-you-go",
+    widget: "country.facts",
+    params: {},
+    title: "Know before you go",
+    keywords: [
+      "country", "countries", "plug", "adapter", "voltage", "power", "electricity", "driving",
+      "emergency", "police", "ambulance", "currency", "money", "calling code", "phone", "tipping", "tip",
+    ],
+  },
   {
     id: "costs.table",
     widget: "cost.rows",
