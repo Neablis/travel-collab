@@ -103,6 +103,22 @@ describe("a sentence for every day", () => {
     expect(screen.getByText(/^Day /).closest("[hidden]")).not.toBeNull();
   });
 
+  // A repeat inserted and never written: three days to repeat over, and no
+  // sentence. Reading used to print three empty paragraphs — a gap the reader
+  // cannot explain (M14 PART 3 review, finding 5).
+  it("reads as nothing in Reading when its sentence has not been written", async () => {
+    const unwritten = newPageDoc([
+      { type: "paragraph", content: [text("Our days:")] },
+      { type: "repeat", attrs: { name: "day.rows", params: {} }, content: [] },
+    ]);
+    const { container } = mount(unwritten, false);
+    await screen.findByText("Our days:");
+    // eslint-disable-next-line testing-library/no-node-access -- the claim is "no paragraph a reader sees"; a hidden or empty <p> has no role to query by.
+    const shown = [...container.querySelectorAll("[data-repeat-over] p")].filter((p) => !p.closest("[hidden]"));
+    expect(shown).toEqual([]);
+    expect(linesIn(container)).toEqual([]);
+  });
+
   it("keeps the rail and the template in Editing when there is nothing to repeat over", async () => {
     const { container } = mount(sentence(NO_DAYS), true);
     const rail = await screen.findByTestId("repeat-rail");

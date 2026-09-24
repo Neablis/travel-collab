@@ -189,7 +189,10 @@ export function RepeatNodeView({ node }: ReactNodeViewProps) {
           this element in both modes, and the lines below are what a reader
           sees instead. */}
       <NodeViewContent as="p" className="my-0" hidden={!editing} />
-      {editing ? null : outcome.status === "ok" ? (
+      {/* An unwritten sentence reads as nothing: N empty lines would be a gap
+          the reader cannot explain, and the author sees the prompt above in
+          Editing (M14 PART 3 review, finding 5). */}
+      {editing || template.length === 0 ? null : outcome.status === "ok" ? (
         outcome.items.map((item, i) => (
           <p key={i} data-repeat-line className="my-1">
             <TemplateLine nodes={template} item={item} value={value} />
