@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react";
 import type { SpendByDayPayload, SpendSeriesKey } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
-import { ChartLegend, ChartPlaceholder, type ChartConfig, type ChartToken } from "@/components/ui/chart";
+import { ChartErrorBoundary, ChartLegend, ChartPlaceholder, type ChartConfig, type ChartToken } from "@/components/ui/chart";
 
 // "Spend by day" — a bar per day, stacked by tag, with the budget per day as a
 // dashed line (M14 link 11, the first chart).
@@ -50,9 +50,11 @@ export function SpendByDayBlock({ payload }: { payload: SpendByDayPayload }) {
 
   return (
     <span className="flex flex-col gap-2 rounded-md border border-hairline bg-surface p-3">
-      <Suspense fallback={<ChartPlaceholder height={SPEND_CHART_HEIGHT} label={payload.summary} />}>
-        <SpendByDayChart payload={payload} config={config} height={SPEND_CHART_HEIGHT} />
-      </Suspense>
+      <ChartErrorBoundary fallback={<ChartPlaceholder height={SPEND_CHART_HEIGHT} label={payload.summary} busy={false} />}>
+        <Suspense fallback={<ChartPlaceholder height={SPEND_CHART_HEIGHT} label={payload.summary} />}>
+          <SpendByDayChart payload={payload} config={config} height={SPEND_CHART_HEIGHT} />
+        </Suspense>
+      </ChartErrorBoundary>
       <ChartLegend
         config={config}
         extra={

@@ -181,7 +181,7 @@ export function RepeatNodeView({ node }: ReactNodeViewProps) {
         </span>
       ) : null}
       {editing && template.length === 0 ? (
-        <span contentEditable={false} className="pointer-events-none absolute top-0 left-0 text-slate select-none">
+        <span contentEditable={false} className="pointer-events-none absolute top-0 left-0 max-w-full truncate text-slate select-none">
           Write the sentence for each {over ?? "item"}, and add widgets to it
         </span>
       ) : null}

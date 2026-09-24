@@ -139,8 +139,41 @@ const FRAME = "block w-full overflow-hidden font-mono text-xs text-slate";
  * still loading. Same height (ADR-044: the page does not move when the chart
  * arrives) and the same name, marked busy until the real frame replaces it.
  */
-export function ChartPlaceholder({ height, label, className }: { height: number; label: string; className?: string }) {
-  return <span role="img" aria-label={label} aria-busy="true" className={cn(FRAME, className)} style={{ height }} />;
+export function ChartPlaceholder({
+  height,
+  label,
+  className,
+  busy = true,
+}: {
+  height: number;
+  label: string;
+  className?: string;
+  /** False when nothing is coming: the chart's code failed to load. */
+  busy?: boolean;
+}) {
+  return <span role="img" aria-label={label} aria-busy={busy} className={cn(FRAME, className)} style={{ height }} />;
+}
+
+/**
+ * Keeps a chart whose code failed to load inside its own frame. `Suspense`
+ * does not catch a rejected `lazy` import; without this it reaches the route's
+ * error screen and takes the whole page with it (CodeRabbit, PR #226). The
+ * fallback is the frame at the same height, not busy, so the key and table
+ * around it stand.
+ */
+export class ChartErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  override state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  override render(): React.ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
 }
 
 /**

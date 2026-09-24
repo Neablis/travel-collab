@@ -28,13 +28,15 @@ import { needsBooking } from "./needsBooking";
 export const REPEAT_WIDGETS = { day: "day.rows", stop: "stop.rows", city: "city.rows" } as const;
 export type RepeatOver = keyof typeof REPEAT_WIDGETS;
 
-const OVER_OF: Readonly<Record<string, RepeatOver>> = Object.fromEntries(
+// A Map, not an object: a stored name is any string, and `OVER_OF["toString"]`
+// on a plain object is a function, not `undefined` (CodeRabbit, PR #226).
+const OVER_OF: ReadonlyMap<string, RepeatOver> = new Map(
   Object.entries(REPEAT_WIDGETS).map(([over, name]) => [name, over as RepeatOver]),
 );
 
 /** The collection a stored repeat name iterates, or `null` for a name that is not one. */
 export function repeatOver(name: string): RepeatOver | null {
-  return OVER_OF[name] ?? null;
+  return OVER_OF.get(name) ?? null;
 }
 
 // The rows primitives' params that are NOT a selection: `stop.rows`' `columns`

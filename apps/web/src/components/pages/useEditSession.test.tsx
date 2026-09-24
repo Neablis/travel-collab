@@ -90,10 +90,51 @@ describe("useEditSession", () => {
       const { result, unmount, commit } = mount();
       act(() => result.current.change(doc("a")));
       setVisibility("hidden");
-      expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true }]]);
+      expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true, overtaking: false }]]);
       window.dispatchEvent(new Event("pagehide"));
       unmount();
       expect(commit).toHaveBeenCalledTimes(1);
+    });
+
+    // The tab came back while its hidden-page write was still on the wire.
+    // The next ordinary commit names the same revision that write is about to
+    // move, so racing it would get one of the two refused as stale, and the
+    // author would be shown a conflict with their own words (CodeRabbit, PR
+    // #226). It waits instead, and goes once the keepalive has answered.
+    it("holds an ordinary commit until a keepalive in flight has answered", async () => {
+      let land: (ok: boolean) => void = () => {};
+      const commit = vi
+        .fn<CommitSession>()
+        .mockImplementationOnce(() => new Promise((r) => (land = r)))
+        .mockResolvedValue(true);
+      const { result } = mount(true, commit);
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      setVisibility("visible");
+      act(() => result.current.change(doc("ab")));
+      act(() => result.current.flush());
+      expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
+      await act(async () => land(true));
+      expect(commit.mock.calls).toEqual([
+        [doc("a"), { keepalive: true, overtaking: false }],
+        [doc("ab"), { keepalive: false, overtaking: false }],
+      ]);
+    });
+
+    // A second unload write cannot wait either, and the revision it would
+    // name is the one the first is about to move: it overtakes the first.
+    it("calls a keepalive that passes another keepalive overtaking", () => {
+      const commit = vi.fn<CommitSession>().mockImplementation(() => new Promise(() => {}));
+      const { result } = mount(true, commit);
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      setVisibility("visible");
+      act(() => result.current.change(doc("ab")));
+      window.dispatchEvent(new Event("pagehide"));
+      expect(commit.mock.calls).toEqual([
+        [doc("a"), { keepalive: true, overtaking: false }],
+        [doc("ab"), { keepalive: true, overtaking: true }],
+      ]);
     });
 
     it("does not commit when the page becomes visible", () => {

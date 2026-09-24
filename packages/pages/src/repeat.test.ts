@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MACRO_NAMES, getMacro, renderMacro } from "./registry";
 import type { ItemScope, WidgetContext } from "./registry-types";
-import { insertRepeat, repeatLabel, resolveRepeat } from "./repeat";
+import { insertRepeat, repeatLabel, repeatOver, resolveRepeat } from "./repeat";
 import { findWidgetError } from "./writeCheck";
 import { insertPreset, presetCatalog } from "./presets";
 import { selectionTrip } from "./test-support/selectionTrip";
@@ -69,6 +69,16 @@ describe("resolveRepeat — which items a repeat yields", () => {
     expect(resolveRepeat(ctx, "stop.rows", { day: { kind: "index", index: 40 } })).toMatchObject({ status: "unbound", needs: "day" });
     expect(resolveRepeat(ctx, "cost", {})).toMatchObject({ status: "invalid" });
     expect(resolveRepeat(ctx, "day.rows", { day: "Tuesday" })).toMatchObject({ status: "invalid" });
+  });
+
+  it("is not fooled by a name every object inherits", () => {
+    // A stored name is any string; `toString` on a plain lookup table is a
+    // function, and the read-only fallback then threw rendering it.
+    expect(repeatOver("day.rows")).toBe("day");
+    for (const name of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+      expect(repeatOver(name), name).toBeNull();
+      expect(resolveRepeat(ctxOf().ctx, name, {}), name).toMatchObject({ status: "invalid" });
+    }
   });
 });
 

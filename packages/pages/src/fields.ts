@@ -120,7 +120,7 @@ export function formatStopField(
   // schema the value was parsed with.
   const kind = choice.valueKind;
   if (activities.length === 1) {
-    return choice.list ? formatKindList(kind, values as never[], ctx) : formatKind(kind, values[0] as never, ctx);
+    return choice.list ? formatKindList(kind, values as never[], ctx, opts) : formatKind(kind, values[0] as never, ctx);
   }
   return collapseKind(kind, values as never[], ctx, opts);
 }

@@ -73,6 +73,18 @@ describe("field", () => {
     expect(valueOf(ctx, { field: "stop.tags", day: { kind: "index", index: 0 } })).toBe("Ticketed, Meal");
   });
 
+  it("removes duplicates within one stop's list too", () => {
+    // `tags` is an array, not a set: the API replaces it whole and keeps a
+    // repeat. The one-stop branch prints a list without collapsing it, so
+    // `distinct` has to reach it as well.
+    const fixture = selectionTrip();
+    fixture.trip.activities[fixture.ids.s0]!.tags = ["ticketed", "meal", "ticketed"];
+    const ctx = contextOf(fixture);
+    const one = { tag: "ticketed", field: "stop.tags" };
+    expect(valueOf(ctx, one)).toBe("Ticketed, Meal, Ticketed");
+    expect(valueOf(ctx, { ...one, distinct: true })).toBe("Ticketed, Meal");
+  });
+
   it("is empty when the filters leave no stop, and says so when no stop has the value", () => {
     const ctx = contextOf(selectionTrip());
     expect(renderMacro(ctx, "field", { field: "stop.cost", tag: "meal", kind: "booked" })).toEqual({ status: "empty" });
