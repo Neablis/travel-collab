@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { FilterDimension } from "@tc/contracts";
 import type { MacroDef, WidgetContext } from "../../registry-types";
-import { chip, inlineOf, text } from "../../registry-types";
+import { chip, ghost, inlineOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { costOfStops, narrow, stopsInCity, type Narrowed } from "../../select";
@@ -48,7 +48,7 @@ export const cost: MacroDef<CostParams, string> = {
   emptyText: "no costs yet",
   preview: "the running total of what you selected",
   resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
-    if (!trip) return needsTrip();
+    if (!trip) return needsTrip([ghost("money", "cost")]);
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
     const total = costOfStops(selection.value.stops);
@@ -154,11 +154,12 @@ export const count: MacroDef<CountParams, string> = {
   emptyText: "nothing to count",
   preview: "how many there are",
   resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
-    if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
-    if (selection.status !== "ok") return selection;
     const of = params.of ?? COUNTS_STOPS;
     const [one, many] = PLURAL[of];
+    // The noun is known before anything is, so only the number is a ghost.
+    if (!trip) return needsTrip([ghost("count", `number of ${many}`), text(` ${many}`)]);
+    const selection = narrow(trip, globals, params);
+    if (selection.status !== "ok") return selection;
     const n = countOf(of, selection.value);
     return ok(`${n} ${n === 1 ? one : many}`);
   },
@@ -192,7 +193,7 @@ export const dates: MacroDef<DatesParams, string> = {
   emptyText: "no dates set",
   preview: "Fri 25 Sep – Sun 4 Oct",
   resolve: ({ trip, globals }: WidgetContext, params): MacroResult<string> => {
-    if (!trip) return needsTrip();
+    if (!trip) return needsTrip([ghost("date", "dates")]);
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
     const dated = selection.value.days
@@ -283,7 +284,7 @@ export const city: MacroDef<CityParams, readonly string[]> = {
   emptyText: "no cities yet",
   preview: "Tokyo – Kyoto",
   resolve: ({ trip, globals }: WidgetContext, params): MacroResult<readonly string[]> => {
-    if (!trip) return needsTrip();
+    if (!trip) return needsTrip([ghost("location", "cities")]);
     const selection = narrow(trip, globals, params);
     if (selection.status !== "ok") return selection;
     const names = selection.value.cities.map((entry) => entry.name);

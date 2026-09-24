@@ -81,6 +81,6 @@ describe("country.facts", () => {
   });
 
   it("asks for a trip when it has none", () => {
-    expect(renderMacro(contextOf(undefined), "country.facts", {})).toEqual({ status: "unbound", needs: "trip" });
+    expect(renderMacro(contextOf(undefined), "country.facts", {})).toEqual({ status: "unbound", needs: "trip", shape: expect.any(Array) });
   });
 });

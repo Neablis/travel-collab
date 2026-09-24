@@ -674,10 +674,39 @@ milestone opens:**
       future mitigation. ADR-036 decision 3 is rewritten and its rejected
       alternatives now record the draft column and `PageDraftSaved` as considered
       and dropped.)*
-- [ ] A page reads as prose with live chips, and **moving a day or a stop
+- [x] A page reads as prose with live chips, and **moving a day or a stop
       changes the page with nobody editing it** — walked, not asserted.
+      *(Ticked 2026-09-24, T04 on `m14/t04-live-chips`. The walk is
+      `e2e/m14-notebook-widgets.spec.ts` *a co-traveller moves a stop and shifts
+      the days, and the open notebook follows without a reload*, green first
+      time on `test:e2e:ci-like` (twice). The file's one red test at the time,
+      *a field the reader picks…* at line 1499, was already on the base branch.
+      It expects "choose a field" in Editing, and T11's ghosts print `———`
+      there. Alice reads "On 1 June we are in **Tokyo**", Bob moves
+      a stop onto that day and the chip gains Kyoto, then Bob shifts the trip's
+      start date and 1 June's chip empties. No reload, and nobody leaves
+      Reading. The notebook subscribes to the board's poll
+      (`useTripBroadcast`, ADR-049) and refetches the trip, never the page. A
+      solo trip hears the same news when its tab or window comes back, which the
+      walk cannot do honestly and `broadcast.test.tsx` / `PageScreen.test.tsx`
+      prove instead. KI-2026-09-05-i item 5; model recorded in ADR-012's
+      2026-09-24 note.)*
 - [ ] **No user-visible macro syntax anywhere**, in either mode. A test fails if
       raw syntax reaches the DOM.
+      *(Built 2026-09-24, T04, **not ticked: one known leak.** The guard is
+      `test-support/rawSyntax.ts`: stored widget names, preset ids and
+      param paths, `{{ }}`, `[[ ]]`, `@name(`, a JSON params blob, a stringified
+      object, and renderer fallbacks, in text and in `title`/`aria-label`/
+      `placeholder`/`alt`. It scans every preset and every registered widget in
+      Reading, in Editing, and in the read-only fallback
+      (`editor/noRawSyntax.test.tsx`), plus the whole screen with the insert
+      rail and a widget's settings open (`PageScreen.test.tsx`). It found
+      `ReadOnlyPageDoc` printing stored names (`day.detail`), now fixed. **What
+      keeps the box open:** `MacroView` still renders `unknown macro: <name>`
+      and `bad params: <name>` for a stored widget this build does not know or
+      can no longer parse. Measured, rendered in Reading:
+      `"unknown macro: trip.fromTheFuture"`, `"bad params: count"`. Tick when
+      those say something a person can read and the case joins the guard.)*
 - [ ] Reading and Editing are one control; Reading shows no insert affordance and
       no repeat-rail chrome.
 - [ ] The insert Sheet offers search + *how it reads* over a flat list, each row
@@ -829,14 +858,35 @@ milestone opens:**
       display name on `TripMember`, not attribution.
       *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
-- [ ] **A notebook is saved as a template from one trip and instantiated into a
+- [x] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
       not an event stream, which a test asserts by sweeping for a second writer
       the way `soleWriter.test.ts` does for subscriptions. *(Link 10, added
       2026-09-18.)*
-- [ ] **A template snapshotted at one document version still instantiates after
+      *(Ticked 2026-09-24, T15/T16 on `m14/t15-saved-notebooks`. The walk is
+      `e2e/m14-saved-notebooks.spec.ts`, green on `test:e2e:ci-like`: Save as
+      template in trip A, then *Your templates* in trip B's gallery, then a
+      reload. The table is `saved_notebooks` (migration `0029_saved_notebooks`),
+      written only by `server/savedNotebooks.ts`, and
+      `savedNotebooks.soleWriter.test.ts` sweeps for a second writer, for raw
+      SQL naming the table, and for an event append from the module.
+      Instantiating creates the page with a `CreatePage` command, so the target
+      trip's stream gets a `PageCreated`, which `route.int.test.ts` asserts.
+      **The re-binding rule:** a `day` pinned by `dayId` to a day the target
+      trip lacks is re-pointed at the nil UUID (`UNRESOLVED_DAY_ID`), so it
+      renders *"that day was removed"* rather than widening to every day, and no
+      source-trip id reaches the target stream. `index` refs, cities, tags,
+      kinds and date ranges carry over as written. The context is the target
+      trip alone, so a template saved from an Overview is an ordinary notebook.)*
+- [x] **A template snapshotted at one document version still instantiates after
       the AST has moved** — ADR-038's versioning is exercised by link 10 rather
       than assumed by it, with a test that pins an older version and renders it.
+      *(Ticked 2026-09-24, T15: `packages/pages/src/savedTemplate.test.ts` pins
+      a v1 snapshot (old widget names, `dayRef`, no `v`), asserts the current
+      version is above 1, migrates it through `instantiateTemplate` and resolves
+      every widget with `renderMacro` against a new trip. The integration test
+      stores a v1 row in Postgres and checks that it becomes a page at the
+      current version.)*
 - [x] **Adding a filter dimension cannot be silently ignored.** *(Ticked 2026-09-24, T02 on PR #221: `narrow` is total through a compile-checked `NARROWS` record, `optionsFor` and the page-document switches end in `never`, and KI-2026-09-05-h is resolved with its proof line.)* The
       `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
       control and dropped by `narrow` — fails before the change and passes after,
@@ -853,8 +903,8 @@ milestone opens:**
       strip, still to book (reading `needsBooking`, not a second rule), sunrise /
       sunset, time difference from home, know before you go, spend by day. The route
       map block follows once M24's legs exist.
-- [ ] **Charts go through the one adopted chart component**, and none carries a
-      colour or font outside the design-system tokens.
+- [x] **Charts go through the one adopted chart component**, and none carries a
+      colour or font outside the design-system tokens. *(Ticked 2026-09-24, T21 on PR #221: `apps/web/src/components/ui/chart.test.tsx` fails on a literal colour or font in any chart file, on Recharts imported without `ChartContainer`, and on a rendered chart carrying Recharts' default `#ccc`/`#666`; each case seen red first.)*
 - [ ] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
 - [ ] Retro appended at gate close.

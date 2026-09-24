@@ -49,6 +49,7 @@ export function OverviewLens({
   detail,
   tripId,
   remoteRevision = 0,
+  confirmedSeq = 0,
   readOnly = false,
 }: {
   detail: TripDetail;
@@ -72,6 +73,12 @@ export function OverviewLens({
    * effect below can tell "never moved" from "moved once".
    */
   remoteRevision?: number;
+  /**
+   * The confirmed head of the trip's log (`TripProvider`'s `confirmedSeq`).
+   * Keys the globals read, so your own command re-reads them — see the effect.
+   * Defaulted to 0 for the same reason `remoteRevision` is.
+   */
+  confirmedSeq?: number;
 }) {
   // Fetched here rather than taken as a prop, the same way `PageScreen` does
   // it: the trip board has never needed the cities projection and asking it to
@@ -138,11 +145,6 @@ export function OverviewLens({
       invalidate(tripKeys.pages(tripId));
       invalidate(tripKeys.page(tripId, ""));
     }
-    void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
-      dedupeMs: DEDUPE.DOCUMENT,
-    }).then((r) => {
-      if (live && r.ok) setGlobals(r.value);
-    });
     void (async () => {
       const list = await cachedRead(tripKeys.pages(tripId), () => fetchPages(tripId), {
         dedupeMs: DEDUPE.DOCUMENT,
@@ -184,6 +186,26 @@ export function OverviewLens({
       live = false;
     };
   }, [tripId, attempt, remoteRevision]);
+
+  // **The globals, in an effect of their own, also keyed on your own
+  // commands.** `day.sun` and `day.fromHome` read a day's place and zone from
+  // here; moving a day's first stop changes `detail` at once but these only on
+  // a re-read, and before this the only re-reads were a mount and a REMOTE
+  // change (#223 review). No invalidation needed: both triggers have already
+  // dropped the entry — `onRemoteChange` before bumping the counter reaches a
+  // render, and a local command's write scope before its outcome confirms.
+  // Separate from the page read so a command does not re-read the document.
+  useEffect(() => {
+    let live = true;
+    void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
+      dedupeMs: DEDUPE.DOCUMENT,
+    }).then((r) => {
+      if (live && r.ok) setGlobals(r.value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tripId, attempt, remoteRevision, confirmedSeq]);
 
   // **The chrome, outside every branch** — §3b, and the artboard draws it that
   // way (`dc.html:1959-1964`: the heading row and its action sit ABOVE

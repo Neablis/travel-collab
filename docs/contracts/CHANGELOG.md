@@ -39,6 +39,102 @@ Format:
 - Breaking? no. Additive and optional: absent means today's behaviour for every
   existing caller (the assistant's page tools, `/api/v1`, seeds).
 
+## 2026-09-24 — `TripGlobalsDay.place.city`: the place names its own stop's city (#223 review)
+
+- **Added:** `TripGlobalsDay.place` gains `city: string | null`, defaulted to
+  `null`. It is the city of the SAME stop whose coordinates are `place`.
+- Why: `day.sun` and `day.fromHome` labelled a day by `cities[0]`, while its
+  coordinates came from the first *located* stop. An earlier stop with a city
+  and no coordinates (Kyoto at 07:00, then located Tokyo at 10:00) put Kyoto's
+  name on Tokyo's sunrise. Found by CodeRabbit on #223.
+- Consumers updated: `apps/web` `tripGlobals.ts` (`placeOfDay` carries the
+  stop's city) and `openapi.json` regenerated; `@tc/pages` `time.ts`
+  (`locatedDay` reads `place.city`; `day.fromHome` still falls back to the
+  zone's city when the stop has none); test fixtures in `registry.test.ts`
+  and `MacroView.test.tsx`.
+- Breaking? No. Additive, with a default, so a response or a cached globals
+  from before the field parses with `city: null` (`globals.test.ts`).
+
+## 2026-09-24 — `TripGlobals.homeTimeZone` is not told to a `trips:read`-only token (#223 review)
+
+- **Changed (description only):** `TripGlobals.homeTimeZone` now says it is
+  `null` for an API token without `account:read` or restricted to specific
+  trips. The shape is unchanged: still `string | null`, default `null`.
+- Why: the field is the token OWNER's zone, derived from their home airport —
+  a fact about the caller that not even `GET /v1/account` publishes. A
+  `trips:read` token exposed it on `GET /v1/trips/{tripId}/globals`. It now
+  takes the credential that could read the account: `account:read`, and not
+  confined to named trips (the wrapper refuses those on `/v1/account`).
+  Session callers (`/api/trips/[tripId]/globals`, the app itself) are
+  unaffected.
+- Consumers updated: `apps/web` — the v1 globals route gates the preference
+  read; `openapi.json` regenerated (`pnpm --filter web openapi:generate`);
+  `surface.int.test.ts` covers `trips:read`, `trips:read + account:read`, and a
+  trip-scoped token holding both.
+- Breaking? For an API client that read `homeTimeZone` with a `trips:read`
+  token: it now reads `null`, a value the field could already take. No schema
+  change.
+
+## 2026-09-24 — `TripWeather`, and the `unavailable` widget state (M14 T23, ADR-052)
+
+- **Added:** `packages/contracts/src/weather.ts` — `TripWeather { points }`,
+  `TripWeatherPoint { date, city, forecast, typical }`, `ForecastDay`,
+  `ForecastHour`, `TypicalMonth`, `WeatherSource`, and the route envelope
+  `TripWeatherResponse { weather }` for `GET /api/trips/[tripId]/weather`.
+  Normalized shapes only; each value carries its `source` id (the block maps it
+  to credit text, decision 5) and a forecast carries the source's own `asOf`
+  (decision 7). `forecast` / `typical` are a value or `{ unavailable }`.
+- **Added (`@tc/pages`, not a contracts schema, recorded here because ADR-052
+  names it an Invariant 5 change):** `MacroResult` gains
+  `{ status: "unavailable"; reason: "pending" | "source" }` and `RenderOutcome`
+  passes it through; `WidgetContext.external?: { weather: Slot<TripWeather> }`;
+  `MacroDef.needs?: ExternalNeed[]`; `readSlot`, `externalNeedsOf`, `NO_EXTERNAL`.
+- **Shapes the ADR left open, decided here:** `ForecastDay`'s fields (high, low,
+  rainfall, MET `symbol_code`, and the hours for the "today" mode) and
+  `TypicalMonth`'s (high, low, rainfall per day, averaging period). T24's
+  adapters are the first producers; if they need a field these lack, that is a
+  further entry, not a silent widening.
+- **`WidgetContext.external` is optional** where ADR-052 writes it required:
+  absent means every slot pending, so every context built before it — the
+  server's `resolveMacro`, the assistant, every test — keeps compiling and
+  keeps its meaning.
+- Why: ADR-052 (external data enters a widget as a server-fetched input); T23
+  is the plumbing, T24 the ports, cache, route and widget.
+- Consumers updated: `apps/web` — `fetchTripWeather`, `tripKeys.weather`,
+  `useExternalInputs` (fetches only when the page holds a widget declaring
+  `needs: ["weather"]`; none does yet), `PageEditor` → `MacroEditorContext` →
+  `MacroNodeView` → `MacroView` (a muted "loading weather" / "weather
+  unavailable" chip; no ghost, no action), and an MSW handler parsed through
+  `TripWeatherResponse`. The route itself is T24; until it exists the client
+  reads its 404 as `failed`.
+- Breaking? no — every addition is new or optional, and no registered widget
+  can return `unavailable`.
+
+## 2026-09-24 — `SavedNotebook`: a notebook kept as a template (M14 T15, link 10)
+
+- **Added** `savedNotebook.ts`: `SavedNotebookVisibility` (`"private"` only),
+  `SavedNotebookProvenance` (`sourceTripId`, `sourceTripName`, `sourcePageId`,
+  `savedAt`), `SavedNotebookSummary` (no document), `SavedNotebook` (summary +
+  `content: PageContent`), `CreateSavedNotebookInput` (`tripId`, `pageId`,
+  optional trimmed `title`), and the envelopes `SavedNotebookListResponse` and
+  `SavedNotebookResponse`.
+- Why: M14 link 10, *"saving notebook templates for future trips"*. The shape
+  reuses ADR-029 (personal, CRUD, not event-sourced, private) and ADR-040 (a
+  snapshot with provenance). `docVersion` records the `PageDoc.v` the snapshot
+  was taken at (ADR-038), because instantiating migrates it forward first.
+  Visibility has one member because publishing is not built: a contract that
+  accepted `"public"` would describe a state no endpoint produces.
+  `CreateSavedNotebookInput` carries no document on purpose. The server
+  snapshots what the page's stored projection holds, so a template is always a
+  document the trip's log contains.
+- Consumers updated: `apps/web` (the `saved_notebooks` table and
+  `server/savedNotebooks.ts`, routes under `/api/saved-notebooks` and
+  `/api/trips/:tripId/saved-notebooks/:id`, `lib/savedNotebooksClient.ts`,
+  `NotebookScreen`'s gallery, `PageScreen`'s *Save as template*, and
+  `makeSavedNotebookHandlers` in `mocks/handlers.ts`). Nothing else reads these
+  schemas.
+- Breaking? no. Additive: new schemas only, no existing one changed.
+
 ## 2026-09-24 — `MacroKind` removed (M14 T03, KI-2026-09-05-i item 2)
 
 - **Removed:** `MacroKind` (`z.enum(["inline", "block"])`) and its type from
@@ -50,6 +146,50 @@ Format:
 - Consumers updated: none needed; no package or app imported it. Stored page
   documents never held it (a node stores a widget name and params).
 - Breaking? no.
+
+## 2026-09-24 — `TripGlobals` gains each day's place and time zone, and the reader's home zone (M14 T20)
+
+- **Added — `TripGlobalsDay.place`** (`{ lat, lng } | null`, default `null`):
+  where the day is, for the sun and the clock — its first stop with
+  coordinates in TIME order, untimed stops after timed ones in stored order
+  (`citiesOfDay`'s walk, so the day's place and its first city come from one
+  ordering). Unannotated: not offered by the field picker.
+- **Added — `TripGlobalsDay.timeZone`** (IANA name `| null`, default `null`):
+  the zone at `place`, `null` exactly when `place` is. Annotated
+  `described("text", "The day's time zone")`, so the picker offers it.
+- **Added — `TripGlobals.homeTimeZone`** (IANA name `| null`, default `null`):
+  the REQUESTING account's zone, from its home airport. The one field here
+  about the reader rather than the trip — two members get two answers. `null`
+  with no home airport, an airport not in the table, or nobody signed in.
+  Unannotated: the account's facts are the `account` root.
+- **Why:** M14 link 11's "Sunrise and sunset" (`day.sun`) and "Time
+  difference from home" (`day.fromHome`). M14's *Decided 2026-09-24* default:
+  zones are computed on the server and the browser gets a name, so no
+  boundary dataset ships to a client; the widgets do their arithmetic with
+  `Intl`.
+- **Datasets and licences** (named here, as that default asks):
+  - Coordinates → zone at runtime: `@photostructure/tz-lookup` 11.7.0,
+    CC0-1.0; its data is derived from timezone-boundary-builder, ODbL-1.0.
+    73 kB (29 kB gzipped), server-only. Lossy near borders; geo-tz (MIT,
+    exact) was measured at ~71 MB installed and rejected for a serverless
+    function.
+  - Airport → zone: `apps/web/src/server/airportTimeZones.generated.ts`
+    (9,054 IATA codes in 386 zones, 38 kB / 22 kB gzipped), generated by
+    `apps/web/scripts/generate-airport-timezones.mjs` from OurAirports'
+    `airports.csv` (public domain) with geo-tz 8.1.9 over
+    timezone-boundary-builder (ODbL-1.0); the table is offered under ODbL-1.0.
+    geo-tz is run offline and is not a dependency: tz-lookup disagreed with it
+    on the UTC offset for 166 of the 9,054 airports. Attribution in `NOTICE.md`.
+- **Consumers updated:** `apps/web/src/server/tripGlobals.ts` (builds all
+  three; now takes the reader's `homeAirport`), both globals routes
+  (`/api/trips/:id/globals` reads the session's preferences,
+  `/v1/trips/:id/globals` the token owner's), `openapi.json` regenerated,
+  `@tc/pages` (`day.sun`, `day.fromHome`, two presets), and the hand-written
+  `TripGlobals` literals in `packages/pages` and `MacroView.test.tsx`. The
+  Japan demo trip exercises it: every day is located, so every day carries
+  `Asia/Tokyo` (`tripGlobals.test.ts`).
+- **Breaking?** No — additive, nullable, with defaults, so a response from
+  before the change still parses (`packages/contracts/test/globals.test.ts`).
 
 ## 2026-09-24 — a `stop` manifest root, `described()` as the only opt-in, and one field vocabulary (M14 T06)
 

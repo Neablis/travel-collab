@@ -1,8 +1,10 @@
 import type { z } from "zod";
-import type { FilterDimension, ManifestObject, TripDetail, PageContext, TripGlobals, UserPreferences, WidgetShape } from "@tc/contracts";
+import type { FilterDimension, ManifestObject, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
+import type { ExternalInputs, ExternalNeed } from "./external";
 import type { SpendByDayPayload } from "./chartPayloads";
+import { VALUE_KIND_FORMATS } from "./kinds";
 
 // Inline payloads are display-ready strings; block payloads are structured data
 // the renderer turns into a component (NOT markup — the C-era swap point).
@@ -203,9 +205,19 @@ export interface RepeatPayload {
 // asked not to, but because the type has nowhere to put one. There is no
 // `{ kind: "html" }` and there must never be; `dangerouslySetInnerHTML` is
 // absent from this path and a lint wall should keep it so.
+//
+// `ghost` is the third member: a part whose value is not bound yet, named by
+// its KIND (notebook-widget-framework spec, "The ghost"). Its `text` is the
+// kind's glyph and is filled in by `ghost()` from `VALUE_KIND_FORMATS`, so a
+// resolver names a kind and never spells a glyph — `$0` is a claim and `$XXX`
+// is a shape, and only that table decides which a kind gets. `label` is what
+// the part IS ("cost"), for the accessible name: a screen reader reading
+// `$XXX` aloud has been told nothing. A ghost only ever travels in an `unbound`
+// result's `shape`; `registry.test.ts` holds `ok` output to text and chips.
 export type Seg =
   | { kind: "text"; text: string }
-  | { kind: "chip"; name: string; text: string };
+  | { kind: "chip"; name: string; text: string }
+  | { kind: "ghost"; valueKind: ValueKind; label: string; text: string };
 
 // What `render` hands back. Three shapes, closed.
 //
@@ -253,6 +265,12 @@ export type Rendered =
 // object literals with a discriminator repeated seven times.
 export const text = (t: string): Seg => ({ kind: "text", text: t });
 export const chip = (name: string, t: string): Seg => ({ kind: "chip", name, text: t });
+/**
+ * A part not bound yet: the ghost of a `valueKind` value, its glyph taken from
+ * `VALUE_KIND_FORMATS`. `label` names the part ("cost") for its accessible name.
+ */
+export const ghost = (valueKind: ValueKind, label: string): Seg =>
+  ({ kind: "ghost", valueKind, label, text: VALUE_KIND_FORMATS[valueKind].ghost });
 export const inlineOf = (...segs: Seg[]): Rendered => ({ kind: "inline", segs });
 export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", block });
 export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
@@ -415,6 +433,17 @@ export interface WidgetContext {
    * and `user` give while their own requests are in flight.
    */
   today: string | null;
+  /**
+   * Data the trip does not hold — weather — fetched by the client and handed
+   * in as slots (ADR-052 decision 3). Read it through `readSlot`.
+   *
+   * **Optional, and absent means every slot is pending.** ADR-052 writes it as
+   * required; it is optional so that every context built before it — the
+   * server's `resolveMacro`, the assistant, and every test — keeps compiling
+   * and keeps its meaning. Only a widget that declares `needs` reads it, and to
+   * that widget "not handed" and "not landed" are the same answer.
+   */
+  external?: ExternalInputs;
 }
 
 // The per-iteration scope a repeat renderer passes as it maps a row template
@@ -469,6 +498,10 @@ export interface MacroDef<P, T> {
   inputs: readonly WidgetInput[];
   // What this widget selects over, when it is a primitive. See `WidgetSelection`.
   selection?: WidgetSelection;
+  // The outside inputs this widget reads from `ctx.external` (ADR-052). A page
+  // fetches an input only when one of its widgets names it here, so absent is
+  // the answer for every widget that reads only the trip.
+  needs?: readonly ExternalNeed[];
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // The insert sidebar's sample. **A fixed string, never a computed value**

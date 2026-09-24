@@ -131,6 +131,42 @@ function twoDayDetail() {
   return { ...d, days: [...d.days, { dayId: "d-new", activityIds: [], date: null, costSubtotal: 0 }] };
 }
 
+function SeqProbe() {
+  const { activeTrip, confirmedSeq, dispatch } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="confirmedSeq">{confirmedSeq}</span>
+      <button onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d-new" } as never)}>add-day</button>
+    </div>
+  );
+}
+
+// #223 review: the Overview's globals are keyed on this, so it has to move
+// when your own command lands — and NOT while it is only predicted, or the
+// re-read would race the write and fetch the globals from before it.
+describe("TripProvider confirmedSeq", () => {
+  it("advances when a local command is confirmed, not while it is optimistic", async () => {
+    let resolveSend: (v: unknown) => void = () => {};
+    sendTripCommandMock.mockReturnValue(new Promise((res) => (resolveSend = res)));
+    render(
+      <TripProvider tripId="x">
+        <SeqProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("confirmedSeq").textContent).toBe("2"));
+
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+    expect(screen.getByTestId("confirmedSeq").textContent).toBe("2");
+
+    const before = historyFixture("x");
+    const head = { ...before.entries[0]!, batchId: "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a99", fromSeq: 3, toSeq: 3 };
+    resolveSend({ ok: true, value: { detail: twoDayDetail(), history: { ...before, entries: [head, ...before.entries] } } });
+    await waitFor(() => expect(screen.getByTestId("confirmedSeq").textContent).toBe("3"));
+  });
+});
+
 describe("TripProvider optimistic overlay (M6)", () => {
   it("renders the optimistic change before the server responds", async () => {
     let resolveSend: (v: unknown) => void = () => {};
@@ -1140,19 +1176,37 @@ describe("TripProvider broadcast (M13 link 2)", () => {
     expect(screen.getByTestId("remoteRevision").textContent).toBe("0");
   });
 
-  it("does not poll a solo trip — there is no second writer", async () => {
+  // ADR-049 Decision 2: a solo trip runs no timer, and the visibility-regain
+  // poll "runs regardless, because one person in two tabs is a real case". This
+  // test used to assert the opposite — no poll at all — which is how a solo
+  // trip's board and notebook both stayed stale after an edit in another tab
+  // (KI-2026-09-05-i item 5).
+  it("adopts an edit from the same person's other tab when a solo trip's tab comes back", async () => {
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: oneDayTripDetailFixture() });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
     render(
       <TripProvider tripId="x">
         <RemoteProbe />
       </TripProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
+
+    fetchTripEventsMock.mockResolvedValue({
+      ok: true,
+      value: { headSeq: 2, events: [], resync: false },
+    });
+    const twoDays = oneDayTripDetailFixture();
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: { ...twoDays, days: [...twoDays.days, { ...twoDays.days[0]!, dayId: "d-other-tab" }] },
+    });
+    fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(2) });
 
     becomeVisible();
-    // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
-    await act(async () => {});
-    expect(fetchTripEventsMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+    // Exactly the one regain poll: a solo trip still runs no timer.
+    expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
   });
 
   // The whole reason link 3 had to land first. A remote edit arriving while the

@@ -1,8 +1,9 @@
 "use client";
 import { useEditor, EditorContent, type Editor, type JSONContent } from "@tiptap/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TripDetail, PageContext, PageDoc, TripGlobals, UserPreferences } from "@tc/contracts";
-import { insertPreset } from "@tc/pages";
+import { externalNeedsOf, getMacro, insertPreset, type ExternalNeed } from "@tc/pages";
+import { useExternalInputs } from "../useExternalInputs";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
 import { MacroEditorContext, type MacroEditorContextValue } from "./MacroEditorContext";
 import { SlashMenu } from "./SlashMenu";
@@ -78,12 +79,32 @@ export function sameDocument(a: unknown, b: unknown): boolean {
   return keys.every((k) => Object.prototype.hasOwnProperty.call(bx, k) && sameDocument(ax[k], bx[k]));
 }
 
+/**
+ * The outside inputs a document's widgets declare, as a string so that React
+ * state holding it only changes when the SET does — this is recomputed on every
+ * keystroke, and a fresh `Set` each time would re-render every widget.
+ */
+function needsKeyOf(doc: unknown): string {
+  return [...externalNeedsOf([doc], getMacro)].sort().join(",");
+}
+
 export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true, onWidgetSelected }: PageEditorProps) {
   // The slash menu's keydown handler has to be installed at editor creation
   // (`editorProps` is read once), but the menu itself only exists after the
   // editor does. A ref breaks that circle; nothing reads it before the first
   // keystroke, which is long after both are mounted.
   const slashKeyDownRef = useRef<(event: KeyboardEvent) => boolean>(() => false);
+
+  // ADR-052: outside data is fetched only for a page whose widgets ask for it.
+  // Here rather than in `PageScreen` because this is where the live document
+  // and the context provider both are — and so `OverviewLens`, which mounts
+  // this read-only, follows the same rule without a second copy of it.
+  const [needsKey, setNeedsKey] = useState(() => needsKeyOf(value));
+  const needs = useMemo(
+    () => new Set(needsKey === "" ? [] : (needsKey.split(",") as ExternalNeed[])),
+    [needsKey],
+  );
+  const external = useExternalInputs(context.tripId, needs);
 
   const editor = useEditor({
     extensions: PAGE_EDITOR_EXTENSIONS,
@@ -109,7 +130,10 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     immediatelyRender: false,
     editable,
     onUpdate: ({ editor: updated }) => {
-      onChange(updated.getJSON());
+      const json = updated.getJSON();
+      // An inserted weather widget is what starts the request (ADR-052 d3).
+      setNeedsKey(needsKeyOf(json));
+      onChange(json);
     },
   });
 
@@ -186,6 +210,8 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     // is where the conflict notice this wants is recorded.
     if (editable) return;
     editor.commands.setContent(value as unknown as JSONContent, false);
+    // `emitUpdate: false` means `onUpdate` above never sees this document.
+    setNeedsKey(needsKeyOf(value));
   }, [editor, editable, value]);
 
   // Hand the editor up once it exists. `useEditor` returns null on the first
@@ -219,7 +245,7 @@ export function PageEditor({ detail, context, user = null, globals = null, value
 
   return (
     <MacroEditorContext.Provider
-      value={{ detail, context, user, globals, editing: editable, onBindDay, onWidgetSelected }}
+      value={{ detail, context, user, globals, external, editing: editable, onBindDay, onWidgetSelected }}
     >
       <EditorContent editor={editor} className="tc-page-editor" />
       <SlashMenu state={slash.state} onPick={slash.onPick} />

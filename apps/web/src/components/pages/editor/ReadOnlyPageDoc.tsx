@@ -6,6 +6,7 @@ import type {
   PageListContentNode,
   PageNode,
 } from "@tc/contracts";
+import { getMacro } from "@tc/pages";
 
 // The read half of ADR-038 decision 4: what a page looks like when this build
 // is not allowed to mount an editor over it.
@@ -17,9 +18,11 @@ import type {
 // render it at all: TipTap is the thing that cannot cope with the document.
 //
 // It is deliberately NOT a second editor. No node views, no macro resolution,
-// no marks beyond what the text already carries — a widget renders as its
-// stored name, because resolving one needs `MacroEditorContext` and a live
-// trip, and a read-only fallback that can fail is not a fallback. The nodes
+// no marks beyond what the text already carries — a widget renders as what a
+// person calls it (`title`), because resolving one needs `MacroEditorContext`
+// and a live trip, and a read-only fallback that can fail is not a fallback.
+// It printed the STORED name (`day.detail`) until the M14 syntax guard
+// (`noRawSyntax.test.tsx`) found it: stored identifiers are never shown. The nodes
 // this build has no definition for render as decision 3's inert placeholder.
 //
 // It shares `.tc-page-editor` with the editor on purpose: the same typography
@@ -62,7 +65,9 @@ function renderInline(node: PageInlineNode): ReactNode {
     case "hardBreak":
       return <br />;
     case "macro":
-      return <span className="rounded bg-moss px-1 text-sm">{node.attrs.name}</span>;
+      // A name this build does not register gets the same words the unknown
+      // node below does, not its identifier.
+      return <span className="rounded bg-moss px-1 text-sm">{getMacro(node.attrs.name)?.title ?? PLACEHOLDER_LABEL}</span>;
     case "unknown":
       return <span className="text-sm text-slate">[{PLACEHOLDER_LABEL}]</span>;
     default: {

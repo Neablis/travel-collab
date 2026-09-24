@@ -1,5 +1,6 @@
 import { citiesOfDay } from "@tc/domain";
-import type { TripDetail, TripGlobals, TripGlobalsCity, TripGlobalsTag } from "@tc/contracts";
+import type { TripDetail, TripGlobals, TripGlobalsCity, TripGlobalsDay, TripGlobalsTag, UserPreferences } from "@tc/contracts";
+import { timeZoneAt, timeZoneOfAirport } from "./timeZones";
 
 // Builds the trip's addressable collections (ADR-037 open question 4).
 //
@@ -10,8 +11,12 @@ import type { TripDetail, TripGlobals, TripGlobalsCity, TripGlobalsTag } from "@
 //
 // Pure, and deliberately so: it reads a `TripDetail` it is handed and performs
 // no I/O, which keeps it testable without a database and rebuildable from
-// nothing but a projection that already exists.
-export function buildTripGlobals(detail: TripDetail): TripGlobals {
+// nothing but a projection that already exists. The reader's home airport is
+// handed in for the same reason: reading it is the route's I/O, not this.
+export function buildTripGlobals(
+  detail: TripDetail,
+  reader: Pick<UserPreferences, "homeAirport"> = { homeAirport: null },
+): TripGlobals {
   const days = detail.days.map((day, index) => ({
     index,
     date: day.date,
@@ -22,6 +27,7 @@ export function buildTripGlobals(detail: TripDetail): TripGlobals {
     cities: citiesOfDay(detail, index),
     activityCount: day.activityIds.length,
     costSubtotal: day.costSubtotal,
+    ...placeOfDay(detail, day.activityIds),
   }));
 
   // A city's days and its stop count, accumulated in one pass over the days
@@ -70,5 +76,36 @@ export function buildTripGlobals(detail: TripDetail): TripGlobals {
   }
   const tags: TripGlobalsTag[] = [...tagCounts.entries()].map(([tag, activityCount]) => ({ tag, activityCount }));
 
-  return { days, cities, tags, bookedCount };
+  return { days, cities, tags, bookedCount, homeTimeZone: timeZoneOfAirport(reader.homeAirport) };
+}
+
+/**
+ * Where a day is: its first located stop in TIME order, untimed stops after
+ * timed ones in stored order — the walk `citiesOfDay` makes, so a day's place
+ * and its first city come from the same ordering rather than two that agree
+ * by luck. The first stop because the morning is where a sunrise is asked
+ * about, and a travel day's evening is somewhere else.
+ *
+ * Stored order would be simpler and wrong the same way `citiesOfDay`'s header
+ * says it is: `activityIds` is display order, which a person can shuffle
+ * without anything happening at a different time.
+ */
+function placeOfDay(detail: TripDetail, activityIds: readonly string[]): Pick<TripGlobalsDay, "place" | "timeZone"> {
+  let best: { lat: number; lng: number; city: string | null; start: string | null } | null = null;
+  for (const id of activityIds) {
+    const activity = detail.activities[id];
+    const lat = activity?.location?.lat;
+    const lng = activity?.location?.lng;
+    if (lat === undefined || lng === undefined) continue;
+    const start = activity!.timeWindow?.start ?? null;
+    // An untimed stop never displaces a candidate; a timed one displaces an
+    // untimed candidate or a later one. `HH:mm` compares as strings.
+    if (best === null || (start !== null && (best.start === null || start < best.start))) {
+      best = { lat, lng, city: activity!.location?.city ?? null, start };
+    }
+  }
+  if (best === null) return { place: null, timeZone: null };
+  // The city travels with the coordinates: `cities[0]` can be an earlier stop
+  // that has a city and no coordinates (CodeRabbit on #223).
+  return { place: { lat: best.lat, lng: best.lng, city: best.city }, timeZone: timeZoneAt(best.lat, best.lng) };
 }

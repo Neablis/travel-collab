@@ -5,7 +5,7 @@
 // the one write that is two commands behind one resource stays one endpoint.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { upsertUser } from "@/server/users";
+import { upsertUser, writePreferences } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
@@ -329,6 +329,34 @@ describe("reads that were nearly free", () => {
     const history = await HISTORY(req(secret), P({ tripId }));
     expect(history.status).toBe(200);
     expect((await history.json()).entries.length).toBeGreaterThan(0);
+  });
+
+  // **`homeTimeZone` is a fact about the token's OWNER, not the trip** — it is
+  // derived from their home airport, which not even `GET /v1/account` shows. So
+  // a `trips:read` token alone does not get it (#223 review); it takes the
+  // credential that could read the account, which a trip-scoped one cannot.
+  it("tells the home time zone only to a token that could read the account", async () => {
+    const owner = await entitled();
+    await writePreferences(owner, { homeAirport: "NRT" });
+    const writer = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId } = await seed(writer);
+    const zoneWith = async (secret: string) => {
+      const res = await GLOBALS(req(secret), P({ tripId }));
+      expect(res.status).toBe(200);
+      return (await res.json()).homeTimeZone as string | null;
+    };
+
+    expect(await zoneWith(await tokenFor(owner, ["trips:read"]))).toBeNull();
+    expect(await zoneWith(await tokenFor(owner, ["trips:read", "account:read"]))).toBe("Asia/Tokyo");
+
+    const confined = await mintToken(owner, {
+      name: "surface",
+      scopes: ["trips:read", "account:read"],
+      tripIds: [tripId],
+      expiresInDays: 30,
+    });
+    expect(confined.ok).toBe(true);
+    expect(await zoneWith(confined.ok ? confined.created.secret : "")).toBeNull();
   });
 });
 

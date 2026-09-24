@@ -22,6 +22,7 @@ import {
   fetchTripAccess,
   fetchTripDetail,
   fetchTripGlobals,
+  fetchTripWeather,
   fetchTrips,
   fetchTripDetailAt,
   fetchTripEvents,
@@ -192,6 +193,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   createTrip: () => createTrip({ name: "Rome" }),
   fetchTripDetail: () => fetchTripDetail(TRIP_ID),
   fetchTripGlobals: () => fetchTripGlobals(TRIP_ID),
+  fetchTripWeather: () => fetchTripWeather(TRIP_ID),
   fetchTrips: () => fetchTrips(),
   fetchTripHistory: () => fetchTripHistory(TRIP_ID),
   fetchTripEvents: () => fetchTripEvents(TRIP_ID, 0),
@@ -247,9 +249,12 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
     }),
 };
 
-// Pure URL builders — they touch no network, so totality is not a claim about
-// them. Anything else exported as a function has to be in the table above.
-const NON_FETCHING_EXPORTS = new Set(["apiUrl", "inviteLink", "shareLink", "askEventFromFrame"]);
+// Pure URL builders, and the two failure-shape builders every client module
+// shares — they touch no network, so totality is not a claim about them.
+// Anything else exported as a function has to be in the table above.
+const NON_FETCHING_EXPORTS = new Set([
+  "apiUrl", "inviteLink", "shareLink", "askEventFromFrame", "networkError", "refusal",
+]);
 
 // **The screen→client seam was covered; the client→URL seam was not.**
 // `DiscoverScreen.test.tsx` mocks `searchPlaybooks` outright, so it proves the

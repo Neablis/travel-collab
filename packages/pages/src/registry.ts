@@ -1,8 +1,9 @@
 import { z } from "zod";
 import type { WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import type { AnyMacroDef, Rendered, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
-import type { UnboundNeeds } from "./result";
+import type { AnyMacroDef, Rendered, Seg, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
+import { ghost, text } from "./registry-types";
+import type { UnavailableReason, UnboundNeeds } from "./result";
 import { fieldChoices } from "./fields";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
@@ -13,6 +14,7 @@ import { countryFactsWidget } from "./macros/primitives/countryFacts";
 import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
 import { field } from "./macros/primitives/field";
+import { daySun, dayFromHome } from "./macros/primitives/time";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -47,6 +49,9 @@ const DEFS: AnyMacroDef[] = [
   // The field widget (M14 build step 6): `stop` + filters + a reader-chosen
   // manifest field. The first registered widget with a `field` input.
   field,
+  // The clock pair (M14 link 11): day primitives over the zone and place the
+  // server put on each day of the globals projection. See `time.ts`.
+  daySun, dayFromHome,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -81,7 +86,10 @@ export type RenderOutcome =
   // only useful thing it had, and dropping it here would have made
   // `MacroResult.because` unreachable from the one call site that renders.
   | { status: "empty"; because?: string }
-  | { status: "unbound"; needs: UnboundNeeds }
+  // `shape` is always present here: the resolver's own, or `fallbackShape`.
+  | { status: "unbound"; needs: UnboundNeeds; shape: readonly Seg[] }
+  // No shape, and never one: ADR-052's `unavailable` is not a ghost.
+  | { status: "unavailable"; reason: UnavailableReason }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 
@@ -91,9 +99,21 @@ export function renderMacro(ctx: WidgetContext, name: string, rawParams: unknown
   const parsed = def.params.safeParse(rawParams ?? {});
   if (!parsed.success) return { status: "bad-params", message: parsed.error.message };
   const outcome = def.resolve(ctx, parsed.data as never);
-  return outcome.status === "ok"
-    ? { status: "ok", rendered: def.render(outcome.value) }
-    : outcome;
+  if (outcome.status === "ok") return { status: "ok", rendered: def.render(outcome.value) };
+  if (outcome.status === "unbound") return { ...outcome, shape: outcome.shape ?? fallbackShape(def) };
+  return outcome;
+}
+
+/**
+ * The ghost of a widget whose resolver did not describe its own, from the one
+ * thing every widget declares: its shape. A value for `single` — `text`, whose
+ * `———` claims no format it cannot keep — and `NN rows` for a block or a
+ * repeat, the framework spec's ghost caption, because how many is exactly what
+ * nobody has chosen yet. Named by the widget's title, since that is all a
+ * generic ghost knows about what it stands for.
+ */
+function fallbackShape(def: AnyMacroDef): readonly Seg[] {
+  return def.shape === "single" ? [ghost("text", def.title)] : [ghost("count", def.title), text(" rows")];
 }
 
 /**

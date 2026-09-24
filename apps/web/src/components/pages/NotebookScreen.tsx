@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TEMPLATE_LIBRARY, isOverviewPage, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
-import type { PageContext, PageDoc, PageSummary, TripDetail } from "@tc/contracts";
+import type { PageContext, PageDoc, PageSummary, SavedNotebookSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
+import { deleteSavedNotebook, fetchSavedNotebooks, instantiateSavedNotebook } from "@/lib/savedNotebooksClient";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { PHONE_TOUCH } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -139,6 +140,21 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // second code path. `cachedRead` never stores a failure
   // (`queryCache.ts:189`), so the retry genuinely goes back to the network.
   const [attempt, setAttempt] = useState(0);
+  // The reader's own saved notebooks (M14 link 10), offered beside the seeded
+  // starters. **Fail-soft, and not part of the `nbPages` region**: they are the
+  // person's library, not this trip's data, so a failed read leaves the
+  // gallery exactly as it was before templates existed rather than taking the
+  // trip's list down with it. `null` until known, and nothing renders for it.
+  const [savedTemplates, setSavedTemplates] = useState<SavedNotebookSummary[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSavedNotebooks().then((result) => {
+      if (!cancelled && result.ok) setSavedTemplates(result.value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,6 +280,32 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
       }
       setPages((prev) => [...(prev ?? []), result.value]);
       router.push(`/trips/${tripId}/pages/${result.value.id}`);
+    });
+  };
+
+  // A saved notebook becomes a page on the SERVER: it holds the snapshot, and
+  // migrating it forward and re-binding its days to this trip is
+  // `instantiateTemplate`'s job there, not a second copy of it here.
+  const handleCreateFromSaved = (template: SavedNotebookSummary) => {
+    setCreating(true);
+    void instantiateSavedNotebook(tripId, template.savedNotebookId).then((result) => {
+      setCreating(false);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setPages((prev) => [...(prev ?? []), result.value]);
+      router.push(`/trips/${tripId}/pages/${result.value.id}`);
+    });
+  };
+
+  const handleRemoveSaved = (savedNotebookId: string) => {
+    void deleteSavedNotebook(savedNotebookId).then((result) => {
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setSavedTemplates((prev) => (prev ?? []).filter((t) => t.savedNotebookId !== savedNotebookId));
     });
   };
 
@@ -533,6 +575,49 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             </Card>
           ))}
         </ul>
+        {/* **Yours, after the seeds.** A template you kept from another trip
+            is a starter like the others, so it sits in this section; its own
+            heading is what tells it apart from a seed of the same name, and
+            its provenance line says which trip it came from. Absent when there
+            are none — an empty "Your templates" is a heading promising a
+            feature before anyone has used it. */}
+        {savedTemplates !== null && savedTemplates.length > 0 && (
+          <section aria-labelledby="your-templates" className="mt-6">
+            <Heading level={4} id="your-templates">
+              Your templates
+            </Heading>
+            <ul className="mt-3 grid gap-3 sm:grid-cols-3">
+              {savedTemplates.map((template) => (
+                <Card as="li" key={template.savedNotebookId} className="flex flex-col gap-2">
+                  <Text className="font-medium text-ink">{template.title}</Text>
+                  <Text variant="secondary" className="flex-1">
+                    From {template.provenance.sourceTripName} · saved{" "}
+                    {formatRelativeInstant(template.provenance.savedAt) ?? "recently"}
+                  </Text>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleCreateFromSaved(template)}
+                      disabled={creating}
+                      aria-label={`Start from your template ${template.title}`}
+                    >
+                      Use this
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveSaved(template.savedNotebookId)}
+                      aria-label={`Remove your template ${template.title}`}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </ul>
+          </section>
+        )}
       </section>
 
       {/* **`presentation="sheet"` unconditionally, because the sheet is the

@@ -14,6 +14,8 @@ import {
   TripAccess,
   TripDetail,
   TripGlobals,
+  TripWeatherResponse,
+  type TripWeather,
   TripEventsPage,
   TripHistory,
   TripInvite,
@@ -79,6 +81,27 @@ export function apiUrl(path: string): string {
       ? window.location.origin
       : BASE_URL;
   return new URL(path, origin).toString();
+}
+
+// The two failure shapes every client module here resolves to, shared so
+// `pagesClient` and `savedNotebooksClient` read a failure the way this module
+// does rather than each keeping a copy (#223 review).
+
+/** A request that never produced a response: a rejected fetch, or a `.parse` throw on a 200. */
+export function networkError(err: unknown): { ok: false; error: ApiError } {
+  return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+}
+
+/**
+ * A not-ok response: the body's `error` field when there is one, the status
+ * text when there is not. `code` when the route sent one: two refusals can
+ * share a status and want different handling (a 409 `page-changed` must not be
+ * retried, a stream conflict may be).
+ */
+export async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
+  const data = (await res.json().catch(() => ({}))) as { error?: string; code?: unknown };
+  const code = typeof data.code === "string" ? { code: data.code } : {};
+  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, ...code } };
 }
 
 // Task 7.2 (M10 Phase 7): the new-trip wizard's real step, factored out of
@@ -528,6 +551,22 @@ export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGl
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`), { headers: inviteLookHeaders(tripId) });
     return await readJson(res, (data) => TripGlobals.parse((data as { globals: unknown }).globals));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * The trip's weather (ADR-052 decision 3). Only the trip id is sent: the server
+ * derives the rounded points from the trip, so nothing the reader chose leaves.
+ *
+ * Asked for only by a page that holds a widget declaring `needs: ["weather"]` —
+ * see `useExternalInputs`.
+ */
+export async function fetchTripWeather(tripId: string): Promise<ApiResult<TripWeather>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/weather`), { headers: inviteLookHeaders(tripId) });
+    return await readJson(res, (data) => TripWeatherResponse.parse(data).weather);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

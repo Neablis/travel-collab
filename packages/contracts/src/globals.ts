@@ -56,6 +56,34 @@ export const TripGlobalsDay = z.object({
   cities: described("text", "The cities this day touches, in arrival order", z.array(z.string())),
   activityCount: described("count", "How many stops are on this day", z.number().int().nonnegative()),
   costSubtotal: described("money", "What this day costs", z.number().int()),
+  // **Where the day is, for the sun and the clock** (M14 link 11): the first
+  // located stop in TIME order, untimed stops after timed ones — `citiesOfDay`'s
+  // ordering, so "the day's place" and "the day's first city" come from the same
+  // walk. The first stop is where the morning is, and the morning is what a
+  // sunrise answers. `null` when no stop on the day has coordinates.
+  //
+  // Unannotated, so the field picker does not offer it: a pair of numbers has
+  // no value kind that prints it, the same call `timeWindow` gets on a stop.
+  // The bare `.describe()` is the public API's text only (T06: it publishes
+  // nothing to the picker).
+  //
+  // `city` is THAT stop's city — not `cities[0]`, which can come from an
+  // earlier stop with a city but no coordinates, and would label one stop's
+  // sunrise with another stop's name (CodeRabbit on #223). `.default(null)` so
+  // a response from before the field still parses.
+  place: z
+    .object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      city: z.string().nullable().default(null).describe("The city of the stop that gives the day its place, if it has one"),
+    })
+    .nullable()
+    .default(null)
+    .describe("Where the day is: its earliest stop with coordinates. Null when no stop on the day has any."),
+  // The IANA zone at `place`, computed on the server (M14 "Decided 2026-09-24":
+  // no boundary dataset ships to the browser). `null` exactly when `place` is.
+  // `.default(null)` so a response from before this field still parses.
+  timeZone: described("text", "The day's time zone", z.string().min(1).nullable()).default(null),
 });
 export type TripGlobalsDay = z.infer<typeof TripGlobalsDay>;
 
@@ -82,6 +110,26 @@ export const TripGlobals = z.object({
   cities: describedCollection("Every city the trip touches", z.array(TripGlobalsCity)),
   tags: describedCollection("Every tag in use on this trip", z.array(TripGlobalsTag)),
   bookedCount: described("count", "How many stops are booked", z.number().int().nonnegative()),
+  // The REQUESTING account's zone, from its home airport (M14 link 11), so a
+  // widget can say "Tokyo is 16 h ahead of home". It is the one field here that
+  // is about the reader rather than the trip — two members asking get two
+  // answers — and `null` when the account has no home airport, when the airport
+  // is not in the table, or when nobody is signed in (the demo, an invite). On
+  // the public API it is also `null` to a token that could not read the account
+  // (`account:read`, not trip-scoped): a `trips:read` token reads the trip, not
+  // where its owner lives (#223 review).
+  //
+  // Unannotated: the account's own facts are the `account` manifest root
+  // (`homeAirport` is there), and publishing this under `trip` would file a
+  // fact about the reader as a fact about the trip.
+  homeTimeZone: z
+    .string()
+    .min(1)
+    .nullable()
+    .default(null)
+    .describe(
+      "The caller's IANA time zone, from their account's home airport. Null when that is unset or unknown, and for an API token without `account:read` or restricted to specific trips.",
+    ),
 });
 export type TripGlobals = z.infer<typeof TripGlobals>;
 export type { ValueKind };

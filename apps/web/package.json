@@ -39,6 +39,7 @@
     "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "^3.2.0",
     "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.2.0",
     "@flags-sdk/vercel": "^1.4.7",
+    "@photostructure/tz-lookup": "^11.7.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-popover": "^1.1.23",
     "@radix-ui/react-tabs": "^1.1.21",
