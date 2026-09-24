@@ -3,8 +3,8 @@ import type { TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import type { CacheRow, CacheStore } from "../cache";
 import { pointText } from "../roundedPoint";
-import metCompact from "./fixtures/met-compact.json";
-import { parseCompact } from "./met-norway";
+import metComplete from "./fixtures/met-complete.json";
+import { parseComplete } from "./met-norway";
 import { buildTripWeather, forecastDayOf, weatherPointsOf, type WeatherDeps } from "./tripWeather";
 import type { Climate, Fetched, Forecast, ForecastSeries, MonthlyNormals } from "./ports";
 
@@ -16,7 +16,7 @@ import type { Climate, Fetched, Forecast, ForecastSeries, MonthlyNormals } from 
 const NOW = new Date("2026-09-24T09:30:00Z");
 const OSLO = { lat: 59.913868, lng: 10.752245, city: "Oslo" };
 const BERGEN = { lat: 60.39299, lng: 5.32415, city: "Bergen" };
-const SERIES: ForecastSeries = parseCompact(metCompact as never, null, NOW);
+const SERIES: ForecastSeries = parseComplete(metComplete as never, null, NOW);
 
 type Stop = { lat?: number; lng?: number; city?: string; start?: string };
 
@@ -114,8 +114,12 @@ describe("forecastDayOf — a local day cut from MET's series", () => {
   });
 
   it("reads six-hourly days, and the day's sky from nearest local noon", () => {
+    // High and low are the six-hour windows' own extremes, not the two
+    // instants' 16.8 and 11.2: past ~2.5 days a step is 6 h apart, and four
+    // instants miss the afternoon peak (New York's 3 pm, most days) — M14
+    // PART 3 review, finding 4.
     expect(forecastDayOf(SERIES, "2026-09-27", "Europe/Oslo", NOW)).toMatchObject({
-      highC: 16.8, lowC: 11.2, precipitationMm: 0, symbol: "clearsky_day",
+      highC: 18.9, lowC: 9.7, precipitationMm: 0, symbol: "clearsky_day",
     });
   });
 

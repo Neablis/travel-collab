@@ -32,6 +32,13 @@ export const ForecastStep = z.object({
    * has an instant and no window. A day is cut from these windows.
    */
   windowHours: z.union([z.literal(0), z.literal(1), z.literal(6)]),
+  /**
+   * The window's own highest and lowest temperature, on six-hour steps only:
+   * four instants a day miss the afternoon peak, and the window's extremes do
+   * not. Optional, so a row cached before these existed still parses.
+   */
+  maxC: z.number().optional(),
+  minC: z.number().optional(),
 });
 export type ForecastStep = z.infer<typeof ForecastStep>;
 

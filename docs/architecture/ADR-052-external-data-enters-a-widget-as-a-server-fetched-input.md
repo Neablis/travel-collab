@@ -47,7 +47,7 @@ quiet placeholder and ghosts are Editing-only (M14, *Decided 2026-09-24* item 2)
 
 | Source | Used for | Terms | State |
 |---|---|---|---|
-| MET Norway Locationforecast 2.0, `GET https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=…&lon=…` | forecast, on the day | Free incl. commercial, NLOD 2.0 / CC BY 4.0, credit *"The Norwegian Meteorological Institute"*; an identifying `User-Agent` with contact; honour `Expires` / `Last-Modified` (conditional `If-Modified-Since`); at most 4 decimals; contact them before 20 req/s | **verified** 2026-09-24 ([licence](https://api.met.no/doc/License), [terms](https://api.met.no/doc/TermsOfService)) |
+| MET Norway Locationforecast 2.0, `GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=…&lon=…` (`compact` until the implementation notes below) | forecast, on the day | Free incl. commercial, NLOD 2.0 / CC BY 4.0, credit *"The Norwegian Meteorological Institute"*; an identifying `User-Agent` with contact; honour `Expires` / `Last-Modified` (conditional `If-Modified-Since`); at most 4 decimals; contact them before 20 req/s | **verified** 2026-09-24 ([licence](https://api.met.no/doc/License), [terms](https://api.met.no/doc/TermsOfService)) |
 | NASA POWER Climatology API, `GET https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M_MAX,T2M_MIN,PRECTOTCORR&community=AG&latitude=…&longitude=…&format=JSON` | typical, after the trip | Keyless. NASA open data: use for any purpose, commercial included. NASA **requests** the acknowledgement *"data obtained from the NASA Langley Research Center POWER Project…"* and asks to be told of uses (larc-power-project@mail.nasa.gov). The API throttles "repetitive and rapid requests" with no published number | **partly verified**: the acknowledgement wording and the parameter names are confirmed by web search (the POWER docs pages and the `nasapower` R client). The open-data licence comes from secondary sources. **To verify, by reading the POWER docs directly:** the exact endpoint path, the averaging period (believed 2001–2020 for meteorology, 1984-onward for solar), and whether a rate figure is published. This container cannot reach `power.larc.nasa.gov` |
 
 **If NASA POWER fails verification** (commercial terms, or the endpoint does not give
@@ -371,3 +371,23 @@ that did not survive contact with the code:
 - **Editing's settings-panel line (decision 4) is not built.** The placeholder is the
   same quiet chip in both modes, and no panel says which source did not answer.
 - **There is no privacy page** to carry the line *Consequences* asks for.
+
+### After the PART 3 self-review (2026-09-24)
+
+- **MET's `complete` product, not `compact`.** `compact`'s `next_6_hours` carries rain
+  only, so beyond the ~2.5 hourly days a day's high and low were the extremes of four UTC
+  instants — which miss the afternoon peak (New York's 3 pm falls between 18:00 and 00:00
+  UTC steps). `complete` documents `next_6_hours.details.air_temperature_max` / `_min`,
+  so the adapter reads those for six-hourly steps and the day's high/low include them.
+  Chosen over labelling those days "≈": the source has the true figure, and an
+  approximation mark would be a caveat on data we could simply fetch. **TO VERIFY**
+  against a live `complete` response — the field pair is from MET's documented data
+  model and the fixture is written to it; without them a step falls back to its instant,
+  i.e. to the old behaviour, never to a wrong number.
+- **A 403 and a 5xx record a back-off too**, not only a 429: a day for a 403 (decision 8's
+  "not retried" — our request is wrong until a deploy fixes it) and five minutes for a
+  5xx. Retried per page load, each was charged to `weather-daily`.
+- **An unconfigured forecast is not asked, so not charged.** With `EXTERNAL_DATA_CONTACT`
+  unset the route passes no forecast source and no forecast jobs exist; before, a stub
+  that always rejected was charged on every load until the shared quota refused the NASA
+  normals too, and the reader got "Weather unavailable" instead of typical.

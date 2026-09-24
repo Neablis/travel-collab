@@ -134,6 +134,10 @@ export function forecastDayOf(
   );
   if (inDay.length === 0) return null;
   const temps = inDay.map((s) => s.tempC);
+  // A six-hour window's own extremes, where the source gave them: four
+  // instants a day miss the afternoon peak (review finding 4).
+  const highs = [...temps, ...inDay.flatMap((s) => (s.maxC === undefined ? [] : [s.maxC]))];
+  const lows = [...temps, ...inDay.flatMap((s) => (s.minC === undefined ? [] : [s.minC]))];
   // The day's sky is the one nearest local noon.
   const noonmost = inDay.reduce((best, s) =>
     Math.abs(localOf(zone, s.ms).hour - 12) < Math.abs(localOf(zone, best.ms).hour - 12) ? s : best,
@@ -141,8 +145,8 @@ export function forecastDayOf(
   return {
     source: "met-norway",
     asOf: series.updatedAt,
-    highC: Math.max(...temps),
-    lowC: Math.min(...temps),
+    highC: Math.max(...highs),
+    lowC: Math.min(...lows),
     precipitationMm: Math.round(inDay.reduce((sum, s) => sum + s.precipitationMm, 0) * 10) / 10,
     symbol: noonmost.symbol,
     hours: inDay.map((s) => ({ at: s.at, tempC: s.tempC, precipitationMm: s.precipitationMm, symbol: s.symbol })),

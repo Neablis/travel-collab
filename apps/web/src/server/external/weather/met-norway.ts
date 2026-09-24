@@ -1,7 +1,7 @@
 import { pointText, type RoundedPoint } from "../roundedPoint";
 import { UpstreamError, type CacheValidators, type Fetched, type Forecast, type ForecastSeries, type ForecastStep } from "./ports";
 
-// MET Norway Locationforecast 2.0, `compact` (ADR-052's sources table, verified
+// MET Norway Locationforecast 2.0, `complete` (ADR-052's sources table, verified
 // 2026-09-24 against https://api.met.no/doc/TermsOfService). Their conditions,
 // and where each is kept:
 //
@@ -17,9 +17,19 @@ import { UpstreamError, type CacheValidators, type Fetched, type Forecast, type 
 //
 // The response shape is MET's documented GeoJSON (`properties.meta.updated_at`,
 // `properties.timeseries[].data.{instant,next_1_hours,next_6_hours}`);
-// `fixtures/met-compact.json` is a trimmed recording of it.
+// `fixtures/met-complete.json` is a trimmed recording of it.
+//
+// **`complete`, not `compact`** (M14 PART 3 review, finding 4): `compact`'s
+// `next_6_hours` carries only rain, so past ~2.5 days a day's high and low
+// came from four UTC instants and missed the afternoon peak. `complete`'s
+// `next_6_hours.details` adds `air_temperature_max` / `air_temperature_min`.
+// **TO VERIFY** — that field pair is taken from MET's documented data model
+// (docs.api.met.no, Locationforecast "complete"), and the fixture is written
+// to it; no live `complete` response has been read yet (the sandbox that made
+// this change could not reach api.met.no). If they are absent, a six-hour
+// step simply has no extremes and the day falls back to its instants.
 
-const ENDPOINT = "https://api.met.no/weatherapi/locationforecast/2.0/compact";
+const ENDPOINT = "https://api.met.no/weatherapi/locationforecast/2.0/complete";
 // ADR-052 decision 8: a slow source never holds the notebook.
 const TIMEOUT_MS = 4000;
 // When MET sends no `Expires` (it always has), an hour: shorter than a model
@@ -28,8 +38,11 @@ const FALLBACK_TTL_MS = 60 * 60 * 1000;
 // When a 429 names no `Retry-After`, ten minutes.
 const FALLBACK_BACKOFF_MS = 10 * 60 * 1000;
 
-type Window = { summary?: { symbol_code?: string }; details?: { precipitation_amount?: number } };
-interface CompactBody {
+type Window = {
+  summary?: { symbol_code?: string };
+  details?: { precipitation_amount?: number; air_temperature_max?: number; air_temperature_min?: number };
+};
+interface CompleteBody {
   properties?: {
     meta?: { updated_at?: string };
     timeseries?: Array<{
@@ -56,8 +69,12 @@ function retryAfterOf(value: string | null, now: Date): Date {
  * one (the first ~2.5 days) and its next six hours after that; the last step
  * has neither and describes an instant. Steps without a temperature are
  * dropped — there is nothing to say about them.
+ *
+ * Only a six-hourly step takes its window's extremes: an hourly step's
+ * instants already are the extremes, and the six-hour window MET also gives
+ * it runs past the hour it describes.
  */
-export function parseCompact(body: CompactBody, lastModified: Date | null, now: Date): ForecastSeries {
+export function parseComplete(body: CompleteBody, lastModified: Date | null, now: Date): ForecastSeries {
   const steps: ForecastStep[] = [];
   for (const entry of body.properties?.timeseries ?? []) {
     const tempC = entry.data.instant.details.air_temperature;
@@ -65,12 +82,15 @@ export function parseCompact(body: CompactBody, lastModified: Date | null, now: 
     const hourly = entry.data.next_1_hours;
     const sixHourly = entry.data.next_6_hours;
     const window = hourly ?? sixHourly;
+    const extremes = hourly ? undefined : sixHourly?.details;
     steps.push({
       at: new Date(entry.time).toISOString(),
       tempC,
       symbol: window?.summary?.symbol_code ?? null,
       precipitationMm: Math.max(0, window?.details?.precipitation_amount ?? 0),
       windowHours: hourly ? 1 : sixHourly ? 6 : 0,
+      ...(typeof extremes?.air_temperature_max === "number" ? { maxC: extremes.air_temperature_max } : {}),
+      ...(typeof extremes?.air_temperature_min === "number" ? { minC: extremes.air_temperature_min } : {}),
     });
   }
   // The as-of is the model run, not our fetch (decision 7), falling back to
@@ -79,7 +99,7 @@ export function parseCompact(body: CompactBody, lastModified: Date | null, now: 
   return { updatedAt: updatedAt.toISOString(), steps };
 }
 
-/** A `Forecast` backed by MET Norway's compact product, sending `userAgent`; `now` is injected for tests. */
+/** A `Forecast` backed by MET Norway's complete product, sending `userAgent`; `now` is injected for tests. */
 export function createMetNorwayForecast(options: { userAgent: string; now?: () => Date }): Forecast {
   const now = options.now ?? (() => new Date());
   return {
@@ -103,10 +123,10 @@ export function createMetNorwayForecast(options: { userAgent: string; now?: () =
         console.error("[external] MET Norway refused the request (403): check the User-Agent and the decimals");
         throw new UpstreamError("MET Norway: 403", 403);
       }
-      if (res.status === 203) console.warn("[external] MET Norway: 203, locationforecast/2.0/compact is deprecated");
+      if (res.status === 203) console.warn("[external] MET Norway: 203, locationforecast/2.0/complete is deprecated");
       if (!res.ok) throw new UpstreamError(`MET Norway: ${res.status}`, res.status);
 
-      const series = parseCompact((await res.json()) as CompactBody, httpDate(lastModified), asked);
+      const series = parseComplete((await res.json()) as CompleteBody, httpDate(lastModified), asked);
       if (series.steps.length === 0) throw new UpstreamError("MET Norway: an empty series");
       return {
         kind: "fresh", value: series, expiresAt, lastModified,

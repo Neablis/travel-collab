@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { roundForExport } from "../roundedPoint";
-import metCompact from "./fixtures/met-compact.json";
+import metComplete from "./fixtures/met-complete.json";
 import powerClimatology from "./fixtures/power-climatology.json";
 import { createMetNorwayForecast } from "./met-norway";
 import { createNasaPowerClimate } from "./nasa-power";
@@ -30,7 +30,7 @@ const requestOf = (fetchMock: ReturnType<typeof stubFetch>) => {
 describe("MET Norway Locationforecast adapter", () => {
   const met = () => createMetNorwayForecast({ userAgent: UA, now: () => NOW });
   const ok = (status = 200) =>
-    new Response(JSON.stringify(metCompact), {
+    new Response(JSON.stringify(metComplete), {
       status,
       headers: { Expires: "Thu, 24 Sep 2026 10:05:12 GMT", "Last-Modified": "Thu, 24 Sep 2026 09:10:44 GMT" },
     });
@@ -39,7 +39,7 @@ describe("MET Norway Locationforecast adapter", () => {
     const fetchMock = stubFetch(() => ok());
     await met().forecast(OSLO);
     const { url, headers } = requestOf(fetchMock);
-    expect(url.origin + url.pathname).toBe("https://api.met.no/weatherapi/locationforecast/2.0/compact");
+    expect(url.origin + url.pathname).toBe("https://api.met.no/weatherapi/locationforecast/2.0/complete");
     expect([...url.searchParams.keys()].sort()).toEqual(["lat", "lon"]);
     expect(url.searchParams.get("lat")).toBe("59.91");
     expect(url.searchParams.get("lon")).toBe("10.75");
@@ -55,8 +55,13 @@ describe("MET Norway Locationforecast adapter", () => {
     expect(fetched.value.steps[0]).toEqual({
       at: "2026-09-24T10:00:00.000Z", tempC: 12.3, symbol: "cloudy", precipitationMm: 0, windowHours: 1,
     });
+    // An hourly step takes no extremes: its hour's instants are the extremes,
+    // and the six-hour window beside it runs past the hour it describes.
+    expect(fetched.value.steps[0]).not.toHaveProperty("maxC");
+    // A six-hourly one carries its window's max and min — `complete`'s, which `compact` lacks.
     expect(fetched.value.steps[3]).toEqual({
       at: "2026-09-27T12:00:00.000Z", tempC: 16.8, symbol: "clearsky_day", precipitationMm: 0, windowHours: 6,
+      maxC: 18.9, minC: 15.9,
     });
     expect(fetched.value.steps.at(-1)).toMatchObject({ windowHours: 0, symbol: null, precipitationMm: 0 });
     // Honours `Expires` as the row's lifetime, and keeps `Last-Modified` to revalidate with.
