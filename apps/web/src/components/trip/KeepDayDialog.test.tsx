@@ -144,6 +144,28 @@ describe("KeepDayDialog", () => {
     expect(onSaved).toHaveBeenCalledWith(1);
   });
 
+  // KI-2026-09-19-d: the promised interaction is "accept the name and press
+  // Enter". Radix focuses the first tabbable node in the dialog unless
+  // something inside it already has focus — that was the header's Close button,
+  // so a bare Enter on open closed the dialog and saved nothing. The keypress
+  // goes to whatever has focus, with no click first, which is the whole point —
+  // so where focus IS is asserted through what that keypress reaches, not by
+  // reading `document.activeElement` (the test-quality wall bans it).
+  it("opens with the name field focused, so a bare Enter keeps the day", async () => {
+    const { onOpenChange, onSaved } = renderDialog();
+    await userEvent.keyboard("{Enter}");
+
+    await waitFor(() =>
+      expect(createSavedDayMock).toHaveBeenCalledWith({
+        name: "Day 3 of Kyoto",
+        tripId,
+        dayIds: [dayId],
+      }),
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onSaved).toHaveBeenCalledWith(1);
+  });
+
   // §35.7: the button says what it keeps, not "Save" — and counts once there
   // is more than one day, so the number is on the control that acts on it.
   it("names the button for what it keeps", async () => {
