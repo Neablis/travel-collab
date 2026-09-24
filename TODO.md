@@ -209,7 +209,7 @@ reorder and the one place a reorder updates.
       of M12: *"Big new Design pass in the handoff … just go ahead and make all
       the changes"*). SPEC §35, plus link 10 (every Playbook has its map).
       → `docs/milestones/M27-simplify-pass.md`
-- [ ] **M12 Reviews and moderation** ← **current milestone** (again from 2026-09-23, by M27's gate closing; was current from
+- [x] **M12 Reviews and moderation** (again from 2026-09-23, by M27's gate closing; was current from
       2026-09-22, **by M13's gate closing**, until M27 was placed ahead of it). All trust & safety scope
       lives here, nowhere earlier.
       → `docs/milestones/M12-reviews-and-moderation.md`
@@ -341,7 +341,7 @@ reorder and the one place a reorder updates.
 - [x] **M22 An account can build on the API** — gate closed 2026-09-19 → `docs/milestones/M22-public-api-and-tokens.md`
 - [x] **M25 A trip is a file you can take with you** — gate closed 2026-09-19 → `docs/milestones/M25-a-trip-is-a-file.md`
 - [x] **M23 A playbook can be more than one day** — gate closed 2026-09-19 → `docs/milestones/M23-multi-day-playbooks.md`
-- [ ] **M24 A leg knows where it goes and by what** →
+- [ ] **M24 A leg knows where it goes and by what** → ← **current milestone**
       `docs/milestones/M24-travel-legs.md`
       *(**Minted and placed 2026-09-18 by Mitchell**, running after M12 and
       before M14. A travel stop gets a **transport mode** and a **second

@@ -30,26 +30,28 @@ general setup.
 
 ## Where the work is right now
 
-**M12 — REVIEWS AND MODERATION — IS THE CURRENT MILESTONE AGAIN AS OF
-2026-09-23**, by **M27's gate closing at 8 of 8**. M27 (the simplify pass,
-SPEC §35) merged as #205 and was walked by Mitchell on production. Its retro,
-and what shipping it took (the migration and the content import), are at the
-end of `docs/milestones/M27-simplify-pass.md`. **Production is current:**
-all 26 migrations are applied, including M12's `0025_reviews_and_moderation`,
-and #207's corrected coordinates are imported. M12's own placement follows,
-unchanged except that its backend (#206) is already merged:
+**M24 — A LEG KNOWS WHERE IT GOES AND BY WHAT — IS THE CURRENT MILESTONE AS
+OF 2026-09-23**, by **M12's gate closing at 13 of 13**. Order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 → M14 → M19`.
+Scope and its eleven boxes: `docs/milestones/M24-travel-legs.md`. Its stated
+prerequisite, the activity-field descriptor refactor (`KI-2026-09-05-o`),
+landed in #200.
 
-**M12 — REVIEWS AND MODERATION — WAS THE CURRENT MILESTONE FROM 2026-09-22**,
-by **M13's gate closing at 10 of 10** — the second consecutive move made by a
-gate rather than by Mitchell placing a milestone. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 → M24 → M14 → M19`.
-Scope, seven links and thirteen boxes: `docs/milestones/M12-reviews-and-moderation.md`.
-It needs **two migrations** (the reviews table, and `saved_days.countries`) and
-had a data prerequisite: the content library carried `countryCode` on **none**
-of its 1,375 locations — **now all 1,375** (2026-09-23), imported and backfilled in production: 149/149 `saved_days`
-carry a country. M12 exists to delete one line from `SPEC.md` §15 —
-*"Until the reviews table exists, every rating here is fixture data"* — still
-true in `main`.
+## DONE 2026-09-23 — M12 Reviews and moderation, gate closed 13 of 13
+
+**The narrative, the evidence behind every box and the retro are in
+`docs/milestones/M12-reviews-and-moderation.md`.** Backend #206, UI #212, the
+country data #213-#215. SPEC §15's *"every rating here is fixture data"* is no
+longer true. **Two things in it are still live and are still instruction:**
+
+1. **A content re-import is owed to production.** The gate-close commit
+   corrects three country codes #213 got wrong (Fuente De `MX`→`ES`, Dundee
+   `GB`→`US`, Voss `US`→`NO`); until `import-content-production` runs,
+   production's *Mexico* still counts a Spanish day
+   (`docs/guidelines/content-bundles.md` → *Publishing to production*).
+2. **The walked boxes were walked by an agent**, in a real browser against a
+   production build on a local database — not by a person on production. The
+   retro says so, and lists the design decisions #212 took without a drawing.
 
 **What M26's close does and does not assert** — including the two boxes closed
 on attestation and the Definition-of-Done box ticked at 153/2 rather than green
@@ -218,12 +220,16 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M12 is the current milestone** (M27's gate closed 2026-09-23, 8 of 8). Read
-`docs/milestones/M12-reviews-and-moderation.md` before planning anything. Its
-backend (#206) is merged and migrated on production, so what is left is the UI
-and the gate. **One operator item from M27 may still be open:** the Playbook
-pin backfill does nothing without `LOCATIONIQ_API_KEY` on Vercel (Production
-and Preview).
+**M24 is the current milestone** (M12's gate closed 2026-09-23, 13 of 13).
+Read `docs/milestones/M24-travel-legs.md` before planning anything; its
+descriptor-refactor prerequisite is done (below). **Two operator items are
+open:** the production content re-import M12's gate close owes (three corrected
+country codes), and, from M27, `LOCATIONIQ_API_KEY` on Vercel (Production and
+Preview) — the Playbook pin backfill does nothing without it.
+
+*Older, kept for the record:* **M12 was the current milestone** (M27's gate
+closed 2026-09-23); its backend (#206) and UI (#212) are merged and its retro is
+at the end of its milestone file.
 
 *Older, kept for the record:* **M13 was the current milestone** (M26's gate closed 2026-09-21, 22 of 22). Read
 `docs/milestones/M13-collaboration.md` before planning anything. M21's and

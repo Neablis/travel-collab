@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REVIEW_NOTE_MAX } from "@tc/contracts";
-import { histogramBars, noteCharsLeft, noteCountLabel, starFills, starWord } from "./reviewDisplay";
+import { histogramBars, noteCharsLeft, noteCountLabel, reviewMeta, starFills, starWord } from "./reviewDisplay";
 
 describe("starFills", () => {
   it("fills whole stars and a fraction of the last one", () => {
@@ -47,5 +47,16 @@ describe("starWord", () => {
   it("names each star, and prompts when none is picked", () => {
     expect([1, 2, 3, 4, 5].map(starWord)).toEqual(["Would not", "Mixed", "Solid", "Very good", "Would do again"]);
     expect(starWord(null)).toBe("Tap a star");
+  });
+});
+
+// §15 lets anyone signed in review, so the line must not say every reviewer
+// added the day — M12's gate walk read "1 from people who added this day" above
+// a review by someone who had added nothing.
+describe("reviewMeta", () => {
+  it("counts reviews without claiming who wrote them", () => {
+    expect(reviewMeta(0)).toBe("nothing yet");
+    expect(reviewMeta(1)).toBe("1 review");
+    expect(reviewMeta(12)).toBe("12 reviews");
   });
 });

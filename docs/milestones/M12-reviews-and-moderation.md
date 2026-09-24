@@ -214,7 +214,7 @@ Seven links. Links 1-2 are contract-and-migration work; 3-6 stand on them. **Lin
    pins are in `content/` but not in production; they are not `saved_days`
    and the filter does not read them.
 
-## 2026-09-23 — the UI half: built, not yet walked
+## 2026-09-23 — the UI half (#212), walked at gate close
 
 Branch `claude/youthful-hopper-zgjdkv`, on top of the backend (#206). No
 migration: `0025` already carries every column this reads.
@@ -257,46 +257,57 @@ accounts on one browser share it.
 
 ## Exit gate
 
-- [ ] A signed-in person rates a shared day with stars and an optional note, the
+- [x] A signed-in person rates a shared day with stars and an optional note, the
       average recomputes **live** without a reload, and both survive a sign-out,
       a sign-in and a server restart.
-- [ ] A second review from the same person **updates** their review rather than
+      **Ticked 2026-09-23 (walked, by an agent — see the walk note below):** 4★ posted, rail went *Unrated so far* → *4.0 · 1 review* with 0 navigations; still 4.0 after sign-out/sign-in and after killing and restarting the server.
+- [x] A second review from the same person **updates** their review rather than
       adding a row, and the average moves accordingly.
-- [ ] A note longer than 140 characters is refused at the contract boundary, not
+      **Ticked 2026-09-23 (walked + `reviews/route.int.test.ts`):** *Change it* 4★→2★, rail 4.0→2.0, still one row; `GET` returned one review with `isMine`.
+- [x] A note longer than 140 characters is refused at the contract boundary, not
       truncated silently in the UI.
-- [ ] **`saved_days.rating` and `review_count` cannot drift from
+      **Ticked 2026-09-23:** contract test (`packages/contracts/test/review.test.ts`) and route test (`refuses a note one character over the cap` → 400); walked: at 141 characters the counter reads *1 over*, Post is disabled and nothing is sent, and a direct `PUT` with the reviewer's cookie answers `400 invalid-review`.
+- [x] **`saved_days.rating` and `review_count` cannot drift from
       `saved_day_reviews`** — a test fails if they do. Naming a counter is not
       evidence it is right; this repo has been caught by that three times
       (KI-1, KI-14, and `budgetPerPerson`).
-- [ ] Discover offers **all four sorts and all four filters** from §15, and
+      **Ticked 2026-09-23:** `reviewCounterDrift` (an independent aggregate) is asserted empty after every write in `server/reviews.int.test.ts`; seen red at gate close by making the recompute write `review_count + 1` → `expected { rating: 5, reviewCount: 2 } to deeply equal { rating: 5, reviewCount: 1 }`.
+- [x] Discover offers **all four sorts and all four filters** from §15, and
       `?sort=highest-rated` returns highest-rated results rather than the
       default — the promise `api/playbooks/route.ts` currently records as a
       link "from the future".
-- [ ] All three review states from §15 are reachable and walked: empty, offline
+      **Ticked 2026-09-23 (walked):** sorts *Most added / Highest rated / Most reviewed / Newest*. **The four filters are read as §15's four as amended by §33.2/§35.5:** §15 listed rating floor, month, budget and sort; §33.2 cut the month (*Season*) and added *Length*, and moved sort onto the results sentence — so Rating, Budget, Length and Sort, all present. `/playbooks?sort=highest-rated` loaded directly ordered 5.0, 5.0, 4.5, 4.0 … then *No reviews yet*; the 4+ floor left only ≥4.0 days and survived as `?rating=4`.
+- [x] All three review states from §15 are reachable and walked: empty, offline
       (badged *Queued*), and the conflict banner.
-- [ ] A reported day is removed from Discover, the board **and** profiles by one
+      **Ticked 2026-09-23 (walked):** empty — *Unrated so far* / *No one has rated this day yet*; offline — context offline, *You are offline — this will be held on your device…*, row *not sent · Queued*, 0 requests, then *Yours* on reconnect; conflict — a held review, the author unpublished and republished, reconnect → *Alice changed this day just now, after you wrote your review. Read it again — your 3-star review has not posted.*; *Post it anyway* and *Discard it* both walked.
+- [x] A reported day is removed from Discover, the board **and** profiles by one
       action, the author still has their copy, and the operator path is walked
       end to end.
-- [ ] **The reviews migration is written, applied locally, and its production
+      **Ticked 2026-09-23 (walked):** a day with real adds (El Chaltén, 5 adds). *Report this day* → *Thanks — an operator will look at it.*; `/admin` → Reports → *Hide from the library* with a note. After: Discover 1 → 0 shared days, gone from the author's profile, board row 38 → 33 adds and 13 → 12 playbooks, its URL shows *This day is not in the library*; the author still has it in *Yours* and opens it directly.
+- [x] **The reviews migration is written, applied locally, and its production
       dispatch is called out in the PR body.** An undispatched migration is
       schema drift.
-- [ ] **Typing `Mexic` returns the country *Mexico* and the city *Mexico City*
+      **Ticked 2026-09-23:** `0025_reviews_and_moderation` (#206), applied by every local int run; #206's *Migrations* section named the dispatch; `docs/STATUS.md` records production at all 26 migrations including `0025`.
+- [x] **Typing `Mexic` returns the country *Mexico* and the city *Mexico City*
       as two distinguishable results**, and selecting each one filters Discover
       **differently** — the country's set contains days the city's does not.
       Walked, not asserted from a unit test: the point of the feature is that a
       person can tell which one they clicked.
-- [ ] **A country's day count equals the published days that touch it**, counted
+      **Ticked 2026-09-23 (walked, real library data):** `Mexic` → *COUNTRY Mexico · 7* and *CITY Mexico City · 1*. The country gave 7 days (`?country=MX`), the city 1 (`?city=Mexico+City`); 6 of the country's days are not in the city's set. The walk also found one of the 7 was a Spanish day (Fuente De) mis-tagged `MX` by #213; corrected in the gate-close commit, so production reads *Mexico · 6* after the next content import.
+- [x] **A country's day count equals the published days that touch it**, counted
       once per day however many of that country's cities the day visits — the
       same "count days, not city-hits" rule `searchCities` already follows. A
       test fails if a multi-city day double-counts.
+      **Ticked 2026-09-23:** `places/route.int.test.ts` *counts a multi-city day once for its country*, seen red at gate close without the domain dedupe (`expected 3 to be 1`); walked by comparing the API with SQL — MX 7=7 (14 city-hits), IT 16=16 (34), ES 8=8, AR 2=2.
 - [x] **The `countries` backfill's coverage is measured and written down**, and
       the filter is not shipped over a column that is empty for most of the
       library. See the prerequisite below — this box exists because the library
       carries **zero** country codes today. **Ticked 2026-09-23: production
       149/149 rows (100.0%), published 149/149 (100.0%)** — link 7's run-book.
-- [ ] The full Definition of Done is green, including
+- [x] The full Definition of Done is green, including
       `pnpm --filter web test:e2e:ci-like` — not `test:e2e`.
-- [ ] Retro appended at gate close.
+      **Ticked 2026-09-23:** #212 — `pnpm check` green (web unit 3,703, int 899), `test:e2e:ci-like` 161/161 including the four M12 specs, CI green on every ready head through `049b16b`.
+- [x] Retro appended at gate close. **Ticked 2026-09-23** — *Retro — M12* at the end of this file.
 
 ## Deliberately not here
 
@@ -391,3 +402,86 @@ same thing in code.
 **One thing M26 hands this milestone for free.** Link 2 cuts the `Season`
 filter, which currently occupies a slot in the same filter row. M12's rating
 floor takes a `face: true` chip and does not have to argue for the space.
+
+## Retro — M12, closed 2026-09-23
+
+Thirteen boxes, seven links, two PRs of code (#206 backend, #212 UI) and three
+of data and workflow (#213 country codes, #214 the production backfill
+workflow, #215 its coverage). SPEC §15's line *"Until the reviews table exists,
+every rating here is fixture data"* is no longer true: every rating on Discover,
+the shared day and a profile is now an aggregate of real review rows, and a test
+fails if the stored copy drifts from them.
+
+### How it was worked
+
+The backend landed first as API-only (#206), deliberately with no UI, so the UI
+could be built after M26/M27 had settled the layouts it renders into — the
+ordering argument this file made on 2026-09-19. The UI (#212) was one typed
+client commit (every new endpoint in `apiClient.ts`, each in the never-rejects
+table), then **three implementers in parallel worktrees** — shared day, Discover
+and profile, the operator console — each confined to its own files and merged
+back one at a time. The only merge friction was two files outside every scope
+(the docstring baseline and an m11b e2e route glob), which the Discover
+implementer named instead of touching.
+
+### What only the orchestrator could see
+
+**The conflict state was unreachable in the real app, and every test passed.**
+The shared-day read returned the `SavedDay` contract, which has no
+`publishedAt`, so the page could never tell a held review when it had read the
+day, and the 409 banner could only fire in a hook test that passed the value in
+by hand. The shared-day implementer found it because it was outside their scope
+and they could not wire it — and said so rather than faking it. The fix was one
+field on the read's envelope (beside `pinning`, not on the contract) and a
+screen-level test that fails if the screen passes `undefined` again. **A state
+that exists only in a component test is a state nobody has reached.**
+
+### What only the walk found
+
+All four M12 e2e specs, CodeRabbit and CI were green, and the gate walk still
+found three things:
+
+- **#213 tagged a Spanish day Mexican.** Fuente De's five stops carried `MX`,
+  so *Mexico · 7* included a day in Cantabria; Dundee NY was `GB` and Voss was
+  `US`. The counts matched SQL exactly, because the data was consistently wrong.
+  Corrected in the gate-close commit. **It needs a content re-import to reach
+  production** — `docs/guidelines/content-bundles.md` → *Publishing to
+  production* — and then *Mexico* reads 6.
+- **The reviews heading made a false claim.** The design's *"N from people who
+  added this day"* sat above a review by someone who had added nothing — §15
+  lets anyone signed in review. It now states the count.
+- **The author is never told their day was hidden** (KI-2026-09-23-i), and
+  Discover's results sentence states the page size rather than the match count
+  (KI-2026-09-23-h, pre-existing). Both filed.
+
+CodeRabbit found one real bug on #212 (Enter in the place search could add a
+result from the previous query during the debounce); fixed with a test seen red.
+
+### How the gate was closed, stated plainly
+
+The walked boxes were walked **by an agent**, in headless Chromium against a
+production build (`next start`, never `pnpm dev`) on a local database with the
+whole content library imported, at Mitchell's request to "confirm all worked,
+check the boxes and close out milestone". Each box records what was clicked and
+the text on screen; screenshots were kept in the session scratchpad and not
+committed. That is a real walk of real code, but it is not a person looking at
+production. The design decisions #212 took without a drawing — where Report
+sits and its five reasons, the operator panel, the conflict banner's copy, one
+★ plus a number on cards — were merged by Mitchell but not separately
+discussed.
+
+The "four filters" box is read as §15's four as amended by §33.2 and §35.5
+(Rating, Budget, Length and Sort). The wording of the box predates both
+amendments.
+
+### What it leaves
+
+- The content re-import above, which the three corrected codes need.
+- KI-2026-09-23-h and KI-2026-09-23-i.
+- A review held offline is keyed by day, not by person, so two accounts on one
+  browser share a held review (`reviewQueue.ts` says so).
+- A card matched only by country shows no match line — `DiscoverDay` carries no
+  `matchedCountries`.
+- The operator's tab counts stop at the server's 200-row cap without saying so.
+- `makeReportHandlers` (MSW) does not set `moderatedAt` / `hiddenAt` on a hide.
+- `geocode-content.py --retract` does not retract `countryCode` (from #206).

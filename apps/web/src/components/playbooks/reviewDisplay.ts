@@ -42,9 +42,17 @@ export function reviewCountLabel(count: number): string {
   return `${count} review${count === 1 ? "" : "s"}`;
 }
 
-/** The mono line beside "What people said" (`dc.html:6952`). */
+/**
+ * The mono line beside "What people said".
+ *
+ * The design (`dc.html:6952`) reads *"N from people who added this day"*, and
+ * that is a claim this product does not make: §15 says anyone signed in may
+ * review, with no gate, so a reviewer need never have added the day. Found by
+ * M12's gate walk, where a reviewer who had added nothing read it about
+ * themselves. The count is the honest half.
+ */
 export function reviewMeta(count: number): string {
-  return count === 0 ? "nothing yet" : `${count} from people who added this day`;
+  return count === 0 ? "nothing yet" : reviewCountLabel(count);
 }
 
 const STAR_WORDS = ["Would not", "Mixed", "Solid", "Very good", "Would do again"] as const;
