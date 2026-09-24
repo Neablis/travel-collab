@@ -787,11 +787,12 @@ milestone opens:**
       be able to destroy prose, because there is no mid-session row state left to
       destroy** — that is the whole content of the 2026-09-03 decision and the box
       that proves it was honoured.
-- [ ] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
+- [x] **No `w-person` or `w-personline` in the shipped widget set**, and nothing in
       the registry declares a `person` input. They left this milestone on
       2026-09-03 with item F; a build that quietly adds them back is building on a
       domain concept that does not exist. `w-people` is unaffected — it needs a
       display name on `TripMember`, not attribution.
+      *(Ticked 2026-09-24, T18 on PR #221: `person` taken off `cost`, `count` and `stop.rows`; `registry.test.ts` sweeps every registered widget for a `person` input or filter; a stored `person` value is stripped as a retired dimension rather than blocking the page's save. The contracts `FilterDimension` still carries `person` — its removal is KI-2026-09-05-i's.)*
 - [ ] Both prebuilt pages ship with a new trip and resolve against it.
 - [ ] **A notebook is saved as a template from one trip and instantiated into a
       different trip**, walked in a real browser — and the template row is CRUD,
