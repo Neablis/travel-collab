@@ -478,6 +478,110 @@ test("two widgets on one page read two different days", async ({ page }) => {
   await expect(page.getByText("no days yet")).toBeVisible();
 });
 
+test("two widgets in ONE sentence read two different days, and each rebinds on its own", async ({ page }) => {
+  // The M14 gate box *"And two widgets in the SAME BLOCK read two different
+  // days"*, in its own words: "We land on Day 1 in Tokyo and by Day 9 we are in
+  // Kyoto" is one paragraph holding two day-bound widgets. SPEC §26: the panel
+  // shows one entry per widget of the block, numbered to match the marks in the
+  // text, and never a single aggregated control — ADR-037 open question 1, as
+  // Mitchell settled it.
+  //
+  // `city` rather than `dates`, because it is the sentence the gate names and
+  // because a city pointed at a day is a value the day actually decides: wide it
+  // reads "Tokyo – Kyoto", and each binding narrows it to a different word.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  // Nine days, so "Day 9" in the sentence is a day the trip has. Through the
+  // API: adding them is not what this walk is about.
+  for (let i = 0; i < 7; i++) {
+    const added = await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: { type: "AddDay", tripId, dayId: crypto.randomUUID() },
+    });
+    expect(added.ok()).toBe(true);
+  }
+  const detail = await page.request.get(`/api/trips/${tripId}`);
+  const { trip } = (await detail.json()) as { trip: { days: { dayId: string }[] } };
+  expect(trip.days).toHaveLength(9);
+  // A day's city is derived from the stops on it, so each end of the sentence
+  // gets one.
+  await addStopViaApi(page, tripId, "Landing at Haneda", {
+    dayId: trip.days[0]!.dayId,
+    location: { name: "Haneda", city: "Tokyo" },
+  });
+  await addStopViaApi(page, tripId, "Fushimi Inari", {
+    dayId: trip.days[8]!.dayId,
+    location: { name: "Fushimi Inari", city: "Kyoto" },
+  });
+
+  await openSeededPage(page);
+
+  // Writing the sentence, the way a person does: type, insert at the caret,
+  // type on after it, insert again. A fresh paragraph under the first heading,
+  // so nothing the template seeded shares the block.
+  await page.locator(".tc-page-editor h2").first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("We land on Day 1 in ");
+  await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
+  await waitForPageSaved(page, () => railList(page).getByRole("button", { name: /Which cities/ }).click());
+  const sentence = page.locator(".tc-page-editor p", { hasText: "We land on Day 1 in" });
+  await expect(sentence.locator('[data-macro-name="city"]')).toHaveCount(1);
+
+  // Back into the sentence after the widget. The click lands in the empty part
+  // of the line, which ProseMirror puts at the end of the paragraph — and a
+  // caret there is a text selection, so the column returns to the rail.
+  await sentence.click({ position: { x: (await boxOf(sentence)).width - 4, y: 4 } });
+  await page.keyboard.press("End");
+  await expect(settingsPanel(page)).toHaveCount(0);
+  await page.keyboard.type(" and by Day 9 we are in ");
+  await page.getByRole("searchbox", { name: "Search widgets" }).fill("cities");
+  await waitForPageSaved(page, () => railList(page).getByRole("button", { name: /Which cities/ }).click());
+  await expect(sentence.locator('[data-macro-name="city"]')).toHaveCount(2);
+  const [first, second] = [sentence.locator('[data-macro-name="city"]').nth(0), sentence.locator('[data-macro-name="city"]').nth(1)];
+
+  // Inserting selected the second widget, and the panel holds the SENTENCE:
+  // two entries, numbered, and the same numbers on the widgets in the text.
+  const one = settingsPanel(page).getByRole("region", { name: "1 · The cities" });
+  const two = settingsPanel(page).getByRole("region", { name: "2 · The cities" });
+  await expect(one).toBeVisible();
+  await expect(two).toBeVisible();
+  await expect(first.getByTestId("widget-handle")).toHaveText("▸1");
+  await expect(second.getByTestId("widget-handle")).toHaveText("▸2");
+  // Both land wide — the whole trip's cities.
+  await expect(first).toContainText("Kyoto");
+  await expect(second).toContainText("Kyoto");
+
+  // Entry 1 to Day 1. Only widget 1 narrows: widget 2 is still wide, which is
+  // exactly what an aggregated control would have changed.
+  await one.getByRole("button", { name: "1 · The cities: dates" }).click();
+  await waitForPageSaved(page, () =>
+    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 1\b/ }).click(),
+  );
+  await page.keyboard.press("Escape");
+  await expect(first).not.toContainText("Kyoto");
+  await expect(first).toContainText("Tokyo");
+  await expect(second).toContainText("Kyoto");
+  await expect(second).toContainText("Tokyo");
+
+  // Entry 2 to Day 9 — from the same panel, without reselecting anything — and
+  // widget 1 keeps the day it was just given.
+  await two.getByRole("button", { name: "2 · The cities: dates" }).click();
+  await waitForPageSaved(page, () =>
+    page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 9\b/ }).click(),
+  );
+  await page.keyboard.press("Escape");
+  await expect(second).not.toContainText("Tokyo");
+  await expect(first).not.toContainText("Kyoto");
+
+  // What persisted, read in Reading after a reload: the gate's sentence, with
+  // each widget resolved against its own day.
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await expect(page.locator(".tc-page-editor p", { hasText: "We land on Day 1 in" })).toHaveText(
+    /^We land on Day 1 in\s*Tokyo\s*and by Day 9 we are in\s*Kyoto\s*$/,
+  );
+});
+
 test("Reading takes the whole authoring surface away, and the widget stays", async ({ page }) => {
   // SPEC §18: Reading is the traveller's view. No insert affordance, no chrome
   // row, no compose box — but the widget itself is still resolved and still on
@@ -777,7 +881,11 @@ async function addStopViaApi(
   page: Page,
   tripId: string,
   title: string,
-  extra: { dayId?: string; timeWindow?: { start: string; end: string } } = {},
+  extra: {
+    dayId?: string;
+    timeWindow?: { start: string; end: string };
+    location?: { name: string; city: string };
+  } = {},
 ): Promise<void> {
   const response = await page.request.post(`/api/trips/${tripId}/commands`, {
     data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title, ...extra },
