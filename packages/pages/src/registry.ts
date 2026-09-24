@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { TripDetail, PageContext, WidgetShape } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
 import type { AnyMacroDef, InlinePayload, BlockPayload, RepeatPayload, Rendered, WidgetContext, WidgetInput, WidgetSelection } from "./registry-types";
-import type { MacroResult, UnboundNeeds } from "./result";
+import type { MacroResult, UnavailableReason, UnboundNeeds } from "./result";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
@@ -92,6 +92,7 @@ export type RenderOutcome =
   // `MacroResult.because` unreachable from the one call site that renders.
   | { status: "empty"; because?: string }
   | { status: "unbound"; needs: UnboundNeeds }
+  | { status: "unavailable"; reason: UnavailableReason }
   | { status: "unknown" }
   | { status: "bad-params"; message: string };
 

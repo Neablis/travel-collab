@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/contracts";
-import { renderMacro, getMacro, type Seg } from "@tc/pages";
+import { renderMacro, getMacro, type ExternalInputs, type ExternalNeed, type Seg } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
@@ -99,17 +99,22 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
   );
 }
 
+// What an `unavailable` chip calls the input it is waiting on. A `Record` so a
+// second outside input is a type error here until it has a word.
+const EXTERNAL_NOUN: Record<ExternalNeed, string> = { weather: "weather" };
+
 /**
  * Renders a macro widget for the supplied trip and page context.
  *
  * @param name - The macro name to render
  * @param params - Parameters passed to the macro
+ * @param external - Outside data slots (ADR-052); absent means every slot is still pending
  * @param onBindDay - Optional handler for rebinding a widget whose selected day was removed
  * @returns The rendered macro widget or an appropriate status chip
  */
-export function MacroView({ detail, context, user = null, globals = null, name, params, onBindDay }: {
+export function MacroView({ detail, context, user = null, globals = null, external, name, params, onBindDay }: {
   detail: TripDetail; context: PageContext; user?: UserPreferences | null;
-  globals?: TripGlobals | null; name: string;
+  globals?: TripGlobals | null; external?: ExternalInputs; name: string;
   params: Record<string, unknown>; onBindDay?: () => void;
 }) {
   const def = getMacro(name);
@@ -123,7 +128,7 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   // ignores it — see `WidgetContext.today` for why it is passed rather than
   // read inside the package.
   const today = useToday();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today }, name, params);
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external }, name, params);
   if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
   // The chip is a control only when something can act on it. `PageScreen`
@@ -188,6 +193,21 @@ export function MacroView({ detail, context, user = null, globals = null, name, 
   // shrug — see `MacroResult`'s `because`.
   if (outcome.status === "empty") {
     return <EmptyChip tone="muted" label={outcome.because ?? def?.emptyText ?? "—"} />;
+  }
+  // ADR-052 decision 4: the trip has what is needed and the outside source has
+  // not answered — or has not YET. The same quiet chip in Reading and Editing
+  // (Mitchell kept Reading's placeholder, M14 "Decided 2026-09-24" item 2), and
+  // never the ghost or an action: "set me up" would be a lie, and there is
+  // nothing for the author to set. No error tone and no retry either; the page
+  // asks again when it is next opened.
+  if (outcome.status === "unavailable") {
+    const noun = EXTERNAL_NOUN[def?.needs?.[0] ?? "weather"];
+    return (
+      <EmptyChip
+        tone="muted"
+        label={outcome.reason === "pending" ? `loading ${noun}` : `${noun} unavailable`}
+      />
+    );
   }
 
   const { rendered } = outcome;

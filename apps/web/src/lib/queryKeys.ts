@@ -31,6 +31,7 @@ export const tripKeys = {
   history: (tripId: string) => `trip:${tripId}:history`,
   access: (tripId: string) => `trip:${tripId}:access`,
   globals: (tripId: string) => `trip:${tripId}:globals`,
+  weather: (tripId: string) => `trip:${tripId}:weather`,
   pages: (tripId: string) => `trip:${tripId}:pages`,
   page: (tripId: string, pageId: string) => `trip:${tripId}:page:${pageId}`,
 } as const;

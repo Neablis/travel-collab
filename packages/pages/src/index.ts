@@ -3,6 +3,7 @@
 
 export * from "./result";
 export * from "./registry-types";
+export * from "./external";
 export * from "./registry";
 export * from "./filters";
 export * from "./select";

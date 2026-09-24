@@ -65,7 +65,7 @@ const EDIT_OUTLINE = "tc-widget-edit relative";
  * is visible in the signature, which is what a docstring here is for.
  */
 export function MacroNodeView({ node, selected, updateAttributes, editor, getPos }: ReactNodeViewProps) {
-  const { detail, context, user, globals, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
+  const { detail, context, user, globals, external, onBindDay, editing, onWidgetSelected } = useMacroEditorContext();
   const name = node.attrs.name as string;
   // **Memoised on its VALUE, not its identity.** `node.attrs.params ?? {}` is a
   // fresh object on every render, and this feeds a `useEffect` that reports the
@@ -189,7 +189,7 @@ export function MacroNodeView({ node, selected, updateAttributes, editor, getPos
           ▸
         </span>
       ) : null}
-      <MacroView detail={detail} context={context} user={user} globals={globals} name={name} params={params} onBindDay={onBindDay} />
+      <MacroView detail={detail} context={context} user={user} globals={globals} external={external} name={name} params={params} onBindDay={onBindDay} />
     </NodeViewWrapper>
   );
 }

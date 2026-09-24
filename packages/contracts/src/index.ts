@@ -3,6 +3,7 @@ export * from "./activity.ts";
 export * from "./detail.ts";
 export * from "./valueKind.ts";
 export * from "./globals.ts";
+export * from "./weather.ts";
 export * from "./manifest.ts";
 export * from "./envelope.ts";
 export * from "./conflict.ts";

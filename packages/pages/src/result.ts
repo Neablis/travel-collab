@@ -21,6 +21,21 @@
  */
 export type UnboundNeeds = "day" | "days" | "person" | "trip";
 
+/**
+ * Why a widget that reads outside data has nothing to show (ADR-052 decision 4).
+ *
+ * `pending` — the request has not landed, or the reader's date is not known
+ * yet so the mode cannot be chosen. `source` — the outside service did not
+ * answer, or our own quota refused to ask it.
+ *
+ * **Not `unbound` and not `empty`, and the difference is who can fix it.**
+ * `unbound` is something the author can set, so it draws a ghost and counts as
+ * "not set up"; `empty` is the trip lacking what the widget reads. Here the trip
+ * has what is needed and the world did not answer, so there is no ghost, no
+ * bind action and nothing counted against the author.
+ */
+export type UnavailableReason = "pending" | "source";
+
 export type MacroResult<T> =
   | { status: "ok"; value: T }
   | {
@@ -41,12 +56,14 @@ export type MacroResult<T> =
        */
       because?: string;
     }
-  | { status: "unbound"; needs: UnboundNeeds };
+  | { status: "unbound"; needs: UnboundNeeds }
+  | { status: "unavailable"; reason: UnavailableReason };
 
 export const ok = <T>(value: T): MacroResult<T> => ({ status: "ok", value });
 export const empty = (because?: string): MacroResult<never> =>
   because === undefined ? { status: "empty" } : { status: "empty", because };
 export const unbound = (needs: UnboundNeeds): MacroResult<never> => ({ status: "unbound", needs });
+export const unavailable = (reason: UnavailableReason): MacroResult<never> => ({ status: "unavailable", reason });
 
 // The answer every trip-reading widget gives when handed a context with no
 // trip. Named rather than inlined seven times so the reason survives: ADR-037
