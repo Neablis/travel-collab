@@ -44,9 +44,11 @@ const server = setupServer(
   ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+// Unmount FIRST: leaving a page mid-session commits it (ADR-036), and that
+// write has to reach this test's handlers rather than the defaults.
 afterEach(() => {
-  server.resetHandlers();
   cleanup();
+  server.resetHandlers();
 });
 afterAll(() => server.close());
 
@@ -349,6 +351,38 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     return { onUpdate };
   }
 
+  // The end of an edit session, which is when a page writes (ADR-036).
+  async function finishEditing() {
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+  }
+
+  // Opening Editing to look and closing it again is the common case, and it
+  // must not manufacture a history entry (ADR-036 decision 5). It also holds
+  // `PageEditor` to `setEditable(…, false)`: a toggle that emitted an update
+  // would start a session nobody typed in.
+  it("writes nothing for an edit session that changed nothing", async () => {
+    const { onUpdate } = await openPage();
+    await finishEditing();
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await finishEditing();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  // KI-2026-09-24-g: leaving the page mid-session CANCELLED the pending write,
+  // so a client-side navigation lost the last edit. Leaving is stopping.
+  it("keeps the last edit when the page is left mid-session", async () => {
+    const { onUpdate } = await openPage();
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    expect(await screen.findByText("no costs yet")).toBeTruthy();
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    cleanup();
+
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain('"name":"cost');
+  });
+
   it("opens in Reading, and Reading hides the WHOLE authoring surface", async () => {
     // Reading is the default (Mitchell, 2026-09-04, walking the preview), and
     // Reading is the traveller's view (§18): no insert affordance, no chrome
@@ -488,29 +522,21 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 2/ }),
     );
 
-    // **Waiting for the save that CARRIES the binding, not for any save at
-    // all.** `toHaveBeenCalled()` plus `calls.at(-1)` is a race and it lost one
-    // (2026-09-13, in a full-suite run; it passed on the next). Opening the
-    // panel and clicking through the day picker can each land a save of their
-    // own, so the moment the first one arrives the wait is satisfied and the
-    // LAST call is still the pre-narrowing document. Asserting the content
-    // inside the wait is the same claim without the timing assumption: it
-    // retries until the save that holds the binding shows up, and still fails
-    // if none ever does.
+    // **One save, when Editing ends, and it carries the binding.** The insert,
+    // opening the panel and each pick in the day picker each used to land an
+    // autosave of their own, which is why this wait once had to retry past the
+    // earlier ones. The edit session commits once (ADR-036, M14 link 9).
     //
     // The binding is stored on the widget instance's own params — ADR-035
     // decision 3, and what lets two widgets on one page read two different days.
     // A single day is a range whose ends are equal — `DateRangeRef`'s own shape
     // for one date rather than a second spelling of it.
-    await vi.waitFor(
-      () => {
-        const saved = onUpdate.mock.calls.at(-1)?.[1].content as { content: unknown[] } | undefined;
-        expect(saved).toBeDefined();
-        expect(JSON.stringify(saved!.content)).toContain('"from":"2027-06-02"');
-        expect(JSON.stringify(saved!.content)).toContain('"through":"2027-06-02"');
-      },
-      { timeout: 3000 },
-    );
+    expect(onUpdate).not.toHaveBeenCalled();
+    await finishEditing();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    const saved = JSON.stringify(onUpdate.mock.calls[0]![1].content);
+    expect(saved).toContain('"from":"2027-06-02"');
+    expect(saved).toContain('"through":"2027-06-02"');
   });
 
   // A BLOCK widget rather than the inline ones the other walks use — and a
@@ -689,24 +715,12 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     );
 
     // The document holds both, which is the actual claim — and the only place
-    // both are visible at once now.
-    //
-    // The content assertions go INSIDE the wait, not after it. `onUpdate` has
-    // already fired for the first widget's binding by the time this line runs,
-    // so `toHaveBeenCalled()` returns on that earlier save and `calls.at(-1)`
-    // can be a document that does not carry the second binding yet — the wait
-    // would be satisfied by the very state it exists to wait past (CodeRabbit,
-    // PR 170; the same shape as the integration flake in `narrows a widget to
-    // one day`). Waiting on the CONTENT is the only form of this that cannot
-    // pass early.
-    await vi.waitFor(
-      () => {
-        const saved = JSON.stringify(onUpdate.mock.calls.at(-1)?.[1].content ?? {});
-        expect(saved).toContain('"from":"2027-06-01"');
-        expect(saved).toContain('"from":"2027-06-02"');
-      },
-      { timeout: 3000 },
-    );
+    // both are visible at once now. One save, at the end of the session.
+    await finishEditing();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    const saved = JSON.stringify(onUpdate.mock.calls[0]![1].content);
+    expect(saved).toContain('"from":"2027-06-01"');
+    expect(saved).toContain('"from":"2027-06-02"');
   });
 
   // The globals seam, end to end, and the only test that walks it. `city`
@@ -970,8 +984,9 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
       // document stores (ADR-039 decision 4). A phone insert that landed wide
       // would mean the bind step decided nothing, which is the failure worth
       // catching here.
-      await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
-      const saved = JSON.stringify(onUpdate.mock.calls.at(-1)![1].content);
+      await finishEditing();
+      await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+      const saved = JSON.stringify(onUpdate.mock.calls[0]![1].content);
       expect(saved).toContain('"cost"');
       expect(saved).not.toContain('"cost.day"');
       expect(saved).toContain('"from":"2027-06-02"');
@@ -1031,8 +1046,8 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
 
 // ADR-038 decision 4, end to end and from the reader's side.
 //
-// The loss this prevents is not exotic: open a page, and 800 ms later this
-// screen writes `editor.getJSON()` back over it. When TipTap did not understand
+// The loss this prevents is not exotic: open a page, edit, and when the session
+// ends this screen writes `editor.getJSON()` back over it. When TipTap did not understand
 // one node in the stored document, that `getJSON()` is an EMPTY document —
 // measured in `editor/PageEditor.test.tsx`, and it takes the user's own
 // paragraphs with it. So the assertion that carries the weight here is the
@@ -1133,7 +1148,7 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
-  it("still mounts and still autosaves an ordinary document", async () => {
+  it("still mounts and still saves an ordinary document", async () => {
     // The other half of the trade ADR-038 weighed: a guard that locks pages it
     // did not need to lock costs real editing. This is the test that would
     // catch that, and it is why the two above are worth trusting.
@@ -1144,17 +1159,16 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
 
     await screen.findByText("ordinary");
     // The document mounts in Reading, so the editor exists but is not editable.
-    // Autosave is an EDITING behaviour now, which is the point of Reading — so
-    // this walks the same path a person does: switch on, then type.
+    // Writing is an EDITING behaviour, which is the point of Reading — so this
+    // walks the same path a person does: switch on, type, switch off.
     expect(screen.queryByRole("status")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     const box = editorTextbox();
     expect(box).not.toBeNull();
     await userEvent.type(box!, "x");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
 
-    // The autosave debounce is 800 ms, so the default 1 s poll window is too
-    // tight to be reliable here.
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled(), { timeout: 3000 });
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled());
     // And what it wrote carries its version (decision 2).
     expect(onUpdate.mock.calls[0]![1].content.v).toBe(CURRENT_PAGE_DOC_VERSION);
   });
