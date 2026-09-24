@@ -459,9 +459,10 @@ export function PageScreen({
   // keepalive `overtaking` an ordinary commit still in flight: the revision it
   // would name is about to be moved by that commit, so it names none and wins
   // by arriving, while the commit it passed still names its own and is refused
-  // if it arrives second. The server answers a no-op before it looks at the
-  // revision, so a commit repeating what a keepalive already landed is not a
-  // conflict.
+  // if it arrives second. A keepalive behind another keepalive is held by the
+  // session instead, and its document kept here as a draft meanwhile (the last
+  // argument). The server answers a no-op before it looks at the revision, so
+  // a commit repeating what a keepalive already landed is not a conflict.
   const commitSeq = useRef(0);
   const session = useEditSession(editing, (content, { keepalive, overtaking }) => {
     const seq = ++commitSeq.current;
@@ -487,7 +488,7 @@ export function PageScreen({
       });
     };
     return send(1);
-  });
+  }, (content) => rememberPageDraft(pageId, { base: baseRef.current ?? "", doc: content }));
   sessionRef.current = session;
 
   // A save refused as typed against an older page. What the page says NOW

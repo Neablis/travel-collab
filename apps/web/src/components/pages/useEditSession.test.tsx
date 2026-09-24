@@ -121,19 +121,29 @@ describe("useEditSession", () => {
       ]);
     });
 
-    // A second unload write cannot wait either, and the revision it would
-    // name is the one the first is about to move: it overtakes the first.
-    it("calls a keepalive that passes another keepalive overtaking", () => {
-      const commit = vi.fn<CommitSession>().mockImplementation(() => new Promise(() => {}));
-      const { result } = mount(true, commit);
+    // A second hide while the first hide's write is still out: both would
+    // name no revision, so the older could land last and win (CodeRabbit, PR
+    // #226). The second is held, its document handed to `hold` at once (the
+    // page may go before the first answers), and sent when the first answers.
+    it("holds a keepalive behind one in flight, keeping its document, and sends it after", async () => {
+      let land: (ok: boolean) => void = () => {};
+      const commit = vi
+        .fn<CommitSession>()
+        .mockImplementationOnce(() => new Promise((r) => (land = r)))
+        .mockResolvedValue(true);
+      const hold = vi.fn<(doc: PageDoc) => void>();
+      const { result } = renderHook(() => useEditSession(true, commit, hold));
       act(() => result.current.change(doc("a")));
       setVisibility("hidden");
       setVisibility("visible");
       act(() => result.current.change(doc("ab")));
-      window.dispatchEvent(new Event("pagehide"));
+      setVisibility("hidden");
+      expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
+      expect(hold.mock.calls).toEqual([[doc("ab")]]);
+      await act(async () => land(true));
       expect(commit.mock.calls).toEqual([
         [doc("a"), { keepalive: true, overtaking: false }],
-        [doc("ab"), { keepalive: true, overtaking: true }],
+        [doc("ab"), { keepalive: true, overtaking: false }],
       ]);
     });
 
