@@ -78,9 +78,9 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
   emptyText: "no costs yet",
   // Fixed, never computed (ADR-037 decision 5): no amount, no day.
   preview: "a bar per day of what it costs, against the budget",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<SpendByDayPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<SpendByDayPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { days, stops } = selection.value;
 

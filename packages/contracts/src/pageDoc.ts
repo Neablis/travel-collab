@@ -189,9 +189,12 @@ export const PageHeadingNode = z.object({
 export type PageHeadingNode = z.infer<typeof PageHeadingNode>;
 
 // A repeater's `content` IS its row template, not its rendered rows (ADR-035
-// decision 4, ADR-038 decision 1). Nothing writes one yet — M14 link 6 does —
-// and that is the point: the format has to understand it before the editor
-// does, or the first client to meet one eats the document.
+// decision 4, ADR-038 decision 1). The format understood it before the editor
+// did, so the first client to meet one would not eat the document; M14 link 6
+// is the first writer. `attrs.name` names the rows widget whose selection it
+// repeats over (`day.rows`, `stop.rows`, `city.rows`) and `params` are that
+// widget's filters — a convention `@tc/pages`' `insertRepeat` enforces, not a
+// narrower schema here, since the registry owns params (as for `macro`).
 export const PageRepeatNode = z.object({
   type: z.literal("repeat"),
   attrs: WidgetAttrs,

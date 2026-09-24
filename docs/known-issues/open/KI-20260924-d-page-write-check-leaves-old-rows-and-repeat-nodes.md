@@ -1,4 +1,4 @@
-### KI-2026-09-24-d — the page write check closes the door but not the room: pre-fix rows stay wrapped, `repeat` nodes go unchecked, and a stored bad widget now blocks autosave
+### KI-2026-09-24-d — the page write check closes the door but not the room: pre-fix rows stay wrapped, and a stored bad widget now blocks autosave (`repeat` nodes going unchecked: fixed)
 
 - **Severity:** correctness, residual. Nothing here is new damage — each item is
   what KI-2026-09-05-g's fix (2026-09-24) deliberately did not reach.
@@ -16,10 +16,17 @@
      is and converges only when a client re-sends the original node.
   2. **A backfilled genesis event is serialized but not migrated**, so it keeps
      the old row's own `v`.
-  3. **`repeat` nodes are not checked.** They carry `attrs.name` and
+  3. ~~**`repeat` nodes are not checked.** They carry `attrs.name` and
      `attrs.params` like a widget, but `findWidgetError` (like the `walkForError`
      it was lifted from) judges only `type:"macro"`. Nothing writes a `repeat`
-     yet.
+     yet.~~ **Fixed 2026-09-24 (M14 T13), with the first `repeat` writer.**
+     `findWidgetError` judges a repeat's attrs through `insertRepeat` — the
+     door the picker uses — so a name that is not a rows widget, a filter its
+     widget does not take, or a table's `columns` is refused, and the template's
+     widgets are walked like any others. Proof (`packages/pages/src/repeat.test.ts`,
+     "findWidgetError inside a repeat"): with the repeat branch disabled, four
+     cases fail with `TypeError: .toMatch() expects to receive a string, but got
+     object` — the check returned `null`, i.e. passed the bad repeat.
   4. **A page that already holds a widget the server now refuses** (unknown
      name, bad params, a filter the widget does not take) gets a 400 on every
      autosave until the user removes that widget, which the editor shows as
@@ -50,9 +57,9 @@
   `type:"unknown"` nesting and stale `v`, run through `ci.yml`'s production
   dispatch pattern like `backfill-countries-production`); (4) wants that same
   scan to count affected rows in production before anyone decides whether the
-  editor needs a "this widget can no longer be saved" affordance; (3) is a
+  editor needs a "this widget can no longer be saved" affordance; (3) was a
   two-line extension of `findWidgetError` best made alongside the first
-  `repeat` writer.
+  `repeat` writer, and was (M14 T13).
 - **Cross-reference:** `resolved/KI-20260905-g-page-write-path-bypasses-the-ast-safety-rules.md`
   (the fix and its proof), ADR-037/038/039, KI-2026-09-22-c (read before
   touching page history).

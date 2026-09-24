@@ -11,6 +11,7 @@ import {
 } from "@tc/contracts";
 import type { z } from "zod";
 import { ok, unbound, type MacroResult } from "./result";
+import type { ItemScope } from "./registry-types";
 
 // **The selection, in one place.** ADR-039 decision 1 says a widget is a
 // selection over one entity plus a shape; every primitive shares the selection
@@ -140,9 +141,11 @@ const NARROWS: Record<FilterDimension, "days" | "contents" | "days and contents"
 export function narrow(
   trip: TripDetail,
   globals: TripGlobals | null,
-  filters: WidgetFilterValues,
+  bound: WidgetFilterValues,
+  item?: ItemScope,
 ): MacroResult<Narrowed> {
-  if (filters.person !== undefined) return unbound("person");
+  if (bound.person !== undefined) return unbound("person");
+  const filters = scoped(bound, item);
 
   const boundDay = filters.day === undefined ? null : dayIndexOf(trip, filters.day);
   if (filters.day !== undefined && boundDay === null) return unbound("day");
@@ -236,6 +239,24 @@ export function narrow(
     return true;
   });
 
+  // A stop item is ONE stop. Its day, when it has one, already narrowed `days`
+  // through `scoped`; what is left is to keep the stop and, when it says where
+  // it is, its own city rather than both of a travel day's. An unscheduled
+  // stop is on no day, so it selects none: its date is empty, never the trip's
+  // whole range.
+  if (item?.kind === "stop") {
+    const stop = stops.find((candidate) => candidate.activityId === item.activityId);
+    const own = stop?.activity.location?.city;
+    return ok({
+      filters,
+      days: item.dayIndex === null ? [] : days,
+      stops: stop ? [stop] : [],
+      cities: own ? cities.filter((city) => city.name === own) : item.dayIndex === null ? [] : cities,
+      narrowed: true,
+      contentNarrowed: true,
+    });
+  }
+
   return ok({
     filters,
     days,
@@ -246,6 +267,28 @@ export function narrow(
       (dimension) => filters[dimension] !== undefined && NARROWS[dimension].endsWith("contents"),
     ),
   });
+}
+
+/**
+ * A widget's bindings with its repeat item applied (ADR-035 decision 4).
+ *
+ * The item fills the dimension it names **only when the widget left it
+ * unbound**: a template widget the author pointed at Day 1 reads Day 1 on
+ * every line, which is what pointing it meant. A stop item fills `day` with
+ * the stop's own day, and `narrow` then keeps the one stop.
+ */
+function scoped(filters: WidgetFilterValues, item: ItemScope | undefined): WidgetFilterValues {
+  if (item === undefined) return filters;
+  switch (item.kind) {
+    case "day":
+      return filters.day === undefined ? { ...filters, day: { kind: "index", index: item.index } } : filters;
+    case "city":
+      return filters.city === undefined ? { ...filters, city: item.name } : filters;
+    case "stop":
+      return filters.day === undefined && item.dayIndex !== null
+        ? { ...filters, day: { kind: "index", index: item.dayIndex } }
+        : filters;
+  }
 }
 
 /**

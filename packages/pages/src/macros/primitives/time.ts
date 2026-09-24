@@ -104,9 +104,9 @@ export const daySun: MacroDef<TimeParams, RepeatPayload> = {
   emptyText: "add a stop with a place to see this",
   // Fixed, never computed (ADR-037 decision 5).
   preview: "sunrise 04:25 · sunset 19:00 · golden hour 18:22–19:00",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     if (!globals) return empty();
     let undated = false;
@@ -192,9 +192,9 @@ export const dayFromHome: MacroDef<TimeParams, readonly HomeDifference[]> = {
     "How far ahead of or behind home the selected days' local time is, from the reader's home airport. Filter it to a day for that day's difference.",
   emptyText: "add a stop with a place to see this",
   preview: "Tokyo is 16h ahead of home",
-  resolve: ({ trip, globals, user, today }: WidgetContext, params) => {
+  resolve: ({ trip, globals, user, today }: WidgetContext, params, item) => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     if (!globals) return empty();
     const home = globals.homeTimeZone;

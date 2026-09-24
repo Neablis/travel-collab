@@ -102,13 +102,14 @@ describe("PageEditor", () => {
 // starts throwing, or starts dropping only the offending node, this goes red
 // and the guard's design should be revisited rather than the test updated.
 describe("PageEditor given a node type the schema does not know (ADR-038)", () => {
-  // A perfectly valid `PageDoc` — `repeat` is in the AST's block union, and the
-  // v1 golden contains one. It is the editor that has no extension for it, and
-  // that asymmetry is the entire reason `inspectStoredPageDoc` compares against
-  // the editor's schema rather than against our own parser (see `storedPageDoc.ts`).
+  // A perfectly valid `PageDoc`: a node from a newer build is carried as
+  // `unknown` (ADR-038 decision 3), and the editor has no extension for it.
+  // That asymmetry is the entire reason `inspectStoredPageDoc` compares against
+  // the editor's schema rather than against our own parser (see
+  // `storedPageDoc.ts`). It was a `repeat` until M14 link 6 gave the editor one.
   const withUnknownNode: PageDoc = newPageDoc([
     { type: "paragraph", content: [{ type: "text", text: "written by the user" }] },
-    { type: "repeat", attrs: { name: "day.line", params: {} }, content: [] },
+    { type: "unknown", raw: { type: "callout", content: [] } },
   ]);
 
   it("discards the whole stored document rather than throwing or dropping the one node", async () => {

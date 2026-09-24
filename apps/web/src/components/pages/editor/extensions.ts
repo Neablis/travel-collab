@@ -1,6 +1,7 @@
 import { getSchema, type Extensions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { MacroNodeExtension } from "./MacroNodeExtension";
+import { RepeatNodeExtension } from "./RepeatNodeExtension";
 
 // The editor's extension set, in one place.
 //
@@ -16,7 +17,7 @@ import { MacroNodeExtension } from "./MacroNodeExtension";
 // registered on purpose: page content is stored ProseMirror JSON, so
 // unregistering this extension would silently DROP existing macro nodes on the
 // next save. The authoring vocabulary returns in M14.
-export const PAGE_EDITOR_EXTENSIONS: Extensions = [StarterKit, MacroNodeExtension];
+export const PAGE_EDITOR_EXTENSIONS: Extensions = [StarterKit, MacroNodeExtension, RepeatNodeExtension];
 
 // Every node type the editor can mount AT A CONTENT POSITION, derived from the
 // extension set above rather than listed (AGENTS.md invariant 5, and the drift

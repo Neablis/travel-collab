@@ -129,9 +129,10 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
   resolve: (
     { trip, globals }: WidgetContext,
     params,
+    item,
   ): MacroResult<ItineraryDayPayload | ItineraryTripPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { days, stops, contentNarrowed } = selection.value;
 
@@ -181,9 +182,9 @@ export const cityDetail: MacroDef<CityDetailParams, CityDetailPayload> = {
     "A card per city the trip touches: which days are there, and how many stops. Unfiltered it is every city.",
   emptyText: "no cities on this trip yet",
   preview: "a card per city, with its days and stops",
-  resolve: ({ trip, globals }: WidgetContext, params): MacroResult<CityDetailPayload> => {
+  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<CityDetailPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { cities, days, stops } = selection.value;
     if (cities.length === 0) return empty();

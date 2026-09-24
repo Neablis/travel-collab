@@ -169,9 +169,9 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   emptyText: "no place on this day",
   // Fixed, never computed (ADR-037 decision 5) — the ADR's own wording.
   preview: "The weather for each day — the forecast when there is one, what's typical when there isn't.",
-  resolve: ({ trip, globals, today, external }: WidgetContext, params): MacroResult<WeatherPayload> => {
+  resolve: ({ trip, globals, today, external }: WidgetContext, params, item): MacroResult<WeatherPayload> => {
     if (!trip) return needsTrip();
-    const selection = narrow(trip, globals, params);
+    const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const slot = readSlot(external, "weather");
     if (slot.status !== "ok") return slot;
