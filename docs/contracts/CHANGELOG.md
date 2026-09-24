@@ -24,7 +24,9 @@ Format:
   widget whose `field` param names a renamed path is pointed at the new one,
   and every widget naming a removed path becomes the plain text
   `(<label> — no longer available)`. A block widget becomes a paragraph holding
-  that text; a `repeat` keeps its row template after it.
+  that text; a `repeat` keeps its row template after it. In `stop.rows`'s
+  `columns` list a renamed path is renamed and a removed one drops out of the
+  list; the table keeps its other columns.
 - **Versioning rule.** Each distinct `since` is one document version, so a
   batch of entries bumps `CURRENT_PAGE_DOC_VERSION` once. A new batch takes
   `CURRENT_PAGE_DOC_VERSION + 1`, and `pageDocMigrations` throws on a gap. A
@@ -34,7 +36,7 @@ Format:
   table. The v1 → v2 step now uses the same widget walker. Its output is
   unchanged: the v1 → v2 golden test passes as before.
 - **Guard (tests):** `test/fixtures/publishedFieldPaths.ts` records every field
-  path ever published (22 today). `manifest.test.ts` fails when a recorded path
+  path ever published (23 today). `manifest.test.ts` fails when a recorded path
   leaves the manifest without an entry, when a live path is missing from the
   record, when a rename ends on a field that is not live, and when a removed
   field is still published.
@@ -44,7 +46,8 @@ Format:
   (link 10) snapshots a document version and is read through the same
   `migratePageDoc`, so it converts the same way. A test pins that path.
 - Consumers updated: none needed. Every caller of `migratePageDoc` (`apps/web`
-  `storedPageDoc.ts`, `pageTools.ts`, `server/pages.ts`, `apiClient.ts`) passes
+  `storedPageDoc.ts`, `pageTools.ts`, `server/pages.ts`, `apiClient.ts`, and
+  `@tc/pages` `instantiateTemplate` for saved notebooks) passes
   one argument and gets the real chain. `CURRENT_PAGE_DOC_VERSION` is still 2.
 - Breaking? no. The table is empty, so no stored document changes and no
   version moves.

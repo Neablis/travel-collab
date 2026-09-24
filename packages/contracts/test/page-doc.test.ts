@@ -649,6 +649,16 @@ describe("a renamed or removed field converts the documents that read it", () =>
     });
   });
 
+  it("renames a field in a list of columns, and drops a removed one from it", () => {
+    // A column is not a widget: the table around it still has everything else
+    // the author picked, so only the removed column goes.
+    const doc = migratePageDoc(
+      v2([widget("stop.rows", { columns: ["stop.title", "stop.cost", "trip.budgetRemaining"], kind: "booked" })]),
+      migrations,
+    );
+    expect(doc.content).toEqual([widget("stop.rows", { columns: ["stop.title", "stop.price"], kind: "booked" })]);
+  });
+
   it("leaves widgets on other fields, and widgets with no field, as they were", () => {
     const content = [
       widget("attribute", { field: "trip.name" }),

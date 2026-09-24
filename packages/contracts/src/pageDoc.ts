@@ -558,32 +558,51 @@ export type FieldChange =
 export const FIELD_CHANGES: readonly FieldChange[] = [];
 
 /**
- * The widget params that hold a manifest path. `attribute` stores `field`, and
- * so will the field widget. A param holding a path under any other key — or a
- * LIST of paths, which columns on the row widgets may be — has to be added
- * here, or its widgets will not convert.
+ * The widget params that hold a manifest path, and how many. `attribute` and
+ * the field widget store one `field`; `stop.rows` stores a list of `columns`.
+ * A path under any other key has to be added here, or its widgets will not
+ * convert.
+ *
+ * A removed field in a `list` param drops out of the list rather than
+ * replacing the widget: a column is not a widget, and the table still holds
+ * every other column the author chose.
  */
-const FIELD_PARAMS: readonly string[] = ["field"];
+const FIELD_PARAMS: Readonly<Record<string, "one" | "list">> = { field: "one", columns: "list" };
 
 function placeholder(label: string): PageTextNode {
   return { type: "text", text: `(${label} — no longer available)` };
 }
 
-// One batch's step. Entries apply in table order, so a batch can rename a
-// field and then remove what it was renamed to.
+// Where one path ends up after a batch: a new path, or the label it was removed under.
+// Entries apply in table order, so a batch can rename a field and then remove
+// what it was renamed to.
+function applyBatch(batch: readonly FieldChange[], path: string): { path: string } | { removed: string } {
+  for (const change of batch) {
+    if (change.kind === "remove" && change.path === path) return { removed: change.label };
+    if (change.kind === "rename" && change.from === path) path = change.to;
+  }
+  return { path };
+}
+
 function fieldChangeStep(batch: readonly FieldChange[]): PageDocMigration {
   return rewriteWidgets((attrs) => {
-    let params = attrs.params;
-    for (const key of FIELD_PARAMS) {
-      let path = params[key];
-      if (typeof path !== "string") continue;
-      for (const change of batch) {
-        if (change.kind === "remove" && change.path === path) return placeholder(change.label);
-        if (change.kind === "rename" && change.from === path) path = change.to;
+    const params = { ...attrs.params };
+    for (const [key, arity] of Object.entries(FIELD_PARAMS)) {
+      const value = params[key];
+      if (arity === "one" && typeof value === "string") {
+        const next = applyBatch(batch, value);
+        if ("removed" in next) return placeholder(next.removed);
+        params[key] = next.path;
       }
-      if (path !== params[key]) params = { ...params, [key]: path };
+      if (arity === "list" && Array.isArray(value)) {
+        params[key] = value.flatMap((item: unknown) => {
+          if (typeof item !== "string") return [item];
+          const next = applyBatch(batch, item);
+          return "removed" in next ? [] : [next.path];
+        });
+      }
     }
-    return params === attrs.params ? attrs : { ...attrs, params };
+    return { ...attrs, params };
   });
 }
 

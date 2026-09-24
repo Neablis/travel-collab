@@ -14,6 +14,7 @@ export const PUBLISHED_FIELD_PATHS: readonly string[] = [
   "trip.days.cities",
   "trip.days.activityCount",
   "trip.days.costSubtotal",
+  "trip.days.timeZone", // M14 T20
   "trip.cities.name",
   "trip.cities.dayIndexes",
   "trip.cities.activityCount",
