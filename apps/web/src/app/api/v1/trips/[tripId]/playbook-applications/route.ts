@@ -212,7 +212,15 @@ export const { POST } = route({
       }
       // Newest first, and this batch was the last append.
       const entry = result.history.entries[0];
-      if (entry === undefined) throw new Error("an accepted batch left no history entry");
+      if (entry === undefined) {
+        // **The batch HAS committed**, so this is a PublicApiError rather than a
+        // bare throw: under ADR-051 a bare throw releases the Idempotency-Key
+        // ("outcome unknown"), and a retry would apply the Playbook twice. This
+        // answer is known — the write landed, the response could not be built —
+        // so the key keeps it and a retry replays it.
+        console.error("an accepted playbook application left no history entry", { tripId, playbookId: request.playbookId });
+        throw new PublicApiError(500, "Something went wrong. The failure has been logged.");
+      }
       // `trip` is the gate's read, taken before the batch — the "before" the
       // warnings are measured against.
       const warnings = applicationWarnings(trip!, result.detail, result.minted.activityIds);

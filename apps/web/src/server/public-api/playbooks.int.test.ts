@@ -902,6 +902,28 @@ describe("POST /v1/trips/{tripId}/playbook-applications — Idempotency-Key", ()
     expect((await tripOf(owner, tripId)).days).toHaveLength(3);
   });
 
+  it("keeps a 500 raised after the apply committed: the retry replays it and applies nothing twice", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const tripId = await emptyTrip(owner);
+    const key = randomUUID();
+    const real = (await vi.importActual<typeof import("@/server/commands")>("@/server/commands"))
+      .executeTripCommandBatch;
+    // The real batch commits; only its answer is made unusable afterwards.
+    vi.mocked(executeTripCommandBatch).mockImplementationOnce(async (...args) => {
+      const result = await real(...args);
+      return result.ok ? { ...result, history: { ...result.history, entries: [] } } : result;
+    });
+
+    const broken = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }));
+    expect(broken.status).toBe(500);
+    const retried = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }));
+    expect(retried.status).toBe(500);
+    expect(retried.headers.get("Idempotent-Replayed")).toBe("true");
+    expect((await tripOf(owner, tripId)).days).toHaveLength(3);
+  });
+
   it("keeps a 409 for a stale expectedTripSeq: the same key replays it", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner);
