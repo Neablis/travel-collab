@@ -798,7 +798,7 @@ milestone opens:**
 - [ ] **A template snapshotted at one document version still instantiates after
       the AST has moved** — ADR-038's versioning is exercised by link 10 rather
       than assumed by it, with a test that pins an older version and renders it.
-- [ ] **Adding a filter dimension cannot be silently ignored.** The
+- [x] **Adding a filter dimension cannot be silently ignored.** *(Ticked 2026-09-24, T02 on PR #221: `narrow` is total through a compile-checked `NARROWS` record, `optionsFor` and the page-document switches end in `never`, and KI-2026-09-05-h is resolved with its proof line.)* The
       `KI-20260905-h` reproduction — a dimension accepted, stored, rendered as a
       control and dropped by `narrow` — fails before the change and passes after,
       and the entry moves to `resolved/` with its proof line. *(Added 2026-09-18
