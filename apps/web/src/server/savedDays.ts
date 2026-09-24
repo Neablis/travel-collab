@@ -9,12 +9,13 @@ import {
   type SavedDay,
   type TripDetail,
 } from "@tc/contracts";
-import { citiesOfSequence, countriesOfStops } from "@tc/domain";
+import { citiesOfSequence, countriesOfStops, foldEnvelopes } from "@tc/domain";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
 import { parseSavedDayColumns } from "./savedDayRow";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
+import { readStream } from "./eventStore";
 import { addCounts, recordAdd } from "./savedDayAdds";
 import type { AccessError, AccessResult } from "./access/invites";
 // Shared with the UI (the Keep-this-day dialog describes what it is about to
@@ -922,14 +923,25 @@ export async function deleteSavedDay(
  * trips — or twice into one — without ever putting the same id in two streams
  * (the KI-1 hazard; `cloneTrip` remaps for the same reason).
  */
-export function insertCommands(saved: SavedDay, tripId: string): BatchableCommand[] {
-  const days = Math.max(
-    saved.dayCount,
-    saved.stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
-  );
-  const dayIds = Array.from({ length: days }, () => randomUUID());
+/**
+ * **`onto` merges instead of appending** (ADR-050, Pass B): the sequence's day
+ * `k` lands on `onto[k]`, a day the trip already has, and only the days that run
+ * past the end of `onto` are minted with `AddDay` — still at the end of the
+ * trip, because the domain has no positioned `AddDay` and this does not invent
+ * one. The default, `[]`, is "merge onto nothing": every day new, which is the
+ * append every existing caller gets.
+ */
+export function insertCommands(
+  saved: SavedDay,
+  tripId: string,
+  onto: readonly string[] = [],
+): BatchableCommand[] {
+  const days = sequenceLength(saved);
+  const dayIds = Array.from({ length: days }, (_, k) => onto[k] ?? randomUUID());
   return [
-    ...dayIds.map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
+    ...dayIds
+      .slice(onto.length)
+      .map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
     ...saved.stops.map(
       (stop): BatchableCommand => ({
         type: "AddActivity",
@@ -951,6 +963,33 @@ export function insertCommands(saved: SavedDay, tripId: string): BatchableComman
     ),
   ];
 }
+
+/** How many days a sequence occupies: its `dayCount`, floored by its stops. */
+function sequenceLength(saved: SavedDay): number {
+  return Math.max(
+    saved.dayCount,
+    saved.stops.reduce((max, s) => (s.dayIndex + 1 > max ? s.dayIndex + 1 : max), 1),
+  );
+}
+
+/**
+ * What a `v1` apply may ask of an insert beyond "append it" (ADR-050, Pass B).
+ * Every field is optional and the app's internal route passes none of them.
+ */
+export interface InsertOptions {
+  readonly now?: string;
+  /** Refuse unless the Playbook is still at this `version`. */
+  readonly version?: number;
+  /** Merge onto the trip's days from this one on, rather than appending. */
+  readonly startingAt?: string;
+  /** Refuse unless the trip's stream still stands at this seq — checked by the batch itself. */
+  readonly expectedSeq?: number;
+}
+
+/** A refusal only an insert with `InsertOptions` can produce. */
+export type InsertRefusal =
+  | { code: "version-mismatch"; message: string; currentVersion: number }
+  | { code: "unknown-day"; message: string };
 
 /**
  * Insert a saved day into a trip, and — when the design's rule says it counts —
@@ -987,34 +1026,72 @@ export async function insertSavedDay(
   savedDayId: string,
   tripId: string,
   actorId: string,
-  now: string = new Date().toISOString(),
+  options: InsertOptions = {},
 ): Promise<
-  | (Extract<CommandResult, { ok: true }> & { minted: InsertedIds })
+  | (Extract<CommandResult, { ok: true }> & { minted: InsertedIds; playbookVersion: number })
   | Extract<CommandResult, { ok: false }>
-  | { ok: false; error: AccessError }
+  | { ok: false; error: AccessError | InsertRefusal }
 > {
+  const now = options.now ?? new Date().toISOString();
   const saved = await readableSavedDay(savedDayId, actorId);
   if (saved === null) {
     return { ok: false, error: { code: "not-found", message: "That saved day does not exist." } };
   }
-  const commands = insertCommands(saved, tripId);
-  const result = await executeTripCommandBatch(commands, actorId, async (tx) => {
-    if (!addCounts({ authorId: saved.ownerId, actorId })) return;
-    await recordAdd(tx, {
-      savedDayId: saved.savedDayId,
-      tripId,
-      addedBy: actorId,
-      createdAt: new Date(now),
-    });
-  });
+  if (options.version !== undefined && options.version !== saved.version) {
+    return {
+      ok: false,
+      error: {
+        code: "version-mismatch",
+        message: `This playbook is at version ${saved.version}, not ${options.version}.`,
+        currentVersion: saved.version,
+      },
+    };
+  }
+
+  // **Merging needs the trip's days, and they have to be the days the batch
+  // decides against.** So they are read with the stream's head, and the batch
+  // is pinned to that head: a day added or removed between this read and the
+  // append makes the batch refuse rather than land day `k` somewhere else. A
+  // caller's own `expectedSeq` is the stricter pin and wins.
+  let onto: string[] = [];
+  let expectedSeq = options.expectedSeq;
+  if (options.startingAt !== undefined) {
+    const envelopes = await readStream(db, tripId);
+    const days = foldEnvelopes(envelopes)?.days ?? [];
+    const at = days.findIndex((d) => d.dayId === options.startingAt);
+    if (at === -1) {
+      return { ok: false, error: { code: "unknown-day", message: "That day is not in this trip." } };
+    }
+    onto = days.slice(at).map((d) => d.dayId);
+    expectedSeq ??= envelopes.length;
+  }
+
+  const commands = insertCommands(saved, tripId, onto);
+  const result = await executeTripCommandBatch(
+    commands,
+    actorId,
+    async (tx) => {
+      if (!addCounts({ authorId: saved.ownerId, actorId })) return;
+      await recordAdd(tx, {
+        savedDayId: saved.savedDayId,
+        tripId,
+        addedBy: actorId,
+        createdAt: new Date(now),
+      });
+    },
+    { expectedSeq },
+  );
   if (!result.ok) return result;
   // Read back out of the batch rather than minted a second time, so these are
   // by construction the ids that landed. `insertCommands` emits every AddDay
   // in sequence order and then one AddActivity per stop in `stops[]` order.
+  const createdDayIds = commands.flatMap((c) => (c.type === "AddDay" ? [c.dayId] : []));
   return {
     ...result,
+    playbookVersion: saved.version,
     minted: {
-      dayIds: commands.flatMap((c) => (c.type === "AddDay" ? [c.dayId] : [])),
+      dayIds: [...onto, ...createdDayIds].slice(0, sequenceLength(saved)),
+      createdDayIds,
       activityIds: commands.flatMap((c) => (c.type === "AddActivity" ? [c.activityId] : [])),
     },
   };
@@ -1024,8 +1101,13 @@ export async function insertSavedDay(
  * The ids an insert minted — `dayIds` in the saved sequence's day order,
  * `activityIds` in the order of its `stops[]`. Positional because a `SavedStop`
  * has no id of its own to key a map by (ADR-050).
+ *
+ * `dayIds` is where each day LANDED, so on a merge it names days the trip
+ * already had; `createdDayIds` is only the new ones. On an append they are the
+ * same list.
  */
 export interface InsertedIds {
   readonly dayIds: string[];
+  readonly createdDayIds: string[];
   readonly activityIds: string[];
 }

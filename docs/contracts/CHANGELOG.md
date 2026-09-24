@@ -13,6 +13,38 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — Applying a Playbook: version pin, `expectedTripSeq`, `startingAt`, `Idempotency-Key`, warnings (ADR-050 Pass B, ADR-051)
+
+- **No `packages/contracts` schema changed.** A `v1` surface change;
+  `openapi.json` regenerated, and only
+  `/v1/trips/{tripId}/playbook-applications` moved — `/v1/library`'s entries are
+  byte-identical.
+- **`POST /v1/trips/{tripId}/playbook-applications`** body gains `version?`
+  (int >= 1), `placement?` (`{ mode: "append" }` default, or `{ mode:
+  "startingAt", dayId }`) and `expectedTripSeq?` (int >= 0). The answer gains
+  `playbookVersion`, `createdDayIds` and `warnings` (`conflict` |
+  `weekday-mismatch`); `dayIds` now means "the day each Playbook day landed on"
+  (identical to before on an append). A stale `version` or `expectedTripSeq` is
+  409 `conflict` with `details.currentVersion` / `details.currentSeq`; an
+  unknown `startingAt` day is 400. It declares the `Idempotency-Key` request
+  header and the `Idempotent-Replayed` response header.
+- **`route()`** gains `idempotent` (POST only), backed by the new table
+  `api_idempotency_keys` — **migration `0027_api_idempotency_keys`**.
+- **Server internals** (not contracts): `executeTripCommandBatch` takes an
+  optional `{ expectedSeq }`; `CommandResult`'s error may carry `currentSeq`;
+  `insertCommands` takes the days to merge onto (default `[]`, i.e. append);
+  `insertSavedDay`'s fourth argument is now an options object (`now`, `version`,
+  `startingAt`, `expectedSeq`) — no caller passed the old positional `now`;
+  `InsertedIds` gains `createdDayIds`.
+- Why: ADR-050's deferred Phase 2 — a safe retry, a concurrency precondition,
+  and applying onto days a trip already has.
+- Consumers updated: `apps/web` only — the route, `server/{commands,savedDays}.ts`,
+  `server/public-api/{route,openapi,idempotency,applications}.ts`,
+  `server/db/schema.ts`. The app's internal saved-day route and the assistant's
+  insert pass nothing new and are unchanged.
+- Breaking? No. Every new request field is optional and every new answer field
+  is additive.
+
 ## 2026-09-24 — `SavedDay.version` and `SavedDay.summary`; Playbook composition and edits over `v1` (ADR-050, Pass A)
 
 - **`SavedDay`** (`packages/contracts/src/saved.ts`) gains two fields, both

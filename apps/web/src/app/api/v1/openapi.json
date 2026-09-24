@@ -15002,7 +15002,7 @@
     },
     "/v1/trips/{tripId}/playbook-applications": {
       "post": {
-        "summary": "Append a Playbook's days and stops to the end of a trip, as one undoable change",
+        "summary": "Apply a Playbook's days and stops to a trip, appended or merged, as one undoable change",
         "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
         "security": [
           {
@@ -15019,6 +15019,17 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Optional. A retry with the same key and the same request replays the first answer instead of running again; the same key with a different request is a 400, and one still in progress is a 409. Kept for 24 hours, per account. A 5xx is not kept.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
           }
         ],
         "requestBody": {
@@ -15031,6 +15042,57 @@
                   "playbookId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Apply only if the Playbook is still at this `version`; otherwise 409 with `details.currentVersion`."
+                  },
+                  "placement": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "append"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "startingAt"
+                            ]
+                          },
+                          "dayId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "A day already in the trip. The Playbook's day 0 goes onto it, day 1 onto the next, and so on."
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "dayId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "description": "`append` (the default) adds every Playbook day at the end of the trip. `startingAt` merges: Playbook day k goes onto the trip day k places after `dayId`, and only the days that run past the end of the trip are added."
+                  },
+                  "expectedTripSeq": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Apply only if the trip still stands at this revision (the `historySeq` a previous write answered, or the newest history entry's `toSeq`); otherwise 409 with `details.currentSeq`. Checked in the same transaction as the write."
                   }
                 },
                 "required": [
@@ -15044,6 +15106,14 @@
         "responses": {
           "201": {
             "description": "Success.",
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "`true` when this answer is a replay of an earlier request with the same Idempotency-Key.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -15057,13 +15127,27 @@
                       "type": "string",
                       "format": "uuid"
                     },
+                    "playbookVersion": {
+                      "type": "integer",
+                      "exclusiveMinimum": true,
+                      "minimum": 0,
+                      "description": "The Playbook `version` that was applied."
+                    },
                     "dayIds": {
                       "type": "array",
                       "items": {
                         "type": "string",
                         "format": "uuid"
                       },
-                      "description": "The new days' ids, in the Playbook's day order — one per day, empty days included."
+                      "description": "Per Playbook day, in order, the trip day it landed on — new days on an append; existing days, then any new ones, on a `startingAt` merge. Empty days included."
+                    },
+                    "createdDayIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "description": "Only the days this application added, in order. Equal to `dayIds` on an append."
                     },
                     "activityIds": {
                       "type": "array",
@@ -15078,14 +15162,80 @@
                       "exclusiveMinimum": true,
                       "minimum": 0,
                       "description": "The revision the trip stands at after this application (its history entry's `toSeq`). The whole application is that one entry, so one undo removes all of it."
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "enum": [
+                                  "conflict"
+                                ]
+                              },
+                              "conflictId": {
+                                "type": "string"
+                              },
+                              "activityIds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                }
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "conflictId",
+                              "activityIds",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "enum": [
+                                  "weekday-mismatch"
+                                ]
+                              },
+                              "activityId": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "activityId",
+                              "message"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      "description": "Advice, never a refusal: nothing is dropped because of one. `conflict` is a conflict this application introduced that involves a new stop; `weekday-mismatch` is a stop anchored to weekdays that landed on a dated day that is none of them."
                     }
                   },
                   "required": [
                     "tripId",
                     "playbookId",
+                    "playbookVersion",
                     "dayIds",
+                    "createdDayIds",
                     "activityIds",
-                    "historySeq"
+                    "historySeq",
+                    "warnings"
                   ],
                   "additionalProperties": false
                 }

@@ -308,7 +308,7 @@ days, where `/v1/library` keeps its published singular `dayId` (ADR-050). Only
 | `GET /v1/playbooks/{playbookId}` | `library:read` | — | Yours, or anyone's published one; otherwise 404 |
 | `PATCH /v1/playbooks/{playbookId}` | `library:write` | — | Edit or publish — see below. Answers `{ playbook, warnings }` |
 | `DELETE /v1/playbooks/{playbookId}` | `library:write` | — | A published Playbook must be unpublished first (409) |
-| `POST /v1/trips/{tripId}/playbook-applications` | `trips:write` | `editor` on the destination | `{ playbookId }`. Answers 201 |
+| `POST /v1/trips/{tripId}/playbook-applications` | `trips:write` | `editor` on the destination | `{ playbookId, version?, placement?, expectedTripSeq? }`. Answers 201. Takes `Idempotency-Key` |
 
 **Creating takes exactly one of two bodies.** Both refuse unknown fields, so a
 body carrying both `source` and `days` matches neither and is a 400. (The
@@ -372,31 +372,84 @@ generated reference shows them as `anyOf`; the generator has no `oneOf`.)
   stored state — so `{ days, visibility: "public", expectedVersion }` on a
   private Playbook edits and publishes in one step.
 
-**Applying** appends every day of the Playbook to the end of the trip, empty
-days included, with every stop on the day it belongs to:
+**Applying** puts every day of the Playbook into the trip, empty days included,
+with every stop on the day it belongs to:
 
 ```json
-{ "tripId": "…", "playbookId": "…",
-  "dayIds": ["…", "…"], "activityIds": ["…", "…", "…"], "historySeq": 42 }
+{ "playbookId": "…", "version": 3,
+  "placement": { "mode": "startingAt", "dayId": "…" },
+  "expectedTripSeq": 41 }
 ```
 
+Only `playbookId` is required. The answer:
+
+```json
+{ "tripId": "…", "playbookId": "…", "playbookVersion": 3,
+  "dayIds": ["…", "…"], "createdDayIds": ["…"], "activityIds": ["…", "…", "…"],
+  "historySeq": 42, "warnings": [] }
+```
+
+- **Placement.** `{ "mode": "append" }`, the default, adds every Playbook day at
+  the end of the trip. `{ "mode": "startingAt", "dayId" }` **merges**: Playbook
+  day 0 goes onto `dayId`, day 1 onto the trip's next day, and so on; only the
+  days that run past the end of the trip are added, at the end. Nothing is ever
+  inserted *between* two days — the trip's own days never move. An unknown
+  `dayId` is a 400. If the trip's days change between your request and the
+  write, the answer is a 409 rather than a stop on the wrong day.
+- **`dayIds[i]`** is the trip day the Playbook's day `i` landed on — new on an
+  append, existing (then new) on a merge. **`createdDayIds`** is only the days
+  this application added. **`activityIds[i]`** is the Playbook's `stops[i]`.
+- **`version`** applies only if the Playbook is still at that version; otherwise
+  **409 `conflict`** with `details: { currentVersion }`, and nothing is written.
+  `playbookVersion` says which version was applied either way.
+- **`expectedTripSeq`** applies only if the trip still stands at that revision —
+  the `historySeq` of your last write, or the newest history entry's `toSeq`.
+  Otherwise **409 `conflict`** with `details: { currentSeq }`, and nothing is
+  written. It is checked inside the write's own transaction, not before it.
 - **Atomic.** All of it lands or none of it does.
-- **Append-only.** Nothing already in the trip moves or changes.
 - **One undo.** The whole application is one history entry, and `historySeq` is
   that entry's revision — while it is the trip's last change, one
-  `POST …/history/undo` takes all of it back.
-- **Fresh ids, every time.** `dayIds[i]` is the Playbook's day `i`, and
-  `activityIds[i]` is its `stops[i]`. The same Playbook applied twice gives you
-  two sets of days.
+  `POST …/history/undo` takes all of it back, merged stops included.
+- **Fresh ids, every time.** The same Playbook applied twice gives you two sets
+  of stops (and, on an append, two sets of days) — unless you send the same
+  `Idempotency-Key`, below.
+- **`warnings` never stop anything.** `{ "code": "conflict", "conflictId",
+  "activityIds", "message" }` for each conflict the application introduced that
+  involves a new stop — two stops whose times overlap, say. `{ "code":
+  "weekday-mismatch", "activityId", "message" }` for a stop anchored to certain
+  weekdays that landed on a dated day that is none of them. Every stop is
+  applied regardless.
 - **Nothing of the source trip comes across** — not its dates, not its ids. A
-  stop carries its title, time window, place, notes, anchors, kind, tags and cost.
+  stop carries its title, time window, place (coordinates exactly as stored —
+  applying never geocodes), notes, anchors, kind, tags and cost.
 - **Somebody else's Playbook** applies if they published it, and is a 404 if
   they did not — the same answer as one that does not exist.
 
-**Not yet:** applying some of a Playbook's days, an `Idempotency-Key`, and an
-`expectedTripSeq` precondition. Until those last two exist, **a retried apply
-appends twice** — and so does a retried create — check before resending one
-whose answer you did not see.
+**Not yet:** applying some of a Playbook's days. **A retried create
+(`POST /v1/playbooks`) still keeps twice** — it takes no `Idempotency-Key` yet.
+
+### Retrying safely: `Idempotency-Key`
+
+An endpoint that takes it says so in the reference (the `Idempotency-Key` header
+parameter); today that is `POST /v1/trips/{tripId}/playbook-applications`. Send
+any string of 1–255 characters, fresh per operation — a UUID is the obvious
+choice — and reuse it only to retry that same operation.
+
+| You send the key again… | You get |
+|---|---|
+| with the same request, after the first finished | The first answer — same status, same body — with `Idempotent-Replayed: true`. Nothing runs again |
+| with the same request, while the first is still running | **409 `conflict`**. Wait and retry |
+| with a different method, path or body | **400 `invalid-request`**, "Idempotency-Key reused with a different request" |
+| more than 24 hours after it was first used | A fresh run: the key has expired |
+
+- Keys are **per account**: all your tokens share them, and nobody else's key can
+  replay your answer.
+- "The same body" means the same JSON value — key order does not matter.
+- **A 5xx is not kept**, so retrying after one runs the request again. **A 4xx
+  is kept**: a 409 for a stale `version` replays as that 409 — send a new key
+  with the corrected request.
+- A request refused before it runs — bad JSON, a missing scope, no access to the
+  trip — spends no key.
 
 ### What is not here, and will not be
 
@@ -442,6 +495,12 @@ and pagination — once, for every endpoint that will ever exist.
 **`conformance.test.ts` fails CI on a raw `export async function GET` under
 `v1/`**, and on a declaration that names a trip without a role. That is what
 makes "the directory is the registry" true rather than intended.
+
+**A `POST` that creates something can add `idempotent: true`** and get the
+whole `Idempotency-Key` contract above — reservation, replay, mismatch, in
+flight, 5xx not kept, 24-hour expiry — plus its header in the reference
+(ADR-051). `{ onReplay }` instead of `true` lets an endpoint that logs its
+outcomes log a replay too; `playbook-applications` is the worked example.
 
 ### What a new endpoint still costs
 

@@ -257,6 +257,36 @@ export const apiTokens = pgTable(
   ],
 );
 
+// **`Idempotency-Key` reservations for `v1` writes that opt in** (ADR-051).
+//
+// Keyed by the USER, not the token, so two of one person's tokens share a key
+// space and two people's keys never collide. The row is written BEFORE the
+// handler runs (`INSERT … ON CONFLICT DO NOTHING`), which is what stops two
+// concurrent requests with one key both running; `completed_at` null means in
+// flight. A 5xx deletes the row, so only answers the caller should see again are
+// kept. Rows older than 24 hours are treated as absent and overwritten on the
+// next use of the key — there is no sweep.
+export const apiIdempotencyKeys = pgTable(
+  "api_idempotency_keys",
+  {
+    // A `users.id`, on the same no-foreign-key terms as `api_tokens.owner_id`
+    // (ADR-025).
+    userId: text("user_id").notNull(),
+    key: text("key").notNull(),
+    method: text("method").notNull(),
+    path: text("path").notNull(),
+    // sha256 of the parsed body's canonical JSON, hex.
+    requestHash: text("request_hash").notNull(),
+    statusCode: integer("status_code"),
+    response: jsonb("response"),
+    // The start of the current attempt: the 24-hour expiry and the in-flight
+    // lease are both measured from it.
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
+
 export const events = pgTable(
   "events",
   {

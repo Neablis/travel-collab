@@ -28,7 +28,15 @@ import { effectiveMembers } from "./access/members";
 
 export type CommandResult =
   | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
-  | { ok: false; error: { code: string; message: string } };
+  | {
+      ok: false;
+      error: {
+        code: string;
+        message: string;
+        /** The stream's head, when a caller-supplied `expectedSeq` was stale. */
+        currentSeq?: number;
+      };
+    };
 
 // Build the authoritative detail (persisting it) and history DTO from the
 // full envelope list — the same shapes the read endpoints serve. Runs inside
@@ -172,6 +180,13 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // planning state is only ever written by the sequence above it. A second
 // caller wanting anything of that shape is a signal the seam is wrong, not an
 // invitation to widen it.
+//
+// `options.expectedSeq` is a CALLER's precondition on the same check step 5
+// already makes (ADR-050, Pass B): "only if the trip still stands at revision
+// N". It is compared against the stream this transaction read, and the append
+// then insists on that same head — so a stale caller is refused and a race
+// after the read still loses at the unique index, with no window between. Absent,
+// the batch decides against whatever it read, exactly as before.
 export async function executeTripCommandBatch(
   input: unknown,
   actorId: string,
@@ -179,6 +194,7 @@ export async function executeTripCommandBatch(
     tx: Parameters<typeof upsertTripDetail>[0],
     committed: { tripId: string; detail: TripDetail },
   ) => Promise<void>,
+  options: { expectedSeq?: number } = {},
 ): Promise<CommandResult> {
   // 1. validate the batch shape against the contract
   const parsed = BatchBody.safeParse(input);
@@ -206,6 +222,19 @@ export async function executeTripCommandBatch(
     const members = state === null ? null : await effectiveMembers(tx, tripId, state.members);
     if (commands.some((c) => !memberRolePolicy.canExecute(actorId, c.type, members))) {
       return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
+    }
+
+    // 3b. the caller's precondition, after authorization so a non-member learns
+    //     nothing about the trip's revision.
+    if (options.expectedSeq !== undefined && options.expectedSeq !== history.length) {
+      return {
+        ok: false,
+        error: {
+          code: "concurrency-conflict",
+          message: `This trip has changed since revision ${options.expectedSeq}; it is at ${history.length}. Re-read it and retry.`,
+          currentSeq: history.length,
+        },
+      };
     }
 
     // 4. decide each command in order against the evolving state. A no-op

@@ -113,12 +113,56 @@ object type.
 Also: at most 500 stops per Playbook written over `v1` (the 366-day bound was
 already there), and `PublicApiError` can carry `details` into the envelope.
 
-## Deferred (Phase 2)
+## Pass B — 2026-09-24
 
-Applying part of a Playbook (some of its days), `Idempotency-Key` on the apply,
-and an `expectedTripSeq` precondition. (Inline composition and versioned content
-edits landed in Pass A, above.) Until the last two exist, a
-retried apply appends twice, and a 409 is the only concurrency signal.
+The apply, finished. `POST /v1/trips/{tripId}/playbook-applications` takes
+`{ playbookId, version?, placement?, expectedTripSeq? }`; a bare
+`{ playbookId }` still appends exactly as decision 3 describes.
+
+13. **`version` pins the Playbook.** If it is not the stored `version`, 409
+    `conflict` with `details: { currentVersion }` and nothing is written. The
+    answer carries `playbookVersion`, the version actually applied. The check is
+    against the row the insert read, and the insert applies that row's stops, so
+    the version reported is the content that landed.
+14. **`expectedTripSeq` is threaded into the batch's own concurrency check**, not
+    read-then-checked in the route. `executeTripCommandBatch` takes an optional
+    `{ expectedSeq }` and compares it with the stream it read inside its
+    transaction; the append then insists on that same head, so a stale caller is
+    refused (409, `details: { currentSeq }`) and a race after the read still
+    loses at the unique index. Internal callers pass nothing and are unchanged.
+15. **Placement is `append` (default) or `startingAt: { dayId }`, and
+    `startingAt` merges** — Mitchell, 2026-09-24. Playbook day `k` goes onto the
+    trip day `k` places after `dayId` via `AddActivity`; only the days that run
+    past the end of the trip are added with `AddDay`. Still one batch, one
+    history entry, one undo. `dayIds` lists the day each Playbook day landed on;
+    `createdDayIds` only the new ones. An unknown `dayId` is a 400.
+    `insertCommands` takes the days to merge onto (`[]` = append), so there is
+    still one construction of "materialise saved stops into trip days". Merging
+    reads the trip's days with the stream head and pins the batch to that head,
+    so a day added or removed in between is a 409, never a stop on the wrong day.
+16. **`Idempotency-Key`** is honoured here — a generic `route()` opt-in, ADR-051.
+17. **`warnings`**, never refusals (invariant 3): `conflict` for each conflict
+    the apply introduced that involves a new stop (conflict ids absent from the
+    gate's pre-apply read), and `weekday-mismatch` for a stop anchored to
+    weekdays that landed on a dated day that is none of them. The engine also
+    raises its own `anchor-violation` for that stop, so it arrives as both.
+18. **One `api.playbook.apply` log line per outcome** — `ok`, `rejected` with a
+    reason, or `replayed` — ids, counts and placement mode, never titles or
+    notes.
+
+**Rejected: `afterDay` / inserting between days.** The domain has no positioned
+`AddDay` — a day is always added at the end — and adding one is a planning
+command change this pass does not make. Merge-only is what the existing
+commands can say.
+
+**Coordinates are never replaced on the way in.** The apply runs no geocoder;
+`AddActivity` stores the location it is given. The only automatic geocoding
+of Playbook stops (`savedDayPins.ts`, M27) fills a stop only when it has no
+plausible coordinate.
+
+## Deferred
+
+Applying some of a Playbook's days, and a positioned insert (above).
 
 ## Consequences
 

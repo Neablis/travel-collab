@@ -7,7 +7,7 @@
 // order a caller can zip against `stops[]`, and all of it one history entry
 // that one undo takes back.
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { commandsFor } from "@tc/factories";
 import type { SavedDay, TripDetail } from "@tc/contracts";
@@ -18,7 +18,7 @@ import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { acceptInvite, createInvite } from "@/server/access/invites";
 import { db } from "@/server/db/client";
-import { savedDays } from "@/server/db/schema";
+import { apiIdempotencyKeys, savedDays } from "@/server/db/schema";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -599,5 +599,315 @@ describe("/v1/library is unchanged by Pass A", () => {
     expect(Object.keys(day)).not.toContain("summary");
     const listed = (await (await LIST_LIBRARY(req(secret), NO_PARAMS)).json()).items[0];
     expect(Object.keys(listed)).not.toContain("version");
+  });
+});
+
+// ---- ADR-050, Pass B --------------------------------------------------------
+
+type Applied = {
+  tripId: string;
+  playbookId: string;
+  playbookVersion: number;
+  dayIds: string[];
+  createdDayIds: string[];
+  activityIds: string[];
+  historySeq: number;
+  warnings: Record<string, unknown>[];
+};
+
+const applyReq = (secret: string, body: unknown, key?: string) =>
+  new Request("http://localhost/api/v1/trips/x/playbook-applications", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+      ...(key === undefined ? {} : { "Idempotency-Key": key }),
+    },
+    body: JSON.stringify(body),
+  });
+
+async function headSeq(secret: string, tripId: string): Promise<number> {
+  const history = (await (await HISTORY(req(secret), P({ tripId }))).json()) as { entries: { toSeq: number }[] };
+  return history.entries[0]!.toSeq;
+}
+
+/** A trip with `n` days, the first holding one 09:00–10:00 stop. */
+async function tripWithDays(owner: string, n: number): Promise<{ tripId: string; dayIds: string[]; busy: string }> {
+  const tripId = await emptyTrip(owner);
+  const dayIds = Array.from({ length: n }, () => randomUUID());
+  for (const dayId of dayIds) {
+    expect((await executeTripCommand({ type: "AddDay", tripId, dayId }, owner)).ok).toBe(true);
+  }
+  const busy = randomUUID();
+  const added = await executeTripCommand(
+    {
+      type: "AddActivity",
+      tripId,
+      activityId: busy,
+      dayId: dayIds[0]!,
+      title: "Already here",
+      timeWindow: { start: "09:30", end: "10:30" },
+    },
+    owner,
+  );
+  expect(added.ok).toBe(true);
+  return { tripId, dayIds, busy };
+}
+
+/** Three Playbook days, one stop each, the middle one at 13:00 so it overlaps nothing. */
+async function threeStopPlaybook(secret: string): Promise<SavedDay> {
+  return (
+    await inline(secret, {
+      name: "Three",
+      days: [
+        { stops: [inlineStop("One")] },
+        { stops: [inlineStop("Two", { timeWindow: { start: "13:00", end: "14:00" } })] },
+        { stops: [inlineStop("Three", { timeWindow: { start: "15:00", end: "16:00" } })] },
+      ],
+    })
+  ).playbook;
+}
+
+describe("POST /v1/trips/{tripId}/playbook-applications — preconditions", () => {
+  it("refuses a stale Playbook version with 409 and the current one, and writes nothing", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    expect((await patch(secret, playbook.savedDayId, { name: "Renamed", expectedVersion: 1 })).status).toBe(200);
+    const { tripId } = await tripWithDays(owner, 1);
+    const before = await tripOf(owner, tripId);
+
+    const res = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId, version: 1 }), P({ tripId }));
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.details).toEqual({ currentVersion: 2 });
+    expect(await tripOf(owner, tripId)).toEqual(before);
+
+    const ok = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId, version: 2 }), P({ tripId }));
+    expect(ok.status).toBe(201);
+    expect(((await ok.json()) as Applied).playbookVersion).toBe(2);
+  });
+
+  it("refuses a stale expectedTripSeq with 409 and the current seq, and writes nothing", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const { tripId } = await tripWithDays(owner, 1);
+    const seq = await headSeq(secret, tripId);
+    const before = await tripOf(owner, tripId);
+
+    const res = await APPLY(
+      applyReq(secret, { playbookId: playbook.savedDayId, expectedTripSeq: seq - 1 }),
+      P({ tripId }),
+    );
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.details).toEqual({ currentSeq: seq });
+    expect(await tripOf(owner, tripId)).toEqual(before);
+    expect(await headSeq(secret, tripId)).toBe(seq);
+  });
+
+  it("applies when expectedTripSeq is current, and the answer's historySeq is the next precondition", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const { tripId } = await tripWithDays(owner, 1);
+
+    const res = await APPLY(
+      applyReq(secret, { playbookId: playbook.savedDayId, expectedTripSeq: await headSeq(secret, tripId) }),
+      P({ tripId }),
+    );
+    expect(res.status).toBe(201);
+    const applied = (await res.json()) as Applied;
+    const again = await APPLY(
+      applyReq(secret, { playbookId: playbook.savedDayId, expectedTripSeq: applied.historySeq }),
+      P({ tripId }),
+    );
+    expect(again.status).toBe(201);
+  });
+});
+
+describe("POST /v1/trips/{tripId}/playbook-applications — startingAt", () => {
+  it("merges onto existing days, appends only the overflow, and one undo restores the trip exactly", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    // Days A, B, C; start on B, so Playbook days 0 and 1 land on B and C and
+    // day 2 is the only one added.
+    const { tripId, dayIds } = await tripWithDays(owner, 3);
+    const before = await tripOf(owner, tripId);
+    const entriesBefore = (await (await HISTORY(req(secret), P({ tripId }))).json()).entries.length;
+
+    const res = await APPLY(
+      applyReq(secret, { playbookId: playbook.savedDayId, placement: { mode: "startingAt", dayId: dayIds[1] } }),
+      P({ tripId }),
+    );
+    expect(res.status).toBe(201);
+    const applied = (await res.json()) as Applied;
+    expect(applied.createdDayIds).toHaveLength(1);
+    expect(applied.dayIds).toEqual([dayIds[1], dayIds[2], applied.createdDayIds[0]]);
+
+    const after = await tripOf(owner, tripId);
+    expect(after.days.map((d) => d.dayId)).toEqual([...dayIds, applied.createdDayIds[0]]);
+    for (const [i, stop] of playbook.stops.entries()) {
+      const landed = after.days.find((d) => d.activityIds.includes(applied.activityIds[i]!))!;
+      expect(landed.dayId, stop.title).toBe(applied.dayIds[stop.dayIndex]);
+    }
+    // What was on day A is where it was.
+    expect(after.days[0]!.activityIds).toEqual(before.days[0]!.activityIds);
+
+    const entries = (await (await HISTORY(req(secret), P({ tripId }))).json()).entries;
+    expect(entries).toHaveLength(entriesBefore + 1);
+    expect(entries[0].toSeq).toBe(applied.historySeq);
+
+    expect((await UNDO(req(secret, {}, "POST"), P({ tripId }))).status).toBe(200);
+    const restored = await tripOf(owner, tripId);
+    expect({ days: restored.days, activities: restored.activities, conflicts: restored.conflicts }).toEqual({
+      days: before.days,
+      activities: before.activities,
+      conflicts: before.conflicts,
+    });
+  });
+
+  it("refuses a day that is not in the trip with 400, and writes nothing", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const { tripId } = await tripWithDays(owner, 1);
+    const seq = await headSeq(secret, tripId);
+
+    const res = await APPLY(
+      applyReq(secret, { playbookId: playbook.savedDayId, placement: { mode: "startingAt", dayId: randomUUID() } }),
+      P({ tripId }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("invalid-request");
+    expect(await headSeq(secret, tripId)).toBe(seq);
+  });
+});
+
+describe("POST /v1/trips/{tripId}/playbook-applications — Idempotency-Key", () => {
+  it("replays the same body with Idempotent-Replayed, and the trip gains the days once", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const tripId = await emptyTrip(owner);
+    const key = randomUUID();
+
+    const first = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }));
+    expect(first.status).toBe(201);
+    expect(first.headers.get("Idempotent-Replayed")).toBeNull();
+    const second = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }));
+    expect(second.status).toBe(201);
+    expect(second.headers.get("Idempotent-Replayed")).toBe("true");
+    expect(await second.json()).toEqual(await first.json());
+    expect((await tripOf(owner, tripId)).days).toHaveLength(3);
+  });
+
+  it("refuses the same key with a different body with 400", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const tripId = await emptyTrip(owner);
+    const key = randomUUID();
+
+    expect((await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }))).status).toBe(201);
+    const res = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId, version: 1 }, key), P({ tripId }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toBe("Idempotency-Key reused with a different request.");
+    expect((await tripOf(owner, tripId)).days).toHaveLength(3);
+  });
+
+  it("does not replay one user's key for another", async () => {
+    const author = await entitled();
+    const authorSecret = await tokenFor(author);
+    const playbook = await threeStopPlaybook(authorSecret);
+    expect((await patch(authorSecret, playbook.savedDayId, { visibility: "public" })).status).toBe(200);
+    const target = await emptyTrip(author);
+    // The other user is an editor on the same trip, sending the same body.
+    const editor = await entitled();
+    const invite = await createInvite(target, author, { role: "editor", email: null });
+    await acceptInvite(invite.token, editor);
+    const key = randomUUID();
+
+    const a = await APPLY(applyReq(authorSecret, { playbookId: playbook.savedDayId }, key), P({ tripId: target }));
+    const b = await APPLY(
+      applyReq(await tokenFor(editor), { playbookId: playbook.savedDayId }, key),
+      P({ tripId: target }),
+    );
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+    expect(b.headers.get("Idempotent-Replayed")).toBeNull();
+    expect((await tripOf(author, target)).days).toHaveLength(6);
+  });
+
+  it("runs again once the key is more than 24 hours old", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const tripId = await emptyTrip(owner);
+    const key = randomUUID();
+    expect((await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }))).status).toBe(201);
+
+    await db
+      .update(apiIdempotencyKeys)
+      .set({ createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .where(and(eq(apiIdempotencyKeys.userId, owner), eq(apiIdempotencyKeys.key, key)));
+
+    const again = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }, key), P({ tripId }));
+    expect(again.status).toBe(201);
+    expect(again.headers.get("Idempotent-Replayed")).toBeNull();
+    expect((await tripOf(owner, tripId)).days).toHaveLength(6);
+  });
+});
+
+describe("POST /v1/trips/{tripId}/playbook-applications — warnings", () => {
+  it("reports a time overlap the apply introduced, and keeps the stop", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await threeStopPlaybook(secret);
+    const { tripId, dayIds, busy } = await tripWithDays(owner, 1);
+
+    const res = await APPLY(
+      applyReq(secret, { playbookId: playbook.savedDayId, placement: { mode: "startingAt", dayId: dayIds[0] } }),
+      P({ tripId }),
+    );
+    expect(res.status).toBe(201);
+    const applied = (await res.json()) as Applied;
+    // "One" is 09:00–10:00 and lands beside "Already here" at 09:30–10:30.
+    const one = applied.activityIds[0]!;
+    expect(applied.warnings).toEqual([
+      expect.objectContaining({
+        code: "conflict",
+        activityIds: expect.arrayContaining([one, busy]),
+        conflictId: expect.stringContaining("time-overlap"),
+      }),
+    ]);
+    expect((await tripOf(owner, tripId)).activities[one]).toBeDefined();
+  });
+
+  it("warns when a weekday-anchored stop lands on a dated day that is another weekday", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const tripId = await emptyTrip(owner);
+    // 2027-06-07 is a Monday.
+    const dated = await executeTripCommand(
+      { type: "SetTripDates", tripId, startDate: "2027-06-07", endDate: "2027-06-07", newDayIds: [randomUUID()] },
+      owner,
+    );
+    expect(dated.ok).toBe(true);
+    const { playbook } = await inline(secret, {
+      name: "Sundays",
+      days: [{ stops: [inlineStop("Market", { anchors: [{ kind: "dayOfWeek", days: ["sun"] }] })] }],
+    });
+
+    const res = await APPLY(applyReq(secret, { playbookId: playbook.savedDayId }), P({ tripId }));
+    expect(res.status).toBe(201);
+    const applied = (await res.json()) as Applied;
+    expect(applied.warnings).toContainEqual(
+      expect.objectContaining({ code: "weekday-mismatch", activityId: applied.activityIds[0] }),
+    );
   });
 });
