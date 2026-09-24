@@ -131,6 +131,42 @@ function twoDayDetail() {
   return { ...d, days: [...d.days, { dayId: "d-new", activityIds: [], date: null, costSubtotal: 0 }] };
 }
 
+function SeqProbe() {
+  const { activeTrip, confirmedSeq, dispatch } = useTrip();
+  return (
+    <div>
+      <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="confirmedSeq">{confirmedSeq}</span>
+      <button onClick={() => dispatch({ type: "AddDay", tripId: "x", dayId: "d-new" } as never)}>add-day</button>
+    </div>
+  );
+}
+
+// #223 review: the Overview's globals are keyed on this, so it has to move
+// when your own command lands — and NOT while it is only predicted, or the
+// re-read would race the write and fetch the globals from before it.
+describe("TripProvider confirmedSeq", () => {
+  it("advances when a local command is confirmed, not while it is optimistic", async () => {
+    let resolveSend: (v: unknown) => void = () => {};
+    sendTripCommandMock.mockReturnValue(new Promise((res) => (resolveSend = res)));
+    render(
+      <TripProvider tripId="x">
+        <SeqProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("confirmedSeq").textContent).toBe("2"));
+
+    fireEvent.click(screen.getByRole("button", { name: "add-day" }));
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+    expect(screen.getByTestId("confirmedSeq").textContent).toBe("2");
+
+    const before = historyFixture("x");
+    const head = { ...before.entries[0]!, batchId: "9a0c4e1f-5b9c-4d8f-9f5b-4d3c7e0f9a99", fromSeq: 3, toSeq: 3 };
+    resolveSend({ ok: true, value: { detail: twoDayDetail(), history: { ...before, entries: [head, ...before.entries] } } });
+    await waitFor(() => expect(screen.getByTestId("confirmedSeq").textContent).toBe("3"));
+  });
+});
+
 describe("TripProvider optimistic overlay (M6)", () => {
   it("renders the optimistic change before the server responds", async () => {
     let resolveSend: (v: unknown) => void = () => {};
