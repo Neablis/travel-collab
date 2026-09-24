@@ -190,7 +190,7 @@ const usedByRenderedCode = new Set<string>(scanned.filter(isRendered).flatMap(pr
 // EMPTY as of M11 link 6, and that is the intended end state: the escape
 // hatch exists for a shell parked in a component the app does not render, and
 // its only occupant — "add-saved-day" in AddSavedDayButton.tsx — was wired up
-// and mounted (EndOfTrip renders it now). The tests below are written to hold
+// and mounted (Board's "One more day?" column renders it now). The tests below are written to hold
 // on an empty list rather than being deleted with it: the next milestone to
 // park a shell gets the guard already working.
 const PARKED: Readonly<Record<string, string>> = {};
