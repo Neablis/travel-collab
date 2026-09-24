@@ -11,7 +11,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { ActivityKind, ActivityTag, FILTER_VALUE_SCHEMAS, FilterDimension, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityTag, FILTER_VALUE_SCHEMAS, FilterDimension, type TripDetail, type TripWeatherPoint } from "@tc/contracts";
 import type { ExternalInputs } from "./external";
 import { MACRO_REGISTRY, primitiveCatalog } from "./registry";
 import type { AnyMacroDef } from "./registry-types";
@@ -21,6 +21,10 @@ import { witness } from "./test-support/witness";
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 const uuid = (n: number) => `7d9a1f8e-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
+// Every date a generated trip's days can carry; the weather slot below has a
+// point on each, so a dated trip always has weather to find.
+const DETAIL_DATES = ["2026-10-01", "2026-01-31", "2026-02-28", "2026-12-31"] as const;
+
 // Deliberately adversarial but schema-plausible trips: empty ones, days with no
 // activities, activities with no day, mixed currencies (a real hazard for cost
 // rollups), zero and 12-digit amounts.
@@ -28,7 +32,7 @@ const detailArb: fc.Arbitrary<TripDetail> = fc
   .record({
     nDays: fc.integer({ min: 0, max: 4 }),
     nActs: fc.integer({ min: 0, max: 5 }),
-    startDate: fc.option(fc.constantFrom("2026-10-01", "2026-01-31", "2026-02-28", "2026-12-31"), { nil: null }),
+    startDate: fc.option(fc.constantFrom(...DETAIL_DATES), { nil: null }),
     currency: fc.constantFrom("USD", "EUR", "JPY"),
     budget: fc.option(fc.constant({ amountMinor: 50_000, currency: "USD" }), { nil: null }),
     cost: fc.option(
@@ -151,16 +155,65 @@ const paramsArb = fc.oneof(
 // Every state an outside input can be in when a widget resolves (ADR-052
 // decision 4, and ADR-037 decision 6b: every state renders). Absent is its own
 // case: every context built before the slot existed has no `external` at all.
-const externalArb: fc.Arbitrary<ExternalInputs | undefined> = fc.constantFrom(
-  undefined,
-  { weather: { state: "pending" } },
-  { weather: { state: "failed" } },
-  { weather: { state: "ready", value: { points: [] } } },
+//
+// The last member has a point on every one of `detailArb`'s dates, each source
+// up or down, so "Weather" can reach `ok` at all — with only `points: []` it
+// could answer nothing but `empty` and `unavailable`, and the `ok` half of the
+// check below would be unreachable.
+const externalArb: fc.Arbitrary<ExternalInputs | undefined> = fc.oneof(
+  fc.constantFrom<ExternalInputs | undefined>(
+    undefined,
+    { weather: { state: "pending" } },
+    { weather: { state: "failed" } },
+    { weather: { state: "ready", value: { points: [] } } },
+  ),
+  fc
+    .record({
+      forecast: fc.constantFrom<TripWeatherPoint["forecast"]>(
+        { unavailable: "source" },
+        { unavailable: "not-in-horizon" },
+        { source: "met-norway", asOf: "2026-09-30T06:00:00Z", highC: 21, lowC: 12, precipitationMm: 0.4, symbol: "fair_day", hours: [] },
+      ),
+      typical: fc.constantFrom<TripWeatherPoint["typical"]>(
+        { unavailable: "source" },
+        { source: "nasa-power", month: 10, highC: 22, lowC: 14, precipitationMmPerDay: 5.1, period: { fromYear: 2001, throughYear: 2020 } },
+      ),
+    })
+    .map(({ forecast, typical }): ExternalInputs => ({
+      weather: {
+        state: "ready",
+        value: { points: DETAIL_DATES.map((date) => ({ date, city: "Tokyo", forecast, typical })) },
+      },
+    })),
 );
 
-// The registered widgets, and one that reads an outside input. No registered
-// widget declares a need until T24's weather block, so without the probe this
-// sweep could never produce `unavailable` and would pass whatever it did.
+// One dated day with nothing on it, and weather for that date from both sources.
+const DATED_TRIP = {
+  tripId: TRIP, name: "Dated", startDate: "2026-10-01", currency: "USD", budget: null,
+  members: [{ userId: "u1", role: "owner" }],
+  days: [{ dayId: uuid(100), activityIds: [], date: "2026-10-01", costSubtotal: 0 }],
+  backlog: [], activities: {}, conflicts: [], dismissedConflictIds: [], createdAt: "2026-07-28T00:00:00.000Z",
+  unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
+} as unknown as TripDetail;
+const READY_WEATHER: ExternalInputs = {
+  weather: {
+    state: "ready",
+    value: {
+      points: [{
+        date: "2026-10-01", city: "Tokyo", forecast: { unavailable: "not-in-horizon" },
+        typical: { source: "nasa-power", month: 10, highC: 22, lowC: 14, precipitationMmPerDay: 5.1, period: { fromYear: 2001, throughYear: 2020 } },
+      }],
+    },
+  },
+};
+
+// The reader's date: unknown, or either side of `detailArb`'s 2026-10-01, or on it.
+const todayArb = fc.constantFrom(null, "2026-09-28", "2026-10-01", "2026-10-05");
+
+// The registered widgets, and a probe that reads an outside input. The probe
+// came first (T23), when no registered widget declared a need and the sweep
+// could not otherwise produce `unavailable`. `day.weather` now does; the probe
+// stays as the one reader of the slot with no mode logic in front of it.
 const SWEPT: [string, AnyMacroDef][] = [
   ...Object.entries(MACRO_REGISTRY),
   [weatherProbe.name, weatherProbe as unknown as AnyMacroDef],
@@ -194,12 +247,12 @@ describe("macro registry — every resolver is pure and total", () => {
       const w = witness(`macro ${name}`);
       const seen = new Set<string>();
       fc.assert(
-        fc.property(detailArb, contextArb, paramsArb, externalArb, (detail, ctx, raw, external) => {
+        fc.property(detailArb, contextArb, paramsArb, externalArb, todayArb, (detail, ctx, raw, external, today) => {
           const parsed = def.params.safeParse(raw);
           if (!parsed.success) return; // the schema rejected it — not the resolver's problem
           let result: { status?: string; value?: unknown };
           try {
-            result = def.resolve({ trip: detail, page: ctx as never, user: null, globals: null, today: null, external }, parsed.data as never) as never;
+            result = def.resolve({ trip: detail, page: ctx as never, user: null, globals: null, today, external }, parsed.data as never) as never;
           } catch (error) {
             throw new Error(
               `resolver threw on params=${JSON.stringify(raw)} ctx=${JSON.stringify(ctx)}: ${(error as Error).message}`,
@@ -211,7 +264,12 @@ describe("macro registry — every resolver is pure and total", () => {
           if (result.status === "ok") expect(def.render(result.value as never)).toBeTruthy();
           seen.add(result.status!);
         }),
-        { numRuns: 200 },
+        // A widget that reads an outside input gets one case it can answer
+        // `ok` to: generated, that needs a dated trip AND a ready slot AND a
+        // known reader's date AND params that narrow to a dated day, and was
+        // measured at 1–4 of ~180 cases a run (2026-09-24) — a check that
+        // flaps. The example makes `ok` certain; the random cases still sweep.
+        { numRuns: 200, examples: def.needs?.length ? [[DATED_TRIP, { tripId: TRIP }, {}, READY_WEATHER, "2026-10-05"]] : [] },
       );
       // Floors measured 2026-07-28; every macro accepts at least the `{}` params
       // case, so all of them clear 50 comfortably. The weather probe measured

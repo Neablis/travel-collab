@@ -4,7 +4,12 @@
 
 `pnpm setup` copies `.env.example` to `apps/web/.env.local` (never
 overwrites an existing one — safe to run any time). Fill in
-`LOCATIONIQ_API_KEY` if you need geocoding locally; the rest already default
+`LOCATIONIQ_API_KEY` if you need geocoding locally, and `EXTERNAL_DATA_CONTACT`
+(an ops address, never a user's) if you want the weather widget to show a
+forecast — MET Norway's terms require a contact in the User-Agent, and without
+it the widget shows "typical" in the forecast's place (ADR-052). Preview and
+Production need `EXTERNAL_DATA_CONTACT` set in the Vercel dashboard for the
+same reason. The rest already default
 to docker-compose's Postgres. Every command below that touches a database or
 starts the app reads this file — `pnpm dev` and `pnpm test:e2e` load it
 automatically, `db:*` and drizzle-kit scripts do via

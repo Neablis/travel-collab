@@ -4,6 +4,7 @@ import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
 import type { SpendByDayPayload } from "./chartPayloads";
+import type { WeatherPayload } from "./weatherPayload";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -116,7 +117,8 @@ export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; su
 export type BlockPayload =
   | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload
   | TripStripPayload
-  | SpendByDayPayload;
+  | SpendByDayPayload
+  | WeatherPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose

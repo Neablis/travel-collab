@@ -26,10 +26,11 @@ describe("registry", () => {
     // below that once equated the two is what caught it.
     // `country.facts` ("Know before you go", M14 link 11) is registered on
     // `open`'s terms: no selection, so not a primitive. `day.sun` and
-    // `day.fromHome` (the same link) ARE primitives — day entity, day filters.
+    // `day.fromHome` (the same link) ARE primitives — day entity, day filters —
+    // and so is `day.weather`, which also declares `needs` (ADR-052).
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
-      "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "field", "hours",
+      "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
       "open", "stop.rows", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
@@ -230,6 +231,25 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // exactly its job rather than a reason to lower it.
   const user = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" as const };
 
+  // What the weather route would hand in for the day (ADR-052): with no slot
+  // "Weather" answers `unavailable` and never reaches `render` — the floor
+  // refusing, as above. The day is before `today` below, so this is the
+  // labelled-typical row.
+  const external = {
+    weather: {
+      state: "ready" as const,
+      value: {
+        points: [{
+          date: "2026-08-01", city: "Tokyo", forecast: { unavailable: "not-in-horizon" as const },
+          typical: {
+            source: "nasa-power" as const, month: 8, highC: 31, lowC: 24, precipitationMmPerDay: 4.8,
+            period: { fromYear: 2001, throughYear: 2020 },
+          },
+        }],
+      },
+    },
+  };
+
   // **The sweep runs over PRESETS, not over registered names.** A primitive
   // asked to render with `{}` is not always meaningful — `attribute` with no
   // field chosen has nothing to read and correctly answers `empty()` — so a
@@ -239,7 +259,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // which is exactly what the person clicking it gets.
   const presetOutcome = (entry: ReturnType<typeof presetCatalog>[number]) =>
     renderMacro(
-      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01" },
+      { trip: populated, page: { tripId: populated.tripId }, user, globals, today: "2027-06-01", external },
       entry.widget,
       // Bind anything still asking for a day to the one day above, so block
       // widgets reach `ok` instead of `unbound`. A field the preset leaves for

@@ -15,6 +15,7 @@ import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
 import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
+import { dayWeather } from "./macros/primitives/weather";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -52,6 +53,9 @@ const DEFS: AnyMacroDef[] = [
   // The clock pair (M14 link 11): day primitives over the zone and place the
   // server put on each day of the globals projection. See `time.ts`.
   daySun, dayFromHome,
+  // "Weather" (M14 link 11): a day primitive over data the trip does not hold,
+  // handed in pre-fetched (ADR-052). The first registered widget with `needs`.
+  dayWeather,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
