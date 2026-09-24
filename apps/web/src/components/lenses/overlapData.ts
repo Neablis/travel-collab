@@ -52,18 +52,19 @@ function startsLater(a: Timed, b: Timed): boolean {
 
 // The generic conflict `Badge` (a bare triangle) fires for any conflict naming
 // an activity, but a `time-overlap` that a lens actually renders as an
-// OverlapWarning / compact chip already says the same thing about the same
-// pair, far more richly — a triangle on top of that is a double-up. So both
-// lenses badge only what nothing else surfaces, and they share this one rule
-// rather than each spelling out the exclusion.
+// overlap chip already says the same thing about the same pair, far more
+// richly — a triangle on top of that is a double-up. So a lens badges only
+// what nothing else surfaces, through this one rule rather than spelling out
+// the exclusion itself. (Two lenses shared it until SPEC §24 deleted the
+// Timeline lens and its inline overlap row; the Day-columns board is the
+// caller today.)
 //
 // The exclusion is per *rendered* overlap, not per kind (KI-29): a column card
 // has room for exactly one chip, so a stop that is the later half of two
 // crossing pairs drops one — and the dropped pair, badged here, is the only
 // day-column trace it has left. `renderedOverlapIds` is whatever the calling
-// lens will really put on screen; the timeline passes every overlap it lays
-// out, the board passes the one-chip-per-stop subset that survived its own
-// keying. Anything else a lens cannot render (a conflict naming a removed
+// lens will really put on screen — for the board, the one-chip-per-stop subset
+// that survived its own keying. Anything else a lens cannot render (a conflict naming a removed
 // activity, or a stop whose times are gone) falls through to the triangle for
 // the same reason, rather than being silently invisible.
 //

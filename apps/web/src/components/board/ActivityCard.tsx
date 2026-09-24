@@ -35,10 +35,11 @@ export function ActivityCard({
   activity: ActivityView;
   dayId: string | null;
   hasConflict: boolean;
-  // The live time-overlap this stop is the later half of, if any — the day
-  // columns' compact form of the timeline's OverlapWarning. Null both when
-  // nothing overlaps and when this is the *earlier* stop of a pair (the
-  // warning hangs off the later one, overlapData.ts).
+  // The live time-overlap this stop is the later half of, if any: another stop
+  // on the same day whose window it starts inside, rendered as the card's
+  // compact overlap chip. Null both when nothing overlaps and when this is the
+  // *earlier* stop of a pair — the warning hangs off the later one, the stop
+  // that would move to fix it (overlapData.ts owns the rule).
   overlap: Overlap | null;
   // Currency is trip-level, never per-event (decision, 2026-08-14) — the same
   // pattern TimelineLens/BudgetChip already follow: the
