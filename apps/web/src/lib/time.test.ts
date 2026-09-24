@@ -3,19 +3,19 @@ import { formatDuration, toClockLabel, toMinutes, toTimeString } from "./time";
 
 describe("toClockLabel", () => {
   it("drops the minutes on the hour", () => {
-    expect(toClockLabel("13:00")).toBe("1 pm");
+    expect(toClockLabel("13:00", "12h")).toBe("1 pm");
   });
 
   it("keeps the minutes otherwise, zero-padded", () => {
-    expect(toClockLabel("10:30")).toBe("10:30 am");
-    expect(toClockLabel("09:05")).toBe("9:05 am");
+    expect(toClockLabel("10:30", "12h")).toBe("10:30 am");
+    expect(toClockLabel("09:05", "12h")).toBe("9:05 am");
   });
 
   // The two hours where `h % 12` is 0 and a naive formatter renders "0".
   it("renders midnight and noon as 12", () => {
-    expect(toClockLabel("00:00")).toBe("12 am");
-    expect(toClockLabel("12:00")).toBe("12 pm");
-    expect(toClockLabel("00:45")).toBe("12:45 am");
+    expect(toClockLabel("00:00", "12h")).toBe("12 am");
+    expect(toClockLabel("12:00", "12h")).toBe("12 pm");
+    expect(toClockLabel("00:45", "12h")).toBe("12:45 am");
   });
 });
 

@@ -31,14 +31,14 @@ export function toTimeString(minutes: number): string {
   return `${h}:${m}`;
 }
 
-// The house 12-hour clock ("10:30 am", "1 pm", and "2:30 pm – 4 pm" for a
-// range) lives in `@tc/pages` now, so a notebook widget prints the same clock
-// as the board: Mitchell, on the PR #221 preview's sunrise widget, *"All times
-// should be in AM/PM not military time"* — the widgets were printing stored
-// `HH:mm` because the one formatter sat here, where a pure package cannot
-// reach. Re-exported so every caller of `@/lib/time` is untouched. The board
-// moved first (PR #55: "this is still military time"). Storage stays 24-hour;
-// do not route an editor's
+// The clock-time formatter ("10:30 am" / "1 pm" / "2:30 pm – 4 pm", or
+// "10:30" / "13:00" / "14:30 – 16:00" for a reader who picked 24-hour) lives in
+// `@tc/pages` (`clockLabel.ts`), so a notebook widget prints the same clock as
+// the board: Mitchell, on the PR #221 preview's sunrise widget, *"All times
+// should be in AM/PM not military time"*, and *"maybe a good idea to have that
+// as a setting"* — which is why the format is a required argument, read from
+// `useTimeFormat()`. Re-exported so every caller of `@/lib/time` imports from
+// one place. Storage stays 24-hour; do not route an editor's
 // `<input type="time">` through these, or it will stop accepting input.
 export { toClockLabel, toClockRange } from "@tc/pages";
 
