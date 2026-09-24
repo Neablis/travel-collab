@@ -12183,6 +12183,12 @@
                                 "type": "number",
                                 "minimum": -180,
                                 "maximum": 180
+                              },
+                              "city": {
+                                "type": "string",
+                                "nullable": true,
+                                "default": null,
+                                "description": "The city of the stop that gives the day its place, if it has one"
                               }
                             },
                             "required": [

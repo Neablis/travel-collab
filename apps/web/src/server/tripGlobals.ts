@@ -91,7 +91,7 @@ export function buildTripGlobals(
  * without anything happening at a different time.
  */
 function placeOfDay(detail: TripDetail, activityIds: readonly string[]): Pick<TripGlobalsDay, "place" | "timeZone"> {
-  let best: { lat: number; lng: number; start: string | null } | null = null;
+  let best: { lat: number; lng: number; city: string | null; start: string | null } | null = null;
   for (const id of activityIds) {
     const activity = detail.activities[id];
     const lat = activity?.location?.lat;
@@ -100,8 +100,12 @@ function placeOfDay(detail: TripDetail, activityIds: readonly string[]): Pick<Tr
     const start = activity!.timeWindow?.start ?? null;
     // An untimed stop never displaces a candidate; a timed one displaces an
     // untimed candidate or a later one. `HH:mm` compares as strings.
-    if (best === null || (start !== null && (best.start === null || start < best.start))) best = { lat, lng, start };
+    if (best === null || (start !== null && (best.start === null || start < best.start))) {
+      best = { lat, lng, city: activity!.location?.city ?? null, start };
+    }
   }
   if (best === null) return { place: null, timeZone: null };
-  return { place: { lat: best.lat, lng: best.lng }, timeZone: timeZoneAt(best.lat, best.lng) };
+  // The city travels with the coordinates: `cities[0]` can be an earlier stop
+  // that has a city and no coordinates (CodeRabbit on #223).
+  return { place: { lat: best.lat, lng: best.lng, city: best.city }, timeZone: timeZoneAt(best.lat, best.lng) };
 }

@@ -18,6 +18,11 @@ describe("TripGlobals time zones", () => {
     expect(parsed.homeTimeZone).toBeNull();
   });
 
+  it("reads a place from before it carried its city as a place with no city", () => {
+    const day = { ...older.days[0]!, place: { lat: 35.68, lng: 139.77 }, timeZone: "Asia/Tokyo" };
+    expect(TripGlobals.parse({ ...older, days: [day] }).days[0]!.place).toEqual({ lat: 35.68, lng: 139.77, city: null });
+  });
+
   it("refuses a place that is not a point on the earth", () => {
     const day = { ...older.days[0]!, place: { lat: 91, lng: 0 }, timeZone: "Asia/Tokyo" };
     expect(TripGlobals.safeParse({ ...older, days: [day] }).success).toBe(false);

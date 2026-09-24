@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `TripGlobalsDay.place.city`: the place names its own stop's city (#223 review)
+
+- **Added:** `TripGlobalsDay.place` gains `city: string | null`, defaulted to
+  `null`. It is the city of the SAME stop whose coordinates are `place`.
+- Why: `day.sun` and `day.fromHome` labelled a day by `cities[0]`, while its
+  coordinates came from the first *located* stop. An earlier stop with a city
+  and no coordinates (Kyoto at 07:00, then located Tokyo at 10:00) put Kyoto's
+  name on Tokyo's sunrise. Found by CodeRabbit on #223.
+- Consumers updated: `apps/web` `tripGlobals.ts` (`placeOfDay` carries the
+  stop's city) and `openapi.json` regenerated; `@tc/pages` `time.ts`
+  (`locatedDay` reads `place.city`; `day.fromHome` still falls back to the
+  zone's city when the stop has none); test fixtures in `registry.test.ts`
+  and `MacroView.test.tsx`.
+- Breaking? No. Additive, with a default, so a response or a cached globals
+  from before the field parses with `city: null` (`globals.test.ts`).
+
 ## 2026-09-24 — `TripGlobals.homeTimeZone` is not told to a `trips:read`-only token (#223 review)
 
 - **Changed (description only):** `TripGlobals.homeTimeZone` now says it is

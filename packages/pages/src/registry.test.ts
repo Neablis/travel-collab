@@ -216,7 +216,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   const globals = {
     days: [{
       index: 0, date: "2026-08-01", cities: ["Tokyo"], activityCount: 1, costSubtotal: 5000,
-      place: { lat: 35.7188, lng: 139.7765 }, timeZone: "Asia/Tokyo",
+      place: { lat: 35.7188, lng: 139.7765, city: "Tokyo" }, timeZone: "Asia/Tokyo",
     }],
     cities: [{ name: "Tokyo", dayIndexes: [0], activityCount: 1 }],
     tags: [],

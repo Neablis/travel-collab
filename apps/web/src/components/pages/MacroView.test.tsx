@@ -451,7 +451,7 @@ participants: [],
   const richGlobals: TripGlobals = {
     days: [{
       index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345,
-      place: { lat: 35.0116, lng: 135.7681 }, timeZone: "Asia/Tokyo",
+      place: { lat: 35.0116, lng: 135.7681, city: "Kyoto" }, timeZone: "Asia/Tokyo",
     }],
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
     tags: [], bookedCount: 1, homeTimeZone: "America/Los_Angeles",

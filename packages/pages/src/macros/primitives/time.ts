@@ -43,9 +43,13 @@ type TimeParams = z.infer<typeof TimeParams>;
 function locatedDay(globals: TripGlobals, index: number, city: string | undefined) {
   const day = globals.days[index];
   if (!day?.place || !day.timeZone || !isKnownZone(day.timeZone)) return null;
-  const first = day.cities[0] ?? null;
-  if (city !== undefined && first !== city) return null;
-  return { place: day.place, zone: day.timeZone, city: first };
+  // The city of the stop that gave the place, never `cities[0]`: that can be
+  // an earlier stop with a city and no coordinates, and would put its name on
+  // another city's sunrise (CodeRabbit on #223). A pinned city is checked
+  // against the same stop, for the same reason.
+  const placeCity = day.place.city ?? null;
+  if (city !== undefined && placeCity !== city) return null;
+  return { place: day.place, zone: day.timeZone, city: placeCity };
 }
 
 // ---------------------------------------------------------------------------

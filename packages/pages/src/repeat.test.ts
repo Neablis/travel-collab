@@ -136,7 +136,7 @@ describe("ItemScope — a widget in a template reads its item when it is not bou
   // (all empty), so this context gives them something to disagree about.
   function locatedCtx(): { ctx: WidgetContext; ids: ReturnType<typeof ctxOf>["ids"] } {
     const { ctx, ids } = ctxOf();
-    const rome = { place: { lat: 41.9, lng: 12.5 }, timeZone: "Europe/Rome" };
+    const rome = { place: { lat: 41.9, lng: 12.5, city: "Rome" }, timeZone: "Europe/Rome" };
     const typical = {
       source: "nasa-power", month: 6, highC: 28, lowC: 17, precipitationMmPerDay: 1.2,
       period: { fromYear: 2001, throughYear: 2020 },
