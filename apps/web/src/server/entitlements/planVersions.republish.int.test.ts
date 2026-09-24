@@ -26,7 +26,7 @@
 // all against a real database. **What is mocked:** Stripe, at the four
 // functions of `stripeApi.ts` these paths call, and nothing further in.
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
@@ -91,16 +91,26 @@ const PLUS_V1 = actualPlanVersions.planVersionFromRef("plus@v1");
  * capability, higher ceilings, so that a subscriber wrongly moved onto it
  * differs from `plus@v1` on every axis this file checks, not only the price.
  */
-const PLUS_V2: PlanVersion = Object.freeze({
-  planId: "plus",
-  version: 2,
-  entitlements: Object.freeze(["ai.ask", "ai.command", "trip.collaborators"] as const),
-  ceilings: Object.freeze({ perUserRequestsPerDay: 80, perUserStepsPerDay: 640, maxTier: null }),
-  price: Object.freeze({ minor: 1200, currency: "usd", stripePriceId: null }),
-  displayOrder: 2,
-  publishedAt: "2026-10-15",
-  enabled: true,
-}) as PlanVersion;
+// Spread from the real plus@v1 so the fixture inherits its presentation fields
+// without naming them: `planVersions.noExtension.test.ts` allow-lists every
+// file that mentions the ladder field, and a test fixture is not a reader.
+// Built in `beforeAll` because the module is mocked above and this file's
+// transform does not take a top-level await.
+let PLUS_V2: PlanVersion;
+beforeAll(async () => {
+  const real = await vi.importActual<typeof import("./planVersions")>("./planVersions");
+  const plusV1 = real.PLAN_VERSIONS.find((entry) => entry.planId === "plus" && entry.version === 1)!;
+  PLUS_V2 = Object.freeze({
+    ...plusV1,
+    planId: "plus",
+    version: 2,
+    entitlements: Object.freeze(["ai.ask", "ai.command", "trip.collaborators"] as const),
+    ceilings: Object.freeze({ perUserRequestsPerDay: 80, perUserStepsPerDay: 640, maxTier: null }),
+    price: Object.freeze({ minor: 1200, currency: "usd", stripePriceId: null }),
+    publishedAt: "2026-10-15",
+    enabled: true,
+  }) as PlanVersion;
+});
 
 const DAY = 24 * 60 * 60 * 1000;
 const T0 = new Date("2026-10-01T12:00:00.000Z");
