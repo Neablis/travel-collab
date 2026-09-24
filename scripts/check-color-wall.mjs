@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 // THE COLOR WALL (design-system.md "Enforcement"): raw color literals live in
 // exactly one file. Files on the pending list are pre-M5 surfaces awaiting
@@ -57,11 +58,24 @@ const generatedNonProduct = new Set([
 // color. --exclude-standard keeps .gitignore honoured, so node_modules/.next/generated
 // output stay out — walking the tree naively would not. Set dedupes the stage
 // 1/2/3 duplicates --cached emits for unmerged paths mid-conflict.
+//
+// WHERE IT LOOKS (KI-2026-09-23-g). `COLOR_WALL_SCAN_ROOT` names a directory
+// that stands in for the repo root when listing and reading the SCANNED files.
+// Unset, which is how `pnpm lint` runs it, the root is the working directory, as
+// it always was. It exists for `scripts/__tests__/check-color-wall.test.mjs`,
+// which used to plant its fixtures in this repo's own `apps/web/src`, where a
+// `tsc` or ESLint running at the same time in the same checkout saw them come
+// and go. The test now builds a throwaway git repo in the OS temp dir with the
+// fixture at `apps/web/src/...` inside it, so this same pathspec, and the
+// untracked-file rule above, are still what find it. Only the scanned files
+// move: `globals.css` and the pending list are read from the working directory
+// either way, because they are the wall's rules, not its input.
+const scanRoot = process.env.COLOR_WALL_SCAN_ROOT ?? process.cwd();
 const files = [
   ...new Set(
     execSync(
       "git ls-files --cached --others --exclude-standard 'apps/web/src/**/*.ts' 'apps/web/src/**/*.tsx' 'apps/web/src/**/*.css'",
-      { encoding: "utf8" },
+      { encoding: "utf8", cwd: scanRoot },
     )
       .split("\n")
       .filter(Boolean),
@@ -344,7 +358,7 @@ const isDefinedToken = (prefix, suffix) => {
 
 let failed = false;
 for (const file of files) {
-  const source = readFileSync(file, "utf8");
+  const source = readFileSync(join(scanRoot, file), "utf8");
   const lines = source.split("\n");
   lines.forEach((line, i) => {
     if (isColorLiteral(line)) {
