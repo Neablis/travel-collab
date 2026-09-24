@@ -99,7 +99,7 @@ describe("SpendByDayBlock", () => {
         set(trip, id(0, 0), { amountMinor: 5000, currency: trip.currency }, ["meal"]);
         set(trip, id(1, 0), { amountMinor: 30000, currency: trip.currency }, ["lodging"]);
       },
-      { view: "burn-down" },
+      { view: "burndown" },
     );
     render(<SpendByDayBlock payload={payload} />);
     const table = screen.getByRole("table", { name: "Spend by day" });
@@ -119,7 +119,7 @@ describe("SpendByDayBlock", () => {
         trip.budget = null;
         set(trip, id(0, 0), { amountMinor: 5000, currency: trip.currency }, ["meal"]);
       },
-      { view: "burn-down" },
+      { view: "burndown" },
     );
     render(<SpendByDayBlock payload={payload} />);
     expect(screen.getByText("No budget set — this is spend so far.")).toBeDefined();

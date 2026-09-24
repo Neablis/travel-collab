@@ -477,10 +477,13 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     //
     // **A `field` input is not a control over a dimension**, so it is left out
     // of the comparison: it chooses what a widget reads, not which members, and
-    // no filter maps to it (`WidgetInput`'s own comment).
+    // no filter maps to it (`WidgetInput`'s own comment). Nor are `toggle` and
+    // `choice`: they choose how a widget draws (column headings, bars or a
+    // burn-down), never which members it reads.
+    const NOT_A_DIMENSION = new Set(["field", "toggle", "choice"]);
     for (const name of PRIMITIVE_NAMES) {
       const def = getMacro(name)!;
-      const filterControls = def.inputs.filter((i) => i.type !== "field").map((i) => i.name);
+      const filterControls = def.inputs.filter((i) => !NOT_A_DIMENSION.has(i.type)).map((i) => i.name);
       expect(filterControls, `${name}'s controls`).toEqual([...def.selection!.filters]);
     }
   });

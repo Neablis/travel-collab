@@ -14,7 +14,7 @@ import { TAG_LABEL } from "../../enumLabels";
 // `cost.chart` — "Spend by day", the first chart (M14 link 11; widget
 // brainstorm §6 item 5). One bar per selected day for what its stops cost,
 // stacked by tag, with the budget spread evenly over the trip as a line — or,
-// with `view: "burn-down"`, the same stacks as a running total burning the
+// with `view: "burndown"`, the same stacks as a running total burning the
 // budget down against an even pace (`burnDownOf`).
 //
 // **A primitive: `stop` + filters + a chart shape**, exactly as `cost.rows` is
@@ -30,7 +30,7 @@ import { TAG_LABEL } from "../../enumLabels";
 const COST_CHART_FILTERS = ["dates", "tag"] as const satisfies readonly FilterDimension[];
 const CostChartParams = filterParams(COST_CHART_FILTERS, {
   // Absent is "bars": the chart every stored `cost.chart` already draws.
-  view: z.enum(["bars", "burn-down"]).optional(),
+  view: z.enum(["bars", "burndown"]).optional(),
 });
 type CostChartParams = z.infer<typeof CostChartParams>;
 
@@ -38,7 +38,7 @@ const COST_CHART_INPUTS: readonly WidgetInput[] = [
   ...filterInputs(COST_CHART_FILTERS),
   {
     name: "view", type: "choice", label: "Show as", default: "bars",
-    options: [{ value: "bars", label: "Bars" }, { value: "burn-down", label: "Burn-down" }],
+    options: [{ value: "bars", label: "Bars" }, { value: "burndown", label: "Burn-down" }],
   },
 ];
 
@@ -83,7 +83,7 @@ function ticksFor(highest: number, currency: string): SpendByDayPayload["ticks"]
 }
 
 /**
- * `view: "burn-down"` (widget brainstorm §3's "Budget burn-down"): the bars'
+ * `view: "burndown"` (widget brainstorm §3's "Budget burn-down"): the bars'
  * own stacks summed day over day, the budget left after each, and the even
  * pace to hold that against.
  *
@@ -201,7 +201,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
 
     const spent = formatMoney(chartedTotal, trip.currency);
     const dayCount = `${bars.length} ${bars.length === 1 ? "day" : "days"}`;
-    if (params.view === "burn-down") {
+    if (params.view === "burndown") {
       const burnDown = burnDownOf(
         bars, days, budget === null ? null : { amountMinor: budget, text: formatMoney(budget, trip.currency) },
         trip.days.length, trip.currency,
@@ -209,7 +209,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
       const last = burnDown.days.at(-1)!;
       return ok({
         kind: "spend-by-day",
-        view: "burn-down",
+        view: "burndown",
         burnDown,
         series,
         days: bars,

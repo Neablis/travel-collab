@@ -21,8 +21,8 @@ Format:
   because stored documents now carry the new keys, per the `PageRepeatNode` entry's
   precedent.
 - Added: `day.weather` accepts `headings: boolean` (absent = shown; only `false` is
-  stored) and `cost.chart` accepts `view: "bars" | "burn-down"` (absent = bars; only
-  `"burn-down"` is stored). Both are declared as `WidgetInput`s of two new types in
+  stored) and `cost.chart` accepts `view: "bars" | "burndown"` (absent = bars; only
+  `"burndown"` is stored). Both are declared as `WidgetInput`s of two new types in
   `registry-types.ts`: `toggle` (`default: boolean`) and `choice` (`options`,
   `default`). Neither can be unbound (`NeverUnbound`).
 - Added to payloads (`@tc/pages`, not contracts): `WeatherPayload.headings`;

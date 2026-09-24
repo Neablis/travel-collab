@@ -178,7 +178,7 @@ describe("cost.chart — spend by day", () => {
     const trip = tripOf();
     price(trip, 0, 0, usd(4000));
     expect(chartOf(trip)).toMatchObject({ view: "bars", burnDown: null });
-    expect(chartOf(trip, { view: "burn-down" }).view).toBe("burn-down");
+    expect(chartOf(trip, { view: "burndown" }).view).toBe("burndown");
   });
 });
 
@@ -198,7 +198,7 @@ describe("cost.chart — burn-down", () => {
   }
 
   it("runs each stack's spend day over day, a day with no spend carrying the total", () => {
-    const burn = chartOf(crossedMidTrip(), { view: "burn-down" }).burnDown!;
+    const burn = chartOf(crossedMidTrip(), { view: "burndown" }).burnDown!;
     expect(burn.days.map((d) => [d.cumulative.meal, d.cumulative.lodging])).toEqual([
       [5000, 0], [5000, 30000], [5000, 30000],
     ]);
@@ -206,14 +206,14 @@ describe("cost.chart — burn-down", () => {
   });
 
   it("says what is left, and how far over once the budget is crossed", () => {
-    const burn = chartOf(crossedMidTrip(), { view: "burn-down" }).burnDown!;
+    const burn = chartOf(crossedMidTrip(), { view: "burndown" }).burnDown!;
     expect(burn.budget).toEqual({ amountMinor: 30000, text: "$300.00" });
     expect(burn.days.map((d) => d.left)).toEqual(["$250.00 left", "$50.00 over", "$50.00 over"]);
     expect(burn.days.map((d) => d.leftMinor)).toEqual([25000, -5000, -5000]);
   });
 
   it("holds the budget left against an even pace from the budget down to nothing", () => {
-    const burn = chartOf(crossedMidTrip(), { view: "burn-down" }).burnDown!;
+    const burn = chartOf(crossedMidTrip(), { view: "burndown" }).burnDown!;
     // $300 over three days: $200 should be left after day 1, $100 after day 2.
     expect(burn.days.map((d) => d.paceMinor)).toEqual([20000, 10000, 0]);
     expect(burn.days.map((d) => d.overPace)).toEqual([false, true, true]);
@@ -221,12 +221,12 @@ describe("cost.chart — burn-down", () => {
 
   it("paces by TRIP day when a date range narrows the chart", () => {
     const trip = crossedMidTrip();
-    const burn = chartOf(trip, { view: "burn-down", dates: { from: "2026-08-02", through: "2026-08-03" } }).burnDown!;
+    const burn = chartOf(trip, { view: "burndown", dates: { from: "2026-08-02", through: "2026-08-03" } }).burnDown!;
     expect(burn.days.map((d) => d.paceMinor)).toEqual([10000, 0]);
   });
 
   it("puts the axis above the budget and above the most spent", () => {
-    const chart = chartOf(crossedMidTrip(), { view: "burn-down" });
+    const chart = chartOf(crossedMidTrip(), { view: "burndown" });
     expect(chart.ticks.at(-1)!.value).toBeGreaterThanOrEqual(35000);
     expect(chart.summary).toBe("Budget burn-down in USD: $350.00 spent against a budget of $300.00 — $50.00 over.");
   });
@@ -234,7 +234,7 @@ describe("cost.chart — burn-down", () => {
   it("without a budget, still runs the spend and says in words that there is none", () => {
     const trip = crossedMidTrip();
     trip.budget = null;
-    const chart = chartOf(trip, { view: "burn-down" });
+    const chart = chartOf(trip, { view: "burndown" });
     const burn = chart.burnDown!;
     expect(burn.budget).toBeNull();
     expect(burn.days.map((d) => d.spentSoFar)).toEqual(["$50.00", "$350.00", "$350.00"]);
@@ -249,7 +249,7 @@ describe("cost.chart — burn-down", () => {
   it("keeps another currency out of the running total, as the bars do, and names it", () => {
     const trip = crossedMidTrip();
     price(trip, 2, 0, { amountMinor: 1200000, currency: "JPY" });
-    const chart = chartOf(trip, { view: "burn-down" });
+    const chart = chartOf(trip, { view: "burndown" });
     expect(chart.burnDown!.days.at(-1)!.spentSoFar).toBe("$350.00");
     expect(chart.notCharted).toBe("Not charted: ¥12,000.00 in other currencies.");
   });

@@ -58,7 +58,7 @@ export interface SpendBurnDown {
 export interface SpendByDayPayload {
   kind: "spend-by-day";
   /** The widget's `view` param: a bar per day, or the running total burning the budget down. */
-  view: "bars" | "burn-down";
+  view: "bars" | "burndown";
   /** `null` for the bars. */
   burnDown: SpendBurnDown | null;
   /** The stacks that carry any spend, in `ActivityTag` order and then untagged. */

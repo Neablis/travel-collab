@@ -242,13 +242,13 @@ describe("a widget's toggle and choice inputs", () => {
     const select = screen.getByRole("combobox", { name: "One stop's detail: show as" }) as HTMLSelectElement;
     expect([...select.options].map((o) => o.textContent)).toEqual(["Bars", "Burn-down"]);
     expect(select.value).toBe("bars");
-    await user.selectOptions(select, "burn-down");
-    expect(stored()).toEqual({ view: "burn-down" });
+    await user.selectOptions(select, "burndown");
+    expect(stored()).toEqual({ view: "burndown" });
     await user.selectOptions(select, "bars");
     expect(stored()).toEqual({});
   });
 
   it("keeps both out of the 'Pointed at' summary, which is about what the widget reads", () => {
-    expect(bindSummary("cost.chart", { view: "burn-down", headings: false }, detail, null)).toBe("everything");
+    expect(bindSummary("cost.chart", { view: "burndown", headings: false }, detail, null)).toBe("everything");
   });
 });
