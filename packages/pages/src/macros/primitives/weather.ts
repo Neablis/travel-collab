@@ -1,6 +1,8 @@
 import { z } from "zod";
-import type { FilterDimension, ForecastDay, TripWeatherPoint, TypicalMonth, WeatherSource } from "@tc/contracts";
-import type { MacroDef, WidgetContext } from "../../registry-types";
+import type {
+  FilterDimension, ForecastDay, TripWeatherPoint, TypicalMonth, UserPreferences, WeatherSource,
+} from "@tc/contracts";
+import type { MacroDef, WidgetContext, WidgetInput } from "../../registry-types";
 import { blockOf } from "../../registry-types";
 import type { WeatherCredit, WeatherMode, WeatherPayload, WeatherRow } from "../../weatherPayload";
 import { ok, empty, needsTrip, unavailable, type MacroResult } from "../../result";
@@ -23,8 +25,17 @@ import { formatShortDate } from "../../format";
 // weather in Kyoto" are bindings, not widgets.
 
 const WEATHER_FILTERS = ["day", "city", "dates"] as const satisfies readonly FilterDimension[];
-const WeatherParams = filterParams(WEATHER_FILTERS);
+const WeatherParams = filterParams(WEATHER_FILTERS, {
+  // Absent is shown: *"I have no idea what the columns are without a column
+  // header"* (Mitchell, #221 preview) — so only turning them OFF is stored.
+  headings: z.boolean().optional(),
+});
 type WeatherParams = z.infer<typeof WeatherParams>;
+
+const WEATHER_INPUTS: readonly WidgetInput[] = [
+  ...filterInputs(WEATHER_FILTERS),
+  { name: "headings", type: "toggle", label: "Column headings", default: true },
+];
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -62,9 +73,27 @@ const CREDITS: Record<WeatherSource, WeatherCredit> = {
   "nasa-power": { source: "nasa-power", text: "Typical: NASA Langley Research Center POWER Project", href: null },
 };
 
+/**
+ * How a reader wants temperature and rain, **derived from the account's
+ * `distanceUnit`** (ADR-052, amended 2026-09-24): miles is °F and inches, km is
+ * °C and mm. There is no temperature setting and this adds none — an account
+ * that asked for miles has asked for US units. Unloaded preferences read as
+ * metric, the units the sources speak.
+ */
+type Units = "metric" | "imperial";
+const unitsOf = (user: UserPreferences | null): Units => (user?.distanceUnit === "mi" ? "imperial" : "metric");
+
 // `Math.round` alone prints "-0°" for -0.4, which reads as a typo.
-const degrees = (c: number) => `${Math.round(c) || 0}°`;
-const millimetres = (mm: number) => `${mm.toFixed(1)} mm`;
+const degrees = (c: number, units: Units) => `${Math.round(units === "imperial" ? (c * 9) / 5 + 32 : c) || 0}°`;
+
+// Inches to two places, since a tenth of an inch is 2.5 mm and would print most
+// days' rain as 0.0 or 0.1. A trace that rounds to nothing says so, where a
+// millimetre figure would have shown it as a number.
+function rainAmount(mm: number, units: Units): string {
+  if (units === "metric") return `${mm.toFixed(1)} mm`;
+  const inches = mm / 25.4;
+  return mm > 0 && inches < 0.005 ? "<0.01 in" : `${inches.toFixed(2)} in`;
+}
 
 /**
  * MET's `symbol_code` in words: `lightrainshowersandthunder_day` → "Light rain
@@ -84,17 +113,17 @@ export function skyInWords(symbol: string | null): string | null {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function typicalValues(typical: TypicalMonth) {
+function typicalValues(typical: TypicalMonth, units: Units) {
   return {
-    now: null, high: degrees(typical.highC), low: degrees(typical.lowC),
-    rain: `${millimetres(typical.precipitationMmPerDay)} a day`, sky: null,
+    now: null, high: degrees(typical.highC, units), low: degrees(typical.lowC, units),
+    rain: `${rainAmount(typical.precipitationMmPerDay, units)} a day`, sky: null,
   };
 }
 
-function forecastValues(day: ForecastDay) {
+function forecastValues(day: ForecastDay, units: Units) {
   return {
-    now: null, high: degrees(day.highC), low: degrees(day.lowC),
-    rain: millimetres(day.precipitationMm), sky: skyInWords(day.symbol),
+    now: null, high: degrees(day.highC, units), low: degrees(day.lowC, units),
+    rain: rainAmount(day.precipitationMm, units), sky: skyInWords(day.symbol),
   };
 }
 
@@ -103,18 +132,18 @@ function forecastValues(day: ForecastDay) {
  * yet gone when it answered, so the first is "now" and the rest are the rest of
  * the day. With no hours left, the day's own figures stand.
  */
-function todayValues(day: ForecastDay) {
+function todayValues(day: ForecastDay, units: Units) {
   const [first] = day.hours;
-  if (first === undefined) return forecastValues(day);
+  if (first === undefined) return forecastValues(day, units);
   const temps = day.hours.map((h) => h.tempC);
   return {
-    now: degrees(first.tempC), high: degrees(Math.max(...temps)), low: degrees(Math.min(...temps)),
-    rain: millimetres(day.hours.reduce((sum, h) => sum + h.precipitationMm, 0)),
+    now: degrees(first.tempC, units), high: degrees(Math.max(...temps), units), low: degrees(Math.min(...temps), units),
+    rain: rainAmount(day.hours.reduce((sum, h) => sum + h.precipitationMm, 0), units),
     sky: skyInWords(first.symbol ?? day.symbol),
   };
 }
 
-function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number): WeatherRow {
+function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number, units: Units): WeatherRow {
   const base = {
     key: `${dayIndex}:${point.city ?? ""}`,
     label: `Day ${dayIndex + 1}`,
@@ -127,15 +156,15 @@ function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number): We
   const month = MONTHS[(typical?.month ?? Number(point.date.slice(5, 7))) - 1];
   switch (mode) {
     case "forecast":
-      return { ...base, modeText: "Forecast", ...forecastValues(forecast!) };
+      return { ...base, modeText: "Forecast", ...forecastValues(forecast!, units) };
     case "today":
-      return { ...base, modeText: "Today", ...todayValues(forecast!) };
+      return { ...base, modeText: "Today", ...todayValues(forecast!, units) };
     case "typical":
-      return { ...base, modeText: `Typical for ${month}`, ...typicalValues(typical!) };
+      return { ...base, modeText: `Typical for ${month}`, ...typicalValues(typical!, units) };
     case "past":
-      return { ...base, modeText: `Typical for ${month} — not what it was`, ...typicalValues(typical!) };
+      return { ...base, modeText: `Typical for ${month} — not what it was`, ...typicalValues(typical!, units) };
     case "no-forecast":
-      return { ...base, modeText: `Typical for ${month} — no forecast right now`, ...typicalValues(typical!) };
+      return { ...base, modeText: `Typical for ${month} — no forecast right now`, ...typicalValues(typical!, units) };
     case "unavailable":
       return { ...base, modeText: "Weather unavailable", now: null, high: null, low: null, rain: null, sky: null };
     default: {
@@ -161,7 +190,7 @@ const USES_TYPICAL: ReadonlySet<WeatherMode> = new Set(["typical", "past", "no-f
  */
 export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   name: "day.weather", title: "Weather", shape: "block",
-  params: WeatherParams, inputs: filterInputs(WEATHER_FILTERS),
+  params: WeatherParams, inputs: WEATHER_INPUTS,
   selection: { entity: "day", filters: WEATHER_FILTERS },
   needs: ["weather"],
   description:
@@ -169,7 +198,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   emptyText: "no place on this day",
   // Fixed, never computed (ADR-037 decision 5) — the ADR's own wording.
   preview: "The weather for each day — the forecast when there is one, what's typical when there isn't.",
-  resolve: ({ trip, globals, today, external }: WidgetContext, params, item): MacroResult<WeatherPayload> => {
+  resolve: ({ trip, globals, today, external, user }: WidgetContext, params, item): MacroResult<WeatherPayload> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
@@ -195,7 +224,8 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
     if (picked.length === 0) return undated ? empty("set the trip's dates to see this") : empty("no place on this day");
     // Every row empty-handed is the source being down, not a quiet block.
     if (picked.every(({ mode }) => mode === "unavailable")) return unavailable("source");
-    const rows = picked.map(({ point, mode, index }) => rowOf(point, mode, index));
+    const units = unitsOf(user);
+    const rows = picked.map(({ point, mode, index }) => rowOf(point, mode, index, units));
 
     // The OLDEST as-of shown: a stale row served after a failed revalidation
     // is older than its neighbours, and the line must not flatter it.
@@ -219,6 +249,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
       forecastAsOf: asOfs[0] ?? null,
       typicalPeriod: [...periods][0] ?? null,
       credits,
+      headings: params.headings !== false,
       summary: `Weather for ${shown} of ${rows.length} ${rows.length === 1 ? "place-day" : "place-days"}.`,
     });
   },

@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripDetail, TripWeather, TripWeatherPoint } from "@tc/contracts";
+import type { TripDetail, TripWeather, TripWeatherPoint, UserPreferences } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { MacroView } from "../MacroView";
 import { asOfText } from "./WeatherBlock";
@@ -40,13 +40,20 @@ const point = (date: string, over: Partial<TripWeatherPoint> = {}): TripWeatherP
   date, city: "Kyoto", forecast: forecast(`${TODAY}T09:10:00Z`), typical: TYPICAL, ...over,
 });
 
-const view = (detail: TripDetail, weather: TripWeather, editing = false) =>
+const view = (
+  detail: TripDetail,
+  weather: TripWeather,
+  editing = false,
+  { params = {}, user = null }: { params?: Record<string, unknown>; user?: UserPreferences | null } = {},
+) =>
   render(
     <MacroView
-      detail={detail} context={{ tripId: detail.tripId }} name="day.weather" params={{}} editing={editing}
-      external={{ weather: { state: "ready", value: weather } }}
+      detail={detail} context={{ tripId: detail.tripId }} name="day.weather" params={params} editing={editing}
+      user={user} external={{ weather: { state: "ready", value: weather } }}
     />,
   );
+
+const dataRows = () => screen.getAllByRole("row").filter((row) => row.hasAttribute("data-mode"));
 
 describe("the weather block", () => {
   it("renders all four date-driven modes, each naming itself in words", () => {
@@ -58,7 +65,7 @@ describe("the weather block", () => {
         point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } }),
       ],
     });
-    const rows = screen.getAllByRole("row");
+    const rows = dataRows();
     expect(rows.map((row) => row.getAttribute("data-mode"))).toEqual(["past", "today", "forecast", "typical"]);
     expect(rows.map((row) => within(row).getAllByRole("cell")[0]!.textContent)).toEqual([
       "Typical for November — not what it was",
@@ -66,7 +73,43 @@ describe("the weather block", () => {
       "Forecast · Light rain",
       "Typical for November",
     ]);
-    expect(within(rows[1]!).getByRole("cell", { name: "now" }).textContent).toBe("now 12°");
+    // Under a "Now" heading the value needs no word of its own.
+    expect(within(rows[1]!).getByRole("cell", { name: "now" }).textContent).toBe("12°");
+  });
+
+  // Mitchell, on the #221 preview: *"I have no idea what the columns are
+  // without a column header. But might be good to make that a toggle."*
+  it("heads its columns by default, and says 'now' in the cell when the headings are off", () => {
+    const weather = { points: [point(TODAY), point("2026-11-13")] };
+    view(trip(), weather);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Day", "Conditions", "Now", "High", "Low", "Rain",
+    ]);
+    cleanup();
+    view(trip(), weather, false, { params: { headings: false } });
+    expect(screen.queryAllByRole("columnheader")).toEqual([]);
+    expect(within(dataRows()[0]!).getByRole("cell", { name: "now" }).textContent).toBe("now 12°");
+  });
+
+  // *"We need to scroll to the right to see all the data here."* A column no
+  // row fills is width the conditions cell could have had.
+  it("drops the 'now' column, heading and cells, when no row has a value for it", () => {
+    view(trip(), { points: [point("2026-11-13"), point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } })] });
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Day", "Conditions", "High", "Low", "Rain",
+    ]);
+    for (const row of dataRows()) expect(within(row).queryByRole("cell", { name: "now" })).toBeNull();
+  });
+
+  // *"Make sure we are respecting the account settings for fahrenheit vs
+  // celsius, or metric vs imperial."* The account's `distanceUnit` reaches the
+  // block through MacroView's `user`, the same prop every widget reads.
+  it("reads °F and inches for an account in miles", () => {
+    const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi" };
+    view(trip(), { points: [point("2026-11-13")] }, false, { user: miles });
+    const [row] = dataRows();
+    expect(within(row!).getByRole("cell", { name: "high" }).textContent).toBe("64°");
+    expect(within(row!).getByRole("cell", { name: "rain" }).textContent).toBe("0.08 in");
   });
 
   // Mitchell, on the #221 preview: a longer date wrapped the header out of its
@@ -85,7 +128,7 @@ describe("the weather block", () => {
     expect(met.getAttribute("href")).toBe("https://api.met.no/doc/License");
     expect(screen.getByText("Typical: NASA Langley Research Center POWER Project")).toBeTruthy();
     expect(screen.getByText("Typical: 2001–2020 averages")).toBeTruthy();
-    expect(screen.getByText(/^Forecast as of \d\d:\d\d$/)).toBeTruthy();
+    expect(screen.getByText(/^Forecast as of \d{1,2}(:\d\d)? (am|pm)$/)).toBeTruthy();
   });
 
   // The gate box's placeholder, from the body the route sends when both ports
@@ -105,9 +148,12 @@ describe("the weather block", () => {
   });
 });
 
+// Mitchell, on the #221 preview: *"All times should be in AM/PM not military
+// time."* The house clock (`toClockLabel`), never a second format.
 describe("asOfText", () => {
-  it("says the time alone for today, and the date too when it is older", () => {
-    expect(asOfText(new Date(2026, 10, 10, 9, 10).toISOString(), TODAY)).toBe("Forecast as of 09:10");
-    expect(asOfText(new Date(2026, 10, 9, 21, 5).toISOString(), TODAY)).toMatch(/^Forecast as of .*9.*21:05$/);
+  it("says the time alone for today, and the date too when it is older, on a 12-hour clock", () => {
+    expect(asOfText(new Date(2026, 10, 10, 9, 10).toISOString(), TODAY)).toBe("Forecast as of 9:10 am");
+    expect(asOfText(new Date(2026, 10, 10, 13, 0).toISOString(), TODAY)).toBe("Forecast as of 1 pm");
+    expect(asOfText(new Date(2026, 10, 9, 21, 5).toISOString(), TODAY)).toBe("Forecast as of Mon, Nov 9, 9:05 pm");
   });
 });

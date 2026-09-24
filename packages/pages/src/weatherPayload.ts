@@ -33,7 +33,10 @@ export interface WeatherRow {
   now: string | null;
   high: string | null;
   low: string | null;
-  /** "2.1 mm" for a forecast; "3.5 mm a day" for typical, which is an amount and never a chance. */
+  /**
+   * "2.1 mm" for a forecast; "3.5 mm a day" for typical, which is an amount and
+   * never a chance. Inches ("0.08 in") for an account in miles.
+   */
   rain: string | null;
   /** The forecast's sky in words; `null` for typical, which has none. */
   sky: string | null;
@@ -55,6 +58,8 @@ export interface WeatherPayload {
   typicalPeriod: string | null;
   /** One per source whose data is on the block, forecast first. */
   credits: WeatherCredit[];
+  /** Whether the table opens with its column headings — the widget's `headings` param, shown unless turned off. */
+  headings: boolean;
   /** The block in one sentence, for its accessible name. */
   summary: string;
 }

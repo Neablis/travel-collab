@@ -330,7 +330,20 @@ export type WidgetInput =
   // LIST of paths, one column each, where the plain form is one path. Same
   // vocabulary and same resolve-time check; its control is a list of pickers.
   // Empty or absent means no extra columns — never "waiting for a choice".
-  | { name: string; type: "field"; label: string; of: ManifestObject; multiple?: true };
+  | { name: string; type: "field"; label: string; of: ManifestObject; multiple?: true }
+  // **The two inputs that change how a widget LOOKS, not what it reads**
+  // (Mitchell on the #221 preview: column headings on the weather table *"might
+  // be good to make that a toggle"*, and a burn-down *"option/input"* on the
+  // spend chart). Neither narrows a selection, so neither is a filter, and
+  // neither can be unbound: an absent one is its `default`. They are declared
+  // here rather than special-cased per widget in `apps/web` (as `distinct`
+  // is), because ADR-037 decision 1 fails the moment a widget's name decides
+  // which control the settings panel draws.
+  //
+  // Stored only when it differs from `default`, so a widget left alone and one
+  // switched away and back are the same `{}`.
+  | { name: string; type: "toggle"; label: string; default: boolean }
+  | { name: string; type: "choice"; label: string; options: readonly { value: string; label: string }[]; default: string };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];
@@ -365,8 +378,11 @@ type Assert<T extends true> = T;
  * is no "every field", so an absent one is a widget with nothing to read, and a
  * path the manifest no longer publishes is aimed at nothing. Both are
  * `unbound("field")`, which the field picker can fix.
+ *
+ * `toggle` and `choice` join them because they are not bindings at all: each
+ * has a declared `default`, and absent IS that default.
  */
-type NeverUnbound = "tags" | "city" | "kind" | "dates";
+type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice";
 
 export type NeedsCoversEveryBindableInput = Assert<
   Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false

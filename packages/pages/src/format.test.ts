@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatDate, formatCountdown } from "./format";
+import { formatMoney, formatDate, formatCountdown, ordinal } from "./format";
+import { witness } from "./test-support/witness";
 
 describe("format helpers", () => {
   it("formats minor units to 2 decimals with currency", () => {
@@ -96,5 +97,30 @@ describe("formatCountdown", () => {
     // and inventing "in 0 days" here would put a false fact on a page.
     expect(formatCountdown("not-a-date", FIRST, LAST)).toBeNull();
     expect(formatCountdown("2026-08-01", "", LAST)).toBeNull();
+  });
+});
+
+// The spend chart's axis (Mitchell, on the #221 preview: *"just go with 1st,
+// 2nd, 3rd to save on space"*). Every n from 1 to 120 rather than a sample:
+// the range is small, the rule has two exceptions a sample can miss (11-13 and
+// 111-113), and a trip longer than 120 days is not one this chart is drawn for.
+describe("ordinal", () => {
+  it("names every day from 1 to 120, the teens included", () => {
+    const w = witness("ordinal 1..120");
+    for (let n = 1; n <= 120; n += 1) {
+      const text = ordinal(n);
+      w.tick();
+      expect(text.startsWith(String(n)), `${n} → ${text}`).toBe(true);
+      const suffix = text.slice(String(n).length);
+      const teen = n % 100 >= 11 && n % 100 <= 13;
+      const expected = teen ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+      expect(suffix, `${n} → ${text}`).toBe(expected);
+    }
+    w.atLeast(120);
+    // The rule above could share a mistake with the code, so the cases a
+    // person checks by eye are spelled out as well.
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111, 112, 113, 120].map(ordinal)).toEqual([
+      "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th", "112th", "113th", "120th",
+    ]);
   });
 });

@@ -23,3 +23,6 @@ export * from "./savedTemplate";
 // The one reader of an instant in a named zone; the server's weather cuts its
 // local days with it too, rather than a second `Intl` walk (review finding 6).
 export { clockIn } from "./clock";
+// The one ordinal suffix table: the chart's axis here, and the Calendar cell's
+// "14th" in `apps/web` (`ordinalDayOfMonth`), which delegates to it.
+export { ordinal } from "./format";

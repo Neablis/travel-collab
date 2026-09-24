@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ForecastDay, TripDetail, TripGlobals, TripWeather, TripWeatherPoint, TypicalMonth } from "@tc/contracts";
+import type {
+  ForecastDay, TripDetail, TripGlobals, TripWeather, TripWeatherPoint, TypicalMonth, UserPreferences,
+} from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { WidgetContext } from "../../registry-types";
@@ -60,9 +62,10 @@ function ctxOf(
   { trip, globals, weather }: ReturnType<typeof setup>,
   today: string | null,
   slot: "ready" | "pending" | "failed" = "ready",
+  user: UserPreferences | null = null,
 ): WidgetContext {
   return {
-    trip, page: { tripId: trip.tripId }, user: null, globals, today,
+    trip, page: { tripId: trip.tripId }, user, globals, today,
     external: { weather: slot === "ready" ? { state: "ready", value: weather } : { state: slot } },
   };
 }
@@ -192,6 +195,57 @@ describe("day.weather", () => {
   it("narrows to a day like every day primitive", () => {
     const payload = payloadOf(ctxOf(trip(), "2026-11-10"), { day: { kind: "index", index: 2 } });
     expect(payload.rows.map((r) => r.label)).toEqual(["Day 3"]);
+  });
+
+  // Mitchell, on the #221 preview: *"Make sure we are respecting the account
+  // settings for fahrenheit vs celsius, or metric vs imperial."* The account
+  // has one unit setting, `distanceUnit`, and the weather reads it: miles is
+  // °F and inches, km is °C and mm (ADR-052's 2026-09-24 amendment).
+  describe("units, from the account's distance unit", () => {
+    const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi" };
+    const km: UserPreferences = { ...miles, distanceUnit: "km" };
+
+    it("prints °F and inches for an account in miles, whole degrees and two places", () => {
+      const [past, today, forecast] = payloadOf(ctxOf(trip(), "2026-11-10", "ready", miles)).rows;
+      // 17.6 °C = 63.7 °F, 8.2 °C = 46.8 °F, 2.14 mm = 0.084 in.
+      expect(forecast).toMatchObject({ high: "64°", low: "47°", rain: "0.08 in" });
+      expect(today).toMatchObject({ now: "54°", high: "59°", low: "49°", rain: "0.05 in" });
+      expect(past).toMatchObject({ high: "56°", low: "40°", rain: "0.14 in a day" });
+    });
+
+    it("prints °C and mm for an account in km, and when the account's preferences did not load", () => {
+      const metric = { high: "18°", low: "8°", rain: "2.1 mm" };
+      expect(payloadOf(ctxOf(trip(), "2026-11-10", "ready", km)).rows[2]).toMatchObject(metric);
+      expect(payloadOf(ctxOf(trip(), "2026-11-10", "ready", null)).rows[2]).toMatchObject(metric);
+    });
+
+    it("says a trace of rain in inches rather than rounding it to none", () => {
+      const t = setup(
+        ["2026-11-12", "2026-11-13"],
+        [
+          point("2026-11-12", { forecast: forecastDay({ precipitationMm: 0.1 }) }),
+          point("2026-11-13", { forecast: forecastDay({ precipitationMm: 0 }) }),
+        ],
+      );
+      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", miles)).rows.map((r) => r.rain)).toEqual(["<0.01 in", "0.00 in"]);
+    });
+
+    it("never prints -0°, in either unit", () => {
+      // -17.9 °C is -0.2 °F; -0.4 °C is itself a rounded -0.
+      const t = setup(
+        ["2026-11-12"],
+        [point("2026-11-12", { forecast: forecastDay({ highC: -0.4, lowC: -17.9 }) })],
+      );
+      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", miles)).rows[0]).toMatchObject({ high: "31°", low: "0°" });
+      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", km)).rows[0]).toMatchObject({ high: "0°", low: "-18°" });
+    });
+  });
+
+  // *"I have no idea what the columns are without a column header. But might
+  // be good to make that a toggle."* Shown unless the author turns it off.
+  it("carries column headings by default, and not when the author turned them off", () => {
+    expect(payloadOf(ctxOf(trip(), "2026-11-10")).headings).toBe(true);
+    expect(payloadOf(ctxOf(trip(), "2026-11-10"), { headings: false }).headings).toBe(false);
   });
 
   it("gives a travel day one row per city", () => {

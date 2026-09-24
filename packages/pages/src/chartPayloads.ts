@@ -13,8 +13,10 @@ import type { ActivityTag } from "@tc/contracts";
 export type SpendSeriesKey = ActivityTag | "untagged";
 
 export interface SpendByDayBar {
-  /** "Day 3" — a trip ordinal, counting from 1. */
+  /** "Day 3" — a trip ordinal, counting from 1. The hover's title and the table's row. */
   label: string;
+  /** "3rd" — the same ordinal, short enough for the axis under a narrow bar. */
+  tick: string;
   /** Display-ready, or `null` for an undated day. */
   date: string | null;
   /** Minor units, trip currency, per stack. A key with no spend is 0, never absent. */
@@ -23,17 +25,49 @@ export interface SpendByDayBar {
   total: string | null;
   /** The stacks in words — "Meal $40.00, Lodging $200.00" — for the table a screen reader gets. */
   breakdown: string | null;
+  /** The same stacks one by one, for the hover's line per stack. Only the ones with spend. */
+  parts: { key: SpendSeriesKey; label: string; text: string }[];
+}
+
+/** One day of the burn-down: everything through it, against the budget. */
+export interface BurnDownDay {
+  /** Minor units per stack, summed from the first charted day through this one. */
+  cumulative: Record<SpendSeriesKey, number>;
+  /** The running total as a reader says it. */
+  spentSoFar: string;
+  /** Budget minus the running total, minor units — negative once over; `null` without a budget. */
+  leftMinor: number | null;
+  /** "$250.00 left" or "$50.00 over"; `null` without a budget. */
+  left: string | null;
+  /** What an even pace would leave after this TRIP day, minor units; `null` without a budget. */
+  paceMinor: number | null;
+  /** `paceMinor` as a reader says it. */
+  pace: string | null;
+  /** Less is left than the even pace would leave. Always `false` without a budget. */
+  overPace: boolean;
+}
+
+export interface SpendBurnDown {
+  budget: { amountMinor: number; text: string } | null;
+  /** One per entry of `SpendByDayPayload.days`, in the same order. */
+  days: BurnDownDay[];
+  /** Said in words under the chart when there is no budget to burn down; `null` when there is one. */
+  note: string | null;
 }
 
 export interface SpendByDayPayload {
   kind: "spend-by-day";
+  /** The widget's `view` param: a bar per day, or the running total burning the budget down. */
+  view: "bars" | "burn-down";
+  /** `null` for the bars. */
+  burnDown: SpendBurnDown | null;
   /** The stacks that carry any spend, in `ActivityTag` order and then untagged. */
   series: { key: SpendSeriesKey; label: string }[];
   /** One per selected day, in trip order — zero days included, so the run of days is the trip's. */
   days: SpendByDayBar[];
   /** The trip's budget spread evenly over its days; `null` without a budget. */
   budgetPerDay: { amountMinor: number; text: string } | null;
-  /** The value axis, from 0 to at least the tallest bar and the budget line. */
+  /** The value axis, from 0 to at least the tallest bar (or most spent, burning down) and the budget line. */
   ticks: { value: number; text: string }[];
   /** One sentence a screen reader gets in place of the picture. */
   summary: string;

@@ -83,7 +83,11 @@ describe("registry", () => {
 
   // A plausible value per input type, so the assertion below can actually
   // exercise each macro's own validator rather than just reading its keys.
-  const SAMPLE: Record<WidgetInput["type"], unknown> = {
+  // `choice` is absent because no one value fits every choice: each is sampled
+  // from its own declared options below, all of them.
+  const SAMPLE: Record<Exclude<WidgetInput["type"], "choice">, unknown> = {
+    // The non-default value, which is the only one a toggle ever stores.
+    toggle: false,
     day: { kind: "index", index: 0 },
     // ONE tag, and a real `ActivityTag` member. This was `["Meal"]` — an array,
     // and capitalised when the enum is lowercase — written speculatively before
@@ -110,9 +114,19 @@ describe("registry", () => {
       const def = getMacro(name)!;
       if (def.inputs.length === 0) continue;
       // A `multiple` field input stores a list of what the single one stores.
-      const sampleOf = (i: WidgetInput) => (i.type === "field" && i.multiple ? [SAMPLE.field] : SAMPLE[i.type]);
+      const sampleOf = (i: WidgetInput) =>
+        i.type === "choice" ? i.options.at(-1)!.value : i.type === "field" && i.multiple ? [SAMPLE.field] : SAMPLE[i.type];
       const bound = Object.fromEntries(def.inputs.map((i) => [i.name, sampleOf(i)]));
       const parsed = def.params.safeParse(bound);
+      // Every option a choice offers is one the schema keeps, its default too:
+      // an option the validator strips is a setting that silently never sticks.
+      for (const input of def.inputs) {
+        if (input.type !== "choice") continue;
+        for (const value of [input.default, ...input.options.map((o) => o.value)]) {
+          const one = def.params.safeParse({ [input.name]: value });
+          expect(one.success && (one.data as Record<string, unknown>)[input.name], `${name}.${input.name}=${value}`).toBe(value);
+        }
+      }
       // A declared input the validator drops is a binding the UI can set and
       // the resolver will never see — silent, and exactly the drift this seam
       // exists to prevent. `.strip()` makes that failure quiet, so assert the
