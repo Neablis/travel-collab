@@ -328,6 +328,13 @@ export const PRESETS: readonly WidgetPreset[] = [
     keywords: ["time", "time zone", "timezone", "difference", "jet lag", "home", "clock", "hours ahead", "behind", "call home"],
   },
   {
+    id: "weather",
+    widget: "day.weather",
+    params: {},
+    title: "Weather",
+    keywords: ["weather", "forecast", "temperature", "rain", "typical", "climate", "sun", "cold", "hot", "umbrella", "pack"],
+  },
+  {
     id: "costs.table",
     widget: "cost.rows",
     params: {},

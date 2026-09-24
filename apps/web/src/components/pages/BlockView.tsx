@@ -8,6 +8,7 @@ import { CityDetailBlock } from "./blocks/CityDetailBlock";
 import { CountryFactsBlock } from "./blocks/CountryFactsBlock";
 import { TripStripBlock } from "./blocks/TripStripBlock";
 import { SpendByDayBlock } from "./blocks/SpendByDayBlock";
+import { WeatherBlock } from "./blocks/WeatherBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
 // decision 1's "no switch case" is satisfied by a file that plainly contains a
@@ -59,6 +60,8 @@ export function BlockView({ block, accents }: { block: BlockPayload; accents: Ci
       return <TripStripBlock payload={block} accents={accents} />;
     case "spend-by-day":
       return <SpendByDayBlock payload={block} />;
+    case "weather":
+      return <WeatherBlock payload={block} />;
     default: {
       // Not dead code and not defensive: this line is the enforcement. If
       // `block` is ever not `never` here, the assignment fails to compile and
