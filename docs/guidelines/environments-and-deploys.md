@@ -150,6 +150,25 @@ Rules (ADR-004 + M1 retro):
   database) and it seeds through the command API, so `pnpm --filter web dev`
   must already be running.
 
+## Which pushes build a preview
+
+**Only a branch with an open, non-draft pull request gets a preview**
+(2026-09-24). `apps/web/vercel.json`'s `ignoreCommand` runs
+`apps/web/scripts/vercel-ignore-build.mjs`, which asks GitHub about the branch
+and skips the build otherwise. Production always builds. Before this every push
+to every branch built one, and on 2026-09-24 that used up Vercel's daily
+deployment limit. Vercel then refused the push that merged #227 without
+creating any deployment record, so production stayed on the commit before it.
+
+- **A draft PR, or a branch with no PR, has no preview.** Mark the PR ready (or
+  open it) when you need one — for `phase-verifier`, or a browser walk.
+- **Opening a PR or marking it ready starts a preview**, through
+  `.github/workflows/preview-on-ready.yml`. That needs a `VERCEL_TOKEN`
+  repository secret. Without it the workflow logs a notice, and the preview
+  waits for the next push.
+- If GitHub cannot be reached, the script builds anyway: an extra preview costs
+  less than a missing one.
+
 ## Testing against a preview deployment
 
 Preview and production deployment URLs are behind **Vercel Authentication**

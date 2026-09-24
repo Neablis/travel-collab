@@ -1,0 +1,42 @@
+name: preview-on-ready
+
+# Vercel builds a preview only for a branch with an open, non-draft pull
+# request (`apps/web/scripts/vercel-ignore-build.mjs`). A push is what triggers
+# that check, so a PR opened, reopened or marked ready AFTER its last push
+# would otherwise sit without a preview until the next commit. This asks
+# Vercel for one at that moment.
+#
+# Needs a `VERCEL_TOKEN` repository secret (a Vercel access token scoped to the
+# team). Without it the job says so and succeeds — the next push still builds.
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  deploy-preview:
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask Vercel for a preview of the PR head
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          REF: ${{ github.event.pull_request.head.ref }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::notice::VERCEL_TOKEN is not set; no preview requested. The next push to $REF will build one."
+            exit 0
+          fi
+          body=$(jq -n --arg ref "$REF" --arg sha "$SHA" '{
+            name: "travel-collab",
+            project: "prj_UoxcnmAsWMtHXx8jLXyespRqSULM",
+            gitSource: { type: "github", org: "Neablis", repo: "travel-collab", ref: $ref, sha: $sha }
+          }')
+          curl --fail-with-body -sS -X POST \
+            "https://api.vercel.com/v13/deployments?teamId=team_FOAEiiLfMMxICIFszLWvzfzF" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$body" | jq '{id, url, readyState}'
