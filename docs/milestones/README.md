@@ -234,7 +234,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M12 — Reviews and moderation
+Current milestone: M24 — A leg knows where it goes and by what
 **2026-09-23, PLACED BY MITCHELL** ahead of M12, the way M26 was placed ahead
 of M13: M12 puts ratings onto surfaces this pass reshapes (Discover's Filters
 menu, the new-trip Playbook-day turn), and reshaping them once is cheaper.

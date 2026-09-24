@@ -253,7 +253,7 @@
             "name": "Teleferico de Fuente De lower station",
             "city": "Fuente De",
             "area": "Picos de Europa",
-            "countryCode": "MX"
+            "countryCode": "ES"
           },
           "kind": "transit",
           "notes": "The station car park is full by 09:30 in July. The queue for tickets is far longer than the queue for the cabin, so send one person ahead while the others sort boots.",
@@ -274,7 +274,7 @@
             "area": "Picos de Europa",
             "lat": 20.562322,
             "lng": -103.361667,
-            "countryCode": "MX"
+            "countryCode": "ES"
           },
           "kind": "booked",
           "tags": [
@@ -298,7 +298,7 @@
             "area": "Macizo Central",
             "lat": 20.562322,
             "lng": -103.361667,
-            "countryCode": "MX"
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -320,7 +320,7 @@
             "name": "Refugio Cabana Veronica",
             "city": "Fuente De",
             "area": "Macizo Central",
-            "countryCode": "MX"
+            "countryCode": "ES"
           },
           "kind": "planned",
           "tags": [
@@ -344,7 +344,7 @@
             "area": "Macizo Central",
             "lat": 20.562322,
             "lng": -103.361667,
-            "countryCode": "MX"
+            "countryCode": "ES"
           },
           "kind": "idea",
           "tags": [
