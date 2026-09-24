@@ -33,6 +33,7 @@ function storage(): Storage | null {
   }
 }
 
+/** Keep this page's unconfirmed document in the browser, replacing any earlier one. */
 export function rememberPageDraft(pageId: string, draft: PageDraft): void {
   try {
     storage()?.setItem(key(pageId), JSON.stringify(draft));
@@ -42,6 +43,7 @@ export function rememberPageDraft(pageId: string, draft: PageDraft): void {
   }
 }
 
+/** Drop this page's draft, once the server has taken what it held. */
 export function forgetPageDraft(pageId: string): void {
   try {
     storage()?.removeItem(key(pageId));
