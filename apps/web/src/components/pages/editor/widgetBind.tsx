@@ -282,6 +282,12 @@ export function bindSummary(
  * `inputs` is passed in rather than looked up, because the insert step binds a
  * PRESET and a preset offers only the dimensions its name has not already
  * answered (`presetBindableInputs`).
+ *
+ * `title` names the controls, and defaults to the widget's own title. The
+ * settings panel passes a NUMBERED one when a sentence holds two widgets (§26):
+ * "We land in {city} and fly home from {city}" is two widgets both called "The
+ * cities", and two controls with one accessible name are one control to a
+ * screen reader — the number is what tells them apart for everyone else.
  */
 export function WidgetBindControls({
   name,
@@ -292,6 +298,7 @@ export function WidgetBindControls({
   layout,
   idPrefix,
   inputs = bindableInputs(name),
+  title: titleOverride,
 }: {
   name: string;
   params: Record<string, unknown>;
@@ -301,9 +308,12 @@ export function WidgetBindControls({
   layout: "inline" | "stacked";
   idPrefix: string;
   inputs?: readonly WidgetInput[];
+  title?: string;
 }) {
-  const title = getMacro(name)?.title ?? name;
-
+  const title = titleOverride ?? getMacro(name)?.title ?? name;
+  // A stacked select is otherwise named by its visible `FormField` label alone
+  // ("Tags"), which is unique only while the panel holds one widget.
+  const namedByTitle = layout === "inline" || titleOverride !== undefined;
   return (
     <>
       {inputs.map((input) => {
@@ -320,7 +330,7 @@ export function WidgetBindControls({
           ) : (
             <NativeSelect
               id={`${idPrefix}-${input.name}`}
-              aria-label={layout === "inline" ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              aria-label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
               className={layout === "inline" ? "h-7 py-0 text-xs" : "min-h-11 w-full"}
               value={valueOf(input, params, detail)}
               onChange={(e) => onChange(withBinding(params, input, e.target.value))}
