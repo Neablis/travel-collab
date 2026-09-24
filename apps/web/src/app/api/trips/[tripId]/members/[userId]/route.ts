@@ -75,7 +75,7 @@ export async function DELETE(
     access: TripAccess.parse({
       tripId,
       myRole: access.role,
-      members: await withProfiles(members, access),
+      members: await withProfiles(members, access.userId),
       invites: await listInvites(tripId),
       collaboratorsEntitled: owner === null ? true : await accountCan(owner, "trip.collaborators"),
     }),

@@ -593,7 +593,7 @@ describe("member profiles", () => {
         { userId: OWNER, role: "owner" },
         { userId: GUEST, role: "editor" },
       ],
-      { userId: OWNER, role: "owner" },
+      OWNER,
     );
     expect(profiles).toEqual([
       { userId: OWNER, role: "owner", name: null, email: null, image: null },

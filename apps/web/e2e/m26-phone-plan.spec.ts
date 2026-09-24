@@ -114,18 +114,27 @@ test.describe("M26 link 13 — Plan on a phone", () => {
     const dialog = page.getByRole("dialog");
     await dialog.waitFor();
 
-    const overflow = await dialog.evaluate((d) =>
-      [...d.querySelectorAll<HTMLElement>("*")]
-        .filter((el) => ["auto", "scroll"].includes(getComputedStyle(el).overflowY))
-        .map((el) => el.scrollWidth - el.clientWidth),
-    );
-    expect(Math.max(0, ...overflow)).toBeLessThanOrEqual(1);
-
-    const save = dialog.getByRole("button", { name: "Save" });
-    await save.scrollIntoViewIfNeeded();
-    const box = await save.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    // Measured in the page with every sideways scroll reset to 0, NOT via
+    // `scrollIntoViewIfNeeded` + `boundingBox`: that scrolls the sheet
+    // SIDEWAYS to reach an off-screen field, which then measures as on screen
+    // — the first version of this test passed against the broken layout for
+    // exactly that reason. A field's x does not depend on vertical scroll, so
+    // nothing needs scrolling at all (PR #220 review: measure the fields this
+    // test is about, not "no scroller overflows", which an empty list passes).
+    const rights = await dialog.evaluate((d) => {
+      for (const el of [d, ...d.querySelectorAll<HTMLElement>("*")]) el.scrollLeft = 0;
+      const right = (el: Element | null | undefined) => (el ? el.getBoundingClientRect().right : null);
+      return {
+        Day: right(d.querySelector("#activity-day")),
+        Start: right(d.querySelector("#activity-start")),
+        "End time": right(d.querySelector("#activity-end-time")),
+        Save: right([...d.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Save")),
+      };
+    });
+    for (const [name, right] of Object.entries(rights)) {
+      expect(right, `${name} is rendered`).not.toBeNull();
+      expect(right!, `${name} ends inside the 390px screen`).toBeLessThanOrEqual(390);
+    }
   });
 
   // The desktop is unchanged, which is the other half of "a variant layer, not

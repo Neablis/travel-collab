@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/server/db/client";
 import { tripInvites, tripMemberships } from "@/server/db/schema";
@@ -118,6 +119,20 @@ describe("member emails in GET /access", () => {
 
   it("shows another member only their own email", async () => {
     const tripId = await seedNamedTrip();
+    currentUserId = GUEST;
+    const body = (await (await GET(new Request("http://test/x"), params(tripId))).json()) as Body;
+    expect(emailsIn(body)).toEqual({ [OWNER]: null, [GUEST]: "guest@example.com" });
+  });
+
+  // PR #220 review: the merged member list keeps a member's HIGHEST role, so a
+  // stray granted `owner` row would make `access.role` "owner" for someone who
+  // is not. Emails follow the trip's real owner — the projection's head.
+  it("does not treat a stray granted owner row as the owner", async () => {
+    const tripId = await seedNamedTrip();
+    await db
+      .update(tripMemberships)
+      .set({ role: "owner" })
+      .where(and(eq(tripMemberships.tripId, tripId), eq(tripMemberships.userId, GUEST)));
     currentUserId = GUEST;
     const body = (await (await GET(new Request("http://test/x"), params(tripId))).json()) as Body;
     expect(emailsIn(body)).toEqual({ [OWNER]: null, [GUEST]: "guest@example.com" });
