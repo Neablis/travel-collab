@@ -30,18 +30,11 @@ import { FieldColumns } from "./FieldColumns";
 // Nothing here writes to a document. Callers own that: the chrome row writes
 // node attrs, the insert sheet builds params for `insertWidget`.
 
-// Which of a widget's declared filters this app can render a control for.
-//
-// **`person` is filtered out, and it is the only one.** ADR-039 decision 7
-// declares the dimension and says plainly that it cannot resolve: `TripMember`
-// is `{ userId, role }` with no display name, so an option list built today
-// would show ids, and no stop carries a person at all, so the filter would have
-// nothing to narrow by. A control here would be a choice that changes nothing
-// except turning the widget into "needs a person field". The vocabulary exists
-// so the shape is settled; the control arrives with M13 `add-stop-who` / M19
-// link 3.
+// Which of a widget's declared filters this app can render a control for: all
+// of them, with `day` and `dates` as one. There is no `person` input to leave
+// out any more — it was retired from `WidgetInput` (M14 decision 5).
 export function bindableInputs(name: string): readonly WidgetInput[] {
-  return collapseDays((getMacro(name)?.inputs ?? []).filter((i) => i.type !== "person"));
+  return collapseDays(getMacro(name)?.inputs ?? []);
 }
 
 /**
@@ -198,12 +191,10 @@ export function optionsFor(
       const stale = typeof bound === "string" && bound !== "" && !choices.some((c) => c.value === bound);
       return stale ? [...choices, { value: bound, label: "A field that is no longer offered" }] : choices;
     }
-    // No select, so no options. `dates` is `DaysFilter`'s whole control, and
-    // `person` is dropped by `bindableInputs` (ADR-039 decision 7). Before
-    // these were named, they fell into a `default:` that offered the TAG list,
-    // and so would any input type added later (KI-2026-09-05-h).
+    // No select, so no options: `dates` is `DaysFilter`'s whole control. Before
+    // it was named, it fell into a `default:` that offered the TAG list, and so
+    // would any input type added later (KI-2026-09-05-h).
     case "dates":
-    case "person":
       return [];
     default: {
       // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
@@ -259,7 +250,8 @@ function withList(params: Record<string, unknown>, input: WidgetInput, next: str
  * declares up to five controls, so listing every one would give a phone button
  * reading *"All days → All cities → Every stop → Any kind → All dates"* — five
  * words for "everything", on a 44px control. The unset ones are exactly the
- * ones with nothing to say.
+ * ones with nothing to say. Except a single `field`: unset, it is "choose a
+ * field", because there is no every-field for "everything" to mean.
  *
  * `null` for a widget that declares no filters at all: there is no button to
  * label, and rendering "Showing everything" would be purposeless UI (project
@@ -273,6 +265,12 @@ export function bindSummary(
   inputs: readonly WidgetInput[] = bindableInputs(name),
 ): string | null {
   if (inputs.length === 0) return null;
+  // An unset single field is no answer at all rather than the widest one — the
+  // widget renders `unbound("field")` whatever else is bound — so the summary
+  // says what the widget says. Columns are different: none is a real value.
+  if (inputs.some((i) => i.type === "field" && !i.multiple && valueOf(i, params, detail) === "")) {
+    return "choose a field";
+  }
   const bound = inputs
     .map((input) => {
       if (input.type === "dates") {

@@ -74,14 +74,20 @@ export const LEGAL_FILTERS: Record<WidgetEntity, readonly FilterDimension[]> = {
  * vocabularies differ in spelling: the input type is named for the control
  * ("every stop, or one") and predates the dimension being named at all.
  */
-const INPUT_TYPE_OF: Record<FilterDimension, WidgetInputType> = {
+const INPUT_TYPE_OF: Record<BindableDimension, WidgetInputType> = {
   day: "day",
   city: "city",
   tag: "tags",
   kind: "kind",
-  person: "person",
   dates: "dates",
 };
+
+/**
+ * Every dimension a widget can offer a control for: all but `person`, which the
+ * contract keeps and no widget declares (Mitchell, 2026-09-24, *"person is
+ * removed for now"*).
+ */
+type BindableDimension = Exclude<FilterDimension, "person">;
 
 /**
  * The human label a dimension's control carries. Beside the type map rather
@@ -89,12 +95,11 @@ const INPUT_TYPE_OF: Record<FilterDimension, WidgetInputType> = {
  * select "Which day" while another said "Day" would be two surfaces disagreeing
  * about one dimension.
  */
-const LABEL_OF: Record<FilterDimension, string> = {
+const LABEL_OF: Record<BindableDimension, string> = {
   day: "Day",
   city: "City",
   tag: "Tags",
   kind: "Kind",
-  person: "Who",
   dates: "Dates",
 };
 
@@ -150,7 +155,7 @@ export function filterParams<D extends FilterDimension, E extends z.ZodRawShape 
  * still checks the correspondence registry-wide, because a primitive is free to
  * hand-write `inputs` and the check costs nothing.
  */
-export function filterInputs(dimensions: readonly FilterDimension[]): readonly WidgetInput[] {
+export function filterInputs(dimensions: readonly BindableDimension[]): readonly WidgetInput[] {
   return dimensions.map(
     (dimension) =>
       ({ name: paramKeyOf(dimension), type: INPUT_TYPE_OF[dimension], label: LABEL_OF[dimension] }) as WidgetInput,

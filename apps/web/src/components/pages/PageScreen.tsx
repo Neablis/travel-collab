@@ -1,8 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { Page, TripDetail, TripGlobals } from "@tc/contracts";
+import type { Page, PageDoc, TripDetail, TripGlobals } from "@tc/contracts";
 import { fetchPage, updatePage } from "@/lib/pagesClient";
+import { fitsKeepalive } from "@/lib/keepalive";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -14,7 +15,7 @@ import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
 import { Banner } from "@/components/ui/banner";
 import { NodeSelection } from "@tiptap/pm/state";
-import { PageEditor } from "@/components/pages/editor/PageEditor";
+import { PageEditor, sameDocument } from "@/components/pages/editor/PageEditor";
 import { WidgetSettings } from "@/components/pages/editor/WidgetSettings";
 import { winningReport, type SelectedWidget } from "@/components/pages/editor/MacroEditorContext";
 import { WidgetInsert, type MacroNode } from "@/components/pages/WidgetInsert";
@@ -37,6 +38,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { useIsPhone } from "@/lib/useIsPhone";
 import { useAskThread } from "@/components/assistant/useAskThread";
 import { useEditSession } from "./useEditSession";
+import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } from "./pageDraft";
 import type { ApiError } from "@/lib/apiClient";
 
 type Status = "loading" | "ready" | "error";
@@ -303,6 +305,17 @@ export function PageScreen({
   // next one too, and a screen that resumes autosaving after a single refusal
   // is a screen that eventually writes one.
   const [unstorable, setUnstorable] = useState(false);
+  // The same latch, readable before the re-render that shows it: the editor
+  // can emit again in the gap, and that document must not reach the session.
+  const unstorableRef = useRef(false);
+  // The server's `updatedAt` for the version this screen last knew, which a
+  // browser-local draft records as its base (`pageDraft.ts`).
+  const baseRef = useRef<string | null>(null);
+  // A draft from an earlier visit that cannot simply be applied, because the
+  // page has been written since it was typed. Offered, never applied unasked.
+  const [offeredDraft, setOfferedDraft] = useState<PageDraft | null>(null);
+  // The edit session, for the load effect below, which is declared before it.
+  const sessionRef = useRef<{ change: (doc: PageDoc) => void; flush: () => void } | null>(null);
 
   // The trip's head as far as this screen knows it — the cursor
   // `useTripBroadcast` polls from. See the subscription below.
@@ -331,8 +344,29 @@ export function PageScreen({
         setStatus("error");
         return;
       }
-      setPage(pageResult.value);
-      setStored(inspectStoredPageDoc(pageResult.value.content));
+      const loaded = pageResult.value;
+      const inspected = inspectStoredPageDoc(loaded.content);
+      baseRef.current = loaded.updatedAt;
+      // A draft only ever meets an editable page: a locked one is locked
+      // precisely so nothing gets written over it.
+      let draft = inspected.status === "mountable" ? readPageDraft(pageId) : null;
+      if (draft !== null && sameDocument(draft.doc, toStoredPageDoc(loaded.content))) {
+        // The write it was kept against landed after all.
+        forgetPageDraft(pageId);
+        draft = null;
+      }
+      if (draft !== null && draft.base === loaded.updatedAt) {
+        // Nobody has written since it was typed, so it IS the newest version:
+        // open on it and send it, as the session it came from would have.
+        setPage({ ...loaded, content: draft.doc });
+        setStored(inspectStoredPageDoc(draft.doc));
+        sessionRef.current?.change(draft.doc);
+        sessionRef.current?.flush();
+      } else {
+        if (draft !== null) setOfferedDraft(draft);
+        setPage(loaded);
+        setStored(inspected);
+      }
       setTrip(tripResult.value);
       setStatus("ready");
     });
@@ -395,9 +429,43 @@ export function PageScreen({
   // unmounts, on `pagehide`, or after a minute idle. `useEditSession` holds the
   // triggers and the reasons. What it costs is written down in ADR-036
   // decision 3: prose typed since the session last settled is lost on a crash.
+  //
+  // What the server has not confirmed is also kept in this browser
+  // (`pageDraft.ts`): on a failure, and on a `pagehide` too big for
+  // `keepalive`, whose outcome nothing will ever report. A success clears it —
+  // unless a later commit has started, which settles the draft itself.
+  const commitSeq = useRef(0);
   const session = useEditSession(editing, (content, { keepalive }) => {
-    void updatePage(tripId, pageId, { content }, { keepalive });
+    const seq = ++commitSeq.current;
+    const draft = { base: baseRef.current ?? "", doc: content };
+    if (keepalive && !fitsKeepalive({ content })) rememberPageDraft(pageId, draft);
+    return updatePage(tripId, pageId, { content }, { keepalive }).then((result) => {
+      if (!result.ok) {
+        rememberPageDraft(pageId, draft);
+        return false;
+      }
+      baseRef.current = result.value.updatedAt;
+      if (seq === commitSeq.current) forgetPageDraft(pageId);
+      return true;
+    });
   });
+  sessionRef.current = session;
+
+  // Puts an earlier visit's draft back, over what the page now says: only ever
+  // from the reader pressing Restore. `setContent` directly as well as the
+  // prop, because the editor ignores a new `value` while it is editable.
+  const restoreDraft = (draft: PageDraft) => {
+    setOfferedDraft(null);
+    setStored(inspectStoredPageDoc(draft.doc));
+    setPage((prev) => (prev === null ? prev : { ...prev, content: draft.doc }));
+    editorRef.current?.commands.setContent(draft.doc as never, false);
+    session.change(draft.doc);
+    session.flush();
+  };
+  const discardDraft = () => {
+    setOfferedDraft(null);
+    forgetPageDraft(pageId);
+  };
   // Stable, so `PageEditor`'s effect does not re-run on every render and
   // re-publish the same editor.
   const handleEditorReady = useCallback((next: Editor | null) => setEditor(next), []);
@@ -567,6 +635,7 @@ export function PageScreen({
         setPage((prev) => (prev === null || previousTitle === null ? prev : { ...prev, title: previousTitle }));
         return;
       }
+      baseRef.current = result.value.updatedAt;
       setPage((prev) => (prev === null ? prev : { ...prev, title: result.value.title, updatedAt: result.value.updatedAt }));
     });
   };
@@ -586,10 +655,17 @@ export function PageScreen({
   // `getJSON()` in, a storable document out — or nothing written at all. The
   // parse is not a formality: it stamps `v` (decision 2) and it is the last
   // place a document the editor mangled can be stopped.
+  //
+  // On the first unstorable one, the last GOOD document is committed rather
+  // than dropped — it is the session's work up to the step that broke — and
+  // nothing after it reaches the session, which is what "saving has stopped"
+  // promises.
   const handleContentChange = (content: unknown) => {
+    if (unstorableRef.current) return;
     const storable = toStoredPageDoc(content);
     if (storable === null) {
-      session.discard();
+      unstorableRef.current = true;
+      session.flush();
       setUnstorable(true);
       return;
     }
@@ -799,6 +875,43 @@ export function PageScreen({
             has stopped to protect what&apos;s already here. Copy anything new before reloading.
           </LockedNotice>
         </div>
+      ) : null}
+      {/* A write the server did not take. The session still holds the
+          document and tries again on its own; Retry is the same send now.
+          Shaped like the library's sync-failure banner (`ReadStates.tsx`):
+          `warning`, since what is on screen is still the reader's work. */}
+      {session.failed ? (
+        <Banner
+          variant="warning"
+          className="mb-3"
+          data-testid="page-save-failure"
+          actions={
+            <Button variant="secondary" size="sm" onClick={session.flush}>
+              Retry saving
+            </Button>
+          }
+        >
+          Couldn&apos;t save your latest changes. They&apos;re still here, and saving will be tried again.
+        </Banner>
+      ) : null}
+      {offeredDraft !== null ? (
+        <Banner
+          variant="info"
+          className="mb-3"
+          data-testid="page-draft-offer"
+          actions={
+            <>
+              <Button variant="secondary" size="sm" onClick={() => restoreDraft(offeredDraft)}>
+                Restore mine
+              </Button>
+              <Button variant="ghost" size="sm" onClick={discardDraft}>
+                Discard
+              </Button>
+            </>
+          }
+        >
+          Changes you made here last time didn&apos;t reach the server, and the page has changed since.
+        </Banner>
       ) : null}
       {/* **The document sits on a page, not on the app's background.**
           Mitchell, on the preview: *"There should be a contrainer over the
