@@ -32,7 +32,9 @@ export const renderRows = (payload: RepeatPayload) =>
   rowsOf(
     payload.rows.map((row) => ({
       lead: [segOf(row.lead)],
-      cells: row.cells.map((cell) => cell.map(segOf)),
+      // A cell holding several values (a day in two cities) lists them with a
+      // comma between, not run together (Mitchell, PR 221 preview).
+      cells: row.cells.map((cell) => cell.flatMap((value, i) => (i === 0 ? [segOf(value)] : [text(", "), segOf(value)]))),
       ...(row.kind === undefined ? {} : { kind: row.kind }),
     })),
     payload.headings,

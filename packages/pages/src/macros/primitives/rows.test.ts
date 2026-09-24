@@ -29,8 +29,11 @@ function lines(ctx: WidgetContext, name: string, params: Record<string, unknown>
   // tests own the table shape. Reading them through the flattened text keeps
   // them saying what they always said across the 2026-09-06 cell change.
   return outcome.rendered.rows.map((row: RenderedRow) =>
-    [...row.lead, ...row.cells.flat()]
-      .map((s) => s.text)
+    // A cell reads as it renders, its segments run together (a separator is
+    // a segment of its own); cells and the lead are spaced apart.
+    [row.lead, ...row.cells]
+      .map((cell) => cell.map((s) => s.text).join(""))
+      .filter((cell) => cell !== "")
       .join(" ")
       .trim(),
   );
@@ -48,7 +51,7 @@ function cellsOf(ctx: WidgetContext, name: string, params: Record<string, unknow
     throw new Error(`${name} did not render rows: ${outcome.status}`);
   }
   return outcome.rendered.rows.map((row: RenderedRow) =>
-    row.cells.map((cell) => cell.map((s) => s.text).join(" ")),
+    row.cells.map((cell) => cell.map((s) => s.text).join("")),
   );
 }
 
@@ -73,7 +76,7 @@ describe("day.rows", () => {
       // Two city chips on the travel day, not one joined "Rome – Kyoto": each
       // wears the trip's own colour for that city, and one value can only wear
       // one.
-      `Day 2 Jun 2, 2027 Rome Kyoto ${formatMoney(fixture.trip.days[1]!.costSubtotal, "USD")}`,
+      `Day 2 Jun 2, 2027 Rome, Kyoto ${formatMoney(fixture.trip.days[1]!.costSubtotal, "USD")}`,
       // Day 3 has no date and no city; the line is shorter and still says which
       // day it is.
       `Day 3 ${formatMoney(fixture.trip.days[2]!.costSubtotal, "USD")}`,
@@ -94,7 +97,7 @@ describe("day.rows", () => {
       // Both cities in the ONE city cell, still as two values: each wears the
       // trip's colour for its own city, and a joined "Rome – Kyoto" could wear
       // only one.
-      ["Jun 2, 2027", "Rome Kyoto", money(1)],
+      ["Jun 2, 2027", "Rome, Kyoto", money(1)],
       // Day 3 has neither a date nor a city, and its cost is still in the third
       // column.
       ["", "", money(2)],
