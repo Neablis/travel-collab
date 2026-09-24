@@ -1,4 +1,4 @@
-### KI-2026-09-23-f — an accepted card's Undo disappears after a notebook save, and can record a batch it did not write
+### KI-2026-09-23-f — an accepted card's Undo disappears after a notebook save, and can record a batch it did not write — RESOLVED
 
 - **Severity:** correctness, narrow. The first defect removes an Undo that would
   have worked. The second, in a small window, points the card's Undo at another
@@ -38,3 +38,27 @@
   `KI-2026-09-22-c` (why page batches are not undoable; **read it before
   touching undo**).
 - **First noted:** 2026-09-23.
+- **Resolved:** 2026-09-24.
+  - **Defect 1: fixed.** `proposalUndoFor` now takes the head as the first
+    entry with no `pageId`, which is the batch the server's `deriveUndoRedo`
+    would undo. New `ProposalCard.test.tsx` case *"stays available when only
+    a notebook save has landed on top"*. On the old code it failed with
+    `expected 'changed' to be 'available'`, and after the fix it passes
+    (18/18). `pnpm --filter web typecheck` and eslint on both files are
+    clean.
+  - **Defect 2: not reproducible. It does not exist, so nothing was changed.**
+    The apply's history is never read after the commit.
+    `executeTripCommandBatch` (`apps/web/src/server/commands.ts`) reads the
+    stream, appends at `expectedSeq: history.length`, and `projectAndHistory`
+    then builds the returned history in memory from
+    `[...history, ...appended.envelopes]`, inside the same transaction.
+    Suppose another write commits between that read and the append. Then the
+    append collides on the `events_stream_seq` unique index and the batch is
+    refused as `concurrency-conflict`. A write that lands after the commit
+    cannot change a history that was already built. So `entries[0]` in the
+    apply response is always the batch this apply committed.
+    `commitProposal` passes `batch.history` through unchanged, and
+    `applyAssistantProposal` only parses it. Returning an explicit `batchId`
+    is still possible without a contract change (`ProposalCommitResult` and
+    `PlanOutcome` are both apps/web types), but it would be hardening, not a
+    fix.
