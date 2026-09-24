@@ -266,6 +266,15 @@ export const PRESETS: readonly WidgetPreset[] = [
       "emergency", "police", "ambulance", "currency", "money", "calling code", "phone", "tipping", "tip",
     ],
   },
+  // ---- the whole trip in one band ------------------------------------------
+  // M14 link 11. No params: the widget takes none and inserts immediately.
+  {
+    id: "trip-strip",
+    widget: "trip.strip",
+    params: {},
+    title: "Trip strip",
+    keywords: ["strip", "timeline", "overview", "cities", "route", "days", "at a glance", "band"],
+  },
   {
     id: "costs.table",
     widget: "cost.rows",

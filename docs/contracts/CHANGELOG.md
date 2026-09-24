@@ -13,6 +13,52 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — a `stop` manifest root, `described()` as the only opt-in, and one field vocabulary (M14 T06)
+
+- **Added — stop fields are pickable.** `ActivitySnapshot` annotates `title`
+  (text), `location` (location), `notes` (text), `kind` (enum), `tags` (enum,
+  list) and `cost` (money). `bookedBy` and `participants` hold user ids and stay
+  unannotated; `anchors` and `timeWindow` have no value kind that prints them.
+  `MANIFEST_ROOTS` gains `stop: [ActivitySnapshot]` and `account`, and is now
+  exported (a test checks each published field against its schema).
+  `MANIFEST_OBJECTS` / `ManifestObject` name the three objects.
+- **Changed — the opt-in gate.** The manifest publishes a field only if
+  `described()` (or the new `describedCollection()` for a collection) annotated
+  it, and reads the label from that annotation. `.describe()` alone no longer
+  publishes anything. Why: `.describe()` is also the public API's OpenAPI text,
+  so API wording could become a picker label, and a field described only for
+  the API was published. `valueKind.ts` gains `annotationOf()` and
+  `describedCollection()`; `valueKindOf()` is unchanged for callers.
+  `TripGlobals.days/cities/tags` use `describedCollection`, with the same labels.
+- **Changed:** `AttributeField.valueKind` and the `value` entry's `valueKind`
+  are **required** (the gate is the kind). Both gain optional `values`, the
+  allowed values, present exactly when the kind is `enum`. `AttributeEntry.object`
+  and `AttributeRef.object` widen from `"trip"` to `ManifestObject`.
+- **Removed:** `AttributeRef.key` and its refinement. It duplicated the `city`
+  filter and would go stale in a template (M14 field-widget review, gap 4).
+- **Changed — one vocabulary:** `AttributeFieldRef` is `z.enum(ATTRIBUTE_FIELD_PATHS)`,
+  the paths of two facts roots in `manifest.ts` (`trip`: name, budgetRemaining,
+  countdown; `account`: name, homeAirport). Each borrows `TripDetail`'s or
+  `UserPreferences`' own field schema. The five values and their order are
+  unchanged.
+- **Added:** `HIDDEN_STOP_FIELDS`, a typed exclusion list (`keyof
+  ActivitySnapshot`), empty. `buildAttributeManifest(hiddenStopFields?)` takes
+  it as an optional argument that can only remove fields.
+- Why: M14 field widget, build step 2 (review and Mitchell's answers,
+  2026-09-24).
+- Consumers updated: none needed outside `packages/contracts`. Nothing outside
+  contracts tests reads the manifest, `AttributeEntry`, `AttributeField` or
+  `AttributeRef`. `@tc/pages`' `attribute` primitive reads `AttributeFieldRef`,
+  whose inferred type and options are identical. OpenAPI (`apps/web/src/app/api/v1/openapi.json`)
+  is unchanged: `ActivitySnapshot` is on no public route, and `described()`
+  and `describedCollection()` still call `.describe(label)`, so `TripGlobals`'
+  documented descriptions are byte-identical. No fixture change: no schema
+  gained a data field.
+- Breaking? no for stored data. `AttributeRef` is stored nowhere, and the
+  `AttributeFieldRef` values stored in pages did not change, so no
+  `PAGE_DOC_MIGRATIONS` step. Code-level, the `AttributeRef.key` removal and
+  the required `valueKind` break only contracts' own tests, which are updated.
+
 ## 2026-09-24 — value kinds `enum` and `location`, a `list` flag, and three mislabelled globals (M14 T05)
 
 - **Added:** `VALUE_KINDS` gains `enum` (a closed vocabulary — activity kind,
