@@ -147,8 +147,9 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // read inside the package.
   const today = useToday();
   const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external }, name, params);
-  if (outcome.status === "unknown") return <EmptyChip tone="error" label={`unknown macro: ${name}`} />;
-  if (outcome.status === "bad-params") return <EmptyChip tone="error" label={`bad params: ${name}`} />;
+  // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
+  if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
+  if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;
   // The chip is a control only when something can act on it. `PageScreen`
   // stopped passing `onBindDay` when the page-level day binding went (SPEC §18)
   // — and an `action` chip renders through the Button primitive, so without a

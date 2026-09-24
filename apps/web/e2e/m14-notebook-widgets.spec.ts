@@ -1492,11 +1492,12 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   await addStopViaApi(page, tripId, "Tram tour", { cost: { amountMinor: 4200, currency: "USD" }, kind: "booked" });
   await openSeededPage(page);
 
-  // It lands asking for a field — there is no "every field" to default to.
-  // `toContainText` while Editing: the widget's handle (`▸`) is in its text.
+  // It lands asking for a field — there is no "every field" to default to. In
+  // Editing that is a ghost (T11: the shape of the value, named "not set up");
+  // Reading's "choose a field" chip is covered by MacroView.ghost.test.tsx.
   await insertFromList(page, /A stop's detail/, "detail");
   const fieldWidget = page.locator('[data-macro-name="field"]');
-  await expect(fieldWidget).toContainText("choose a field");
+  await expect(fieldWidget.getByRole("img", { name: "field — not set up" })).toBeVisible();
 
   const picker = settingsPanel(page).getByRole("combobox", { name: "Field" });
   await picker.click();

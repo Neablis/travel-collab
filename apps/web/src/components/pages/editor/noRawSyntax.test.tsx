@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scenarios } from "@tc/factories";
 import { MACRO_NAMES, PRESETS } from "@tc/pages";
+import { newPageDoc, type MacroNode } from "@tc/contracts";
 import {
   RAW_SYNTAX,
   STORED_IDENTIFIERS,
@@ -18,12 +19,9 @@ import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
 // around the document (the insert rail, a widget's settings) is covered in
 // `PageScreen.test.tsx` with the same detector.
 //
-// **Not covered yet, deliberately, because it fails today:** a stored widget
-// this build does not know, or whose params no longer parse. `MacroView`
-// prints `unknown macro: <name>` / `bad params: <name>` for those. That is
-// raw syntax on the screen, recorded against the gate box in
-// `docs/milestones/M14-rich-layer.md`. The case belongs here once MacroView
-// says something a person can read.
+// A stored widget this build does not know, or whose params no longer parse, is
+// covered too: `MacroView` used to print `unknown macro: <name>` /
+// `bad params: <name>` for those, which is the stored name on the screen.
 
 beforeEach(() => {
   // jsdom has no layout engine; the same stubs `PageEditor.test.tsx` uses.
@@ -79,6 +77,31 @@ describe("no macro syntax reaches the DOM", () => {
         for (const view of views) expect(view.textContent?.trim()).not.toBe("");
       });
       expect(rawSyntaxLeaks(container)).toEqual([]);
+    });
+  }
+
+  // A page written by a newer build, or a widget whose stored params no longer
+  // parse: the two fallbacks that used to print the stored name.
+  for (const editing of [false, true]) {
+    it(`for a widget this build cannot render, in ${editing ? "Editing" : "Reading"}`, async () => {
+      const unknown: MacroNode = { type: "macro", attrs: { name: "trip.fromTheFuture", params: {} } };
+      // `stop.rows` (a stored identifier the detector knows) with an `only` it does not accept.
+      const badParams: MacroNode = { type: "macro", attrs: { name: "stop.rows", params: { only: "nope" } } };
+      const broken = newPageDoc(
+        [unknown, badParams].map((node) => ({
+          type: "paragraph" as const,
+          content: [{ type: "text" as const, text: "Before " }, node, { type: "text" as const, text: " after." }],
+        })),
+      );
+      const { container } = render(
+        <PageEditor detail={trip} context={context} user={user} value={broken} onChange={() => {}} editable={editing} />,
+      );
+      await screen.findByText(/isn.t available in this version/);
+      expect(screen.getByText(/settings no longer fit/)).toBeTruthy();
+      expect(rawSyntaxLeaks(container)).toEqual([]);
+      // The unknown name is not a registered identifier, so the detector cannot
+      // know it: assert it directly.
+      expect(container.textContent).not.toMatch(/fromTheFuture/);
     });
   }
 
