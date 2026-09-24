@@ -25,8 +25,17 @@
      autosave until the user removes that widget, which the editor shows as
      "not saved". Likewise during a rolling deploy, a newer client inserting a
      widget name the older server does not know is refused rather than stored
-     wrapped. The UI only inserts through `insertWidget`, which applies the
-     same rules, so ordinary rows should be clean — but nobody has counted.
+     wrapped. The UI inserts through `insertWidget`, which applies the same
+     rules — **but the assistant's compose path did not** (review of PR #218,
+     2026-09-24): its old `walkForError` ran only `def.params.safeParse`, which
+     strips unknown keys, and `validateComposedPage` then stored the ORIGINAL
+     params. So an assistant-composed page can hold a filter its widget does not
+     select by (e.g. `city.rows {kind:"booked"}`), and every autosave of that
+     page is now refused. Exposure is narrow while `ai-live` is off in
+     production (the simulated model composes from fixed shapes), but nobody
+     has counted; the scan in *Why not fixed* should count these rows first,
+     and the fix may be to STRIP a filter a widget ignores on write rather than
+     refuse the save.
 - **Why not fixed here:** KI-2026-09-05-g's fix was scoped to the write path.
   (1) and (2) are a data repair (a one-off scan of `pages` + page events for
   `type:"unknown"` nesting and stale `v`, run through `ci.yml`'s production

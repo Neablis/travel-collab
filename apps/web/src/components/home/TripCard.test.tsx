@@ -104,7 +104,7 @@ describe("TripCard", () => {
   it("shows the trip's dates rather than its creation date", () => {
     const trip = tripSummaryFixture({ startDate: "2026-10-01" });
     render(<TripCard trip={trip} />);
-    expect(screen.getByText("Thu, Oct 1")).toBeTruthy();
+    expect(screen.getByText("Thu, Oct 1, 2026")).toBeTruthy();
     expect(screen.queryByText(/^Created /)).toBeNull();
   });
 });

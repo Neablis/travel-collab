@@ -87,16 +87,33 @@ export type RemoveDay = z.infer<typeof RemoveDay>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Whether a `YYYY-MM-DD` string names a day that exists on the calendar — the
+ * ONE copy, shared by the command schemas below, `pages.ts`'s date filters and
+ * the domain's `decide.ts` (which re-exports it), so the boundary and the
+ * decider cannot disagree about which dates are real.
+ *
+ * Parsed as an ISO date, not through `Date.UTC(y, m, d)`: that maps years 0–99
+ * to 1900–1999, so `0050-01-01` would be refused here while the domain's parser
+ * accepted it. A shape-valid string whose parsed parts differ from its text
+ * (`2026-02-30` → March 2) was never a real date. Reads no clock (Invariant 4).
+ */
+export function isCalendarDate(iso: string): boolean {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (parts === null) return false;
+  const dt = new Date(`${iso}T00:00:00Z`);
+  return (
+    dt.getUTCFullYear() === Number(parts[1]) &&
+    dt.getUTCMonth() + 1 === Number(parts[2]) &&
+    dt.getUTCDate() === Number(parts[3])
+  );
+}
+
 // A `YYYY-MM-DD` that names a real day (KI-92): shape alone admits 2026-02-30,
 // and the domain's date math can only refuse that by throwing. COMMANDS only —
 // the stored `TripStartDateSet` event keeps the shape-only regex, because an
 // event is history and must replay even if it predates decide.ts's
 // `invalid-dates` check (PR #84).
-function isCalendarDate(iso: string): boolean {
-  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-}
 const TripDateInput = z.string().regex(ISO_DATE).refine(isCalendarDate, "not a calendar date");
 
 // Display-only until M3: the domain and conflict engine never read this.

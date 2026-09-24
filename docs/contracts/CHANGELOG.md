@@ -52,6 +52,13 @@ Format:
   gets the parse error (4xx) at the boundary. `openapi.json` is unchanged (the
   generator's drift test passes).
 - Breaking? no — every value it now refuses was already refused one layer in.
+- **Also exported (same day, from review): `isCalendarDate`**, the one calendar
+  check — the command schemas, `pages.ts`'s date filters (which had their own
+  `Date.UTC` copy) and the domain's `decide.ts` (which now re-exports it) all
+  use it. It parses the ISO string rather than calling `Date.UTC(y, m, d)`,
+  which read years 0–99 as 1900–1999: a page date filter on `0050-01-01` was
+  refused at the boundary while the domain accepted it. Not breaking for any
+  date a person can enter.
 
 ## 2026-09-24 — A Playbook as a file, Discover over `v1`, keyed create (ADR-050 Pass C)
 

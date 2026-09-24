@@ -208,7 +208,9 @@ export function readTodo(root) {
     const id = /^\s*[-*]\s+\[ \]\s*\*\*(M\d+[a-z]?)\b/.exec(line)?.[1] ?? null;
     if (!id) continue;
     const row = { line: i + 1, id, text: truncate(text.trim(), 72) };
-    if (/\bPAUSED\b/.test(line)) paused.push(row);
+    // Only the row's own words count, cut at the `←` like the text above: a
+    // note after the marker ("un-PAUSED 2026-09-30") is history, not state.
+    if (/\bPAUSED\b/.test(line.split("←")[0])) paused.push(row);
     else order.push(row);
   }
   const first = order[0] ?? null;

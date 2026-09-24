@@ -386,7 +386,6 @@
   "packages/domain/src/trip/costs.ts::rollupCosts",
   "packages/domain/src/trip/dates.ts::daySpan",
   "packages/domain/src/trip/dates.ts::deriveDayDates",
-  "packages/domain/src/trip/dates.ts::isCalendarDate",
   "packages/domain/src/trip/decide.ts::decideCreateTrip",
   "packages/domain/src/trip/decide.ts::decideTripCommand",
   "packages/domain/src/trip/detail.ts::projectTripDetails",

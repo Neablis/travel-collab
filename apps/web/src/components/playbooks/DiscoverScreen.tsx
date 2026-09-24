@@ -151,10 +151,14 @@ function FilterMenu({
  * being stated as a total.
  */
 function resultsSentence(data: DiscoverResponse): string {
-  const total = `${data.matchCount}${data.matchCountExact ? "" : "+"}`;
-  const noun = data.matchCount === 1 && data.matchCountExact ? "day" : "days";
   const shown = data.days.length;
-  return shown < data.matchCount ? `${shown} of ${total} shared ${noun}` : `${total} shared ${noun}`;
+  // A server one deploy behind sends no count; say what the page holds, as
+  // this sentence did before KI-2026-09-23-h, rather than failing the read.
+  const count = data.matchCount ?? shown;
+  const exact = data.matchCount === undefined || data.matchCountExact !== false;
+  const total = `${count}${exact ? "" : "+"}`;
+  const noun = count === 1 && exact ? "day" : "days";
+  return shown < count ? `${shown} of ${total} shared ${noun}` : `${total} shared ${noun}`;
 }
 
 // `initial` comes from the URL (`parseDiscoverUrl`) — a profile's "Knows" chip

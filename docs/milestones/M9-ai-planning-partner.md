@@ -486,6 +486,7 @@ back here.
 | KI-2026-09-16-a (truncated tool input) | A tool call with cut-off arguments ends the whole turn — found by the replay harness, cited above |
 | KI-2026-09-17-b | LocationIQ pacing is per invocation, so concurrent lookups can exceed the key's rate |
 | KI-2026-09-17-c | An escalated turn records all of its usage against the model it started on |
+| KI-2026-09-24-h | A page-only batch touching two or more pages still hides an accepted card's Undo (the residue of KI-2026-09-23-f) |
 | KI-2026-09-20-a | KI-39's wrong-venue geocode check is written, tested, and wired to nothing — grounding's to wire |
 | ~~KI-2026-09-20-j~~ | ~~The page assistant's "hangs up on a turn in flight" test failed once~~ — **resolved 2026-09-24**: a test race on the unchanged autosave that entering Editing sent; fixed at the cause in `PageEditor` |
 

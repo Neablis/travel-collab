@@ -9,7 +9,7 @@ import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
-import { formatTripDate } from "@/lib/formatDate";
+import { formatTripDateLong } from "@/lib/formatDate";
 import { PHONE_TOUCH } from "@/components/ui/button";
 
 export type TripCardProps = {
@@ -69,8 +69,9 @@ function statusLabel(status: TripStatus): string {
 export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
   const accent = dayAccents([trip.tripId])[0]!;
 
-  // The trip's own start date when it has one (KI-034), in the same
-  // `formatTripDate` form the hero prints. An undated trip falls back to when
+  // The trip's own start date when it has one (KI-034), WITH the year: the
+  // grid lists past trips beside future ones, and "Sat, May 1" cannot tell
+  // 2024 from 2027 (the "Created …" label it replaced carried the year). An undated trip falls back to when
   // it was created, labelled as such — never a date it was not given.
   // `createdAt` is an ISO INSTANT, which formatTripDate (a calendar-date
   // parser) would mis-read, so that fallback formats it separately, the way
@@ -81,7 +82,7 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
     : created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const dateLine =
     trip.startDate !== null
-      ? formatTripDate(trip.startDate)
+      ? formatTripDateLong(trip.startDate)
       : createdLabel !== null
         ? `Created ${createdLabel}`
         : null;

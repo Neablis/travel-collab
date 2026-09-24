@@ -153,11 +153,12 @@ test("readTodo's order is the milestone rows top down, skipping PAUSED rows and 
       "- [ ] **M9 The assistant** — **PAUSED 2026-09-13**",
       "- [ ] **M14 Rich layer**",
       "- [x] **M13 done**",
-      "- [ ] **M19 Costs**",
+      "- [ ] **M19 Costs** ← note: un-PAUSED 2026-09-30, was PAUSED behind M21",
       "",
     ].join("\n"),
   });
   const todo = readTodo(root);
+  // M19's "PAUSED" is commentary after the `←`, so M19 is still in order.
   assert.deepEqual(todo.order.map((row) => row.id), ["M24", "M14", "M19"]);
   assert.deepEqual(todo.paused.map((row) => row.id), ["M9"]);
   assert.equal(todo.first.id, "M24");

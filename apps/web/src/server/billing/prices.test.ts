@@ -148,6 +148,20 @@ describe("the consistency check the gate box asks for", () => {
     expect(rows.find((row) => row.ref === "plus@v1")?.committed).toEqual({ minor: 900, currency: "usd" });
   });
 
+  // The console bounds the whole sweep at 3s; one-at-a-time lookups would
+  // miss it on a healthy Stripe once there are enough priced versions.
+  it("asks Stripe about every priced version at once, not one after another", async () => {
+    const priced = PLAN_VERSIONS.filter((entry) => priceLookupKey(entry) !== null);
+    expect(priced.length).toBeGreaterThan(1);
+    const pending: ((price: StripePrice | null) => void)[] = [];
+    findPriceByLookupKey.mockImplementation(() => new Promise((resolve) => pending.push(resolve)));
+    const sweep = checkPriceConsistency();
+    await Promise.resolve();
+    expect(findPriceByLookupKey).toHaveBeenCalledTimes(priced.length);
+    for (const resolve of pending) resolve(null);
+    expect((await sweep).filter((row) => row.verdict === "missing")).toHaveLength(priced.length);
+  });
+
   it("checks amount and currency, which is exactly what the box names", () => {
     expect(() => assertPriceMatches(plan("plus"), stripePrice())).not.toThrow();
     expect(() => assertPriceMatches(plan("plus"), stripePrice({ unit_amount: null }))).toThrow(

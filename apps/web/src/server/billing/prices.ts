@@ -201,36 +201,38 @@ function committedOf(price: { minor: number; currency: string }): { minor: numbe
  * and the one a caller should refuse to ship past.
  */
 export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
-  const rows: PriceCheckRow[] = [];
-  for (const entry of PLAN_VERSIONS) {
-    const ref = planVersionRefOf(entry);
-    const lookupKey = priceLookupKey(entry);
-    if (entry.price === null || lookupKey === null) {
-      rows.push({
+  // One GET per priced version, ISSUED TOGETHER: the console bounds this whole
+  // sweep at `PRICE_CHECK_DEADLINE_MS`, and serial round trips (~0.5s each)
+  // would push a healthy Stripe past it once there are half a dozen versions.
+  // `Promise.all` keeps `PLAN_VERSIONS` order in the rows.
+  return Promise.all(
+    PLAN_VERSIONS.map(async (entry): Promise<PriceCheckRow> => {
+      const ref = planVersionRefOf(entry);
+      const lookupKey = priceLookupKey(entry);
+      if (entry.price === null || lookupKey === null) {
+        return {
+          ref,
+          committed: entry.price === null ? null : committedOf(entry.price),
+          stripe: null,
+          verdict: "unpriced",
+        };
+      }
+      const price = await findPriceByLookupKey(lookupKey);
+      if (price === null) {
+        return { ref, committed: committedOf(entry.price), stripe: null, verdict: "missing" };
+      }
+      const matches =
+        price.unit_amount === entry.price.minor &&
+        price.currency === entry.price.currency &&
+        price.recurring?.interval === "month";
+      return {
         ref,
-        committed: entry.price === null ? null : committedOf(entry.price),
-        stripe: null,
-        verdict: "unpriced",
-      });
-      continue;
-    }
-    const price = await findPriceByLookupKey(lookupKey);
-    if (price === null) {
-      rows.push({ ref, committed: committedOf(entry.price), stripe: null, verdict: "missing" });
-      continue;
-    }
-    const matches =
-      price.unit_amount === entry.price.minor &&
-      price.currency === entry.price.currency &&
-      price.recurring?.interval === "month";
-    rows.push({
-      ref,
-      committed: committedOf(entry.price),
-      stripe: { id: price.id, ...statedBy(price) },
-      verdict: matches ? "ok" : "mismatch",
-    });
-  }
-  return rows;
+        committed: committedOf(entry.price),
+        stripe: { id: price.id, ...statedBy(price) },
+        verdict: matches ? "ok" : "mismatch",
+      };
+    }),
+  );
 }
 
 /**

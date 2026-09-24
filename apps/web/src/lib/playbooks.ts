@@ -411,9 +411,14 @@ export const DiscoverResponse = z.object({
    * stops, ADR-029), so the in-band days past it cannot be counted, and this
    * is then a floor — the in-band days within the window — not a total.
    */
-  matchCount: z.number().int().nonnegative(),
+  //
+  // OPTIONAL, like `TripSummary.startDate`'s `.default(null)`: a body from a
+  // server one deploy behind has neither field, and a required one would turn
+  // Discover into its error state for the length of a rollout. Absent, the
+  // screen falls back to the page size it stated before (`resultsSentence`).
+  matchCount: z.number().int().nonnegative().optional(),
   /** False when `matchCount` is a floor rather than a total — see above. */
-  matchCountExact: z.boolean(),
+  matchCountExact: z.boolean().optional(),
   /**
    * How many days are published across the WHOLE library, ignoring every filter
    * on this query.

@@ -66,14 +66,11 @@ function parseIsoDateUtc(iso: string): Date {
 // reaches `daySpan` — which throws past the decider's own `reject` path — or,
 // worse, gets PERSISTED by `SetTripStartDate` and then throws every time
 // `deriveDayDates` runs during projection, leaving the trip unloadable.
-export function isCalendarDate(iso: string): boolean {
-  try {
-    parseIsoDateUtc(iso);
-    return true;
-  } catch {
-    return false;
-  }
-}
+//
+// Defined once in `@tc/contracts`, beside the command schemas that refuse the
+// same dates at the boundary, and re-exported here for the decider — so the
+// two layers cannot disagree about which dates are real.
+export { isCalendarDate } from "@tc/contracts";
 
 function addDaysIso(iso: string, n: number): string {
   const dt = parseIsoDateUtc(iso);

@@ -7,6 +7,7 @@ import {
   SetTripDates,
   SetTripName,
   SetTripStartDate,
+  isCalendarDate,
   TripCommand,
   TripCreatedV1,
   TripDetail,
@@ -147,6 +148,16 @@ describe("lifecycle commands", () => {
       expect(SetTripStartDate.safeParse({ type: "SetTripStartDate", tripId, startDate: date }).success).toBe(false);
     },
   );
+
+  // One copy of the calendar check, shared with pages.ts and the domain's
+  // decider. The Date.UTC versions it replaced read years 0–99 as 1900–1999,
+  // so the boundary refused 0050-01-01 while the domain accepted it.
+  it("isCalendarDate agrees with the domain's parser on a two-digit year", () => {
+    expect(isCalendarDate("0050-01-01")).toBe(true);
+    expect(isCalendarDate("0050-02-29")).toBe(false);
+    expect(isCalendarDate("2026-02-30")).toBe(false);
+    expect(isCalendarDate("2026-2-3")).toBe(false);
+  });
 
   it("accepts a real leap day", () => {
     expect(SetTripStartDate.safeParse({ type: "SetTripStartDate", tripId, startDate: "2028-02-29" }).success).toBe(
