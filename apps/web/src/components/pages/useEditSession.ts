@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PageDoc } from "@tc/contracts";
 
 /**
@@ -13,7 +13,12 @@ import type { PageDoc } from "@tc/contracts";
  */
 export const EDIT_SESSION_IDLE_MS = 60_000;
 
-export type CommitSession = (doc: PageDoc, options: { keepalive: boolean }) => void;
+/**
+ * Sends one session's document. Resolving `false` says the server did not take
+ * it, and the session keeps it; returning nothing is a commit with no way to
+ * tell, which is treated as taken.
+ */
+export type CommitSession = (doc: PageDoc, options: { keepalive: boolean }) => void | Promise<boolean>;
 
 /**
  * One write per editing session (ADR-036 decisions 3 and 5, M14 link 9).
@@ -37,30 +42,39 @@ export type CommitSession = (doc: PageDoc, options: { keepalive: boolean }) => v
  * **Each document is committed through the `commit` it was typed under**, not
  * the latest one. `commit` closes over the page id, so a screen reused for a
  * different page must not send the first page's prose to the second.
+ *
+ * **A commit that fails puts its document back**, because with one write per
+ * session nothing else will ever send it: `failed` goes true, the next idle
+ * retries, and `flush` is the manual retry. It is not put back over a change
+ * made while it was in flight, which already holds everything it did. After
+ * unmount nothing here can retry, which is why `PageScreen` also keeps a failed
+ * document in the browser (`pageDraft.ts`).
  */
 export function useEditSession(
   editing: boolean,
   commit: CommitSession,
-): { change: (doc: PageDoc) => void; discard: () => void } {
+): { change: (doc: PageDoc) => void; flush: () => void; failed: boolean } {
   const pending = useRef<{ doc: PageDoc; commit: CommitSession } | null>(null);
   const idle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commitRef = useRef(commit);
   commitRef.current = commit;
+  const mounted = useRef(true);
+  const [failed, setFailed] = useState(false);
 
-  const discard = useCallback(() => {
+  const settle = useCallback((keepalive: boolean) => {
+    const session = pending.current;
     if (idle.current !== null) clearTimeout(idle.current);
     idle.current = null;
     pending.current = null;
+    if (session === null) return;
+    void Promise.resolve(session.commit(session.doc, { keepalive })).then((taken) => {
+      if (!mounted.current) return;
+      setFailed(taken === false);
+      if (taken !== false || pending.current !== null) return;
+      pending.current = session;
+      idle.current = setTimeout(() => settle(false), EDIT_SESSION_IDLE_MS);
+    });
   }, []);
-
-  const settle = useCallback(
-    (keepalive: boolean) => {
-      const session = pending.current;
-      discard();
-      if (session !== null) session.commit(session.doc, { keepalive });
-    },
-    [discard],
-  );
 
   const change = useCallback(
     (doc: PageDoc) => {
@@ -71,18 +85,22 @@ export function useEditSession(
     [settle],
   );
 
+  const flush = useCallback(() => settle(false), [settle]);
+
   useEffect(() => {
     if (!editing) settle(false);
   }, [editing, settle]);
 
   useEffect(() => {
+    mounted.current = true;
     const onPageHide = () => settle(true);
     window.addEventListener("pagehide", onPageHide);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
       settle(false);
+      mounted.current = false;
     };
   }, [settle]);
 
-  return { change, discard };
+  return { change, flush, failed };
 }

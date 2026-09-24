@@ -9,10 +9,18 @@ import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
+
+// The real save guard, behind a spy, so one test can make the editor's output
+// unstorable on demand. Nothing else here changes what it returns.
+vi.mock("@/components/pages/editor/storedPageDoc", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/components/pages/editor/storedPageDoc")>();
+  return { ...real, toStoredPageDoc: vi.fn(real.toStoredPageDoc) };
+});
 
 // jsdom has no layout engine, so ProseMirror's coordinate-based cursor
 // placement throws on `elementFromPoint`/`getClientRects`. Stubbed in the same
@@ -49,6 +57,8 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  localStorage.clear();
+  vi.restoreAllMocks();
 });
 afterAll(() => server.close());
 
@@ -360,13 +370,66 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
   // must not manufacture a history entry (ADR-036 decision 5). It also holds
   // `PageEditor` to `setEditable(…, false)`: a toggle that emitted an update
   // would start a session nobody typed in.
+  //
+  // Asserted on `fetch` rather than on the handler, and with no wait: a session
+  // settles synchronously in the effect that leaving Editing runs, and
+  // `updatePage` calls `fetch` before its first `await`. So any write this
+  // toggle caused has already been started by the time the click resolves —
+  // where the handler sees it a hop later, which only a sleep could cover.
   it("writes nothing for an edit session that changed nothing", async () => {
-    const { onUpdate } = await openPage();
+    await openPage();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
     await finishEditing();
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     await finishEditing();
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toEqual([]);
+  });
+
+  // One write per session means nothing re-sends a failed one behind it, so
+  // the failure has to keep the document, say so, and offer the retry.
+  it("keeps a save the server refused, says so, and sends it again on Retry", async () => {
+    const { onUpdate } = await openPage();
+    let refuse = true;
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", () =>
+        refuse ? HttpResponse.json({ error: "offline" }, { status: 503 }) : undefined,
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    await finishEditing();
+
+    const banner = await screen.findByTestId("page-save-failure");
+    expect(banner.textContent).toContain("Couldn't save");
     expect(onUpdate).not.toHaveBeenCalled();
+    // ...and kept past this screen too, for a reload before the retry lands.
+    expect(localStorage.getItem(`page_draft:${pageFixture().id}`)).toContain('"name":"cost');
+
+    refuse = false;
+    await userEvent.click(within(banner).getByRole("button", { name: "Retry saving" }));
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain('"name":"cost');
+    await waitFor(() => expect(screen.queryByTestId("page-save-failure")).toBeNull());
+    expect(localStorage.getItem(`page_draft:${pageFixture().id}`)).toBeNull();
+  });
+
+  // The "saving has stopped" notice is a promise: the last good document is
+  // committed rather than thrown away, and nothing after it is written.
+  it("commits the last good document on an unstorable one, then writes nothing more", async () => {
+    await openPage();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const patches = () => fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH").map(([, init]) => String(init!.body));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    vi.mocked(toStoredPageDoc).mockReturnValueOnce(null);
+    await userEvent.type(box, "Z");
+    expect(screen.getAllByRole("status").some((n) => n.textContent?.includes("saving has stopped"))).toBe(true);
+    expect(patches()).toHaveLength(1);
+    expect(patches()[0]).toContain("Q");
+
+    await userEvent.type(box, "K");
+    await finishEditing();
+    cleanup();
+    expect(patches()).toHaveLength(1);
   });
 
   // KI-2026-09-24-g: leaving the page mid-session CANCELLED the pending write,
@@ -1171,6 +1234,93 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
     await vi.waitFor(() => expect(onUpdate).toHaveBeenCalled());
     // And what it wrote carries its version (decision 2).
     expect(onUpdate.mock.calls[0]![1].content.v).toBe(CURRENT_PAGE_DOC_VERSION);
+  });
+});
+
+// ADR-036 decision 3's browser-local draft: what the server has not confirmed
+// survives the page going away.
+describe("PageScreen — a draft kept in the browser", () => {
+  const draftKey = (pageId: string) => `page_draft:${pageId}`;
+  const paragraph = (text: string) => ({
+    v: CURRENT_PAGE_DOC_VERSION,
+    type: "doc" as const,
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  });
+
+  function serve(content: unknown, patch?: Parameters<typeof http.patch>[1]) {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, content: content as never });
+    const onUpdate = vi.fn();
+    server.use(
+      ...makePagesHandlers([page], { onUpdate }),
+      ...(patch ? [http.patch("/api/trips/:tripId/pages/:pageId", patch)] : []),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return { trip, page, onUpdate };
+  }
+
+  // Past the 64 KiB `keepalive` cap the unload write goes as a plain request,
+  // which can die with the page and report nothing. So the document is kept.
+  // The PATCH never answers here, which is what an unloading page sees.
+  it("keeps a document too big for keepalive when the page is hidden", async () => {
+    const { trip, page } = serve(paragraph("x".repeat(70_000)), () => new Promise<never>(() => {}));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    window.dispatchEvent(new Event("pagehide"));
+
+    const kept = JSON.parse(localStorage.getItem(draftKey(page.id)) ?? "null") as { base: string; doc: unknown } | null;
+    expect(kept?.base).toBe(page.updatedAt);
+    expect(JSON.stringify(kept?.doc)).toContain("Q");
+  });
+
+  // ...and a small one is trusted to `keepalive`, or every reload would leave
+  // a draft behind to be offered on the next.
+  it("keeps nothing for a document keepalive can carry", async () => {
+    const { trip, page } = serve(paragraph("small"), () => new Promise<never>(() => {}));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box, "Q");
+    window.dispatchEvent(new Event("pagehide"));
+    expect(localStorage.getItem(draftKey(page.id))).toBeNull();
+  });
+
+  it("opens on a draft nobody has written over, and sends it", async () => {
+    const { trip, page, onUpdate } = serve(paragraph("as stored"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: page.updatedAt, doc: paragraph("from the draft") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByText("from the draft")).toBeTruthy();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain("from the draft");
+    await waitFor(() => expect(localStorage.getItem(draftKey(page.id))).toBeNull());
+  });
+
+  // The page moved since the draft was typed: a co-traveller's write is data,
+  // not something to overwrite unasked (invariant 3).
+  it("offers a draft the page has moved on from, and restores it only when asked", async () => {
+    const { trip, page, onUpdate } = serve(paragraph("theirs"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("mine") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const offer = await screen.findByTestId("page-draft-offer");
+    expect(screen.getByText("theirs")).toBeTruthy();
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    await userEvent.click(within(offer).getByRole("button", { name: "Restore mine" }));
+    expect(await screen.findByText("mine")).toBeTruthy();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onUpdate.mock.calls[0]![1].content)).toContain("mine");
+  });
+
+  // What the unload write was racing to deliver arrived after all.
+  it("drops a draft the stored page already matches", async () => {
+    const { trip, page } = serve(paragraph("same"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("same") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("same");
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(localStorage.getItem(draftKey(page.id))).toBeNull();
   });
 });
 

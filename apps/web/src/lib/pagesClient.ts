@@ -1,6 +1,7 @@
 import { CreatePageInput, Page, PageSummary, type UpdatePageInput } from "@tc/contracts";
 import { apiUrl, type ApiError, type ApiResult } from "@/lib/apiClient";
 import { beginWrite, endWrite } from "@/lib/queryCache";
+import { fitsKeepalive } from "@/lib/keepalive";
 import { tripKeys } from "@/lib/queryKeys";
 import { inviteLookHeaders } from "@/lib/inviteLook";
 
@@ -116,12 +117,6 @@ export async function createPage(tripId: string, input: CreatePageInput): Promis
   }
 }
 
-// The Fetch spec caps the bodies of all in-flight `keepalive` requests at
-// 64 KiB, and one over the cap is REJECTED rather than sent. A notebook can be
-// bigger than that, so a larger one goes as an ordinary request, which still
-// reaches the server on a client-side navigation and is only at risk on unload.
-const KEEPALIVE_BODY_LIMIT = 60_000;
-
 export async function updatePage(
   tripId: string,
   pageId: string,
@@ -136,12 +131,11 @@ export async function updatePage(
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
   try {
-    const body = JSON.stringify(patch);
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body,
-      keepalive: options.keepalive === true && new TextEncoder().encode(body).length <= KEEPALIVE_BODY_LIMIT,
+      body: JSON.stringify(patch),
+      keepalive: options.keepalive === true && fitsKeepalive(patch),
     });
     if (!res.ok) return await refusal(res);
     const data = (await res.json()) as { page: unknown };
