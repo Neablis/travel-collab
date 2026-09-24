@@ -222,6 +222,11 @@ jobs:
       - run: pnpm --filter web build
         env:
           NEXT_PUBLIC_SENTRY_DSN: ""
+      # The regression check for the step above: fails if any built chunk still
+      # carries the DSN literal from `sentry.shared.ts`, i.e. if the line above
+      # was dropped or the build stopped seeing it. `test:e2e:ci-like` runs the
+      # same script after its own build.
+      - run: pnpm --filter web check:build-sentry
       - run: pnpm --filter web test:e2e
       # playwright.config.ts sets `trace: "on-first-retry"`, so a CI failure
       # already produces a trace — without this step it was written to the
