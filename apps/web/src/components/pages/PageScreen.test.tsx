@@ -1378,6 +1378,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
 // survives the page going away.
 describe("PageScreen — a draft kept in the browser", () => {
   const draftKey = (pageId: string) => `page_draft:${pageId}`;
+  // The kept document alone, as text. Not the raw entry: its `base` is an ISO
+  // timestamp, which ends in "Z" and made a `toContain("Z")` pass vacuously.
+  const draftText = (pageId: string) =>
+    JSON.stringify((JSON.parse(localStorage.getItem(draftKey(pageId)) ?? "null") as { doc?: unknown } | null)?.doc ?? null);
   const paragraph = (text: string) => ({
     v: CURRENT_PAGE_DOC_VERSION,
     type: "doc" as const,
@@ -1388,9 +1392,11 @@ describe("PageScreen — a draft kept in the browser", () => {
     const trip = tripDetailFixture();
     const page = pageFixture({ tripId: trip.tripId, content: content as never });
     const onUpdate = vi.fn();
+    // The override goes first: msw takes the first handler that matches, and
+    // `makePagesHandlers` answers every PATCH.
     server.use(
-      ...makePagesHandlers([page], { onUpdate }),
       ...(patch ? [http.patch("/api/trips/:tripId/pages/:pageId", patch)] : []),
+      ...makePagesHandlers([page], { onUpdate }),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
     );
     return { trip, page, onUpdate };
@@ -1412,16 +1418,53 @@ describe("PageScreen — a draft kept in the browser", () => {
     expect(JSON.stringify(kept?.doc)).toContain("Q");
   });
 
-  // ...and a small one is trusted to `keepalive`, or every reload would leave
-  // a draft behind to be offered on the next.
-  it("keeps nothing for a document keepalive can carry", async () => {
-    const { trip, page } = serve(paragraph("small"), () => new Promise<never>(() => {}));
+  // ...and so is one keepalive CAN carry: a request sent while the page
+  // unloads may still never complete, and nothing is left to read its result
+  // (CodeRabbit, PR #222). The server taking it clears the draft again.
+  it("keeps even a small document when the page is hidden, until the server takes it", async () => {
+    const { trip, page, onUpdate } = serve(paragraph("small"));
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
     await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
     const box = screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
     await userEvent.type(box, "Q");
     window.dispatchEvent(new Event("pagehide"));
-    expect(localStorage.getItem(draftKey(page.id))).toBeNull();
+    expect(draftText(page.id)).toContain("Q");
+
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(localStorage.getItem(draftKey(page.id))).toBeNull());
+  });
+
+  // Commits are one at a time, except the unload one, which cannot wait. So an
+  // older commit can fail after it, and its document is the older of the two.
+  it("does not let an older commit's failure overwrite the unload draft", async () => {
+    let failFirst: () => void = () => {};
+    const firstFails = new Promise<void>((r) => (failFirst = r));
+    let patches = 0;
+    const { trip, page } = serve(paragraph("small"), async () => {
+      if (++patches > 1) return new Promise<never>(() => {});
+      await firstFails;
+      return HttpResponse.error();
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    const box = () => screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.type(box(), "Q");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.type(box(), "Z");
+    window.dispatchEvent(new Event("pagehide"));
+    expect(draftText(page.id)).toContain("Z");
+
+    // Wait on the first PATCH's own promise, then drain the microtasks
+    // `updatePage` and the commit hang off it: no timer, so no sleep.
+    const first = fetchSpy.mock.results.find((_, i) => fetchSpy.mock.calls[i]![1]?.method === "PATCH")!;
+    failFirst();
+    await act(async () => {
+      await (first.value as Promise<Response>).catch(() => {});
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+    expect(draftText(page.id)).toContain("Z");
   });
 
   it("opens on a draft nobody has written over, and sends it", async () => {
@@ -1458,6 +1501,19 @@ describe("PageScreen — a draft kept in the browser", () => {
     await screen.findByText("same");
     expect(screen.queryByTestId("page-draft-offer")).toBeNull();
     expect(localStorage.getItem(draftKey(page.id))).toBeNull();
+  });
+
+  // Every unload now leaves a draft, so the common case is that its keepalive
+  // DID land. Nothing moved the page since, so the base still matches, and it
+  // is dropped as already matching rather than sent again as a no-op edit.
+  it("drops, without sending it, a draft whose unload write landed", async () => {
+    const { trip, page } = serve(paragraph("same"));
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: page.updatedAt, doc: paragraph("same") }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await screen.findByText("same");
+    expect(localStorage.getItem(draftKey(page.id))).toBeNull();
+    expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toEqual([]);
   });
 });
 

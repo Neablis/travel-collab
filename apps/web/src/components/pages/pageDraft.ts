@@ -8,9 +8,10 @@ import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
  *
  * Written in the two places the edit session cannot carry a document itself:
  * a commit that FAILED (the session retries while the screen is up, but not
- * after it unmounts), and a `pagehide` whose body is too big for `keepalive`
- * (`fitsKeepalive`), where the request may die with the page and nothing will
- * ever say so. Any commit the server takes clears it.
+ * after it unmounts), and every `pagehide` commit, written before it is sent:
+ * that request may die with the page, `keepalive` or not, and nothing will
+ * ever say so. The latest commit the server takes clears it; one that landed
+ * after all is dropped on the next load, the page already matching it.
  *
  * **Not `navigator.sendBeacon`.** It only POSTs, and the page route is a
  * PATCH behind the editor guard; a POST twin would be a second write endpoint
