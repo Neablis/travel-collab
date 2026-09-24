@@ -29,6 +29,7 @@ practice. Read the one that matches your task:
 | `fixtures-and-seed-data.md` | I added a feature — where does its sample data go so the demo trip, the preview branch and the tests keep exercising it? |
 | `observability-and-telemetry.md` | What does the app report to Sentry and the logs, where do I look at it, and how do I turn any of it down? |
 | `billing-without-spending-money.md` | I need to walk checkout, a failed payment, the grace window or a lapse — how, in Stripe test mode, for $0.00, and what would cost real money? |
+| `stacked-prs.md` | This work is too big for one PR — how do I plan the stack, merge it without conflicts, get it reviewed inside CodeRabbit's limits, and finish it? |
 | `third-party-services-on-a-preview.md` | My feature depends on a third-party service — what do the automated tests stub instead, and what do I check by hand on a Vercel preview? |
 
 Document map for orientation:

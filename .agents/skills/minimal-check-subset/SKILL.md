@@ -95,6 +95,16 @@ pnpm lint && pnpm test` across every workspace package).
        `pnpm --filter <pkg> test` for the whole suite when the change is
        package-wide. `@tc/predict` defines no `test` script.
 
+   - **A change to user-visible text** (a label, a qualifier, an error
+     message): before calling the subset complete, grep the whole repo for
+     the **old** wording, including `*.int.test.ts` and `apps/web/e2e/`, and
+     add every file that still asserts it to the subset. Tests in another
+     package, or in the integration lane, can pin a string that the
+     package's own unit tests don't. On #221 (2026-09-24), `7339763`
+     shortened a weather label in `@tc/pages`. The package's unit tests were
+     updated, but `weather/route.int.test.ts` still asserted the old label,
+     and CI was the first to see it.
+
 5. **Multiple packages affected (and none is contracts):** run each
    affected package's narrowed check separately. Do not escalate to the
    full workspace `pnpm check` just because more than one package changed.
