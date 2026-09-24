@@ -1,5 +1,5 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scenarios } from "@tc/factories";
 import { MACRO_NAMES, PRESETS } from "@tc/pages";
 import { newPageDoc, type MacroNode, type TripGlobals } from "@tc/contracts";
@@ -25,6 +25,17 @@ import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
 // A stored widget this build does not know, or whose params no longer parse, is
 // covered too: `MacroView` used to print `unknown macro: <name>` /
 // `bad params: <name>` for those, which is the stored name on the screen.
+
+// A chart's code is lazy (`SpendByDayBlock`); until it arrives only its
+// placeholder is on the page, and a sweep that ends there scans the placeholder,
+// not the chart. Loaded up front so waiting for the drawn chart is waiting on
+// React rather than on a cold transform of Recharts — the same reason, and the
+// same measured failure, as `MacroView.test.tsx`'s nesting sweep.
+beforeAll(async () => {
+  await import("../blocks/SpendByDayChart");
+});
+/** Every lazily-drawn chart on the page has been drawn. */
+const chartsDrawn = () => expect(screen.queryAllByRole("img", { busy: true })).toEqual([]);
 
 beforeEach(() => {
   // jsdom has no layout engine; the same stubs `PageEditor.test.tsx` uses.
@@ -95,6 +106,7 @@ describe("no macro syntax reaches the DOM", () => {
         const views = container.querySelectorAll(".tc-page-editor [data-macro-name]");
         expect(views.length).toBeGreaterThanOrEqual(widgets.length);
         for (const view of views) expect(view.textContent?.trim()).not.toBe("");
+        chartsDrawn();
       });
       expect(rawSyntaxLeaks(container)).toEqual([]);
     });
@@ -104,6 +116,13 @@ describe("no macro syntax reaches the DOM", () => {
   // registered widget, rendered once per day, stop and city in Reading and as
   // the rail plus template in Editing — each widget in an item's scope, where a
   // leak would print once per line.
+  //
+  // Budgeted, because the work is real: Reading renders every widget eleven
+  // times, synchronously, and nothing in it waits on a clock. Measured
+  // 2026-09-24 on a 4-CPU container: ~1.9s idle, 4.8-5.6s with every core
+  // saturated — where Vitest's default 5s timed it out ("Test timed out in
+  // 5000ms", once in a 105-file run). 15s is ~3x the worst measured.
+  const REPEAT_PAGE_BUDGET_MS = 15_000;
   for (const editing of [false, true]) {
     it(`on a page of repeats, in ${editing ? "Editing" : "Reading"}`, async () => {
       const { container } = render(
@@ -122,9 +141,10 @@ describe("no macro syntax reaches the DOM", () => {
         const drawn = container.querySelectorAll(editing ? "[data-testid=repeat-rail]" : "[data-repeat-line]");
         // Witness, measured: Reading draws 3 days + 6 stops + 2 cities; Editing one rail per repeat.
         expect(drawn.length).toBe(editing ? repeats.length : 11);
+        chartsDrawn();
       });
       expect(rawSyntaxLeaks(container)).toEqual([]);
-    });
+    }, REPEAT_PAGE_BUDGET_MS);
   }
 
   // A page written by a newer build, or a widget whose stored params no longer
