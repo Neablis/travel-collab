@@ -109,6 +109,13 @@ Used via the `PageContainer` composite, which applies `mx-auto` (centers) +
 `px-6` (safe margin) + a max-width class (`max-w-measure`, `max-w-content`) or
 none (`width="full"` for board/map views). See `PageContainer` below.
 
+**Container-query thresholds** share the `--container-*` namespace but are not
+page widths: `--container-strip-number` / `-city` / `-date` (1rem / 3rem / 9rem)
+are the run widths at which the trip strip (`TripStripBlock`) shows each part of
+a run's label, used as `@strip-city:inline`. Name a threshold this way rather
+than writing `@min-[3rem]`, which the arbitrary-value wall rejects in a
+`className` literal (though not, today, inside a `cn(...)` call).
+
 ### Overflow policy
 
 **The trip board wraps; it does not scroll horizontally.** Day columns

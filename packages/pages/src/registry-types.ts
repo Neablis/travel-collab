@@ -93,10 +93,11 @@ export interface CountryFactsPayload { kind: "country-facts"; countries: Country
 // consecutive days in one city (`city: null` is a run of days naming no place).
 // The runs partition the days in order, so the renderer draws cells from them
 // alone. `dayId` is what the colour is keyed on (`cityAccents.ofDayId`); `date`
-// is display-ready and short ("Jun 1"), `null` for an undated trip; `summary`
-// is the strip in words, for its accessible name.
+// is display-ready and short ("Jun 1"), `null` for an undated trip; `phrase` is
+// one run in words ("days 1–4 Tokyo (Jun 1 – Jun 4)"), and `summary` is every
+// run's phrase in one sentence, for the strip's accessible name.
 export interface TripStripDay { dayId: string; ordinal: number; date: string | null; city: string | null; }
-export interface TripStripRun { city: string | null; days: TripStripDay[]; }
+export interface TripStripRun { city: string | null; days: TripStripDay[]; phrase: string; }
 export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; summary: string; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`

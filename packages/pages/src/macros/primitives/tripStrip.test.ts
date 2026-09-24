@@ -88,6 +88,20 @@ describe("trip.strip", () => {
     );
   });
 
+  // The strip draws a 20-day trip in a phone's width, so a one-day run's city
+  // name and every date are dropped from the picture (TripStripBlock's header).
+  // Each run carries its own sentence so the renderer can hand it back on the
+  // run itself, and the summary is those sentences — the same words, once.
+  it("gives each run its own phrase, and the summary is the phrases in order", () => {
+    const strip = stripOf(tripWithCities(["Tokyo", "Tokyo", "Kyoto", null]));
+    expect(strip.runs.map((run) => run.phrase)).toEqual([
+      "days 1–2 Tokyo (Jun 1 – Jun 2)",
+      "day 3 Kyoto (Jun 3)",
+      "day 4 no city yet (Jun 4)",
+    ]);
+    expect(strip.summary).toBe("Days 1–2 Tokyo (Jun 1 – Jun 2), day 3 Kyoto (Jun 3), day 4 no city yet (Jun 4)");
+  });
+
   it("is empty when the trip has no days", () => {
     expect(renderMacro(contextOf(tripWithCities([])), "trip.strip", {})).toEqual({ status: "empty" });
   });

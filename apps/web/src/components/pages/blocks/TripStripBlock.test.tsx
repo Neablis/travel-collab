@@ -41,6 +41,18 @@ describe("TripStripBlock", () => {
     ]);
   });
 
+  // The strip fits any trip in its column by printing per RUN, never per day
+  // (the block's header). So a day inside a stay has no number of its own, and
+  // what the picture drops for room — the run's dates, a narrow run's city — is
+  // on the run for a pointer, in the resolver's words.
+  it("numbers each run where it starts, and puts the run's phrase on it", () => {
+    const trip = tripWithCities(["Tokyo", "Tokyo", "Kyoto"]);
+    render(<TripStripBlock payload={stripOf(trip)} accents={cityAccents(trip)} />);
+    expect(screen.getByTitle("days 1–2 Tokyo (Jun 1 – Jun 2)").textContent).toBe("1 Tokyo · Jun 1");
+    expect(screen.getByTitle("day 3 Kyoto (Jun 3)").textContent).toBe("3 Kyoto · Jun 3");
+    expect(screen.queryByText("2")).toBeNull();
+  });
+
   // The strip's colours are the board's colours. Asserted against the BOARD's
   // own derivation (Board.tsx: chipModel → dayAccents), not against
   // `cityAccents`, so a strip that coloured by anything else — its own hash, a

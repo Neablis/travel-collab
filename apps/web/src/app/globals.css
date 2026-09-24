@@ -111,6 +111,14 @@
   /* Content-width tiers (design-system.md "Breakpoints & containers"). */
   --container-measure: 40rem;   /* 640px — forms, settings sheet, prose */
   --container-content: 70rem;   /* 1120px — default page + non-full lenses */
+  /* The trip strip's run widths (`TripStripBlock`), read as container-query
+     variants (`@strip-city:inline`): the narrowest run that shows its day
+     number, its city, and its first date. Tokens rather than `@min-[3rem]`
+     because the arbitrary-value wall is right that a bracket is a number
+     nobody named. */
+  --container-strip-number: 1rem;
+  --container-strip-city: 3rem;
+  --container-strip-date: 9rem;
 
   /* ── The assistant transcript's own register (design §2a/§2d, SPEC §30.5).
      The design gives the two voices 13px/1.5 and 14px/1.65, a 2px rule, an
