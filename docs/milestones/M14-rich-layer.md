@@ -248,6 +248,9 @@ Mitchell's framing, 2026-09-03:
     state, attribution rendered by the block, what leaves the building, and a visible
     as-of time. It is accepted before the weather widget's code lands; the Tier B
     widgets need none of it and go first.
+    **Drafted as ADR-052** (`docs/architecture/ADR-052-external-data-enters-a-widget-as-a-server-fetched-input.md`),
+    *Accepted 2026-09-24 on Mitchell's delegation, pending his review*, so it is effectively
+    still Proposed and the gate box below stays unticked until he has read it.
     The brainstorm's *later and ambitious* list (trip in numbers, an assistant-drafted
     packing list, now / next) and its other Tier A–C candidates are **not** in this
     link until picked.
