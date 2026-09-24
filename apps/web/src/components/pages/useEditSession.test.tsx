@@ -124,6 +124,98 @@ describe("useEditSession", () => {
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
   });
 
+  // Two PATCHes in flight at once can land in either order, and the server
+  // keeps whichever arrives last. So a settle made while one is in flight
+  // waits for it, then sends only the newest document (CodeRabbit, PR #222).
+  it("keeps one commit in flight, then sends only the newest document", async () => {
+    let land: (ok: boolean) => void = () => {};
+    const commit = vi
+      .fn<CommitSession>()
+      .mockImplementationOnce(() => new Promise((r) => (land = r)))
+      .mockResolvedValue(true);
+    const { result } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    act(() => result.current.change(doc("ab")));
+    act(() => result.current.flush());
+    act(() => result.current.change(doc("abc")));
+    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
+    await act(async () => land(true));
+    expect(commit.mock.calls).toEqual([
+      [doc("a"), { keepalive: false }],
+      [doc("abc"), { keepalive: false }],
+    ]);
+  });
+
+  // Waiting must not become dropping: an unmount's settle queued behind an
+  // in-flight commit still goes, after the screen is gone (KI-2026-09-24-g).
+  it("still sends a settle queued behind an in-flight commit when it unmounts", async () => {
+    let land: (ok: boolean) => void = () => {};
+    const commit = vi
+      .fn<CommitSession>()
+      .mockImplementationOnce(() => new Promise((r) => (land = r)))
+      .mockResolvedValue(true);
+    const { result, unmount } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    act(() => result.current.change(doc("ab")));
+    unmount();
+    await act(async () => land(true));
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
+  });
+
+  // A commit that rejects rather than resolving `false` must not hold the
+  // queue shut behind it.
+  it("treats a rejected commit as failed, and still sends the next one", async () => {
+    const commit = vi.fn<CommitSession>().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(true);
+    const { result } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    await act(() => Promise.resolve());
+    expect(result.current.failed).toBe(true);
+    act(() => result.current.change(doc("ab")));
+    act(() => result.current.flush());
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
+  });
+
+  // The unload write cannot wait for anything: the page is going. `PageScreen`
+  // keeps a draft of it, which is what makes firing it past the queue safe.
+  it("sends a keepalive settle at once, even with a commit in flight", () => {
+    const commit = vi.fn<CommitSession>().mockImplementationOnce(() => new Promise(() => {}));
+    const { result } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    act(() => result.current.change(doc("ab")));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(commit.mock.calls).toEqual([
+      [doc("a"), { keepalive: false }],
+      [doc("ab"), { keepalive: true }],
+    ]);
+  });
+
+  // ...and so an older commit CAN still answer after a newer one. Its result
+  // is history: it may not report a failure, or put back a document the newer
+  // commit already carried.
+  it("ignores an older commit that fails after a newer one was taken", async () => {
+    let land: (ok: boolean) => void = () => {};
+    const commit = vi
+      .fn<CommitSession>()
+      .mockImplementationOnce(() => new Promise((r) => (land = r)))
+      .mockResolvedValue(true);
+    const { result, unmount } = mount(true, commit);
+    act(() => result.current.change(doc("a")));
+    act(() => result.current.flush());
+    act(() => result.current.change(doc("ab")));
+    window.dispatchEvent(new Event("pagehide"));
+    await act(() => Promise.resolve());
+    await act(async () => land(false));
+    expect(result.current.failed).toBe(false);
+    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
+    unmount();
+    expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
+  });
+
   it("commits on flush, the manual retry", () => {
     const { result, commit } = mount();
     act(() => result.current.change(doc("a")));

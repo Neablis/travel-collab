@@ -9,8 +9,9 @@ const KEEPALIVE_BODY_LIMIT = 60_000;
 
 /**
  * Whether a JSON body can be sent with `keepalive`. When it cannot, a write
- * sent from `pagehide` may never arrive, and `PageScreen` keeps the document in
- * the browser instead of trusting it to (`pageDraft.ts`).
+ * sent from `pagehide` goes as an ordinary request. Either way it may never
+ * arrive, which is why `PageScreen` keeps every unload write's document in the
+ * browser too (`pageDraft.ts`).
  */
 export function fitsKeepalive(body: unknown): boolean {
   return new TextEncoder().encode(JSON.stringify(body)).length <= KEEPALIVE_BODY_LIMIT;
