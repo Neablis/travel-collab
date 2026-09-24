@@ -11,4 +11,5 @@ export * from "./presets";
 export * from "./templates";
 export * from "./writeCheck";
 export * from "./needsBooking";
+export * from "./dayCity";
 export * from "./kinds";

@@ -56,6 +56,19 @@ export const CITY_TINT: Record<AccentFamily, string> = {
   neutral: "bg-moss",
 };
 
+// The family's SOLID tone, for a mark that is only colour — the trip strip's
+// cells. A tint reads as grey beside its neighbours at that size. `neutral` is
+// the hairline rather than `slate`: a no-city day is a gap in the band, and a
+// dark cell would read as one more city.
+export const CITY_FILL: Record<AccentFamily, string> = {
+  brand: "bg-brand",
+  info: "bg-info",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+  neutral: "bg-hairline",
+};
+
 const NEUTRAL: CityAccents = { ofCity: () => "neutral", ofDayId: () => "neutral" };
 
 export function cityAccents(detail: TripDetail | null): CityAccents {
