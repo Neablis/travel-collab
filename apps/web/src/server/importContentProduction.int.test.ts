@@ -10,12 +10,12 @@ import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
 import { locationFactory } from "@tc/factories";
-import { parseBundle, tripIdFor, type ContentBundleV1 } from "@tc/fixtures";
+import { parseBundle, playbookIdFor, tripIdFor, type ContentBundleV1 } from "@tc/fixtures";
 import type { Location } from "@tc/contracts";
 import { db } from "./db/client";
-import { events } from "./db/schema";
+import { events, savedDays } from "./db/schema";
 import { getTripDetail } from "./projections";
-import { importTrips } from "../../scripts/import-content-production";
+import { importPlaybooks, importTrips } from "../../scripts/import-content-production";
 
 const owner = "user-content-import";
 
@@ -135,5 +135,42 @@ describe("importTrips — an existing trip's stop locations (KI-2026-09-23-e)", 
     ]);
     expect(r.reconciled).toBe(0);
     expect(await eventTypes(tripId)).toEqual(imported);
+  });
+});
+
+// KI-2026-09-24-b: a playbook's trailing rest day leaves no `dayIndex` behind,
+// so only the bundle's declared day count knows it is there (ADR-048 decision
+// 2). The dev route passed it; the production importer let `newSavedDayRow`
+// fall back to the stops' floor, and the row came out one day short.
+describe("importPlaybooks — the declared day count (KI-2026-09-24-b)", () => {
+  it("keeps an empty middle day as a gap and an empty last day in dayCount", async () => {
+    const id = `playbook-days-${randomUUID().slice(0, 8)}`;
+    const bundle = parseBundle({
+      $schema: "travel-collab/content-bundle/v1",
+      bundle: { id, name: "Rest days", origin: "ai" },
+      playbooks: [
+        {
+          key: "slow",
+          name: "Slow week",
+          ownerId: owner,
+          sourceTrip: { name: "Kyoto" },
+          days: [
+            { stops: [{ title: "Fushimi Inari" }] },
+            { stops: [] },
+            { stops: [{ title: "Arashiyama" }] },
+            { stops: [] },
+          ],
+        },
+      ],
+    });
+
+    await importPlaybooks(bundle, false);
+
+    const [row] = await db
+      .select({ dayCount: savedDays.dayCount, stops: savedDays.stops })
+      .from(savedDays)
+      .where(eq(savedDays.id, playbookIdFor(id, "slow")));
+    expect((row!.stops as { dayIndex: number }[]).map((s) => s.dayIndex)).toEqual([0, 2]);
+    expect(row!.dayCount).toBe(4);
   });
 });
