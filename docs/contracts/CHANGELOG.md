@@ -13,6 +13,42 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — field renames and removals convert stored documents (M14 T08)
+
+- **Added:** `FieldChange` (`{ kind: "rename"; from; to; since }` or
+  `{ kind: "remove"; path; label; since }`) and `FIELD_CHANGES`, the table of
+  every manifest field ever renamed or removed. **Empty**: none has been.
+  `pageDocMigrations(changes)` builds the migration chain from a table;
+  `PAGE_DOC_MIGRATIONS` is `pageDocMigrations(FIELD_CHANGES)`.
+- **What a step does.** For a document older than an entry's `since`, every
+  widget whose `field` param names a renamed path is pointed at the new one,
+  and every widget naming a removed path becomes the plain text
+  `(<label> — no longer available)`. A block widget becomes a paragraph holding
+  that text; a `repeat` keeps its row template after it.
+- **Versioning rule.** Each distinct `since` is one document version, so a
+  batch of entries bumps `CURRENT_PAGE_DOC_VERSION` once. A new batch takes
+  `CURRENT_PAGE_DOC_VERSION + 1`, and `pageDocMigrations` throws on a gap. A
+  merged batch is closed.
+- **Changed:** `migratePageDoc(doc, migrations?)` takes an optional chain,
+  defaulting to `PAGE_DOC_MIGRATIONS`, so tests can convert with a test-only
+  table. The v1 → v2 step now uses the same widget walker. Its output is
+  unchanged: the v1 → v2 golden test passes as before.
+- **Guard (tests):** `test/fixtures/publishedFieldPaths.ts` records every field
+  path ever published (22 today). `manifest.test.ts` fails when a recorded path
+  leaves the manifest without an entry, when a live path is missing from the
+  record, when a rename ends on a field that is not live, and when a removed
+  field is still published.
+- Why: M14 field widget, Mitchell's answer 1 (convert documents, so a stored
+  page never names a field the manifest lacks) and four more calls, item 4 (a
+  removed field's widget becomes a placeholder naming it). A saved template
+  (link 10) snapshots a document version and is read through the same
+  `migratePageDoc`, so it converts the same way. A test pins that path.
+- Consumers updated: none needed. Every caller of `migratePageDoc` (`apps/web`
+  `storedPageDoc.ts`, `pageTools.ts`, `server/pages.ts`, `apiClient.ts`) passes
+  one argument and gets the real chain. `CURRENT_PAGE_DOC_VERSION` is still 2.
+- Breaking? no. The table is empty, so no stored document changes and no
+  version moves.
+
 ## 2026-09-24 — a `stop` manifest root, `described()` as the only opt-in, and one field vocabulary (M14 T06)
 
 - **Added — stop fields are pickable.** `ActivitySnapshot` annotates `title`

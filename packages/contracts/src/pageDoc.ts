@@ -448,61 +448,172 @@ function migrateWidgetAttrs(attrs: PageWidgetNode["attrs"]): PageWidgetNode["att
   return { name: step.name, params: { ...params, ...step.set } };
 }
 
-// The v1 → v2 step. It rewrites widget nodes at every depth and touches nothing
-// else.
+// How a step rewrites one widget: new attrs, or a text node to stand where the
+// widget was (a removed field, below).
+type WidgetRewrite = (attrs: PageWidgetNode["attrs"]) => PageWidgetNode["attrs"] | PageTextNode;
+
+// A step that rewrites widget nodes at every depth and touches nothing else.
+// Both kinds of step below are one of these.
 //
 // **The node SHAPE is unchanged, which is what makes this expressible as
 // `(PageDoc) => PageDoc`.** The comment this replaces warned that a real
 // migration would need the v1 schema to parse a v1 row while `PageDoc` is
 // always the current one. That is true of a migration that changes the
-// vocabulary of nodes or attrs; this one changes only the STRING in
-// `attrs.name` and the KEYS in `attrs.params`, both of which the current schema
-// already accepts (`name` is any non-empty string, `params` any record). The
-// day the format changes shape, the split that comment describes is still owed.
-const migrateWidgetNames: PageDocMigration = (doc) => ({
-  ...doc,
-  content: doc.content.map(migrateNodeWidgetNames),
-});
-
-function migrateNodeWidgetNames(node: PageNode): PageNode {
-  switch (node.type) {
-    case "macro":
-      return { ...node, attrs: migrateWidgetAttrs(node.attrs) };
-    case "repeat":
-      return {
-        ...node,
-        attrs: migrateWidgetAttrs(node.attrs),
-        content: node.content.map(migrateInlineWidgetNames),
-      };
-    case "paragraph":
-    case "heading":
-      return { ...node, content: node.content.map(migrateInlineWidgetNames) };
-    case "blockquote":
-      return { ...node, content: node.content.map(migrateNodeWidgetNames) };
-    case "bulletList":
-    case "orderedList":
-      return {
-        ...node,
-        content: node.content.map((item) =>
-          item.type === "unknown" ? item : { ...item, content: item.content.map(migrateNodeWidgetNames) },
-        ),
-      } as PageNode;
-    // A code block holds text, a horizontal rule holds nothing, and an unknown
-    // node is carried BYTE-IDENTICALLY (decision 3) — rewriting inside one
-    // would be editing a document we admitted we cannot read.
-    case "codeBlock":
-    case "horizontalRule":
-    case "unknown":
-      return node;
-  }
+// vocabulary of nodes or attrs; these change only the STRING in `attrs.name`
+// and the KEYS and VALUES in `attrs.params`, all of which the current schema
+// already accepts (`name` is any non-empty string, `params` any record), and a
+// replacement is built from nodes the current schema already has. The day the
+// format changes shape, the split that comment describes is still owed.
+function rewriteWidgets(rewrite: WidgetRewrite): PageDocMigration {
+  const inline = (node: PageInlineNode): PageInlineNode => {
+    if (node.type !== "macro") return node;
+    const next = rewrite(node.attrs);
+    return next.type === "text" ? next : { ...node, attrs: next };
+  };
+  // A text node is not a block, so a replaced block widget is a paragraph —
+  // and a replaced repeat keeps its row template after the text, because what
+  // the author wrote there is theirs, not the field's.
+  const block = (node: PageNode): PageNode => {
+    switch (node.type) {
+      case "macro": {
+        const next = rewrite(node.attrs);
+        return next.type === "text" ? { type: "paragraph", content: [next] } : { ...node, attrs: next };
+      }
+      case "repeat": {
+        const next = rewrite(node.attrs);
+        const content = node.content.map(inline);
+        return next.type === "text"
+          ? { type: "paragraph", content: [next, ...content] }
+          : { ...node, attrs: next, content };
+      }
+      case "paragraph":
+      case "heading":
+        return { ...node, content: node.content.map(inline) };
+      case "blockquote":
+        return { ...node, content: node.content.map(block) };
+      case "bulletList":
+      case "orderedList":
+        return {
+          ...node,
+          content: node.content.map((item) =>
+            item.type === "unknown" ? item : { ...item, content: item.content.map(block) },
+          ),
+        } as PageNode;
+      // A code block holds text, a horizontal rule holds nothing, and an unknown
+      // node is carried BYTE-IDENTICALLY (decision 3) — rewriting inside one
+      // would be editing a document we admitted we cannot read.
+      case "codeBlock":
+      case "horizontalRule":
+      case "unknown":
+        return node;
+    }
+  };
+  return (doc) => ({ ...doc, content: doc.content.map(block) });
 }
 
-function migrateInlineWidgetNames(node: PageInlineNode): PageInlineNode {
-  return node.type === "macro" ? { ...node, attrs: migrateWidgetAttrs(node.attrs) } : node;
+// The v1 → v2 step.
+const migrateWidgetNames = rewriteWidgets(migrateWidgetAttrs);
+
+// ---------------------------------------------------------------------------
+// v3 onward: a field is renamed or removed (M14 field widget, answer 1)
+// ---------------------------------------------------------------------------
+
+/**
+ * One deliberate change to a published manifest field, which converts every
+ * stored document that names it — so a stored page never names a field the
+ * manifest lacks, and `writeCheck`'s whole-document refusal (the field-widget
+ * review's gap 1) cannot be reached by a planned change.
+ *
+ * Paths are the strings a widget stores, `object.field` (or
+ * `object.collection.field` for a collection member): `"trip.name"`,
+ * `"stop.cost"`.
+ *
+ * - `rename`: every widget reading `from` reads `to` afterwards.
+ * - `remove`: every widget reading `path` becomes a line of plain text naming
+ *   it by `label` — Mitchell's call (four more calls, item 4), so a reader sees
+ *   that something was there. The label is carried here because the manifest
+ *   that held it no longer does.
+ * - `since`: the document version this change produces. See `FIELD_CHANGES`.
+ */
+export type FieldChange =
+  | { kind: "rename"; from: string; to: string; since: number }
+  | { kind: "remove"; path: string; label: string; since: number };
+
+/**
+ * Every field rename and removal ever made, oldest first. Empty: no published
+ * field has been renamed or removed yet.
+ *
+ * **The versioning rule.** Each distinct `since` is ONE new document version,
+ * however many entries share it, so a change of any size is a one-line entry
+ * per field and bumps `CURRENT_PAGE_DOC_VERSION` exactly once. A new batch
+ * takes `since: CURRENT_PAGE_DOC_VERSION + 1`, and `pageDocMigrations` refuses
+ * a table whose batches do not run on without a gap. A batch that has merged
+ * is closed: a v3 document never runs the v3 step again, so an entry added to
+ * it later would reach only documents older than v3.
+ *
+ * `manifest.test.ts` fails when a published field disappears without an entry
+ * here, and when an entry names a field that does not add up (a rename to
+ * nothing, a removal of a field still published).
+ */
+export const FIELD_CHANGES: readonly FieldChange[] = [];
+
+/**
+ * The widget params that hold a manifest path. `attribute` stores `field`, and
+ * so will the field widget. A param holding a path under any other key — or a
+ * LIST of paths, which columns on the row widgets may be — has to be added
+ * here, or its widgets will not convert.
+ */
+const FIELD_PARAMS: readonly string[] = ["field"];
+
+function placeholder(label: string): PageTextNode {
+  return { type: "text", text: `(${label} — no longer available)` };
+}
+
+// One batch's step. Entries apply in table order, so a batch can rename a
+// field and then remove what it was renamed to.
+function fieldChangeStep(batch: readonly FieldChange[]): PageDocMigration {
+  return rewriteWidgets((attrs) => {
+    let params = attrs.params;
+    for (const key of FIELD_PARAMS) {
+      let path = params[key];
+      if (typeof path !== "string") continue;
+      for (const change of batch) {
+        if (change.kind === "remove" && change.path === path) return placeholder(change.label);
+        if (change.kind === "rename" && change.from === path) path = change.to;
+      }
+      if (path !== params[key]) params = { ...params, [key]: path };
+    }
+    return params === attrs.params ? attrs : { ...attrs, params };
+  });
+}
+
+// The steps that come before any field change. A future step that is not a
+// field change goes here too, and the next field batch's `since` moves past it.
+const BASE_MIGRATIONS: readonly PageDocMigration[] = [migrateWidgetNames];
+
+/**
+ * The migration chain for a given field-change table. The real chain is
+ * `pageDocMigrations(FIELD_CHANGES)`; a test passes its own table, so the
+ * conversion is exercised while the real one is empty.
+ */
+export function pageDocMigrations(changes: readonly FieldChange[]): PageDocMigration[] {
+  const first = BASE_MIGRATIONS.length + 2;
+  const versions = [...new Set(changes.map((change) => change.since))].sort((a, b) => a - b);
+  versions.forEach((version, index) => {
+    if (version !== first + index) {
+      throw new Error(
+        `FIELD_CHANGES batches must run on from since ${first} with no gap; found since ${version}`,
+      );
+    }
+  });
+  return [
+    ...BASE_MIGRATIONS,
+    ...versions.map((version) => fieldChangeStep(changes.filter((change) => change.since === version))),
+  ];
 }
 
 // Ordered: index `i` takes a v(i+1) document to v(i+2).
-export const PAGE_DOC_MIGRATIONS: readonly PageDocMigration[] = [migrateWidgetNames];
+export const PAGE_DOC_MIGRATIONS: readonly PageDocMigration[] = pageDocMigrations(FIELD_CHANGES);
 
 // Derived, never written twice: appending a migration IS the version bump.
 export const CURRENT_PAGE_DOC_VERSION = PAGE_DOC_MIGRATIONS.length + 1;
@@ -525,13 +636,18 @@ export function newPageDoc(content: PageNode[] = []): PageDoc {
 // an older client survive newer *nodes*; a higher `v` means the shape of the
 // document itself changed, and there is no rule by which this build could write
 // it back safely. Refusing is what decision 4 does with the answer.
-export function migratePageDoc(doc: PageDoc): PageDoc {
-  if (doc.v > CURRENT_PAGE_DOC_VERSION) {
-    throw new Error(
-      `page document is v${doc.v}, but this build understands up to v${CURRENT_PAGE_DOC_VERSION}`,
-    );
+//
+// `migrations` is for tests (see `pageDocMigrations`); every caller in the
+// product migrates to the real chain.
+export function migratePageDoc(
+  doc: PageDoc,
+  migrations: readonly PageDocMigration[] = PAGE_DOC_MIGRATIONS,
+): PageDoc {
+  const current = migrations.length + 1;
+  if (doc.v > current) {
+    throw new Error(`page document is v${doc.v}, but this build understands up to v${current}`);
   }
-  return PAGE_DOC_MIGRATIONS.slice(doc.v - 1).reduce<PageDoc>(
+  return migrations.slice(doc.v - 1).reduce<PageDoc>(
     (acc, step, index) => ({ ...step(acc), v: doc.v + index + 1 }),
     doc,
   );

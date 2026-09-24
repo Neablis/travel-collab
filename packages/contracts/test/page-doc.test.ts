@@ -2,12 +2,15 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   CURRENT_PAGE_DOC_VERSION,
+  FIELD_CHANGES,
   PAGE_DOC_MIGRATIONS,
+  type FieldChange,
   WIDGET_NAME_MIGRATION,
   PageContent,
   PageDoc,
   collectPageDocNodeTypes,
   migratePageDoc,
+  pageDocMigrations,
   parsePageDoc,
   serializePageDoc,
 } from "../src";
@@ -578,5 +581,122 @@ describe("collectPageDocNodeTypes", () => {
     for (const type of ["heading", "paragraph", "macro", "repeat", "hardBreak", "text", "codeBlock"]) {
       expect(types.has(type)).toBe(true);
     }
+  });
+});
+
+// M14 field widget, Mitchell's answer 1: a renamed or removed field converts
+// the documents that name it, so a stored page never names a field the
+// manifest lacks. The real `FIELD_CHANGES` is empty — nothing has been renamed
+// — so every case here injects its own table into `pageDocMigrations`, which
+// is the same builder the real chain comes from.
+describe("a renamed or removed field converts the documents that read it", () => {
+  const RENAME: FieldChange = { kind: "rename", from: "stop.cost", to: "stop.price", since: 3 };
+  const REMOVE: FieldChange = { kind: "remove", path: "trip.budgetRemaining", label: "Budget left", since: 3 };
+  const migrations = pageDocMigrations([RENAME, REMOVE]);
+  const v2 = (content: unknown[]) => PageDoc.parse({ v: 2, type: "doc", content });
+  const widget = (name: string, params: Record<string, unknown>) => ({ type: "macro", attrs: { name, params } });
+  const PLACEHOLDER = { type: "text", text: "(Budget left — no longer available)" };
+
+  it("points a renamed field's widget at the new path, at every depth", () => {
+    const cost = widget("field", { field: "stop.cost", day: { kind: "index", index: 1 } });
+    const doc = migratePageDoc(
+      v2([
+        cost,
+        { type: "paragraph", content: [{ type: "text", text: "Spent " }, cost] },
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "blockquote", content: [cost] }] }] },
+        { type: "repeat", attrs: { name: "stop.rows", params: { field: "stop.cost" } }, content: [cost] },
+      ]),
+      migrations,
+    );
+    const renamed = widget("field", { field: "stop.price", day: { kind: "index", index: 1 } });
+    expect(serializePageDoc(doc)).toEqual({
+      v: 3,
+      type: "doc",
+      content: [
+        renamed,
+        { type: "paragraph", content: [{ type: "text", text: "Spent " }, renamed] },
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "blockquote", content: [renamed] }] }] },
+        { type: "repeat", attrs: { name: "stop.rows", params: { field: "stop.price" } }, content: [renamed] },
+      ],
+    });
+  });
+
+  it("turns a removed field's widget into text naming the old field, not nothing", () => {
+    // Four more calls, item 4: a placeholder, never a silent drop. A widget at
+    // block position becomes a paragraph, because a bare text node is not a
+    // block; a repeat keeps its row template after the placeholder.
+    const budget = widget("attribute", { field: "trip.budgetRemaining" });
+    const doc = migratePageDoc(
+      v2([
+        budget,
+        { type: "paragraph", content: [{ type: "text", text: "Left: " }, budget] },
+        {
+          type: "repeat",
+          attrs: { name: "day.rows", params: { field: "trip.budgetRemaining" } },
+          content: [{ type: "text", text: "row" }],
+        },
+      ]),
+      migrations,
+    );
+    expect(serializePageDoc(doc)).toEqual({
+      v: 3,
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [PLACEHOLDER] },
+        { type: "paragraph", content: [{ type: "text", text: "Left: " }, PLACEHOLDER] },
+        { type: "paragraph", content: [PLACEHOLDER, { type: "text", text: "row" }] },
+      ],
+    });
+  });
+
+  it("leaves widgets on other fields, and widgets with no field, as they were", () => {
+    const content = [
+      widget("attribute", { field: "trip.name" }),
+      widget("cost", { day: { kind: "index", index: 0 } }),
+      // A field param that is not a string is not a path this table can match.
+      widget("field", { field: { object: "stop" } }),
+    ];
+    expect(serializePageDoc(migratePageDoc(v2(content), migrations))).toEqual({ v: 3, type: "doc", content });
+  });
+
+  it("applies batches in order, so a field can be renamed twice", () => {
+    const chain = pageDocMigrations([
+      { kind: "rename", from: "stop.cost", to: "stop.price", since: 3 },
+      { kind: "rename", from: "stop.price", to: "stop.amount", since: 4 },
+    ]);
+    // A page written at v2 takes both steps; one written at v3 already says
+    // `stop.price` and takes only the second.
+    for (const [v, field] of [[2, "stop.cost"], [3, "stop.price"]] as const) {
+      const doc = migratePageDoc(PageDoc.parse({ v, type: "doc", content: [widget("field", { field })] }), chain);
+      expect(doc, `from v${v}`).toEqual({ v: 4, type: "doc", content: [widget("field", { field: "stop.amount" })] });
+    }
+  });
+
+  it("bumps the version once per batch, not once per entry", () => {
+    // Three entries, two batches: two new versions.
+    const chain = pageDocMigrations([RENAME, REMOVE, { kind: "rename", from: "trip.name", to: "trip.title", since: 4 }]);
+    expect(chain.length).toBe(pageDocMigrations([]).length + 2);
+    // The real table follows the same rule.
+    expect(CURRENT_PAGE_DOC_VERSION).toBe(2 + new Set(FIELD_CHANGES.map((change) => change.since)).size);
+  });
+
+  it("refuses a table whose batches do not follow on from the chain before them", () => {
+    // A batch at v4 with no v3 would leave v3 undefined; one at v2 would join
+    // a version that already shipped, which a v2 document never runs again.
+    expect(() => pageDocMigrations([{ ...RENAME, since: 4 }])).toThrow(/since 3/);
+    expect(() => pageDocMigrations([{ ...RENAME, since: 2 }])).toThrow(/since 3/);
+  });
+
+  it("still instantiates a template snapshotted before the field moved", () => {
+    // ADR-038 and the M14 gate box: a saved template (link 10) is a stored
+    // document version, so it arrives as JSON at its old `v` and goes through
+    // the same migrate-on-read as a page. This is that journey, end to end.
+    const snapshot: unknown = JSON.parse(
+      JSON.stringify(serializePageDoc(v2([{ type: "paragraph", content: [widget("field", { field: "stop.cost" })] }]))),
+    );
+    const instantiated = migratePageDoc(PageDoc.parse(snapshot), migrations);
+    expect(instantiated.content).toEqual([{ type: "paragraph", content: [widget("field", { field: "stop.price" })] }]);
+    // Saved again, it is a current document, and a second read changes nothing.
+    expect(migratePageDoc(PageDoc.parse(serializePageDoc(instantiated)), migrations)).toEqual(instantiated);
   });
 });
