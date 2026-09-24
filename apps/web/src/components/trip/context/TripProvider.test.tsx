@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
 
 const sendTripCommandMock = vi.fn();
@@ -1015,6 +1015,25 @@ function becomeVisible() {
   document.dispatchEvent(new Event("visibilitychange"));
 }
 
+// KI-2026-09-22-e. **A rendered trip is not an armed broadcast.** The commit
+// that puts `dayCount` = 1 on screen and the passive effect in
+// `useTripBroadcast` that attaches the `visibilitychange` listener are two
+// separate steps: React runs that effect in a later Scheduler task, and
+// `waitFor` hands control back on a `setTimeout(0)`. On an idle machine the
+// effect wins; stall the thread for a few ms after the commit (a loaded runner
+// does exactly that) and the timer wins, `becomeVisible()` dispatches to no
+// listener, and the next poll is a whole `POLL_INTERVAL_MS` away — past
+// `waitFor`'s budget. That was the CI failure in three different tests of
+// this block. So wait for the listener itself, which is the precondition every
+// test below actually depends on. Nothing else in `src` listens for
+// `visibilitychange`, so the call is unambiguous.
+let addDocumentListener: MockInstance<Document["addEventListener"]>;
+async function broadcastArmed() {
+  await waitFor(() =>
+    expect(addDocumentListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)),
+  );
+}
+
 function RemoteProbe() {
   const { activeTrip, dispatch, sync, remoteRevision } = useTrip();
   return (
@@ -1032,6 +1051,13 @@ function RemoteProbe() {
 }
 
 describe("TripProvider broadcast (M13 link 2)", () => {
+  beforeEach(() => {
+    addDocumentListener = vi.spyOn(document, "addEventListener");
+  });
+  afterEach(() => {
+    addDocumentListener.mockRestore();
+  });
+
   it("adopts a co-traveller's edit without a reload", async () => {
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
     fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
@@ -1041,6 +1067,7 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       </TripProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
 
     // Bob commits a day: the poll reports a head past the client's cursor, and
     // the refetch that follows returns the trip the server now has.
@@ -1070,6 +1097,7 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       </TripProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
     expect(screen.getByTestId("remoteRevision").textContent).toBe("0");
 
     fetchTripEventsMock.mockResolvedValue({
@@ -1094,6 +1122,7 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       </TripProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
 
     // The head is exactly where the client already is.
     fetchTripEventsMock.mockResolvedValue({
@@ -1144,6 +1173,7 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       </TripProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    await broadcastArmed();
 
     fireEvent.click(screen.getByRole("button", { name: "edit" }));
     await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("1"));
