@@ -780,7 +780,8 @@ gating**. Each entry's own **Milestone:** line points back here.
 |---|---|---|
 | KI-2026-09-05-h | `narrow`/`optionsFor` not total over `FilterDimension`; `serializePageNode` has no `never` default | **gate box** |
 | KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | carried |
-| KI-2026-09-15-b | The phone Notebook insert e2e spec intermittently finds the widget bound to "All days" | carried |
+| ~~KI-2026-09-15-b~~ | ~~The phone Notebook insert e2e spec intermittently finds the widget bound to "All days"~~ — **resolved 2026-09-24**: the spec waited for any PATCH and caught the unchanged save a mode switch sent (fixed in `PageEditor`), then reloaded over the insert's pending save | — |
+| KI-2026-09-24-g | An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it | carried |
 | KI-2026-09-20-g | The widget container is built four times and none matches the design | carried |
 | KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
 | KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |

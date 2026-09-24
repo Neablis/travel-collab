@@ -36,7 +36,9 @@ describe("PageEditor", () => {
   // look like an edit: TipTap's `setEditable` emits `update` unless told not
   // to, and `onChange` feeds PageScreen's autosave, which then saved the
   // unchanged page 800ms after every mode switch. Found as the cause of
-  // KI-2026-09-20-j's flaky "nothing was saved" assertions in PageAssistant.
+  // KI-2026-09-20-j's flaky "nothing was saved" assertions in PageAssistant,
+  // and independently of KI-2026-09-15-b's phone insert walk, whose save-wait
+  // caught that stray PATCH instead of the insert's own.
   it("does not report a change when the document merely becomes editable", async () => {
     const onChange = vi.fn();
     const value = newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }]);

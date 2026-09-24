@@ -208,18 +208,6 @@ test.describe("responsive (narrow viewport)", () => {
     }
   });
 
-  test("the hero collapses to a single column below 1024px", async ({ page }) => {
-    // The narrow project's own 1100px is above the hero's 1024px breakpoint
-    // (distinct from the rail/Playbooks strip's 1180px) — set it explicitly
-    // for this one assertion rather than adding a whole second project.
-    await page.setViewportSize({ width: 1000, height: 800 });
-    await page.goto("/");
-    const columns = await page
-      .locator(".hero-grid")
-      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
-    expect(columns).toBe(1);
-  });
-
   // KI-56, and the reason it needs its own narrow assertion: KI-28 reserves
   // room for the "{planned} planned of {budget}" line so a card cannot change
   // height when its TripDetail lands, and an open trip-actions menu cannot
@@ -402,6 +390,38 @@ test.describe("responsive (Home hero on a phone, fresh account)", () => {
     // scale classes and the real rows are 1.35-line-height text, so the two
     // differ by a fraction of a pixel. The defect is ~90px.
     expect(Math.abs(after - before)).toBeLessThan(1);
+  });
+});
+
+// **Its own trip, on its own account.** This used to run as the shared user and
+// create nothing, so it measured whatever hero an EARLIER spec's trip happened
+// to put on Home. Run alone on a fresh database there was no trip, so no
+// `.hero-grid` at all, and it timed out waiting for one. That made it depend on
+// test order. A fresh account with one trip makes the hero this test's own,
+// the same reasoning as the KI-2026-09-23-e describe above.
+test.describe("responsive (Home hero below 1024px, fresh account)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("the hero collapses to a single column below 1024px", async ({ page }) => {
+    // The narrow project's own 1100px is above the hero's 1024px breakpoint
+    // (distinct from the rail/Playbooks strip's 1180px) — set it explicitly
+    // for this one assertion rather than adding a whole second project.
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await signInAsDevUser(page, freshUsername());
+
+    const name = e2eTripName("Hero columns");
+    const { tripId } = await page.request.post("/api/trips", { data: { name } }).then((r) => r.json());
+    for (const command of commandsFor("threeDayTrip", tripId)) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+
+    await page.goto("/");
+    const hero = page.getByTestId("next-trip-hero");
+    await expect(hero.getByRole("heading", { level: 2, name })).toBeVisible();
+    const columns = await page
+      .locator(".hero-grid")
+      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length);
+    expect(columns).toBe(1);
   });
 });
 
