@@ -1,4 +1,4 @@
-### KI-2026-09-20-j — the assistant's "hangs up on a turn in flight" test failed once in a full-directory run and has not reproduced
+### KI-2026-09-20-j — the assistant's "hangs up on a turn in flight" test failed once in a full-directory run and has not reproduced — RESOLVED
 
 - **Severity:** unknown, and that is the entry. Either a real race in the
   hang-up path or a scheduling artefact of running twelve files together. One
@@ -42,3 +42,27 @@
 - **Deliberately not chased in PR #198.** That PR is a widget rail; the
   assistant is not in its diff, and chasing a one-off there would have widened
   it for something it did not cause.
+
+- **Resolved 2026-09-24 — a test bug, not a race in the hang-up path.**
+  Reproduced under load: three concurrent `vitest run -c vitest.unit.config.ts
+  src/components/pages` runs with the test at `{ repeats: 60 }` failed it in
+  3/3, as did its sibling *"refuses a turn's insert once the page has left
+  Editing"*, both with `expected "vi.fn()" to not be called at all, but
+  actually been called 1 times` — and the one PATCH carried the page's own
+  unchanged `"Notes"`, not the turn's insert. On demand: a 1 s wait after
+  `openRail()` fails it 3/3 on an idle machine. **Mechanism:** entering Editing
+  runs `PageEditor`'s `editor.setEditable(true)`, which emits tiptap's `update`
+  (`@tiptap/core` 2.27.2, `emitUpdate` defaults to true), which reaches
+  `PageScreen`'s 800 ms autosave debounce — so `onUpdate` stays uncalled only if
+  the test finishes inside 800 ms. Confirmed by passing `emitUpdate: false`
+  (temporarily): the delayed reproduction went green. The abort, the identity
+  guard and the insert refusal were correct throughout. **Fix:** the three
+  `expect(onUpdate).not.toHaveBeenCalled()` assertions in
+  `PageAssistant.test.tsx` (the third, the page-error test, had the same latent
+  window) now assert what they meant — every save is the page as opened
+  (`expectOnlyUnchangedSaves`). **Proof:** the 1 s-delay reproduction is 3/3
+  red before and 3/3 green after; the 3×-concurrent directory run with 60
+  repeats no longer fails either test; with `useAskThread`'s per-frame identity
+  guard removed (and a wait past the debounce) the new assertion goes red on
+  `"Bring a raincoat"`. Unrelated: the no-op autosave on every Reading/Editing
+  toggle is a real (harmless-content) PATCH, reported, not changed here.
