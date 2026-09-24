@@ -35,6 +35,11 @@ function matches(option: FieldOption, query: string): boolean {
     .every((word) => haystack.includes(word));
 }
 
+/**
+ * A search box that picks one field: shows `label`s under their `group`,
+ * hands `onChange` the chosen option's `value` (the stored path), and never
+ * stores what was typed.
+ */
 export function FieldPicker({
   id,
   label,
