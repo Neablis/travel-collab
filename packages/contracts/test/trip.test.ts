@@ -6,11 +6,13 @@ import {
   RestoreTrip,
   SetTripDates,
   SetTripName,
+  SetTripStartDate,
   TripCommand,
   TripCreatedV1,
   TripDetail,
   TripEvent,
   TripLineage,
+  TripStartDateSetV1,
   TripMember,
   TripRole,
   TripSummary,
@@ -117,6 +119,36 @@ describe("lifecycle commands", () => {
         newDayIds: [],
       }).success,
     ).toBe(false);
+  });
+
+  // KI-92: shape is not calendar validity. These all match YYYY-MM-DD.
+  it.each(["2026-02-30", "2027-02-29", "2026-13-45", "2026-00-10", "2026-04-31"])(
+    "rejects the impossible date %s on both date commands",
+    (date) => {
+      expect(
+        SetTripDates.safeParse({ type: "SetTripDates", tripId, startDate: date, endDate: null, newDayIds: [] })
+          .success,
+      ).toBe(false);
+      expect(SetTripStartDate.safeParse({ type: "SetTripStartDate", tripId, startDate: date }).success).toBe(false);
+    },
+  );
+
+  it("accepts a real leap day", () => {
+    expect(SetTripStartDate.safeParse({ type: "SetTripStartDate", tripId, startDate: "2028-02-29" }).success).toBe(
+      true,
+    );
+  });
+
+  // A stored event is history: it must keep parsing even if an impossible date
+  // was written before decide.ts started refusing them (PR #84), or replay breaks.
+  it("still parses a stored TripStartDateSet event with an impossible date", () => {
+    expect(
+      TripStartDateSetV1.safeParse({
+        type: "TripStartDateSet",
+        version: 1,
+        payload: { tripId, startDate: "2026-02-30" },
+      }).success,
+    ).toBe(true);
   });
 
   it("defaults newDayIds to an empty array", () => {

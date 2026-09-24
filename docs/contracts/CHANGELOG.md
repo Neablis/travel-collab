@@ -13,6 +13,23 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-24 — `SetTripDates` / `SetTripStartDate` refuse a date that is not on the calendar (KI-92)
+
+- **Changed:** `SetTripStartDate.startDate` and `SetTripDates.startDate` /
+  `.endDate` now use a `TripDateInput` (`YYYY-MM-DD` **and** a real day), so
+  `2026-02-30`, `2027-02-29`, `2026-13-45` fail at the parse instead of reaching
+  the domain's date math. **`TripStartDateSetV1` is deliberately unchanged** —
+  a stored event is history and must replay even if it predates `decide.ts`'s
+  `invalid-dates` refusal (PR #84); a test pins that.
+- Why: KI-92 — shape is not calendar validity; the command pipeline was closed
+  in PR #84, the contract was not, so any path around `decide.ts` could still
+  reach a `RangeError`.
+- Consumers updated: none needed. The UI's `<input type="date">` cannot emit an
+  impossible date, and `decide.ts` already refused one; a crafted request now
+  gets the parse error (4xx) at the boundary. `openapi.json` is unchanged (the
+  generator's drift test passes).
+- Breaking? no — every value it now refuses was already refused one layer in.
+
 ## 2026-09-24 — A Playbook as a file, Discover over `v1`, keyed create (ADR-050 Pass C)
 
 - **No `packages/contracts` schema changed.** A `v1` surface change plus an

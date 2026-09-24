@@ -87,11 +87,23 @@ export type RemoveDay = z.infer<typeof RemoveDay>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// A `YYYY-MM-DD` that names a real day (KI-92): shape alone admits 2026-02-30,
+// and the domain's date math can only refuse that by throwing. COMMANDS only —
+// the stored `TripStartDateSet` event keeps the shape-only regex, because an
+// event is history and must replay even if it predates decide.ts's
+// `invalid-dates` check (PR #84).
+function isCalendarDate(iso: string): boolean {
+  const [y, m, d] = iso.split("-").map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+const TripDateInput = z.string().regex(ISO_DATE).refine(isCalendarDate, "not a calendar date");
+
 // Display-only until M3: the domain and conflict engine never read this.
 export const SetTripStartDate = z.object({
   type: z.literal("SetTripStartDate"),
   tripId: z.string().uuid(),
-  startDate: z.string().regex(ISO_DATE).nullable(), // null clears
+  startDate: TripDateInput.nullable(), // null clears
 });
 export type SetTripStartDate = z.infer<typeof SetTripStartDate>;
 
@@ -116,8 +128,8 @@ export type TripNameSetV1 = z.infer<typeof TripNameSetV1>;
 export const SetTripDates = z.object({
   type: z.literal("SetTripDates"),
   tripId: z.string().uuid(),
-  startDate: z.string().regex(ISO_DATE).nullable(),
-  endDate: z.string().regex(ISO_DATE).nullable(),
+  startDate: TripDateInput.nullable(),
+  endDate: TripDateInput.nullable(),
   newDayIds: z.array(z.string().uuid()).default([]),
 });
 export type SetTripDates = z.infer<typeof SetTripDates>;
