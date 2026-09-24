@@ -39,7 +39,8 @@ export type ProposalUndo = "available" | "changed" | "undone";
  *
  * *Undo* dispatches the trip's `UndoLastChange`, which undoes the LAST batch —
  * whoever made it. So it is offered only while this card's batch is still the
- * head of the trip's history. Once anyone has written since, pressing it would
+ * head of the trip's history — ignoring page-only batches (notebook saves),
+ * which the server never undoes. Once anyone has written since, pressing it would
  * undo *their* change, and the card points at History instead.
  *
  * This is the affordance, not the guarantee: the history can be a poll
@@ -56,7 +57,11 @@ export function proposalUndoFor(state: ProposalState, history: TripHistory | nul
   if (state.status !== "applied" || state.batchId == null || history === null) return null;
   const mine = history.entries.find((entry) => entry.batchId === state.batchId);
   if (mine?.undone === true) return "undone";
-  const head = history.entries[0];
+  // The head the SERVER would undo: the newest entry that is not a page-only
+  // batch. A notebook save lands on top of `entries`, but `deriveUndoRedo`
+  // never stacks it (KI-2026-09-22-c), so it does not stand between this card
+  // and its undo (KI-2026-09-23-f).
+  const head = history.entries.find((entry) => entry.pageId === undefined);
   return head !== undefined && head.batchId === state.batchId && history.canUndo ? "available" : "changed";
 }
 

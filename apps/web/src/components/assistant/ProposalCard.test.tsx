@@ -181,6 +181,15 @@ describe("proposalUndoFor", () => {
     expect(proposalUndoFor(applied, history([entry(THEIRS), entry(MINE)]))).toBe("changed");
   });
 
+  // KI-2026-09-23-f defect 1. A notebook autosave is a page-only batch: it goes
+  // to the head of `entries`, but the server's `deriveUndoRedo` never stacks it,
+  // so `UndoLastChange { undoesBatchId: MINE }` still undoes this card's batch.
+  // One keystroke in a notebook must not hide an Undo that still works.
+  it("stays available when only a notebook save has landed on top", () => {
+    const notebookSave = entry(THEIRS, { pageId: UUID });
+    expect(proposalUndoFor(applied, history([notebookSave, entry(MINE)]))).toBe("available");
+  });
+
   it("reads undone off the history, however it was undone", () => {
     const undoneBatch = entry(UUID, { origin: { kind: "undo", undoesBatchId: MINE } });
     expect(proposalUndoFor(applied, history([undoneBatch, entry(MINE, { undone: true })]))).toBe("undone");
