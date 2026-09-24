@@ -55,6 +55,27 @@ export function listPlacement(box: { top: number; bottom: number }, viewportHeig
 }
 
 /**
+ * The band of the screen `el`'s list can actually be seen in: the viewport,
+ * cut down by every ancestor that clips its overflow. The phone's insert sheet
+ * scrolls its body inside padding, so a list measured against the viewport
+ * alone could fit the screen and still lose its last pixels under the sheet's
+ * edge — measured on "A line for every booking"'s bind step, 2px past a body
+ * ending 20px above the screen's bottom.
+ */
+function visibleRoom(el: HTMLElement): { top: number; bottom: number } {
+  let top = 0;
+  let bottom = window.visualViewport?.height ?? window.innerHeight;
+  for (let parent = el.parentElement; parent !== null; parent = parent.parentElement) {
+    const overflow = getComputedStyle(parent).overflowY;
+    if (overflow === "" || overflow === "visible") continue;
+    const rect = parent.getBoundingClientRect();
+    top = Math.max(top, rect.top);
+    bottom = Math.min(bottom, rect.bottom);
+  }
+  return { top, bottom };
+}
+
+/**
  * A search box that picks one field: shows `label`s under their `group`,
  * hands `onChange` the chosen option's `value` (the stored path), and never
  * stores what was typed.
@@ -108,8 +129,9 @@ export function FieldPicker({
   const [placement, setPlacement] = useState<ReturnType<typeof listPlacement>>({ side: "below", maxHeight: LIST_MAX_PX });
   useLayoutEffect(() => {
     if (!open || !boxRef.current) return;
-    const viewport = window.visualViewport?.height ?? window.innerHeight;
-    setPlacement(listPlacement(boxRef.current.getBoundingClientRect(), viewport));
+    const room = visibleRoom(boxRef.current);
+    const box = boxRef.current.getBoundingClientRect();
+    setPlacement(listPlacement({ top: box.top - room.top, bottom: box.bottom - room.top }, room.bottom - room.top));
   }, [open]);
 
   return (
