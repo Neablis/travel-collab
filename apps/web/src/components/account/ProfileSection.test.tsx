@@ -41,7 +41,7 @@ let holdFetch: (() => void) | null = null;
 vi.mock("@/lib/apiClient", () => ({
   fetchPreferences: async () => {
     if (holdFetch !== null) await new Promise<void>((go) => (holdFetch = go));
-    return { ok: true as const, value: stored };
+    return { ok: true as const, value: { preferences: stored, isAdmin: false } };
   },
   updatePreferences: (patch: UpdateUserPreferences) => updatePreferencesMock(patch),
 }));

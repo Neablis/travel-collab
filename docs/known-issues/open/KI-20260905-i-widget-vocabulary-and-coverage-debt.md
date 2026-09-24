@@ -1,6 +1,7 @@
 ### KI-2026-09-05-i — widget-layer debt: an unreachable `count{of}`, five dead vocabulary items, a property test speaking a retired vocabulary, a hand-listed prompt line, and an undocumented refresh model
 
 - **Severity:** cleanup — five LOW findings, all CONFIRMED, none with a user-visible defect today. Bundled as one entry; strike a line as it lands and close when all five are struck.
+- **Milestone:** **M14, carried (assigned 2026-09-24, KI pass)** — owned by M14 (the notebook/widget builder), not a gate box. Listed in `docs/milestones/M14-rich-layer.md` § *Parked 2026-09-24*.
 - **Area:** `packages/pages/src/macros/primitives/single.ts:78-82`, `presets.ts:73-88`, `presets.test.ts:49-54`, `registry-types.ts:156,167,323`, `result.ts:22`, `registry.ts:54-64`, `registry.property.test.ts:83-104`, `packages/contracts/src/pages.ts:241-242`, `apps/web/src/server/ai/handleAskRequest.ts:1013`, `apps/web/src/components/pages/PageScreen.tsx:118-143`
 - **Symptom / What happens:**
   1. **[F-B05](../../reviews/2026-09-05-overnight-review/findings/F-B05-count-of-day-city-has-no-preset.md) — `count{of: "day" | "city"}` has no preset**, so "how many days / how many cities" is code only the AI can reach (through `primitiveCatalog()` and the prompt line). Two preset rows fix it; the guard is generalising `presets.test.ts:49` so every enum value of every `nonFilterParams` entry must appear in some preset. Same shape as KI-2026-09-02-d.

@@ -26,8 +26,10 @@ line this printed.
 
 They are **facts, not verdicts** — the same posture `pnpm state` takes.
 
-- *first unchecked item is M12, not M26* — fine when the marker records a
-  Mitchell decision that overrides position. Check the marker.
+- *first unchecked item is M12, not M26* — NOT fine any more: since
+  2026-09-24 the unticked milestone rows are the execution order
+  (KI-2026-09-21-a), so either the row or the marker was moved without the
+  other. Move whichever is wrong; a PAUSED row is already skipped.
 - *M9 appears on 2 rows with different tick states* — the tick state is
   **unknown**, not guessed. Two rows claim one id; resolve them.
 - *ticked in TODO but the gate has open boxes* — a real gate-close miss.

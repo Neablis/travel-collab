@@ -1,10 +1,15 @@
 # TODO — high-level roadmap for agents
 
-**How to use this file.** Whichever item carries `← current milestone` is the
-current work — **read the marker, not the position.** The list is deliberately
-out of order: Mitchell reorders it, and a reorder moves the marker without
-moving the rows. Read that milestone's file in `docs/milestones/` before
-planning anything. Check items off only when the milestone's exit gate passes
+**How to use this file.** **The unticked milestone rows, top down, are the
+execution order** (Mitchell, 2026-09-24): a reorder MOVES THE ROWS, and the
+first unticked row is the current work, which also carries
+`← current milestone`. A row marked **PAUSED** keeps its place but is skipped —
+it is neither current nor next until the word comes off. Ticked rows can sit
+anywhere. `pnpm milestone close` and `pnpm state` both read this order, so a
+reorder that moves only the marker shows up as DRIFT. *(Until 2026-09-24 this
+said "read the marker, not the position", and closing M26 the script proposed
+the wrong successor from the rows — KI-2026-09-21-a.)* Read that milestone's
+file in `docs/milestones/` before planning anything. Check items off only when the milestone's exit gate passes
 (not when code merges), via the gate-close checklist — `pnpm milestone close`
 runs it. Never start an item while an earlier one is unchecked without
 Mitchell's explicit say-so.
@@ -261,6 +266,30 @@ reorder and the one place a reorder updates.
       geocoder bug (corrected 2026-09-22). It also owns
       per-stop attribution, which **M19's link 3 depends on** — if M13 ships
       without it, that link returns to M19.)*
+- [ ] **M24 A leg knows where it goes and by what** → ← **current milestone**
+      `docs/milestones/M24-travel-legs.md`
+      *(**Minted and placed 2026-09-18 by Mitchell**, running after M12 and
+      before M14. A travel stop gets a **transport mode** and a **second
+      location**, and the map draws a real leg instead of inferring one.
+      **Mode carries its own field and does not inherit from `kind`**: `kind:
+      "transit"` says THAT a stop is travel, `mode` says by what, and they
+      cannot disagree because a mode is legal only on a transit stop, enforced
+      by the schema rather than by convention. That **answers the question the
+      candidate entry below has carried since 2026-09-01** (*"inherit, or carry
+      its own"*), which that entry says is *"worth deciding once for both"*
+      alongside M19 link 1's identical question about costs.
+      **`location` keeps meaning the origin** and an optional `endLocation` is
+      added beside it — no existing reader changes meaning. The rejected
+      alternative was modelling travel as an **edge between** two stops rather
+      than as a stop: rejected because the whole app is "a day is an ordered
+      list of activities", and an edge is not in that list.
+      **It has a prerequisite that is not its own deliverable**: the activity-field
+      descriptor refactor, `KI-20260905-o` — 21 non-test files hand-enumerate
+      activity fields and nothing goes red when one is missed. **It runs once,
+      before M13**, and is shared with M13 link 5 (`who`) and M19 link 1 (cost
+      kind). It was already scheduled once, on 2026-08-29, as *"one overnight
+      batch"* and did not happen; M13's gate now carries a box for it so it is
+      enforced rather than remembered.)*
 - [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
       → `docs/milestones/M14-rich-layer.md`
       *(**Scoped 2026-09-01** — six links, and the **repeaters ADR is a
@@ -312,6 +341,23 @@ reorder and the one place a reorder updates.
       last Consequence and in the milestone's gate. Note §18 reached `main`
       **after** #126 merged, so part of that PR — the Trip-wide / Day 6 badge —
       is un-shipped on purpose by link 2 rather than regressed.)*
+- [ ] **M19 A cost knows who and what it is for** →
+      `docs/milestones/M19-cost-model.md`
+      *(**Added to this file 2026-09-01. It was missing entirely** — minted and
+      placed last on 2026-08-31, recorded in `docs/milestones/README.md` and in
+      its own file, and in neither this file nor `docs/STATUS.md`. In a file
+      whose rule is "first unchecked item = current work", a milestone that is
+      not here cannot be found — **the same defect this file already records
+      against M17**, repeated three days later.
+      **Placed but not scoped**: the exit gate is deliberately unwritten,
+      because link 1 needs a design decision first (does a cost inherit its
+      category from `ActivityKind` or carry its own?). Five links: a cost's
+      kind, a cost's settled-vs-estimate state, who an activity is for, splits
+      derived from that, and the shared-day presentation. **Last is a real
+      position** — link 3 overlaps M13's `add-stop-who`, so running after M13
+      lets M13 land the field and M19 build on it rather than both adding one.
+      Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
+      is a plain sum of stop costs with nothing to divide by.)*
 - [x] **M15 Front door** — gate closed → `docs/milestones/M15-front-door.md`
 - [ ] **M9 The assistant cites what it plans** — **PAUSED 2026-09-13**, not cancelled: Phase 0 complete, the three real pieces of work untouched, and it keeps its place immediately after M21 (Mitchell's reorder — `docs/milestones/README.md`, 2026-09-13) →
       `docs/milestones/M9-ai-planning-partner.md`
@@ -341,48 +387,6 @@ reorder and the one place a reorder updates.
 - [x] **M22 An account can build on the API** — gate closed 2026-09-19 → `docs/milestones/M22-public-api-and-tokens.md`
 - [x] **M25 A trip is a file you can take with you** — gate closed 2026-09-19 → `docs/milestones/M25-a-trip-is-a-file.md`
 - [x] **M23 A playbook can be more than one day** — gate closed 2026-09-19 → `docs/milestones/M23-multi-day-playbooks.md`
-- [ ] **M24 A leg knows where it goes and by what** → ← **current milestone**
-      `docs/milestones/M24-travel-legs.md`
-      *(**Minted and placed 2026-09-18 by Mitchell**, running after M12 and
-      before M14. A travel stop gets a **transport mode** and a **second
-      location**, and the map draws a real leg instead of inferring one.
-      **Mode carries its own field and does not inherit from `kind`**: `kind:
-      "transit"` says THAT a stop is travel, `mode` says by what, and they
-      cannot disagree because a mode is legal only on a transit stop, enforced
-      by the schema rather than by convention. That **answers the question the
-      candidate entry below has carried since 2026-09-01** (*"inherit, or carry
-      its own"*), which that entry says is *"worth deciding once for both"*
-      alongside M19 link 1's identical question about costs.
-      **`location` keeps meaning the origin** and an optional `endLocation` is
-      added beside it — no existing reader changes meaning. The rejected
-      alternative was modelling travel as an **edge between** two stops rather
-      than as a stop: rejected because the whole app is "a day is an ordered
-      list of activities", and an edge is not in that list.
-      **It has a prerequisite that is not its own deliverable**: the activity-field
-      descriptor refactor, `KI-20260905-o` — 21 non-test files hand-enumerate
-      activity fields and nothing goes red when one is missed. **It runs once,
-      before M13**, and is shared with M13 link 5 (`who`) and M19 link 1 (cost
-      kind). It was already scheduled once, on 2026-08-29, as *"one overnight
-      batch"* and did not happen; M13's gate now carries a box for it so it is
-      enforced rather than remembered.)*
-
-- [ ] **M19 A cost knows who and what it is for** →
-      `docs/milestones/M19-cost-model.md`
-      *(**Added to this file 2026-09-01. It was missing entirely** — minted and
-      placed last on 2026-08-31, recorded in `docs/milestones/README.md` and in
-      its own file, and in neither this file nor `docs/STATUS.md`. In a file
-      whose rule is "first unchecked item = current work", a milestone that is
-      not here cannot be found — **the same defect this file already records
-      against M17**, repeated three days later.
-      **Placed but not scoped**: the exit gate is deliberately unwritten,
-      because link 1 needs a design decision first (does a cost inherit its
-      category from `ActivityKind` or carry its own?). Five links: a cost's
-      kind, a cost's settled-vs-estimate state, who an activity is for, splits
-      derived from that, and the shared-day presentation. **Last is a real
-      position** — link 3 overlaps M13's `add-stop-who`, so running after M13
-      lets M13 land the field and M19 build on it rather than both adding one.
-      Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
-      is a plain sum of stop costs with nothing to divide by.)*
 
 - [x] **M26 The build looks like the design again**
       (2026-09-19, by Mitchell placing it — *"start the big design milestone we

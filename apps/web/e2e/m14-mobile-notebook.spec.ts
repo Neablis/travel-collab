@@ -75,19 +75,50 @@ function widget(page: import("@playwright/test").Page) {
     .first();
 }
 
+/**
+ * Runs `action` and waits for the page PATCH it causes to land.
+ *
+ * `carrying` narrows "a page PATCH" to "the PATCH that holds this edit".
+ * Without it, the wait takes any autosave that happens to be in flight. That
+ * is KI-2026-09-15-b: a save of the UNCHANGED document, sent before the insert
+ * and answered after the click, satisfied the wait. The reload that followed
+ * then threw away the insert's own save, which was still waiting out its
+ * 800 ms debounce, and the widget came back as "All days".
+ */
 async function waitForPageSaved(
   page: import("@playwright/test").Page,
   action: () => Promise<unknown>,
+  carrying: (content: unknown) => boolean = () => true,
 ): Promise<void> {
   await Promise.all([
-    page.waitForResponse(
-      (r) =>
-        /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) &&
-        r.request().method() === "PATCH" &&
-        r.ok(),
-    ),
+    page.waitForResponse((r) => {
+      if (!/\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname)) return false;
+      if (r.request().method() !== "PATCH" || !r.ok()) return false;
+      const body = r.request().postDataJSON() as { content?: unknown } | null;
+      return carrying(body?.content);
+    }),
     action(),
   ]);
+}
+
+/**
+ * The params of the document's FIRST `cost` macro — the inserted one, for the
+ * reason `widget()` gives — or undefined when there is none.
+ */
+function firstCostParams(content: unknown): Record<string, unknown> | undefined {
+  if (typeof content !== "object" || content === null) return undefined;
+  const node = content as {
+    type?: unknown;
+    attrs?: { name?: unknown; params?: Record<string, unknown> };
+    content?: unknown;
+  };
+  if (node.type === "macro" && node.attrs?.name === "cost") return node.attrs.params ?? {};
+  if (!Array.isArray(node.content)) return undefined;
+  for (const child of node.content) {
+    const found = firstCostParams(child);
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
 test.describe("phone Notebook (SPEC §19)", () => {
@@ -116,7 +147,13 @@ test.describe("phone Notebook (SPEC §19)", () => {
     await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
     await page.keyboard.press("Escape");
 
-    await waitForPageSaved(page, () => sheet.getByRole("button", { name: "Insert it" }).click());
+    // The save that carries the BOUND widget, not merely the next save: the
+    // reload below would discard one still pending (KI-2026-09-15-b).
+    await waitForPageSaved(
+      page,
+      () => sheet.getByRole("button", { name: "Insert it" }).click(),
+      (content) => firstCostParams(content)?.dates !== undefined,
+    );
 
     // **The sheet closes and NOTHING opens behind it**, which is §19's "one
     // sheet deep, ever" applied to the moment after an insert rather than

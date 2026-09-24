@@ -9,8 +9,8 @@ import { Text } from "@/components/ui/text";
 // editor. Two things had no home before this.
 //
 // 1. Distance conflicts ("~309 km apart on the same day") were only ever
-//    written out in ConflictBanner's board-level list — Timeline's inline
-//    OverlapWarning covers `time-overlap` and nothing else — so on every other
+//    written out in ConflictBanner's board-level list — the card's overlap
+//    chip covers `time-overlap` and nothing else — so on every other
 //    surface they reduced to a bare warning triangle with no words attached.
 // 2. A *dismissed* conflict was written out nowhere at all. ConflictBanner
 //    filters dismissed ids out of its list, which is the point of dismissing

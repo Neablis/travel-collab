@@ -34,6 +34,7 @@ import {
   type RevenueSummary,
   type UnderwaterReport,
 } from "@/server/billing/revenue";
+import { priceConsistencyReport, type PriceConsistencyReport } from "@/server/billing/prices";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
 /**
@@ -471,16 +472,24 @@ export interface AdminOverview {
   revenue: RevenueSummary;
   /** M21 link 7's segmented *"costs more than it pays"*. */
   underwater: UnderwaterReport;
+  /**
+   * **Whether each published version's Stripe Price charges what the plan file
+   * says** — M21 link 2's gate box, swept across every version rather than only
+   * the one being bought at the till (KI-2026-09-16-c). A read against Stripe:
+   * a `missing` Price is reported, never created.
+   */
+  prices: PriceConsistencyReport;
 }
 
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
-  const [plans, grantSources, accounts, spenders, revenue, underwater] = await Promise.all([
+  const [plans, grantSources, accounts, spenders, revenue, underwater, prices] = await Promise.all([
     planPanel(now),
     grantSourcePanel(now),
     adminAccounts(100, now),
     adminTopSpenders(10, now),
     revenueSummary(TRAILING_WINDOW_DAYS, now),
     underwaterReport(TRAILING_WINDOW_DAYS, now),
+    priceConsistencyReport(),
   ]);
   return {
     plans,
@@ -490,5 +499,6 @@ export async function adminOverview(now: Date = new Date()): Promise<AdminOvervi
     windowDays: TRAILING_WINDOW_DAYS,
     revenue,
     underwater,
+    prices,
   };
 }

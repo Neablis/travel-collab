@@ -81,9 +81,17 @@ Prereqs: Node 24 (pinned in `.nvmrc` — `nvm use`; CI, Vercel and `engines` all
 pnpm install
 pnpm setup                      # copies .env.example → apps/web/.env.local
 docker compose up -d            # Postgres 17 on :5433
-pnpm --filter web db:reseed     # migrate + seed a demo trip
-pnpm --filter web dev           # http://localhost:3001
+pnpm --filter web db:migrate    # create the schema (db:reseed does not migrate)
+pnpm --filter web dev           # http://localhost:3001 — leave it running
+
+# in a second terminal, once the server answers:
+pnpm --filter web db:reseed     # wipe + seed demo trips and content
 ```
+
+`db:reseed` is `db:reset --yes && db:seed && content:import`. It does not
+migrate, and the seed goes through the running server's command API on purpose
+(`apps/web/scripts/db-seed.ts`), so it needs both the schema and the dev server
+first.
 
 The defaults work as-is: sign in with the username-only **Dev Login**
 (`AUTH_DEV_LOGIN=true`; never set in production) — Google OAuth, geocoding,

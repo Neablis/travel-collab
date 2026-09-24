@@ -170,7 +170,7 @@ function bundleFiles(dir: string): string[] {
 }
 
 /** Playbook days for one bundle, in one transaction, plus any prune. */
-async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
+export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
   const resolved = bundle.playbooks.map((p) => resolvePlaybook(bundle.bundle.id, p, bundle.bundle.origin));
   const ids = resolved.map((d) => d.savedDayId);
   let pruned = 0;
@@ -216,6 +216,10 @@ async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
           name: day.name,
           summary: day.summary,
           stops: day.stops,
+          // The declaration, not the stops' floor: a playbook whose LAST
+          // authored day has no stops leaves no `dayIndex` behind (ADR-048
+          // decision 2, KI-2026-09-24-b). Same as the dev route.
+          dayCount: day.dayCount,
           visibility: day.visibility,
           authorKind: day.authorKind,
           sourceBundle: bundle.bundle.id,

@@ -534,39 +534,38 @@ export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGl
 }
 
 /**
- * Whether this account is an operator (M20 link 7).
+ * What `GET /api/account/preferences` answers: the person's preferences, and
+ * whether the account is an operator (M20 link 7).
  *
- * Reads the same endpoint `fetchPreferences` does — `is_admin` rides alongside
- * `preferences` rather than inside it, because it is not a preference and
- * widening that DTO would put an authorisation fact in a shape whose contract
- * is "what this person chose about themselves".
- *
- * **Advisory, and it decides one link.** The console's layout, its page and
+ * `isAdmin` rides ALONGSIDE `preferences` rather than inside it, because it is
+ * not a preference — widening `UserPreferences` would put an authorisation fact
+ * in a shape whose contract is "what this person chose about themselves". It
+ * is **advisory, and it decides one link**: the console's layout, its page and
  * every admin endpoint answer 404 to a non-admin regardless.
- *
- * An `ApiResult` like every other helper here, not a bare boolean: this
- * module's stated contract is that **no helper ever rejects and every one
- * answers an `ApiResult`**, and `apiClient.test.ts`'s totality witness is what
- * keeps that true as helpers are added. A second return shape would have made
- * that witness unable to cover this one. The caller treats any failure as
- * `false` — a menu item that fails to appear costs an operator one typed URL,
- * and one that appears wrongly is a 404 nobody expected.
  */
-export async function fetchIsAdmin(): Promise<ApiResult<boolean>> {
-  try {
-    const res = await fetch(apiUrl("/api/account/preferences"));
-    return await readJson(res, (data) => (data as { isAdmin?: unknown }).isAdmin === true);
-  } catch (err) {
-    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
-  }
-}
+export type AccountPreferencesRead = { preferences: UserPreferences; isAdmin: boolean };
 
-export async function fetchPreferences(): Promise<ApiResult<UserPreferences>> {
+/**
+ * The account's preferences and its operator flag, in ONE request.
+ *
+ * One helper for both fields, not two (KI-2026-09-14-f). A `fetchIsAdmin`
+ * beside this used to issue the identical GET to take the other field, so every
+ * page load read the row twice. `PreferencesProvider` is the one caller, and it
+ * hands `isAdmin` on to the account menu — which keeps an authorisation read
+ * out of the query cache altogether rather than de-duplicating two reads
+ * through it.
+ *
+ * Anything but a literal `true` is `false`: a menu item that fails to appear
+ * costs an operator one typed URL, and one that appears wrongly is a 404
+ * nobody expected.
+ */
+export async function fetchPreferences(): Promise<ApiResult<AccountPreferencesRead>> {
   try {
     const res = await fetch(apiUrl("/api/account/preferences"));
-    return await readJson(res, (data) =>
-      UserPreferences.parse((data as { preferences: unknown }).preferences),
-    );
+    return await readJson(res, (data) => {
+      const body = data as { preferences: unknown; isAdmin?: unknown };
+      return { preferences: UserPreferences.parse(body.preferences), isAdmin: body.isAdmin === true };
+    });
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

@@ -32,9 +32,26 @@ describe("projectTripSummaries", () => {
       name: "Rome 2027",
       status: "active",
       members: [{ userId: "user-1", role: "owner" }],
-     
+
       createdAt: "2026-07-07T12:00:00.000Z",
+      startDate: null,
     });
+  });
+
+  // KI-034: Home picks its "next trip" by this, so the summary follows every
+  // set and every clear.
+  it("carries the latest start date, including a clear", () => {
+    const created = envelope(T1, "Rome 2027", "user-1");
+    const set: EventEnvelope = {
+      ...created,
+      seq: 2,
+      type: "TripStartDateSet",
+      payload: { tripId: T1, startDate: "2027-05-01" },
+    };
+    expect(projectTripSummaries([created, set])[0]!.startDate).toBe("2027-05-01");
+
+    const cleared: EventEnvelope = { ...set, seq: 3, payload: { tripId: T1, startDate: null } };
+    expect(projectTripSummaries([created, set, cleared])[0]!.startDate).toBeNull();
   });
 
   it("throws on an unparseable event (replay totality guard)", () => {

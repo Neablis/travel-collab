@@ -204,28 +204,31 @@ test("it lists steps 3 and 5 as still manual rather than inventing prose", () =>
   rmSync(root, { recursive: true, force: true });
 });
 
-// --- --next: the row-order trap, and the escape hatch -----------------------
+// --- the order: TODO.md's rows, top down ------------------------------------
 //
-// KI-2026-09-21-a. `next` defaults to the first unticked TODO row, i.e. row
-// ORDER — which TODO.md's own header says carries no information ("read the
-// marker, not the position ... a reorder moves the marker without moving the
-// rows"). These tests pin the trap as well as the escape hatch, so the day
-// somebody makes the default smarter, the test that must change says why.
+// KI-2026-09-21-a, closed 2026-09-24 by Mitchell choosing "the rows ARE the
+// order": a reorder moves the rows, so the next milestone is the next
+// unticked milestone row, skipping PAUSED ones. `--next` is an assertion of
+// that answer and a disagreement is refused. Before this the script had to
+// REQUIRE `--next`, because the header said "read the marker, not the
+// position" — on M26 the row order proposed M12 when the real next was M13.
 
-/** A repo whose ROW order and whose intended order disagree, as the real one did. */
-function reorderedRepo() {
+/** Rows in the intended order, deliberately NOT numeric (M22 before M21). */
+function reorderedRepo(extraRows = []) {
   return repo({
     "TODO.md": [
       "# TODO", "",
       "- [ ] **M20 An account knows what it may do** ← **current milestone**",
       "      `docs/milestones/M20-tiers.md`",
-      "- [ ] **M21 An account can pay for itself**",
-      "      `docs/milestones/M21-billing.md`",
+      ...extraRows,
       "- [ ] **M22 A later one, reordered ahead of M21**",
       "      `docs/milestones/M22-api.md`",
+      "- [ ] **M21 An account can pay for itself**",
+      "      `docs/milestones/M21-billing.md`",
       "",
     ].join("\n"),
     "docs/milestones/M22-api.md": "# M22 — A later one, reordered ahead of M21\n\n## Exit gate\n- [ ] a\n",
+    "docs/milestones/M9-ai.md": "# M9 — The assistant\n\n## Exit gate\n- [ ] a\n",
   });
 }
 
@@ -247,35 +250,12 @@ function assertUntouched(root, before, context) {
   }
 }
 
-test("without --next it REFUSES rather than guessing from row order", () => {
-  // It used to derive the next milestone from the first unticked row and only
-  // offer --next as an override. The file's own comment, the regression test
-  // below and KI-2026-09-21-a all said that derivation was wrong, and it was
-  // still what ran when nobody passed the flag. CodeRabbit, PR #200.
+test("without --next it takes the next ROW, not the next number", () => {
+  // M22's row sits above M21's. Numeric order (what `idx.items` is sorted by)
+  // would say M21; the rows say M22, and the rows are the order.
   const root = reorderedRepo();
-  const before = snapshot(root);
-  const out = run(root, ["close", "M20", "--confirm"], { expectFail: true });
-  assert.match(out, /--next <id> is required/);
-  assert.match(out, /read the marker, not the position/, "it says WHY, not just that it refused");
-  assert.match(out, /KI-2026-09-21-a/);
-  assertUntouched(root, before, "close M20 --confirm with no --next");
-  rmSync(root, { recursive: true, force: true });
-});
-
-test("the refusal names the row-order candidate as a guess with no authority", () => {
-  // The information is still useful; presenting it as the ANSWER is what was
-  // wrong. If this ever prints without the disclaimer, the trap is back.
-  const root = reorderedRepo();
-  const out = run(root, ["close", "M20"], { expectFail: true });
-  assert.match(out, /the next unticked ROW is M21/);
-  assert.match(out, /guess with no authority/);
-  rmSync(root, { recursive: true, force: true });
-});
-
-test("--next says when it differs from the row-order candidate", () => {
-  const root = reorderedRepo();
-  const out = run(root, ["close", "M20", "--next", "M22", "--confirm"]);
-  assert.match(out, /NOTE: --next M22 differs from the first unticked ROW \(M21\)/);
+  const out = run(root, ["close", "M20", "--confirm"]);
+  assert.match(out, /next: M22 — the next un-paused row in TODO\.md/);
   const todo = readFileSync(join(root, "TODO.md"), "utf8");
   const readme = readFileSync(join(root, "docs/milestones/README.md"), "utf8");
   assert.match(todo, /- \[ \] \*\*M22[^\n]*← \*\*current milestone\*\*/, "marker went to M22");
@@ -284,15 +264,51 @@ test("--next says when it differs from the row-order candidate", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-test("--next refuses an unknown id, an already-ticked one, the id being closed, and a bare flag", () => {
+test("a PAUSED row keeps its place but is skipped", () => {
+  const root = reorderedRepo([
+    "- [ ] **M9 The assistant** — **PAUSED 2026-09-13**, not cancelled",
+    "      `docs/milestones/M9-ai.md`",
+  ]);
+  const out = run(root, ["close", "M20", "--confirm"]);
+  assert.match(out, /next: M22/);
+  assert.match(out, /skipped as PAUSED: M9/);
+  assert.match(readFileSync(join(root, "TODO.md"), "utf8"), /- \[ \] \*\*M22[^\n]*← \*\*current milestone\*\*/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--next that disagrees with the rows is REFUSED and says to move the row", () => {
+  // Obeying it would put the marker where the rows disagree — the drift this
+  // rule exists to end. The fix is one row move, and the message says which.
+  const root = reorderedRepo();
+  const before = snapshot(root);
+  const out = run(root, ["close", "M20", "--next", "M21", "--confirm"], { expectFail: true });
+  assert.match(out, /--next M21 disagrees with TODO\.md's row order, whose next un-paused row is M22/);
+  assert.match(out, /move M21's row above M22's/);
+  assert.match(out, /Nothing written/);
+  assertUntouched(root, before, "close M20 --next M21 --confirm");
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--next that agrees with the rows is accepted as an assertion", () => {
+  const root = reorderedRepo();
+  const out = run(root, ["close", "M20", "--next", "M22", "--confirm"]);
+  assert.match(out, /next: M22/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--next refuses an unknown id, a PAUSED one, the id being closed, and a bare flag", () => {
   // Each refusal must leave the files untouched: a close that half-applies is
   // worse than no automation, which is this file's whole premise.
   for (const [args, pattern] of [
     [["close", "M20", "--next", "M99", "--confirm"], /--next M99 is not a milestone in TODO\.md/],
-    [["close", "M20", "--next", "M20", "--confirm"], /--next M20 is the milestone being closed/],
+    [["close", "M20", "--next", "M20", "--confirm"], /--next M20 disagrees with TODO\.md's row order/],
+    [["close", "M20", "--next", "M9", "--confirm"], /--next M9 disagrees[\s\S]*skipped as PAUSED: M9/],
     [["close", "M20", "--next", "--confirm"], /--next needs a milestone id/],
   ]) {
-    const root = reorderedRepo();
+    const root = reorderedRepo([
+      "- [ ] **M9 The assistant** — **PAUSED 2026-09-13**, not cancelled",
+      "      `docs/milestones/M9-ai.md`",
+    ]);
     const before = snapshot(root);
     const out = run(root, args, { expectFail: true });
     assert.match(out, pattern);
@@ -300,25 +316,23 @@ test("--next refuses an unknown id, an already-ticked one, the id being closed, 
     assertUntouched(root, before, args.join(" "));
     rmSync(root, { recursive: true, force: true });
   }
+});
 
-  // Already-ticked needs a repo where something IS ticked.
+test("with no un-paused row after it, close refuses rather than inventing one", () => {
   const root = repo({
     "TODO.md": [
       "# TODO", "",
-      "- [x] **M19 A done one**",
-      "      `docs/milestones/M19-done.md`",
       "- [ ] **M20 An account knows what it may do** ← **current milestone**",
       "      `docs/milestones/M20-tiers.md`",
-      "- [ ] **M21 An account can pay for itself**",
+      "- [ ] **M21 An account can pay for itself** — **PAUSED**",
       "      `docs/milestones/M21-billing.md`",
       "",
     ].join("\n"),
-    "docs/milestones/M19-done.md": "# M19 — A done one\n\n## Exit gate\n- [x] a\n",
   });
   const before = snapshot(root);
-  const out = run(root, ["close", "M20", "--next", "M19", "--confirm"], { expectFail: true });
-  assert.match(out, /--next M19 is already ticked/);
-  assert.match(out, /Nothing written/);
-  assertUntouched(root, before, "close M20 --next M19 --confirm");
+  const out = run(root, ["close", "M20", "--confirm"], { expectFail: true });
+  assert.match(out, /no unticked, un-paused milestone row follows M20/);
+  assert.match(out, /skipped as PAUSED: M21/);
+  assertUntouched(root, before, "close M20 with only a paused row after it");
   rmSync(root, { recursive: true, force: true });
 });

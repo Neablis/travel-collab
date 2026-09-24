@@ -1,6 +1,7 @@
 ### KI-2026-09-05-ad — the notebook assistant is page-*scoped* but has no page-*read*, so it cannot answer a single question about what is on the page
 
 - **Severity:** correctness (a capability the UI advertised and the server cannot perform) — **plus a design-feedback item**, because SPEC §23 specifies an ask that no build could honour without new server work. The user-visible half is fixed on this branch; the gap underneath it is not, and it is what still blocks §23's Notebook quick asks.
+- **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/server/ai/handleAskRequest.ts` (`briefFor`, ~line 714, and the tool assembly at ~line 482), `apps/web/src/server/ai/pageTools.ts`, `apps/web/src/server/ai/readTools.ts`, `apps/web/src/components/assistant/phoneAskContext.ts` (`notebookQuickAsks`, the two Notebook hints), `.design-sync/handoff/SPEC.md` §23.
 - **Symptom / What happens:** ask the phone assistant anything about the page you have open — "summarise this", "what is on this page", "which of these is stale?" — and the model answers without ever having seen the document. It cannot refuse informatively either, because nothing tells it the content is missing; the failure mode is a confident answer derived from the page's title.
 

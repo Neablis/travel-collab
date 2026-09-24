@@ -6,11 +6,14 @@ import {
   RestoreTrip,
   SetTripDates,
   SetTripName,
+  SetTripStartDate,
+  isCalendarDate,
   TripCommand,
   TripCreatedV1,
   TripDetail,
   TripEvent,
   TripLineage,
+  TripStartDateSetV1,
   TripMember,
   TripRole,
   TripSummary,
@@ -85,6 +88,21 @@ describe("trip contracts", () => {
       }),
     ).toThrow();
   });
+
+  // KI-034 added `startDate`. A summary serialised before it (a client or
+  // server one deploy behind) has no such key and must still parse, to null.
+  it("parses a TripSummary from before startDate existed, as undated", () => {
+    const summary = {
+      tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+      name: "Rome 2027",
+      status: "active",
+      members: [{ userId: "dev-alice", role: "owner" }],
+      createdAt: "2026-07-08T12:00:00.000Z",
+    };
+    expect(TripSummary.parse(summary).startDate).toBeNull();
+    expect(TripSummary.parse({ ...summary, startDate: "2027-05-01" }).startDate).toBe("2027-05-01");
+    expect(TripSummary.safeParse({ ...summary, startDate: "May 1" }).success).toBe(false);
+  });
 });
 
 describe("lifecycle commands", () => {
@@ -117,6 +135,46 @@ describe("lifecycle commands", () => {
         newDayIds: [],
       }).success,
     ).toBe(false);
+  });
+
+  // KI-92: shape is not calendar validity. These all match YYYY-MM-DD.
+  it.each(["2026-02-30", "2027-02-29", "2026-13-45", "2026-00-10", "2026-04-31"])(
+    "rejects the impossible date %s on both date commands",
+    (date) => {
+      expect(
+        SetTripDates.safeParse({ type: "SetTripDates", tripId, startDate: date, endDate: null, newDayIds: [] })
+          .success,
+      ).toBe(false);
+      expect(SetTripStartDate.safeParse({ type: "SetTripStartDate", tripId, startDate: date }).success).toBe(false);
+    },
+  );
+
+  // One copy of the calendar check, shared with pages.ts and the domain's
+  // decider. The Date.UTC versions it replaced read years 0–99 as 1900–1999,
+  // so the boundary refused 0050-01-01 while the domain accepted it.
+  it("isCalendarDate agrees with the domain's parser on a two-digit year", () => {
+    expect(isCalendarDate("0050-01-01")).toBe(true);
+    expect(isCalendarDate("0050-02-29")).toBe(false);
+    expect(isCalendarDate("2026-02-30")).toBe(false);
+    expect(isCalendarDate("2026-2-3")).toBe(false);
+  });
+
+  it("accepts a real leap day", () => {
+    expect(SetTripStartDate.safeParse({ type: "SetTripStartDate", tripId, startDate: "2028-02-29" }).success).toBe(
+      true,
+    );
+  });
+
+  // A stored event is history: it must keep parsing even if an impossible date
+  // was written before decide.ts started refusing them (PR #84), or replay breaks.
+  it("still parses a stored TripStartDateSet event with an impossible date", () => {
+    expect(
+      TripStartDateSetV1.safeParse({
+        type: "TripStartDateSet",
+        version: 1,
+        payload: { tripId, startDate: "2026-02-30" },
+      }).success,
+    ).toBe(true);
   });
 
   it("defaults newDayIds to an empty array", () => {

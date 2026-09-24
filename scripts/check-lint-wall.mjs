@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, rmSync, mkdtempSync } from "node:fs";
+import { readFileSync, rmSync, mkdtempSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,10 +40,11 @@ const ESLINT_BIN = join(process.cwd(), "apps", "web", "node_modules", ".bin", "e
  * start", and telling those apart is what the `-o <file>` report and the
  * print-config parse below are for.
  */
-function eslint(args) {
+function eslint(args, input) {
   return execFileSync(ESLINT_BIN, args, {
     cwd: "apps/web",
     stdio: "pipe",
+    input,
   }).toString();
 }
 
@@ -73,10 +74,22 @@ const configArgs = process.env.LINT_WALL_ESLINT_CONFIG
 // (apps/web/src/app/__name__.tsx). The gateway wall below fixtures a
 // server-side file instead (apps/web/src/server/ai/__name__.ts), so both
 // need to be overridable rather than duplicating this helper.
+//
+// THE FIXTURE NEVER TOUCHES THE DISK (KI-2026-09-23-g). It is piped to eslint
+// on stdin, and `--stdin-filename` gives it the path it would have had, which
+// is all flat config needs: `files`/`ignores` blocks, the
+// `import/no-restricted-paths` zones and relative-import resolution all key off
+// that name, not off a file existing there (measured 2026-09-24 — a stdin
+// fixture named `src/server/ai/__probe__.ts` importing the gateway draws both
+// `no-restricted-imports` and `import/no-restricted-paths`, and one named under
+// `node_modules/` draws the same "File ignored" warning a real file does). It
+// used to be written to `apps/web/<relative>` for the length of one eslint run,
+// with a FIXED name, so a `tsc --noEmit` or ESLint pass over `src` in the same
+// checkout reported errors in files that were gone when anyone looked, and two
+// wall runs at once deleted each other's fixtures.
 function lintFixture(name, source, { dir = "src/app", ext = "tsx" } = {}) {
   const relative = `${dir}/__${name}__.${ext}`;
   const fixture = `apps/web/${relative}`;
-  writeFileSync(fixture, source);
   // `-o` rather than reading stdout: when the linted file has problems `pnpm exec` appends
   // its own `[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] ...` line to STDOUT, so the report is not
   // the last thing there and no bracket-matching heuristic survives it.
@@ -85,7 +98,7 @@ function lintFixture(name, source, { dir = "src/app", ext = "tsx" } = {}) {
   let report;
   try {
     try {
-      eslint([...configArgs, "-f", "json", "-o", reportPath, relative]);
+      eslint([...configArgs, "-f", "json", "-o", reportPath, "--stdin", "--stdin-filename", relative], source);
     } catch {
       // eslint exits 1 both when it reports an error and when it fails to start. Only the
       // former leaves a report behind; the latter is caught by the read/parse below.
@@ -98,7 +111,6 @@ function lintFixture(name, source, { dir = "src/app", ext = "tsx" } = {}) {
     process.exitCode = 1;
     return { fixture, ranEslint: false, errorRuleIds: [] };
   } finally {
-    rmSync(fixture, { force: true });
     rmSync(reportDir, { recursive: true, force: true });
   }
 

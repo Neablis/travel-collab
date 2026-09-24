@@ -9,6 +9,7 @@ import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
+import { formatTripDateLong } from "@/lib/formatDate";
 import { PHONE_TOUCH } from "@/components/ui/button";
 
 export type TripCardProps = {
@@ -58,7 +59,7 @@ function statusLabel(status: TripStatus): string {
 // colors independently of any other card in the grid (Task 8.2, Group B), so
 // it resolves as a single-element dayAccents() call rather than batching
 /**
- * Renders a trip summary card with traveler information, status, creation date, and optional cost details.
+ * Renders a trip summary card with traveler information, status, start date (or creation date when undated), and optional cost details.
  *
  * @param trip - The trip data displayed by the card
  * @param menuSlot - Optional actions menu content
@@ -68,16 +69,23 @@ function statusLabel(status: TripStatus): string {
 export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
   const accent = dayAccents([trip.tripId])[0]!;
 
-  // TripSummary carries no start date, length, or cost (those live on
-  // TripDetail) — the one date-shaped field it does have is createdAt, an
-  // ISO instant. formatTripDate/-Long (lib/formatDate.ts) parse calendar
-  // dates (YYYY-MM-DD) and would mis-parse an instant string, so this
-  // mirrors NextTripHero's own createdAt formatting (Task 6) rather than
-  // misusing that helper.
+  // The trip's own start date when it has one (KI-034), WITH the year: the
+  // grid lists past trips beside future ones, and "Sat, May 1" cannot tell
+  // 2024 from 2027 (the "Created …" label it replaced carried the year). An undated trip falls back to when
+  // it was created, labelled as such — never a date it was not given.
+  // `createdAt` is an ISO INSTANT, which formatTripDate (a calendar-date
+  // parser) would mis-read, so that fallback formats it separately, the way
+  // NextTripHero does (Task 6).
   const created = new Date(trip.createdAt);
   const createdLabel = Number.isNaN(created.getTime())
     ? null
     : created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const dateLine =
+    trip.startDate !== null
+      ? formatTripDateLong(trip.startDate)
+      : createdLabel !== null
+        ? `Created ${createdLabel}`
+        : null;
 
   return (
     // data-testid: the card is the anchor for its own actions menu, and the
@@ -108,9 +116,9 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
         >
           <Heading level={3}>{trip.name}</Heading>
         </Link>
-        {createdLabel && (
+        {dateLine !== null && (
           <div className="mt-1">
-            <DataText size="sm">Created {createdLabel}</DataText>
+            <DataText size="sm">{dateLine}</DataText>
           </div>
         )}
         {/* KI-28: the slot is reserved (mt-1 + min-h-5, exactly one text-sm

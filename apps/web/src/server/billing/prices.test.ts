@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PLAN_VERSIONS, priceLookupKey, type PlanVersion } from "@/server/entitlements/planVersions";
 import { StripeApiError, type StripePrice } from "./stripeApi";
 
@@ -20,8 +20,15 @@ vi.mock("./stripeApi", async (importOriginal) => {
   };
 });
 
-const { assertPriceMatches, checkPriceConsistency, PriceMismatchError, stripePriceFor, UnpurchasableVersionError } =
-  await import("./prices");
+const {
+  assertPriceMatches,
+  checkPriceConsistency,
+  PRICE_CHECK_DEADLINE_MS,
+  priceConsistencyReport,
+  PriceMismatchError,
+  stripePriceFor,
+  UnpurchasableVersionError,
+} = await import("./prices");
 
 const plan = (planId: string): PlanVersion =>
   PLAN_VERSIONS.find((entry) => entry.planId === planId && entry.version === 1)!;
@@ -135,6 +142,24 @@ describe("the consistency check the gate box asks for", () => {
       committed: { minor: 900, currency: "usd" },
       stripe: { minor: 1, currency: "usd" },
     });
+    // **Exactly the two facts the row's type names**, and nothing else from the
+    // plan record: a spread of `entry.price` also shipped `stripePriceId` to
+    // the console under a type that did not declare it.
+    expect(rows.find((row) => row.ref === "plus@v1")?.committed).toEqual({ minor: 900, currency: "usd" });
+  });
+
+  // The console bounds the whole sweep at 3s; one-at-a-time lookups would
+  // miss it on a healthy Stripe once there are enough priced versions.
+  it("asks Stripe about every priced version at once, not one after another", async () => {
+    const priced = PLAN_VERSIONS.filter((entry) => priceLookupKey(entry) !== null);
+    expect(priced.length).toBeGreaterThan(1);
+    const pending: ((price: StripePrice | null) => void)[] = [];
+    findPriceByLookupKey.mockImplementation(() => new Promise((resolve) => pending.push(resolve)));
+    const sweep = checkPriceConsistency();
+    await Promise.resolve();
+    expect(findPriceByLookupKey).toHaveBeenCalledTimes(priced.length);
+    for (const resolve of pending) resolve(null);
+    expect((await sweep).filter((row) => row.verdict === "missing")).toHaveLength(priced.length);
   });
 
   it("checks amount and currency, which is exactly what the box names", () => {
@@ -142,5 +167,39 @@ describe("the consistency check the gate box asks for", () => {
     expect(() => assertPriceMatches(plan("plus"), stripePrice({ unit_amount: null }))).toThrow(
       PriceMismatchError,
     );
+  });
+});
+
+// **The console waits for the sweep, so the sweep must not wait on Stripe for
+// long.** Each Stripe call has its own 15s timeout (right for checkout), and the
+// sweep asks one version after another — a stalled Stripe would hold `/admin`
+// for that per version. The report gives up at a short deadline instead.
+describe("the console's price report", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_not_a_real_key");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_not_a_real_secret");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("gives up at its deadline when Stripe never answers", async () => {
+    findPriceByLookupKey.mockImplementation(() => new Promise<never>(() => {}));
+    let settled: unknown;
+    void priceConsistencyReport().then((report) => (settled = report));
+    await vi.advanceTimersByTimeAsync(PRICE_CHECK_DEADLINE_MS);
+    expect(settled).toEqual({ status: "unavailable", reason: "timed out" });
+    expect(PRICE_CHECK_DEADLINE_MS).toBeLessThanOrEqual(3_000);
+  });
+
+  it("clears its deadline when Stripe answers in time", async () => {
+    findPriceByLookupKey.mockResolvedValue(null);
+    const report = await priceConsistencyReport();
+    expect(report.status).toBe("checked");
+    // A leftover timer per console load is the leak the `finally` exists for.
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

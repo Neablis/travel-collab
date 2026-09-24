@@ -139,8 +139,11 @@ Rules (ADR-004 + M1 retro):
   `DATABASE_URL=<preview pooled url> pnpm --filter web db:reset`
   — see the header of `apps/web/scripts/db-reset.mjs`. For local dev, `pnpm
   --filter web db:reseed` wipes and refills with realistic data in one shot
-  (`db:reset --yes` + `db:seed`, `.env.local`'s `DATABASE_URL` picked up
-  automatically) — see `apps/web/scripts/db-seed.ts`.
+  (`db:reset --yes` + `db:seed` + `content:import`, `.env.local`'s
+  `DATABASE_URL` picked up automatically) — see `apps/web/scripts/db-seed.ts`.
+  It does **not** migrate (run `pnpm --filter web db:migrate` first on a fresh
+  database) and it seeds through the command API, so `pnpm --filter web dev`
+  must already be running.
 
 ## Testing against a preview deployment
 

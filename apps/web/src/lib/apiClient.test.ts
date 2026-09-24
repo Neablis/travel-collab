@@ -15,7 +15,6 @@ import {
   duplicateTrip,
   leaveTrip,
   fetchInviteLanding,
-  fetchIsAdmin,
   fetchPreferences,
   fetchSavedDay,
   fetchSavedDays,
@@ -224,7 +223,6 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchSavedDay: () => fetchSavedDay(UUID),
   publishSavedDay: () => publishSavedDay(UUID),
   unpublishSavedDay: () => unpublishSavedDay(UUID),
-  fetchIsAdmin: () => fetchIsAdmin(),
   searchCities: () => searchCities("Kyo"),
   searchPlaces: () => searchPlaces("Mexic"),
   searchPlaybooks: () => searchPlaybooks({ cities: ["Kyoto"] }),
@@ -271,6 +269,8 @@ describe("searchPlaybooks puts its filters on the wire", () => {
           siblings: [],
           budgetCurrency: null,
           truncated: false,
+          matchCount: 0,
+          matchCountExact: true,
           sharedDayCount: 0,
         });
       }),
@@ -316,6 +316,8 @@ describe("searchPlaybooks puts its filters on the wire", () => {
           siblings: [],
           budgetCurrency: null,
           truncated: false,
+          matchCount: 0,
+          matchCountExact: true,
           sharedDayCount: 0,
         });
       }),

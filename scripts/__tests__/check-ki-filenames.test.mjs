@@ -104,3 +104,18 @@ test("skips the register's own README rather than reading it as an entry", () =>
   });
   assert.equal(status, 0);
 });
+
+// Two DIFFERENT entries sharing one id: the name and heading of each agree, so
+// the per-file check passes, and "KI-2026-09-16-b" in prose names two things.
+// The 2026-09-24 KI pass found eight such ids, all filed by parallel branches
+// that each picked the next free letter from their own stale view of `open/`.
+test("fails when two entries share one id, across open/ and resolved/", () => {
+  const { status, stderr } = runWall({
+    "open/KI-20260910-b-the-account-sheet-hides-grants.md": body("KI-2026-09-10-b"),
+    "resolved/KI-20260910-b-an-immutability-test-is-missing.md": body("KI-2026-09-10-b"),
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /KI-2026-09-10-b is used by 2 entries/);
+  assert.match(stderr, /KI-20260910-b-the-account-sheet-hides-grants\.md/);
+  assert.match(stderr, /KI-20260910-b-an-immutability-test-is-missing\.md/);
+});

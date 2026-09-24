@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { UserPreferences } from "@tc/contracts";
 import { AccountMenu, AccountMenuFromSession } from "./AccountMenu";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
@@ -31,25 +32,25 @@ beforeEach(() => {
 });
 
 const resetDemoDataMock = vi.fn();
-const fetchPreferencesMock = vi.fn(async () => ({
-  ok: true as const,
-  value: { displayName: null, homeAirport: null, distanceUnit: "km" as const },
-}));
 // Typed as the helper's real return so a `{ ok: false }` case can be driven —
 // `ApiResult`, like every other apiClient helper (its totality witness is what
 // keeps that one shape true).
-const fetchIsAdminMock =
-  vi.fn<() => Promise<{ ok: true; value: boolean } | { ok: false; error: { status: number; message: string } }>>(
-    async () => ({ ok: true, value: false }),
-  );
+//
+// M20 link 7: `isAdmin` rides in this same read, and the menu takes it from the
+// provider rather than asking again (KI-2026-09-14-f). Default false, so every
+// test written before the console keeps describing the menu it was written for.
+const fetchPreferencesMock = vi.fn<
+  () => Promise<
+    | { ok: true; value: { preferences: UserPreferences; isAdmin: boolean } }
+    | { ok: false; error: { status: number; message: string } }
+  >
+>(async () => ({
+  ok: true,
+  value: { preferences: { displayName: null, homeAirport: null, distanceUnit: "km" }, isAdmin: false },
+}));
 vi.mock("@/lib/apiClient", () => ({
   resetDemoData: (...args: unknown[]) => resetDemoDataMock(...args),
   fetchPreferences: () => fetchPreferencesMock(),
-  // M20 link 7: the menu asks once on mount whether this account is an
-  // operator, to decide whether to offer the console. Default false, so every
-  // test written before the console keeps describing the menu it was written
-  // for.
-  fetchIsAdmin: () => fetchIsAdminMock(),
   updatePreferences: vi.fn(async () => ({ ok: false as const, error: { status: 0, message: "no" } })),
 }));
 
@@ -280,17 +281,28 @@ describe("AccountMenuFromSession", () => {
 // renders — so what is asserted is that the console is reachable by CLICKING
 // for an operator and invisible to everyone else, which is the reviewability
 // half AGENTS.md's Definition of Done asks for.
+// Inside the provider, as the shell mounts it: the flag comes from the
+// provider's one preferences read, not from a request of the menu's own.
+const PREFS: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km" };
+function renderInShell() {
+  render(
+    <PreferencesProvider>
+      <AccountMenu name="Ana" email="ana@example.com" />
+    </PreferencesProvider>,
+  );
+}
+
 describe("AccountMenu — the operator console", () => {
   it("offers no console to an ordinary account", async () => {
-    fetchIsAdminMock.mockResolvedValue({ ok: true, value: false });
-    render(<AccountMenu name="Ana" email="ana@example.com" />);
+    fetchPreferencesMock.mockResolvedValue({ ok: true, value: { preferences: PREFS, isAdmin: false } });
+    renderInShell();
     await userEvent.click(screen.getByRole("button", { name: /account/i }));
     expect(screen.queryByRole("link", { name: "Operator console" })).toBeNull();
   });
 
   it("offers it to an operator, pointing at /admin", async () => {
-    fetchIsAdminMock.mockResolvedValue({ ok: true, value: true });
-    render(<AccountMenu name="Ana" email="ana@example.com" />);
+    fetchPreferencesMock.mockResolvedValue({ ok: true, value: { preferences: PREFS, isAdmin: true } });
+    renderInShell();
     await userEvent.click(screen.getByRole("button", { name: /account/i }));
     const link = await screen.findByRole("link", { name: "Operator console" });
     expect(link.getAttribute("href")).toBe("/admin");
@@ -300,8 +312,8 @@ describe("AccountMenu — the operator console", () => {
   // that fails to appear costs an operator one typed URL, and one that appears
   // wrongly is a 404 nobody expected.
   it("offers nothing when the read fails", async () => {
-    fetchIsAdminMock.mockResolvedValue({ ok: false, error: { status: 0, message: "offline" } });
-    render(<AccountMenu name="Ana" email="ana@example.com" />);
+    fetchPreferencesMock.mockResolvedValue({ ok: false, error: { status: 0, message: "offline" } });
+    renderInShell();
     await userEvent.click(screen.getByRole("button", { name: /account/i }));
     expect(screen.queryByRole("link", { name: "Operator console" })).toBeNull();
   });

@@ -68,6 +68,21 @@ const GRANDFATHERED = new Set([
   "KI-20260903-notebook-provenance-says-yours-for-a-collaborator.md",
 ]);
 
+// Ids that two or more DIFFERENT entries already share, found by the
+// 2026-09-24 KI pass. Renaming them would break every citation in source,
+// retros and milestones, so they are frozen as they are; any NEW shared id
+// fails. Cite these by filename slug, not by id alone.
+const SHARED_IDS_GRANDFATHERED = new Set([
+  "KI-2026-09-06-c",
+  "KI-2026-09-06-d",
+  "KI-2026-09-15-a",
+  "KI-2026-09-16-a",
+  "KI-2026-09-16-b",
+  "KI-2026-09-19-f",
+  "KI-2026-09-23-e",
+  "KI-2026-09-23-f",
+]);
+
 /** The heading id a filename implies, per the README's two shapes. */
 export function expectedHeadingId(digits, discriminator) {
   const base =
@@ -106,6 +121,7 @@ function scan(dir, file) {
 
 const ROOT = process.argv[2] ?? "docs/known-issues";
 const violations = [];
+const filesById = new Map();
 let scanned = 0;
 
 for (const sub of ["open", "resolved", "dormant"]) {
@@ -121,13 +137,27 @@ for (const sub of ["open", "resolved", "dormant"]) {
     scanned += 1;
     const problem = scan(dir, file);
     if (problem) violations.push(`${join(sub, file)}: ${problem}`);
+    const name = FILENAME.exec(file);
+    if (name && !GRANDFATHERED.has(file)) {
+      const { prefix, num, numDisc, date, dateDisc } = name.groups;
+      const id = `${prefix}-${expectedHeadingId(num ?? date, numDisc ?? dateDisc)}`;
+      filesById.set(id, [...(filesById.get(id) ?? []), join(sub, file)]);
+    }
+  }
+}
+
+for (const [id, files] of filesById) {
+  if (files.length > 1 && !SHARED_IDS_GRANDFATHERED.has(id)) {
+    violations.push(
+      `${id} is used by ${files.length} entries — give the newer one the next free letter:\n    ${files.join("\n    ")}`,
+    );
   }
 }
 
 if (violations.length > 0) {
   for (const line of violations) console.error(line);
   console.error(
-    `\nKI FILENAME WALL BREACHED: ${violations.length} entr(y|ies) whose name and heading disagree.\n` +
+    `\nKI FILENAME WALL BREACHED: ${violations.length} entr(y|ies) whose name and heading disagree, or that share an id.\n` +
       "The convention is two shapes for one id, and each has a job:\n" +
       "  filename  KI-20260905-c-<slug>.md   dashless, so `ls open/` sorts by date\n" +
       "                                       (a date id may take two letters,\n" +

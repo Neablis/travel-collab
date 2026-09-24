@@ -19,8 +19,7 @@ export type Slot = { start: string; end: string };
  * this took two goes to get right:
  *
  * - Gating on `timeWindow === null` alone was wrong because a stop can sit on a
- *   day with no time at all (`timelineData.ts` sorts exactly those into
- *   `row.untimed`), and `Board` routes a same-day reorder through this same
+ *   day with no time at all (an untimed stop on a scheduled day), and `Board` routes a same-day reorder through this same
  *   callback — so reordering one would have silently given it a start time it
  *   never asked for. (CodeRabbit, PR #55.)
  * - Gating on rack membership alone was wrong too, and worse: a stop can be

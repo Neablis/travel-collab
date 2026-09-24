@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ActivityKind, ActivityTag } from "./activity.ts";
 import { PageDoc } from "./pageDoc.ts";
+import { isCalendarDate } from "./trip.ts";
 
 // A day binding: the value shape of a `day` input inside ONE WIDGET's params
 // (ADR-035 decision 3 / SPEC §18). "index" = the Nth day (0-based) of the trip;
@@ -118,21 +119,10 @@ export type PersonRef = z.infer<typeof PersonRef>;
 // **The regex is the shape; the refinement is the calendar.** Format alone let
 // `2027-02-30` and `2027-13-01` through, and a filter bound to a date that
 // cannot happen matches nothing forever while looking perfectly valid in the
-// document (CodeRabbit, PR 141). Round-tripping through `Date.UTC` is the
-// cheapest total check: it normalises an out-of-range month or day, so a value
-// that comes back different was never a real date. February 29 falls out of it
-// for free — 2027-02-29 normalises to March 1 and is refused, 2028-02-29 does
-// not and is accepted.
-//
-// `Date.UTC` takes explicit values and reads no clock, so this stays pure
-// (Invariant 4) — the same construction `formatDate` already uses.
-const isCalendarDate = (value: string): boolean => {
-  const [year, month, day] = value.split("-").map(Number) as [number, number, number];
-  const utc = new Date(Date.UTC(year, month - 1, day));
-  return (
-    utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day
-  );
-};
+// document (CodeRabbit, PR 141). The refinement
+// is `isCalendarDate` from `trip.ts` — the one copy the command schemas and the
+// domain's decider also use (2026-09-24; this file carried its own `Date.UTC`
+// version until then, which refused years 0000–0099).
 
 const IsoDate = z
   .string()

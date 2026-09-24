@@ -29,17 +29,16 @@ import { resolveDrop } from "./resolveDrop";
 // the loose "+ Add day" button that used to trail the row. Shaped like a day
 // column (same 268px, dashed instead of tinted) so it reads as "the trip could
 // grow by one more of these" rather than as a stray control parked next to the
-// plan — the Day-columns twin of the timeline's EndOfTrip block, carrying the
-// same two actions: a real "Add a day" (the AddDay command TripBoardScreen
-// already dispatches) and a link into the public library.
+// plan. It carries the plan's terminal actions: a real "Add a day" (the AddDay
+// command TripBoardScreen already dispatches), "Add a saved day" (a slot, see
+// below) and a link into the public library.
 //
-// Deliberately NOT importing trip/EndOfTrip.tsx or extracting a shared block
-// out of it. The two share their copy and their actions, not their layout:
-// EndOfTrip is a full-bleed horizontal section (heading + a sentence of body
-// copy, the button floated opposite it, three Playbook shortcut cards in a
-// 3-up grid), and this is a 268px vertical column with no body copy and no
-// room for the shortcut grid. A shared component would be a prop-toggled
-// union of two different shapes; two buttons is the smaller duplication.
+// It began as the Day-columns twin of the Timeline lens's full-bleed
+// end-of-trip block, and deliberately shared no component with it — same copy
+// and actions, different shape (a horizontal section with body copy and a
+// shortcut grid, against this 268px vertical column). SPEC §24 deleted that
+// lens, and the block's orphaned module went in KI-2026-09-20-b, so this
+// column is now the only end-of-trip surface in the app.
 //
 // Design values from the phase file's "Design values" note: 15px/600
 // --color-ink title, dashed, matching the day columns' 268px width. The

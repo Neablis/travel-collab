@@ -91,7 +91,15 @@ const user = {
 function discover(days: DiscoverDay[]): ApiResult<DiscoverResponse> {
   return {
     ok: true,
-    value: { days, siblings: [], budgetCurrency: null, truncated: false, sharedDayCount: days.length },
+    value: {
+      days,
+      siblings: [],
+      budgetCurrency: null,
+      truncated: false,
+      matchCount: days.length,
+      matchCountExact: true,
+      sharedDayCount: days.length,
+    },
   };
 }
 

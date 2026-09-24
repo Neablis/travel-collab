@@ -8,7 +8,9 @@ import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { PHONE_TOUCH, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
+import { SparklineSkeleton } from "./HomeSkeletons";
 import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
@@ -34,7 +36,7 @@ export type NextTripHeroProps = {
 
 // Sparkline needs each day's real stop count and real city, but TripSummary
 // (what the trips list fetches) carries no day/activity/city data at all
-// (only tripId/name/status/members/createdAt) — that lives on TripDetail.
+// (only tripId/name/status/members/createdAt/startDate) — that lives on TripDetail.
 // Rather than fabricate numbers, this fetches the real TripDetail on mount
 // and derives the graph from its `days`/`activities` directly: the stop
 // count straight off the day's own `activityIds`, and the city via
@@ -82,8 +84,14 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
     const pad = (n: number) => String(n).padStart(2, "0");
     setToday(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`);
   }, []);
+  // **The date this hero shows** (KI-034): the summary's own `startDate` from
+  // the first frame, and the detail's once it has loaded — the detail is the
+  // fresher read of the same field, so it wins, including when it says the
+  // date was cleared. Before KI-034 the summary had no date and the meta row
+  // said "Created …" until the detail landed.
+  const shownStartDate = sparkline.status === "ready" ? startDate : trip.startDate;
   const countdown =
-    startDate === null || today === null ? null : relativeCalendarDays(startDate, today);
+    shownStartDate === null || today === null ? null : relativeCalendarDays(shownStartDate, today);
   // "{planned} planned of {budget}" (Task 4.1, M10 Phase 4) — derived from
   // the same real TripDetail fetch as the sparkline above, via tripSpend +
   // formatMoney (KI-2), keyed off the trip's own currency (never per-Money).
@@ -106,6 +114,9 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
   // narrower than SPEC §12's literal wording and says why. `null` is the same
   // "nothing honest to say yet" as its neighbours above.
   const [notBooked, setNotBooked] = useState<number | null>(null);
+  const detailLoading = sparkline.status === "loading";
+  const hasDecisions = conflictCount !== null && conflictCount > 0;
+  const hasUnbooked = notBooked !== null && notBooked > 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -153,24 +164,20 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
         <div className="flex flex-col gap-5 border-b border-hairline p-6 lg:border-b-0 lg:border-r">
           <div className="flex items-center gap-2.5">
             <Badge variant="brand">Next trip</Badge>
-            {/* **The countdown** (DRIFT D6, `dc.html:1540`, M26 link 9d). D6
-                is two things and only one of them is blocked: WHICH trip the
-                hero picks needs a start date on `TripSummary` (KI-034, still
-                open — `nextTrip` is `visibleTrips[0]`), but this hero already
-                fetches the whole `TripDetail` for its sparkline, so the date
-                it is counting to is real and has been all along.
+            {/* **The countdown** (DRIFT D6, `dc.html:1540`, M26 link 9d). Home
+                picks this hero by start date (`orderHomeTrips`, KI-034), and
+                this counts to that date.
 
-                **It stays honest about a trip that has started or passed**,
-                which the selection bug makes likely rather than theoretical:
+                **It stays honest about a trip that has started or passed**:
                 `relativeCalendarDays` says "yesterday" and "12 days ago" as
-                readily as "in 47 days". A countdown that only counts down
-                would print nothing, or a negative, for exactly the case D6
-                warns the hero can land on.
+                readily as "in 47 days". The hero lands on a past trip when
+                every trip is past, or when the trip is under way (the summary
+                has no end date, so "under way" ranks as past).
 
-                Absent until the first client frame and until the trip's real
-                start date lands — see `today`'s note for why it is read in an
-                effect, and `startDate`'s for why this hero never invents a
-                date it has not been given. */}
+                Absent until the first client frame and for an undated trip —
+                see `today`'s note for why it is read in an effect, and
+                `shownStartDate`'s for where the date comes from. This hero
+                never invents a date it has not been given. */}
             {countdown !== null && <DataText size="sm">{countdown}</DataText>}
             {menuSlot !== undefined && <div className="ml-auto">{menuSlot}</div>}
           </div>
@@ -188,16 +195,14 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
             >
               <Heading level={2}>{trip.name}</Heading>
             </Link>
-            {/* Meta row (README: "dates · length · cities") — TripSummary
-                itself carries none of those (no start date, no day/city
-                data), but TripDetail (fetched above, for the sparkline)
-                does have a real start date. Prefer that once it's in; until
-                then (or if the fetch fails), fall back to the one
-                date-shaped field TripSummary actually has: when the trip
+            {/* Meta row (README: "dates · length · cities") — the trip's real
+                start date (`shownStartDate`: the summary's until the detail
+                lands, KI-034). An undated trip falls back to the one other
+                date-shaped fact it has, labelled as what it is: when the trip
                 was created. */}
-            {startDate !== null ? (
+            {shownStartDate !== null ? (
               <div className="mt-1.5">
-                <DataText size="sm">{formatTripDate(startDate)}</DataText>
+                <DataText size="sm">{formatTripDate(shownStartDate)}</DataText>
               </div>
             ) : (
               createdLabel && (
@@ -263,7 +268,19 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
               While the detail is loading, or after it failed, there is nothing
               honest to say — the tiles said "—" there, and a line reading
               "— need a decision" would be worse. And "0 need a decision" is not
-              a task. */}
+              a task.
+
+              **Its own line below `md`, held open while the detail loads**
+              (KI-2026-09-23-e). It used to share the button's row and wrap
+              wherever its text ran out — on a 390px phone, "N not booked yet"
+              dropped under the button 30px after the page had painted. Now,
+              below `md`, it takes a full-width line of its own at the 44px
+              phone floor the decisions link already has, and while the detail
+              loads that line is a bone rather than nothing. A trip that turns
+              out to have nothing to do gives the line back; a trip with
+              something to do — the case where the line is worth reading —
+              lands in space already made for it. From `md` up it sits beside
+              the button as before, where the row never wrapped. */}
           <div className="mt-0.5 flex flex-wrap items-center gap-x-4.5 gap-y-3">
             {/* **`Open trip`, and it was `Open plan`** — Mitchell, Vercel
                 Toolbar comment on the PR #196 preview, 2026-09-20, with this
@@ -279,20 +296,28 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
                 handler as *Open plan*: it goes to the trip, and a navigation is
                 a link — middle-clickable, and read as one. The trip's own
                 conflict banner is where the decisions are made. */}
-            {conflictCount !== null && conflictCount > 0 && (
-              <Link
-                href={`/trips/${trip.tripId}`}
-                className={cn(
-                  "inline-flex items-center gap-2 py-1.5 text-sm font-semibold text-danger-ink no-underline hover:underline",
-                  PHONE_TOUCH,
+            {(detailLoading || hasDecisions || hasUnbooked) && (
+              <div className="flex min-h-11 basis-full flex-wrap items-center gap-x-4.5 gap-y-3 md:min-h-0 md:basis-auto">
+                {detailLoading ? (
+                  <Skeleton circle className="h-3 w-32" delay={3} />
+                ) : (
+                  <>
+                    {hasDecisions && (
+                      <Link
+                        href={`/trips/${trip.tripId}`}
+                        className={cn(
+                          "inline-flex items-center gap-2 py-1.5 text-sm font-semibold text-danger-ink no-underline hover:underline",
+                          PHONE_TOUCH,
+                        )}
+                      >
+                        <span aria-hidden className="size-1.75 shrink-0 rounded-full bg-danger" />
+                        {conflictCount} {conflictCount === 1 ? "needs" : "need"} a decision
+                      </Link>
+                    )}
+                    {hasUnbooked && <span className="text-sm text-slate">{notBooked} not booked yet</span>}
+                  </>
                 )}
-              >
-                <span aria-hidden className="size-1.75 shrink-0 rounded-full bg-danger" />
-                {conflictCount} {conflictCount === 1 ? "needs" : "need"} a decision
-              </Link>
-            )}
-            {notBooked !== null && notBooked > 0 && (
-              <span className="text-sm text-slate">{notBooked} not booked yet</span>
+              </div>
             )}
           </div>
         </div>
@@ -305,13 +330,17 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
               // (an empty, day-numbered slot) — the placeholder below is
               // only for states where there's no real day data at all yet.
               <Sparkline days={sparkline.days} />
+            ) : sparkline.status === "loading" ? (
+              // KI-2026-09-23-e: the Sparkline's own height, not a 96px box —
+              // see SparklineSkeleton for what it reserves and what it cannot.
+              <SparklineSkeleton />
             ) : (
               <div
                 role="status"
                 aria-label="Shape of the trip"
                 className="flex h-24 items-center justify-center rounded-xl p-2 text-xs text-slate"
               >
-                {sparkline.status === "loading" ? "Loading…" : sparkline.status === "error" ? "Unavailable" : "No days yet"}
+                {sparkline.status === "error" ? "Unavailable" : "No days yet"}
               </div>
             )}
           </div>

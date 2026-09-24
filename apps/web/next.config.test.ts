@@ -23,11 +23,19 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 // current `=== "preview"` gate treats them alike, which is exactly why the
 // gap was invisible: it costs nothing today and would hide the regression the
 // day the gate becomes a truthiness or `startsWith` check.
+//
+// `nodeEnv` is optional because Vitest runs with NODE_ENV=test, which
+// next.config.ts's `isDev` (`!== "production"`) reads as development. So every
+// case that does not pass it is looking at the DEV branch of the policy — the
+// preview/production pairs above compare like with like, which is why that
+// never mattered to them; the dev-vs-built cases below pass it explicitly.
 async function headersFor(
   vercelEnv: string | undefined,
+  nodeEnv?: "production" | "development",
 ): Promise<Array<{ source: string; headers: Array<{ key: string; value: string }> }>> {
   vi.resetModules();
   vi.stubEnv("VERCEL_ENV", vercelEnv);
+  if (nodeEnv) vi.stubEnv("NODE_ENV", nodeEnv);
   const { default: config } = await import("./next.config");
   return (await config.headers!()) as Array<{
     source: string;
@@ -35,8 +43,11 @@ async function headersFor(
   }>;
 }
 
-async function cspFor(vercelEnv: string | undefined): Promise<string> {
-  const routes = await headersFor(vercelEnv);
+async function cspFor(
+  vercelEnv: string | undefined,
+  nodeEnv?: "production" | "development",
+): Promise<string> {
+  const routes = await headersFor(vercelEnv, nodeEnv);
   const global = routes.find((r) => r.source === "/:path*");
   const csp = global?.headers.find((h) => h.key === "Content-Security-Policy");
   if (!csp) throw new Error("no Content-Security-Policy header on the global route");
@@ -197,5 +208,74 @@ describe("the js-profiling document policy", () => {
     for (const route of await headersFor(env)) {
       expect(route.headers).toContainEqual({ key: "Document-Policy", value: "js-profiling" });
     }
+  });
+});
+
+/**
+ * KI-2026-09-12-d: four CSP surfaces that had only ever been reasoned about.
+ * Each was counter-probed in Chromium against a `next start` production build
+ * (and the dev branch against `next dev`) on 2026-09-24; the browser's own
+ * `Refused to …` lines are quoted in the resolved entry. These cases pin the
+ * directive values those probes proved, so an edit that would reopen one of
+ * them fails here instead of in a browser nobody is watching.
+ */
+describe("the four counter-probed CSP surfaces (KI-2026-09-12-d)", () => {
+  // The dev branch: React Refresh needs 'unsafe-eval', and the analytics
+  // debug script is off-origin. A built app needs neither, and the probe
+  // showed a production build refusing both — which stays true only while
+  // the relaxations stay behind `isDev`.
+  it("a production build's script-src is exactly 'self' 'unsafe-inline'", async () => {
+    expect(directive(await cspFor(undefined, "production"), "script-src")).toBe(
+      "script-src 'self' 'unsafe-inline'",
+    );
+  });
+
+  it("a production build's connect-src admits no ws: scheme", async () => {
+    expect(directive(await cspFor(undefined, "production"), "connect-src")).toBe(
+      "connect-src 'self' https://tiles.openfreemap.org",
+    );
+  });
+
+  it("the dev server's policy carries the dev-only relaxations", async () => {
+    const dev = await cspFor(undefined, "development");
+    expect(directive(dev, "script-src")).toBe(
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com",
+    );
+    expect(directive(dev, "connect-src")).toBe("connect-src 'self' https://tiles.openfreemap.org ws:");
+  });
+
+  // The Google hand-off is not a form submission: next-auth/react's
+  // `signIn("google")` POSTs by fetch and then assigns `window.location` to
+  // the URL Auth.js returns, so form-action never sees it. 'self' — which the
+  // probe showed refusing a form POST to another origin — therefore does not
+  // have to name accounts.google.com. Pinned so nobody "fixes" a Google
+  // sign-in problem by widening this.
+  it.each(["production", "preview", undefined])("form-action is exactly 'self' (%o)", async (env) => {
+    for (const nodeEnv of ["production", "development"] as const) {
+      expect(directive(await cspFor(env, nodeEnv), "form-action")).toBe("form-action 'self'");
+    }
+  });
+
+  it.each([
+    ["frame-ancestors", "frame-ancestors 'none'"],
+    ["object-src", "object-src 'none'"],
+    ["base-uri", "base-uri 'none'"],
+  ])("%s is 'none' in every environment", async (name, expected) => {
+    for (const env of ["production", "preview", undefined]) {
+      for (const nodeEnv of ["production", "development"] as const) {
+        expect(directive(await cspFor(env, nodeEnv), name)).toBe(expected);
+      }
+    }
+  });
+
+  // The share/invite route's header set is built by filtering the global one,
+  // so a filter that dropped or rewrote the CSP would leave exactly the pages
+  // that carry bearer tokens without it.
+  it("share and invite routes serve the same CSP as every other route", async () => {
+    const routes = await headersFor("production", "production");
+    const cspOf = (source: string) =>
+      routes.find((r) => r.source === source)?.headers.find((h) => h.key === "Content-Security-Policy")?.value;
+    expect(cspOf("/:path*")).toBeDefined();
+    expect(cspOf("/:prefix(s|invite)/:path*")).toBe(cspOf("/:path*"));
   });
 });

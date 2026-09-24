@@ -83,6 +83,44 @@ export function NextTripHeroSkeleton() {
   );
 }
 
+/**
+ * **The hero's *Shape of the trip* panel while its own `TripDetail` is in
+ * flight** — KI-2026-09-23-e. The page-level skeleton above has resolved by
+ * then; this is the hero's second wave.
+ *
+ * It is the `Sparkline`'s own stack, row for row, because the space is what
+ * matters here: the 96px well (`CHART_HEIGHT_PX`), the day-number row under
+ * it, and one row of city pills. The placeholder used to be the well alone, so
+ * on a phone — where this panel sits under the left column — the hero grew
+ * 60px when the detail landed and pushed *Other trips* down under the thumb.
+ *
+ * `h-4` and `h-6.5` stand in for a 12px/1.35 text line (16.2px) and a pill
+ * around one (26.2px): whole-step scale classes, so 0.4px short in total. The
+ * one shift left on purpose is a SECOND pill row, which depends on how many
+ * cities the trip has and how long their names are, and `TripSummary`, the
+ * one thing Home holds before the detail lands, carries no city data at all.
+ */
+export function SparklineSkeleton() {
+  return (
+    <SkeletonRegion label="Loading the shape of the trip" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex h-24 items-end gap-1.5">
+          {SPARK_HEIGHTS.map((height, i) => (
+            <Skeleton key={i} className={`flex-1 ${height}`} delay={2} />
+          ))}
+        </div>
+        {/* The day numbers: one 12px line, reserved and left empty — a row
+            of fourteen bones under fourteen bars reads as a second chart. */}
+        <div className="h-4" />
+      </div>
+      <div className="flex gap-1.5">
+        <Skeleton circle className="h-6.5 w-20" delay={3} />
+        <Skeleton circle className="h-6.5 w-18" delay={3} />
+      </div>
+    </SkeletonRegion>
+  );
+}
+
 export function TripGridSkeleton() {
   return (
     <SkeletonRegion

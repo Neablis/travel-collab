@@ -128,8 +128,8 @@ test("a README with no Current milestone line reports anchorMissing", () => {
 // --- TODO -------------------------------------------------------------------
 
 test("readTodo reports the first unchecked item AND the marker separately", () => {
-  // They are allowed to disagree: the marker records a decision that overrides
-  // position. Collapsing them would hide exactly the drift worth reporting.
+  // They can disagree (someone moved the marker and not the row); collapsing
+  // them would hide exactly the drift worth reporting.
   const root = repo({
     "TODO.md": [
       "# TODO", "- [x] **M11 done**", "- [ ] **M12 Reviews and moderation**",
@@ -139,6 +139,29 @@ test("readTodo reports the first unchecked item AND the marker separately", () =
   const todo = readTodo(root);
   assert.equal(todo.first.id, "M12");
   assert.equal(todo.marker.id, "M26");
+});
+
+test("readTodo's order is the milestone rows top down, skipping PAUSED rows and task rows", () => {
+  // KI-2026-09-21-a: the rows ARE the execution order. A paused milestone
+  // keeps its row but is not in the sequence; a task row that merely mentions
+  // a milestone id is not a milestone row.
+  const root = repo({
+    "TODO.md": [
+      "# TODO",
+      "- [ ] **M24 Legs** ← **current milestone**",
+      "- [ ] Tidy the M5 tokens",
+      "- [ ] **M9 The assistant** — **PAUSED 2026-09-13**",
+      "- [ ] **M14 Rich layer**",
+      "- [x] **M13 done**",
+      "- [ ] **M19 Costs** ← note: un-PAUSED 2026-09-30, was PAUSED behind M21",
+      "",
+    ].join("\n"),
+  });
+  const todo = readTodo(root);
+  // M19's "PAUSED" is commentary after the `←`, so M19 is still in order.
+  assert.deepEqual(todo.order.map((row) => row.id), ["M24", "M14", "M19"]);
+  assert.deepEqual(todo.paused.map((row) => row.id), ["M9"]);
+  assert.equal(todo.first.id, "M24");
 });
 
 test("a TODO with no checkboxes at all reports anchorMissing", () => {

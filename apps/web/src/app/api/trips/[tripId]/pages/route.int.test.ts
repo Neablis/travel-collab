@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { DEFAULT_TEMPLATES } from "@tc/pages";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { CURRENT_PAGE_DOC_VERSION, PageDoc, collectPageDocNodeTypes } from "@tc/contracts";
+import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY } from "@tc/pages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 
@@ -270,6 +273,132 @@ describe("/api/trips/:id/pages", () => {
       const req = new Request("http://test/api/trips/not-a-uuid/pages");
       const res = await GET(req, { params: Promise.resolve({ tripId: "not-a-uuid" }) });
       expect(res.status).toBe(404);
+    });
+  });
+
+  // KI-2026-09-05-g (F-B09 + F-B01). The write path used to store the Zod
+  // OUTPUT — so a node this build does not know was saved as its in-memory
+  // `{type:"unknown",raw}` wrapper and wrapped again on every later read — and
+  // it checked no widget name, so the registry and `attribute`'s allow-list
+  // were enforced only in the browser.
+  describe("the write path stores the canonical document and checks every widget", () => {
+    const doc = (...content: unknown[]) => ({ v: CURRENT_PAGE_DOC_VERSION, type: "doc", content });
+    const widget = (name: string, params: Record<string, unknown> = {}) => ({
+      type: "paragraph",
+      content: [{ type: "macro", attrs: { name, params } }],
+    });
+
+    async function create(tripId: string, content: unknown, title = "Notes") {
+      return POST(
+        new Request(`http://test/api/trips/${tripId}/pages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, context: { tripId }, content }),
+        }),
+        { params: Promise.resolve({ tripId }) },
+      );
+    }
+
+    async function patch(tripId: string, pageId: string, content: unknown) {
+      return PATCH(
+        new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        }),
+        { params: Promise.resolve({ tripId, pageId }) },
+      );
+    }
+
+    async function read(tripId: string, pageId: string) {
+      const res = await GET_ITEM(new Request(`http://test/api/trips/${tripId}/pages/${pageId}`), {
+        params: Promise.resolve({ tripId, pageId }),
+      });
+      return (await res.json()).page as { content: { v: number; content: unknown[] } };
+    }
+
+    async function seedEmpty(tripId: string) {
+      const res = await create(tripId, doc());
+      return ((await res.json()).page.id) as string;
+    }
+
+    it("carries a node this build does not know back out verbatim, across repeated saves", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedEmpty(tripId);
+      const future = { type: "futureNode", foo: 1 };
+      const sent = doc({ type: "paragraph", content: [{ type: "text", text: "hi" }] }, future);
+
+      expect((await patch(tripId, pageId, sent)).status).toBe(200);
+      const first = await read(tripId, pageId);
+      expect(first.content.content[1]).toEqual(future);
+
+      // The autosave loop: what the client read is what it writes back. Before
+      // the fix this is where the wrapper nested a second time.
+      expect((await patch(tripId, pageId, first.content)).status).toBe(200);
+      const second = await read(tripId, pageId);
+      expect(second.content.content[1]).toEqual(future);
+      expect(collectPageDocNodeTypes(PageDoc.parse(second.content))).toContain("futureNode");
+    });
+
+    it("carries an unknown node verbatim on create too", async () => {
+      const tripId = await seedTrip();
+      const future = { type: "futureNode", foo: 1 };
+      const res = await create(tripId, doc(future));
+      expect(res.status).toBe(201);
+      const pageId = (await res.json()).page.id as string;
+      expect((await read(tripId, pageId)).content.content[0]).toEqual(future);
+    });
+
+    it("stamps a document written without a version at the current one", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedEmpty(tripId);
+      expect((await patch(tripId, pageId, { type: "doc", content: [] })).status).toBe(200);
+      expect((await read(tripId, pageId)).content.v).toBe(CURRENT_PAGE_DOC_VERSION);
+    });
+
+    it("400s a document from a version this build does not understand, on PATCH and POST", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedEmpty(tripId);
+      const future = { v: CURRENT_PAGE_DOC_VERSION + 1, type: "doc", content: [] };
+      expect((await patch(tripId, pageId, future)).status).toBe(400);
+      expect((await read(tripId, pageId)).content.v).toBe(CURRENT_PAGE_DOC_VERSION);
+      expect((await create(tripId, future)).status).toBe(400);
+    });
+
+    it.each([
+      ["an unregistered widget", widget("nope.nope")],
+      ["an attribute outside the allow-list", widget("attribute", { field: "account.email" })],
+      ["a filter the widget does not select by", widget("city.rows", { kind: "booked" })],
+    ])("400s %s, on PATCH and POST, and stores nothing", async (_label, node) => {
+      const tripId = await seedTrip();
+      const pageId = await seedEmpty(tripId);
+      const res = await patch(tripId, pageId, doc(node));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toHaveProperty("error");
+      expect((await read(tripId, pageId)).content.content).toEqual([]);
+      expect((await create(tripId, doc(node))).status).toBe(400);
+    });
+
+    it("still accepts a registered widget with legal params", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedEmpty(tripId);
+      expect((await patch(tripId, pageId, doc(widget("cost", { kind: "booked" })))).status).toBe(200);
+      expect((await patch(tripId, pageId, doc(widget("attribute", { field: "trip.name" })))).status).toBe(200);
+    });
+
+    // A stricter write must not refuse the app's own documents: every template
+    // the gallery offers and every notebook the content bundle ships is created
+    // through exactly this route.
+    const bundle = JSON.parse(
+      readFileSync(resolve(process.cwd(), "../../content/notebooks/built-in-notebooks.json"), "utf8"),
+    ) as { notebooks: { key: string; title: string; content: unknown }[] };
+    it.each([
+      ...[...DEFAULT_TEMPLATES, ...TEMPLATE_LIBRARY].map((t) => [`template ${t.key}`, t.title, t.content] as const),
+      ...bundle.notebooks.map((n) => [`bundled notebook ${n.key}`, n.title, n.content] as const),
+    ])("saves the shipped %s", async (_label, title, content) => {
+      const tripId = await seedTrip();
+      const res = await create(tripId, content, title);
+      expect(res.status, JSON.stringify(await res.clone().json())).toBe(201);
     });
   });
 });

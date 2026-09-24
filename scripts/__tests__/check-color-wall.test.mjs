@@ -1,44 +1,51 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, relative as relativeTo } from "node:path";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// check-color-wall.mjs scans the real repo via `git ls-files` rather than
-// taking a directory argument (unlike check-sleep-wall.mjs), so these tests
-// run it against the actual tree instead of a fixture sandbox.
+// check-color-wall.mjs finds its input with `git ls-files` over `apps/web/src`
+// rather than taking a directory argument (unlike check-sleep-wall.mjs). The
+// one test that calls `runWall()` bare runs it against the actual tree; every
+// fixture test runs it against a throwaway repo via `COLOR_WALL_SCAN_ROOT`
+// (see `runWallAgainst`).
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WALL = join(REPO_ROOT, "scripts", "check-color-wall.mjs");
 const SENTRY_PAGE = "apps/web/src/app/sentry-example-page/page.tsx";
 
-function runWall() {
-  const result = spawnSync(process.execPath, [WALL], { encoding: "utf8", cwd: REPO_ROOT });
+function runWall(env = process.env) {
+  const result = spawnSync(process.execPath, [WALL], { encoding: "utf8", cwd: REPO_ROOT, env });
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
-// The wall reads the working tree, not an argument, so the only way to show it
-// on a given input is to put that input in the tree — and under `apps/web/src`,
-// the only place its `git ls-files` pathspec looks, which is why this cannot be
-// an OS temp directory. `--others --exclude-standard` means an unstaged file
-// counts, so nothing has to be staged; the directory goes away again whatever
-// the assertions do.
+// KI-2026-09-23-g: these fixtures used to be planted in this repo's own
+// `apps/web/src`, the only place the wall's `git ls-files` pathspec looks — and
+// a `tsc --noEmit` or ESLint pass running at the same time in the same checkout
+// reported errors in files that were gone by the time anyone looked. Now each
+// call builds a throwaway git repo in the OS temp dir, puts the fixture at
+// `apps/web/src/fixture/<basename>` inside it, and points the wall there with
+// `COLOR_WALL_SCAN_ROOT`. The fixture is still UNTRACKED in that repo, so it
+// reaches the wall through the same `--others --exclude-standard` listing a
+// brand-new file in the real tree does (KI-51); only `globals.css` and the
+// pending list still come from the real checkout.
 //
-// The name is MINTED PER CALL by `mkdtempSync`, never fixed. Teardown here is a
-// recursive delete, and a fixed path is one a developer's tree may already hold
-// — a scratch directory, the leftovers of a run that was killed — so a fixed
-// name gives this test the power to destroy work it did not create.
-// `mkdtempSync` creates and never reuses, so the directory removed in `finally`
-// is by construction one this call made.
-const FIXTURE_PREFIX = "apps/web/src/__color-wall-fixture-";
-function runWallAgainst(basename, contents) {
-  const dir = mkdtempSync(join(REPO_ROOT, FIXTURE_PREFIX));
-  const relative = `${relativeTo(REPO_ROOT, dir)}/${basename}`;
+// The directory is MINTED PER CALL by `mkdtempSync`, never fixed, and removed
+// in `finally` — by construction one this call made.
+function runWallAgainst(basename, contents, dir = "fixture") {
+  const root = mkdtempSync(join(tmpdir(), "tc-color-wall-"));
+  // One directory below `src` by default; `dir: ""` puts the file directly in
+  // `src`, which the wall's pathspec missed until 2026-09-24 (the test below).
+  const relative = dir ? `apps/web/src/${dir}/${basename}` : `apps/web/src/${basename}`;
   try {
-    writeFileSync(join(dir, basename), contents);
-    return { ...runWall(), relative };
+    const init = spawnSync("git", ["init", "--quiet", root], { encoding: "utf8" });
+    assert.equal(init.status, 0, `git init failed: ${init.stderr}`);
+    mkdirSync(join(root, "apps", "web", "src", ...(dir ? [dir] : [])), { recursive: true });
+    writeFileSync(join(root, relative), contents);
+    return { ...runWall({ ...process.env, COLOR_WALL_SCAN_ROOT: root }), relative };
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
   }
 }
 
@@ -62,6 +69,12 @@ test("the generated-non-product exclusion is non-vacuous: the excluded file real
 test("the wall passes end-to-end and names the generated-non-product exclusion separately from the shrinking pending list", () => {
   const { status, stdout } = runWall();
   assert.equal(status, 0, `expected the wall to pass; got: ${stdout}`);
+  // The DEFAULT scan root is the real `apps/web/src`. Every fixture test runs
+  // against a temp repo instead (KI-2026-09-23-g), so this is the one place a
+  // wall that quietly scanned nothing would show — "0 files scanned" is green.
+  // The floor is far below today's count (825 on 2026-09-24) on purpose.
+  const scanned = Number(stdout.match(/color wall OK \((\d+) files scanned/)?.[1] ?? 0);
+  assert.ok(scanned > 300, `expected the default root to scan the real apps/web/src; got: ${stdout}`);
   assert.match(stdout, /1 generated non-product excluded/);
   // The color-math list is named separately too, and for the same reason the
   // other two are: three lists with three different rules, reported as three
@@ -293,4 +306,18 @@ test("a token after a url on a LATER LINE of a template literal is still scanned
   const { status, stdout, stderr } = runWallAgainst("token-template.tsx", contents);
   assert.equal(status, 1, `expected the wall to FAIL on bg-amber-50; got: ${stdout}${stderr}`);
   assert.match(`${stdout}${stderr}`, /bg-amber-50/);
+});
+
+// Until 2026-09-24 the pathspec was `apps/web/src/**/*.ts`, and git's `**/`
+// needs a `/` after `src/`, so the five files directly in `src` — `proxy.ts`,
+// `config.ts`, `instrumentation*.ts` — were never scanned. Found by the
+// KI-2026-09-23-g fixer, whose first sandbox put its fixture there and went blind.
+test("a file directly in apps/web/src is scanned, not only files in subfolders", () => {
+  const { status, stderr, relative } = runWallAgainst(
+    "top-level.ts",
+    'export const X = "#0c6b58";\n',
+    "",
+  );
+  assert.notEqual(status, 0, `expected the wall to fail on ${relative}`);
+  assert.match(stderr, /top-level\.ts:1: raw color literal/);
 });

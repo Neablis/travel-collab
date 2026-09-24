@@ -1,6 +1,7 @@
 ### KI-2026-09-17-c — an escalated turn records all of its usage against the model it started on
 
 - **Severity:** accounting (cost per turn is understated for escalated turns; no user-visible behaviour changes)
+- **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
 - **Area:** `apps/web/src/server/ai/handleAskRequest.ts` — the recorder at `model: grant.modelId` against the `prepareStep` swap to `grant.escalation.model`
 - **Symptom:** a `withheld` turn is admitted on `tierFor("question")` and calls `request_change_tools`; `prepareStep` then re-enters the remaining steps with `grant.escalation.model`, which is a different and more expensive tier. The usage recorder captures `grant.modelId` once, so `ledgerFor` stores the initial model in `cost.turn.model`, `ai.ask` logs it, and `recordAiUsage` persists it. Every token the escalated steps spent is billed at the cheap model's rate.
 - **Found by:** CodeRabbit, PR #188. Confirmed by reading the two lines: the swap and the recorder disagree, and nothing between them reconciles the two.

@@ -117,6 +117,8 @@ export type DiscoverQuery = {
 
 type DiscoverRow = {
   id: string;
+  /** `count(*) over ()` — present on `discoverDays`' read only. */
+  total_count?: number;
   owner_id: string;
   name: string;
   stops: unknown;
@@ -507,12 +509,19 @@ const discoverColumns = sql`
 
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const rows = await db.execute<DiscoverRow>(sql`
-    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count
+    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
+      count(*) over ()::int as total_count
     from saved_days d
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
     limit ${CANDIDATE_LIMIT}
   `);
+  // `count(*) over ()` is evaluated before `limit`, so every row carries the
+  // number of rows the WHERE matched — the whole library's answer to these
+  // filters, not the window's. It rides on the query that already runs rather
+  // than being a second one: the ranking already has to visit every matching
+  // row to sort them, so the count costs no extra round trip and no extra scan.
+  const windowFull = rows.rows.length === CANDIDATE_LIMIT;
 
   const candidates = [...rows.rows]
     .map((row) => toDiscoverDay(row, query.cities, query.readerId))
@@ -549,7 +558,21 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     // (CodeRabbit, PR 102). The profile day list is this same function, and
     // it says the same thing there by comparing its card count against
     // `daysShared`.
-    truncated: rows.rows.length === CANDIDATE_LIMIT || filtered.length > PAGE_LIMIT,
+    truncated: windowFull || filtered.length > PAGE_LIMIT,
+    // What the results sentence states (KI-2026-09-23-h). Inside the window
+    // `filtered` IS the whole match — band applied, unreadable rows dropped —
+    // so it is exact and agrees with the page to the day. Past the window the
+    // SQL total is used, minus the rows this read could not parse; that is
+    // exact only with no band on, since the band cannot be a predicate. With a
+    // band on past the window, what is known is a floor, and it says so.
+    ...(!windowFull
+      ? { matchCount: filtered.length, matchCountExact: true }
+      : query.budget === "any"
+        ? {
+            matchCount: Number(rows.rows[0]!.total_count) - (rows.rows.length - candidates.length),
+            matchCountExact: true,
+          }
+        : { matchCount: filtered.length, matchCountExact: false }),
   };
 }
 

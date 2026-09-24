@@ -139,9 +139,9 @@ test("parses a known fixture: milestone, gate tally, TODO, STATUS, KI titles", (
     /EXIT GATE: 1\/2 ticked, 1 descoped {2}\[docs\/milestones\/M42-the-answer\.md:7\]/,
   );
 
-  // The first unchecked item, cut at the `←` marker: the trailing commentary
-  // is decision history, and the marker gets its own line.
-  assert.match(stdout, /FIRST UNCHECKED TODO: M42 The answer {2}\[TODO\.md:4\]/);
+  // The unticked milestone rows, top down, are the execution order
+  // (KI-2026-09-21-a); cited at the first of them. The marker gets its own line.
+  assert.match(stdout, /ORDER \(TODO\.md rows, top down\): M42 → M43 {2}\[TODO\.md:4\]/);
   assert.match(stdout, /MARKED CURRENT: M42 {2}\[TODO\.md:4\]/);
 
   assert.match(stdout, /STATUS SAYS {2}\[docs\/STATUS\.md:5\]/);
@@ -271,7 +271,7 @@ test("survives a repo with none of the four state sources", () => {
   assert.equal(status, 0);
   assert.equal(stderr, "");
   assert.match(stdout, /CURRENT MILESTONE: \(not found in docs\/milestones\/README\.md\)/);
-  assert.match(stdout, /FIRST UNCHECKED TODO: none/);
+  assert.match(stdout, /ORDER \(TODO\.md rows, top down\): none/);
   assert.match(stdout, /OPEN KIs: \(docs\/known-issues\/open not found\)/);
 });
 

@@ -26,8 +26,16 @@ export function projectTripSummaries(envelopes: EventEnvelope[]): TripSummary[] 
           status: "active",
           members: [{ userId: event.payload.createdBy, role: "owner" }],
           createdAt: env.occurredAt,
+          startDate: null,
         });
         break;
+      // KI-034. The one event that moves the start date: `SetTripDates`,
+      // `SetTripStartDate`, a revert (`diff.ts`) and a clone all emit it.
+      case "TripStartDateSet": {
+        const s = byStream.get(env.streamId);
+        if (s !== undefined) s.startDate = event.payload.startDate;
+        break;
+      }
       case "TripNameSet": {
         const s = byStream.get(env.streamId);
         if (s !== undefined) s.name = event.payload.name;

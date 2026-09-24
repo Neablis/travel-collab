@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CreatePageInput, Page, PageSummary } from "@tc/contracts";
+import { CreatePageInput, Page, PageSummary, serializePageDoc } from "@tc/contracts";
 import { listPages } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { randomUUID } from "node:crypto";
@@ -67,7 +67,8 @@ export const { GET, POST } = route({
           pageId: randomUUID(),
           title: input.title,
           context: input.context,
-          content: input.content,
+          // The wire form, not the parse output — see the BFF route.
+          content: serializePageDoc(input.content),
         },
         actor.userId,
       );

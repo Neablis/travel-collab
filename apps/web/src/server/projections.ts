@@ -29,7 +29,13 @@ export async function applyTripEvents(
           members: [{ userId: event.payload.createdBy, role: "owner" }],
           createdAt: env.occurredAt,
           status: "active",
+          startDate: null,
         });
+        break;
+      case "TripStartDateSet":
+        await tx.update(tripSummaries)
+          .set({ startDate: event.payload.startDate })
+          .where(eq(tripSummaries.tripId, event.payload.tripId));
         break;
       case "TripNameSet":
         await tx.update(tripSummaries)
@@ -203,6 +209,16 @@ export async function listTripSummariesPage(
     .limit(page.limit);
 }
 
+/**
+ * Every trip this user can see, **newest-created first** (KI-034).
+ *
+ * The order is `listTripSummariesPage`'s, and it is stated because it used to
+ * be absent: with no `ORDER BY` the rows came back in heap order, which an
+ * `UPDATE` reshuffles, and Home made the head of that list its "Next trip".
+ * Home now picks the hero by `startDate` itself (`lib/homeTripOrder.ts`) —
+ * "upcoming" depends on the reader's own calendar day, which the server does
+ * not know — and uses this order as its tie-break, so it has to be one.
+ */
 export async function listTripSummariesVisibleTo(userId: string) {
   return db
     .select()
@@ -215,5 +231,6 @@ export async function listTripSummariesVisibleTo(userId: string) {
           hasMembershipRow(tripSummaries.tripId, userId),
         ),
       ),
-    );
+    )
+    .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId));
 }

@@ -107,8 +107,15 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
 
   // No <base> tag exists, and no form posts anywhere but here: every form in
-  // the app submits through an onSubmit handler, and Auth.js's Google
-  // hand-off is a 302 redirect, which form-action does not govern.
+  // the app submits through an onSubmit handler. Auth.js's Google hand-off is
+  // not a form submission at all — next-auth/react's `signIn("google")`
+  // fetches the provider URL and then assigns `window.location`, which
+  // form-action does not govern (browser-walked 2026-09-24, KI-2026-09-12-d:
+  // lands on accounts.google.com with no violation). Note the distinction: a
+  // NATIVE form POST that 302s cross-origin IS governed — Chromium 141 refused
+  // one to /api/auth/signin/google with "Refused to send form data to …
+  // form-action 'self'" — so a future no-JS form that hands off to another
+  // origin by redirect would need that origin listed here.
   "base-uri 'none'",
   "form-action 'self'",
 

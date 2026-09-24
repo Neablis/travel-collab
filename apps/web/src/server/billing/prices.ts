@@ -30,6 +30,7 @@ import {
   StripeApiError,
   type StripePrice,
 } from "./stripeApi";
+import { billingConfigured } from "./config";
 
 /**
  * The plan file and Stripe disagree about what something costs.
@@ -182,6 +183,14 @@ export interface PriceCheckRow {
 }
 
 /**
+ * The plan file's price narrowed to what a row reports. A spread would also
+ * carry `stripePriceId` to the console under a type that does not declare it.
+ */
+function committedOf(price: { minor: number; currency: string }): { minor: number; currency: string } {
+  return { minor: price.minor, currency: price.currency };
+}
+
+/**
  * **The gate box, as a function**: every published priced version's Stripe
  * Price resolves to one with the same amount and currency.
  *
@@ -192,34 +201,90 @@ export interface PriceCheckRow {
  * and the one a caller should refuse to ship past.
  */
 export async function checkPriceConsistency(): Promise<PriceCheckRow[]> {
-  const rows: PriceCheckRow[] = [];
-  for (const entry of PLAN_VERSIONS) {
-    const ref = planVersionRefOf(entry);
-    const lookupKey = priceLookupKey(entry);
-    if (entry.price === null || lookupKey === null) {
-      rows.push({
+  // One GET per priced version, ISSUED TOGETHER: the console bounds this whole
+  // sweep at `PRICE_CHECK_DEADLINE_MS`, and serial round trips (~0.5s each)
+  // would push a healthy Stripe past it once there are half a dozen versions.
+  // `Promise.all` keeps `PLAN_VERSIONS` order in the rows.
+  return Promise.all(
+    PLAN_VERSIONS.map(async (entry): Promise<PriceCheckRow> => {
+      const ref = planVersionRefOf(entry);
+      const lookupKey = priceLookupKey(entry);
+      if (entry.price === null || lookupKey === null) {
+        return {
+          ref,
+          committed: entry.price === null ? null : committedOf(entry.price),
+          stripe: null,
+          verdict: "unpriced",
+        };
+      }
+      const price = await findPriceByLookupKey(lookupKey);
+      if (price === null) {
+        return { ref, committed: committedOf(entry.price), stripe: null, verdict: "missing" };
+      }
+      const matches =
+        price.unit_amount === entry.price.minor &&
+        price.currency === entry.price.currency &&
+        price.recurring?.interval === "month";
+      return {
         ref,
-        committed: entry.price === null ? null : { ...entry.price },
-        stripe: null,
-        verdict: "unpriced",
-      });
-      continue;
-    }
-    const price = await findPriceByLookupKey(lookupKey);
-    if (price === null) {
-      rows.push({ ref, committed: { ...entry.price }, stripe: null, verdict: "missing" });
-      continue;
-    }
-    const matches =
-      price.unit_amount === entry.price.minor &&
-      price.currency === entry.price.currency &&
-      price.recurring?.interval === "month";
-    rows.push({
-      ref,
-      committed: { ...entry.price },
-      stripe: { id: price.id, ...statedBy(price) },
-      verdict: matches ? "ok" : "mismatch",
-    });
-  }
-  return rows;
+        committed: committedOf(entry.price),
+        stripe: { id: price.id, ...statedBy(price) },
+        verdict: matches ? "ok" : "mismatch",
+      };
+    }),
+  );
 }
+
+/**
+ * What the operator console shows for the sweep above (KI-2026-09-16-c).
+ *
+ * `checked` carries the rows. The other two are why this is a union and not a
+ * bare array: an EMPTY table would read as "nothing disagrees", which is the
+ * one thing this cannot say when it never asked.
+ */
+export type PriceConsistencyReport =
+  | { status: "checked"; rows: PriceCheckRow[] }
+  /** No Stripe keys on this deployment — a supported state, and nothing to ask. */
+  | { status: "unconfigured" }
+  /** Stripe was asked and did not answer; `reason` is its error's message. */
+  | { status: "unavailable"; reason: string };
+
+/**
+ * **`checkPriceConsistency` for a caller that must not fail: it never throws.**
+ *
+ * The console is where an operator reads this, so a Stripe outage must cost
+ * that one panel rather than the whole page — and a deployment with no billing
+ * (local, CI, every e2e run) is not asked at all, because its first
+ * `stripeRequest` would throw `BillingNotConfiguredError`.
+ */
+export async function priceConsistencyReport(): Promise<PriceConsistencyReport> {
+  if (!billingConfigured()) return { status: "unconfigured" };
+  // **Bounded here, not by shortening `stripeRequest`'s own timeout**, which
+  // checkout shares and which is right for a buyer waiting on one call. The
+  // sweep makes its calls one version after another, so a stalled Stripe would
+  // otherwise hold the whole console for that timeout per priced version.
+  // Losing the race abandons the sweep's result, not its requests: those run
+  // on to their own timeout, and they are GETs.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<PriceConsistencyReport>((resolve) => {
+    timer = setTimeout(
+      () => resolve({ status: "unavailable", reason: "timed out" }),
+      PRICE_CHECK_DEADLINE_MS,
+    );
+  });
+  const sweep = checkPriceConsistency().then(
+    (rows): PriceConsistencyReport => ({ status: "checked", rows }),
+    (error: unknown): PriceConsistencyReport => ({
+      status: "unavailable",
+      reason: error instanceof Error ? error.message : String(error),
+    }),
+  );
+  try {
+    return await Promise.race([sweep, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** How long the console waits for the price sweep before reporting it `unavailable`. */
+export const PRICE_CHECK_DEADLINE_MS = 3_000;

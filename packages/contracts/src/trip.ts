@@ -87,11 +87,40 @@ export type RemoveDay = z.infer<typeof RemoveDay>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Whether a `YYYY-MM-DD` string names a day that exists on the calendar — the
+ * ONE copy, shared by the command schemas below, `pages.ts`'s date filters and
+ * the domain's `decide.ts` (which re-exports it), so the boundary and the
+ * decider cannot disagree about which dates are real.
+ *
+ * Parsed as an ISO date, not through `Date.UTC(y, m, d)`: that maps years 0–99
+ * to 1900–1999, so `0050-01-01` would be refused here while the domain's parser
+ * accepted it. A shape-valid string whose parsed parts differ from its text
+ * (`2026-02-30` → March 2) was never a real date. Reads no clock (Invariant 4).
+ */
+export function isCalendarDate(iso: string): boolean {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (parts === null) return false;
+  const dt = new Date(`${iso}T00:00:00Z`);
+  return (
+    dt.getUTCFullYear() === Number(parts[1]) &&
+    dt.getUTCMonth() + 1 === Number(parts[2]) &&
+    dt.getUTCDate() === Number(parts[3])
+  );
+}
+
+// A `YYYY-MM-DD` that names a real day (KI-92): shape alone admits 2026-02-30,
+// and the domain's date math can only refuse that by throwing. COMMANDS only —
+// the stored `TripStartDateSet` event keeps the shape-only regex, because an
+// event is history and must replay even if it predates decide.ts's
+// `invalid-dates` check (PR #84).
+const TripDateInput = z.string().regex(ISO_DATE).refine(isCalendarDate, "not a calendar date");
+
 // Display-only until M3: the domain and conflict engine never read this.
 export const SetTripStartDate = z.object({
   type: z.literal("SetTripStartDate"),
   tripId: z.string().uuid(),
-  startDate: z.string().regex(ISO_DATE).nullable(), // null clears
+  startDate: TripDateInput.nullable(), // null clears
 });
 export type SetTripStartDate = z.infer<typeof SetTripStartDate>;
 
@@ -116,8 +145,8 @@ export type TripNameSetV1 = z.infer<typeof TripNameSetV1>;
 export const SetTripDates = z.object({
   type: z.literal("SetTripDates"),
   tripId: z.string().uuid(),
-  startDate: z.string().regex(ISO_DATE).nullable(),
-  endDate: z.string().regex(ISO_DATE).nullable(),
+  startDate: TripDateInput.nullable(),
+  endDate: TripDateInput.nullable(),
   newDayIds: z.array(z.string().uuid()).default([]),
 });
 export type SetTripDates = z.infer<typeof SetTripDates>;
@@ -286,5 +315,14 @@ export const TripSummary = z.object({
   status: TripStatus,
   members: z.array(TripMember).min(1),
   createdAt: z.string(), // ISO 8601
+  // The trip's first calendar day (`YYYY-MM-DD`), or null for an undated trip
+  // (KI-034). What Home chooses its "next trip" by, and what a card prints in
+  // place of `createdAt`. The shape-only regex, as on `TripStartDateSet`: this
+  // is copied from the event, and history must stay readable.
+  //
+  // `.default(null)` so a payload from before this field (a cached response,
+  // a client or server one deploy behind) parses to an explicit null rather
+  // than failing — additive, the same way `forkedFrom` was added.
+  startDate: z.string().regex(ISO_DATE).nullable().default(null),
 });
 export type TripSummary = z.infer<typeof TripSummary>;

@@ -4,6 +4,7 @@
   broken today: undo, redo and revert do not touch pages at all, and a test
   pins that. This entry exists so the next person to finish the job does not
   finish it the obvious way.
+- **Milestone:** **M14, carried (assigned 2026-09-24, KI pass)** — owned by M14 (the notebook/widget builder), not a gate box. Listed in `docs/milestones/M14-rich-layer.md` § *Parked 2026-09-24*.
 - **Area:** `packages/domain/src/trip/history.ts` (`decideHistoryCommand`),
   `packages/domain/src/trip/pageState.ts` (`diffPageStates`, `foldPages`),
   `apps/web/src/server/pageCommands.ts` (the lazy genesis).
