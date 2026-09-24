@@ -28,6 +28,10 @@ export type CommitSession = (doc: PageDoc, options: { keepalive: boolean }) => v
  *   was CANCELLED here, which is KI-2026-09-24-g;
  * - **`pagehide`**, because a reload or a closed tab never unmounts. Sent with
  *   `keepalive` so the request outlives the page;
+ * - **`visibilitychange` to hidden**, also with `keepalive`, because mobile
+ *   Safari does not reliably fire `pagehide` when a backgrounded tab is killed.
+ *   Switching tabs therefore ends the session too; the `pagehide` that often
+ *   follows finds nothing pending and sends nothing;
  * - **`EDIT_SESSION_IDLE_MS` without a change.**
  *
  * Nothing pending means nothing is written, so opening Editing to read and
@@ -77,9 +81,14 @@ export function useEditSession(
 
   useEffect(() => {
     const onPageHide = () => settle(true);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") settle(true);
+    };
     window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       settle(false);
     };
   }, [settle]);

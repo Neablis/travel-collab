@@ -9,6 +9,7 @@ import { filterInputs, filterParams } from "../../filters";
 import { costOfStops, narrow, type SelectedStop } from "../../select";
 import { formatDate, formatMoney } from "../../format";
 import { collapseKind } from "../../kinds";
+import { TAG_LABEL } from "../../enumLabels";
 
 // `cost.chart` — "Spend by day", the first chart (M14 link 11; widget
 // brainstorm §6 item 5). One bar per selected day for what its stops cost,
@@ -30,9 +31,7 @@ type CostChartParams = z.infer<typeof CostChartParams>;
 
 // The stack order, bottom up: the contract's own tag order, then untagged.
 const SERIES: readonly SpendSeriesKey[] = [...ActivityTag.options, "untagged"];
-const SERIES_LABEL: Record<SpendSeriesKey, string> = {
-  meal: "Meal", lodging: "Lodging", ticketed: "Ticketed", outdoors: "Outdoors", untagged: "Untagged",
-};
+const SERIES_LABEL: Record<SpendSeriesKey, string> = { ...TAG_LABEL, untagged: "Untagged" };
 
 /**
  * Which ONE stack a stop's cost goes on.

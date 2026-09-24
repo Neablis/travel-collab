@@ -65,6 +65,45 @@ describe("useEditSession", () => {
     expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true }]]);
   });
 
+  // Mobile Safari does not reliably fire pagehide when a tab is swiped away or
+  // the app is backgrounded and killed; `visibilitychange` to hidden is the
+  // last event it does fire. Safari then often fires pagehide as well, so the
+  // second trigger must find nothing left to send: one session, one write.
+  describe("when the page is hidden", () => {
+    let visibility: DocumentVisibilityState = "visible";
+    beforeEach(() => {
+      visibility = "visible";
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => visibility,
+      });
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(document, "visibilityState");
+    });
+    const setVisibility = (state: DocumentVisibilityState) => {
+      visibility = state;
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+
+    it("commits with keepalive, and not again on the pagehide and unmount after", () => {
+      const { result, unmount, commit } = mount();
+      act(() => result.current.change(doc("a")));
+      setVisibility("hidden");
+      expect(commit.mock.calls).toEqual([[doc("a"), { keepalive: true }]]);
+      window.dispatchEvent(new Event("pagehide"));
+      unmount();
+      expect(commit).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not commit when the page becomes visible", () => {
+      const { result, commit } = mount();
+      act(() => result.current.change(doc("a")));
+      setVisibility("visible");
+      expect(commit).not.toHaveBeenCalled();
+    });
+  });
+
   it("commits after a minute idle, counted from the LAST change", () => {
     const { result, commit } = mount();
     act(() => result.current.change(doc("a")));

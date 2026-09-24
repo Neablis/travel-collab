@@ -277,9 +277,9 @@ describe("stop.rows", () => {
         return formatMoney(amountMinor, currency);
       };
       expect(cellsOf(ctx, "stop.rows", params)).toEqual([
-        ["09:00 – 10:00", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "booked", "ticketed"],
+        ["09:00 – 10:00", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "Booked", "Ticketed"],
         // Lunch has no place: its cell stays, empty, so the column stays one.
-        ["12:00 – 13:00", cost(fixture.ids.s1), "", "planned", "meal"],
+        ["12:00 – 13:00", cost(fixture.ids.s1), "", "Planned", "Meal"],
       ]);
       expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Place", "Status", "Tags"]);
     });

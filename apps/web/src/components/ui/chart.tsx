@@ -124,12 +124,23 @@ export function ChartContainer({
       role="img"
       aria-label={label}
       data-slot="chart"
-      className={cn("block w-full overflow-hidden font-mono text-xs text-slate", className)}
+      className={cn(FRAME, className)}
       style={{ height, ...vars }}
     >
       {host && createPortal(React.cloneElement(children, { width, height }), host)}
     </span>
   );
+}
+
+const FRAME = "block w-full overflow-hidden font-mono text-xs text-slate";
+
+/**
+ * `ChartContainer`'s frame with nothing drawn in it, for a chart whose code is
+ * still loading. Same height (ADR-044: the page does not move when the chart
+ * arrives) and the same name, marked busy until the real frame replaces it.
+ */
+export function ChartPlaceholder({ height, label, className }: { height: number; label: string; className?: string }) {
+  return <span role="img" aria-label={label} aria-busy="true" className={cn(FRAME, className)} style={{ height }} />;
 }
 
 /**

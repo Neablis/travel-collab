@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
+import { distinctApplies, getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { fieldChoices } from "./fields";
@@ -573,5 +573,36 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // And junk that is not a filter dimension at all still strips on insert —
     // this refuses illegal FILTERS, not unfamiliar keys.
     expect(insertWidget("city.rows", { somethingNewer: 1 }).ok).toBe(true);
+  });
+});
+
+// Whether the editor offers "Remove duplicates" (M14 polish). Derived from the
+// widget's own params schema and the chosen field's kind, never from a list of
+// widget names or field paths.
+describe("distinctApplies", () => {
+  it("is true for a field widget reading a kind that lists", () => {
+    const listing = fieldChoices("stop").filter((c) => ["text", "enum", "location"].includes(c.valueKind));
+    expect(listing.length).toBeGreaterThan(0);
+    for (const choice of listing) expect(distinctApplies("field", { field: choice.path }), choice.path).toBe(true);
+  });
+
+  it("is false for a field that sums or spans, for no field, and for one no longer published", () => {
+    expect(distinctApplies("field", { field: "stop.cost" })).toBe(false);
+    expect(distinctApplies("field", {})).toBe(false);
+    expect(distinctApplies("field", { field: "stop.gone" })).toBe(false);
+  });
+
+  // `stop.rows` has field inputs too, but no `distinct` param: a table lists
+  // one stop per row, so there is nothing to collapse.
+  it("is false for every widget whose params do not declare `distinct`", () => {
+    const declaring = PRIMITIVE_NAMES.filter((name) => {
+      const shape = (getMacro(name)!.params as { shape?: Record<string, unknown> }).shape;
+      return shape !== undefined && "distinct" in shape;
+    });
+    expect(declaring).toEqual(["field"]);
+    for (const name of PRIMITIVE_NAMES.filter((n) => n !== "field")) {
+      expect(distinctApplies(name, { field: "stop.title", columns: ["stop.title"] }), name).toBe(false);
+    }
+    expect(distinctApplies("nope", { field: "stop.title" })).toBe(false);
   });
 });

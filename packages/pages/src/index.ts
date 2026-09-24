@@ -15,6 +15,7 @@ export * from "./templates";
 export * from "./writeCheck";
 export * from "./needsBooking";
 export * from "./dayCity";
+export * from "./enumLabels";
 export * from "./kinds";
 export * from "./fields";
 export * from "./savedTemplate";
