@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { TEMPLATE_LIBRARY } from "@tc/pages";
-import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
+import { makePagesHandlers, makeAccountPlanHandler, makeSavedNotebookHandlers } from "@/mocks/handlers";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -53,6 +53,9 @@ const server = setupServer(
   // line in each test — without it `onUnhandledRequest: "error"` fires on every
   // one, which is how a genuinely unhandled request later gets missed.
   http.get("/api/trips/:tripId", () => HttpResponse.json({ trip: tripDetailFixture() })),
+  // And the reader's saved notebooks (M14 link 10), read on every render for
+  // the gallery. An empty library, which renders nothing extra.
+  ...makeSavedNotebookHandlers(),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
@@ -97,6 +100,52 @@ describe("NotebookScreen", () => {
 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining(`/trips/${TRIP_ID}/pages/`)));
+  });
+
+  // M14 link 10: a notebook kept from ANOTHER trip is offered here, under its
+  // own heading, and choosing it asks the server to instantiate it into THIS
+  // trip — the browser never builds the page from the snapshot itself.
+  it("offers your saved templates, and starting from one instantiates it into this trip", async () => {
+    const onInstantiate = vi.fn();
+    server.use(
+      ...makePagesHandlers([]),
+      ...makeSavedNotebookHandlers(
+        [
+          {
+            savedNotebookId: "5a0e0000-0000-4000-8000-0000000000aa",
+            ownerId: "dev-alice",
+            title: "Packing list",
+            docVersion: 1,
+            visibility: "private",
+            provenance: {
+              sourceTripId: "5a0e0000-0000-4000-8000-0000000000bb",
+              sourceTripName: "Kyoto 2026",
+              sourcePageId: "5a0e0000-0000-4000-8000-0000000000cc",
+              savedAt: new Date().toISOString(),
+            },
+            content: { v: 1, type: "doc", content: [] },
+          },
+        ],
+        { onInstantiate },
+      ),
+    );
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    const yours = await screen.findByRole("region", { name: "Your templates" });
+    expect(within(yours).getByText(/From Kyoto 2026/)).toBeTruthy();
+
+    fireEvent.click(within(yours).getByRole("button", { name: "Start from your template Packing list" }));
+
+    await waitFor(() => expect(onInstantiate).toHaveBeenCalledWith(TRIP_ID, "5a0e0000-0000-4000-8000-0000000000aa"));
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining(`/trips/${TRIP_ID}/pages/`)));
+  });
+
+  it("shows no Your templates section when the library is empty", async () => {
+    server.use(...makePagesHandlers([]));
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    await screen.findByRole("region", { name: "Start from a template" });
+    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+    expect(screen.queryByRole("region", { name: "Your templates" })).toBeNull();
   });
 
   // Mitchell, 2026-09-06 on a 411px phone: *"start from template should be

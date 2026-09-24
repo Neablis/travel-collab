@@ -15,3 +15,4 @@ export * from "./needsBooking";
 export * from "./dayCity";
 export * from "./kinds";
 export * from "./fields";
+export * from "./savedTemplate";
