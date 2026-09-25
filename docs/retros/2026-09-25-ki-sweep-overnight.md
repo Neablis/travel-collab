@@ -122,6 +122,20 @@ Listed with their outcome under *Results*.
 | KI-2026-09-22-a | STILL TRUE | 65.5% documented (was 52.6%), 435 grandfathered (was 470). |
 | KI-2026-09-02-b | NARROWED | 165 directive lines (was 169); "can only shrink" struck — `DiscoverScreen.test.tsx` added 24 new ones on 2026-09-14. |
 | KI-2026-09-05-v | STILL TRUE | 131 disables (was 128), 80 `style={{` (was 75). |
+| KI-046 | **CLOSED** | every remaining claim contradicted by code (meta row hidden on phone, one-day board #196, 44px floor, stop editor stacks); residue owned by 09-24-i/j/k/l/m. |
+| KI-2026-09-02-d | NARROWED | scenarios now have 8 consumers (`threeDayTrip`, `emptyTrip`); four scenarios still unused. |
+| KI-2026-09-06-d | STILL TRUE | 8 bundles, 415 price fields still `origin: "ai"`. |
+| KI-2026-09-20-d | STILL TRUE (counts) | fixtures 3/45 located; bundles now 146/148 days draw a map. |
+| KI-2026-08-30-f | STILL TRUE | LocationIQ only; 8 venues still in `coordinateGaps.ts`. |
+| KI-2026-09-24-i, -j | STILL TRUE (structure) | sticky header unchanged; `md:min-h-0` still drops the floor at 768px. |
+| KI-2026-09-20-f | STILL TRUE | 17 route pages, all client-fetched; new constraint: lint forbids pages importing `@/server/*`. |
+| KI-2026-09-23-c, -b | STILL TRUE | `pnpm arch` 7 cycle warnings; server root now 38 files (was 27). |
+| KI-2026-09-05-j | STILL TRUE | `rebuildProjections` still test-only; no upcaster, no operator rebuild. |
+| KI-52 | STILL TRUE | 4 tags vs 6. |
+| KI-2026-09-15-a | STILL TRUE | `PlansScreen.tsx:773`. |
+| KI-2026-09-16-a (refund) | STILL TRUE | `charge.refunded` not handled; no ledger. |
+| KI-2026-09-19-f | STILL TRUE | two `runCommand`s at `v1/trips/route.ts:99,102`. |
+| KI-2026-09-02-c | STILL TRUE | no ESLint under `packages/`. |
 
 ## Decisions to review
 
@@ -131,3 +145,4 @@ Listed with their outcome under *Results*.
 - **KI-2026-09-24-a side effect:** on `POST /v1/playbooks` a 403/404 about the source trip now happens *before* the `Idempotency-Key` is reserved (as on every trip-in-URL route), so that refusal is no longer stored and replayed. ADR-050's Consequences bullet got a dated *Superseded* note rather than a rewrite.
 - **KI-2026-09-16-b wording:** `Granted to you: <plan> v<n> (<source>, <term>)`; source words are the operator console's (`admin`, `founder`, `referral`), except `trial` → `free week` to match the badge; term `permanent` or `until <date>`; the free week's date is dropped when the trial-ends line already shows it. Separate row under `plan-held`, absent when there are no grants. Rejected: softer customer words ("comped by us", "founding member") — the console and the sheet would name one grant two ways.
 - **Found, left:** `plan-held` reads *"You bought free v1"* for an account that bought nothing (from #195). Worth a small follow-up.
+- **KI-046 closed by validation** although the entry asked to wait for a real-phone walk: every claim it still made is contradicted by the code, and each remaining phone/tablet symptom has its own narrower entry (09-24-i/j/k/l/m). Rejected: keeping a broad umbrella entry open beside five specific ones.
