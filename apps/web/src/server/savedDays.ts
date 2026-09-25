@@ -10,6 +10,7 @@ import {
   type TripDetail,
 } from "@tc/contracts";
 import { citiesOfSequence, countriesOfStops, foldEnvelopes } from "@tc/domain";
+import { forgetCitySearches } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
@@ -626,6 +627,8 @@ export async function setSavedDayVisibility(
     )
     .returning();
   if (updated[0] === undefined) return null;
+  // Committed (no transaction here): the city index just gained or lost a day.
+  forgetCitySearches();
   const day = fromRow(updated[0]);
   if (day === null) {
     // `null` from here means "no such row of yours", and the route turns it
@@ -755,6 +758,8 @@ export async function updatePlaybookContent(
     )
     .returning();
   if (updated[0] !== undefined) {
+    // Only visibility can move the city index: `days` is refused on a public day.
+    if (edit.visibility !== undefined) forgetCitySearches();
     const day = fromRow(updated[0]);
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.
