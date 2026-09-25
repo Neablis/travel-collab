@@ -160,7 +160,7 @@ export const VALUE_KIND_FORMATS: KindFormats = {
     distinct: false,
   },
   enum: {
-    // By label ("Holding", not "hold"), from the one map the board reads too.
+    // By label ("Travel", not "transit"), from the one map the board reads too.
     format: (value) => enumLabel(value),
     ghost: "———",
     ...listing(enumLabel),

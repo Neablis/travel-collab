@@ -171,7 +171,7 @@
             "lng": -4.905235,
             "precision": "city"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -212,7 +212,7 @@
             "lng": -4.819003,
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -276,7 +276,7 @@
             "lng": -103.361667,
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -346,7 +346,7 @@
             "lng": -103.361667,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -508,7 +508,7 @@
             "lng": -4.846363,
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -580,7 +580,7 @@
             "lng": -4.81721,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -687,7 +687,7 @@
             "lng": 2.640837,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -842,7 +842,7 @@
             "lng": -0.101817,
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "An AEGM mountain guide for the day, split four ways. Worth paying for on this route specifically: the Cazadores has an exposed ladder-and-chain section near the top, and the weather over Monte Perdido turns by lunchtime far more often than the forecast admits.",
           "cost": {
             "amountMinor": 21500,
@@ -981,7 +981,7 @@
             "lng": -0.111743,
             "countryCode": "ES"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1077,7 +1077,7 @@
             "lng": -16.63872,
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1101,7 +1101,7 @@
             "lng": -16.642274,
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1194,7 +1194,7 @@
             "lng": -16.523623,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1249,7 +1249,7 @@
             "area": "Sierra de Grazalema",
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1293,7 +1293,7 @@
             "area": "Sierra de Grazalema",
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1422,7 +1422,7 @@
             "lng": -6.808113,
             "countryCode": "ES"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "If you use the backpack transfer once on the whole Camino, use it today. Envelope with the cash left on the bag at the albergue before eight, and it is waiting at O Cebreiro. Seven hundred metres of climb at the end of twenty-eight kilometres is a completely different day with ten kilos on your back. Get the sello here too - the next one is twelve kilometres on.",
           "cost": {
             "amountMinor": 800,
@@ -1557,7 +1557,7 @@
             "area": "Serra dos Ancares",
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Ninth century and the oldest church still standing on the entire Camino Frances, with the pre-Roman thatched pallozas beside it. This is the reason to stop here rather than push on to Fonfria, and it takes twenty minutes."
         },
         {

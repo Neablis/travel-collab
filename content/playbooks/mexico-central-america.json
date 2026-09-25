@@ -96,7 +96,7 @@
             "area": "Centro Histórico",
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -120,7 +120,7 @@
             "lng": -96.72292,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Free, air-conditioned, and small enough to do properly in an hour. Worth it mostly as preparation: after this you can tell a cochineal red from an aniline one at a hundred paces, which changes what you buy in Teotitlán del Valle.",
           "cost": {
             "amountMinor": 0,
@@ -165,7 +165,7 @@
             "lng": -96.719606,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Twenty minutes uphill from the market and worth it purely because you need to walk after that lunch. Leche quemada con tuna is the local order; the sorbet carts are on the Berriozábal side.",
           "cost": {
             "amountMinor": 250,
@@ -207,7 +207,7 @@
             "lng": -96.720806,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -231,7 +231,7 @@
             "lng": -96.723355,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "5 de Mayo 209 — mezcal cocktails rather than a tasting bar, and a room that stays lively past the point where the rest of the centro has rolled up. Balancing In Situ's seriousness with something long and cold is the reason this day ends well.",
           "cost": {
             "amountMinor": 1600,
@@ -282,7 +282,7 @@
             "lng": -96.725343,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "This is the whole reason the day works. A group van does Monte Albán at 11:00 with two hundred other people and reaches Hierve el Agua at the hottest, fullest hour. A private car with an INAH-accredited guide costs roughly what four seats on the van cost, and buys you the ordering of the day. Book direct with a local operator — Zapotrek and Coyote Aventuras both run Zapotec guides — and agree the route the night before, not in the car.",
           "cost": {
             "amountMinor": 23000,
@@ -301,7 +301,7 @@
             "area": "Monte Albán",
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -347,7 +347,7 @@
             "lng": -96.520553,
             "countryCode": "MX"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -489,7 +489,7 @@
             "lng": -88.568718,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -605,7 +605,7 @@
             "lng": -88.206553,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The pastel street everyone photographs at noon is empty and much better at dusk. Walk it to the convent at the end; the free light-and-sound projection on its facade runs at 21:00 and takes about 25 minutes if you want to come back after dinner.",
           "cost": {
             "amountMinor": 0,
@@ -626,7 +626,7 @@
             "lng": -88.187287,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -692,7 +692,7 @@
             "lng": -87.42946,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -717,7 +717,7 @@
             "lng": -87.459741,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "Cenote diving is guided-only, and the shop should ask for the physical certification card and a logbook before it takes your money — one that does not is one to walk out of. Cavern rules mean a continuous guideline, daylight always in sight, and no more than four divers to a guide. Two-tank guided cenote days with full gear run about 160 dollars; book the day before and take the later slot so the ruins morning fits in front of it.",
           "cost": {
             "amountMinor": 16000,
@@ -738,7 +738,7 @@
             "lng": -87.390607,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -786,7 +786,7 @@
             "lng": -87.392274,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -834,7 +834,7 @@
             "lng": -87.459741,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "They press sugarcane through a mill built into a VW Beetle in the doorway, which is exactly as gimmicky and as good as that sounds. One drink — you have been up since half six and under water twice.",
           "cost": {
             "amountMinor": 900,
@@ -969,7 +969,7 @@
             "lng": -99.167226,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -993,7 +993,7 @@
             "lng": -99.16072,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The Colima branch has seats and a manageable queue; the original on Havre in Juárez has a line down the street by nine in the morning. The rol de guayaba is the thing, and they do sell out — late afternoon is a gamble you take knowingly.",
           "cost": {
             "amountMinor": 350,
@@ -1014,7 +1014,7 @@
             "lng": -99.150344,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1094,7 +1094,7 @@
             "area": "Malecón",
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1118,7 +1118,7 @@
             "lng": -110.333067,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -1142,7 +1142,7 @@
             "lng": -110.302501,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -1209,7 +1209,7 @@
             "lng": -110.196418,
             "countryCode": "MX"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1233,7 +1233,7 @@
             "lng": -110.219477,
             "countryCode": "MX"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1285,7 +1285,7 @@
             "countryCode": "CR",
             "precision": "area"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1354,7 +1354,7 @@
             "lng": -84.787712,
             "countryCode": "CR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1379,7 +1379,7 @@
             "lng": -84.787712,
             "countryCode": "CR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Free, thirty feeders, and a dozen species including violet sabrewings hovering at arm's length. Ten minutes here gets better photographs than three hours on the trails, which is either delightful or annoying depending on your temperament.",
           "cost": {
             "amountMinor": 0,
@@ -1400,7 +1400,7 @@
             "lng": -84.824165,
             "countryCode": "CR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1424,7 +1424,7 @@
             "lng": -84.824344,
             "countryCode": "CR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1463,7 +1463,7 @@
             "lng": -90.735208,
             "countryCode": "GT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1534,7 +1534,7 @@
             "lng": -90.988593,
             "precision": "area"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1606,7 +1606,7 @@
             "lng": -90.880654,
             "precision": "area"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],

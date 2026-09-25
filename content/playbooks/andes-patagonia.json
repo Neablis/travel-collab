@@ -112,7 +112,7 @@
             "area": "Santuario Histórico",
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "A guide is required for a first entry and they wait at the gate in official vests with a laminated licence — this is the honest, cheap way to do it: join a group of eight to ten forming for your circuit and split it. Say up front you have a 07:00 Huayna Picchu slot so the guide paces the royal sector and lets you go at 06:55.",
           "cost": {
@@ -132,7 +132,7 @@
             "area": "Santuario Histórico",
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -156,7 +156,7 @@
             "lng": -72.53139,
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors",
             "ticketed"
@@ -194,7 +194,7 @@
             "lng": -72.525097,
             "precision": "venue"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -219,7 +219,7 @@
             "lng": -72.525646,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -289,7 +289,7 @@
             "lng": -72.193934,
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -313,7 +313,7 @@
             "lng": -72.156236,
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -337,7 +337,7 @@
             "lng": -72.115006,
             "countryCode": "PE"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -379,7 +379,7 @@
             "lng": -71.82642,
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -479,7 +479,7 @@
             "lng": -77.022318,
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -527,7 +527,7 @@
             "lng": -77.02068,
             "countryCode": "PE"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "The bodega on the plaza, a bar since 1937, wooden shelves and a ham slicer. A pisco chilcano and a sandwich de jamón del país. Uncommitted — if lunch ran long, skip it, because you do not want to arrive at tonight's booking full.",
           "cost": {
@@ -569,7 +569,7 @@
             "lng": -77.02254,
             "countryCode": "PE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -644,7 +644,7 @@
             "lng": -72.782352,
             "countryCode": "CL"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -688,7 +688,7 @@
             "lng": -72.956932,
             "countryCode": "CL"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -712,7 +712,7 @@
             "lng": -72.910648,
             "countryCode": "CL"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -736,7 +736,7 @@
             "lng": -72.949663,
             "countryCode": "CL"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -828,7 +828,7 @@
             "lng": -68.240612,
             "countryCode": "CL"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -852,7 +852,7 @@
             "lng": -68.196842,
             "countryCode": "CL"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -900,7 +900,7 @@
             "lng": -68.2025,
             "countryCode": "CL"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -925,7 +925,7 @@
             "lng": -68.203308,
             "countryCode": "CL"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -949,7 +949,7 @@
             "lng": -68.20026,
             "countryCode": "CL"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [],
           "notes": "A hold because it only runs on the nights either side of a new moon — check the lunar calendar BEFORE you fix your San Pedro dates, since a full moon washes out the entire reason people come here. Roughly CLP 45,000 for two hours with telescopes, a laser tour of the southern sky and hot chocolate; ask whether the guide is an astronomer or a driver. Free alternative: walk fifteen minutes out of the village down the Catarpe road and lie on your back. ALMA runs free Saturday and Sunday morning visits to the operations base, booked around 60 days ahead on their site.",
           "cost": {
@@ -1001,7 +1001,7 @@
             "lng": -72.88605,
             "countryCode": "AR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1061,7 +1061,7 @@
             "area": "Parque Nacional Los Glaciares, Zona Norte",
             "countryCode": "AR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1121,7 +1121,7 @@
             "lng": -72.889406,
             "countryCode": "AR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1143,7 +1143,7 @@
             "area": "Av. M. M. de Güemes",
             "countryCode": "AR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "The rangers post the next day's wind and trail closures here every evening, and it is more reliable than any app. El Chaltén has almost no mobile coverage and patchy wifi — plan the next day from this board, not from your phone."
         }
@@ -1197,7 +1197,7 @@
             "lng": -72.27682,
             "countryCode": "AR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1239,7 +1239,7 @@
             "lng": -72.245505,
             "countryCode": "AR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors",
             "ticketed"
@@ -1264,7 +1264,7 @@
             "lng": -72.27682,
             "countryCode": "AR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -1308,7 +1308,7 @@
             "lng": -72.339834,
             "countryCode": "AR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -1332,7 +1332,7 @@
             "lng": -72.263549,
             "countryCode": "AR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1422,7 +1422,7 @@
             "lng": -58.372512,
             "countryCode": "AR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1446,7 +1446,7 @@
             "lng": -58.372742,
             "countryCode": "AR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1470,7 +1470,7 @@
             "lng": -58.371797,
             "countryCode": "AR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1494,7 +1494,7 @@
             "lng": -58.372557,
             "countryCode": "AR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "A green-walled corner bar that takes vermouth seriously, five minutes from Dorrego. The Argentine hour: nothing happens between six and nine, so this is how you bridge it without going back to the hotel and losing the evening.",
           "cost": {

@@ -43,7 +43,7 @@ export type InlinePayload = string;
  *
  * **`cost` is summed from the stops in THIS payload, not taken from the day's
  * `costSubtotal`.** `day.detail` accepts `tag` and `kind` filters, so a card
- * showing a day's booked stops beside that day's whole-day total would be two
+ * showing a day's pending stops beside that day's whole-day total would be two
  * different selections printed as one fact. Unfiltered the two are equal by
  * construction; filtered, only this one is true about what is on the card.
  * (`day.rows` solves the same problem the other way, by refusing those filters.)

@@ -26,8 +26,8 @@ import type { TripSpend } from "@/lib/cost";
 // classifies a cost into a category yet). Weights are just a plausible
 // split of spend.total for the mock, not read from any real data.
 const BREAKDOWN_CATEGORIES = [
-  { label: "Booked", weight: 0.45 },
-  { label: "Holds", weight: 0.2 },
+  { label: "Planned", weight: 0.45 },
+  { label: "Pending", weight: 0.2 },
   { label: "Travel", weight: 0.25 },
   { label: "Other", weight: 0.1 },
 ] as const;

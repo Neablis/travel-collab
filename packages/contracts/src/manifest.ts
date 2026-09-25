@@ -130,7 +130,7 @@ export type AttributeEntry = z.infer<typeof AttributeEntry>;
  */
 export const AttributeRef = z.object({
   object: ManifestObject,
-  /** Absent for a top-level value like `bookedCount`. */
+  /** Absent for a top-level value like `trip.name`. */
   collection: z.string().min(1).optional(),
   field: z.string().min(1),
 }).strict();

@@ -59,7 +59,7 @@ const MAP_COMMENT = {
 };
 
 const TIMELINE_ROWS = [
-  { time: "8:20 am", title: "Shinkansen to Osaka", badge: { label: "Booked", variant: "success" } },
+  { time: "8:20 am", title: "Shinkansen to Osaka", badge: { label: "Travel", variant: "info" } },
   { time: "11:00 am", title: "Osaka Castle", chip: "Marcus is dragging this", highlighted: true },
   {
     time: "1:30 pm",

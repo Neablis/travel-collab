@@ -159,7 +159,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
               dot={<span aria-hidden className="pointer-events-none size-1.75 rounded-full bg-brand ring-3 ring-surface" />}
             >
               <Text as="span" className="truncate text-xs">Nishiki Market</Text>
-              <Badge variant="success" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Booked</Badge>
+              <Badge variant="warning" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Pending</Badge>
             </TimelineRow>
 
             <TravelGap>45 min on foot</TravelGap>

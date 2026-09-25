@@ -163,7 +163,7 @@
             "lng": 98.839658,
             "countryCode": "TH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -302,7 +302,7 @@
             "lng": 99.037892,
             "countryCode": "TH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "cost": {
             "amountMinor": 750,
             "currency": "USD"
@@ -371,7 +371,7 @@
             "lng": 99.093612,
             "countryCode": "TH"
           },
-          "kind": "idea",
+          "kind": "pending",
           "cost": {
             "amountMinor": 400,
             "currency": "USD"
@@ -503,7 +503,7 @@
             "lng": 99.825446,
             "countryCode": "TH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -573,7 +573,7 @@
             "lng": 99.838246,
             "countryCode": "TH"
           },
-          "kind": "idea",
+          "kind": "pending",
           "cost": {
             "amountMinor": 1200,
             "currency": "USD"
@@ -633,7 +633,7 @@
             "area": "Thap Lamu",
             "countryCode": "TH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -857,7 +857,7 @@
             "area": "Tonsai",
             "countryCode": "TH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "cost": {
             "amountMinor": 14800,
             "currency": "USD"
@@ -1142,7 +1142,7 @@
             "lng": 98.609938,
             "countryCode": "TH"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "lodging"
           ],
@@ -1308,7 +1308,7 @@
             "lng": 100.021306,
             "countryCode": "TH"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "lodging"
           ],
@@ -1406,7 +1406,7 @@
             "lng": 100.05242,
             "countryCode": "TH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "cost": {
             "amountMinor": 96500,
             "currency": "USD"
@@ -1530,7 +1530,7 @@
             "lng": 100.080449,
             "countryCode": "TH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],

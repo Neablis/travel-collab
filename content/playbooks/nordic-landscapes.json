@@ -147,7 +147,7 @@
             "lng": -19.49443,
             "countryCode": "IS"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -209,7 +209,7 @@
             "area": "Mýrdalur",
             "countryCode": "IS"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -329,7 +329,7 @@
             "area": "Vatnajökull National Park",
             "countryCode": "IS"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -352,7 +352,7 @@
             "area": "Stokksnes",
             "countryCode": "IS"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -398,7 +398,7 @@
             "area": "Hoffell",
             "countryCode": "IS"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Five concrete tubs in a field 15 minutes inland from Höfn, about 1,500 ISK, honesty-box simple. No music, no ritual, no queue — the anti-Blue Lagoon. On a clear night you are sitting in 39°C water looking at the Vatnajökull icefield, and this is as good an aurora seat as any paid tour. Bring your own towel; the changing hut is a hut.",
           "cost": {
             "amountMinor": 1200,
@@ -419,7 +419,7 @@
             "lng": -15.208278,
             "countryCode": "IS"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -514,7 +514,7 @@
             "lng": -21.081941,
             "countryCode": "IS"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -539,7 +539,7 @@
             "lng": -20.447558,
             "countryCode": "IS"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal",
             "ticketed"
@@ -613,7 +613,7 @@
             "lng": -20.884611,
             "precision": "venue"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -637,7 +637,7 @@
             "lng": -21.946435,
             "countryCode": "IS"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -769,7 +769,7 @@
             "lng": -23.817981,
             "precision": "venue"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -818,7 +818,7 @@
             "lng": -23.258827,
             "countryCode": "IS"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -840,7 +840,7 @@
             "area": "Snæfellsnes",
             "countryCode": "IS"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1004,7 +1004,7 @@
             "lng": 14.578293,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1029,7 +1029,7 @@
             "lng": 14.578293,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1053,7 +1053,7 @@
             "lng": 14.579693,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -1167,7 +1167,7 @@
             "lng": 6.83963,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1424,7 +1424,7 @@
             "lng": 5.730111,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1473,7 +1473,7 @@
             "lng": 5.733485,
             "countryCode": "NO"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The painted street — every timber house a different colour, the result of one hairdresser talking the whole block into it. Bøker og Børst is the bookshop-bar in the middle of it with a back courtyard. Purely optional after a 20 km day on your legs, which is why it is an idea and not a plan.",
           "cost": {
             "amountMinor": 1400,
@@ -1548,7 +1548,7 @@
             "lng": 18.956792,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1573,7 +1573,7 @@
             "lng": 18.963317,
             "countryCode": "NO"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -1597,7 +1597,7 @@
             "lng": 18.994043,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1622,7 +1622,7 @@
             "lng": 18.956047,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1646,7 +1646,7 @@
             "lng": 18.957669,
             "countryCode": "NO"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1670,7 +1670,7 @@
             "lng": 18.95326,
             "countryCode": "NO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"

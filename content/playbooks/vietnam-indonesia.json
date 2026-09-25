@@ -185,7 +185,7 @@
             "lng": 105.84117,
             "countryCode": "VN"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "Uncommitted because access keeps closing. Barricades and police at the Tran Phu end are normal; the cafes on the Phung Hung stretch usually let you in through their own door if you order. Trains pass roughly 15:20 and 19:30 on weekdays and the staff move everyone before it comes. Do not stand on the sleepers for a photo.",
           "cost": {
@@ -207,7 +207,7 @@
             "lng": 105.853455,
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -325,7 +325,7 @@
             "area": "Lan Ha Bay",
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -411,7 +411,7 @@
             "area": "Lan Ha Bay",
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -433,7 +433,7 @@
             "area": "Lan Ha Bay",
             "countryCode": "VN"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "Free, faintly ridiculous, and nobody catches anything most nights. Worth ten minutes for the water under the lamps even if you skip the rod."
         }
@@ -494,7 +494,7 @@
             "lng": 105.936875,
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors",
             "ticketed"
@@ -544,7 +544,7 @@
             "lng": 105.915708,
             "countryCode": "VN"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "Free, two minutes off the Tam Coc road, three pagodas stacked up a cliff with a cave passage between the second and third. Skip it without guilt if the morning has run long."
         },
@@ -586,7 +586,7 @@
             "lng": 105.900501,
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors",
             "ticketed"
@@ -611,7 +611,7 @@
             "lng": 105.974621,
             "countryCode": "VN"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -737,7 +737,7 @@
             "lng": 108.333791,
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "The whole trick is doing this on your FIRST morning in town: measured before noon, first fitting the same evening, second fitting next morning, collect that afternoon. A day less and you get one fitting, which is how people end up with a suit that does not fit. A two-piece in a real wool from the upstairs bolts is 2,400,000-3,500,000 VND; the cheap 800,000 suits are polyester and hang like it. Bring a photograph of what you want and shoes you will actually wear with it, for the hem.",
           "cost": {
@@ -829,7 +829,7 @@
             "lng": 108.335,
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -853,7 +853,7 @@
             "lng": 108.327663,
             "countryCode": "VN"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1044,7 +1044,7 @@
             "lng": 115.258042,
             "countryCode": "ID"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [],
           "notes": "Held rather than booked because it depends on how the morning has gone. Reached on foot along the Campuhan Ridge Walk — twenty-five minutes through elephant grass, no cars — or by scooter along the back lane. Book a slot by phone in the morning; walk-ins on a Saturday do not get one.",
           "cost": {
@@ -1066,7 +1066,7 @@
             "lng": 115.262707,
             "countryCode": "ID"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1175,7 +1175,7 @@
             "lng": 115.144883,
             "countryCode": "ID"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1223,7 +1223,7 @@
             "lng": 115.096789,
             "countryCode": "ID"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1247,7 +1247,7 @@
             "lng": 115.164383,
             "countryCode": "ID"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1311,7 +1311,7 @@
             "lng": 110.203824,
             "countryCode": "ID"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1427,7 +1427,7 @@
             "lng": 110.496075,
             "countryCode": "ID"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1451,7 +1451,7 @@
             "lng": 110.365727,
             "countryCode": "ID"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1521,7 +1521,7 @@
             "lng": 119.88316,
             "countryCode": "ID"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "A shared speedboat is 50-90 USD a head, leaves at 06:00-06:30 and reaches Padar with fifteen other boats. A private charter for up to five people is roughly 3.5-4.5 million IDR for the day and its entire value is leaving at 05:30 and choosing your own order of stops. Split three or four ways it is barely more than the shared seat. Confirm in writing that fuel, crew, lunch and snorkel gear are included and that park fees are not.",
           "cost": {

@@ -40,7 +40,8 @@ export type WidgetEntity = "day" | "stop" | "city" | "trip" | "account";
  *   stop, cannot acquire one: `person` arrives on the stop (M13 `add-stop-who` /
  *   M19 link 3), and "the days somebody is on" is a question about their stops.
  *   `tag` and `kind` are legal because they narrow what a day's card SHOWS, not
- *   which days exist — `day.detail{kind: booked}` is the spec's own example.
+ *   which days exist — `day.detail{kind: booked}` was the spec's own example
+ *   (`pending` since M28).
  * - **city** — `day`, `city` and `dates`. A city is reached on days, so days and
  *   their dates select cities; `tag` and `kind` are not legal because "the
  *   cities with a meal in them" is a question about stops that happens to
@@ -105,7 +106,7 @@ const LABEL_OF: Record<BindableDimension, string> = {
 
 /**
  * **The param key of a dimension is the dimension's own name.** `cost{day: 3}`,
- * `stop.rows{kind: "booked"}` — which is exactly how the spec's preset table
+ * `stop.rows{kind: "pending"}` — which is exactly how the spec's preset table
  * writes them.
  *
  * Stating it as a function rather than leaving it implicit is what makes the

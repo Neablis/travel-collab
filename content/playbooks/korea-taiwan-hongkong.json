@@ -58,7 +58,7 @@
             "lng": 126.985574,
             "countryCode": "KR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "cost": {
             "amountMinor": 2250,
@@ -150,7 +150,7 @@
             "lng": 126.982799,
             "countryCode": "KR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -220,7 +220,7 @@
             "lng": 126.998169,
             "countryCode": "KR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "cost": {
             "amountMinor": 900,
@@ -362,7 +362,7 @@
             "lng": 127.0074,
             "countryCode": "KR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -386,7 +386,7 @@
             "lng": 127.040709,
             "countryCode": "KR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [],
           "cost": {
             "amountMinor": 2240,
@@ -547,7 +547,7 @@
             "lng": 128.951927,
             "countryCode": "KR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -571,7 +571,7 @@
             "lng": 129.128893,
             "countryCode": "KR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -665,7 +665,7 @@
             "lng": 121.501379,
             "countryCode": "TW"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -689,7 +689,7 @@
             "lng": 121.511806,
             "countryCode": "TW"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "cost": {
             "amountMinor": 0,
@@ -735,7 +735,7 @@
             "lng": 121.52982,
             "countryCode": "TW"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],

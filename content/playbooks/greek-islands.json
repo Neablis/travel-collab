@@ -168,7 +168,7 @@
             "area": "Main Street",
             "countryCode": "GR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -233,7 +233,7 @@
             "lng": 25.42319,
             "countryCode": "GR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -296,7 +296,7 @@
             "lng": 25.370574,
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -389,7 +389,7 @@
             "lng": 25.37773,
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -411,7 +411,7 @@
             "area": "Byzantine Castle ruins",
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Uncommitted — but the castle ruins that were unusable at 20:30 are empty by 22:45, and Oia after the buses leave is the version of the village in the photographs.",
           "cost": {
             "amountMinor": 2400,
@@ -532,7 +532,7 @@
             "lng": 24.444882,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -605,7 +605,7 @@
             "lng": 24.421575,
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Same cliff edge, twenty minutes after everyone else has left it. Not a plan, just the obvious thing to do on the way back to the quad.",
           "cost": {
             "amountMinor": 1400,
@@ -627,7 +627,7 @@
             "lng": 24.446217,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -787,7 +787,7 @@
             "lng": 25.482285,
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Fifteen minutes, free, and still using the copper stills from 1896. Three strengths of kitron: green is the sweet one people like on the day, yellow is the one worth carrying home. Skip it if you are driving the mountain road afterwards.",
           "cost": {
             "amountMinor": 500,
@@ -806,7 +806,7 @@
             "area": "Southern dunes",
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -831,7 +831,7 @@
             "lng": 25.521091,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -898,7 +898,7 @@
             "lng": 23.918234,
             "precision": "area"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -970,7 +970,7 @@
             "lng": 23.952978,
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -994,7 +994,7 @@
             "lng": 23.95985,
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1037,7 +1037,7 @@
             "area": "Splantzia and the east harbour",
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1115,7 +1115,7 @@
             "lng": 25.059997,
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1139,7 +1139,7 @@
             "lng": 25.059362,
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal",
             "outdoors"
@@ -1164,7 +1164,7 @@
             "lng": 25.029159,
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "A five-minute boat from the beach at Agios Georgios to an uninhabited island with an active excavation of an archaic Apollo sanctuary. It is not a museum — access depends on whether the dig team is working, so ask at the taverna on the Agios Georgios beach before committing the afternoon to it.",
           "cost": {
             "amountMinor": 1200,
@@ -1206,7 +1206,7 @@
             "lng": 25.238741,
             "precision": "city"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The half-sunken Venetian kastelli in the water is a thirty-second walk out along the mole and nearly everyone photographs it from the wrong side — go out on it and look back at the harbour instead.",
           "cost": {
             "amountMinor": 1300,
@@ -1228,7 +1228,7 @@
             "lng": 25.238741,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1273,7 +1273,7 @@
             "lng": 23.641158,
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1319,7 +1319,7 @@
             "area": "Kala Pigadia",
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1367,7 +1367,7 @@
             "lng": 23.45138,
             "countryCode": "GR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1391,7 +1391,7 @@
             "lng": 23.466424,
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1436,7 +1436,7 @@
             "lng": 23.46508,
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1525,7 +1525,7 @@
             "area": "Collachium",
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1569,7 +1569,7 @@
             "area": "Sofokleous, Old Town",
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1610,7 +1610,7 @@
             "area": "Moat walk",
             "countryCode": "GR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1632,7 +1632,7 @@
             "area": "Agiou Fanouriou, Turkish quarter",
             "countryCode": "GR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],

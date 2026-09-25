@@ -87,7 +87,7 @@
             "lng": -76.92885,
             "precision": "area"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -159,7 +159,7 @@
             "lng": -76.873735,
             "precision": "venue"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "Main Street Drivers and Finger Lakes Designated Drivers both start around $50/hour and drive your car, which is cheaper and far less annoying than a bus tour with strangers and a fixed winery list. Five hours is the right block: three tastings at 414 spacing, plus the run back. Book it a week out for a Saturday in October; harvest weekend, book it in August. This is the single biggest line on the day and it is worth every dollar — the alternative is one person tasting nothing.",
           "cost": {
             "amountMinor": 25000,
@@ -222,7 +222,7 @@
             "lng": -76.876897,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Marked idea on purpose: three tastings is the honest maximum and this is the one to drop. If the gorge ran long, or Forge held you, skip it without regret. It stays on the list because Wagner has Wagner Valley Brewing on the same property, so the person who has been pacing themselves gets a beer instead of a fourth Riesling, and the octagonal cellar is a genuinely good building.",
           "cost": {
             "amountMinor": 1500,
@@ -244,7 +244,7 @@
             "lng": -76.870578,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -354,7 +354,7 @@
             "lng": -76.518499,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -378,7 +378,7 @@
             "lng": -76.505479,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -402,7 +402,7 @@
             "lng": -76.470512,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The university has a working creamery and sells the output at counter prices. It is a two-dollar detour at the top of the gorge, not a destination — take it if the walk left you on campus anyway.",
           "cost": {
             "amountMinor": 600,
@@ -423,7 +423,7 @@
             "lng": -76.498632,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -461,7 +461,7 @@
             "lng": -77.200721,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "Start here and start early — this is where Frank proved in the 1960s that European vinifera would survive an upstate winter, and every dry Riesling in this file descends from that argument. Verified 2026-09-06 (drfrankwines.com): open daily 10:00–17:00 with the last tasting at 16:00 — the 09:45 start this day used to carry was before the doors opened, so the stop now begins at 10:00. Reservations are recommended and genuinely needed after noon; standard parties are capped at six and groups of twelve or more must reserve. The $25 tasting price was not re-verified. From June to October the 1886 Food and Wine Experience is $35 on the terrace and buys you the best view on the lake with your wine, which is the version to take. Ask for the Rkatsiteli — nobody else in the country grows it seriously. The June-to-October 1886 Food and Wine Experience and its $35 price could not be confirmed on the winery’s current pages this pass — check it still exists before building the terrace hour around it.",
           "cost": {
             "amountMinor": 2500,
@@ -482,7 +482,7 @@
             "lng": -77.232809,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Hammondsport built the first American aircraft sold commercially, and the museum has the motorcycles and flying boats to prove it. Forty-five minutes is honest; two hours if anyone in the car likes engines. Skip it without guilt if the weather is good — the lake is the reason you came. Verified 2026-09-06 (glennhcurtissmuseum.org/visit): open seven days a week, 09:00–17:00 from 1 May to 31 October and 10:00–16:00 from 1 November to 30 April — no closure day to work around.",
           "cost": {
             "amountMinor": 1350,
@@ -563,7 +563,7 @@
             "lng": -74.016037,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -683,7 +683,7 @@
             "lng": -76.367488,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -707,7 +707,7 @@
             "lng": -76.418411,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Four blocks, no chains, and it takes an hour only because you stop. Uncommitted on purpose — if the swim was good, stay in the water instead.",
           "cost": {
             "amountMinor": 0,
@@ -752,7 +752,7 @@
             "lng": -76.429298,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -793,7 +793,7 @@
             "lng": -76.416168,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The only vineyard on Skaneateles, and honestly the view is the better half of what you are buying — the wine is fine, the terrace at 18:00 in July is not. Weekends have live music and a crowd; a weekday is the whole hillside to yourself.",
           "cost": {
             "amountMinor": 1600,
@@ -814,7 +814,7 @@
             "lng": -76.434031,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -886,7 +886,7 @@
             "lng": -76.695888,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "notes": "One of the oldest working goat dairies in the country and a real farm, not a farm-themed shop. Hold, hard: in winter the tours are by appointment only and they will say no if it is kidding season or the road is bad. Call two days ahead. Buy the Cayuga Blue on the way out — it is what the restaurants in Ithaca are putting on their boards.",
           "cost": {
             "amountMinor": 1500,
@@ -907,7 +907,7 @@
             "lng": -76.695888,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -969,7 +969,7 @@
             "lng": -76.657084,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Ian Merwin spent a career on tree fruit at Cornell before planting this orchard, so the cider is an argument about varieties. Verified 2026-09-06 (blackdiamondcider.com/taste-and-visit): the cider shack is at 4675 Seneca Road in Trumansburg, about twenty minutes north of Ithaca — not the Newfield address this stop used to carry — and it opens seasonally May through November, Wednesday to Sunday 13:00–17:00, with appointments needed for groups of six or more. That means it is shut for the deep-winter framing of this day: in January or February drop it and give the hour back to the Cider House or to the taproom below. Come May to November and it is worth the detour; growler fills if you liked it.",
           "cost": {
             "amountMinor": 1600,
@@ -1041,7 +1041,7 @@
             "lng": -2.993131,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "West side, Route 14: the older estates, the deep-water bank that keeps the vines alive in January, and the Rieslings that get compared to the Mosel without embarrassment. The seated tasting is $15–25 and you can more or less walk in; this is the other thing — into the blocks with somebody who farms them, then thief samples out of barrel and tank. It has to be arranged weeks ahead, it costs about $125 a head, and during harvest they may simply refuse because everyone is on a picking line. Ask in August for an October date and take whatever morning they offer. Verified 2026-09-06 (wiemer.com/visit-us, exploretock.com/wiemer): the tasting room opens 10:30 Monday to Saturday and 11:00 on Sunday and closes at 17:00, with the last guided tasting at 15:30 and preset flights until 16:30 — the 09:30 start this day used to carry was before opening, so it now begins at 10:30 and the rest of the morning shifts with it. Reservations run through Tock and are strongly recommended; walk-ins are taken when they are not full. The private vineyard-and-barrel walk and its ~$125 price could NOT be confirmed on those pages — ask for it by email rather than assuming it is a bookable product.",
           "cost": {
             "amountMinor": 12500,
@@ -1106,7 +1106,7 @@
             "lng": -76.870578,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1146,7 +1146,7 @@
             "area": "Seneca Lake",
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -1170,7 +1170,7 @@
             "lng": -76.983524,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal",
             "ticketed"
@@ -1195,7 +1195,7 @@
             "lng": -76.97945,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Costs nothing and is the best part of the day. There is almost no light pollution across the water, the garden is open to guests all night, and the bar will let you carry a glass out.",
           "cost": {
             "amountMinor": 0,
@@ -1275,7 +1275,7 @@
             "lng": -72.299756,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1323,7 +1323,7 @@
             "lng": -73.982681,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "notes": "A wooden chute that fires you off a pier and out across the frozen lake. Verified 2026-09-06 (North Elba parks department, Lake Placid News): the 2026 season ran 17 January to 6 March, and the sessions are Friday 19:00–21:00, Saturday 12:00–16:00 and 19:00–21:00, and Sunday 12:00–15:00 — there is no weekday session and no late-afternoon one, so the 16:00–16:50 dusk run this day used to promise did not exist. It now takes the Saturday afternoon session; the Friday or Saturday evening session is the alternative if you want it in the dark, but that collides with dinner. It is $20 adult and $10 student for unlimited rides in a session, not a few dollars a run, and it only opens once the ice reaches twelve inches — some winters it never does, so this stays a hold.",
           "cost": {
             "amountMinor": 2000,
@@ -1368,7 +1368,7 @@
             "lng": -73.985649,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "An hour, indoors, warm, and it explains why a village of 2,500 people has two Winter Games behind it. Take it if the chute was closed; skip it if you are still cold from the summit.",
           "cost": {
             "amountMinor": 1500,
@@ -1389,7 +1389,7 @@
             "lng": -73.982812,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1524,7 +1524,7 @@
             "lng": -74.062558,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1549,7 +1549,7 @@
             "lng": -73.962327,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],

@@ -48,7 +48,7 @@
                 "lng": -2.90657,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Outbound leg only; the flight home from Santiago is priced on day nine. Flying into one end and out of the other is what makes this route work without a day of backtracking — the open-jaw fare is barely more than a return.",
               "cost": {
@@ -70,7 +70,7 @@
                 "lng": -2.934932,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Take it from the airport, not from central Bilbao: the city desks shut at 13:00 on Saturdays, and the Picos leg is impossible without a car. Booked a one-way drop at Santiago airport, which costs about €90 extra and saves two days.",
               "cost": {
@@ -114,7 +114,7 @@
                 "lng": -1.986605,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -233,7 +233,7 @@
                 "lng": -1.983707,
                 "countryCode": "ES"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -369,7 +369,7 @@
                 "lng": -2.203823,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "ticketed"
               ],
@@ -393,7 +393,7 @@
                 "lng": -2.204986,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "meal"
               ],
@@ -417,7 +417,7 @@
                 "lng": -2.192121,
                 "countryCode": "ES"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [],
               "notes": "Provisional — visits must be booked and one of you has to not drink, because it is a switchback road back down to the N-634. The vines are trained high on wires so the sea wind dries them; that is the whole explanation of why the wine tastes like it does.",
               "cost": {
@@ -439,7 +439,7 @@
                 "lng": -1.983383,
                 "countryCode": "ES"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -513,7 +513,7 @@
                 "lng": -2.936455,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -561,7 +561,7 @@
                 "lng": -2.933832,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "ticketed"
               ],
@@ -605,7 +605,7 @@
                 "lng": -2.924531,
                 "countryCode": "ES"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -676,7 +676,7 @@
                 "lng": -2.92265,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "meal"
               ],
@@ -750,7 +750,7 @@
                 "lng": -5.151553,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -798,7 +798,7 @@
                 "lng": -5.061541,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "outdoors"
               ],
@@ -917,7 +917,7 @@
                 "lng": -4.814715,
                 "countryCode": "ES"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [],
               "notes": "Nobody has committed to this and after six hours of walking it may not survive. Twenty minutes inside an actual maturing cave, and they sell the cheese cheaper than the shops in Cangas do.",
               "cost": {
@@ -1061,7 +1061,7 @@
                 "lng": -8.54592,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -1085,7 +1085,7 @@
                 "lng": -8.54576,
                 "countryCode": "ES"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [],
               "notes": "Unplanned and better for it. The square empties after eight when the day's pilgrims have gone to eat, the floodlights come on, and someone is usually playing a gaita under the arch into Praza da Quintana."
             },
@@ -1103,7 +1103,7 @@
                 "lng": -8.54526,
                 "countryCode": "ES"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -1156,7 +1156,7 @@
                 "lng": -8.545186,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "ticketed"
               ],
@@ -1220,7 +1220,7 @@
                 "lng": -8.54526,
                 "countryCode": "ES"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -1262,7 +1262,7 @@
                 "lng": -8.417669,
                 "countryCode": "ES"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Return half of the open-jaw fare booked on day one. SCQ is small and the security queue is short, but there is almost nothing airside — do the eating in the market, not here.",
               "cost": {
@@ -1284,7 +1284,7 @@
             "lng": -2.598511,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1300,7 +1300,7 @@
             "lng": -2.78469,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1316,7 +1316,7 @@
             "lng": -4.808756,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1332,7 +1332,7 @@
             "lng": -9.271992,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1348,7 +1348,7 @@
             "lng": -5.509274,
             "countryCode": "ES"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],

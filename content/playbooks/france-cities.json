@@ -171,7 +171,7 @@
             "lng": 2.360407,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Linked courtyards of antique dealers between rue Saint-Paul and the river; several shops keep Tuesday and Wednesday closed, so it is a weekend or Thursday walk. Pair it with rue des Rosiers — but L'As du Fallafel shuts Friday afternoon and all Saturday for Shabbat, so on a Saturday go to Jacques Genin on rue de Turenne for caramels instead.",
           "cost": {
             "amountMinor": 1400,
@@ -192,7 +192,7 @@
             "lng": 2.362115,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -216,7 +216,7 @@
             "lng": 2.365003,
             "countryCode": "FR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -306,7 +306,7 @@
             "lng": 2.338028,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -375,7 +375,7 @@
             "lng": 2.32266,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -399,7 +399,7 @@
             "lng": 2.326955,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -423,7 +423,7 @@
             "lng": 2.326585,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -522,7 +522,7 @@
             "lng": 2.120285,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -615,7 +615,7 @@
             "lng": 2.154504,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -639,7 +639,7 @@
             "lng": 2.128567,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The Carrés Saint-Louis and rue de Satory are a real market town five minutes from the Rive Gauche platform — bakeries, a cheesemonger, tables outside. Almost nobody who comes for the palace ever sees it, which is the entire recommendation.",
           "cost": {
             "amountMinor": 800,
@@ -726,7 +726,7 @@
             "lng": 1.070418,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -750,7 +750,7 @@
             "lng": 0.80074,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "Chenin blanc from vineyards worked biodynamically since 1990, tasted in a cellar cut into the same soft limestone the châteaux are built from. Appointments only and closed Sundays — ring two days ahead, not on the morning. Ask to taste the sec and the demi-sec side by side; the second is the one people write off and then buy.",
           "cost": {
             "amountMinor": 1700,
@@ -771,7 +771,7 @@
             "lng": 1.066489,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -795,7 +795,7 @@
             "lng": 1.51705,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -819,7 +819,7 @@
             "lng": 0.514606,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -995,7 +995,7 @@
             "lng": -0.623609,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "The concrete caissons out in the bay are the artificial harbour, and the visit is governed by the tide table rather than opening hours — at low water you can walk out among them. The 360° cinema on the cliff above is twenty minutes and earns its keep only if the weather has closed in.",
           "cost": {
             "amountMinor": 800,
@@ -1170,7 +1170,7 @@
             "lng": 5.18715,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1239,7 +1239,7 @@
             "lng": 4.80692,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1317,7 +1317,7 @@
             "lng": 7.280617,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1362,7 +1362,7 @@
             "lng": 7.361245,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1386,7 +1386,7 @@
             "lng": 7.360967,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1410,7 +1410,7 @@
             "lng": 7.402279,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Two thousand years old, raised to mark Augustus subduing the Alpine tribes, standing 480 m directly above Monaco with almost nobody at it. Closed Mondays. Ten minutes off the Grande Corniche on the way down, and it is the best place on this coast to see how absurdly small the principality is. Verified 2026-09-06: closed Mondays, and in low season (2 January to 18 May) the hours are 10:00–13:30 and 14:30–17:00 — it shuts for lunch and closes at 17:00, so this stop has been pulled back to end at 16:45 rather than at the gate-closing minute. Also closed 1 January, 1 May, 1 and 11 November and 25 December.",
           "cost": {
             "amountMinor": 700,
@@ -1431,7 +1431,7 @@
             "lng": 7.427333,
             "countryCode": "MC"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1584,7 +1584,7 @@
             "lng": 4.825455,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1629,7 +1629,7 @@
             "lng": 4.833194,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1653,7 +1653,7 @@
             "lng": 4.833494,
             "countryCode": "FR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],

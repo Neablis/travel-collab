@@ -79,7 +79,7 @@
             "lng": 12.49582,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -121,7 +121,7 @@
             "lng": 12.49582,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -165,7 +165,7 @@
             "lng": 12.521549,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -189,7 +189,7 @@
             "lng": 12.47928,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -231,7 +231,7 @@
             "lng": 12.477807,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -279,7 +279,7 @@
             "lng": 11.258758,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -327,7 +327,7 @@
             "lng": 11.255801,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -351,7 +351,7 @@
             "lng": 11.250023,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -375,7 +375,7 @@
             "lng": 11.250474,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "Facing Palazzo Pitti; bookbinders on this spot since 1856. Ask to see the marbling tray in the back room — they will show you if the shop is quiet, which it is mid-afternoon and never is at 11:00. A notebook is around €16 and is the only thing sold on this street that was made on it.",
           "cost": {
@@ -397,7 +397,7 @@
             "lng": 11.241352,
             "countryCode": "IT"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [],
           "notes": "A working silk mill on Via Lorenzo Bartolini, weaving on looms from the 1780s and warping on a machine built to a Leonardo drawing. Visits are by written appointment only and they do say no, so email a week ahead and hold this slot loosely — which is why it sits here as a maybe rather than a plan."
         },
@@ -439,7 +439,7 @@
             "lng": 11.262945,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -578,7 +578,7 @@
             "lng": 12.41636,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -618,7 +618,7 @@
             "lng": 12.327181,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -744,7 +744,7 @@
             "lng": 14.488476,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -768,7 +768,7 @@
             "lng": 14.501347,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -840,7 +840,7 @@
             "lng": 14.252323,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -864,7 +864,7 @@
             "lng": 14.24905,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -949,7 +949,7 @@
             "area": "Around the island",
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -973,7 +973,7 @@
             "lng": 14.204023,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -997,7 +997,7 @@
             "lng": 14.225045,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -1062,7 +1062,7 @@
             "area": "Porto",
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1104,7 +1104,7 @@
             "lng": 16.617793,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1170,7 +1170,7 @@
             "lng": 17.240714,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -1194,7 +1194,7 @@
             "lng": 17.236949,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1236,7 +1236,7 @@
             "lng": 17.218705,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1304,7 +1304,7 @@
             "lng": 11.343049,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "A driver for the whole day, Bologna–Parma–Modena and back, is €260–300 and is what makes this possible: the dairy is at dawn, the acetaia is somebody's house with no bus to it, and everything after lunch involves wine. The hour on the A1 in the dark is the price of standing at the vats while they are still full.",
           "cost": {
@@ -1326,7 +1326,7 @@
             "lng": 10.312087,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1398,7 +1398,7 @@
             "lng": 10.380061,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1422,7 +1422,7 @@
             "lng": 10.926285,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1446,7 +1446,7 @@
             "lng": 10.928201,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "Same family, different address: four tables behind a 1605 shopfront, the oldest deli in Italy that has never moved. Cotechino and a plate of gnocco fritto. Buy the vinegar here rather than at the acetaia — same bottles, and you are not carrying them round all afternoon.",
           "cost": {
@@ -1468,7 +1468,7 @@
             "lng": 10.928317,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1506,7 +1506,7 @@
             "lng": 15.08716,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "Down the steps beside the Fontana dell'Amenano, under the piazza. Swordfish heads on wet marble, prices shouted in Catanese, and Verified 2026-09-06 it runs Monday to Saturday from about 07:00 until 14:00, loudest between 09:00 and 11:00, with the stalls breaking down from 13:30 — and it does not happen at all on Sunday, or on 5 February when the city shuts for Sant'Agata. Buy nothing: this is a place to stand still in and get splashed."
         },
@@ -1570,7 +1570,7 @@
             "lng": 14.998389,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1595,7 +1595,7 @@
             "lng": 15.123944,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1665,7 +1665,7 @@
             "lng": 15.281874,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],

@@ -231,7 +231,8 @@ function takesLine(inputs: readonly WidgetInput[]): string {
  * - the **keywords**, which are what somebody types when they do not know the
  *   title: `cost` answers to total, spend, price, sum, budget;
  * - the **aliases** — the retired names. `booking.line` stopped existing, and
- *   `/booking` still finds "A line for every booking" (§6's last line).
+ *   `/booking` still finds "Still to book" (§6's last line; since M28 retired
+ *   the `booked` kind "A line for every booking" is gone, ADR-054).
  */
 export function widgetMatches(
   w: {
