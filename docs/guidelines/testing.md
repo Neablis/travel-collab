@@ -188,8 +188,8 @@ Data comes from `@tc/factories`, never a hand-built `TripDetail`:
 `tripDetailFixture(overrides)` is what the suite uses today.
 `packages/factories/src/scenarios.ts` also offers named states —
 `emptyTrip`, `threeDayTrip`, `overBudgetTrip` — which are a better starting
-point when one fits your case (see KI-2026-09-02-d: nothing outside the
-factories package imports them yet). If neither fits, **add a scenario there**
+point when one fits your case (see KI-2026-09-02-d: `emptyTrip` and `threeDayTrip` now have
+consumers in `apps/web`; the others still have none). If neither fits, **add a scenario there**
 rather than hand-building state in the test.
 
 **Integration test** — real Postgres, own its rows, clean up after itself.

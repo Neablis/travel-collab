@@ -263,8 +263,8 @@ async function insertLinesFor(page: Page, scope: "Day" | "Stop" | "City"): Promi
 // Widening a rail test until it re-covers the phone surface is how a spec stops
 // being about anything; the phone path has an owner and this is not it.
 //
-// KI-046 already records that below 1100px the desktop layout does not hold and
-// that no design covers the tablet gap. This test does NOT claim that gap is
+// KI-2026-09-24-j records (after KI-046, now resolved) that the tablet width
+// gets the desktop layout and that no design covers the tablet gap. This test does NOT claim that gap is
 // closed. It claims the narrower thing that is this PR's to own: the rail does
 // not push the page into a horizontal scroll, and it does not sit on top of the
 // document.
@@ -291,8 +291,8 @@ test("the rail takes its 320px without overflowing the page, at every width that
   // **Navigate once, wide, then resize.** Two earlier drafts navigated at each
   // width and both died in `openNotebookIndex` — at 768 the app's own chrome
   // has already collapsed and the "Notebooks" button is not clickable, which is
-  // `KI-046`'s tablet gap ("below 1100px the desktop layout does not hold") and
-  // is emphatically not this PR's to fix or to assert.
+  // the tablet gap (`KI-2026-09-24-j`, which took it over from the resolved
+  // `KI-046`) and is emphatically not this PR's to fix or to assert.
   //
   // The subject here is LAYOUT, not navigation: does a 320px flex sibling break
   // the page at a narrow width. Resizing an already-open editor measures
