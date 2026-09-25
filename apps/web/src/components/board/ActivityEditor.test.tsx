@@ -140,6 +140,16 @@ describe("ActivityEditor travel leg", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "booked", mode: null, endLocation: null }));
   });
+
+  // Two place pickers on one form: a screen reader listing the buttons must be
+  // able to tell the origin's Search/Clear from the destination's.
+  it("names the destination's Search and Clear apart from the origin's", () => {
+    renderEditor(existingStop({ ...leg, location: { name: "Tokyo Station" } }), "edit");
+    expect(screen.getAllByRole("button", { name: "Search" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Clear" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Search Going to" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Clear Going to" })).toBeTruthy();
+  });
 });
 
 describe("ActivityEditor tag picker", () => {

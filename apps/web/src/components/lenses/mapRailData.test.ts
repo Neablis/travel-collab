@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ActivityMode, type ActivityKind, type Location, type TripDetail } from "@tc/contracts";
 import { legVariant, longestLeg, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
 import type { MapStop } from "./mapRailData";
+import { haversineKm } from "@/lib/geo";
 
 function detailWith(days: { dayId: string; date: string | null; activityIds: string[] }[], activities: Record<string, unknown>): TripDetail {
   return {
@@ -20,6 +21,16 @@ const at = (name: string, lat?: number, lng?: number, kind: ActivityKind = "plan
   location: lat === undefined ? { name } : { name, lat, lng, city: "Rochester" },
   notes: null, anchors: [], cost: null, kind,
 });
+
+// A transit stop that knows both ends (M24's `endLocation`), and a one-day trip
+// built from activities in key order.
+const leg = (name: string, lat: number, lng: number, end: [number, number] | null, mode: ActivityMode | null) => ({
+  ...at(name, lat, lng, "transit"),
+  mode,
+  endLocation: end === null ? null : { name: `${name} end`, lat: end[0], lng: end[1] },
+});
+const dayOf = (activities: Record<string, unknown>) =>
+  mapDays(detailWith([{ dayId: "d1", date: null, activityIds: Object.keys(activities) }], activities))[0]!;
 
 describe("mapDays", () => {
   it("builds one entry per day, in order", () => {
@@ -168,14 +179,6 @@ describe("routeLegs", () => {
 // M24 link 3: a transit stop that knows both ends draws the leg it IS, instead
 // of the map guessing one from its neighbours.
 describe("routeLegs — a transit stop with a destination", () => {
-  const leg = (name: string, lat: number, lng: number, end: [number, number] | null, mode: ActivityMode | null) => ({
-    ...at(name, lat, lng, "transit"),
-    mode,
-    endLocation: end === null ? null : { name: `${name} end`, lat: end[0], lng: end[1] },
-  });
-  const dayOf = (activities: Record<string, unknown>) =>
-    mapDays(detailWith([{ dayId: "d1", date: null, activityIds: Object.keys(activities) }], activities))[0]!;
-
   it("draws origin → destination as one leg in its mode's style, and the hops either side of it as ordinary legs", () => {
     const day = dayOf({
       a: at("a", 43.10, -77.60),
@@ -233,6 +236,68 @@ describe("routeLegs — a transit stop with a destination", () => {
         [[-77.70, 43.20], [-77.80, 43.30]],
       ],
     });
+  });
+});
+
+// The rail's numbers describe the route the map DRAWS. They used to pair
+// consecutive stops' origins, so a day whose one stop was a real leg drew a
+// ~290 km line beside "A single anchor. Nothing to travel between.", and the
+// hop after a leg was measured from where the train left, not where it arrived.
+describe("mapDays distances — the same route routeLegs draws", () => {
+  const ODAWARA = { lat: 35.256, lng: 139.155 };
+  const KYOTO = { lat: 34.985, lng: 135.758 };
+
+  it("measures a day whose only stop is a leg as that leg", () => {
+    const day = dayOf({
+      s: leg("Shinkansen Odawara → Kyoto", ODAWARA.lat, ODAWARA.lng, [KYOTO.lat, KYOTO.lng], "train"),
+    });
+    const km = haversineKm(ODAWARA, KYOTO);
+    expect(km).toBeGreaterThan(250);
+    expect(day.totalKm).toBeCloseTo(km, 6);
+    expect(day.bars).toEqual([{ grow: 1, color: day.accent }]);
+    expect(day.longest).toEqual({ km, leg: "Shinkansen Odawara → Kyoto" });
+  });
+
+  it("measures the hop after a leg from its destination, not its origin", () => {
+    const P = { lat: 35.25, lng: 139.15 };
+    const N = { lat: 34.99, lng: 135.76 };
+    // Three hops, not two: origin-pairing measured P → A → N, which drops the
+    // leg and measures the last hop from Odawara. N sits beside Kyoto so that
+    // B → N is short and the longest is plainly the train.
+    const day = dayOf({
+      p: at("Hotel", P.lat, P.lng),
+      t: leg("Shinkansen Odawara → Kyoto", ODAWARA.lat, ODAWARA.lng, [KYOTO.lat, KYOTO.lng], "train"),
+      n: at("Temple", N.lat, N.lng),
+    });
+    const hops = [haversineKm(P, ODAWARA), haversineKm(ODAWARA, KYOTO), haversineKm(KYOTO, N)];
+    const total = hops.reduce((sum, km) => sum + km, 0);
+    expect(day.totalKm).toBeCloseTo(total, 6);
+    expect(day.bars.map((b) => b.grow)).toEqual(hops.map((km) => km / total));
+    expect(day.longest).toEqual({ km: hops[1], leg: "Shinkansen Odawara → Kyoto" });
+  });
+
+  // Regression pin: a day with no destination-bearing stop — including a
+  // transit stop without one, and a non-transit stop carrying a stray
+  // endLocation the map ignores — is measured exactly as before, consecutive
+  // pair by consecutive pair, to the bit.
+  it("leaves a day with no real leg exactly as consecutive stop pairs", () => {
+    const pts = [
+      { lat: 43.10, lng: -77.60 },
+      { lat: 43.20, lng: -77.70 },
+      { lat: 43.25, lng: -77.90 },
+      { lat: 43.26, lng: -77.91 },
+    ];
+    const day = dayOf({
+      a: at("a", pts[0]!.lat, pts[0]!.lng),
+      t: leg("t", pts[1]!.lat, pts[1]!.lng, null, "train"),
+      p: { ...leg("p", pts[2]!.lat, pts[2]!.lng, [44.0, -76.0], "train"), kind: "planned" },
+      b: at("b", pts[3]!.lat, pts[3]!.lng),
+    });
+    const kms = [haversineKm(pts[0]!, pts[1]!), haversineKm(pts[1]!, pts[2]!), haversineKm(pts[2]!, pts[3]!)];
+    const total = kms.reduce((sum, km) => sum + km, 0);
+    expect(day.totalKm).toBe(total);
+    expect(day.bars).toEqual(kms.map((km) => ({ grow: km / total, color: day.accent })));
+    expect(day.longest).toEqual({ km: kms[1], from: "t", to: "p" });
   });
 });
 
@@ -335,9 +400,7 @@ describe("longestLeg", () => {
     // either end — a scan that only compared the first or last pair would pass
     // a two-stop test and fail here.
     const result = longestLeg([at("Near A", 35.0, 135.0), at("Near B", 35.01, 135.0), at("Far", 36.5, 135.0)]);
-    expect(result).not.toBeNull();
-    expect(result!.from).toBe("Near B");
-    expect(result!.to).toBe("Far");
+    expect(result).toMatchObject({ from: "Near B", to: "Far" });
     expect(result!.km).toBeGreaterThan(100);
   });
 
@@ -346,8 +409,7 @@ describe("longestLeg", () => {
   // reader hovered back and forth over one unchanged day.
   it("keeps the earliest leg on a tie, so the note does not move", () => {
     const result = longestLeg([at("First", 35.0, 135.0), at("Second", 36.0, 135.0), at("Third", 37.0, 135.0)]);
-    expect(result!.from).toBe("First");
-    expect(result!.to).toBe("Second");
+    expect(result).toMatchObject({ from: "First", to: "Second" });
   });
 });
 

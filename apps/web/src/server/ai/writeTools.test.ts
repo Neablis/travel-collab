@@ -286,6 +286,22 @@ describe("buildProposal", () => {
     expect(command.kind).toBe("idea");
   });
 
+  // M24. The contract unions read a kindless AddActivity as `planned` and refuse
+  // a leg on it, so this default has to land on the intent BEFORE `resolveBatch`
+  // parses it — a default applied to the resolved command never runs, because
+  // there is no resolved command: the stop is dropped into `skipped`.
+  it("reads a kindless stop that names a travel leg as transit, and does not drop it", () => {
+    const proposal = propose([
+      {
+        type: "AddActivity",
+        args: { title: "Shinkansen", dayRef: "day 1", mode: "train", endLocation: { name: "Kyoto Station" } },
+      },
+    ]);
+    expect(proposal?.skipped).toEqual([]);
+    const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "AddActivity" }>;
+    expect(command).toMatchObject({ kind: "transit", mode: "train", endLocation: { name: "Kyoto Station" } });
+  });
+
   it("never defaults kind on an UpdateActivity — omitted there means unchanged, not unstated", () => {
     const proposal = propose([
       { type: "UpdateActivity", args: { activityRef: "Colosseum tour", title: "Colosseum tour (updated)" } },
@@ -505,8 +521,6 @@ describe("withDefaultKind", () => {
       title: "Gelato",
     } as BatchableCommand;
     expect(withDefaultKind(command)).toMatchObject({ kind: "hold" });
-    // A leg is legal only on a transit stop (M24), so one that names a mode is one.
-    expect(withDefaultKind({ ...command, mode: "train" } as BatchableCommand)).toMatchObject({ kind: "transit" });
   });
 
   it("leaves a stated kind alone", () => {
@@ -585,6 +599,24 @@ describe("parseApprovedCommands", () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect((parsed.commands[0] as { kind?: unknown }).kind).toBe("hold");
+  });
+
+  it("reads a kindless AddActivity that names a travel leg as transit at this door too", () => {
+    const parsed = parseApprovedCommands(
+      [
+        {
+          type: "AddActivity",
+          tripId: TRIP_ID,
+          activityId: "bbbbbbbb-1111-4222-8333-444455556666",
+          dayId: DAY_ID,
+          title: "Shinkansen",
+          mode: "train",
+          endLocation: { name: "Kyoto Station" },
+        },
+      ],
+      TRIP_ID,
+    );
+    expect(parsed).toMatchObject({ ok: true, commands: [{ kind: "transit", mode: "train" }] });
   });
 
   // **The grounding ref has to survive this door, and the door is the one that

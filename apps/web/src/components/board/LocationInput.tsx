@@ -26,6 +26,10 @@ export function LocationInput({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // A second input's controls say which place they act on, or a form holding
+  // two has two "Search" and two "Clear" buttons a screen reader cannot tell
+  // apart. The lone default keeps its bare names, which specs select by.
+  const own = (name: string) => (id === "location-search" ? name : `${name} ${label}`);
 
   async function search() {
     setError(null);
@@ -49,7 +53,7 @@ export function LocationInput({
       {value?.name != null && (
         <div className="flex items-center gap-1.5">
           <Text as="span">{displayPlace(value)}</Text>
-          <Button variant="ghost" onClick={() => onChange(null)}>
+          <Button variant="ghost" aria-label={own("Clear")} onClick={() => onChange(null)}>
             Clear
           </Button>
         </div>
@@ -73,7 +77,7 @@ export function LocationInput({
               }
             }}
           />
-          <Button variant="secondary" onClick={() => void search()}>
+          <Button variant="secondary" aria-label={own("Search")} onClick={() => void search()}>
             Search
           </Button>
         </div>

@@ -52,7 +52,8 @@ export function hoverCardTop(rowTop: number, wrapHeight: number): number {
 export function hoverNote(day: MapDay, unit: Parameters<typeof kmLabel>[1]): string {
   if (day.isEmpty) return "No stops yet";
   if (day.longest === null) return "A single anchor. Nothing to travel between.";
-  return `Longest hop ${kmLabel(day.longest.km, unit)} — ${day.longest.from} to ${day.longest.to}`;
+  const where = "leg" in day.longest ? day.longest.leg : `${day.longest.from} to ${day.longest.to}`;
+  return `Longest hop ${kmLabel(day.longest.km, unit)} — ${where}`;
 }
 
 export function MapHoverCard({

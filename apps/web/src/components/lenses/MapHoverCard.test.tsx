@@ -70,6 +70,14 @@ describe("hoverNote", () => {
   it("names the longest hop and both of its ends", () => {
     expect(hoverNote(day(), "km")).toMatch(/Longest hop .* — A to B/);
   });
+
+  // A transit stop's own leg (M24) is one stop, whose title already names both
+  // ends — "X to X" would say it twice.
+  it("names a leg by its own title", () => {
+    expect(hoverNote(day({ longest: { km: 290, leg: "Shinkansen Odawara → Kyoto" } }), "km")).toMatch(
+      /^Longest hop .* — Shinkansen Odawara → Kyoto$/,
+    );
+  });
 });
 
 describe("MapHoverCard", () => {
