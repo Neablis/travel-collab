@@ -146,26 +146,53 @@ const timeOverlapRule: Rule = (state, _ctx) => {
 //      excused — it still flags. "We don't know when this is" is not evidence
 //      that travel covered it.
 //
-// It does not attempt to check that the transit stop goes to the right place:
-// nothing in the contract models a from/to (KI-59), so "some travel is
-// scheduled in this interval" is the strongest available signal.
+// As written in 2026-08 it could not check that the transit stop goes to the
+// right place: nothing in the contract modelled a from/to (KI-59), so "some
+// travel is scheduled in this interval" was the strongest available signal.
+// That is still the whole rule for a transit stop with no destination; M24's
+// addendum below covers one that has one.
 //
 // Both properties above are still exactly true OF THIS FUNCTION, but they no
 // longer describe the whole rule: since 2026-09-21 a transit stop is excluded
 // from the pairing altogether, so it is never a pair member whether or not it
 // is timed. See the comment at that exclusion in `geographyRule` — it is a
 // superset of this rule, not a replacement for it.
+//
+// M24 link 4 — the from/to KI-59 said nothing modelled. A
+// transit stop with a located `endLocation` now also has to go to the right
+// place: it excuses the pair only if its destination is within
+// GEO_INFEASIBLE_KM of the pair's LATER stop (the one the travel is getting
+// you to). The same constant that decides "far apart" decides "near", so no
+// second distance is invented here. Strictly narrower than KI-60, never wider:
+//
+//   - A transit stop with NO `endLocation` (most of them) is KI-60's rule
+//     exactly. A rule that got stricter for them would be a regression.
+//   - An `endLocation` without coordinates is treated as no destination.
+//     A name the geocoder never placed is absence of evidence, not a
+//     disagreement.
+//   - "Later" is by start time, like everything else here. When the two start
+//     together neither is later, and a destination near either one agrees.
+//   - The three conservative properties are untouched: the interval test
+//     runs first and is unchanged.
+type TransitLeg = { start: string; destination: { lat: number; lng: number } | null };
+
 function transitExcusesDistance(
-  a: { start: string | null },
-  b: { start: string | null },
-  transitStarts: readonly string[],
+  a: { start: string | null; lat: number; lng: number },
+  b: { start: string | null; lat: number; lng: number },
+  transits: readonly TransitLeg[],
 ): boolean {
   if (a.start === null || b.start === null) return false;
   const lo = a.start <= b.start ? a.start : b.start;
   const hi = a.start <= b.start ? b.start : a.start;
-  // `>= lo` rather than `> lo` so a transit stop that IS one of the pair
-  // excuses it — that stop is the thing doing the moving.
-  return transitStarts.some((start) => start >= lo && start <= hi);
+  const later = a.start < b.start ? [b] : b.start < a.start ? [a] : [a, b];
+  return transits.some(
+    ({ start, destination }) =>
+      // `>= lo` rather than `> lo` so a transit stop that IS one of the pair
+      // excuses it — that stop is the thing doing the moving.
+      start >= lo &&
+      start <= hi &&
+      (destination === null || later.some((stop) => haversineKm(destination, stop) <= GEO_INFEASIBLE_KM)),
+  );
 }
 
 const geographyRule: Rule = (state, _ctx) => {
@@ -179,11 +206,16 @@ const geographyRule: Rule = (state, _ctx) => {
       lng: number;
       start: string | null;
     }[] = [];
-    const transitStarts: string[] = [];
+    const transits: TransitLeg[] = [];
     for (const id of day.activityIds) {
       const activity = state.activities[id];
       if (activity?.kind === "transit" && activity.timeWindow) {
-        transitStarts.push(activity.timeWindow.start);
+        const end = activity.endLocation;
+        transits.push({
+          start: activity.timeWindow.start,
+          destination:
+            end && end.lat !== undefined && end.lng !== undefined ? { lat: end.lat, lng: end.lng } : null,
+        });
       }
       // A transit stop is never a MEMBER of a distance pair. Its coordinate is
       // where the movement STARTS, not a place the day has to be internally
@@ -205,7 +237,7 @@ const geographyRule: Rule = (state, _ctx) => {
       //
       // It narrows exactly one of KI-60's three conservative properties, and
       // only for the transit stop itself: an untimed transit stop still
-      // excuses nothing for OTHER pairs — `transitStarts` above is collected
+      // excuses nothing for OTHER pairs — `transits` above is collected
       // unchanged, so "we don't know when this is" is still not evidence that
       // travel covered someone else's distance.
       //
@@ -234,7 +266,7 @@ const geographyRule: Rule = (state, _ctx) => {
         const b = located[j]!;
         const km = haversineKm(a, b);
         if (km <= GEO_INFEASIBLE_KM) continue;
-        if (transitExcusesDistance(a, b, transitStarts)) continue;
+        if (transitExcusesDistance(a, b, transits)) continue;
         const s1 = a.id < b.id ? a.id : b.id;
         const s2 = a.id < b.id ? b.id : a.id;
         conflicts.push({
