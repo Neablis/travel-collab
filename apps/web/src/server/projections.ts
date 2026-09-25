@@ -12,12 +12,10 @@ import { projectTripDetails, projectTripSummaries } from "@tc/domain";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
-import { db, type Db } from "./db/client";
+import { db, type Queryable } from "./db/client";
 import { pages, tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
 import { isUuid } from "./ids";
-
-type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 // The ONLY code allowed to write trip_summaries (AGENTS.md invariant 1).
 export async function applyTripEvents(
