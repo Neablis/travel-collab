@@ -5,4 +5,10 @@
 -- NOT NULL DEFAULT '12h', the same shape as `distance_unit` (0015): the
 -- preference has no unset state, so every existing row reads as 12-hour — what
 -- it rendered before the column existed.
-ALTER TABLE "users" ADD COLUMN "time_format" text DEFAULT '12h' NOT NULL;
+--
+-- IF NOT EXISTS because the shared preview database already has this column:
+-- an earlier cut of this change (the pre-reset PR #225) applied its own 0031
+-- there under an older journal `when`, so drizzle runs this one again and a
+-- bare ADD COLUMN failed the preview build. On a database that has never seen
+-- it — production included — the statement is exactly the bare one.
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "time_format" text DEFAULT '12h' NOT NULL;
