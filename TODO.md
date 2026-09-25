@@ -519,7 +519,7 @@ marked "history", so nothing live surfaced it and nobody resumed.
   them, category (c) is empty, (a) is 7 assertions, (b) is 60, and (d), the big
   lever at a claimed 152 tests, is nine false positives. The suite tripled
   because the product tripled; volume is real, waste is not.
-  **Phase 6 absorbed** — 6.4 is `check-sleep-wall.mjs`, 6.5 is AGENTS.md's
+  **Phase 6 absorbed** — 6.4 was `check-sleep-wall.mjs` (since 2026-09-25 the ESLint rule `playwright/no-wait-for-timeout`, fixtured in `check-lint-wall.mjs`), 6.5 is AGENTS.md's
   property-test rule plus `witness.ts`, whose last gap (three `fast-check`
   files with no floor) was closed 2026-08-30 with measured, non-vacuity-proven
   floors.
