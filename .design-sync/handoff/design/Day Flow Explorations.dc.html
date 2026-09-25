@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/fonts/fonts.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/styles.css">
+  <style>body{margin:0;background:var(--color-paper);font-family:var(--font-next-sans),system-ui,sans-serif}a{color:var(--color-brand)}a:hover{color:var(--color-brand-hover)}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style>
+</helmet>
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">A day you can read at a glance — three ways the flow changes with kind</span></div>
+  <p style="margin: 0 0 22px; max-width: 76ch; font-size: 12.5px; line-height: 1.5; color: var(--color-slate);">Same two days in each: Day 1 lands in Tokyo, Day 7 moves to Kyoto. Booked, planned, to book, maybe and travel all appear. One line language throughout — solid is committed, dashed is not yet, dotted is moving.</p>
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>The thread — one line runs through the day; travel IS the line, free time is its length</div>
+      <div class="dv-card" style="width: 680px; padding: 22px 24px 24px; box-sizing: border-box;">
+        <div style="display: flex; gap: 28px; align-items: flex-start;">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="2">
+            <div style="flex: 0 0 302px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid var(--color-hairline);">
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ d.label }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.sum }}</span>
+              </div>
+              <div style="display: flex; flex-direction: column;">
+                <sc-for list="{{ d.a }}" as="r" hint-placeholder-count="8">
+                  <sc-if value="{{ r.isStop }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); column-gap: 8px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right; padding-top: 11px; white-space: nowrap;">{{ r.start }}</span>
+                      <span style="position: relative; display: flex; justify-content: center;">
+                        <span style="position: absolute; top: 0; bottom: 0; left: 8px; border-left: 2px solid var(--color-border-strong);"></span>
+                        <span style="position: relative; margin-top: 11px; width: 14px; height: 14px; box-sizing: border-box; border-radius: {{ r.nodeRadius }}; background: {{ r.nodeBg }}; border: {{ r.nodeBorder }}; display: grid; place-items: center; font-size: 8.5px; line-height: 1; color: var(--color-surface);">{{ r.nodeMark }}</span>
+                      </span>
+                      <div style="margin: 3px 0; background: var(--color-surface); border: {{ r.cardBorder }}; border-radius: 10px; padding: 8px 11px 9px; display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0;">
+                          <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.title }}</span>
+                          <span style="flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: {{ r.tagInk }};">{{ r.tag }}</span>
+                        </div>
+                        <span style="font-size: 12px; color: var(--color-slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.sub }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); column-gap: 8px; min-height: {{ r.h }};">
+                      <span></span>
+                      <span style="display: flex; justify-content: center;"><span style="border-left: {{ r.line }};"></span></span>
+                      <span style="align-self: center; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate);">{{ r.label }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.isRide }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); column-gap: 8px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-info-ink); text-align: right; padding-top: 12px; white-space: nowrap;">{{ r.start }}</span>
+                      <span style="display: flex; justify-content: center;"><span style="border-left: 4px dotted var(--color-info-ink);"></span></span>
+                      <div style="padding: 10px 0 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                        <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-info-ink);">{{ r.mode }} · {{ r.dur }}</span>
+                        <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ r.title }}</span>
+                        <span style="font-size: 12px; color: var(--color-slate);">{{ r.route }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--color-hairline); font-size: 11.5px; color: var(--color-slate);">
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--color-ink);"></span>Booked — square, dark edge</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 11px; height: 11px; border-radius: 999px; background: var(--color-brand);"></span>Planned</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 2px solid var(--color-warning-ink);"></span>To book</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 2px dashed var(--color-slate);"></span>Maybe</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="height: 12px; border-left: 4px dotted var(--color-info-ink);"></span>Moving</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Time river — to scale; how dark a block is says how locked in it is</div>
+      <div class="dv-card" style="width: 680px; padding: 22px 24px 24px; box-sizing: border-box;">
+        <div style="display: flex; gap: 28px; align-items: flex-start;">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="2">
+            <div style="flex: 0 0 302px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid var(--color-hairline);">
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ d.label }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.sum }}</span>
+              </div>
+              <div style="position: relative; height: {{ d.bH }};">
+                <sc-for list="{{ d.ticks }}" as="tk" hint-placeholder-count="10">
+                  <div style="position: absolute; left: 0; right: 0; top: {{ tk.top }}; display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 36px; text-align: right; font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); transform: translateY(-50%);">{{ tk.label }}</span>
+                    <span style="flex: 1; border-top: 1px solid var(--color-hairline);"></span>
+                  </div>
+                </sc-for>
+                <sc-for list="{{ d.b }}" as="k" hint-placeholder-count="5">
+                  <div style="position: absolute; left: 46px; right: 0; top: {{ k.top }}; height: {{ k.h }}; box-sizing: border-box; border-radius: 8px; background: {{ k.bg }}; background-image: {{ k.hatch }}; border: {{ k.border }}; padding: 5px 9px; display: flex; flex-direction: column; justify-content: flex-start; gap: 1px; overflow: hidden;">
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0;">
+                      <span style="font-size: 12.5px; font-weight: 600; color: {{ k.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ k.title }}</span>
+                      <span style="flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: {{ k.tagInk }};">{{ k.tag }}</span>
+                    </div>
+                    <sc-if value="{{ k.roomy }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-size: 11.5px; color: {{ k.subInk }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ k.sub }}</span>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--color-hairline); font-size: 11.5px; color: var(--color-slate);">
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 18px; height: 11px; border-radius: 3px; background: var(--color-ink);"></span>Booked</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 18px; height: 11px; border-radius: 3px; background: var(--color-brand-tint);"></span>Planned</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 18px; height: 11px; box-sizing: border-box; border-radius: 3px; border: 1.5px dashed var(--color-warning-ink);"></span>To book</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 18px; height: 11px; box-sizing: border-box; border-radius: 3px; border: 1px dashed var(--color-border-strong); background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(21, 29, 46, 0.08) 4px 5px);"></span>Maybe</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 18px; height: 11px; border-radius: 3px; background: var(--color-info-tint); border: 2px dotted var(--color-info-ink); box-sizing: border-box;"></span>Moving</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Trunk and branches — the committed day is a straight line; maybes branch off it; travel doubles the line</div>
+      <div class="dv-card" style="width: 680px; padding: 22px 24px 24px; box-sizing: border-box;">
+        <div style="display: flex; gap: 28px; align-items: flex-start;">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="2">
+            <div style="flex: 0 0 302px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 3px; padding-bottom: 10px; border-bottom: 1px solid var(--color-hairline);">
+                <span style="font-family: var(--font-next-display); font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ d.label }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.sum }}</span>
+              </div>
+              <div style="display: flex; flex-direction: column;">
+                <sc-for list="{{ d.c }}" as="r" hint-placeholder-count="8">
+                  <sc-if value="{{ r.isStop }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); column-gap: 8px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right; padding-top: 10px; white-space: nowrap;">{{ r.start }}</span>
+                      <span style="position: relative; display: flex; justify-content: center;">
+                        <span style="position: absolute; top: 0; bottom: 0; left: 7px; border-left: 3px solid var(--color-ink); opacity: 0.8;"></span>
+                        <span style="position: relative; margin-top: 10px; width: 14px; height: 14px; box-sizing: border-box; border-radius: {{ r.nodeRadius }}; background: {{ r.nodeBg }}; border: {{ r.nodeBorder }};"></span>
+                      </span>
+                      <div style="padding: 6px 0 8px; display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+                        <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+                          <span style="font-size: 14px; font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.title }}</span>
+                          <span style="flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: {{ r.tagInk }};">{{ r.tag }}</span>
+                        </div>
+                        <span style="font-size: 12px; color: var(--color-slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.sub }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.isBranch }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); column-gap: 8px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right; padding-top: 22px; white-space: nowrap;">{{ r.start }}</span>
+                      <span style="position: relative;"><span style="position: absolute; top: 0; bottom: 0; left: 7px; border-left: 3px solid var(--color-ink); opacity: {{ r.trunkOp }};"></span></span>
+                      <div style="display: flex; align-items: flex-start; min-width: 0; margin-left: -9px;">
+                        <span style="flex: 0 0 22px; height: 26px; box-sizing: border-box; border-left: 2px dashed var(--color-border-strong); border-bottom: 2px dashed var(--color-border-strong); border-bottom-left-radius: 12px;"></span>
+                        <div style="flex: 1; min-width: 0; margin-top: 12px; background: var(--color-surface); border: 1.5px dashed var(--color-border-strong); border-radius: 10px; padding: 7px 10px 8px; display: flex; flex-direction: column; gap: 1px;">
+                          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0;">
+                            <span style="font-size: 13px; font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.title }}</span>
+                            <span style="flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Maybe</span>
+                          </div>
+                          <span style="font-size: 12px; color: var(--color-slate); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.sub }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.isLink }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); column-gap: 8px; min-height: {{ r.h }};">
+                      <span></span>
+                      <span style="position: relative;"><span style="position: absolute; top: 0; bottom: 0; left: 7px; border-left: 3px solid var(--color-ink); opacity: 0.8;"></span></span>
+                      <span style="align-self: center; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate);">{{ r.label }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.isRide }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); column-gap: 8px;">
+                      <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-info-ink); text-align: right; padding-top: 12px; white-space: nowrap;">{{ r.start }}</span>
+                      <span style="display: flex; justify-content: center;"><span style="width: 8px; box-sizing: border-box; border-left: 3px dotted var(--color-info-ink); border-right: 3px dotted var(--color-info-ink);"></span></span>
+                      <div style="margin: 6px 0; background: var(--color-info-tint); border-radius: 10px; padding: 8px 11px 9px; display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                        <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-info-ink);">{{ r.mode }} · {{ r.dur }}</span>
+                        <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ r.title }}</span>
+                        <span style="font-size: 12px; color: var(--color-info-ink);">{{ r.route }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--color-hairline); font-size: 11.5px; color: var(--color-slate);">
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 12px; border-radius: 2px; background: var(--color-ink);"></span>Booked — pinned</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 11px; height: 11px; border-radius: 999px; background: var(--color-brand);"></span>Planned</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 2px solid var(--color-warning-ink); background: var(--color-surface);"></span>To book</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; box-sizing: border-box; border-left: 2px dashed var(--color-border-strong); border-bottom: 2px dashed var(--color-border-strong); border-bottom-left-radius: 6px;"></span>Maybe — off the line</span>
+          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 12px; box-sizing: border-box; border-left: 2px dotted var(--color-info-ink); border-right: 2px dotted var(--color-info-ink);"></span>Moving</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "<a class="dv-oid" href="#1a">1a</a> in the real Plan columns" · "<a class="dv-oid" href="#1c">1c</a>'s branches with <a class="dv-oid" href="#1b">1b</a>'s dark booked blocks" · "show it on the phone"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  DAYS = [
+    { label: 'Day 1 · Sun Sep 20 · Tokyo', stops: [
+      { s: '14:30', e: '16:00', t: 'Land at Haneda', place: 'HND Terminal 3', k: 'transit', mode: 'Flight', route: 'SFO → HND' },
+      { s: '17:00', e: '17:30', t: 'Check in at Trunk Hotel', place: 'Shibuya', k: 'booked' },
+      { s: '19:00', e: '20:30', t: 'Dinner at Gonpachi', place: 'Nishi-Azabu', k: 'book' },
+      { s: '21:00', e: '22:30', t: 'Nightcap at Bar Trench', place: 'Ebisu', k: 'maybe' }
+    ] },
+    { label: 'Day 7 · Sat Sep 26 · Kyoto', stops: [
+      { s: '09:30', e: '11:45', t: 'Shinkansen Odawara → Kyoto', place: 'Odawara Station', k: 'transit', mode: 'Train', route: 'Odawara Station → Kyoto Station' },
+      { s: '12:30', e: '13:30', t: 'Lunch at Honke Owariya', place: 'Nakagyō', k: 'planned' },
+      { s: '14:30', e: '16:30', t: 'Nijō Castle', place: 'Nakagyō', k: 'planned' },
+      { s: '17:00', e: '17:30', t: 'Check in at Nazuna Gosho', place: 'Kamigyō', k: 'booked' },
+      { s: '19:00', e: '21:00', t: 'Dinner at Gion Nanba', place: 'Gion', k: 'maybe' }
+    ] }
+  ];
+  min(t) { const p = t.split(':'); return +p[0] * 60 + +p[1]; }
+  fmt(t) { const p = t.split(':'), h = +p[0], m = +p[1]; return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? 'a' : 'p'); }
+  dur(m) { return m >= 60 ? Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' m' : '') : m + ' min'; }
+  node(k) {
+    if (k === 'booked') return { nodeRadius: '3px', nodeBg: 'var(--color-ink)', nodeBorder: '0', nodeMark: '✓' };
+    if (k === 'planned') return { nodeRadius: '999px', nodeBg: 'var(--color-brand)', nodeBorder: '0', nodeMark: '' };
+    if (k === 'book') return { nodeRadius: '999px', nodeBg: 'var(--color-surface)', nodeBorder: '2px solid var(--color-warning-ink)', nodeMark: '' };
+    return { nodeRadius: '999px', nodeBg: 'var(--color-surface)', nodeBorder: '2px dashed var(--color-slate)', nodeMark: '' };
+  }
+  tag(k) { return { booked: ['Booked', 'var(--color-ink)'], book: ['To book', 'var(--color-warning-ink)'], maybe: ['Maybe', 'var(--color-slate)'], planned: ['', 'var(--color-slate)'] }[k]; }
+  build(day) {
+    const st = day.stops, a = [], c = [];
+    let moving = 0;
+    st.forEach((x, i) => {
+      const len = this.min(x.e) - this.min(x.s), sub = this.fmt(x.s) + '–' + this.fmt(x.e) + ' · ' + x.place;
+      if (x.k === 'transit') {
+        moving += len;
+        const ride = { isRide: true, start: this.fmt(x.s), mode: x.mode, dur: this.dur(len), title: x.t, route: x.route };
+        a.push(ride); c.push(ride);
+      } else {
+        const tg = this.tag(x.k);
+        a.push(Object.assign({ isStop: true, start: this.fmt(x.s), title: x.t, sub: sub, tag: tg[0], tagInk: tg[1],
+          cardBorder: x.k === 'booked' ? '1.5px solid var(--color-ink)' : x.k === 'planned' ? '1px solid var(--color-hairline)' : '1.5px dashed var(--color-border-strong)' }, this.node(x.k)));
+        if (x.k === 'maybe') c.push({ isBranch: true, start: this.fmt(x.s), title: x.t, sub: sub, trunkOp: i === st.length - 1 ? '0' : '0.8' });
+        else c.push(Object.assign({ isStop: true, start: this.fmt(x.s), title: x.t, sub: sub, tag: tg[0], tagInk: tg[1] }, this.node(x.k)));
+      }
+      const nx = st[i + 1];
+      if (nx) {
+        const free = this.min(nx.s) - this.min(x.e);
+        const label = free >= 60 ? this.dur(free) + ' free' : '';
+        const h = Math.round(10 + Math.min(free, 150) / 5) + 'px';
+        a.push({ isLink: true, h: h, label: label, line: nx.k === 'maybe' ? '2px dashed var(--color-border-strong)' : '2px solid var(--color-border-strong)' });
+        if (nx.k !== 'maybe') c.push({ isLink: true, h: h, label: label });
+      }
+    });
+    // Time river — to scale.
+    const PX = 40, t0 = Math.floor(this.min(st[0].s) / 60) * 60, t1 = Math.ceil(this.min(st[st.length - 1].e) / 60) * 60;
+    const ticks = [];
+    for (let m = t0; m <= t1; m += 60) ticks.push({ top: ((m - t0) / 60 * PX) + 'px', label: this.fmt(String(m / 60) + ':00') });
+    const look = {
+      booked: { bg: 'var(--color-ink)', hatch: 'none', border: '0', ink: 'var(--color-surface)', subInk: 'var(--color-hairline)', tagInk: 'var(--color-surface)', tag: 'Booked' },
+      planned: { bg: 'var(--color-brand-tint)', hatch: 'none', border: '1px solid transparent', ink: 'var(--color-ink)', subInk: 'var(--color-slate)', tagInk: 'var(--color-slate)', tag: '' },
+      book: { bg: 'var(--color-surface)', hatch: 'none', border: '1.5px dashed var(--color-warning-ink)', ink: 'var(--color-ink)', subInk: 'var(--color-slate)', tagInk: 'var(--color-warning-ink)', tag: 'To book' },
+      maybe: { bg: 'var(--color-surface)', hatch: 'repeating-linear-gradient(135deg, transparent 0 6px, rgba(21, 29, 46, 0.06) 6px 7px)', border: '1px dashed var(--color-border-strong)', ink: 'var(--color-ink)', subInk: 'var(--color-slate)', tagInk: 'var(--color-slate)', tag: 'Maybe' },
+      transit: { bg: 'var(--color-info-tint)', hatch: 'none', border: '0', ink: 'var(--color-info-ink)', subInk: 'var(--color-info-ink)', tagInk: 'var(--color-info-ink)', tag: '' }
+    };
+    const b = st.map(x => {
+      const top = (this.min(x.s) - t0) / 60 * PX, hh = Math.max(24, (this.min(x.e) - this.min(x.s)) / 60 * PX - 2);
+      const L = look[x.k];
+      return Object.assign({}, L, {
+        top: top + 'px', h: hh + 'px', roomy: hh >= 40,
+        title: x.k === 'transit' ? x.mode + ' · ' + x.t : x.t,
+        tag: x.k === 'transit' ? this.dur(this.min(x.e) - this.min(x.s)) : L.tag,
+        border: x.k === 'transit' ? '2px dotted var(--color-info-ink)' : L.border,
+        sub: x.k === 'transit' ? x.route : this.fmt(x.s) + '–' + this.fmt(x.e) + ' · ' + x.place
+      }, x.k === 'transit' ? { hatch: 'none' } : {});
+    });
+    const n = k => st.filter(x => x.k === k).length;
+    const sum = [this.dur(moving) + ' moving', n('booked') + ' booked', n('book') ? n('book') + ' to book' : '', n('maybe') ? n('maybe') + ' maybe' : ''].filter(Boolean).join(' · ');
+    return { label: day.label, sum: sum, a: a, c: c, b: b, ticks: ticks, bH: ((t1 - t0) / 60 * PX) + 'px' };
+  }
+  renderVals() { return { days: this.DAYS.map(d => this.build(d)) }; }
+}
+</script>
+</body>
+</html>

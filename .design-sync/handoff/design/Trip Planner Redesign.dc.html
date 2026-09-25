@@ -687,6 +687,34 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </div>
                   </sc-if>
 
+                  <sc-if value="{{ b.credit }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ b.credit }}</div>
+                  </sc-if>
+                  <sc-if value="{{ b.isStrip }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; gap: 3px; border-radius: 10px; overflow: hidden;">
+                      <sc-for list="{{ b.strip }}" as="sg" hint-placeholder-count="4">
+                        <div title="{{ sg.tip }}" style="flex: {{ sg.flex }}; min-width: 0; overflow: hidden; background: {{ sg.tint }}; padding: 10px 6px 9px; display: flex; flex-direction: column; gap: 2px;">
+                          <span style="font-size: 12.5px; font-weight: 600; color: {{ sg.ink }}; overflow: hidden; text-overflow: clip; white-space: nowrap;">{{ sg.city }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11px; color: {{ sg.ink }}; white-space: nowrap; overflow: hidden;">{{ sg.nights }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ b.isBars }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 7px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 12px 14px;">
+                      <sc-for list="{{ b.bars }}" as="br" hint-placeholder-count="5">
+                        <div style="display: grid; grid-template-columns: 58px minmax(0, 1fr) 70px; align-items: center; gap: 10px;">
+                          <span style="font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ br.label }}</span>
+                          <span style="height: 8px; border-radius: 999px; background: var(--color-moss); overflow: hidden;"><span style="display: block; height: 100%; width: {{ br.w }}; background: var(--color-brand); border-radius: 999px;"></span></span>
+                          <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink); text-align: right;">{{ br.amount }}</span>
+                        </div>
+                      </sc-for>
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--color-hairline);">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ b.totalLabel }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 12.5px; font-weight: 600; color: var(--color-ink);">{{ b.total }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
                   <sc-if value="{{ b.isCosts }}" hint-placeholder-val="{{ false }}">
                     <div style="border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;">
                       <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="4">
@@ -815,16 +843,51 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                 </div>
               </div>
 
+              <sc-if value="{{ phoneImplied }}" hint-placeholder-val="{{ false }}">
+                <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; padding: 2px 4px 2px 8px;">
+                  <span style="justify-self: center; align-self: stretch; width: 0; border-left: 2px dotted var(--color-border-strong);"></span>
+                  <div style="min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 5px 0;">
+                    <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Moving</span>
+                    <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ phoneImpliedLine }}</span>
+                    <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-size: 12px; color: var(--color-slate);">How are you getting there?</span>
+                      <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                        <sc-for list="{{ phoneImpliedModes }}" as="im" hint-placeholder-count="5">
+                          <button onClick="{{ im.act }}" style="font-size: 12px; border-radius: 999px; padding: 4px 10px; min-height: 28px; border: 1px solid var(--color-hairline); background: var(--color-surface); color: var(--color-ink); cursor: pointer; font-family: inherit;" style-hover="border-color: var(--color-brand);">{{ im.label }}</button>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-if>
               <sc-for list="{{ phoneStops }}" as="act" hint-placeholder-count="4">
                 <div data-pstop="{{ act.key }}" onPointerDown="{{ act.holdDown }}" onPointerMove="{{ act.holdMove }}" onPointerUp="{{ act.holdEnd }}" onPointerLeave="{{ act.holdEnd }}" onPointerCancel="{{ act.holdEnd }}" style="opacity: {{ act.dimOp }}; transition: opacity 140ms ease; touch-action: pan-y;">
-                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,96px" className="flex gap-0 rounded-lg p-0 shrink-0 cursor-pointer" onClick="{{ act.tap }}">
+                  <sc-if value="{{ act.isTravel }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ act.tap }}" style="width: 100%; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; min-height: 56px; padding: 4px 6px 4px 10px; background: none; border: 0; text-align: left; font-family: inherit; cursor: pointer;">
+                      <span style="justify-self: center; align-self: stretch; width: 0; border-left: 2px dotted var(--color-info-ink);"></span>
+                      <span style="min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 6px 0;">
+                        <span style="display: flex; align-items: baseline; gap: 8px;">
+                          <span style="font-family: var(--font-next-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-info-ink);">{{ act.modeWord }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ act.range }}</span>
+                          <span style="flex: 1;"></span>
+                          <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ act.costInk }};">{{ act.cost }}</span>
+                        </span>
+                        <span style="font-size: 14px; font-weight: 600; color: var(--color-ink); line-height: 1.3;">{{ act.title }}</span>
+                        <sc-if value="{{ act.showLeg }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size: 12.5px; color: var(--color-slate);">{{ act.legLine }}</span>
+                        </sc-if>
+                      </span>
+                    </button>
+                  </sc-if>
+                  <sc-if value="{{ act.isStop }}" hint-placeholder-val="{{ true }}">
+                  <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,96px" className="{{ act.pCardClass }}" onClick="{{ act.tap }}">
                     <div style="width: 3px; flex: 0 0 3px; align-self: stretch; border-radius: 8px 0 0 8px; background: {{ act.railBg }};"></div>
                     <div style="flex: 1; min-width: 0; padding: 15px 15px 15px 12px;">
                       <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
                         <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ act.range }}</span>
                         <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: {{ act.costInk }};">{{ act.cost }}</span>
                       </div>
-                      <div style="font-size: 15px; font-weight: 600; color: var(--color-ink); padding-top: 3px; line-height: 1.3;">{{ act.title }}</div>
+                      <div style="font-size: 15px; font-weight: 600; color: {{ act.titleInk }}; padding-top: 3px; line-height: 1.3;">{{ act.title }}</div>
                       <div style="font-size: 12.5px; color: var(--color-slate); padding-top: 2px;">{{ act.place }} · {{ act.area }}</div>
                       <sc-if value="{{ act.hasTags }}" hint-placeholder-val="{{ true }}">
                         <div style="display: flex; flex-wrap: wrap; gap: 5px; padding-top: 8px;">
@@ -835,6 +898,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       </sc-if>
                     </div>
                   </x-import>
+                  </sc-if>
                 </div>
               </sc-for>
 
@@ -950,7 +1014,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
               <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 30px; display: flex; flex-direction: column; gap: 14px;">
                 <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,44px" className="w-full" dc-props="{{ tall44 }}" placeholder="Search widgets…" value="{{ insQ }}" onChange="{{ setInsQ }}" aria-label="Search widgets"></x-import>
-                <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">Tap one to drop it into the page. It lands not set up — you point it there.</span>
+                <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">Tap one to drop it into the page. It reads the whole trip until you narrow it.</span>
                 <sc-for list="{{ phoneInsGroups }}" as="g" hint-placeholder-count="3">
                   <div style="display: flex; flex-direction: column; gap: 2px;">
                     <span style="font-family: var(--font-next-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); padding-bottom: 6px;">{{ g.label }}</span>
@@ -1047,19 +1111,20 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               <sc-if value="{{ hasQ }}" hint-placeholder-val="{{ false }}">
                 <div style="border: 1px solid var(--color-hairline); border-radius: 10px; margin-top: 8px; overflow: hidden;">
                   <sc-if value="{{ hitsLoading }}" hint-placeholder-val="{{ true }}">
-                    <div style="padding: 12px 13px; font-size: 13px; color: var(--color-slate);">Searching cities…</div>
+                    <div style="padding: 12px 13px; font-size: 13px; color: var(--color-slate);">Searching places…</div>
                   </sc-if>
                   <sc-if value="{{ hitsError }}" hint-placeholder-val="{{ false }}">
                     <div style="display: flex; align-items: center; gap: 10px; padding: 10px 13px;">
-                      <span style="flex: 1; font-size: 12.5px; color: var(--color-danger-ink); text-wrap: pretty;">Couldn't reach city search.</span>
+                      <span style="flex: 1; font-size: 12.5px; color: var(--color-danger-ink); text-wrap: pretty;">Couldn't reach place search.</span>
                       <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ retrySearch }}">Retry</x-import>
                     </div>
                   </sc-if>
                   <sc-if value="{{ hitsEmpty }}" hint-placeholder-val="{{ false }}">
-                    <div style="padding: 12px 13px; font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">No city matches “{{ q }}”. Try the nearest big city.</div>
+                    <div style="padding: 12px 13px; font-size: 12.5px; color: var(--color-slate); text-wrap: pretty;">No city or country matches “{{ q }}”. Try the nearest big city.</div>
                   </sc-if>
                   <sc-for list="{{ hits }}" as="h" hint-placeholder-count="0">
                     <button onClick="{{ h.pick }}" style="display: flex; align-items: baseline; gap: 9px; width: 100%; min-height: 44px; text-align: left; background: var(--color-surface); border: 0; border-top: 1px solid var(--color-hairline); padding: 10px 13px; cursor: pointer; font-family: inherit;">
+                      <span style="flex: 0 0 56px; font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">{{ h.kind }}</span>
                       <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ h.name }}</span>
                       <span style="font-size: 12px; color: var(--color-slate);">{{ h.region }}</span>
                       <span style="flex: 1;"></span>
@@ -1569,7 +1634,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     <button onClick="{{ openJapan }}" style="display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 6px 0; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--color-danger-ink);">
                       <span style="width: 7px; height: 7px; border-radius: 999px; background: var(--color-danger);"></span>2 need a decision
                     </button>
-                    <span style="font-size: 13px; color: var(--color-slate);">7 not booked yet</span>
+                    <span style="font-size: 13px; color: var(--color-slate);">{{ heroToBook }}</span>
                   </div>
                 </div>
                 <div style="padding: 28px 30px; background: var(--color-moss);">
@@ -1908,8 +1973,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           </sc-if>
 
           <sc-if value="{{ isTripHome }}" hint-placeholder-val="{{ true }}">
-            <div data-r="pad" data-screen-label="Overview" style="padding: 32px 20px 90px;">
-             <div style="max-width: 720px; margin: 0 auto; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 4px; box-shadow: 0 1px 2px rgba(21, 29, 46, 0.05), 0 12px 32px -18px rgba(21, 29, 46, 0.18); padding: clamp(28px, 6vw, 60px) clamp(22px, 7vw, 72px) clamp(36px, 7vw, 72px);">
+            <div data-r="pad" data-screen-label="Overview" style="padding: clamp(12px, 2.5vw, 32px) clamp(8px, 2.5vw, 40px) 90px;">
+             <div style="max-width: clamp(720px, 82vw, 1240px); margin: 0 auto; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 4px; box-shadow: 0 1px 2px rgba(21, 29, 46, 0.05), 0 12px 32px -18px rgba(21, 29, 46, 0.18); padding: clamp(18px, 4vw, 64px) clamp(16px, 4.5vw, 80px) clamp(24px, 5vw, 72px);">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; margin-bottom: 26px; border-bottom: 1px solid var(--color-hairline);">
                 <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-slate);">Overview</span>
                 <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
@@ -1989,79 +2054,154 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
               </sc-if>
 
               <sc-if value="{{ showOvBody }}" hint-placeholder-val="{{ true }}">
-              <sc-for list="{{ homeBlocks }}" as="b" hint-placeholder-count="6">
-                <div style="padding-bottom: 20px;">
-                  <sc-if value="{{ b.isH }}" hint-placeholder-val="{{ false }}">
-                    <div style="font-family: var(--font-next-display); font-size: 18px; font-weight: 600; color: var(--color-ink); padding-top: 8px;">{{ b.text }}</div>
-                  </sc-if>
-
-                  <sc-if value="{{ b.isP }}" hint-placeholder-val="{{ true }}">
-                    <div style="font-size: 16px; line-height: 1.75; color: var(--color-ink); text-wrap: pretty;">
-                      <sc-for list="{{ b.segs }}" as="g" hint-placeholder-count="3"><sc-if value="{{ g.isText }}" hint-placeholder-val="{{ true }}"><span>{{ g.text }}</span></sc-if><sc-if value="{{ g.isChip }}" hint-placeholder-val="{{ false }}"><span title="{{ g.macro }}" style="background: {{ g.chipBg }}; border-bottom: 1.5px solid {{ g.chipEdge }}; border-radius: 3px; padding: 0 1px;">{{ g.value }}</span></sc-if></sc-for>
-                    </div>
-                  </sc-if>
-
-                  <sc-if value="{{ b.isRows }}" hint-placeholder-val="{{ false }}">
-                    <div style="display: flex; flex-direction: column; gap: 6px;">
-                      <sc-if value="{{ b.emptyLine }}" hint-placeholder-val="{{ false }}">
-                        <div style="font-size: 14px; color: var(--color-success-ink); background: var(--color-success-tint); border-radius: 10px; padding: 13px 15px; text-wrap: pretty;">{{ b.emptyLine }}</div>
-                      </sc-if>
-                      <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="3">
-                        <button onClick="{{ r.act }}" style="display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: {{ r.bg }}; border: 0; border-radius: 10px; padding: 12px 14px; cursor: {{ r.cursor }}; font-family: inherit;">
-                          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
-                            <span style="font-size: 14px; font-weight: 600; color: {{ r.ink }};">{{ r.label }}</span>
-                            <span style="font-size: 12.5px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.sub }}</span>
+              <div style="max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
+                <sc-for list="{{ ov.flow }}" as="it" hint-placeholder-count="12">
+                  <div style="min-width: 0;">
+                    <sc-if value="{{ it.isH }}" hint-placeholder-val="{{ false }}">
+                      <h2 style="margin: 22px 0 0; font-family: var(--font-next-display); font-size: 21px; font-weight: 600; line-height: 1.25; color: var(--color-ink);">{{ it.text }}</h2>
+                    </sc-if>
+                    <sc-if value="{{ it.isP }}" hint-placeholder-val="{{ true }}">
+                      <p style="margin: 0; font-size: 16.5px; line-height: 1.75; color: var(--color-ink); text-wrap: pretty;"><sc-for list="{{ it.segs }}" as="g" hint-placeholder-count="3"><sc-if value="{{ g.isText }}" hint-placeholder-val="{{ true }}"><span>{{ g.text }}</span></sc-if><sc-if value="{{ g.isVal }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ g.quiet }}" hint-placeholder-val="{{ false }}"><span style="color: var(--color-slate);">{{ g.text }}</span></sc-if><sc-if value="{{ g.solid }}" hint-placeholder-val="{{ true }}"><span style="font-weight: 600; color: var(--color-ink);">{{ g.text }}</span></sc-if></sc-if></sc-for></p>
+                    </sc-if>
+                    <sc-if value="{{ it.isQuiet }}" hint-placeholder-val="{{ false }}">
+                      <span style="display: block; font-size: 13.5px; color: var(--color-slate); border: 1px dashed var(--color-border-strong); border-radius: 6px; padding: 10px 12px;">{{ it.text }}</span>
+                    </sc-if>
+                    <sc-if value="{{ it.isOk }}" hint-placeholder-val="{{ false }}">
+                      <span style="display: block; font-size: 14px; color: var(--color-success-ink); background: var(--color-success-tint); border-radius: 6px; padding: 11px 13px;">{{ it.text }}</span>
+                    </sc-if>
+                    <sc-if value="{{ it.isStrip }}" hint-placeholder-val="{{ false }}">
+                      <span role="img" aria-label="The trip, a bar per day in its city's colour" style="display: flex; width: 100%; gap: 4px; padding: 4px 0;">
+                        <sc-for list="{{ it.runs }}" as="r" hint-placeholder-count="6">
+                          <span title="{{ r.tip }}" style="flex: {{ r.grow }} 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                            <span style="display: block; height: 16px; font-size: 12px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><span style="font-family: var(--font-next-mono); color: var(--color-slate);">{{ r.ordinal }}</span> <span style="font-weight: 600; color: {{ r.ink }};">{{ r.city }}</span></span>
+                            <span style="display: flex; gap: 1px;">
+                              <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="2">
+                                <span style="display: block; flex: 1 1 0; min-width: 0; height: 12px; border-radius: 2px; background: {{ c.fill }};"></span>
+                              </sc-for>
+                            </span>
                           </span>
-                          <span style="flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 11.5px; color: {{ r.ink }};">{{ r.right }}</span>
-                        </button>
-                      </sc-for>
-                    </div>
-                  </sc-if>
-
-                  <sc-if value="{{ b.isItin }}" hint-placeholder-val="{{ false }}">
-                    <div style="border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
-                      <sc-for list="{{ b.days }}" as="d" hint-placeholder-count="4">
-                        <div data-city="1" style="display: grid; grid-template-columns: 136px 1fr; gap: 14px; padding: 11px 14px; border-bottom: 1px solid var(--color-hairline); background: {{ d.bg }}; --c: {{ d.solid }};">
-                          <div style="display: flex; flex-direction: column; gap: 2px;">
-                            <span style="font-size: 12.5px; font-weight: 600; color: {{ d.ink }};">{{ d.label }}</span>
-                            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.date }}</span>
-                          </div>
-                          <div style="min-width: 0; font-size: 13.5px; line-height: 1.55; color: var(--color-ink); text-wrap: pretty;">{{ d.line }}</div>
-                        </div>
-                      </sc-for>
-                    </div>
-                  </sc-if>
-
-                  <sc-if value="{{ b.isCosts }}" hint-placeholder-val="{{ false }}">
-                    <div style="border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
-                      <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="4">
-                        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--color-hairline);">
-                          <span style="font-size: 13.5px; color: var(--color-ink);">{{ r.label }}</span>
-                          <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">{{ r.amount }}</span>
-                        </div>
-                      </sc-for>
-                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--color-moss);">
-                        <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ b.totalLabel }}</span>
-                        <span style="font-family: var(--font-next-mono); font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ b.total }}</span>
-                      </div>
-                    </div>
-                  </sc-if>
-
-                  <sc-if value="{{ b.isUnset }}" hint-placeholder-val="{{ false }}">
-                    <div style="border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 13px 15px; display: flex; flex-direction: column; gap: 5px;">
-                      <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ b.unsetTitle }}</span>
-                      <span style="font-size: 13px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">{{ b.unsetLine }}</span>
-                    </div>
-                  </sc-if>
-
-                  <sc-if value="{{ b.isNote }}" hint-placeholder-val="{{ false }}">
-                    <div style="background: var(--color-paper); border-radius: 10px; padding: 13px 15px; display: flex; flex-direction: column; gap: 5px;">
-                      <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate);">{{ b.noteLabel }}</span>
-                      <span style="font-size: 15px; line-height: 1.6; color: var(--color-ink); text-wrap: pretty;">{{ b.text }}</span>
-                    </div>
-                  </sc-if>
-                </div>
-              </sc-for>
+                        </sc-for>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ it.isOpen }}" hint-placeholder-val="{{ false }}">
+                      <span style="display: flex; flex-direction: column; gap: 6px;">
+                        <sc-for list="{{ it.rows }}" as="r" hint-placeholder-count="3">
+                          <button onClick="{{ r.act }}" style="display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: {{ r.bg }}; border: 0; border-radius: 6px; padding: 10px 13px; cursor: {{ r.cursor }}; font-family: inherit;">
+                            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                              <span style="font-size: 14px; font-weight: 600; color: {{ r.ink }};">{{ r.label }}</span>
+                              <span style="font-size: 12.5px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.sub }}</span>
+                            </span>
+                            <span style="flex: 0 0 auto; font-size: 12.5px; font-weight: 600; color: {{ r.ink }};">{{ r.right }}</span>
+                          </button>
+                        </sc-for>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ it.isCities }}" hint-placeholder-val="{{ false }}">
+                      <span role="table" style="display: block; overflow: hidden; border-radius: 6px; border: 1px solid var(--color-hairline);">
+                        <sc-for list="{{ it.rows }}" as="r" hint-placeholder-count="5">
+                          <span role="row" style="display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--color-hairline); padding: 8px 12px; background: {{ r.tint }};">
+                            <span role="rowheader" style="width: 128px; flex: 0 0 128px; font-size: 12px; font-weight: 600; color: {{ r.ink }};">{{ r.name }}</span>
+                            <span role="cell" style="min-width: 0; flex: 1; font-size: 14px; color: var(--color-ink);">{{ r.days }}</span>
+                            <span role="cell" style="flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ r.stops }}</span>
+                          </span>
+                        </sc-for>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ it.isDays }}" hint-placeholder-val="{{ false }}">
+                      <span role="table" style="display: block; overflow: hidden; border-radius: 6px; border: 1px solid var(--color-hairline);">
+                        <sc-for list="{{ it.rows }}" as="r" hint-placeholder-count="14">
+                          <span role="row" style="display: flex; align-items: flex-start; gap: 12px; border-bottom: 1px solid var(--color-hairline); padding: 8px 12px; background: {{ r.tint }};">
+                            <span role="rowheader" style="width: 128px; flex: 0 0 128px; display: flex; flex-direction: column; gap: 2px;">
+                              <span style="font-size: 12px; font-weight: 600; color: {{ r.ink }};">{{ r.label }}</span>
+                              <span style="font-size: 11px; color: var(--color-slate);">{{ r.date }}</span>
+                            </span>
+                            <span role="cell" style="min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px;">
+                              <span style="font-size: 14px; color: var(--color-ink);">{{ r.line }}</span>
+                              <span style="font-size: 11px; color: var(--color-slate);">{{ r.meta }}</span>
+                            </span>
+                          </span>
+                        </sc-for>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ it.isWeather }}" hint-placeholder-val="{{ false }}">
+                      <span style="display: flex; flex-direction: column; overflow: hidden; border-radius: 6px; border: 1px solid var(--color-hairline); background: var(--color-surface);">
+                        <span style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-bottom: 1px solid var(--color-hairline); font-size: 11px; font-weight: 500; color: var(--color-slate);">
+                          <span style="width: 96px; flex: 0 0 96px;">Where</span><span style="flex: 1; min-width: 0;">Conditions</span><span style="width: 40px; text-align: right;">High</span><span style="width: 40px; text-align: right;">Low</span><span style="width: 112px; text-align: right;">Rain</span>
+                        </span>
+                        <sc-for list="{{ it.rows }}" as="r" hint-placeholder-count="14">
+                          <span style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-bottom: 1px solid var(--color-hairline);">
+                            <span style="width: 96px; flex: 0 0 96px; display: flex; flex-direction: column; min-width: 0;">
+                              <span style="font-size: 14px; font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.city }}</span>
+                              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); white-space: nowrap;">{{ r.date }}</span>
+                            </span>
+                            <span style="flex: 1; min-width: 0; font-size: 13px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.cond }}</span>
+                            <span style="width: 40px; text-align: right; font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">{{ r.hi }}</span>
+                            <span style="width: 40px; text-align: right; font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">{{ r.lo }}</span>
+                            <span style="width: 112px; text-align: right; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ r.rain }}</span>
+                          </span>
+                        </sc-for>
+                        <span style="display: block; padding: 8px 12px; background: var(--color-paper); font-size: 12px; color: var(--color-slate);">{{ it.credit }}</span>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ it.isFacts }}" hint-placeholder-val="{{ false }}">
+                      <span role="list" style="display: flex; flex-direction: column; gap: 12px;">
+                        <sc-for list="{{ it.countries }}" as="c" hint-placeholder-count="1">
+                          <span role="listitem" style="display: block; overflow: hidden; border-radius: 6px; border: 1px solid var(--color-hairline); background: var(--color-surface);">
+                            <span style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--color-hairline); background: var(--color-paper);">
+                              <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ c.name }}</span>
+                            </span>
+                            <span style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 16px; padding: 10px 12px;">
+                              <sc-for list="{{ c.facts }}" as="f" hint-placeholder-count="7">
+                                <span style="display: flex; flex-direction: column; min-width: 0;">
+                                  <span style="font-size: 12px; color: var(--color-slate);">{{ f.k }}</span>
+                                  <span style="font-family: var(--font-next-mono); font-size: 13.5px; color: var(--color-ink);">{{ f.v }}</span>
+                                </span>
+                              </sc-for>
+                            </span>
+                          </span>
+                        </sc-for>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ it.isStops }}" hint-placeholder-val="{{ false }}">
+                      <span style="display: block; overflow: hidden; border-radius: 6px; border: 1px solid var(--color-hairline); background: var(--color-surface);">
+                        <sc-for list="{{ it.rows }}" as="r" hint-placeholder-count="6">
+                          <span style="display: grid; grid-template-columns: 116px minmax(0, 1fr) auto; align-items: baseline; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--color-hairline);">
+                            <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate); white-space: nowrap;">{{ r.when }}</span>
+                            <span style="font-size: 14px; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.title }}</span>
+                            <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ r.ink }}; white-space: nowrap;">{{ r.right }}</span>
+                          </span>
+                        </sc-for>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ it.isChart }}" hint-placeholder-val="{{ false }}">
+                      <span style="display: flex; flex-direction: column; gap: 10px; border-radius: 6px; border: 1px solid var(--color-hairline); background: var(--color-surface); padding: 12px;">
+                        <span style="display: flex; gap: 8px;">
+                          <span style="width: 64px; flex: 0 0 64px; height: 170px; display: flex; flex-direction: column; justify-content: space-between; text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate); transform: translateY(-6px);">
+                            <sc-for list="{{ it.ticks }}" as="tk" hint-placeholder-count="3"><span>{{ tk.label }}</span></sc-for>
+                          </span>
+                          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+                            <span style="position: relative; height: 170px; display: flex; align-items: flex-end; gap: 6px; border-bottom: 1px solid var(--color-border-strong); background-image: linear-gradient(to bottom, var(--color-hairline) 1px, transparent 1px); background-size: 100% 50%;">
+                              <span style="position: absolute; left: 0; right: 0; bottom: {{ it.budgetB }}; border-top: 1.5px dashed var(--color-ink); pointer-events: none; z-index: 1;"></span>
+                              <sc-for list="{{ it.bars }}" as="br" hint-placeholder-count="14">
+                                <span title="{{ br.tip }}" style="flex: 1 1 0; min-width: 0; height: {{ br.h }}; display: flex; flex-direction: column-reverse;">
+                                  <sc-for list="{{ br.parts }}" as="pt" hint-placeholder-count="2"><span style="display: block; height: {{ pt.h }}; background: {{ pt.color }};"></span></sc-for>
+                                </span>
+                              </sc-for>
+                            </span>
+                            <span style="display: flex; gap: 6px;">
+                              <sc-for list="{{ it.bars }}" as="br" hint-placeholder-count="14"><span style="flex: 1 1 0; min-width: 0; text-align: center; font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); overflow: hidden;">{{ br.tick }}</span></sc-for>
+                            </span>
+                          </span>
+                        </span>
+                        <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px; color: var(--color-slate);">
+                          <sc-for list="{{ it.key }}" as="k" hint-placeholder-count="4"><span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: {{ k.color }};"></span>{{ k.label }}</span></sc-for>
+                          <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 16px; border-top: 2px dashed var(--color-ink);"></span>{{ it.budgetLabel }}</span>
+                        </span>
+                      </span>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
               </sc-if>
              </div>
             </div>
@@ -2149,41 +2289,73 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       </span>
                       </sc-if>
                     </div>
-                    <div data-collist="{{ day.i }}" style="display: flex; flex-direction: column; gap: 7px; position: relative;">
-                      <sc-for list="{{ day.items }}" as="act" hint-placeholder-count="4">
-                        <div data-cstop="{{ act.key }}" style="cursor: grab; touch-action: none; border-radius: 12px; opacity: {{ act.dimOp }}; transition: opacity 140ms ease;">
-                        <x-import component-from-global-scope="TravelCollabUI.Card" hint-size="100%,72px" className="rounded-lg p-3">
-                          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px;">
-                            <x-import component-from-global-scope="TravelCollabUI.DataText" hint-size="auto,16px" size="xs">{{ act.range }}</x-import>
-                            <sc-if value="{{ act.badge }}" hint-placeholder-val="{{ false }}">
-                              <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="{{ act.badgeVariant }}">{{ act.badge }}</x-import>
-                            </sc-if>
-                          </div>
-                          <div style="font-size: 14px; font-weight: 600; color: var(--color-ink); margin-top: 4px; line-height: 1.3;">{{ act.title }}</div>
-                          <sc-if value="{{ act.hasTags }}" hint-placeholder-val="{{ true }}">
-                            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;">
-                              <sc-for list="{{ act.tags }}" as="tg" hint-placeholder-count="2">
-                                <button onClick="{{ tg.act }}" title="{{ tg.hint }}" style="font-size: 10px; font-weight: 600; color: {{ tg.ink }}; background: {{ tg.bg }}; border: 0; box-shadow: {{ tg.ring }}; border-radius: 4px; padding: 1px 6px; cursor: pointer; font-family: inherit;">{{ tg.label }}</button>
+                    <sc-if value="{{ day.implied }}" hint-placeholder-val="{{ false }}">
+                      <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; padding: 2px 4px 2px 8px;">
+                        <span style="justify-self: center; align-self: stretch; width: 0; border-left: 2px dotted var(--color-border-strong);"></span>
+                        <div style="min-width: 0; display: flex; flex-direction: column; gap: 5px; padding: 5px 0;">
+                          <span style="font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-slate);">Moving</span>
+                          <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ day.impliedLine }}</span>
+                          <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+                            <span style="font-size: 12px; color: var(--color-slate);">How are you getting there?</span>
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                              <sc-for list="{{ day.impliedModes }}" as="im" hint-placeholder-count="5">
+                                <button onClick="{{ im.act }}" style="font-size: 12px; border-radius: 999px; padding: 4px 10px; min-height: 28px; border: 1px solid var(--color-hairline); background: var(--color-surface); color: var(--color-ink); cursor: pointer; font-family: inherit;" style-hover="border-color: var(--color-brand);">{{ im.label }}</button>
                               </sc-for>
                             </div>
                           </sc-if>
-                          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-top: 2px;">
-                            <span style="font-size: 12px; color: var(--color-slate); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ act.area }}</span>
-                            <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: {{ act.costInk }}; flex: 0 0 auto;">{{ act.cost }}</span>
-                          </div>
-                          <sc-if value="{{ act.confShort }}" hint-placeholder-val="{{ false }}">
-                            <div style="display: flex; align-items: center; gap: 6px; margin-top: 7px; background: var(--color-warning-tint); border-radius: 7px; padding: 4px 6px 4px 8px;">
-                              <span style="flex: 1; min-width: 0; font-size: 11px; color: var(--color-warning-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ act.confShort }}</span>
-                              <button onClick="{{ act.confOk }}" title="Dismiss" aria-label="Dismiss overlap warning" style="background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 11px; line-height: 1; color: var(--color-warning-ink); font-family: inherit;">✕</button>
-                            </div>
-                          </sc-if>
-                        </x-import>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <div data-collist="{{ day.i }}" data-t0="{{ day.riverT0 }}" data-px="{{ day.riverPx }}" onDoubleClick="{{ day.riverAdd }}" style="position: relative; height: {{ day.riverH }}; margin-top: 6px; cursor: crosshair;">
+                      <sc-for list="{{ day.ticks }}" as="tk" hint-placeholder-count="16">
+                        <div style="position: absolute; left: 0; right: 0; top: {{ tk.top }}; display: flex; align-items: center; gap: 6px; pointer-events: none;">
+                          <span style="width: 32px; flex: 0 0 32px; text-align: right; font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); transform: translateY(-50%);">{{ tk.label }}</span>
+                          <span style="flex: 1; border-top: 1px solid var(--color-hairline);"></span>
                         </div>
                       </sc-for>
-                      <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
-                        <button onClick="{{ day.add }}" style="border: 1px dashed var(--color-border-strong); background: none; border-radius: 8px; padding: 8px; font-size: 13px; color: var(--color-slate); cursor: pointer; font-family: inherit;">+ Add</button>
-                      </sc-if>
+                      <sc-for list="{{ day.items }}" as="act" hint-placeholder-count="4">
+                        <div data-cstop="{{ act.key }}" style="position: absolute; top: {{ act.rTop }}; height: {{ act.rH }}; left: {{ act.rLeft }}; right: {{ act.rRight }}; cursor: grab; touch-action: none; opacity: {{ act.dimOp }}; transition: opacity 140ms ease;">
+                          <div style="height: 100%; box-sizing: border-box; border-radius: 8px; background: {{ act.rBg }}; background-image: {{ act.rHatch }}; border: {{ act.rBorder }}; box-shadow: {{ act.rShadow }}; mask: {{ act.rMask }}; padding: 4px 10px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;">
+                            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0;">
+                              <span style="font-size: 12.5px; font-weight: 600; color: {{ act.rInk }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ act.rTitle }}</span>
+                              <span style="flex: 0 0 auto; display: flex; align-items: baseline; gap: 4px;">
+                                <span style="font-family: var(--font-next-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: {{ act.rTagInk }}; white-space: nowrap;">{{ act.rTag }}</span>
+                                <sc-if value="{{ act.confShort }}" hint-placeholder-val="{{ false }}">
+                                  <button onClick="{{ act.confOk }}" title="{{ act.conf }}" aria-label="Dismiss overlap warning" style="background: none; border: 0; padding: 0 1px; cursor: pointer; font-size: 10px; line-height: 1; color: {{ act.rTagInk }}; font-family: inherit;">✕</button>
+                                </sc-if>
+                              </span>
+                            </div>
+                            <sc-if value="{{ act.roomy }}" hint-placeholder-val="{{ true }}">
+                              <span style="font-size: 11px; color: {{ act.rSubInk }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ act.rSub }}</span>
+                            </sc-if>
+                            <sc-if value="{{ act.tall }}" hint-placeholder-val="{{ false }}">
+                              <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding: 4px 0 2px;">
+                                <sc-for list="{{ act.tags }}" as="tg" hint-placeholder-count="2">
+                                  <button onClick="{{ tg.act }}" title="{{ tg.hint }}" style="font-size: 10px; font-weight: 500; color: {{ act.rSubInk }}; background: transparent; border: 1px solid {{ act.rSubInk }}; box-shadow: {{ tg.ring }}; border-radius: 4px; padding: 0 5px; cursor: pointer; font-family: inherit; opacity: 0.9;">{{ tg.label }}</button>
+                                </sc-for>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ act.coEdit }}" hint-placeholder-val="{{ false }}">
+                              <div style="display: flex; flex-direction: column; gap: 5px; margin-top: auto; background: var(--color-warning-tint); border-radius: 6px; padding: 5px 6px;">
+                                <span style="font-size: 11px; line-height: 1.3; color: var(--color-warning-ink);">{{ act.coEditLine }}</span>
+                                <div style="display: flex; gap: 4px;">
+                                  <button onClick="{{ act.keepMine }}" style="flex: 1; font-size: 11px; font-weight: 600; border-radius: 5px; padding: 3px 6px; cursor: pointer; font-family: inherit; border: 1px solid var(--color-warning-ink); background: var(--color-surface); color: var(--color-warning-ink);">Keep yours</button>
+                                  <button onClick="{{ act.keepTheirs }}" style="flex: 1; font-size: 11px; border-radius: 5px; padding: 3px 6px; cursor: pointer; font-family: inherit; border: 1px solid transparent; background: none; color: var(--color-warning-ink);">Keep Mei’s</button>
+                                </div>
+                              </div>
+                            </sc-if>
+                          </div>
+                          <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+                            <span data-rresize="{{ act.si }}" title="Drag to change when it ends" style="position: absolute; left: 0; right: 0; bottom: -4px; height: 9px; cursor: ns-resize; display: flex; justify-content: center; align-items: center;">
+                              <span style="width: 22px; height: 3px; border-radius: 999px; background: {{ act.rInk }}; opacity: 0.28;"></span>
+                            </span>
+                          </sc-if>
+                        </div>
+                      </sc-for>
                     </div>
+                    <sc-if value="{{ canEdit }}" hint-placeholder-val="{{ true }}">
+                      <button onClick="{{ day.add }}" title="Or double-click the timeline, or drag across empty time" style="margin-top: 22px; width: 100%; min-height: 40px; border: 1px solid var(--color-brand); background: var(--color-brand-tint); border-radius: 10px; padding: 9px; font-size: 13.5px; font-weight: 600; color: var(--color-brand-pressed); cursor: pointer; font-family: inherit;" style-hover="background: var(--color-surface);">+ Add a stop</button>
+                    </sc-if>
                   </div>
                 </sc-for>
                 <div style="flex: 0 0 auto; width: 240px; border: 1px dashed var(--color-border-strong); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: none;">
@@ -2455,7 +2627,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
 
             <div style="position: relative; display: flex; flex-direction: column; gap: 10px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 12px; padding: 14px; z-index: 20;">
               <div style="display: flex; align-items: center; gap: 10px;">
-                <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,38px" className="w-full" placeholder="Search a city — Kyoto, Lisbon, New Orleans…" aria-label="Search cities" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ searchKey }}"></x-import>
+                <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,38px" className="w-full" placeholder="Search a city or country — Kyoto, Portugal…" aria-label="Search cities" value="{{ q }}" onChange="{{ setQ }}" onKeyDown="{{ searchKey }}"></x-import>
                 <sc-if value="{{ hasCities }}" hint-placeholder-val="{{ false }}">
                   <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" variant="ghost" size="sm" onClick="{{ clearCities }}">Clear</x-import>
                 </sc-if>
@@ -2478,20 +2650,21 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   <sc-if value="{{ hitsLoading }}" hint-placeholder-val="{{ true }}">
                     <div style="display: flex; align-items: center; gap: 10px; padding: 14px 14px; font-size: 13px; color: var(--color-slate);">
                       <span style="width: 13px; height: 13px; border-radius: 999px; border: 2px solid var(--color-hairline); border-top-color: var(--color-brand); animation: om-spin 620ms linear infinite;"></span>
-                      Searching cities…
+                      Searching places…
                     </div>
                   </sc-if>
                   <sc-if value="{{ hitsError }}" hint-placeholder-val="{{ false }}">
                     <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px;">
-                      <span style="flex: 1; font-size: 13px; color: var(--color-danger-ink); text-wrap: pretty;">Couldn't reach city search. Filters below still work on the days already loaded.</span>
+                      <span style="flex: 1; font-size: 13px; color: var(--color-danger-ink); text-wrap: pretty;">Couldn't reach place search. Filters below still work on the days already loaded.</span>
                       <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ retrySearch }}">Retry</x-import>
                     </div>
                   </sc-if>
                   <sc-if value="{{ hitsEmpty }}" hint-placeholder-val="{{ false }}">
-                    <div style="padding: 13px 14px; font-size: 13px; color: var(--color-slate);">No city matches “{{ q }}”. Try the nearest big city — days that pass through it will still show up.</div>
+                    <div style="padding: 13px 14px; font-size: 13px; color: var(--color-slate);">No city or country matches “{{ q }}”. Try the nearest big city — days that pass through it will still show up.</div>
                   </sc-if>
                   <sc-for list="{{ hits }}" as="h" hint-placeholder-count="0">
                     <button onClick="{{ h.pick }}" style="display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--color-hairline); padding: 10px 14px; cursor: pointer; font-family: inherit;" style-hover="background: var(--color-moss);">
+                      <span style="flex: 0 0 56px; font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">{{ h.kind }}</span>
                       <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ h.name }}</span>
                       <span style="font-size: 12px; color: var(--color-slate);">{{ h.region }}</span>
                       <span style="flex: 1;"></span>
@@ -2737,7 +2910,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       <div data-r="daylegend" style="position: absolute; right: 16px; bottom: 16px; z-index: 3; display: flex; align-items: center; gap: 14px; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 999px; padding: 7px 14px; font-size: 11px; color: var(--color-slate);">
                         <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 3px; border-radius: 2px; background: {{ day.mapColor }};"></span>On foot</span>
                         <sc-if value="{{ day.hasRides }}" hint-placeholder-val="{{ true }}">
-                          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 0; border-top: 3px dotted {{ day.mapColor }};"></span>By train or taxi</span>
+                          <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 0; border-top: 3px dotted {{ day.mapColor }};"></span>{{ day.rideLabel }}</span>
                         </sc-if>
                       </div>
                     </sc-if>
@@ -2853,6 +3026,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                               <sc-if value="{{ r.mine }}" hint-placeholder-val="{{ false }}">
                                 <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,18px" variant="{{ r.badgeVariant }}">{{ r.badge }}</x-import>
                               </sc-if>
+                              <sc-if value="{{ r.canReport }}" hint-placeholder-val="{{ false }}">
+                                <button onClick="{{ r.report }}" style="margin-left: auto; background: none; border: 0; padding: 2px 0; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--color-slate);" style-hover="color: var(--color-ink);">Report</button>
+                              </sc-if>
                             </div>
                             <sc-if value="{{ r.note }}" hint-placeholder-val="{{ true }}">
                               <span style="font-size: 13.5px; color: var(--color-ink); text-wrap: pretty;">{{ r.note }}</span>
@@ -2911,6 +3087,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                   </div>
                   <div style="font-size: 12px; color: var(--color-slate); text-wrap: pretty;">Times reflow to the day you drop it on. Tags come with each stop; everything arrives as <em style="font-style: normal; color: var(--color-ink);">planned</em> except the travel legs, so nothing shows as booked until you book it.</div>
                 </x-import>
+                <sc-if value="{{ day.canReportDay }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ day.reportDay }}" style="align-self: center; background: none; border: 0; padding: 4px 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-slate);" style-hover="color: var(--color-ink);">Report this day</button>
+                </sc-if>
+                <sc-if value="{{ day.dayReported }}" hint-placeholder-val="{{ false }}">
+                  <span style="align-self: center; font-size: 12.5px; color: var(--color-slate);">Reported — an operator will look at it.</span>
+                </sc-if>
               </div>
             </div>
           </div>
@@ -2972,6 +3154,12 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Distance<span style="display: block; font-size: 12px; line-height: 1.45; color: var(--color-slate); padding-top: 2px; text-wrap: pretty;">{{ unitsNote }}</span></span>
                       <span style="justify-self: start;">
                         <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ units }}" onValueChange="{{ setUnits }}" options="{{ unitOptions }}" aria-label="Distance units"></x-import>
+                      </span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--color-hairline);">
+                      <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">Time<span style="display: block; font-size: 12px; line-height: 1.45; color: var(--color-slate); padding-top: 2px; text-wrap: pretty;">How clock times are written across your trips.</span></span>
+                      <span style="justify-self: start;">
+                        <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="auto,34px" value="{{ clock }}" onValueChange="{{ setClock }}" options="{{ clockOptions }}" aria-label="Time format"></x-import>
                       </span>
                     </div>
                     <div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 16px; padding: 13px 0; ">
@@ -3690,6 +3878,9 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
             <sc-if value="{{ docJustSaved }}" hint-placeholder-val="{{ false }}">
               <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">Saved · everyone on the trip sees it</span>
             </sc-if>
+            <sc-if value="{{ docShowKeep }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,32px" size="sm" variant="ghost" onClick="{{ keepDocTpl }}">Save as a template</x-import>
+            </sc-if>
             <span style="display: inline-flex; width: 92px;">
               <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="92px,32px" size="sm" className="w-full" variant="{{ docEditVariant }}" onClick="{{ toggleDocMode }}" aria-pressed="{{ docEditing }}">{{ docEditLabel }}</x-import>
             </span>
@@ -3818,6 +4009,34 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </div>
                   </sc-if>
 
+                  <sc-if value="{{ b.credit }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ b.credit }}</div>
+                  </sc-if>
+                  <sc-if value="{{ b.isStrip }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; gap: 3px; border-radius: 10px; overflow: hidden;">
+                      <sc-for list="{{ b.strip }}" as="sg" hint-placeholder-count="4">
+                        <div title="{{ sg.tip }}" style="flex: {{ sg.flex }}; min-width: 0; overflow: hidden; background: {{ sg.tint }}; padding: 10px 6px 9px; display: flex; flex-direction: column; gap: 2px;">
+                          <span style="font-size: 12.5px; font-weight: 600; color: {{ sg.ink }}; overflow: hidden; text-overflow: clip; white-space: nowrap;">{{ sg.city }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11px; color: {{ sg.ink }}; white-space: nowrap; overflow: hidden;">{{ sg.nights }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ b.isBars }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 7px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 12px 14px;">
+                      <sc-for list="{{ b.bars }}" as="br" hint-placeholder-count="5">
+                        <div style="display: grid; grid-template-columns: 58px minmax(0, 1fr) 70px; align-items: center; gap: 10px;">
+                          <span style="font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ br.label }}</span>
+                          <span style="height: 8px; border-radius: 999px; background: var(--color-moss); overflow: hidden;"><span style="display: block; height: 100%; width: {{ br.w }}; background: var(--color-brand); border-radius: 999px;"></span></span>
+                          <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink); text-align: right;">{{ br.amount }}</span>
+                        </div>
+                      </sc-for>
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--color-hairline);">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ b.totalLabel }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 12.5px; font-weight: 600; color: var(--color-ink);">{{ b.total }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
                   <sc-if value="{{ b.isCosts }}" hint-placeholder-val="{{ false }}">
                     <div style="border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
                       <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="4">
@@ -3987,7 +4206,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       </button>
                     </sc-for>
                   </div>
-                  <span style="font-size: 11.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ insCountLine }} · click to drop one at the cursor, or drag it in. It lands not set up.</span>
+                  <span style="font-size: 11.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ insCountLine }} · click to drop one at the cursor, or drag it in. It reads the whole trip until you narrow it.</span>
                 </div>
                 <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
                   <sc-for list="{{ railItems }}" as="it" hint-placeholder-count="6">
@@ -4361,6 +4580,44 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           </x-import>
         </x-import>
       </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+          <span style="font-size: 12px; color: var(--color-slate);">Kind</span>
+          <span style="font-size: 11.5px; color: var(--color-slate);">{{ kindHelp }}</span>
+        </div>
+        <div role="radiogroup" aria-label="Kind" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; background: var(--color-moss); border-radius: 10px; padding: 3px;">
+          <sc-for list="{{ kindChips }}" as="k" hint-placeholder-count="3">
+            <button role="radio" aria-checked="{{ k.on }}" onClick="{{ k.act }}" style="min-height: 34px; border: 0; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: {{ k.weight }}; background: {{ k.bg }}; color: {{ k.ink }}; box-shadow: {{ k.shadow }};">{{ k.label }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ addIsPending }}" hint-placeholder-val="{{ false }}">
+          <div role="radiogroup" aria-label="Why it is pending" style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <sc-for list="{{ whyChips }}" as="w" hint-placeholder-count="2">
+                <button role="radio" aria-checked="{{ w.on }}" onClick="{{ w.act }}" style="font-size: 13px; font-weight: {{ w.weight }}; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; border: 1px solid {{ w.edge }}; background: {{ w.bg }}; color: {{ w.ink }};">{{ w.label }}</button>
+              </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ addIsTravel }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div role="radiogroup" aria-label="How you travel" style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <sc-for list="{{ modeChips }}" as="m" hint-placeholder-count="2">
+                <button role="radio" aria-checked="{{ m.on }}" onClick="{{ m.act }}" style="font-size: 13px; font-weight: {{ m.weight }}; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-family: inherit; border: 1px solid {{ m.edge }}; background: {{ m.bg }}; color: {{ m.ink }};">{{ m.label }}</button>
+              </sc-for>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 6px 10px; flex-wrap: wrap;">
+              <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink);">{{ addRouteLine }}</span>
+              <sc-if value="{{ addEndClosed }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ openAddEnd }}" style="background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--color-brand);">Change where it ends</button>
+              </sc-if>
+            </div>
+            <sc-if value="{{ addEndOpen }}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="a8" label="Going to">
+                <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="a8" placeholder="e.g. Kyoto Station" value="{{ addTo }}" onChange="{{ setAddTo }}"></x-import>
+              </x-import>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
       <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,44px" variant="success">{{ addSlotNote }}</x-import>
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,86px" id="a6" label="Cost" description="Rough is fine. It counts against the trip budget as an estimate until you confirm.">
         <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="a6" placeholder="e.g. 120" value="{{ addCost }}" onChange="{{ setAddCost }}"></x-import>
@@ -4391,6 +4648,13 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           </sc-for>
         </div>
       </div>
+      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="a7" label="Booked by">
+        <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="a7" className="w-full" value="{{ addBookedBy }}" onChange="{{ setAddBookedBy }}">
+          <sc-for list="{{ bookedByOpts }}" as="o" hint-placeholder-count="5">
+            <option value="{{ o.v }}">{{ o.v }}</option>
+          </sc-for>
+        </x-import>
+      </x-import>
       <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,110px" id="a5" label="Notes" hint="Confirmation numbers, what to order, who to ask for.">
         <x-import component-from-global-scope="TravelCollabUI.Textarea" hint-size="100%,74px" id="a5" rows="3" placeholder="Optional" value="{{ addNote }}" onChange="{{ setAddNote }}"></x-import>
       </x-import>
@@ -4400,6 +4664,27 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
           <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ closeAdd }}">Cancel</x-import>
           <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ saveAdd }}">Add stop</x-import>
         </div>
+      </div>
+    </div>
+  </x-import>
+
+  <x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ reportOpen }}" onOpenChange="{{ setReportOpen }}" title="{{ reportTitle }}">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div role="radiogroup" aria-label="Why are you reporting it?" style="display: flex; flex-direction: column; gap: 6px;">
+        <span style="font-size: 12px; color: var(--color-slate);">Why are you reporting it?</span>
+        <sc-for list="{{ reportReasons }}" as="rr" hint-placeholder-count="5">
+          <button role="radio" aria-checked="{{ rr.on }}" onClick="{{ rr.act }}" style="display: flex; align-items: center; gap: 10px; min-height: 40px; text-align: left; padding: 8px 12px; border-radius: 8px; border: 1px solid {{ rr.edge }}; background: {{ rr.bg }}; cursor: pointer; font-family: inherit; font-size: 14px; color: var(--color-ink);">
+            <span style="flex: 0 0 auto; width: 14px; height: 14px; border-radius: 999px; border: 1.5px solid {{ rr.dotEdge }}; background: {{ rr.dot }}; box-shadow: inset 0 0 0 2px var(--color-surface);"></span>
+            {{ rr.label }}
+          </button>
+        </sc-for>
+      </div>
+      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,100px" id="rp1" label="Anything an operator should know (optional)">
+        <x-import component-from-global-scope="TravelCollabUI.Textarea" hint-size="100%,64px" id="rp1" rows="2" value="{{ reportNote }}" onChange="{{ setReportNote }}"></x-import>
+      </x-import>
+      <div style="display: flex; justify-content: flex-end; gap: 6px;">
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ closeReport }}">Cancel</x-import>
+        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" disabled="{{ reportNoSend }}" onClick="{{ sendReport }}">Send report</x-import>
       </div>
     </div>
   </x-import>
@@ -5413,7 +5698,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;invite&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;inviteState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;valid&quot;,&quot;expired&quot;,&quot;revoked&quot;,&quot;member&quot;],&quot;default&quot;:&quot;valid&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;importOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;lands&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;lands&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;invite&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;inviteState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;valid&quot;,&quot;expired&quot;,&quot;revoked&quot;,&quot;member&quot;],&quot;default&quot;:&quot;valid&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;importOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;lands&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;lands&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;coEditConflict&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;States&quot;},&quot;overviewStage&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;new&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;'full' | 'new'&quot;,&quot;section&quot;:&quot;States&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
@@ -5435,7 +5720,7 @@ class Component extends DCLogic {
     revStars: 0, revNote: '', revBusy: false, myReviews: {}, profileName: null, profileFrom: 'playbooks', saved: { 'pb-naoshima': 1, 'pb-kyoto3': 1 },
     blOpen: false, ld: {}, railHover: null, railHoverTop: 16,
     screen: this.props.startScreen || 'app', authMode: 'signin', frName: '', frWhen: 'Not sure yet', syncOff: false,
-    acctOpen: false, acctTab: 'profile', acctName: 'Sam K', homeAirport: 'SFO', units: 'km', homeHover: false, homeAt: null,
+    acctOpen: false, acctTab: 'profile', acctName: 'Sam K', homeAirport: 'SFO', units: 'km', clock: '12h', homeHover: false, homeAt: null,
     // M22 — API tokens. Minting is session-only in the build, so this state is
     // account scope and lives beside the rest of what you hold. `days` is days
     // remaining rather than a date, because "expires in 12 days" is the only
@@ -5454,7 +5739,7 @@ class Component extends DCLogic {
     surfaceOv: null, phoneTab: 'plan', mapOffline: false,
     docId: 'overview', docMode: 'read', docDirty: false, docIns: [], insSeq: 0,
     wb: {}, insKind: 'all', insQ: '', blankMade: false,
-    setOpen: false, datesEdit: false, currency: 'USD', costs: {}, okConf: [], addCost: '',
+    setOpen: false, datesEdit: false, currency: 'USD', costs: {}, okConf: [], addCost: '', addKind: 'planned', addWhy: 'book', addEndOpen: false, addMode: 'train', addTo: '', addBookedBy: 'Nobody yet', coEditDone: false, reportFor: null, reportReason: null, reportNote: '', reportSent: {}, savedTpls: [],
     budgets: { japan: 16400, nola: 3800 },
     crewBy: { japan: ['Sam K', 'Priya R', 'Jonah M', 'Mei T'], nola: ['Sam K', 'Dana R'] },
     backlog: [
@@ -5531,8 +5816,7 @@ class Component extends DCLogic {
         ['Kyoto', 'Tue', 29, 'Kyoto', [['09:00', '11:00', "Ginkaku-ji and the Philosopher's Path", 'Ginkaku-ji', 'Sakyō', 'All', '', ''],
           ['11:30', '12:30', 'Lunch at Monk', 'Monk', 'Sakyō', 'All', 'booked', ''],
           ['14:00', '16:00', 'Pottery at Kyoto Handicraft Center', 'Handicraft Center', 'Sakyō', 'Mei T', '', '']]],
-        ['Osaka', 'Wed', 30, 'Kyoto', [['10:00', '10:40', 'Train Kyoto → Osaka', 'Kyoto Station', 'Shimogyō', 'All', 'transit', ''],
-          ['11:30', '12:00', 'Check in at Zentis Osaka', 'Zentis Osaka', 'Kita', 'All', 'booked', ''],
+        ['Osaka', 'Wed', 30, 'Kyoto', [['11:30', '12:00', 'Check in at Zentis Osaka', 'Zentis Osaka', 'Kita', 'All', 'booked', ''],
           ['12:30', '14:00', 'Lunch at Harukoma Sushi', 'Harukoma Sushi', 'Nakazakichō', 'All', '', ''],
           ['15:00', '17:00', 'Osaka Castle Park', 'Osaka Castle', 'Chūō', 'All', '', ''],
           ['19:00', '21:30', 'Dōtonbori food crawl', 'Dōtonbori', 'Chūō', 'All', '', 'Five stops, one bite each. Jonah is picking.']]],
@@ -5845,7 +6129,9 @@ class Component extends DCLogic {
         if (n.indexOf(k) === 0) pre.push(c);
         else if (n.indexOf(k) > 0 || c.region.toLowerCase().indexOf(k) >= 0) sub.push(c);
       });
-      this.setState({ searching: false, cityHits: pre.concat(sub).slice(0, 6), searchMs: lat });
+      const cn = {}; this.CITY_INDEX.forEach(c => { const n = c.region.split(', ').pop(); cn[n] = (cn[n] || 0) + c.days; });
+      const cs = Object.keys(cn).filter(n => n.toLowerCase().indexOf(k) === 0).map(n => ({ name: n, region: '', days: cn[n], country: true }));
+      this.setState({ searching: false, cityHits: cs.concat(pre, sub).slice(0, 6), searchMs: lat });
     }, lat);
   }
   refetch() {
@@ -6758,7 +7044,7 @@ class Component extends DCLogic {
   discover() {
     const s = this.state, qc = s.qCities.map(c => c.toLowerCase());
     const scored = this.PLAYBOOKS.map(p => {
-      const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0);
+      const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0 || qc.indexOf(this.countryOf(c).toLowerCase()) >= 0);
       return { p: p, matched: matched, hits: matched.length, live: this.liveRating(p) };
     });
     let list = qc.length ? scored.filter(x => x.hits > 0) : scored.slice();
@@ -6844,7 +7130,7 @@ class Component extends DCLogic {
       return ix.length ? p.full[ix[0]][0] + ' – ' + p.full[ix[ix.length - 1]][0] + ' · ' + ix.length + ' stops' : '';
     };
     const qc = s.qCities.map(c => c.toLowerCase());
-    const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0);
+    const matched = p.cities.filter(c => qc.indexOf(c.toLowerCase()) >= 0 || qc.indexOf(this.countryOf(c).toLowerCase()) >= 0);
 
     const shares = p.rating >= 4.7 ? [0.80, 0.15, 0.03, 0.01, 0.01]
       : p.rating >= 4.3 ? [0.60, 0.28, 0.08, 0.03, 0.01]
@@ -6859,11 +7145,12 @@ class Component extends DCLogic {
     const list = [];
     if (mine) list.push({
       who: 'You', initials: 'SK', stars: this.starsOf(mine.stars), note: mine.note,
-      when: mine.queued ? 'not sent' : 'just now', mine: true,
+      when: mine.queued ? 'not sent' : 'just now', mine: true, canReport: false,
       badge: mine.queued ? 'Queued' : 'Yours', badgeVariant: mine.queued ? 'warning' : 'brand'
     });
     p.reviews.forEach(r => list.push({
-      who: r.who, initials: r.initials, stars: this.starsOf(r.stars), note: r.note, when: r.when, mine: false, badge: '', badgeVariant: 'neutral'
+      who: r.who, initials: r.initials, stars: this.starsOf(r.stars), note: r.note, when: r.when, mine: false, badge: '', badgeVariant: 'neutral',
+      canReport: !s.reportSent['rev:' + p.id + ':' + r.who], report: () => this.setState({ reportFor: { kind: 'review', key: 'rev:' + p.id + ':' + r.who, name: r.who.split(' ')[0] } })
     }));
 
     const words = ['', 'Would not', 'Mixed', 'Solid', 'Very good', 'Would do again'];
@@ -6958,6 +7245,9 @@ class Component extends DCLogic {
         { k: 'Added to trips', v: this.nAdds(p.adds) + '×' }
       ],
       conflict: conflict,
+      canReportDay: !p.mine && !s.reportSent['day:' + p.id], dayReported: !!s.reportSent['day:' + p.id],
+      reportDay: () => this.setState({ reportFor: { kind: 'day', key: 'day:' + p.id, name: p.name } }),
+      rideLabel: (() => { const m = []; (p.full || []).forEach(r => { if (/train|shinkansen|ferry|bus|flight|taxi/i.test(r[1])) { const w = this.MODE_WORD[this.modeOf(r[1])]; if (m.indexOf(w) < 0) m.push(w); } }); return m.length ? m.join(', ') : 'By train or taxi'; })(),
       conflictText: 'Mei Tanaka changed this day two days ago — the ferry time and two stops. The copy already in your Japan trip is untouched.',
       hasReviews: list.length > 0, noReviews: list.length === 0, reviews: list,
       mineDone: !!mine, canReview: !mine,
@@ -7003,6 +7293,7 @@ class Component extends DCLogic {
   toMin(s) { const p = s.split(':'); return (+p[0]) * 60 + (+p[1]); }
   fmt(t) {
     const p = t.split(':'), hh = +p[0], mm = +p[1];
+    if (this.state && this.state.clock === '24h') return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
     const ap = hh < 12 ? 'am' : 'pm', h12 = hh % 12 === 0 ? 12 : hh % 12;
     return h12 + (mm ? ':' + String(mm).padStart(2, '0') : '') + ' ' + ap;
   }
@@ -7463,6 +7754,13 @@ class Component extends DCLogic {
       options: [{ value: 'all', label: 'Every stop' }].concat(this.TAGS.map(t => ({ value: t.id, label: t.label }))),
       set: e => this.wset(key, e.target.value) };
   }
+  // The field widget's one extra control: which detail of the stops, by the
+  // manifest's own labels. Nothing chosen is the one widget that stays a ghost.
+  fieldBind(key) {
+    return { label: 'Detail', value: this.wget(key, ''), unset: this.wget(key, '') === '', w: '150px',
+      options: [{ value: '', label: 'Choose a detail' }, { value: 'cost', label: 'Cost' }, { value: 'place', label: 'Place' }, { value: 'notes', label: 'Notes' }, { value: 'kind', label: 'Kind' }],
+      set: e => this.wset(key, e.target.value) };
+  }
   // A widget lands from the rail with nothing bound. This is the state the build
   // needs designed and the old two-step Sheet never produced.
   insertW(wid, how) {
@@ -7472,7 +7770,7 @@ class Component extends DCLogic {
     const n = (this.state.insSeq || 0) + 1;
     this.setState(s => ({ insSeq: n, docIns: (s.docIns || []).concat([{ n: n, wid: wid }]), docMode: 'edit', docDirty: true, pIns: false }));
     this.flash(w.inputs.length
-      ? (how === 'drag' ? 'Dropped' : 'Inserted') + ' — now point it at ' + w.inputs.map(t => this.INPUT_WORDS[t]).join(' and ')
+      ? (how === 'drag' ? 'Dropped' : 'Inserted') + ' — reading the whole trip; narrow it to ' + w.inputs.map(t => this.INPUT_WORDS[t]).join(' or ') + ' above it'
       : (how === 'drag' ? 'Dropped' : 'Inserted') + ' — ' + w.title.toLowerCase());
   }
   // The blocks for widgets inserted in this session: the same renderers the
@@ -7484,13 +7782,13 @@ class Component extends DCLogic {
       const k = 'ins' + it.n;
       const binds = [], missing = [];
       w.inputs.forEach(t => {
-        if (t === 'day') { const v = this.wget(k + '.day', ''); if (v === '') missing.push('a day'); binds.push(this.dayBind(k + '.day', 'Pointed at', days, '')); }
+        if (t === 'day') binds.push(this.dayBind(k + '.day', 'Pointed at', days, ''));
         if (t === 'days') {
           const r = this.rangeBind(k, days, '');
-          if (r[0].unset || r[1].unset) missing.push('a stretch of days');
           binds.push(r[0], r[1]);
         }
         if (t === 'tags') binds.push(this.tagsBind(k + '.tags'));
+        if (t === 'field') { binds.push(this.fieldBind(k + '.field')); if (this.wget(k + '.field', '') === '') missing.push('a detail'); }
       });
       const row = { wname: w.title, binds: binds, unsetHint: missing.length ? 'needs ' + missing.join(' and ') : '' };
       const base = { wrows: [row], canRemove: true, remove: () => this.setState(s => ({ docIns: (s.docIns || []).filter(x => x.n !== it.n), docDirty: true })) };
@@ -7506,15 +7804,17 @@ class Component extends DCLogic {
   // The value kind a single-value widget resolves to. This is what earns it a
   // ghost: money ghosts as $XXX, a date as Ddd Mmm N. Declared per widget rather
   // than guessed from its title.
-  VKIND = { 'w-you': 'name', 'w-email': 'text_value', 'w-air': 'text_value', 'w-name': 'text_value',
-    'w-dates': 'date', 'w-left': 'money', 'w-total': 'money', 'w-daydate': 'date', 'w-daycity': 'city', 'w-dayends': 'time' };
+  VKIND = { cost: 'money', count: 'count', 'count.booked': 'count', 'count.days': 'count', 'count.cities': 'count', dates: 'date', 'trip.countdown': 'text_value',
+    hours: 'time', city: 'city', 'stop.field': 'text_value', 'trip.name': 'text_value', 'budget.remaining': 'money', 'account.name': 'name', 'account.homeAirport': 'text_value', 'time-difference-from-home': 'text_value' };
   GCOLS = {
-    'w-daystops': [{ kind: 'time', width: '84px' }, { kind: 'text' }],
-    'w-itin': [{ kind: 'text', width: '150px' }, { kind: 'text' }],
-    'w-costs': [{ kind: 'text' }, { kind: 'money', width: '110px' }],
-    'w-people': [{ kind: 'text' }]
+    'day.detail': [{ kind: 'text', width: '150px' }, { kind: 'text' }],
+    'day.detail.booked': [{ kind: 'text', width: '150px' }, { kind: 'text' }],
+    'city.detail': [{ kind: 'city', width: '120px' }, { kind: 'text' }],
+    weather: [{ kind: 'text' }, { kind: 'text', width: '120px' }],
+    'spend-by-day': [{ kind: 'text', width: '70px' }, { kind: 'text' }, { kind: 'money', width: '80px' }],
+    'know-before-you-go': [{ kind: 'text', width: '120px' }, { kind: 'text' }]
   };
-  GOVER = { 'w-stopline': 'stop', 'w-bookline': 'booking', 'w-dayline': 'day', 'w-cityline': 'city', 'w-trips': 'trip', 'w-personline': 'booking' };
+  GOVER = { sentence: 'day', line: 'day', 'booking.line': 'booking', 'still-to-book': 'stop', 'sunrise-and-sunset': 'day', 'costs.table': 'day', open: 'item' };
   ghostOf(w, needsLabel) {
     if (w.kind === 'single') return { isGhostInline: true, gParts: [{ kind: this.VKIND[w.id] || 'text_value', of: w.id, needs: needsLabel }], gName: w.title, gNeeds: needsLabel };
     if (w.kind === 'block') return { isGhostBlock: true, gCols: this.GCOLS[w.id] || [{ kind: 'text' }, { kind: 'text' }], gCaption: w.title, gNeeds: needsLabel };
@@ -7522,40 +7822,73 @@ class Component extends DCLogic {
       gTemplate: [{ kind: 'text', text: 'We were at ' }, { kind: 'text_value', of: 'stop.title' }, { kind: 'text', text: ' in ' }, { kind: 'city', of: 'stop.area' }, { kind: 'text', text: '.' }] };
   }
   resolveW(w, k, days, trip) {
-    const day = days[(this.wget(k + '.day', '') | 0) - 1] || days[0];
+    const dayPick = (this.wget(k + '.day', '') | 0) - 1, day = days[dayPick] || null;
     const from = this.wget(k + '.from', 1) | 0, to = this.wget(k + '.to', days.length) | 0;
-    const stretch = days.slice(from - 1, to);
+    const stretch = day ? [day] : days.slice(from - 1, to);
+    const allItems = stretch.reduce((a, x) => a.concat(x.items), []);
+    const tag = this.wget(k + '.tags', 'all');
+    const stops = stretch.reduce((a, x) => a.concat(x.items.filter(s => tag === 'all' || (s.tagIds || []).indexOf(tag) >= 0).map(s => Object.assign({ dayLabel: x.label }, s))), []);
     const seg = (name, v) => ({ isP: true, segs: [this.chip(name, v)] });
     const money = n => this.money(n);
-    if (w.id === 'w-you') return seg('you.name', 'Sam Keller');
-    if (w.id === 'w-email') return seg('you.email', 'sam@example.com');
-    if (w.id === 'w-air') return seg('you.airport', 'SFO');
-    if (w.id === 'w-name') return seg('trip.name', trip.name);
-    if (w.id === 'w-dates') return seg('trip.dates', trip.dates);
-    if (w.id === 'w-left') return seg('trip.left', money(16400 - this.spend().total) + ' left of ' + money(16400));
-    if (w.id === 'w-daydate') return seg('day.date', day.dateLabel);
-    if (w.id === 'w-daycity') return seg('day.city', day.city);
-    if (w.id === 'w-dayends') return seg('day.ends', day.items.length ? day.items[0].start + ' – ' + day.items[day.items.length - 1].start : 'nothing planned');
-    if (w.id === 'w-total') return seg('cost.stretch', money(stretch.reduce((n, x) => n + x.cost, 0)) + ' across ' + (from === to ? 'Day ' + from : 'Day ' + from + ' – Day ' + to));
-    if (w.id === 'w-daystops') return { isItin: true, days: [{ label: day.label, date: day.dateLabel, bg: day.tint, ink: day.ink, line: day.items.length ? day.items.map(a => a.start + ' ' + a.title).join(' · ') : 'Nothing planned yet' }] };
-    if (w.id === 'w-itin') return { isItin: true, days: stretch.map(x => ({ label: x.label, date: x.dateLabel, bg: x.tint, ink: x.ink, line: x.items.length ? x.items.slice(0, 3).map(a => a.title).join(' · ') : 'Nothing planned yet' })) };
-    if (w.id === 'w-costs') return { isCosts: true, totalLabel: 'Day ' + from + ' – Day ' + to, total: money(stretch.reduce((n, x) => n + x.cost, 0)),
-      rows: stretch.filter(x => x.cost).map(x => ({ label: x.label + ' · ' + x.city, amount: x.costLabel })) };
-    if (w.id === 'w-people') return { isP: true, segs: [this.chip('trip.people', this.PEOPLE.join(', '))] };
-    if (w.id === 'w-trips') return { isRepeat: true, edge: 'var(--color-border-strong)', repeatLabel: '2 trips', tagChips: [],
-      rows: [{ time: '', segs: [this.txt('Japan — '), this.chip('trip.dates', '14 days'), this.txt(' from late September.')] }, { time: '', segs: [this.txt('New Orleans — '), this.chip('trip.dates', '4 days'), this.txt(' in March.')] }] };
-    if (w.id === 'w-cityline') { const cs = []; trip.days.forEach(x => { if (cs.indexOf(x[0]) < 0) cs.push(x[0]); });
-      return { isRepeat: true, edge: 'var(--color-border-strong)', repeatLabel: cs.length + ' cities', tagChips: [],
-        rows: cs.map(c => ({ time: '', segs: [this.chip('city.name', c), this.txt(' — '), this.chip('city.days', trip.days.filter(x => x[0] === c).length + ' days'), this.txt('.')] })) }; }
-    if (w.id === 'w-dayline') return { isRepeat: true, edge: 'var(--color-border-strong)', repeatLabel: stretch.length + ' days', tagChips: [],
-      rows: stretch.map(x => ({ time: '', segs: [this.chip('day.label', x.label), this.txt(' — '), this.chip('day.city', x.city), this.txt(', '), this.chip('day.stops', x.items.length + ' stops'), this.txt(', '), this.chip('cost.day', x.costLabel), this.txt('.')] })) };
-    if (w.id === 'w-stopline' || w.id === 'w-bookline') {
-      const tag = this.wget(k + '.tags', 'all');
-      const items = day.items.filter(a => w.id === 'w-bookline' ? !!a.badge : (tag === 'all' || (a.tagIds || []).indexOf(tag) >= 0));
-      return { isRepeat: true, edge: day.solid, tagChips: [], noRows: !items.length,
-        repeatLabel: items.length + (items.length === 1 ? ' stop' : ' stops') + ' on ' + day.label,
-        rows: items.map(a => ({ time: a.start, segs: [this.txt('We were at '), this.chip('stop.title', a.title), this.txt(' in '), this.chip('stop.area', a.area), this.txt('.')] })) };
+    const plain = r => Object.assign({ bg: 'transparent', ink: 'var(--color-ink)', act: null, cursor: 'default', sub: '' }, r);
+    const cities = []; trip.days.forEach(x => { if (cities.indexOf(x[0]) < 0) cities.push(x[0]); });
+    const total = stretch.reduce((n, x) => n + x.cost, 0), budget = 16400;
+    const id = w.id;
+    if (id === 'cost') return seg('cost', money(total));
+    if (id === 'count') return seg('count', stops.length + (stops.length === 1 ? ' stop' : ' stops'));
+    if (id === 'count.booked') { const n = stops.filter(s => s.badge === 'Booked').length; return seg('count', n + ' booked'); }
+    if (id === 'count.days') return seg('count', days.length + ' days');
+    if (id === 'count.cities') { const c = []; stretch.forEach(x => { if (c.indexOf(x.city) < 0) c.push(x.city); }); return seg('count', c.length + (c.length === 1 ? ' city' : ' cities')); }
+    if (id === 'dates') return seg('dates', trip.dates);
+    if (id === 'trip.countdown') return seg('trip.countdown', 'in ' + this.daysUntil(this.TODAY, this.NEXT_TRIP_START) + ' days');
+    if (id === 'hours') { let lo = 1e9, hi = -1;
+      stretch.forEach(x => { const raw = trip.days[days.indexOf(x)]; (raw ? raw[4] : []).forEach(a => { lo = Math.min(lo, this.toMin(a[0])); hi = Math.max(hi, this.toMin(a[1])); }); });
+      return seg('hours', hi < 0 ? 'no times set' : this.fmt(this.hhmm(lo)) + ' – ' + this.fmt(this.hhmm(hi))); }
+    if (id === 'city') { const c = []; stretch.forEach(x => { if (c.indexOf(x.city) < 0) c.push(x.city); }); return seg('city', c.join(' – ')); }
+    if (id === 'stop.field') { const f = this.wget(k + '.field', 'place');
+      if (f === 'cost') return seg('stop.cost', money(allItems.reduce((n, a) => n + (parseFloat(String(a.cost).replace(/[^0-9.]/g, '')) || 0), 0)));
+      if (f === 'kind') { const c = {}; allItems.forEach(a => { const b = a.badge || 'Planned'; c[b] = (c[b] || 0) + 1; }); return seg('stop.kind', Object.keys(c).map(b => c[b] + ' ' + b.toLowerCase()).join(', ')); }
+      if (f === 'notes') return seg('stop.notes', allItems.map(a => a.note).filter(Boolean).slice(0, 2).join(' · ') || 'no notes yet');
+      const pl = []; allItems.forEach(a => { if (pl.indexOf(a.place) < 0) pl.push(a.place); }); return seg('stop.place', pl.slice(0, 6).join(', ') + (pl.length > 6 ? ' and ' + (pl.length - 6) + ' more' : '')); }
+    if (id === 'trip.name') return seg('trip.name', trip.name);
+    if (id === 'budget.remaining') return seg('trip.budgetRemaining', money(budget - this.spend().total));
+    if (id === 'account.name') return seg('account.name', 'Sam Keller');
+    if (id === 'account.homeAirport') return seg('account.homeAirport', 'SFO');
+    if (id === 'time-difference-from-home') return seg('day.fromHome', 'Japan is 16h ahead of home');
+    if (id === 'day.detail') return { isItin: true, days: stretch.map(x => ({ label: x.label, date: x.dateLabel, bg: x.tint, ink: x.ink, line: x.items.length ? x.items.map(a => a.start + ' ' + a.title).join(' · ') : 'Nothing planned yet' })) };
+    if (id === 'day.detail.booked') { const ds = stretch.map(x => ({ x, b: x.items.filter(a => a.badge === 'Booked') })).filter(o => o.b.length);
+      return { isItin: true, days: ds.map(o => ({ label: o.x.label, date: o.x.dateLabel, bg: o.x.tint, ink: o.x.ink, line: o.b.map(a => a.start + ' ' + a.title).join(' · ') })) }; }
+    if (id === 'city.detail') return { isRows: true, wname: w.title, emptyLine: '', rows: cities.map(c => { const ac = this.accent(c), ords = [], n = trip.days.reduce((m, x, i) => { if (x[0] === c) { ords.push(i + 1); return m + x[4].length; } return m; }, 0);
+      return plain({ label: c, sub: ords.map(o => 'Day ' + o).join(', '), right: n + (n === 1 ? ' stop' : ' stops'), bg: ac.tint, ink: ac.ink }); }) };
+    if (id === 'sentence') return { isRepeat: true, edge: 'var(--color-border-strong)', repeatLabel: stretch.length + ' days', tagChips: [],
+      rows: stretch.map(x => ({ time: '', segs: [this.txt('Welcome to '), this.chip('{city}', x.city), this.txt(' — '), this.chip('{date}', x.dateLabel), this.txt('.')] })) };
+    if (id === 'line' || id === 'costs.table') {
+      if (id === 'costs.table') return { isCosts: true, totalLabel: 'Day ' + from + ' – Day ' + to, total: money(total), rows: stretch.filter(x => x.cost).map(x => ({ label: x.label + ' · ' + x.city, amount: x.costLabel })) };
+      return { isRows: true, wname: w.title, emptyLine: '', rows: stretch.map(x => plain({ label: x.label + ' · ' + x.dateLabel, sub: x.city + ' · ' + x.items.length + ' stops', right: x.costLabel })) };
     }
+    if (id === 'booking.line' || id === 'still-to-book') {
+      const need = s => s.badge === 'To book' || s.badge === 'Maybe' || ((s.tagIds || []).indexOf('ticketed') >= 0 && s.badge !== 'Booked' && !s.isTravel);
+      const rows = stops.filter(s => id === 'booking.line' ? s.badge === 'Booked' : need(s)).map(s => plain({ label: s.title, sub: s.dayLabel + ' · ' + s.start, right: id === 'booking.line' ? s.cost : s.badge === 'Maybe' ? 'Maybe' : s.badge === 'To book' ? 'Not booked' : 'Ticket needed',
+        bg: id === 'booking.line' ? 'var(--color-moss)' : 'var(--color-warning-tint)', ink: id === 'booking.line' ? 'var(--color-ink)' : 'var(--color-warning-ink)' }));
+      return { isRows: true, wname: w.title, rows: rows, emptyLine: rows.length ? '' : (id === 'booking.line' ? 'Nothing booked in this stretch yet.' : 'Everything in this stretch that wants a booking has one.') };
+    }
+    if (id === 'know-before-you-go') return { isRows: true, wname: w.title, emptyLine: '', credit: 'Japan · CIA World Factbook',
+      rows: [['Plugs', 'Type A · 100 V'], ['Drives on', 'The left'], ['Calling code', '+81'], ['Police', '110'], ['Fire and ambulance', '119'], ['Currency', 'Yen (¥)']].map(r => plain({ label: r[0], right: r[1] })) };
+    if (id === 'trip-strip') { const segs = []; trip.days.forEach(x => { const l = segs[segs.length - 1]; if (l && l.city === x[0]) l.n++; else segs.push({ city: x[0], n: 1 }); });
+      return { isStrip: true, strip: segs.map(g => Object.assign({ city: g.n >= 2 ? g.city : g.city.slice(0, 3), flex: g.n, nights: g.n >= 3 ? g.n + ' days' : String(g.n), tip: g.city + ' · ' + g.n + (g.n === 1 ? ' day' : ' days') }, this.accent(g.city))) }; }
+    if (id === 'spend-by-day') { const top = Math.max.apply(null, stretch.map(x => x.cost).concat([1]));
+      return { isBars: true, bars: stretch.map(x => ({ label: x.label, amount: x.costLabel, w: Math.round(100 * x.cost / top) + '%' })), totalLabel: 'Day ' + from + ' – Day ' + to, total: money(total) }; }
+    if (id === 'budget-burn-down') { let left = budget;
+      return { isBars: true, bars: days.map(x => { left -= x.cost; return { label: x.label, amount: money(left), w: Math.max(0, Math.round(100 * left / budget)) + '%' }; }), totalLabel: 'Left at the end', total: money(left) }; }
+    if (id === 'sunrise-and-sunset') return { isRepeat: true, edge: 'var(--color-border-strong)', repeatLabel: stretch.length + ' days', tagChips: [],
+      rows: stretch.map((x, n) => ({ time: '', segs: [this.chip('day.label', x.label), this.txt(' — sunrise '), this.chip('day.sunrise', '5:' + (38 + n % 6) + ' am'), this.txt(', sunset '), this.chip('day.sunset', '5:' + (40 - n % 6) + ' pm'), this.txt('.')] })) };
+    if (id === 'weather') {
+      if (this.state.syncOff) return { isEmpty: true, text: 'Weather is unavailable right now. It fills in when the forecast answers.' };
+      const lead = this.daysUntil(this.TODAY, this.NEXT_TRIP_START), anyFc = lead + from - 1 <= 9;
+      return { isRows: true, wname: w.title, emptyLine: '', credit: anyFc ? 'Forecast: Norwegian Meteorological Institute (updated 9:10 am) · Monthly averages: NASA POWER' : 'Monthly averages: NASA POWER, 2001–2020',
+        rows: stretch.map((x, n) => { const d = from - 1 + n, fc = lead + d <= 9, hi = 25 - ((d * 3) % 7), lo = hi - 7 - (d % 3);
+          return plain({ label: x.label + ' · ' + x.city, sub: fc ? 'Forecast' : 'Typical for ' + String(x.dateLabel || '').split(' ')[1], right: hi + '° / ' + lo + '°' + (fc && d % 4 === 1 ? ' · rain' : ''), bg: fc ? 'var(--color-moss)' : 'transparent' }); }) }; }
+    if (id === 'open') return this.openBlock(days);
     return { isEmpty: true, text: w.title + ' — pointed, and this prototype does not draw its output yet.' };
   }
   txt(t) { return { isText: true, text: t }; }
@@ -7619,35 +7952,56 @@ class Component extends DCLogic {
             { mark: '2', wname: 'A day’s city', binds: [this.dayBind('dep.day', 'Pointed at', days, 12)] }
           ],
           segs: [this.txt('We land in '), this.chipM('day.city', (days[(this.wget('arr.day', 1) | 0) - 1] || days[0]).city, '1'), this.txt(' and fly home from '), this.chipM('day.city', (days[(this.wget('dep.day', 12) | 0) - 1] || days[days.length - 1]).city, '2'), this.txt('.')] },
-        this.personBlock(days),
         { isNote: true, noteLabel: 'Only you', text: 'Ask about the late dinner. Priya wants an early night.' }
       ].concat(this.insBlocks(days, trip));
     }
     if (d.id === 'blank' || d.id === 'mei') {
       return [
         { isP: true, segs: [this.txt('Nothing here yet.')] },
-        { isEmpty: true, text: 'Drag a widget in from the rail, or click one to drop it at the cursor. It lands not set up — point it at a day, or a stretch of days, in the row above it.' }
+        { isEmpty: true, text: 'Drag a widget in from the rail, or click one to drop it at the cursor. It reads the whole trip until you narrow it to a day, a stretch or a tag in the row above it.' }
       ].concat(this.insBlocks(days, trip));
     }
-    const cities = [];
-    trip.days.forEach(x => { if (cities.indexOf(x[0]) < 0) cities.push(x[0]); });
-    const costRows = days.filter(x => x.costLabel && x.costLabel !== '$0').slice(0, 5).map(x => ({ label: x.label + ' · ' + x.city, amount: x.costLabel }));
+    // The Overview is ONLY registry widgets (2026-09-25) — nothing here a person
+    // couldn't insert into any page. Headings and joining words are the page's
+    // own prose. It reads at every stage because every widget has an honest empty
+    // line; the `overviewStage` tweak shows a trip created a minute ago.
+    const fresh = this.props.overviewStage === 'new';
+    const W = id => this.WIDGETS.filter(x => x.id === id)[0];
+    const EMPTY = { dates: 'no dates set', 'trip.countdown': 'no dates set', 'count.days': '0 days', 'count.cities': 'no cities yet', 'count.booked': '0 booked', count: '0 stops',
+      'trip-strip': 'add a day to see this', 'time-difference-from-home': 'add a stop with a place to see this', weather: 'add a stop with a place to see this',
+      'know-before-you-go': 'add a stop with a place to see this', 'city.detail': 'no cities on this trip yet', 'day.detail': 'no days yet',
+      'booking.line': 'nothing booked yet', 'still-to-book': 'nothing to book yet', cost: 'no costs yet', 'budget.remaining': 'no budget set', 'spend-by-day': 'no costs yet' };
+    const quiet = id => ({ isChip: true, macro: id, value: EMPTY[id] || 'nothing to show', chipBg: 'transparent', chipEdge: 'var(--color-border-strong)' });
+    const S = id => fresh && id !== 'trip.name' ? [quiet(id)] : (this.resolveW(W(id), 'ov.' + id, days, trip).segs || []);
+    const R = id => {
+      if (fresh && id === 'open') return { isRows: true, wname: W(id).title, rows: [], emptyLine: 'Nothing is waiting on you.' };
+      if (fresh) return { isP: true, segs: [quiet(id)] };
+      return Object.assign({ wname: W(id).title }, this.resolveW(W(id), 'ov.' + id, days, trip));
+    };
+    const txt = t => this.txt(t);
     return [
-      { isP: true, segs: [this.chip('trip.name', trip.name), this.txt(' runs '), this.chip('trip.dates', trip.dates), this.txt(' — '), this.chip('trip.length', trip.days.length + ' days'), this.txt(' across '), this.chip('trip.cities', cities.length + ' cities'), this.txt('.')] },
-      { isH: true, text: 'Needs you' },
-      this.openBlock(days),
-      { isH: true, text: 'Who’s in' },
-      this.peopleBlock(),
-      { isH: true, text: 'The shape of it' },
-      { isP: true, segs: [this.txt('Five nights in Tokyo to find our feet, a day out to Nikkō, one night in the mountains at Hakone, then Kyoto slowly. Osaka at the end because the flight home leaves from there.')] },
-      { isH: true, text: 'Every day at a glance' },
-      { isItin: true, wbinds: this.rangeBind('itin', days),
-        days: days.slice(this.wget('itin.from', 1) - 1, this.wget('itin.to', days.length)).map(x => ({ label: x.label, date: x.dateLabel, bg: x.tint, ink: x.ink, solid: x.solid,
-          line: x.items.length ? x.items.slice(0, 3).map(a => a.title).join(' · ') + (x.items.length > 3 ? ' · +' + (x.items.length - 3) + ' more' : '') : 'Nothing planned yet' })) },
-      { isH: true, text: 'What it costs' },
-      { isCosts: true, rows: costRows, totalLabel: 'Planned so far', total: this.money(this.spend().total) },
-      this.personBlock(days),
-      { isNote: true, noteLabel: 'Only you', text: 'Sam is covering the ryokan — settle up after Kyoto.' }
+      // The hook: what it is and how soon.
+      { isP: true, segs: S('trip.name').concat([txt(' — ')], S('trip.countdown')) },
+      // The shape, four self-describing values.
+      { isP: true, segs: S('dates').concat([txt(' · ')], S('count.days'), [txt(' · ')], S('count.cities'), [txt(' · ')], S('count.booked'), [txt(' of ')], S('count')) },
+      R('trip-strip'),
+      { isH: true, text: 'What needs you' },
+      R('open'),
+      { isH: true, text: 'Before you go' },
+      { isP: true, segs: S('time-difference-from-home').concat([txt('.')]) },
+      R('weather'),
+      R('know-before-you-go'),
+      { isH: true, text: 'Where it goes' },
+      R('city.detail'),
+      { isH: true, text: 'Day by day' },
+      R('day.detail'),
+      { isH: true, text: 'Settled' },
+      R('booking.line'),
+      { isH: true, text: 'Still to book' },
+      R('still-to-book'),
+      { isH: true, text: 'Money' },
+      { isP: true, segs: [txt('Spent so far ')].concat(S('cost'), [txt(' · left in the budget ')], S('budget.remaining')) },
+      R('spend-by-day')
     ].concat(this.insBlocks(days, trip));
   }
   // The one widget in the seeded pages that CANNOT resolve: nothing links a stop
@@ -7677,42 +8031,50 @@ class Component extends DCLogic {
       rows: crew.map((n, k) => ({ label: n, sub: ['added 3 stops this week', 'commented on Day 6', 'nothing yet', 'added 1 stop'][k % 4],
         right: k === 0 ? 'Owner · you' : 'Can edit', bg: 'transparent', ink: 'var(--color-ink)', act: null, cursor: 'default' })) };
   }
-  personBlock() {
-    return { isUnset: true, unsetTitle: 'What one person is in for', unsetShape: 'inline · needs stop owners',
-      unsetLine: 'Not set up — a stop doesn’t know whose it is yet, so there is nothing to point this at. It reads someone’s stops and their share once stops carry an owner.' };
-  }
   // Inputs match the build's registry, not the earlier canvas: the five
   // trip-scoped widgets declare NO input, because a notebook's trip is fixed at
   // creation — a `trip` control would be a select with one option. Home airport
   // no longer needs a field (it shipped). The two person widgets are listed and
   // NOT insertable: nothing links a stop to a person yet, so a control there
   // would resolve against data that does not exist.
+  // The build's preset list (packages/pages/src/presets.ts, main @ 7892bed), same ids and
+  // titles. A preset is a named (primitive, filters) pair and is never stored; the page
+  // stores the primitive. Inputs are mapped onto this prototype's three bind controls:
+  // 'day' (one day), 'days' (the build's dates filter) and 'tags'.
   WIDGETS = [
-    { id: 'w-you', kind: 'single', title: 'Your name', body: 'The name on your account.', preview: 'Your account name', inputs: [] },
-    { id: 'w-email', kind: 'single', title: 'Your email', body: 'The address you signed in with.', preview: 'The address you signed in with', inputs: [] },
-    { id: 'w-air', kind: 'single', title: 'Home airport', body: 'Where you usually fly out of.', preview: 'Your home airport', inputs: [] },
-    { id: 'w-trips', kind: 'repeat', title: 'A line for every trip you have', body: 'One sentence per trip in your account.', preview: 'One line per trip — its name, how long, when.', inputs: [] },
-    { id: 'w-name', kind: 'single', title: 'Trip name', body: 'The name of this notebook’s trip.', preview: 'This notebook’s trip name', inputs: [] },
-    { id: 'w-dates', kind: 'single', title: 'Trip dates', body: 'This trip’s date range.', preview: 'The trip’s dates, start to end', inputs: [] },
-    { id: 'w-left', kind: 'single', title: 'Budget left', body: 'What’s left of the trip’s budget.', preview: 'What’s left, against the total', inputs: [] },
-    { id: 'w-total', kind: 'single', title: 'Cost of a stretch', body: 'What a run of days adds up to. Point it at one day or all fourteen.', preview: 'The total for the stretch you point it at', inputs: ['days'] },
-    { id: 'w-daydate', kind: 'single', title: 'A day’s date', body: 'The date of whichever day you point it at.', preview: 'The date of the day you point it at', inputs: ['day'] },
-    { id: 'w-daycity', kind: 'single', title: 'A day’s city', body: 'Where you are on that day.', preview: 'Where you are that day', inputs: ['day'] },
-    { id: 'w-dayends', kind: 'single', title: 'First and last stop', body: 'When a day starts and ends.', preview: 'When the day starts and ends', inputs: ['day'] },
-    { id: 'w-daystops', kind: 'block', title: 'A day’s stops', body: 'The stop list for one day.', preview: 'Every stop on one day, in order', inputs: ['day'] },
-    { id: 'w-itin', kind: 'block', title: 'Days at a glance', body: 'A table of days and their stops, for whatever stretch you pick.', preview: 'One row per day in the stretch', inputs: ['days'] },
-    { id: 'w-costs', kind: 'block', title: 'Cost breakdown', body: 'A cost table by day, with a total for the stretch.', preview: 'A row per day that costs something, then a total', inputs: ['days'] },
-    { id: 'w-people', kind: 'block', title: 'Everyone on a trip', body: 'The travellers on this trip.', preview: 'Everyone on the trip, by name', inputs: [] },
-    { id: 'w-open', kind: 'block', title: 'What needs you', body: 'Overlaps, empty days and parked ideas — anything on the trip waiting on a decision.', preview: 'A row per thing waiting on a decision', inputs: [] },
-    { id: 'w-dayline', kind: 'repeat', title: 'A line for every day', body: 'Write one sentence and it repeats for each day in the stretch, filled in with that day’s own detail.', preview: 'Your sentence, once per day in the stretch', inputs: ['days'] },
-    { id: 'w-cityline', kind: 'repeat', title: 'A line for every city', body: 'One sentence per city, in the order you reach them.', preview: 'Your sentence, once per city', inputs: [] },
-    { id: 'w-stopline', kind: 'repeat', title: 'A line for every stop', body: 'One sentence per stop, in your own wording — narrowed to the tags you pick.', preview: 'Your sentence, once per stop that matches', inputs: ['day', 'tags'] },
-    { id: 'w-bookline', kind: 'repeat', title: 'A line for every booking', body: 'One sentence per confirmed booking on a day.', preview: 'Your sentence, once per booking', inputs: ['day'] },
-    { id: 'w-person', kind: 'single', title: 'What one person is in for', body: 'One traveller’s stops and what they owe.', preview: 'Whoever you point it at — their stops, and their share so far.', inputs: ['person'], off: true, needs: 'needs stop owners', offWhy: 'a stop doesn’t know whose it is yet' },
-    { id: 'w-personline', kind: 'repeat', title: 'A line for everything one person booked', body: 'One sentence per booking in someone’s name.', preview: 'Your sentence, once per booking in their name', inputs: ['person', 'days'], off: true, needs: 'needs stop owners', offWhy: 'a stop doesn’t know whose it is yet' }
+    { id: 'cost', kind: 'single', title: 'What it costs', body: 'The running total — the whole trip, or just what you point it at.', preview: 'the running total — the whole trip, or just what you point it at', inputs: ['days', 'tags'] },
+    { id: 'count', kind: 'single', title: 'How many stops', body: 'How many stops there are.', preview: 'how many there are', inputs: ['days', 'tags'] },
+    { id: 'count.booked', kind: 'single', title: 'How many are booked', body: 'How many stops are booked. Point it at a day for that day’s.', preview: 'how many of them are booked', inputs: ['days'] },
+    { id: 'count.days', kind: 'single', title: 'How many days', body: 'How long the trip is, in days.', preview: 'how many days it runs', inputs: [] },
+    { id: 'count.cities', kind: 'single', title: 'How many cities', body: 'How many cities the trip reaches.', preview: 'how many cities it reaches', inputs: ['days'] },
+    { id: 'dates', kind: 'single', title: 'The dates', body: 'The trip’s dates, start to end.', preview: 'Fri 25 Sep – Sun 4 Oct', inputs: [] },
+    { id: 'trip.countdown', kind: 'single', title: 'How long until it starts', body: 'Counting down before it starts, which day you are on while it runs, how long ago after.', preview: 'in 34 days', inputs: [] },
+    { id: 'hours', kind: 'single', title: 'Start and end times', body: 'When a day starts and ends.', preview: '9 am – 9:30 pm', inputs: ['day'] },
+    { id: 'city', kind: 'single', title: 'Which cities', body: 'The cities, in order.', preview: 'Tokyo – Kyoto', inputs: ['days'] },
+    { id: 'stop.field', kind: 'single', title: 'A stop’s detail', body: 'One detail of the stops — its cost, its place, its notes. You pick the detail.', preview: 'one detail of a stop, like its cost or its place', inputs: ['field', 'day'] },
+    { id: 'trip.name', kind: 'single', title: 'The trip’s name', body: 'The trip’s name.', preview: 'Japan, spring', inputs: [] },
+    { id: 'budget.remaining', kind: 'single', title: 'What’s left of the budget', body: 'The budget minus what it costs so far. Negative when over.', preview: 'what’s left to spend', inputs: [] },
+    { id: 'account.name', kind: 'single', title: 'Your name', body: 'The name on your account.', preview: 'the name on your account', inputs: [] },
+    { id: 'account.homeAirport', kind: 'single', title: 'Your home airport', body: 'Your home airport, as a three-letter code.', preview: 'your home airport code', inputs: [] },
+    { id: 'day.detail', kind: 'block', title: 'The days, in detail', body: 'Every stop, day by day — or one day, if you point it at one.', preview: 'every stop, day by day', inputs: ['days'] },
+    { id: 'day.detail.booked', kind: 'block', title: 'The days, bookings only', body: 'The booked stops on each day, skipping the days with none.', preview: 'each day’s bookings, and nothing else', inputs: ['days'] },
+    { id: 'city.detail', kind: 'block', title: 'The cities, in detail', body: 'A card per city, with its days and stops.', preview: 'a card per city, with its days and stops', inputs: [] },
+    { id: 'sentence', kind: 'repeat', title: 'A sentence for each…', body: 'A sentence you write once, printed for each day, stop or city — like “Welcome to” and the city’s name.', preview: 'your own sentence, once per day, stop or city', inputs: ['days'] },
+    { id: 'line', kind: 'repeat', title: 'A line for each…', body: 'One line for each day, stop or city, in a table — pick which in its settings.', preview: 'one line per day, stop or city', inputs: ['days'] },
+    { id: 'booking.line', kind: 'repeat', title: 'A line for every booking', body: 'One line per booked stop: when it is, and what it cost.', preview: 'one line per booking, with its time and cost', inputs: ['days'] },
+    { id: 'still-to-book', kind: 'repeat', title: 'Still to book', body: 'One line per stop that still needs booking.', preview: 'one line per stop you still have to book', inputs: ['days'] },
+    { id: 'know-before-you-go', kind: 'block', title: 'Know before you go', body: 'Plugs, emergency numbers and currency for each country you visit.', preview: 'plugs, emergency numbers and currency for each country', inputs: [] },
+    { id: 'trip-strip', kind: 'block', title: 'Trip strip', body: 'Every day of the trip in one band, coloured by city.', preview: 'every day in one band, coloured by city', inputs: [] },
+    { id: 'spend-by-day', kind: 'block', title: 'Spend by day', body: 'A bar per day of what it costs, against the budget.', preview: 'a bar per day of what it costs', inputs: ['days'] },
+    { id: 'budget-burn-down', kind: 'block', title: 'Budget burn-down', body: 'The same chart as what is left of the budget after each day.', preview: 'what is left after each day', inputs: [] },
+    { id: 'sunrise-and-sunset', kind: 'repeat', title: 'Sunrise and sunset', body: 'Sunrise, sunset and golden hour for each day, where you are.', preview: 'sunrise 4:25 am · sunset 7 pm · golden hour 6:22 pm – 7 pm', inputs: ['days'] },
+    { id: 'time-difference-from-home', kind: 'single', title: 'Time difference from home', body: 'How far ahead or behind home the trip is.', preview: 'Tokyo is 16h ahead of home', inputs: [] },
+    { id: 'weather', kind: 'block', title: 'Weather', body: 'The forecast when there is one, what’s typical when there isn’t.', preview: 'the weather for each day', inputs: ['days'] },
+    { id: 'costs.table', kind: 'repeat', title: 'Costs, broken down', body: 'Each day’s spend, and the total.', preview: 'each day’s spend, and the total', inputs: ['days'] },
+    { id: 'open', kind: 'repeat', title: 'What needs you', body: 'Overlaps, empty days and parked ideas — anything waiting on a decision.', preview: 'one row per thing waiting on a decision', inputs: [] }
   ];
   SHAPES = { single: 'inline', block: 'a block', repeats: 'a list', repeat: 'a list' };
-  INPUT_WORDS = { day: 'a day', days: 'a stretch of days', person: 'someone on the trip', tags: 'tags', trip: 'a trip' };
+  INPUT_WORDS = { field: 'a detail', day: 'a day', days: 'a stretch of days', person: 'someone on the trip', tags: 'tags', trip: 'a trip' };
   // Search only — the phone sheet groups by shape, so it must not inherit the
   // desktop rail's shape filter.
   searchList() {
@@ -8134,7 +8496,7 @@ class Component extends DCLogic {
       const ac = this.accent(g.city), n = g.stops.length;
       const first = g.stops[0], last = g.stops[n - 1];
       const cost = g.stops.reduce((t, a) => t + this.costOf(a).amt, 0);
-      const open = g.stops.filter(a => a[6] !== 'booked' && a[6] !== 'transit').length;
+      const open = g.stops.filter(a => this.needsBooking(a)).length;
       const hits = tf.length ? g.stops.filter(a => !this.tagOff(a)).length : 0;
       const s0 = first ? Math.max(0, Math.min(1, (this.toMin(first[0]) - this.CAL_DAY0) / span)) : 0;
       const s1 = last ? Math.max(0, Math.min(1, (this.toMin(last[1]) - this.CAL_DAY0) / span)) : 0;
@@ -8146,7 +8508,7 @@ class Component extends DCLogic {
         isLead: groups.length > 1 && k === 0,
         isMain: !(groups.length > 1 && k === 0),
         // The lead group ends on the transit stop, so its START is the departure.
-        leadTime: last ? this.fmt(last[0]).replace(' ', '') : '',
+        leadTime: last ? (last[6] === 'transit' ? this.MODE_WORD[this.modeOf(last[2])].toLowerCase() + ' ' : '') + this.fmt(last[0]).replace(' ', '') : '',
         countLabel: n + (n === 1 ? ' stop' : ' stops'),
         timeLabel: first ? this.fmt(first[0]).replace(' ', '') + '–' + this.fmt(last[1]).replace(' ', '') : '',
         costLabel: this.money(cost),
@@ -8206,6 +8568,11 @@ class Component extends DCLogic {
     });
     const color = day.ac.solid, walk = [], ride = [];
     day.legs.forEach(l => (l.ride ? ride : walk).push({ type: 'Feature', properties: { color }, geometry: { type: 'LineString', coordinates: [l.a.c, l.b.c] } }));
+    const prevDay = all[fi - 1], dd = day.day;
+    const imp = dd[3] && dd[3] !== dd[0] && !dd[4].some(a => a[6] === 'transit') && prevDay && prevDay.pts.length && day.pts.length
+      ? { a: prevDay.pts[prevDay.pts.length - 1], b: day.pts[0], to: dd[0] } : null;
+    if (imp) ride.push({ type: 'Feature', properties: { color: '#8A928F' }, geometry: { type: 'LineString', coordinates: [imp.a.c, imp.b.c] } });
+    this._implied = imp;
     map.getSource('s-ghost').setData({ type: 'FeatureCollection', features: ghost });
     map.getSource('s-walk').setData({ type: 'FeatureCollection', features: walk });
     map.getSource('s-ride').setData({ type: 'FeatureCollection', features: ride });
@@ -8219,6 +8586,7 @@ class Component extends DCLogic {
     }
     const b = new maplibregl.LngLatBounds();
     day.pts.forEach(p => b.extend(p.c));
+    if (imp) b.extend(imp.a.c);
     const jump = snap || !this._lastCenter || this.hav(this._lastCenter, day.center) > 25;
     this._lastCenter = day.center;
     if (day.pts.length === 1) map[jump ? 'jumpTo' : 'easeTo']({ center: day.pts[0].c, zoom: 14, duration: jump ? 0 : 550 });
@@ -8270,9 +8638,13 @@ class Component extends DCLogic {
     pts.forEach(p => {
       boxes.push({ x: p.sx - 11, y: p.sy - 11, w: 22, h: 22 });
       const el = document.createElement('div');
-      el.style.cssText = 'width:22px;height:22px;border-radius:50%;background:' + color + ';color:#fff;font:600 11px/22px var(--font-next-mono, ui-monospace);text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.28);cursor:default;opacity:' + (p.off ? '.28' : '1') + ';';
+      // Pins speak the same language as the cards: planned is filled, pending is a
+      // ring (dashed when it's only if there's time), transit is a dotted slate ring.
+      const pend = p.kind === 'hold' || p.kind === 'idea', tr = p.kind === 'transit';
+      const ring = pend ? '2px ' + (p.kind === 'idea' ? 'dashed ' : 'solid ') + color : tr ? '2px dotted #5C6664' : '0';
+      el.style.cssText = 'box-sizing:border-box;width:22px;height:22px;border-radius:50%;background:' + (pend || tr ? '#fff' : color) + ';border:' + ring + ';color:' + (pend ? color : tr ? '#5C6664' : '#fff') + ';font:600 11px/' + (pend || tr ? '18px' : '22px') + ' var(--font-next-mono, ui-monospace);text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.22);cursor:default;opacity:' + (p.off ? '.28' : p.kind === 'idea' ? '.8' : '1') + ';';
       el.textContent = p.n;
-      el.title = p.time + ' · ' + p.title;
+      el.title = p.time + ' · ' + p.title + (p.kind === 'hold' ? ' · needs booking' : p.kind === 'idea' ? ' · if there’s time' : '');
       this._markers.push(new maplibregl.Marker({ element: el }).setLngLat(p.pin).addTo(map));
     });
 
@@ -8292,7 +8664,7 @@ class Component extends DCLogic {
       if (!l.ride && l.km < 0.5) return;
       const a = map.project(l.a.c), b = map.project(l.b.c);
       if (Math.sqrt(Math.pow(b.x - a.x, 2) + Math.pow(b.y - a.y, 2)) < 58) return;
-      const text = this.minLabel(l.mins) + (l.ride ? '' : ' walk') + ' · ' + this.kmLabel(l.km);
+      const text = (l.a.kind === 'transit' && this.modeOf(l.a.title) !== 'flight' ? this.MODE_WORD[this.modeOf(l.a.title)] + ' · ' : '') + this.minLabel(l.mins) + (l.ride ? '' : ' walk') + ' · ' + this.kmLabel(l.km);
       const w = text.length * 6.1 + 16, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const r = { x: mx - w / 2, y: my - 10, w, h: 20 };
       if (!clear(r)) return;
@@ -8302,6 +8674,13 @@ class Component extends DCLogic {
       el.textContent = text;
       this._markers.push(new maplibregl.Marker({ element: el }).setLngLat([(l.a.c[0] + l.b.c[0]) / 2, (l.a.c[1] + l.b.c[1]) / 2]).addTo(map));
     });
+    const imp = this._implied;
+    if (imp) {
+      const el = document.createElement('div');
+      el.style.cssText = 'font:600 10.5px/1 var(--font-next-mono, ui-monospace);color:#5C6664;background:rgba(255,255,255,.96);border:1px dashed #8A928F;border-radius:999px;padding:4px 8px;white-space:nowrap;pointer-events:none;';
+      el.textContent = 'Moving to ' + imp.to + ' · how?';
+      this._markers.push(new maplibregl.Marker({ element: el }).setLngLat([(imp.a.c[0] + imp.b.c[0]) / 2, (imp.a.c[1] + imp.b.c[1]) / 2]).addTo(map));
+    }
   }
 
   // The rail drives the map: whichever day sits under the top third of the rail is the focused day.
@@ -8405,6 +8784,7 @@ class Component extends DCLogic {
   }
   dragDown(e) {
     if (e.button !== 0 || this._drag) return;
+    if (this.riverDown(e)) return;
     const t = e.target;
     if (!t || !t.closest) return;
     const handle = t.closest('[data-stop],[data-cstop],[data-castop],[data-blstop],[data-dayhandle],[data-colhandle]');
@@ -8584,6 +8964,20 @@ class Component extends DCLogic {
     const list = this.colUnder(e);
     if (!list) { d.drop = null; d.chip.textContent = 'Drop on a day'; return; }
     const tDay = +list.getAttribute('data-collist');
+    const rpx = +list.getAttribute('data-px');
+    if (rpx) {
+      const t0 = +list.getAttribute('data-t0'), src0 = d.el.getAttribute('data-cstop').split(':').map(Number);
+      const row = this.dayList()[src0[0]][4][src0[1]], dur0 = Math.max(15, this.toMin(row[1]) - this.toMin(row[0]));
+      const lr0 = list.getBoundingClientRect();
+      const st = Math.max(t0, Math.min(23 * 60 + 55 - dur0, this.snapMin(t0 + (e.clientY - lr0.top) / rpx * 60 - 15)));
+      d.drop = { kind: 'move', di: src0[0], si: src0[1], toDay: tDay, start: st };
+      d.chip.textContent = 'Day ' + (tDay + 1) + ' · ' + this.fmt(this.hhmm(st));
+      const ln = document.createElement('div');
+      ln.style.cssText = 'position:fixed;left:' + (lr0.left + 38) + 'px;width:' + (lr0.width - 38) + 'px;top:' + Math.round(lr0.top + (st - t0) / 60 * rpx) + 'px;height:' + Math.max(6, Math.round(dur0 / 60 * rpx)) + 'px;border-radius:8px;border:2px solid var(--color-brand);background:rgba(0,0,0,0.02);box-sizing:border-box;z-index:9998;pointer-events:none;';
+      this.mark(ln);
+      this.hilite(list.parentNode);
+      return;
+    }
     const cards = [].slice.call(list.querySelectorAll('[data-cstop]')).filter(n => n !== d.el);
     let idx = cards.length;
     for (let k = 0; k < cards.length; k++) {
@@ -8883,7 +9277,7 @@ class Component extends DCLogic {
   }
   openAddAt(i, time) {
     if (this.frozen()) return;
-    this.setState({ addOpen: true, addTitle: '', addDayV: String(i + 1), addStart: time, addDur: '1 hour', addCost: '', addTags: [], addKey: '' });
+    this.setState({ addOpen: true, addTitle: '', addDayV: String(i + 1), addStart: time, addDur: '1 hour', addCost: '', addTags: [], addKey: '', addKind: 'planned', addWhy: 'book', addEndOpen: false, addTo: '' });
   }
   openIns(dayIdx, pbIdx) {
     this.setState({ insOpen: true, insTripId: this.state.tripId, insDay: String(dayIdx === undefined ? this.trip().days.length : dayIdx + 1), insPbIdx: pbIdx === undefined ? this.state.insPbIdx : pbIdx });
@@ -8897,10 +9291,151 @@ class Component extends DCLogic {
     { id: 'considering', label: 'Considering', bg: 'var(--color-moss)', ink: 'var(--color-slate)', power: 'Reads as a maybe — dashed everywhere, and its cost sits outside the committed total.' },
     { id: 'meal', label: 'Meal', bg: 'var(--color-warning-tint)', ink: 'var(--color-warning-ink)', power: 'Counts toward the day’s meals, and the Notebook can pull just these.' },
     { id: 'lodging', label: 'Lodging', bg: 'var(--color-info-tint)', ink: 'var(--color-info-ink)', power: 'Pins where you sleep that night. One per day.' },
-    { id: 'travel', label: 'Travel', bg: 'var(--color-brand-tint)', ink: 'var(--color-brand-pressed)', power: 'No “time until next stop” — it is the time between stops.' },
     { id: 'ticketed', label: 'Ticketed', bg: 'var(--color-success-tint)', ink: 'var(--color-success-ink)', power: 'Wants a booking date. The assistant keeps asking until there is one.' },
     { id: 'outdoors', label: 'Outdoors', bg: 'var(--color-surface)', ink: 'var(--color-slate)', power: 'Weather-sensitive — flagged if the forecast turns that day.' }
   ];
+  // M24 / ADR-053 — a travel stop says BY WHAT, from a closed list of seven.
+  MODE_IDS = ['walk', 'bus', 'train', 'flight', 'ferry', 'car', 'bike'];
+  MODE_WORD = { walk: 'On foot', bus: 'Bus', train: 'Train', flight: 'Flight', ferry: 'Ferry', car: 'Car', bike: 'Bike' };
+  MODE_BADGE = { walk: 'On foot', bus: 'By bus', train: 'By train', flight: 'Flight', ferry: 'Ferry', car: 'By car', bike: 'By bike' };
+  modeOf(t) { t = String(t || '');
+    if (/ferry/i.test(t)) return 'ferry'; if (/flight|fly|land at/i.test(t)) return 'flight';
+    if (/\bbus\b/i.test(t)) return 'bus'; if (/train|shinkansen|romancecar|express/i.test(t)) return 'train'; if (/\btaxi\b|\bcar\b|\bdrive\b/i.test(t)) return 'car'; if (/walk|on foot/i.test(t)) return 'walk'; if (/\bbike\b|cycl/i.test(t)) return 'bike'; return 'train'; }
+  // Kind is THREE values (2026-09-25): Planned is the default — you intend to do it.
+  // Pending is not locked in, for one of two reasons: it needs booking, or it only
+  // happens if there's time. Transit is movement. Pending's reason and Transit's
+  // mode are the same second row. Booked is a FACT on a planned stop (a
+  // confirmation), not a kind — booking a pending stop is what makes it planned.
+  kindOf(raw) { return raw === 'transit' ? 'transit' : (raw === 'hold' || raw === 'idea') ? 'pending' : 'planned'; }
+  whyOf(raw) { return raw === 'idea' ? 'optional' : 'book'; }
+  rawOf(kind, why) { return kind === 'transit' ? 'transit' : kind === 'pending' ? (why === 'optional' ? 'idea' : 'hold') : ''; }
+  // Implied transit: a day that starts somewhere other than it ends up, with no
+  // travel on it, is a move nobody has described yet. The app draws it anyway and
+  // asks one question — how — instead of asking for two places.
+  addImplied(i, m) {
+    const t = this.trip(), d = t.days[i], prev = t.days[i - 1];
+    const from = prev && prev[4].length ? prev[4][prev[4].length - 1] : null;
+    const first = d[4][0], end = first ? this.toMin(first[0]) - 20 : 10 * 60, start = Math.max(6 * 60, end - 60);
+    this.commit(days => { days[i][4].unshift([this.hhmm(start), this.hhmm(end), this.MODE_WORD[m] + ' to ' + d[0], from ? from[3] : d[3], from ? from[4] : d[3], 'All', 'transit', '']); this.sortDay(days[i]); });
+    this.flash(this.MODE_WORD[m] + ' from ' + d[3] + ' to ' + d[0] + ' — the time is a guess, drag it to fix');
+  }
+  // Plan's time river (2026-09-25, exploration 1b): every day column shares one
+  // axis, so a glance across the week lines up — mornings with mornings.
+  // River gestures: drag in empty time to sketch a stop that long; drag a block's
+  // bottom edge to change when it ends. Double-click (template) adds an hour.
+  riverDown(e) {
+    const t = e.target;
+    if (!t || !t.closest || this.frozen() || (e.button != null && e.button !== 0)) return false;
+    const rz = t.closest('[data-rresize]');
+    const list = rz ? rz.closest('[data-collist]') : (t.hasAttribute && t.hasAttribute('data-collist') && t.hasAttribute('data-px') ? t : null);
+    if (!list) return false;
+    e.preventDefault(); e.stopPropagation();
+    const px = +list.getAttribute('data-px'), t0 = +list.getAttribute('data-t0'), di = +list.getAttribute('data-collist');
+    const at = y => this.snapMin(t0 + (y - list.getBoundingClientRect().top) / px * 60);
+    const ghost = document.createElement('div');
+    ghost.style.cssText = 'position:absolute;left:38px;right:0;border-radius:8px;border:2px solid var(--color-brand);background:var(--color-brand-tint);box-sizing:border-box;pointer-events:none;z-index:5;font:600 10.5px/1 var(--font-next-mono, ui-monospace);color:var(--color-brand-pressed);padding:5px 8px;white-space:nowrap;overflow:hidden;';
+    let a, b, mode, si = -1, moved = false;
+    if (rz) {
+      si = +rz.getAttribute('data-rresize');
+      const row = this.dayList()[di][4][si];
+      a = this.toMin(row[0]); b = this.toMin(row[1]); mode = 'resize';
+      const card = rz.closest('[data-cstop]'); ghost.style.left = card.style.left; ghost.style.right = card.style.right;
+    } else { a = at(e.clientY); b = a + 15; mode = 'make'; }
+    const paint = () => { ghost.style.top = ((a - t0) / 60 * px) + 'px'; ghost.style.height = Math.max(10, (b - a) / 60 * px) + 'px'; ghost.textContent = this.fmt(this.hhmm(a)) + ' – ' + this.fmt(this.hhmm(b)); };
+    const move = ev => { if (!moved) { moved = true; list.appendChild(ghost); } b = Math.max(a + 15, Math.min(24 * 60, at(ev.clientY))); paint(); };
+    const up = () => {
+      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
+      if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+      if (!moved) return;
+      this._noClick = true; setTimeout(() => { this._noClick = false; }, 60);
+      if (mode === 'resize') { this.commit(days => { days[di][4][si][1] = this.hhmm(b); }); this.flash('Now ends at ' + this.fmt(this.hhmm(b))); }
+      else if (b - a >= 30) {
+        const len = b - a;
+        this.openAddAt(di, this.hhmm(a));
+        this.setState({ addDur: len >= 180 ? 'Half day' : len >= 120 ? '2 hours' : len >= 90 ? '1.5 hours' : len >= 60 ? '1 hour' : '30 min' });
+      }
+    };
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+    return true;
+  }
+  // ONE rule for "still needs booking" — the build's needsBooking.ts: holds, ideas,
+  // and ticketed stops nobody has booked. Calendar, Home hero and the widget all read it.
+  needsBooking(a) { return a[6] === 'hold' || a[6] === 'idea' || (a[6] !== 'booked' && a[6] !== 'transit' && this.tagsOf(a).indexOf('ticketed') >= 0); }
+  // The Overview tab (2026-09-25): the seeded page, drawn as the build's widgets
+  // actually render (blocks/*.tsx) — not the notebook's generic rows. Every item
+  // below is one registry preset; section titles are the page's own prose.
+  ovPage(days, trip) {
+    const fresh = this.props.overviewStage === 'new';
+    const lead = this.daysUntil(this.TODAY, this.NEXT_TRIP_START);
+    const cities = []; trip.days.forEach(x => { if (cities.indexOf(x[0]) < 0) cities.push(x[0]); });
+    const raw = []; trip.days.forEach((d, i) => d[4].forEach(a => raw.push({ a, i })));
+    const booked = raw.filter(r => r.a[6] === 'booked'), need = raw.filter(r => this.needsBooking(r.a));
+    const T = t => ({ isText: true, text: t }), V = (v, empty) => ({ isVal: true, text: fresh ? empty : v, quiet: fresh, solid: !fresh });
+    const P = (...segs) => ({ isP: true, segs }), H = t => ({ isH: true, text: t }), Q = t => ({ isQuiet: true, text: t });
+    const ord = n => n + (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
+    const out = [
+      P(T('Your trip starts '), V('in ' + lead + ' days', 'once it has dates'), T('. Here is everything it holds — '), V(trip.days.length + ' days', '0 days'), T(', '), V(cities.length + ' cities', 'no cities yet'),
+        T(' and '), V(raw.length + ' stops', '0 stops'), T(', with '), V(booked.length + ' booked', '0 booked'), T(' and locked in already.')),
+    ];
+    // Trip strip — TripStripBlock: runs 4px apart, days 1px, ordinal + city over each run.
+    if (fresh) out.push(Q('add a day to see this'));
+    else { const runs = []; trip.days.forEach((d, i) => { const l = runs[runs.length - 1], ac = this.accent(d[0]);
+        if (l && l.city === d[0]) l.cells.push({ fill: ac.solid }); else runs.push({ city: d[0], ink: ac.ink, ordinal: ord(i + 1), cells: [{ fill: ac.solid }] }); });
+      runs.forEach(r => { r.grow = r.cells.length; r.tip = r.city + ', ' + r.cells.length + (r.cells.length === 1 ? ' day' : ' days'); });
+      out.push({ isStrip: true, runs }); }
+    out.push(P(T('The route runs '), V(cities.join(' – '), 'wherever you take it'), T('. Each colour is a stay; the wider the band, the longer you get to linger.')));
+    out.push(H('What needs you'), P(T('Anything still waiting on a decision collects here, and quietly disappears the moment it’s settled.')));
+    const open = this.openBlock(days);
+    out.push(fresh ? { isOk: true, text: 'Nothing is waiting on you.' } : open.rows.length ? { isOpen: true, rows: open.rows } : { isOk: true, text: 'Nothing is waiting on you.' });
+    out.push(H('Where you’ll be'), P(T('Every stay and how long you have in it — room to unpack in some, just enough for one perfect evening in others.')));
+    out.push(fresh ? Q('no cities on this trip yet') : { isCities: true, rows: cities.map(c => { const ac = this.accent(c), ds = [], st = trip.days.reduce((m, x, i) => { if (x[0] === c) { ds.push('Day ' + (i + 1)); return m + x[4].length; } return m; }, 0);
+      return { name: c, tint: ac.tint, ink: ac.ink, days: ds.join(', '), stops: st + (st === 1 ? ' stop' : ' stops') }; }) });
+    out.push(H('Day by day'), P(T('The whole journey, one line a day. Rearrange anything in Plan — this page follows along on its own.')));
+    out.push(fresh ? Q('no days yet') : { isDays: true, rows: days.map(x => ({ label: x.label, date: x.dateLabel, tint: x.tint, ink: x.ink,
+      line: x.items.length ? x.items.slice(0, 3).map(a => a.title).join(' · ') + (x.items.length > 3 ? ' · +' + (x.items.length - 3) + ' more' : '') : 'Nothing planned yet',
+      meta: x.city + ' · ' + x.items.length + (x.items.length === 1 ? ' stop' : ' stops') + (x.items.length ? ' · ' + x.items[0].start + ' – ' + x.items[x.items.length - 1].end : '') + ' · ' + x.costLabel })) });
+    out.push(H('Before you go'), P(V('Tokyo is 16h ahead of home', 'The time difference appears once a stop has a place'), T(', so keep the first evening gentle and let the second day do the heavy lifting.')));
+    out.push(P(T('What the sky usually does on your dates — the real forecast takes over about ten days out.')));
+    out.push(fresh ? Q('add a stop with a place to see this') : { isWeather: true, rows: days.map((x, n) => { const fc = lead + n <= 9, hi = 25 - ((n * 3) % 7), lo = hi - 7 - (n % 3);
+        return { city: x.city, date: x.dateLabel, cond: (fc ? 'Forecast' : 'Typical for ' + String(x.dateLabel || '').split(' ')[1]) + ' · ' + ['mostly clear', 'some cloud', 'showers likely', 'clear', 'overcast'][n % 5], hi: hi + '°', lo: lo + '°', rain: (15 + (n * 13) % 40) + '% of days wet' }; }),
+      credit: lead <= 9 ? 'Forecast: Norwegian Meteorological Institute, CC BY 4.0 (updated 9:10 am) · Monthly averages: NASA POWER, 2001–2020' : 'Monthly averages: NASA POWER, 2001–2020' });
+    out.push(P(T('And the practical things, country by country — the plug to pack, which side of the road, who to call.')));
+    out.push(fresh ? Q('add a stop with a place to see this') : { isFacts: true, countries: [{ name: 'Japan', facts: [['Plugs', 'Type A · 100 V'], ['Drives on', 'The left'], ['Calling code', '+81'], ['Currency', 'Yen (¥)'], ['Police', '110'], ['Fire and ambulance', '119'], ['Tipping', 'Not expected']].map(f => ({ k: f[0], v: f[1] })) }] });
+    out.push(H('Locked in'), P(T('The part that’s certain. Every booking, when it is and what it cost — the page you’ll reread on the plane.')));
+    out.push(fresh || !booked.length ? Q('no stops to show') : { isStops: true, rows: booked.map(r => ({ when: 'Day ' + (r.i + 1) + ' · ' + this.fmt(r.a[0]), title: r.a[2], right: this.money(this.costOf(r.a).amt), ink: 'var(--color-slate)' })) });
+    out.push(H('Still to book'), P(T('Holds, maybes and tickets nobody has bought yet. Book one and it moves up the page.')));
+    out.push(fresh || !need.length ? Q('no stops to show') : { isStops: true, rows: need.map(r => ({ when: 'Day ' + (r.i + 1) + ' · ' + this.fmt(r.a[0]), title: r.a[2], right: r.a[6] === 'idea' ? 'Maybe' : r.a[6] === 'hold' ? 'Not booked' : 'Ticket needed', ink: 'var(--color-warning-ink)' })) });
+    out.push(H('Spend by day'), P(T('Where the money goes, day by day, against an even pace for the budget. Hover a bar for the detail.')));
+    if (fresh) out.push(Q('no costs yet'));
+    else {
+      const SER = [['meal', 'Meals', 'var(--color-brand)'], ['lodging', 'Lodging', 'var(--color-info-ink)'], ['ticketed', 'Tickets', 'var(--color-success-ink)'], ['outdoors', 'Outdoors', 'var(--color-warning)'], ['other', 'Everything else', 'var(--color-border-strong)']];
+      const per = trip.days.map(d => { const s = {}; d[4].forEach(a => { const t = this.tagsOf(a), k = ['meal', 'lodging', 'ticketed', 'outdoors'].filter(x => t.indexOf(x) >= 0)[0] || 'other'; s[k] = (s[k] || 0) + (this.costOf(a).amt || 0); }); return s; });
+      const tot = per.map(s => Object.keys(s).reduce((n, k) => n + s[k], 0)), budgetPer = 16400 / Math.max(1, trip.days.length);
+      const top = Math.ceil(Math.max.apply(null, tot.concat([budgetPer])) / 500) * 500;
+      out.push({ isChart: true,
+        key: SER.filter(sr => per.some(s => s[sr[0]])).map(sr => ({ label: sr[1], color: sr[2] })),
+        budgetLabel: 'Budget per day · ' + this.money(Math.round(budgetPer)),
+        ticks: [top, top / 2, 0].map(v => ({ label: this.money(v) })),
+        budgetB: Math.round(100 * budgetPer / top) + '%',
+        bars: per.map((s, i) => ({ tick: ord(i + 1), tip: 'Day ' + (i + 1) + ' · ' + this.money(tot[i]), h: Math.round(100 * tot[i] / top) + '%',
+          parts: SER.filter(sr => s[sr[0]]).map(sr => ({ color: sr[2], h: Math.round(100 * s[sr[0]] / Math.max(1, tot[i])) + '%' })) })) });
+    }
+    return { flow: out };
+  }
+  riverRange() {
+    let a = 24 * 60, b = 0;
+    this.trip().days.forEach(d => d[4].forEach(x => { a = Math.min(a, this.toMin(x[0])); b = Math.max(b, this.toMin(x[1])); }));
+    if (b <= a) { a = 8 * 60; b = 22 * 60; }
+    return { t0: Math.floor(a / 60) * 60, t1: Math.min(24 * 60, Math.ceil(b / 60) * 60), px: 44 };
+  }
+  RIVER = {
+    booked: { bg: 'var(--color-success-tint)', hatch: 'none', border: '1.5px solid var(--color-success-ink)', ink: 'var(--color-ink)', sub: 'var(--color-success-ink)', tag: 'Booked', tagInk: 'var(--color-success-ink)' },
+    '': { bg: 'var(--color-brand-tint)', hatch: 'none', border: '1px solid transparent', ink: 'var(--color-ink)', sub: 'var(--color-slate)', tag: '', tagInk: 'var(--color-slate)' },
+    hold: { bg: 'var(--color-surface)', hatch: 'none', border: '1.5px dashed var(--color-warning-ink)', ink: 'var(--color-ink)', sub: 'var(--color-slate)', tag: 'To book', tagInk: 'var(--color-warning-ink)' },
+    idea: { bg: 'var(--color-surface)', hatch: 'repeating-linear-gradient(135deg, transparent 0 6px, rgba(21, 29, 46, 0.06) 6px 7px)', border: '1px dashed var(--color-border-strong)', ink: 'var(--color-ink)', sub: 'var(--color-slate)', tag: 'Maybe', tagInk: 'var(--color-slate)' },
+    transit: { bg: 'var(--color-info-tint)', hatch: 'none', border: '2px dotted var(--color-info-ink)', ink: 'var(--color-ink)', sub: 'var(--color-info-ink)', tag: '', tagInk: 'var(--color-info-ink)' }
+  };
+  countryOf(city) { const c = this.CITY_INDEX.filter(x => x.name === city)[0]; return c ? c.region.split(', ').pop() : ''; }
   TAG(id) { return this.TAGS.filter(t => t.id === id)[0] || { id, label: id, bg: 'var(--color-moss)', ink: 'var(--color-slate)' }; }
   // Seed data predates tags, so read them off the stop until someone edits it.
   inferTags(a) {
@@ -8908,7 +9443,6 @@ class Component extends DCLogic {
     if (a[6] === 'idea') out.push('considering');
     if (/dinner|lunch|breakfast|coffee|kaiseki|omakase|yakitori|ramen|sushi|market|tea|bakery|kushikatsu|katsu|crawl/.test(t)) out.push('meal');
     if (/check in|ryokan|hotel|gora kadan/.test(t)) out.push('lodging');
-    if (a[6] === 'transit' || /train|shinkansen|ferry|flight|land at|transfer|romancecar|express/.test(t)) out.push('travel');
     if (/museum|teamlab|castle|chich|benesse|nezu/.test(t)) out.push('ticketed');
     if (/gardens|falls|park|inari|path|shrine|jing|arashiyama|-ji\b/.test(t)) out.push('outdoors');
     return out.slice(0, 3);
@@ -8918,6 +9452,7 @@ class Component extends DCLogic {
 
   buildDays() {
     const legs = this.props.showTravelTimes !== false;
+    const RV = this.riverRange();
     return this.trip().days.map((d, i) => {
       const raw = d[4], startCity = d[3] || d[0], day0Solid = this.accent(startCity).solid;
       const items = raw.map((a, j) => {
@@ -8930,7 +9465,7 @@ class Component extends DCLogic {
           leg = idle > 0 ? this.dur(idle) + ' until next stop' : 'Back to back';
           if (idle >= 150) gap = 'Nothing planned';
         }
-        const bm = { booked: ['Booked', 'success'], hold: ['Holding', 'warning'], idea: ['Idea', 'neutral'], transit: ['Travel', 'info'] }[a[6]] || ['', 'neutral'];
+        const bm = { booked: ['Booked', 'success'], hold: ['To book', 'warning'], idea: ['Maybe', 'neutral'], transit: [this.MODE_BADGE[this.modeOf(a[2])], 'info'] }[a[6]] || ['', 'neutral'];
         const who = a[5];
         const c = this.costOf(a), cl = this.liveClash(raw, j);
         const cKey = cl ? a[2] + '|' + cl.other[2] : '';
@@ -8950,13 +9485,50 @@ class Component extends DCLogic {
           confFixLabel: cl ? 'Start ' + this.fmt(cl.other[1]) : '',
           confFix: cl ? () => this.pushAfter(i, a, cl.other) : null,
           confOk: cl ? () => this.setState(st => ({ okConf: st.okConf.concat([cKey]) })) : null,
+          coEdit: !!this.props.coEditConflict && !this.state.coEditDone && a[2] === 'Nijō Castle',
+          coEditLine: 'Mei moved this to 3:30 pm while your change was still sending.',
+          keepMine: () => { this.setState({ coEditDone: true }); this.flash('Sent yours — Mei’s time is replaced'); },
+          keepTheirs: () => { this.setState({ coEditDone: true }); this.flash('Kept Mei’s — your change is undone'); },
           key: i + ':' + j,
           start: this.fmt(a[0]), end: this.fmt(a[1]), range: this.fmt(a[0]) + ' – ' + this.fmt(a[1]), title: a[2], place: a[3], area: a[4],
           who: who === 'All' ? 'Everyone' : who,
           whoInitials: who === 'All' ? '4' : who.split(' ')[0].slice(0, 1) + (who.split(' ')[1] || '').slice(0, 1),
           badge: bm[0], badgeVariant: bm[1], note: a[7], leg, gap,
+          // One field, five values, and every surface reads it: travel is a LEG, not a
+          // place you sit; an idea is not yet real, so it has no solid edge.
+          ...(() => {
+            // Booked is the day's own city colour at full strength — settled, and the part
+            // of the day to look forward to. Planned is the same colour as an edge.
+            const acc = this.accent(d[0]);
+            const L = a[6] === 'booked' ? { bg: acc.solid, hatch: 'none', border: '0', ink: 'var(--color-surface)', sub: 'rgba(255, 255, 255, 0.85)', tag: 'Booked ✓', tagInk: 'var(--color-surface)' }
+              : !a[6] ? { bg: 'var(--color-surface)', hatch: 'none', border: '1.5px solid ' + acc.solid, ink: 'var(--color-ink)', sub: 'var(--color-slate)', tag: '', tagInk: 'var(--color-slate)' }
+              : (this.RIVER[a[6]] || this.RIVER['']), s0 = this.toMin(a[0]), s1 = this.toMin(a[1]);
+            const prevOv = j > 0 && this.toMin(raw[j - 1][1]) > s0, nextOv = !!next && this.toMin(next[0]) < s1;
+            const coE = !!this.props.coEditConflict && !this.state.coEditDone && a[2] === 'Nijō Castle';
+            let rh = Math.max(24, (s1 - s0) / 60 * RV.px - 2); if (coE) rh = Math.max(rh, 100);
+            const tr = a[6] === 'transit';
+            return {
+              rTop: ((s0 - RV.t0) / 60 * RV.px) + 'px', rH: rh + 'px',
+              rLeft: prevOv ? 'calc(38px + (100% - 38px) / 2 + 2px)' : '38px',
+              rRight: !prevOv && nextOv ? 'calc((100% - 38px) / 2 + 2px)' : '0',
+              rBg: L.bg, rHatch: L.hatch, rShadow: a[6] === 'booked' ? '0 2px 6px -2px rgba(21, 29, 46, 0.35)' : 'none',
+              rMask: 'none', rBorder: cl ? '2px solid var(--color-warning-ink)' : L.border, rInk: L.ink, rSubInk: L.sub,
+              rTag: cl ? 'Overlap' : tr ? this.dur(s1 - s0) : L.tag, rTagInk: cl ? 'var(--color-warning-ink)' : L.tagInk,
+              rTitle: tr ? this.MODE_WORD[this.modeOf(a[2])] + ' · ' + a[2] : a[2],
+              rSub: this.fmt(a[0]) + ' – ' + this.fmt(a[1]) + ' · ' + (tr ? a[3] : a[4]),
+              roomy: rh >= 40, tall: rh >= 70 && tags.length > 0
+            };
+          })(),
+          si: j,
+          isTravel: a[6] === 'transit', isStop: a[6] !== 'transit',
+          cardClass: 'rounded-lg p-3' + (a[6] === 'hold' || a[6] === 'idea' ? ' border-dashed border-border-strong' : ''),
+          pCardClass: 'flex gap-0 rounded-lg p-0 shrink-0 cursor-pointer' + (a[6] === 'hold' || a[6] === 'idea' ? ' border-dashed border-border-strong' : ''),
+          titleInk: 'var(--color-ink)',
+          modeWord: this.MODE_WORD[this.modeOf(a[2])],
+          legLine: (() => { const nd = this.trip().days[i + 1], to = next ? next[3] : (nd && nd[4][0] ? nd[4][0][3] : ''); return to ? a[3] + ' → ' + to : ''; })(),
+          showLeg: a[2].indexOf('→') < 0 && !/^land at/i.test(a[2]) && !!(next || (this.trip().days[i + 1] && this.trip().days[i + 1][4][0])),
           tagIds: tags,
-          tags: tags.filter(id => !(id === 'travel' && a[6] === 'transit')).map(id => {
+          tags: tags.filter(id => !(id === 'travel' && a[6] === 'transit') && !(id === 'considering' && a[6] === 'idea')).map(id => {
             const t = this.TAG(id), on = tf.length === 1 && tf[0] === id;
             return { label: t.label, bg: t.bg, ink: t.ink,
               ring: on ? 'inset 0 0 0 1.5px ' + t.ink : 'none',
@@ -8968,7 +9540,7 @@ class Component extends DCLogic {
           railBg: maybe ? 'repeating-linear-gradient(to bottom, ' + day0Solid + ' 0 5px, transparent 5px 10px)' : day0Solid,
           dimOp: (tf.length && !tags.filter(x => tf.indexOf(x) >= 0).length) ? '0.3' : '1',
           ask: () => this.askAbout(a[2], i),
-          edit: () => { if (this.frozen()) return; this.setState({ addOpen: true, addTitle: a[2], addStart: a[0], addDayV: String(i + 1), addTags: tags.slice(), addKey: a[2] }); }
+          edit: () => { if (this.frozen()) return; this.setState({ addOpen: true, addTitle: a[2], addStart: a[0], addDayV: String(i + 1), addTags: tags.slice(), addKey: a[2], addKind: this.kindOf(a[6]), addWhy: this.whyOf(a[6]), addEndOpen: false, addMode: this.modeOf(a[2]), addTo: '' }); }
         };
       });
       const areas = [];
@@ -8978,6 +9550,12 @@ class Component extends DCLogic {
       const dateLabel = st.dow + ' ' + st.mon + ' ' + st.num;
       const clashN = raw.filter((_, j) => this.liveClash(raw, j)).length;
       return {
+        riverH: ((RV.t1 - RV.t0) / 60 * RV.px) + 'px', riverT0: RV.t0, riverPx: RV.px,
+        ticks: (() => { const out = []; for (let m = RV.t0; m <= RV.t1; m += 60) out.push({ top: ((m - RV.t0) / 60 * RV.px) + 'px', label: this.fmt(this.hhmm(m)).replace(' ', '') }); return out; })(),
+        riverAdd: e => { if (e.target !== e.currentTarget || this.frozen()) return; const r = e.currentTarget.getBoundingClientRect(); const m = this.snapMin(RV.t0 + (e.clientY - r.top) / RV.px * 60); this.openAddAt(i, this.hhmm(Math.max(RV.t0, Math.min(RV.t1 - 30, m)))); },
+        implied: !!(d[3] && d[3] !== d[0] && !raw.some(a => a[6] === 'transit')),
+        impliedLine: (d[3] || '') + ' → ' + d[0],
+        impliedModes: ['train', 'bus', 'car', 'flight', 'ferry'].map(m => ({ label: this.MODE_WORD[m], act: () => this.addImplied(i, m) })),
         costLabel: this.money(this.dayCost(d)), cost: this.dayCost(d),
         hasClash: clashN > 0, clashLabel: clashN === 1 ? '1 overlap' : clashN + ' overlaps',
         i, label: 'Day ' + (i + 1), dateLabel, city: d[0], items,
@@ -9258,6 +9836,8 @@ class Component extends DCLogic {
       const si = day ? day[4].map(a => a[2]).indexOf(key) : -1;
       if (si >= 0) {
         const raw = day[4][si];
+        const nk = this.rawOf(s.addKind, s.addWhy), keep = raw[6] === 'booked' && nk === '' ? 'booked' : nk;
+        if (keep !== raw[6]) this.commit(days => { days[di][4][si][6] = keep; });
         const dur = Math.max(15, this.toMin(raw[1]) - this.toMin(raw[0]));
         const start = this.snapMin(this.toMin(s.addStart));
         if (start !== this.toMin(raw[0])) {
@@ -9718,6 +10298,9 @@ class Component extends DCLogic {
       units: s.units,
       setUnits: v => { this.setState({ units: v }); this.flash(v === 'mi' ? 'Distances now in miles' : 'Distances now in kilometres'); },
       unitOptions: [{ value: 'km', label: 'Kilometres' }, { value: 'mi', label: 'Miles' }],
+      clock: s.clock || '12h',
+      setClock: v => { this._mapCacheKey = null; this.setState({ clock: v }); },
+      clockOptions: [{ value: '12h', label: '12-hour (2:30 pm)' }, { value: '24h', label: '24-hour (14:30)' }],
       unitsNote: 'How walks and hops between stops are measured.',
       homeHover: s.homeHover ? 'on' : 'off',
       setHomeHover: v => this.setState({ homeHover: v === 'on', homeAt: null }),
@@ -9881,6 +10464,7 @@ class Component extends DCLogic {
       spark: this.TRIPS.japan.days.map((d, i) => ({ num: this.dayStamp(i, 'japan').num, dots: d[4].map((_, k) => k), solid: this.accent(d[3] || d[0]).solid, open: () => { this.setState({ route: 'trip', tripId: 'japan', view: 'timeline' }); this.jump(i); } })),
       otherTripsLabel: 'Other trips',
       todayLabel: this.TODAY.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+      heroToBook: this.TRIPS.japan.days.reduce((n, d) => n + d[4].filter(a => this.needsBooking(a)).length, 0) + ' not booked yet',
       nextTripIn: 'in ' + this.daysUntil(this.TODAY, this.NEXT_TRIP_START) + ' days',
       // ── Trip lifecycle ────────────────────────────────────────────────────────
       // Delete is optimistic: the card goes on the click and comes back if you undo,
@@ -10008,6 +10592,7 @@ class Component extends DCLogic {
       // tab — the button opens the page in the Notebook, which is where pages are
       // edited. One editor, one document, two places to read it.
       homeBlocks: this.docBlocks(days, trip, 'overview'),
+      ov: this.ovPage(days, trip),
       openTripHomeDoc: () => this.setState({ route: 'doc', docId: 'overview', docMode: 'edit', docFrom: 'overview' }),
       isOverview: route === 'home' || route === 'playbooks' || route === 'day' || route === 'board' || route === 'profile',
       inTripScope: route === 'trip' || route === 'notebook' || route === 'doc',
@@ -10034,7 +10619,10 @@ class Component extends DCLogic {
         { title: 'Trip overview', body: 'The whole trip in one read — dates, the shape of it, every day, what it costs.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'overview' }) },
         { title: 'A day, written out', body: 'A day’s prose and its stop list. Every widget in it starts on one day; point them anywhere after.', fills: 'Comes with your trip', use: () => this.setState({ route: 'doc', docId: 'day' }) },
         { title: 'Blank page', body: 'Start with nothing and insert the widgets you want.', fills: 'Yours', use: () => this.setState({ route: 'doc', docId: 'blank', docMode: 'edit' }) }
-      ],
+      ].concat((s.savedTpls || []).map(id => { const d = this.DOCS.filter(x => x.id === id)[0] || { title: 'Page' };
+        return { title: d.title, body: 'Saved from Japan. Your wording comes across; every widget re-points to the trip you use it in.', fills: 'Your template', use: () => { this.setState({ route: 'doc', docId: id, docMode: 'edit' }); this.flash('Started from your template'); } }; })),
+      docShowKeep: (s.docMode || 'read') !== 'edit' && (s.savedTpls || []).indexOf(s.docId) < 0 && s.docId !== 'blank',
+      keepDocTpl: () => { this.setState(st => ({ savedTpls: (st.savedTpls || []).concat([st.docId]) })); this.flash('Saved to your templates — it’s there when you start a page in any trip'); },
 
       docEditing: (s.docMode || 'read') === 'edit',
       // One short label per mode, and the button keeps one width and one weight:
@@ -10396,6 +10984,7 @@ class Component extends DCLogic {
       phoneDayTint: focusDay ? focusDay.tint : 'var(--color-moss)',
       phoneDayInk: focusDay ? focusDay.ink : 'var(--color-slate)',
       phoneDaySolid: focusDay ? focusDay.solid : 'var(--color-brand)',
+      phoneImplied: focusDay ? focusDay.implied : false, phoneImpliedLine: focusDay ? focusDay.impliedLine : '', phoneImpliedModes: focusDay ? focusDay.impliedModes : [],
       phoneStops: focusDay ? focusDay.items.map((a, j) => Object.assign({}, a, {
         holdDown: e => this.holdDown(s.focus, j, e),
         holdMove: e => this.holdMove(e),
@@ -10595,6 +11184,34 @@ class Component extends DCLogic {
       }),
       addTagPower: s.addTags.length ? this.TAG(s.addTags[s.addTags.length - 1]).power : 'Tags are a known list, so each one can do something. Pick as many as fit.',
 
+      kindChips: [['planned', 'Planned'], ['pending', 'Pending'], ['transit', 'Transit']].map(k => { const on = (s.addKind || 'planned') === k[0];
+        return { label: k[1], on: on, weight: on ? 600 : 400, bg: on ? 'var(--color-surface)' : 'transparent', ink: on ? 'var(--color-ink)' : 'var(--color-slate)', shadow: on ? '0 1px 2px rgba(21, 29, 46, 0.12)' : 'none', act: () => this.setState({ addKind: k[0] }) }; }),
+      kindHelp: { planned: 'You intend to do it', pending: 'Not locked in yet', transit: 'Moving between the stops either side' }[s.addKind || 'planned'],
+      addIsPending: s.addKind === 'pending',
+      whyChips: [['book', 'To book'], ['optional', 'Maybe']].map(k => { const on = (s.addWhy || 'book') === k[0];
+        return { label: k[1], on: on, weight: on ? 600 : 400, bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)', ink: on ? 'var(--color-brand-pressed)' : 'var(--color-slate)', edge: on ? 'var(--color-brand)' : 'var(--color-hairline)', act: () => this.setState({ addWhy: k[0] }) }; }),
+      addRouteLine: (() => { const t = this.trip(), di = Math.max(0, (+s.addDayV || 1) - 1), day = t.days[di]; if (!day) return '';
+        const m = this.toMin(s.addStart || '09:00'); let before = null, after = null;
+        day[4].filter(a => a[2] !== s.addKey).forEach(a => { if (this.toMin(a[0]) <= m) before = a; else if (!after) after = a; });
+        if (!before && t.days[di - 1]) { const p = t.days[di - 1][4]; before = p[p.length - 1]; }
+        if (!after && t.days[di + 1]) after = t.days[di + 1][4][0];
+        return (before ? before[3] : 'Where you are') + ' → ' + (s.addTo || (after ? after[3] : 'your next stop')); })(),
+      addEndOpen: !!s.addEndOpen, addEndClosed: !s.addEndOpen, openAddEnd: () => this.setState({ addEndOpen: true }),
+      addIsTravel: s.addKind === 'transit',
+      modeChips: this.MODE_IDS.map(id => { const on = s.addMode === id;
+        return { label: this.MODE_WORD[id], on: on, weight: on ? 600 : 400, bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)', ink: on ? 'var(--color-brand-pressed)' : 'var(--color-slate)', edge: on ? 'var(--color-brand)' : 'var(--color-hairline)', act: () => this.setState({ addMode: id }) }; }),
+      addTo: s.addTo, setAddTo: e => this.setState({ addTo: e.target.value }),
+      addBookedBy: s.addBookedBy, setAddBookedBy: e => this.setState({ addBookedBy: e.target.value }),
+      bookedByOpts: ['Nobody yet'].concat(this.CREW.map(c => c.name)).map(v => ({ v: v })),
+      reportOpen: !!s.reportFor,
+      setReportOpen: v => { if (!v) this.setState({ reportFor: null, reportReason: null, reportNote: '' }); },
+      reportTitle: s.reportFor ? (s.reportFor.kind === 'day' ? 'Report this day' : 'Report ' + s.reportFor.name + '’s review') : '',
+      reportReasons: [['spam', 'Spam or advertising'], ['offensive', 'Offensive or hateful'], ['unsafe', 'Unsafe — it could get someone hurt'], ['inaccurate', 'Wrong or misleading'], ['other', 'Something else']].map(r => { const on = s.reportReason === r[0];
+        return { label: r[1], on: on, bg: on ? 'var(--color-brand-tint)' : 'var(--color-surface)', edge: on ? 'var(--color-brand)' : 'var(--color-hairline)', dot: on ? 'var(--color-brand)' : 'transparent', dotEdge: on ? 'var(--color-brand)' : 'var(--color-border-strong)', act: () => this.setState({ reportReason: r[0] }) }; }),
+      reportNote: s.reportNote, setReportNote: e => this.setState({ reportNote: e.target.value }),
+      reportNoSend: !s.reportReason,
+      closeReport: () => this.setState({ reportFor: null, reportReason: null, reportNote: '' }),
+      sendReport: () => { const k = s.reportFor && s.reportFor.key; this.setState(st => ({ reportFor: null, reportReason: null, reportNote: '', reportSent: Object.assign({}, st.reportSent, { [k]: 1 }) })); this.flash('Thanks — an operator will look at it.'); },
       addOpen: s.addOpen, setAddOpen: v => this.setState({ addOpen: v }),
       addOpenDesktop: s.addOpen && this.surface() !== 'phone',
       phoneSheet: this.surface() === 'phone' && (s.addOpen || s.setOpen),
@@ -10695,7 +11312,7 @@ class Component extends DCLogic {
       hitsError: s.cityHits === 'error',
       hitsEmpty: Array.isArray(s.cityHits) && s.cityHits.length === 0,
       hits: (Array.isArray(s.cityHits) ? s.cityHits : []).map(c => ({
-        name: c.name, region: c.region, count: c.days + ' days', pick: () => this.pickCity(c.name)
+        name: c.name, region: c.region, kind: c.country ? 'Country' : 'City', count: c.days + ' days', pick: () => this.pickCity(c.name)
       })),
       hasCities: s.qCities.length > 0,
       qChips: s.qCities.map(c => Object.assign({
