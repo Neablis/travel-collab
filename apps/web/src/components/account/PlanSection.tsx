@@ -12,6 +12,7 @@ import {
   PLAN_STATE_BADGE,
   PLAN_STATE_LABEL,
   formatDate,
+  grantsSentence,
   lapsedSentence,
   pastDueSentence,
 } from "@/lib/planCopy";
@@ -199,6 +200,10 @@ export function PlanSection() {
   const losesCollaborators = billing.losesOnLapse.includes("trip.collaborators");
   const renews = formatDate(billing.renewsAt);
   const trialEnds = formatDate(billing.trialEndsAt);
+  // The same condition that renders `plan-trial-ends` below, so the free
+  // week's date is printed once.
+  const trialEndShown = billing.state === "trial" && trialEnds !== null;
+  const granted = grantsSentence(plan.grants, trialEndShown);
 
   return (
     // **No `<Heading>Plan</Heading>` and no `aria-labelledby` pointing at one.**
@@ -226,6 +231,16 @@ export function PlanSection() {
             ? `You bought ${planId} ${version}; a grant on this account confers ${effectivePlanId} ${effectiveVersion}.`
             : `Your plan is ${planId} ${version}.`}
         </Text>
+        {/* **Which grants, and why**
+            (KI-20260916-b-the-account-sheet-never-names-the-grants-an-account-holds).
+            The line above names the tier they add up to; this names each one
+            with its source and end, so a founder grant beneath an admin comp
+            is not invisible. */}
+        {granted !== null ? (
+          <Text variant="secondary" className="text-xs" data-testid="plan-grants">
+            {granted}
+          </Text>
+        ) : null}
         <Text variant="secondary" className="text-xs">
           {plan.entitlements.length === 0
             ? "Planning only — the assistant and collaborators are not on this plan."
@@ -241,7 +256,7 @@ export function PlanSection() {
             simply absent there. A browser walk of the preview found the badge
             saying *Free week* with nothing anywhere saying when the week ended
             or what happened then. */}
-        {billing.state === "trial" && trialEnds !== null ? (
+        {trialEndShown ? (
           <Text variant="secondary" className="text-xs" data-testid="plan-trial-ends">
             Your free week runs to {trialEnds}. After that this account is on {planId} {version}
             {" "}unless you choose a plan.

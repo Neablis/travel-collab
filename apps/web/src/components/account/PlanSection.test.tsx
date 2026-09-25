@@ -49,6 +49,7 @@ const FREE: AccountPlanView = {
   planVersionRef: "free@v1",
   conferredVersionRef: "free@v1",
   grantedVersionRefs: [],
+  grants: [],
   entitlements: [],
   questions: { used: 0, limit: 0 },
   steps: { used: 0, limit: 0 },
@@ -370,6 +371,10 @@ describe("a grant above the held plan", () => {
     // What the operator console writes for a comp: a grant pinned to its own
     // version, which outlives the plan the account pays for.
     grantedVersionRefs: ["premium@v1", "premium@v2"],
+    grants: [
+      { planId: "premium", version: 1, source: "admin", expiresAt: null },
+      { planId: "premium", version: 2, source: "admin", expiresAt: null },
+    ],
     entitlements: ["ai.ask", "ai.command", "trip.collaborators", "api.tokens"],
     catalogue: CATALOGUE.map((choice) => ({ ...choice, held: choice.planId === "plus" })),
   });
@@ -406,9 +411,63 @@ describe("a grant above the held plan", () => {
   // A plan the chooser does not offer (`studio` ships disabled) must never
   // become the label — there is no page that could explain it.
   it("ignores a grant for a plan the catalogue does not offer", async () => {
-    serve({ ...comped(), grantedVersionRefs: ["studio@v1"] });
+    serve({
+      ...comped(),
+      grantedVersionRefs: ["studio@v1"],
+      grants: [{ planId: "studio", version: 1, source: "admin", expiresAt: null }],
+    });
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
     expect(text("plan-effective")).toContain("plus");
+  });
+});
+
+// **Which grants, not only the tier they add up to**
+// (KI-20260916-b-the-account-sheet-never-names-the-grants-an-account-holds). The
+// reported account held `free@v1` with an admin `premium` comp and a founder
+// grant; the sheet named one tier and the founder grant appeared nowhere, so a
+// correct answer read as a broken mapping.
+describe("the grants on an account", () => {
+  const granted = (): AccountPlanView => ({
+    ...FREE,
+    grantedVersionRefs: ["premium@v1", "plus@v1"],
+    grants: [
+      { planId: "premium", version: 1, source: "admin", expiresAt: null },
+      { planId: "plus", version: 1, source: "founder", expiresAt: "2026-12-01T00:00:00.000Z" },
+    ],
+    entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+    canRefer: true,
+  });
+
+  it("names every grant with where it came from and when it ends", async () => {
+    serve(granted());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-grants")).toBe(
+      "Granted to you: premium v1 (admin, permanent) and plus v1 (founder, until December 1).",
+    );
+  });
+
+  // The free week is a grant too, and the line below already dates it — so
+  // this row names the tier and the badge's word, and not the date again.
+  it("names a free week without repeating its end date", async () => {
+    serve({
+      ...FREE,
+      grantedVersionRefs: ["plus@v1"],
+      grants: [{ planId: "plus", version: 1, source: "trial", expiresAt: "2026-09-22T00:00:00.000Z" }],
+      entitlements: ["ai.ask", "ai.command"],
+      billing: { ...FREE.billing, state: "trial", trialEndsAt: "2026-09-22T00:00:00.000Z" },
+    });
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-grants")).toBe("Granted to you: plus v1 (free week).");
+    expect(text("plan-trial-ends")).toContain("September 22");
+  });
+
+  it("is absent when nothing is granted", async () => {
+    serve(subscribed());
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(screen.queryByTestId("plan-grants")).toBeNull();
   });
 });
