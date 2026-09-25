@@ -19,8 +19,8 @@ function conflictedState(): TripState {
     days: [{ dayId: DAY, activityIds: [A1, A2] }],
     backlog: [],
     activities: {
-      [A1]: { title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [] },
-      [A2]: { title: "Vatican", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [] },
+      [A1]: { title: "Colosseum", timeWindow: { start: "09:00", end: "11:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null },
+      [A2]: { title: "Vatican", timeWindow: { start: "10:00", end: "12:00" }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null },
     },
     dismissedConflictIds: [],
     currency: "USD",

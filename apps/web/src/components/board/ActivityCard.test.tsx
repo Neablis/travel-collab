@@ -20,6 +20,8 @@ function activity(overrides: Partial<ActivityView> = {}): ActivityView {
     cost: null,
     bookedBy: null,
     participants: [],
+    mode: null,
+    endLocation: null,
     ...overrides,
   };
 }

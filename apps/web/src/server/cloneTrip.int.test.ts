@@ -303,7 +303,8 @@ describe("clone id remapping — referential integrity", () => {
       actor,
     );
     await executeTripCommand(
-      { type: "AddActivity", tripId, activityId: activityIds[1]!, dayId: dayIds[0], title: "B" },
+      { type: "AddActivity", tripId, activityId: activityIds[1]!, dayId: dayIds[0], title: "B",
+        kind: "transit", mode: "train", endLocation: { name: "Osaka Station" } },
       actor,
     );
     await executeTripCommand(
@@ -368,6 +369,8 @@ describe("clone id remapping — referential integrity", () => {
     const first = result.detail.activities[result.detail.days[0]!.activityIds[0]!]!;
     expect(first.timeWindow).toEqual({ start: "09:00", end: "10:00" });
     expect(first.cost).toEqual({ amountMinor: 500, currency: "USD" });
+    const leg = result.detail.activities[result.detail.days[0]!.activityIds[1]!]!;
+    expect(leg).toMatchObject({ mode: "train", endLocation: { name: "Osaka Station" } });
   });
 
   // The source is the other half of "does not break integrity".

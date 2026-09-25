@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
+import { ActivityKind, ActivityMode, ActivityTag, Anchor, Location, TimeWindow, travelLegFieldsOffTransit } from "./activity.ts";
 import { Money } from "./money.ts";
 
 // Saved parts (M11 link 6, ADR-029) — "select parts of my trip and save them
@@ -100,6 +100,13 @@ export const SavedStop = z.object({
    * re-created on purpose.
    */
   dayIndex: z.number().int().nonnegative().default(0),
+  // M24's travel leg, defaulted per the rule above: every saved row predates
+  // them. Not refined to transit-only here, for the reason `dayIndex`'s
+  // monotonicity is not — this schema is the read boundary too. A saved stop
+  // is only ever copied from an activity the decider already accepted, and
+  // becomes one again through `AddActivity`, which checks it.
+  mode: ActivityMode.nullable().default(null),
+  endLocation: Location.nullable().default(null),
 });
 export type SavedStop = z.infer<typeof SavedStop>;
 
@@ -124,6 +131,15 @@ export type SavedStop = z.infer<typeof SavedStop>;
 export const SavedDaySequence = z
   .array(SavedStop)
   .superRefine((stops, ctx) => {
+    // M24's travel-leg rule, here for the same reason as the order rule below:
+    // a write that breaks it is refused before it becomes bytes, and a stored
+    // row is never dropped for it. A stop that broke it could never be applied
+    // — `AddActivity` refuses it — so a Playbook holding one is a dead end.
+    for (const [i, stop] of stops.entries()) {
+      for (const field of travelLegFieldsOffTransit(stop)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i, field], message: `${field} is only allowed on a transit stop` });
+      }
+    }
     for (let i = 1; i < stops.length; i += 1) {
       if (stops[i]!.dayIndex < stops[i - 1]!.dayIndex) {
         ctx.addIssue({

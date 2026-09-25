@@ -76,6 +76,8 @@ export function ActivityEditorSheet() {
           // not "unknown".
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         }
       : null;
 

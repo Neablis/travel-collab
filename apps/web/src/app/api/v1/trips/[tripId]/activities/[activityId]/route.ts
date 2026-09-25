@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { GEOCODE_OUTCOME_HEADER, TripDetail, UpdateActivity, type Location } from "@tc/contracts";
+import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, TripDetail, UpdateActivity, type Location } from "@tc/contracts";
 import { tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
-import { GEOCODE_OUTCOME_DOC, resolveStopLocation } from "@/server/public-api/locations";
+import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopLocation } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";
 
 // **The endpoint Decision 14 is about.**
@@ -35,7 +35,7 @@ export const { PATCH, DELETE } = route({
     role: "editor",
     body: PatchStopBody,
     response: TripDetail,
-    responseHeaders: { [GEOCODE_OUTCOME_HEADER]: GEOCODE_OUTCOME_DOC },
+    responseHeaders: { [GEOCODE_OUTCOME_HEADER]: GEOCODE_OUTCOME_DOC, [GEOCODE_OUTCOME_END_HEADER]: GEOCODE_OUTCOME_END_DOC },
     handle: async ({ actor, params, body, trip, responseHeaders }) => {
       const { dayId, position, ...fields } = body as {
         dayId?: string | null;
@@ -45,14 +45,18 @@ export const { PATCH, DELETE } = route({
       const activityId = params["activityId"]!;
       // Only a location the caller actually sent is resolved. `location: null`
       // clears the stop's pin and an absent one leaves it alone; neither is a
-      // place to look up, so neither spends a geocode.
-      if (typeof fields["location"] === "object" && fields["location"] !== null) {
-        const resolved = await resolveStopLocation(fields["location"] as Location, {
-          userId: actor.userId,
-          region: tripRegionOf(trip!),
-        });
-        fields["location"] = resolved.location;
-        responseHeaders.set(GEOCODE_OUTCOME_HEADER, resolved.outcome);
+      // place to look up, so neither spends a geocode. The same holds for a
+      // transit stop's `endLocation` (M24), answered in its own header.
+      const ctx = { userId: actor.userId, region: tripRegionOf(trip!) };
+      for (const [field, header] of [
+        ["location", GEOCODE_OUTCOME_HEADER],
+        ["endLocation", GEOCODE_OUTCOME_END_HEADER],
+      ] as const) {
+        if (typeof fields[field] === "object" && fields[field] !== null) {
+          const resolved = await resolveStopLocation(fields[field] as Location, ctx);
+          fields[field] = resolved.location;
+          responseHeaders.set(header, resolved.outcome);
+        }
       }
       const commands: CommandInput[] = [];
       if (Object.keys(fields).length > 0) {

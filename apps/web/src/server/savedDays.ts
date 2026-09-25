@@ -966,6 +966,8 @@ export function insertCommands(
         kind: stop.kind,
         tags: stop.tags,
         cost: stop.cost ?? undefined,
+        mode: stop.mode ?? undefined,
+        endLocation: stop.endLocation ?? undefined,
       }),
     ),
   ];

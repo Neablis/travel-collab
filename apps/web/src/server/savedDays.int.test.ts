@@ -184,6 +184,13 @@ describe("the library is per-person", () => {
 describe("inserting a saved day", () => {
   it("appends a day with its stops, in order, as ONE history entry", async () => {
     const { tripId, dayId } = await seedDay();
+    // M24: a leg, so the insert is seen carrying `mode` and `endLocation` —
+    // `insertCommands` rebuilds each stop field by field.
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Train to Osaka",
+        kind: "transit", mode: "train", endLocation: { name: "Osaka Station" } },
+      OWNER,
+    );
     const saved = await saveDay({ name: "Reusable", dayIds: [dayId] }, await detailFor(tripId), OWNER);
     expect(saved.ok).toBe(true);
     if (!saved.ok) return;
@@ -200,7 +207,12 @@ describe("inserting a saved day", () => {
     expect(inserted.activityIds.map((id) => result.detail.activities[id]!.title)).toEqual([
       "Fushimi Inari",
       "Nishiki Market",
+      "Train to Osaka",
     ]);
+    expect(result.detail.activities[inserted.activityIds[2]!]).toMatchObject({
+      mode: "train",
+      endLocation: { name: "Osaka Station" },
+    });
     expect(result.detail.activities[inserted.activityIds[0]!]!.timeWindow).toEqual({
       start: "09:00",
       end: "11:00",

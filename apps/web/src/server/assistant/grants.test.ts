@@ -27,7 +27,7 @@ const READ_TOOLS = ["read_trip", "read_day", "find_free_time", "search_playbooks
 // `READ_TOOLS`, because the two differ on the page surface: the reads are
 // offered there and this is not.
 const PLACE_TOOLS = ["search_places"];
-const COMMAND_TOOLS = BatchableCommand.options.map((option) => option.shape.type.value as string);
+const COMMAND_TOOLS = BatchableCommand.innerType().options.map((option) => option.shape.type.value as string);
 const PAGE_TOOLS = ["insert_text", "insert_widget"];
 
 function namesFor(caps: EffectCaps): string[] {

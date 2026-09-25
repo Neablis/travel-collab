@@ -41,6 +41,15 @@ export const GEOCODE_OUTCOME_DOC =
   "(coordinates were geocoded from that field), no-match, quota-exhausted, unavailable (the stop was " +
   "saved without coordinates — send lat/lng, or look them up with GET /v1/trips/{tripId}/geocode).";
 
+/**
+ * `Geocode-Outcome-End`: the same answer for a transit stop's `endLocation`
+ * (M24). Its own header rather than a second value in the first, so
+ * `Geocode-Outcome` still means exactly what it did — the two places are
+ * resolved independently and can come back different.
+ */
+export const GEOCODE_OUTCOME_END_DOC =
+  "Present when the body carried an `endLocation`. The same values as Geocode-Outcome, for that place.";
+
 export async function resolveStopLocation(
   input: Location,
   ctx: { userId: string; region: BoundingBox | null },

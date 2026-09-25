@@ -18,7 +18,7 @@ function isUuidField(schema: z.ZodTypeAny): boolean {
 
 describe("ID_FIELDS manifest", () => {
   it("classifies every uuid-bearing command field (except tripId)", () => {
-    for (const option of BatchableCommand.options) {
+    for (const option of BatchableCommand.innerType().options) {
       const type = option.shape.type.value as keyof typeof ID_FIELDS;
       const spec = ID_FIELDS[type];
       for (const [field, fieldSchema] of Object.entries(option.shape)) {
@@ -31,7 +31,7 @@ describe("ID_FIELDS manifest", () => {
   });
 
   it("has an entry for every command type", () => {
-    const types = BatchableCommand.options.map((o) => o.shape.type.value).sort();
+    const types = BatchableCommand.innerType().options.map((o) => o.shape.type.value).sort();
     expect(Object.keys(ID_FIELDS).sort()).toEqual(types);
   });
 });

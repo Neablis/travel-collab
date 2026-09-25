@@ -139,6 +139,7 @@ describe("v1 stop writes resolve their location", () => {
 
     expect(res.status).toBe(201);
     expect(res.headers.get("Geocode-Outcome")).toBe("provided");
+    expect(res.headers.get("Geocode-Outcome-End")).toBeNull();
     expect(forward).not.toHaveBeenCalled();
     expect(forwardAddress).not.toHaveBeenCalled();
   });
@@ -159,6 +160,36 @@ describe("v1 stop writes resolve their location", () => {
       location: Record<string, unknown>;
     };
     expect(stop.location.lat).toBeUndefined();
+  });
+
+  // M24 decision (Mitchell, 2026-09-25): `Geocode-Outcome` keeps meaning the
+  // outcome for `location`, and a transit stop's `endLocation` answers in its
+  // own header — sent only when the body carried one.
+  it("POST with an endLocation resolves it too and answers in Geocode-Outcome-End, leaving Geocode-Outcome to `location`", async () => {
+    const { secret, tripId, dayId } = await caller();
+    forward.mockResolvedValueOnce([HEIDELBERG]);
+
+    const res = await ADD_STOP(
+      req(
+        secret,
+        {
+          title: "Train to Heidelberg",
+          dayId,
+          kind: "transit",
+          mode: "train",
+          location: { name: "Frankfurt Hbf", lat: 50.107, lng: 8.663 },
+          endLocation: { name: "Heidelberg Hbf" },
+        },
+        "POST",
+      ),
+      P({ tripId }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(res.headers.get("Geocode-Outcome")).toBe("provided");
+    expect(res.headers.get("Geocode-Outcome-End")).toBe("name");
+    const stop = Object.values((await res.json()).activities)[0] as Record<string, unknown>;
+    expect(stop).toMatchObject({ mode: "train", endLocation: { name: "Heidelberg Hbf", lat: 49.41, lng: 8.69 } });
   });
 
   it("a stop with no location sends no Geocode-Outcome header and spends nothing", async () => {

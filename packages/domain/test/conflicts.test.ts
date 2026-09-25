@@ -42,6 +42,8 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       ]),
     ),

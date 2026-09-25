@@ -13,6 +13,38 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-25 — `mode` and `endLocation` on a transit stop (M24 links 1 and 2)
+
+- **Added:** `ActivityMode` (`walk | bus | train | flight | ferry | car | bike`, ADR-053),
+  and two fields on `ActivitySnapshot` — so on `ActivityAddedV1`/`ActivityUpdatedV1` —
+  `ActivityView` and `SavedStop`: `mode: ActivityMode | null` and
+  `endLocation: Location | null`, both `.default(null)`. Optional on `AddActivity`,
+  nullable-optional on `UpdateActivity`. `location` keeps meaning the leg's origin.
+- **Added:** `travelLegFieldsOffTransit`, the one rule: both fields are legal only when
+  `kind === "transit"`. `TripCommand` and `BatchableCommand` now carry a `.superRefine`
+  that refuses a command stating the contradiction, which makes both `ZodEffects` —
+  read their members through `.innerType().options`. `decideTripCommand` refuses an
+  update whose result would hold one (`travel-leg-off-transit`), and never clears them
+  itself. `SavedDaySequence` — the saved-day WRITE path only — refuses one too, so a
+  Playbook cannot store a stop no apply could write. Event payloads and read models
+  (`ActivityView`, `SavedStop`) are deliberately not refined.
+- **Added:** `GEOCODE_OUTCOME_END_HEADER` (`Geocode-Outcome-End`), sent by the v1 stop
+  writes only when the body carried an `endLocation`. `Geocode-Outcome` is unchanged.
+- Why: M24 — a stop knew that it was travel, not by what or to where
+  (`docs/milestones/M24-travel-legs.md`). Mitchell settled the vocabulary and the header
+  on 2026-09-25.
+- Consumers updated: `@tc/domain` (evolve, decide, diff, equality, hydrate, detail);
+  `@tc/fixtures` (`BundleStop`, the importer and exporter, playbook conversion, the Japan
+  fixture now carrying nine modes and five destinations); `@tc/factories`; `apps/web`
+  (MSW handlers, saved-stop copy, the activity editor, v1 activity routes and the
+  regenerated OpenAPI document, trip duplicate/clone and saved-day insert — both rebuild
+  `AddActivity` field by field, invisible to the compiler — the assistant's enrichment,
+  precision-stripping, `withDefaultKind` (a leg defaults to `transit`) and `read_day`
+  (fenced like `location`), every `.options` reader); tests that hand-build a stop.
+- Breaking? No for data: every stored payload and document parses with both fields
+  `null`. Yes, at compile time only, for code reading `TripCommand.options` or
+  `BatchableCommand.options` (all in-repo readers moved).
+
 ## 2026-09-24 — short picker labels for the trip globals, and a `day` value kind (#221 preview)
 
 - **Changed:** `described(kind, label, schema, description?)` takes an optional fourth

@@ -68,6 +68,8 @@ export function costedTripDetailFixture(): TripDetail {
         cost: colosseumCost,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       [forumId]: {
         activityId: forumId,
@@ -81,6 +83,8 @@ export function costedTripDetailFixture(): TripDetail {
         cost: forumCost,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       [flightId]: {
         activityId: flightId,
@@ -94,6 +98,8 @@ export function costedTripDetailFixture(): TripDetail {
         cost: flightCost,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
     },
     unscheduledCostSubtotal,

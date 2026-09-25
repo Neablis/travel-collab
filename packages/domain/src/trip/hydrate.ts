@@ -43,6 +43,9 @@ export function hydrate(detail: TripDetail): TripState {
           // does not parse.
           bookedBy: a.bookedBy ?? null,
           participants: a.participants ?? [],
+          // M24, and for the same unparsed-document reason.
+          mode: a.mode ?? null,
+          endLocation: a.endLocation ?? null,
         },
       ]),
     ),

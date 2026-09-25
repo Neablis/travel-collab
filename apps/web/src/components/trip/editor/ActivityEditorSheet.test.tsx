@@ -73,6 +73,8 @@ function fixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -86,6 +88,8 @@ function fixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
     },
   });

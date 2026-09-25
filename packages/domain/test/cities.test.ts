@@ -126,6 +126,8 @@ function savedStop(
     tags: [],
     cost: null,
     dayIndex,
+    mode: null,
+    endLocation: null,
   };
 }
 

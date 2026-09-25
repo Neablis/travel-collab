@@ -25,6 +25,8 @@ const stops: SavedStop[] = [
     tags: [],
     cost: null,
     dayIndex: 0,
+    mode: null,
+    endLocation: null,
   },
 ];
 

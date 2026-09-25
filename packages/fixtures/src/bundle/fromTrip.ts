@@ -84,7 +84,7 @@ export type TripToBundleOptions = {
 /** What `toBundleStop` reads: the stop fields an activity and a `SavedStop` share. */
 export type StopFields = Pick<
   ActivityView,
-  "title" | "timeWindow" | "location" | "notes" | "anchors" | "kind" | "tags" | "cost"
+  "title" | "timeWindow" | "location" | "notes" | "anchors" | "kind" | "tags" | "cost" | "mode" | "endLocation"
 >;
 
 /**
@@ -132,7 +132,7 @@ export function bundleKeyFor(trip: Pick<TripDetail, "tripId" | "name">): string 
  * writing one here would make the two ends disagree on a file neither of them
  * is wrong about.
  *
- * **Typed over the eight fields it reads, not over `ActivityView`**, so a
+ * **Typed over the ten fields it reads, not over `ActivityView`**, so a
  * Playbook's `SavedStop` — the same fields, minus an id — goes through this
  * same translation on export (`fromPlaybook.ts`) rather than a second copy.
  */
@@ -146,6 +146,8 @@ export function toBundleStop(activity: StopFields): BundleStop {
     kind: activity.kind,
     ...(activity.tags.length > 0 ? { tags: activity.tags } : {}),
     ...(activity.cost ? { cost: activity.cost } : {}),
+    ...(activity.mode ? { mode: activity.mode } : {}),
+    ...(activity.endLocation ? { endLocation: activity.endLocation } : {}),
   };
 }
 

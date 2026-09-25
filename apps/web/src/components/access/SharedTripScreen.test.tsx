@@ -46,6 +46,8 @@ function view(overrides: Partial<SharedTripView> = {}): SharedTripView {
         cost: { amountMinor: 4500, currency: "USD" },
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       [parked]: {
         activityId: parked,
@@ -59,6 +61,8 @@ function view(overrides: Partial<SharedTripView> = {}): SharedTripView {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
     },
     unscheduledCostSubtotal: 0,

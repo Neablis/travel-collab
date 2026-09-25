@@ -24,6 +24,8 @@ function fixture() {
     cost: null,
     bookedBy: null,
     participants: [],
+    mode: null,
+    endLocation: null,
   });
   return tripDetailFixture({
     days: [

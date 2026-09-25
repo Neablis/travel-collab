@@ -111,6 +111,10 @@ const FIELD_EQUAL: { [K in keyof ActivityState]: (a: ActivityState[K], b: Activi
   // positionally, the same rule `tags` and `anchors` already follow.
   bookedBy: (a, b) => a === b,
   participants: sameIdList,
+  // M24. `endLocation` is a Location like any other, so it compares field by
+  // field through `sameLocation` — an endLocation-only edit is an edit.
+  mode: (a, b) => a === b,
+  endLocation: sameLocation,
 };
 
 const ACTIVITY_FIELDS = Object.keys(FIELD_EQUAL) as (keyof ActivityState)[];

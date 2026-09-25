@@ -242,6 +242,8 @@ function detailFixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       unlocated1: {
         activityId: "unlocated1",
@@ -255,6 +257,8 @@ function detailFixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       unlocated2: {
         activityId: "unlocated2",
@@ -268,6 +272,8 @@ function detailFixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
     },
   });
@@ -300,6 +306,8 @@ function locatedActivity(
     cost: null,
     bookedBy: null,
     participants: [],
+    mode: null,
+    endLocation: null,
   };
 }
 

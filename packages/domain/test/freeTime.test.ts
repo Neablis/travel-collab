@@ -19,6 +19,8 @@ function activity(id: string, timeWindow: { start: string; end: string } | null)
     cost: null,
     bookedBy: null,
     participants: [],
+    mode: null,
+    endLocation: null,
   };
 }
 

@@ -404,6 +404,12 @@ export const GeocodeOutcome = z.enum([
 ]);
 export type GeocodeOutcome = z.infer<typeof GeocodeOutcome>;
 export const GEOCODE_OUTCOME_HEADER = "Geocode-Outcome";
+/**
+ * The same outcome vocabulary for a stop's `endLocation` (M24). Sent only when
+ * the body carried one, so `Geocode-Outcome` keeps meaning exactly what it
+ * meant before: the outcome for `location`.
+ */
+export const GEOCODE_OUTCOME_END_HEADER = "Geocode-Outcome-End";
 
 /** `GET /v1/trips/{tripId}/geocode` — each result is a `Location` a caller can send back as a stop's `location` unchanged. */
 export const GeocodeCandidates = z.object({ results: z.array(Location) });

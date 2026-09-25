@@ -188,7 +188,7 @@ describe("lifecycle commands", () => {
   });
 
   it("puts name and dates in BatchableCommand but never delete or restore", () => {
-    const types = BatchableCommand.options.map((o) => o.shape.type.value);
+    const types = BatchableCommand.innerType().options.map((o) => o.shape.type.value);
     expect(types).toContain("SetTripName");
     expect(types).toContain("SetTripDates");
     expect(types).not.toContain("DeleteTrip");
@@ -196,7 +196,7 @@ describe("lifecycle commands", () => {
   });
 
   it("puts every lifecycle command in TripCommand and every event in TripEvent", () => {
-    const commands = TripCommand.options.map((o) => o.shape.type.value);
+    const commands = TripCommand.innerType().options.map((o) => o.shape.type.value);
     expect(commands).toEqual(expect.arrayContaining(["SetTripName", "SetTripDates", "DeleteTrip", "RestoreTrip"]));
     const events = TripEvent.options.map((o) => o.shape.type.value);
     expect(events).toEqual(expect.arrayContaining(["TripNameSet", "TripDeleted", "TripRestored"]));

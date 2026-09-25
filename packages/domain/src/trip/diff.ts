@@ -122,6 +122,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           cost: a.cost,
           bookedBy: a.bookedBy,
           participants: a.participants,
+          mode: a.mode,
+          endLocation: a.endLocation,
         },
       });
     }
@@ -147,6 +149,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           cost: a.cost,
           bookedBy: a.bookedBy,
           participants: a.participants,
+          mode: a.mode,
+          endLocation: a.endLocation,
         },
       });
     }

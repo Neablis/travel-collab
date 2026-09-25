@@ -252,6 +252,8 @@ describe("resolvePlaybook", () => {
       // A `stops:` playbook is one day, so every stop is on day zero (M23).
       // `days:` is the multi-day form and stamps this from the day's position.
       dayIndex: 0,
+      mode: null,
+      endLocation: null,
     });
     expect(toSavedStop({ title: "Bare" }).kind).toBe("planned");
   });

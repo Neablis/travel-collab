@@ -22,6 +22,8 @@ function stop(name: string, location: Partial<Location> = {}): SavedStop {
     tags: [],
     cost: null,
     dayIndex: 0,
+    mode: null,
+    endLocation: null,
   };
 }
 

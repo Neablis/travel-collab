@@ -67,6 +67,8 @@ function stop(over: Partial<SavedStop> = {}): SavedStop {
     tags: [],
     cost: { amountMinor: 500, currency: "USD" },
     dayIndex: 0,
+    mode: null,
+    endLocation: null,
     ...over,
   };
 }

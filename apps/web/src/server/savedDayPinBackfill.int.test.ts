@@ -31,6 +31,8 @@ function stop(name: string, dayIndex = 0): SavedStop {
     tags: [],
     cost: null,
     dayIndex,
+    mode: null,
+    endLocation: null,
   };
 }
 

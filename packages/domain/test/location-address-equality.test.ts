@@ -18,6 +18,8 @@ const activity = (patch: { location: Location }): ActivityState => ({
   cost: null,
   bookedBy: null,
   participants: [],
+  mode: null,
+  endLocation: null,
   ...patch,
 });
 
