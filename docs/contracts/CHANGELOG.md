@@ -13,6 +13,31 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-25 — `TripSummary.endDate` (KI-2026-09-24-e)
+
+- **Changed:** `TripSummary` gains `endDate: string (YYYY-MM-DD) | null`,
+  `.default(null)` — the trip's last calendar day, null when undated or when a
+  dated trip has no days. Shape-only regex, as on `startDate`.
+  **Added:** `StoredTripSummary = Omit<TripSummary, "endDate">`, the type of a
+  `trip_summaries` row and of `projectTripSummaries`' output. No event or
+  command changed.
+- Why: KI-2026-09-24-e — with only a start date, Home ranked a trip that
+  started yesterday and runs another week as *past*, behind every undated
+  trip, so it never took the hero while it was happening. `lib/homeTripOrder.ts`
+  now ranks "today falls inside the trip" first.
+- **No column, no migration.** `endDate` is not stored on `trip_summaries`:
+  `listTripSummariesVisibleTo` and `listTripSummariesPage` LEFT JOIN
+  `trip_details` and read `doc -> 'days' -> -1 ->> 'date'`, the date the trip's
+  own document already gives its last day (`tripDetailFromState`). Both tables
+  are written in the same transaction by the command path and by
+  `rebuildProjections`, so the golden rebuild test is unaffected.
+- Consumers updated: `packages/domain` (`projectTripSummaries` returns
+  `StoredTripSummary[]`); `apps/web` — the two list queries, `homeTripOrder`,
+  and the `TripSummary` test fixtures (`endDate: null`). `openapi.json`
+  regenerated: `GET /v1/trips` items gain `endDate`; nothing else moved.
+- Breaking? no — additive. A payload without the key parses to `null`, which
+  orders exactly as before. No deploy step.
+
 ## 2026-09-25 — a notebook page's title is capped on write (`PAGE_TITLE_MAX`)
 
 - **Added:** `PAGE_TITLE_MAX = 200` (the same 200 `Activity.title` has).

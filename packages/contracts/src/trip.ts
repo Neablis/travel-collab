@@ -324,5 +324,21 @@ export const TripSummary = z.object({
   // a client or server one deploy behind) parses to an explicit null rather
   // than failing — additive, the same way `forkedFrom` was added.
   startDate: z.string().regex(ISO_DATE).nullable().default(null),
+  // The trip's LAST calendar day (`YYYY-MM-DD`), or null when that is unknown:
+  // undated, or dated with no days yet (KI-2026-09-24-e). Home needs it to
+  // tell a trip that is under way from one that is over. It is the date the
+  // trip's own document gives its last day (`TripDetail.days[-1].date`), read
+  // alongside the summary rather than stored on it — see
+  // `listTripSummariesVisibleTo`. `.default(null)` for the same version skew
+  // as `startDate`.
+  endDate: z.string().regex(ISO_DATE).nullable().default(null),
 });
 export type TripSummary = z.infer<typeof TripSummary>;
+
+/**
+ * What the `trip_summaries` projection itself holds, and what
+ * `projectTripSummaries` folds from the log: a `TripSummary` without
+ * `endDate`, which the list query reads from the trip's document instead of
+ * storing a second copy of the day-date math (KI-2026-09-24-e).
+ */
+export type StoredTripSummary = Omit<TripSummary, "endDate">;
