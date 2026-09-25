@@ -23,7 +23,8 @@ import { desc, eq, sql } from "drizzle-orm";
 import { GrantSource, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
-import { entitlementGrants, users } from "@/server/db/schema";
+import { users } from "@/server/db/schema";
+import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor } from "./resolver";
 import {
@@ -314,15 +315,7 @@ export interface GrantSourceRow {
  * and the design never sums it.
  */
 export async function grantSourcePanel(now: Date = new Date()): Promise<GrantSourceRow[]> {
-  const [rows, costs] = await Promise.all([
-    db
-      .select({ source: entitlementGrants.source, userId: entitlementGrants.userId })
-      .from(entitlementGrants)
-      .where(
-        sql`${entitlementGrants.revokedAt} is null and (${entitlementGrants.expiresAt} is null or ${entitlementGrants.expiresAt} > ${now})`,
-      ),
-    costPerAccount(trailingWindowStart(now)),
-  ]);
+  const [rows, costs] = await Promise.all([activeGrantHolders(now), costPerAccount(trailingWindowStart(now))]);
 
   const costOf = new Map(costs.map((cost) => [cost.userId, cost.microUsd]));
   const holders = new Map<string, Set<string>>();
@@ -486,15 +479,20 @@ export interface AdminOverview {
 
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
   // One read of the trailing cost for both revenue reports, so the summary and
-  // the underwater list are computed over the same rows.
+  // the underwater list are computed over the same rows. The grant holders are
+  // read here too: Billing takes both as arguments rather than reading
+  // Entitlements' tables (ADR-047's 2026-09-25 amendment).
   const trailing = adminCostPerAccount(now);
+  const holders = activeGrantHolders(now);
   const [plans, grantSources, accounts, spenders, revenue, underwater, prices] = await Promise.all([
     planPanel(now),
     grantSourcePanel(now),
     adminAccounts(100, now),
     adminTopSpenders(10, now),
     trailing.then((costs) => revenueSummary(TRAILING_WINDOW_DAYS, costs, now)),
-    trailing.then((costs) => underwaterReport(TRAILING_WINDOW_DAYS, costs, now)),
+    Promise.all([trailing, holders]).then(([costs, grants]) =>
+      underwaterReport(TRAILING_WINDOW_DAYS, costs, grants, now),
+    ),
     priceConsistencyReport(),
   ]);
   return {
