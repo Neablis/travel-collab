@@ -20,11 +20,19 @@ import { db } from "@/server/db/client";
 import { aiUsage, entitlementGrants, subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
+import { costPerAccount } from "@/server/entitlements/usage";
 import { MICRO_USD_PER_MINOR, monthlyMicroUsd, revenueSummary, underwaterReport } from "./revenue";
 
 const WINDOW = 30;
 const NOW = new Date("2026-11-01T12:00:00.000Z");
 const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * The trailing window's cost, read from the real ledger as the operator console
+ * reads it — the revenue functions take cost as an argument (ADR-047's
+ * 2026-09-25 amendment), and these tests are about the join, not the plumbing.
+ */
+const trailingCosts = () => costPerAccount(new Date(NOW.getTime() - WINDOW * DAY));
 
 // **The suite owns the whole database**, unlike its siblings which mint ids and
 // leave rows behind. Every number here is an aggregate over EVERY row — MRR is
@@ -121,7 +129,7 @@ describe("the four numbers", () => {
       .set({ status: "canceled" })
       .where(sql`${subscriptions.userId} = ${lapsed}`);
 
-    const summary = await revenueSummary(WINDOW, NOW);
+    const summary = await revenueSummary(WINDOW, await trailingCosts(), NOW);
     expect(summary.mrrMicroUsd).toBe(1900 * MICRO_USD_PER_MINOR);
     expect(summary.payingAccounts).toBe(1);
   });
@@ -135,7 +143,7 @@ describe("the four numbers", () => {
     await account();
     await subscribe(paying, "plus");
 
-    const summary = await revenueSummary(WINDOW, NOW);
+    const summary = await revenueSummary(WINDOW, await trailingCosts(), NOW);
     expect(summary.accounts).toBe(3);
     expect(summary.payingAccounts).toBe(1);
     expect(summary.arpuPayingMicroUsd).toBe(900 * MICRO_USD_PER_MINOR);
@@ -161,7 +169,7 @@ describe("the four numbers", () => {
       expiresAt: null,
     });
 
-    const summary = await revenueSummary(WINDOW, NOW);
+    const summary = await revenueSummary(WINDOW, await trailingCosts(), NOW);
     // Two payers, so the median is the lower of the two middles — the heavy
     // one. The comped account contributes nothing to it at all.
     expect(summary.medianMarginMicroUsd).not.toBeNull();
@@ -171,7 +179,7 @@ describe("the four numbers", () => {
 
   it("reports no margin at all rather than zero when nobody is paying", async () => {
     await account();
-    const summary = await revenueSummary(WINDOW, NOW);
+    const summary = await revenueSummary(WINDOW, await trailingCosts(), NOW);
     expect(summary.medianMarginMicroUsd).toBeNull();
     expect(summary.mrrMicroUsd).toBe(0);
   });
@@ -204,7 +212,7 @@ describe("costs more than it pays, segmented by why", () => {
 
   it("puts the comped account and the paying one in different buckets", async () => {
     const { comped, underwater } = await seedBothKinds();
-    const report = await underwaterReport(WINDOW, NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
 
     expect(report.paying.map((row) => row.userId)).toEqual([underwater]);
     // **And the comped one is nowhere near that list.** It is a count under its
@@ -215,7 +223,7 @@ describe("costs more than it pays, segmented by why", () => {
 
   it("reports the grant-funded half as a count, never as a list of accounts", async () => {
     await seedBothKinds();
-    const report = await underwaterReport(WINDOW, NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
     const founder = report.grantFunded.find((row) => row.source === "founder");
     expect(founder).toBeDefined();
     expect(Object.keys(founder!)).toEqual(["source", "accounts", "costMicroUsd"]);
@@ -228,7 +236,7 @@ describe("costs more than it pays, segmented by why", () => {
     const thrifty = await account();
     await subscribe(thrifty, "premium");
     await spend(thrifty, 2);
-    const report = await underwaterReport(WINDOW, NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
     expect(report.paying).toEqual([]);
   });
 
@@ -253,7 +261,7 @@ describe("costs more than it pays, segmented by why", () => {
     });
     await spend(both, 400);
 
-    const report = await underwaterReport(WINDOW, NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
     expect(report.paying.map((row) => row.userId)).toEqual([both]);
     expect(report.grantFunded.find((row) => row.source === "admin")).toBeUndefined();
   });
@@ -272,7 +280,7 @@ describe("costs more than it pays, segmented by why", () => {
     });
     await spend(both, 400);
 
-    const report = await underwaterReport(WINDOW, NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
     expect(report.paying.map((row) => row.userId)).toEqual([both]);
   });
 });

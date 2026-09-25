@@ -207,7 +207,10 @@ export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]>
       .from(users)
       .groupBy(users.planId, users.planVersion),
     costByPlan(now),
-    revenueByPlan(TRAILING_WINDOW_DAYS, now),
+    // Billing prices the revenue half; the cost it is compared against is this
+    // module's ledger, read here and handed across (ADR-047 decision 1, as
+    // amended 2026-09-25 — Billing reads no ledger).
+    adminCostPerAccount(now).then((trailing) => revenueByPlan(trailing, now)),
   ]);
 
   const planIds = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))];
@@ -482,13 +485,16 @@ export interface AdminOverview {
 }
 
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
+  // One read of the trailing cost for both revenue reports, so the summary and
+  // the underwater list are computed over the same rows.
+  const trailing = adminCostPerAccount(now);
   const [plans, grantSources, accounts, spenders, revenue, underwater, prices] = await Promise.all([
     planPanel(now),
     grantSourcePanel(now),
     adminAccounts(100, now),
     adminTopSpenders(10, now),
-    revenueSummary(TRAILING_WINDOW_DAYS, now),
-    underwaterReport(TRAILING_WINDOW_DAYS, now),
+    trailing.then((costs) => revenueSummary(TRAILING_WINDOW_DAYS, costs, now)),
+    trailing.then((costs) => underwaterReport(TRAILING_WINDOW_DAYS, costs, now)),
     priceConsistencyReport(),
   ]);
   return {

@@ -16,14 +16,33 @@
 // **Nothing here reads a plan as a rank.** A price is a number on a price list;
 // what an account may do is `can()`. The only arithmetic is addition and a
 // median.
+//
+// **Cost arrives as an argument; this module does not read the ledger.** The
+// ledger is Entitlements' (`entitlements/usage.ts`), and ADR-047 decision 1 —
+// as amended 2026-09-25 — lets Billing read exactly one thing of Entitlements,
+// the plan catalog. So the caller that already holds both halves, the operator
+// console in `entitlements/admin.ts`, reads the cost and hands it in.
 import type { PlanId } from "@tc/contracts";
 import { PLAN_VERSIONS, planVersionRefOf } from "@/server/entitlements/planVersions";
-import { costPerAccount, type AccountCost } from "@/server/entitlements/usage";
 import { db } from "@/server/db/client";
 import { entitlementGrants, users } from "@/server/db/schema";
 import { sql } from "drizzle-orm";
 import { subscriptionsWithStatus, type SubscriptionRow } from "./subscriptions";
 import { standingOf } from "./standing";
+
+/**
+ * What one account cost over the trailing window, in micro-dollars.
+ *
+ * The fields of Entitlements' `AccountCost` that this module reads, declared
+ * here so Billing names no Entitlements type; `AccountCost` satisfies it
+ * structurally. `unpriced` counts rows whose model has no published rate, so
+ * `microUsd` understates whenever it is non-zero.
+ */
+export interface TrailingCost {
+  userId: string;
+  microUsd: number;
+  unpriced: number;
+}
 
 /** One cent is ten thousand micro-dollars. The only unit conversion here. */
 export const MICRO_USD_PER_MINOR = 10_000;
@@ -139,7 +158,7 @@ export interface UnderwaterReport {
  * and the same rule `costByPlan` follows for the tier medians. CodeRabbit,
  * PR #177.
  */
-function costIsComplete(cost: AccountCost | undefined): boolean {
+function costIsComplete(cost: TrailingCost | undefined): boolean {
   return cost === undefined || cost.unpriced === 0;
 }
 
@@ -164,14 +183,17 @@ async function conferringNow(now: Date): Promise<SubscriptionRow[]> {
  *
  * `windowDays` is passed in rather than read from a constant here, so the
  * console's trailing window has one definition (`TRAILING_WINDOW_DAYS`) and
- * this module does not grow a second.
+ * this module does not grow a second. `costs` must be every account's cost over
+ * that same window ending at `now` — nothing here can check that, so the one
+ * production caller derives both from `TRAILING_WINDOW_DAYS`.
  */
 export async function revenueSummary(
   windowDays: number,
+  costs: readonly TrailingCost[],
   now: Date = new Date(),
 ): Promise<RevenueSummary> {
   const since = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
-  const [live, everything, accountRows, costs] = await Promise.all([
+  const [live, everything, accountRows] = await Promise.all([
     conferringNow(now),
     subscriptionsWithStatus([
       "active",
@@ -183,7 +205,6 @@ export async function revenueSummary(
       "paused",
     ]),
     db.select({ count: sql<number>`count(*)::int` }).from(users),
-    costPerAccount(since),
   ]);
 
   let mrr = 0;
@@ -260,16 +281,15 @@ export async function revenueSummary(
  *
  * Grant-funded accounts are counted by source and set aside; paying accounts
  * that are underwater are listed, because each of those is a row that needs a
- * decision.
+ * decision. `costs` is the trailing window's, as for `revenueSummary`.
  */
 export async function underwaterReport(
   windowDays: number,
+  costs: readonly TrailingCost[],
   now: Date = new Date(),
 ): Promise<UnderwaterReport> {
-  const since = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
-  const [live, costs, grants] = await Promise.all([
+  const [live, grants] = await Promise.all([
     conferringNow(now),
-    costPerAccount(since),
     db
       .select({ source: entitlementGrants.source, userId: entitlementGrants.userId })
       .from(entitlementGrants)
@@ -285,7 +305,7 @@ export async function underwaterReport(
       paysByUser.set(row.userId, (paysByUser.get(row.userId) ?? 0) + worth);
     }
   }
-  const costOf = (cost: AccountCost) => cost.microUsd;
+  const costOf = (cost: TrailingCost) => cost.microUsd;
 
   const paying: UnderwaterAccount[] = [];
   const grantedBySource = new Map<string, Set<string>>();
@@ -367,13 +387,13 @@ export interface PlanRevenueRow {
  * M20 built accounts-per-tier, version history and hold counts; MRR and median
  * margin per tier are this link's. Split down the middle exactly as the
  * milestone says, which is why this returns two fields and not a whole row.
+ * `costs` is the trailing window's, as for `revenueSummary`.
  */
 export async function revenueByPlan(
-  windowDays: number,
+  costs: readonly TrailingCost[],
   now: Date = new Date(),
 ): Promise<PlanRevenueRow[]> {
-  const since = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
-  const [live, costs] = await Promise.all([conferringNow(now), costPerAccount(since)]);
+  const live = await conferringNow(now);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost.microUsd]));
 
   const byPlan = new Map<PlanId, { mrr: number; margins: number[] }>();
