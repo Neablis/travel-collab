@@ -3,6 +3,7 @@ import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { WidgetContext, RenderedRow } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
+import { readerOn } from "../../test-support/reader";
 import { formatMoney, formatDate } from "../../format";
 
 const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetContext => ({
@@ -158,6 +159,15 @@ describe("stop.rows", () => {
     const cost = formatMoney(fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor, "USD");
     expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "booked" })).toEqual([
       `Colosseum 9 am – 10 am ${cost}`,
+    ]);
+  });
+
+  it("prints each stop's time on the reader's 24-hour clock when that is their setting", () => {
+    const fixture = selectionTrip();
+    const ctx = { ...contextOf(fixture), user: readerOn("24h") };
+    const cost = formatMoney(fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor, "USD");
+    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "booked" })).toEqual([
+      `Colosseum 09:00 – 10:00 ${cost}`,
     ]);
   });
 

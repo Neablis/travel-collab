@@ -29,7 +29,7 @@ beforeEach(() => {
       preferencesReads += 1;
       return new Response(
         JSON.stringify({
-          preferences: { displayName: null, homeAirport: null, distanceUnit: "km" },
+          preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" },
           isAdmin,
         }),
         { status: 200, headers: { "content-type": "application/json" } },

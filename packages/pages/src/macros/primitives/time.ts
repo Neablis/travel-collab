@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FilterDimension, TripGlobals } from "@tc/contracts";
+import type { FilterDimension, TimeFormat, TripGlobals } from "@tc/contracts";
 import type { MacroDef, RepeatPayload, RepeatRow, RepeatValue, WidgetContext } from "../../registry-types";
 import { chip, inlineOf, rowCity, rowLabel, rowValue, text, type Seg } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
@@ -8,7 +8,8 @@ import { narrow, pinnedCity } from "../../select";
 import { renderRows } from "./rows";
 import { formatKind } from "../../kinds";
 import { clockIn, isKnownZone, noonIn, offsetMinutes } from "../../clock";
-import { dayLabel, toClockLabel } from "../../format";
+import { dayLabel } from "../../format";
+import { readerClock, toClockLabel } from "../../clockLabel";
 import { sunEvents, type SunTime } from "../../sun";
 
 // The two clock widgets of M14 link 11 (widget brainstorm tier B): the sun on a
@@ -58,13 +59,13 @@ function locatedDay(globals: TripGlobals, index: number, city: string | undefine
 // ---------------------------------------------------------------------------
 
 /**
- * An instant as the day's local clock, in the house 12-hour form, marked when
+ * An instant as the day's local clock, in the reader's format, marked when
  * it falls on another date — Reykjavik's June sunset is at 12:03 am the next
  * morning, and printed bare it would read as a sunset before the sunrise.
  */
-function clockOnDay(instant: number, zone: string, date: string): string {
+function clockOnDay(instant: number, zone: string, date: string, format: TimeFormat): string {
   const local = clockIn(zone, instant);
-  const label = toClockLabel(local.time);
+  const label = toClockLabel(local.time, format);
   if (local.date > date) return `${label} (next day)`;
   if (local.date < date) return `${label} (day before)`;
   return label;
@@ -121,12 +122,13 @@ export const daySun: MacroDef<TimeParams, RepeatPayload> = {
   emptyText: "add a stop with a place to see this",
   // Fixed, never computed (ADR-037 decision 5).
   preview: "sunrise 4:25 am · sunset 7 pm · golden hour 6:22 pm – 7 pm",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals, user }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     if (!globals) return empty();
     const city = pinnedCity(selection.value, item);
+    const format = readerClock(user);
     let undated = false;
     const rows: RepeatRow[] = [];
     for (const index of selection.value.days) {
@@ -138,7 +140,7 @@ export const daySun: MacroDef<TimeParams, RepeatPayload> = {
         continue;
       }
       const sun = sunEvents(date, located.place.lat, located.place.lng, located.zone);
-      const clock = (t: number) => clockOnDay(t, located.zone, date);
+      const clock = (t: number) => clockOnDay(t, located.zone, date, format);
       rows.push({
         lead: rowLabel(dayLabel(index)),
         cells: [located.city === null ? [] : [rowCity(located.city)], ...sunCells(sun, clock)],

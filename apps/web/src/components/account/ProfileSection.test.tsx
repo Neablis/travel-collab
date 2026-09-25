@@ -8,7 +8,7 @@ import { PreferencesProvider } from "./PreferencesProvider";
 // The server is what normalizes `homeAirport` (the contract carries no
 // transform), so the stub does too — otherwise these tests would prove the
 // field displays whatever it was handed, which is not the claim.
-let stored: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km" };
+let stored: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
 let refuse: string | null = null;
 const patches: UpdateUserPreferences[] = [];
 
@@ -29,6 +29,7 @@ const updatePreferencesMock = vi.fn(async (patch: UpdateUserPreferences) => {
       ? { homeAirport: patch.homeAirport === null || patch.homeAirport === undefined ? null : patch.homeAirport.trim().toUpperCase() }
       : {}),
     ...("distanceUnit" in patch && patch.distanceUnit ? { distanceUnit: patch.distanceUnit } : {}),
+    ...("timeFormat" in patch && patch.timeFormat ? { timeFormat: patch.timeFormat } : {}),
   };
   return { ok: true as const, value: stored };
 });
@@ -85,7 +86,7 @@ function mount() {
 beforeEach(() => {
   holdFetch = null;
   holdSave = null;
-  stored = { displayName: null, homeAirport: null, distanceUnit: "km" };
+  stored = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
   refuse = null;
   patches.length = 0;
   updatePreferencesMock.mockClear();
@@ -140,7 +141,7 @@ describe("ProfileSection", () => {
   });
 
   it("sends an explicit null to clear a name, not an omitted field", async () => {
-    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km" };
+    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
     mount();
     const field = await screen.findByLabelText("Your name");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("Mitchell"));
@@ -152,7 +153,7 @@ describe("ProfileSection", () => {
   });
 
   it("sends nothing when the value has not changed", async () => {
-    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km" };
+    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
     mount();
     const field = await screen.findByLabelText("Your name");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("Mitchell"));
@@ -176,7 +177,7 @@ describe("ProfileSection", () => {
   });
 
   it("shows a refusal and puts the field back to what is stored", async () => {
-    stored = { displayName: null, homeAirport: "SFO", distanceUnit: "km" };
+    stored = { displayName: null, homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" };
     mount();
     const field = await screen.findByLabelText("Home airport");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("SFO"));
@@ -207,6 +208,17 @@ describe("ProfileSection", () => {
 
     await waitFor(() => expect(patches).toEqual([{ distanceUnit: "mi" }]));
     await waitFor(() => expect(screen.getByRole("radio", { name: "Miles" }).getAttribute("aria-checked")).toBe("true"));
+  });
+
+  it("switches to the 24-hour clock immediately, at account scope", async () => {
+    mount();
+    const twentyFour = await screen.findByRole("radio", { name: "24-hour (14:30)" });
+    await userEvent.click(twentyFour);
+
+    await waitFor(() => expect(patches).toEqual([{ timeFormat: "24h" }]));
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: "24-hour (14:30)" }).getAttribute("aria-checked")).toBe("true"),
+    );
   });
 
   // Both fixes came from review on pull request 112, and both were shipped as
