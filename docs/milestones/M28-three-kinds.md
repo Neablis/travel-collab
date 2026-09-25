@@ -37,26 +37,60 @@ as their replacement.
 
 ## Exit gate
 
-- [ ] **A retired kind in every stored shape reads as its replacement** — an event
+- [x] **A retired kind in every stored shape reads as its replacement** — an event
       payload, a `trip_details` row, a saved stop, a bundle stop and a page's kind
       filter — each with a test **seen to fail** without the translation.
-- [ ] **A command carrying a retired kind is refused**, with a test.
-- [ ] **ADR-054 accepted** and `docs/contracts/CHANGELOG.md` carries the entry, with
+- [x] **A command carrying a retired kind is refused**, with a test.
+- [x] **ADR-054 accepted** and `docs/contracts/CHANGELOG.md` carries the entry, with
       every consumer moved in the same change (invariant 5).
-- [ ] **`needsBooking` is `pending` and nothing else**, enumerated over the enum, and
+- [x] **`needsBooking` is `pending` and nothing else**, enumerated over the enum, and
       the Calendar, the home hero and the notebook's "Still to book" agree.
-- [ ] **No surface offers or prints a retired kind**: the picker, the badges, the
+- [x] **No surface offers or prints a retired kind**: the picker, the badges, the
       notebook's kind select and labels, the presets, the templates, the OpenAPI
       document.
-- [ ] **The manifest still publishes `stop.kind` with its values** through the
+- [x] **The manifest still publishes `stop.kind` with its values** through the
       preprocess wrapper, with a test seen to fail without it.
-- [ ] `pnpm check` green, `pnpm --filter web test:int` green,
+- [x] `pnpm check` green, `pnpm --filter web test:int` green,
       `pnpm --filter web test:e2e:ci-like` green (**never plain `test:e2e`**), and
       `pnpm seed:verify` green.
-- [ ] **Walked on the preview**: the kind picker, a Pending badge, the Overview's
+- [x] **Walked on the preview**: the kind picker, a Pending badge, the Overview's
       "Still to book", and an existing trip created before M28 opening with its old
       kinds shown as Pending/Planned.
 - [ ] A retro is appended at gate close.
+
+### Gate evidence, 2026-09-25
+
+- **Stored shapes:** `packages/contracts/test/m28-three-kinds.test.ts` covers the
+  event payload, `ActivityView`, `SavedStop`, the command refusal, the manifest, and
+  the v3 → v4 page step. Each was seen red by making `readActivityKind` pass values
+  through, removing `unwrapSchema`'s preprocess case, and making the page step a
+  no-op. The bundle stop is `packages/fixtures/src/bundle/schema.test.ts`, "turns
+  loose activities into backlog AddActivity commands". **Against the database**
+  (#239): `apps/web/src/server/projections.int.test.ts` rewrites a stored doc to
+  `booked` and a stored `ActivityAdded` payload to `hold`, then reads the trip and
+  replays the log. Both were seen red with the translation off:
+  `Invalid enum value … received 'booked'` / `… 'hold'`.
+- **`needsBooking`:** `packages/pages/src/needsBooking.test.ts`, seen red at
+  `kind !== "planned"` (`transit: expected true to be false`). The Calendar, hero
+  and notebook tests were updated to the one rule.
+- **DoD:** run on #238's branch before merge.
+  - `pnpm check`: lint, typecheck and unit green. Its integration lane failed only
+    the known `KI-2026-09-25-p` test.
+  - `test:int` on its own: 1082/1082.
+  - `seed:verify`: 108.
+  - `test:e2e:ci-like`: 182 + 1. The one failure was a test that had been passing
+    vacuously; it was corrected and seen red.
+  - CI on #238's final head `0d95397`: 8/8 green, including CI's own e2e.
+- **Walk:** a verifier session walked #238's preview in Chromium. It checked the
+  picker (Planned / Pending / Travel, Pending on create), the Pending (amber) and
+  Travel (blue) badges, no badge for Planned, and "Still to book" listing only the
+  Pending stop. The Calendar's "1 to book" and the hero's "1 not booked yet"
+  agreed. /demo loaded with no Booked / Holding / Idea anywhere. **Bounded
+  claim:** the browser could not prove /demo's stored events still carried the old
+  words (the preview may have been reseeded). The old-trip half is proven by the
+  two integration tests above, not by the walk.
+- **Open for Mitchell** (not gating): the `Pending` badge and the `Meal` tag use
+  the same amber, differing only in shape.
 
 ## Deliberately not here
 
