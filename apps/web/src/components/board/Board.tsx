@@ -358,8 +358,9 @@ export function Board({
   // web pinned core 2.x and auto-scroll brought 3.x, the draggables here spoke
   // to one adapter and auto-scroll to another, so it never saw a drag. By the
   // same mechanism the window auto-scroll below was dead too, for as long as
-  // the lockfile has held both copies. Keep web's core range the one
-  // auto-scroll depends on.
+  // the lockfile held both copies. Keep web's core range the one
+  // auto-scroll depends on; `scripts/check-singletons.mjs` fails `pnpm lint`
+  // if the lockfile holds two (KI-2026-09-25-g).
   //
   // The stand-in bar needs nothing extra: these are ordinary writes to the
   // row's `scrollLeft`, so `onRowScroll` mirrors them like any other scroll.
@@ -523,6 +524,16 @@ export function Board({
       // scrolls the window as the pointer nears the viewport edge while
       // dragging, letting a real drag reach a day column that content growth
       // pushed out of view instead of requiring the page to already fit.
+      //
+      // That was the intent; it could not have worked before 2026-09-25
+      // (inferred from the mechanism, not separately tested). For as far
+      // back as this repo's history goes, the lockfile held two copies of
+      // the pdnd core (web on 2.x, auto-scroll on 3.x), so this listened on
+      // an adapter the cards never registered with and never saw a drag
+      // (KI-2026-09-25-g). What actually got e2e drags to off-screen days
+      // was `dragCardTo` scrolling the target into view itself (KI-21).
+      // `scripts/check-singletons.mjs` in `pnpm lint` now fails if a second
+      // copy of the core comes back.
       autoScrollWindowForElements(),
     );
   }, []);
