@@ -148,11 +148,11 @@ describe("GET /api/playbooks/board", () => {
     // author's own add is the one that did not.
     expect(popular.adds).toBe(2);
     expect(quiet.adds).toBe(0);
-    // Days SHARED is the published count, and it is deliberately not the
+    // Playbooks SHARED is the published count, and it is deliberately not the
     // ranking: the person with more days is not the person with more adds here,
     // so a board that ranked on post volume would order these two the other way.
-    expect(popular.daysShared).toBe(2);
-    expect(quiet.daysShared).toBe(1);
+    expect(popular.playbooksShared).toBe(2);
+    expect(quiet.playbooksShared).toBe(1);
 
     const order = body.authors.map((a) => a.userId);
     expect(order.indexOf(POPULAR)).toBeLessThan(order.indexOf(QUIET));
@@ -206,7 +206,7 @@ describe("GET /api/playbooks/profile/:userId", () => {
     const discovered = (await res.json()) as { days: { ownerId: string; adds: number; savedDayId: string }[] };
     const theirs = discovered.days.filter((d) => d.ownerId === POPULAR);
 
-    expect(seen.author.daysShared).toBe(theirs.length);
+    expect(seen.author.playbooksShared).toBe(theirs.length);
     expect(seen.author.adds).toBe(theirs.reduce((sum, d) => sum + d.adds, 0));
     expect(seen.days.map((d) => d.savedDayId).sort()).toEqual(
       theirs.map((d) => d.savedDayId).sort(),
@@ -234,7 +234,7 @@ describe("GET /api/playbooks/profile/:userId", () => {
     currentUserId = POPULAR;
     await saveDay(`Kept back ${RUN}`, CITY);
     const mine = await profile(POPULAR);
-    expect(mine.author.daysShared).toBe(2);
+    expect(mine.author.playbooksShared).toBe(2);
     expect(mine.days).toHaveLength(2);
     expect(mine.days.map((d) => d.name)).not.toContain(`Kept back ${RUN}`);
   });
@@ -259,7 +259,7 @@ describe("GET /api/playbooks/profile/:userId", () => {
       // `src/lib/displayName.test.ts` and by "keeps the derived handle for
       // somebody who HAS shared" below.
       displayName: "A traveler",
-      daysShared: 0,
+      playbooksShared: 0,
       adds: 0,
       reviewsReceived: 0,
       averageRating: null,
@@ -278,11 +278,11 @@ describe("GET /api/playbooks/profile/:userId", () => {
     currentUserId = TAKER;
     const seen = await profile(POPULAR);
     expect(seen.author.displayName).toBe(`Traveler ${POPULAR.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`);
-    expect(seen.author.daysShared).toBeGreaterThan(0);
+    expect(seen.author.playbooksShared).toBeGreaterThan(0);
   });
 
   // THE OTHER HALF OF THE SAME CONDITION, and the test above cannot reach it.
-  // `publicAuthor` neutralises on `daysShared === 0 && adds === 0`, so an
+  // `publicAuthor` neutralises on `playbooksShared === 0 && adds === 0`, so an
   // implementation that dropped the `adds` clause entirely would pass every
   // other test in this file (CodeRabbit, PR #155; and the path instruction that
   // an invariant asserted only in a comment is the KI-1 / KI-14 defect class).
@@ -307,11 +307,52 @@ describe("GET /api/playbooks/profile/:userId", () => {
 
     currentUserId = TAKER;
     const seen = await profile(UNSHARED);
-    expect(seen.author.daysShared).toBe(0);
+    expect(seen.author.playbooksShared).toBe(0);
     expect(seen.author.adds).toBeGreaterThan(0);
     expect(seen.author.displayName).toBe(
       `Traveler ${UNSHARED.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`,
     );
+  });
+
+  // KI-2026-09-19-c. The count is of PLAYBOOKS — published `saved_days` rows —
+  // and since M23 a Playbook is a sequence, so one three-day Playbook adds ONE.
+  // The field used to be called `daysShared`, which read "1 day shared" beneath a
+  // Playbook three days long. This pins the number to the noun: an author
+  // whose only Playbook is three days long has shared exactly one Playbook.
+  it("counts a three-day Playbook as one playbook shared", async () => {
+    const SEQUENCE = `board-sequence-${RUN}`;
+    currentUserId = SEQUENCE;
+    const tripId = randomUUID();
+    const dayIds = [randomUUID(), randomUUID(), randomUUID()];
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Three days" }, SEQUENCE);
+    for (const dayId of dayIds) {
+      await executeTripCommand({ type: "AddDay", tripId, dayId }, SEQUENCE);
+      await executeTripCommand(
+        {
+          type: "AddActivity",
+          tripId,
+          activityId: randomUUID(),
+          dayId,
+          title: `Stop in ${CITY}`,
+          timeWindow: { start: "09:00", end: "10:00" },
+          location: { name: `Place in ${CITY}`, city: CITY },
+        },
+        SEQUENCE,
+      );
+    }
+    const res = await SAVE(
+      new Request("http://test/x", {
+        method: "POST",
+        body: JSON.stringify({ name: `Sequence ${RUN}`, tripId, dayIds }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    await publish(((await res.json()) as { savedDay: { savedDayId: string } }).savedDay.savedDayId);
+
+    currentUserId = TAKER;
+    const seen = await profile(SEQUENCE);
+    expect(seen.days.map((d) => d.dayCount)).toEqual([3]);
+    expect(seen.author.playbooksShared).toBe(1);
   });
 });
 
