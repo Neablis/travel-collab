@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FilterDimension, TripDetail } from "@tc/contracts";
+import type { FilterDimension, TimeFormat, TripDetail } from "@tc/contracts";
 import type {
   CityDetailPayload,
   ItineraryDayPayload,
@@ -11,7 +11,8 @@ import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, narrow, stopsInCity, type SelectedStop } from "../../select";
-import { formatDate, formatMoney, toClockRange } from "../../format";
+import { formatDate, formatMoney } from "../../format";
+import { readerClock, toClockRange } from "../../clockLabel";
 
 // The `block` primitives (ADR-039 decision 1): a shape that **details** its
 // selection — one member renders one card, many render one card per member
@@ -40,14 +41,14 @@ import { formatDate, formatMoney, toClockRange } from "../../format";
  * all and says so with `null`.
  *
  * `HH:mm` is zero-padded and 24-hour, so string comparison IS time comparison;
- * only the answer is printed 12-hour.
+ * only the answer is printed, in the reader's format.
  */
-function windowOf(stops: readonly SelectedStop[]): string | null {
+function windowOf(stops: readonly SelectedStop[], format: TimeFormat): string | null {
   const windows = stops.map(({ activity }) => activity.timeWindow).filter((w) => w != null);
   if (windows.length === 0) return null;
   const start = windows.reduce((a, w) => (w.start < a ? w.start : a), windows[0]!.start);
   const end = windows.reduce((a, w) => (w.end > a ? w.end : a), windows[0]!.end);
-  return toClockRange(start, end);
+  return toClockRange(start, end, format);
 }
 
 function dayCard(
@@ -55,6 +56,7 @@ function dayCard(
   globals: WidgetContext["globals"],
   index: number,
   stops: readonly SelectedStop[],
+  format: TimeFormat,
 ): ItineraryDayPayload {
   const day = trip.days[index]!;
   // Summed from the stops on the card rather than read off `day.costSubtotal`
@@ -66,7 +68,7 @@ function dayCard(
     kind: "itinerary-day",
     dayId: day.dayId,
     cities: globals?.days[index]?.cities ?? [],
-    window: windowOf(stops),
+    window: windowOf(stops, format),
     cost: costMinor === 0 ? null : formatMoney(costMinor, trip.currency),
     // Which day of the TRIP this is, counting from 1 — not its position in the
     // selection. `day.detail{kind: booked}` can leave days 2 and 5, and
@@ -82,7 +84,7 @@ function dayCard(
     date: day.date === null ? null : formatDate(day.date),
     activities: stops.map(({ activity }) => ({
       title: activity.title,
-      timeWindow: activity.timeWindow ? toClockRange(activity.timeWindow.start, activity.timeWindow.end) : null,
+      timeWindow: activity.timeWindow ? toClockRange(activity.timeWindow.start, activity.timeWindow.end, format) : null,
       cost: activity.cost ? formatMoney(activity.cost.amountMinor, trip.currency) : null,
     })),
   };
@@ -128,7 +130,7 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
   emptyText: "no days yet",
   preview: "every stop on the days you selected",
   resolve: (
-    { trip, globals }: WidgetContext,
+    { trip, globals, user }: WidgetContext,
     params,
     item,
   ): MacroResult<ItineraryDayPayload | ItineraryTripPayload> => {
@@ -147,7 +149,7 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
 
     const kept = contentNarrowed ? days.filter((index) => byDay.has(index)) : days;
     if (kept.length === 0) return empty();
-    const cards = kept.map((index) => dayCard(trip, globals, index, byDay.get(index) ?? []));
+    const cards = kept.map((index) => dayCard(trip, globals, index, byDay.get(index) ?? [], readerClock(user)));
     if (cards.length === 1) {
       const only = cards[0]!;
       return only.activities.length === 0 ? empty() : ok(only);

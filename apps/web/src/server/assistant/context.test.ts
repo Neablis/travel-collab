@@ -5,6 +5,7 @@ import {
   ASK_SCOPE_PREFIX,
   activeConflicts,
   askScopeLine,
+  clockTimesLine,
   parseAskScope,
   type AskScope,
 } from "./context";
@@ -107,5 +108,17 @@ describe("the ask scope encoding", () => {
     expect(parseAskScope(`${ASK_SCOPE_PREFIX}{"kind":"page"}`)).toEqual({ kind: "trip" });
     expect(parseAskScope(`${ASK_SCOPE_PREFIX}{"kind":"page","pageId":""}`)).toEqual({ kind: "trip" });
     expect(parseAskScope("The user mentioned a scope of day 4.")).toEqual({ kind: "trip" });
+  });
+});
+
+describe("clockTimesLine", () => {
+  // Each clock is named by its own examples, and neither line lets the
+  // reader's format leak into a tool call: stored times stay `HH:mm`.
+  it("names the asker's clock by example, and keeps tool input on HH:mm", () => {
+    expect(clockTimesLine("12h")).toContain('"2 pm"');
+    expect(clockTimesLine("12h")).toContain("keep passing HH:mm to a tool");
+    expect(clockTimesLine("24h")).toContain('"14:00"');
+    expect(clockTimesLine("24h")).toContain("24-hour HH:mm as well");
+    expect(clockTimesLine("24h")).not.toContain("pm");
   });
 });

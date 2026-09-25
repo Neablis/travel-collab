@@ -7,6 +7,7 @@ import { attachClosestEdge, extractClosestEdge, type Edge } from "@atlaskit/prag
 import { AlertTriangle, Pencil, X } from "lucide-react";
 import type { ActivityTag, ActivityView } from "@tc/contracts";
 import { toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -76,6 +77,7 @@ export function ActivityCard({
    */
   readOnly?: boolean;
 }) {
+  const clock = useTimeFormat();
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
   // The insertion line: which edge of *this* card a drop would land next to.
@@ -195,7 +197,7 @@ export function ActivityCard({
         )}
       </div>
       {activity.timeWindow && (
-        <DataText size="xs">{toClockRange(activity.timeWindow.start, activity.timeWindow.end)}</DataText>
+        <DataText size="xs">{toClockRange(activity.timeWindow.start, activity.timeWindow.end, clock)}</DataText>
       )}
       {activity.location && <Text as="span" variant="muted"> · {displayPlace(activity.location)}</Text>}
       {/* One footer row carries every status the card shows — kind, tags, cost

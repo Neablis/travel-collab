@@ -1,8 +1,28 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { ActivityKind, ActivityTag, ActivityView } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, ActivityView, TimeFormat } from "@tc/contracts";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { ActivityCard } from "./ActivityCard";
+
+// The signed-in reader's stored clock, as the provider's first fetch answers
+// it. Only the time-format tests below mount the provider; every other test
+// renders the card bare, which is the provider-less default ("12h").
+const stored = vi.hoisted(() => ({ timeFormat: "12h" as TimeFormat }));
+const fetched = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/apiClient", () => ({
+  fetchPreferences: async () => {
+    fetched();
+    return {
+      ok: true as const,
+      value: {
+        preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: stored.timeFormat },
+        isAdmin: false,
+      },
+    };
+  },
+  updatePreferences: vi.fn(),
+}));
 
 const ACTIVITY_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "33333333-3333-4333-8333-333333333333";
@@ -209,5 +229,47 @@ describe("ActivityCard tag focus", () => {
     await userEvent.click(screen.getByTestId("tag-chip-meal"));
     expect(onToggleTag).toHaveBeenCalledExactlyOnceWith("meal");
     expect(screen.queryByRole("button", { name: "Edit Colosseum" })).toBeNull();
+  });
+});
+
+// Account → Profile's Time setting reaches the board: the card prints its
+// window in the clock the reader chose, read from `useTimeFormat()`.
+describe("ActivityCard time window", () => {
+  function renderSignedIn(timeFormat: TimeFormat) {
+    stored.timeFormat = timeFormat;
+    return render(
+      <PreferencesProvider>
+        <ul>
+          <ActivityCard
+            activity={activity({ timeWindow: { start: "09:00", end: "14:30" } })}
+            dayId={DAY_ID}
+            hasConflict={false}
+            overlap={null}
+            currency="EUR"
+            onEdit={vi.fn()}
+            onRemove={vi.fn()}
+            onDismissOverlap={vi.fn()}
+            focusedTag={null}
+            readOnly={false}
+          />
+        </ul>
+      </PreferencesProvider>,
+    );
+  }
+
+  // The stored "12h" read has to have ARRIVED for this to mean anything: the
+  // provider's pre-fetch default is also 12-hour, so asserting before the
+  // fetch settles would pass with the setting never read at all.
+  it("prints 12-hour times for a reader on the default clock", async () => {
+    renderSignedIn("12h");
+    await waitFor(() => expect(fetched).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(screen.getByText("9 am – 2:30 pm")).toBeTruthy();
+  });
+
+  it("prints 24-hour times for a reader who chose them", async () => {
+    renderSignedIn("24h");
+    expect(await screen.findByText("09:00 – 14:30")).toBeTruthy();
+    expect(screen.queryByText("9 am – 2:30 pm")).toBeNull();
   });
 });

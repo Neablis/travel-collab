@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import type { TripDetail } from "@tc/contracts";
+import type { TimeFormat, TripDetail } from "@tc/contracts";
 import { Text } from "../ui/text";
 import { DataText } from "../ui/data-text";
 import { Button } from "../ui/button";
@@ -13,6 +13,7 @@ import { calendarCityCards, type CityCard } from "./calendarCityCards";
 import { formatMoney } from "@/lib/formatMoney";
 import { formatTripDate, ordinalDayOfMonth } from "@/lib/formatDate";
 import { toClockLabel, toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { calendarMonths, type CalendarCell } from "./calendarData";
 
@@ -128,7 +129,7 @@ function DayGrip({ accent }: { accent: AccentFamily }) {
  * to its text content, which reads the day number, "Day N" and every card's
  * text as one unpunctuated run. The commas here are what make it a sentence.
  */
-function cellLabel(ordinal: number, date: string, cards: CityCard[], currency: string): string {
+function cellLabel(ordinal: number, date: string, cards: CityCard[], currency: string, clock: TimeFormat): string {
   const head = `Day ${ordinal}, ${formatTripDate(date)}`;
   if (cards.length === 0) return `${head}. Nothing planned yet`;
   const parts = cards.map((card) => {
@@ -136,7 +137,7 @@ function cellLabel(ordinal: number, date: string, cards: CityCard[], currency: s
       card.city ?? "No place set",
       `${card.stops} stop${card.stops === 1 ? "" : "s"}`,
       card.costMinor !== null ? formatMoney(card.costMinor, currency) : null,
-      card.window ? `${toClockLabel(card.window.start)} to ${toClockLabel(card.window.end)}` : null,
+      card.window ? `${toClockLabel(card.window.start, clock)} to ${toClockLabel(card.window.end, clock)}` : null,
       // Same reason every other line is in here: `aria-label` REPLACES the
       // button's content, so a match count only rendered visually would be
       // announced as nothing at all — and while a tag is focused it is the
@@ -162,6 +163,7 @@ export function CalendarLens({
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
 }) {
+  const clock = useTimeFormat();
   const months = calendarMonths(detail);
   // Same per-day city derivation Task 8's DayChips established, reused via
   // chipModel rather than re-deriving it (mirrors TimelineLens.tsx). Indexed
@@ -281,7 +283,7 @@ export function CalendarLens({
         // can find it — the same identity the ring and the click handler use,
         // and the same attribute the chips row and the map strip carry.
         data-day-index={ordinal - 1}
-        aria-label={cellLabel(ordinal, cell.date, cityCards, detail.currency)}
+        aria-label={cellLabel(ordinal, cell.date, cityCards, detail.currency, clock)}
         aria-pressed={focusedDay === ordinal - 1}
         onClick={() => setFocusedDay(ordinal - 1)}
         className={cn(
@@ -431,7 +433,7 @@ export function CalendarLens({
                     // eslint-disable-next-line no-restricted-syntax -- dc.html:691's 10px summary text / 5px margin-top has no token equivalent
                     style={MORE_STYLE}
                   >
-                    {toClockRange(card.window.start, card.window.end)}
+                    {toClockRange(card.window.start, card.window.end, clock)}
                   </DataText>
                 )}
 

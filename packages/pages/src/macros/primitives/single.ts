@@ -5,7 +5,8 @@ import { chip, ghost, inlineOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { costOfStops, narrow, stopsInCity, type Narrowed } from "../../select";
-import { formatMoney, formatDate, toClockRange } from "../../format";
+import { formatMoney, formatDate } from "../../format";
+import { readerClock, toClockRange } from "../../clockLabel";
 
 // The `single` primitives (ADR-039 decision 1): a shape that **collapses** its
 // selection to one value — a sum, a span, a count, a joined list.
@@ -223,7 +224,8 @@ type HoursParams = z.infer<typeof HoursParams>;
  *
  * `HH:mm` is zero-padded and 24-hour, so string comparison IS time comparison —
  * the property `TimeWindow`'s own `start < end` refinement already relies on.
- * Only the result is printed 12-hour (`toClockRange`), after the comparing.
+ * Only the result is printed, in the reader's format (`toClockRange`), after
+ * the comparing.
  *
  * No `person` dimension: this is stop-level, and `LEGAL_FILTERS.stop` permits it,
  * but a window over "whose stops" is a question no field can answer yet and
@@ -237,7 +239,7 @@ export const hours: MacroDef<HoursParams, string> = {
     "When a selection of stops starts and ends, from their times. Unfiltered it spans the whole trip; filter it to a day for that day's window.",
   emptyText: "no times set",
   preview: "9 am – 9:30 pm",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<string> => {
+  resolve: ({ trip, globals, user }: WidgetContext, params, item): MacroResult<string> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
@@ -249,7 +251,7 @@ export const hours: MacroDef<HoursParams, string> = {
       if (first === null || window.start < first) first = window.start;
       if (last === null || window.end > last) last = window.end;
     }
-    return first === null || last === null ? empty() : ok(toClockRange(first, last));
+    return first === null || last === null ? empty() : ok(toClockRange(first, last, readerClock(user)));
   },
   render: (value) => inlineOf(chip("value", value)),
 };

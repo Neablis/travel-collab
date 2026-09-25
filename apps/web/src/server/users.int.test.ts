@@ -92,6 +92,7 @@ describe("users repository", () => {
       displayName: null,
       homeAirport: null,
       distanceUnit: "km",
+      timeFormat: "12h",
       // M20's columns. A first sign-in holds the live `free` version — read
       // from the committed plan file by `upsertUser`, NOT left to the column's
       // `DEFAULT 1`, which is what makes "a new account gets v2" true the day
@@ -148,6 +149,7 @@ describe("account preferences (M17)", () => {
       displayName: null,
       homeAirport: null,
       distanceUnit: "km",
+      timeFormat: "12h",
     });
   });
 
@@ -159,6 +161,7 @@ describe("account preferences (M17)", () => {
       displayName: null,
       homeAirport: null,
       distanceUnit: "km",
+      timeFormat: "12h",
     });
   });
 
@@ -170,9 +173,15 @@ describe("account preferences (M17)", () => {
       displayName: "Mitchell",
       homeAirport: "SFO",
       distanceUnit: "mi",
+      timeFormat: "24h",
     });
 
-    expect(written).toEqual({ displayName: "Mitchell", homeAirport: "SFO", distanceUnit: "mi" });
+    expect(written).toEqual({
+      displayName: "Mitchell",
+      homeAirport: "SFO",
+      distanceUnit: "mi",
+      timeFormat: "24h",
+    });
     expect(await readPreferences(id)).toEqual(written);
   });
 
@@ -189,6 +198,7 @@ describe("account preferences (M17)", () => {
       displayName: "Mitchell",
       homeAirport: "SFO",
       distanceUnit: "mi",
+      timeFormat: "12h",
     });
 
     await writePreferences(id, { displayName: null });
@@ -196,6 +206,7 @@ describe("account preferences (M17)", () => {
       displayName: null,
       homeAirport: "SFO",
       distanceUnit: "mi",
+      timeFormat: "12h",
     });
   });
 
@@ -234,6 +245,7 @@ describe("account preferences (M17)", () => {
       displayName: "Ana",
       homeAirport: "SFO",
       distanceUnit: "mi",
+      timeFormat: "12h",
     });
     // And the provider's own field still refreshes, so this is not passing
     // because the upsert stopped writing anything.
@@ -290,7 +302,12 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
   it("keeps a returning Google account's preferences across sign-ins", async () => {
     const subject = `google-${randomUUID()}`;
     await recordSignIn(signInAs(subject, { name: "Mitchell" }), admitting());
-    await writePreferences(subject, { displayName: "Mitchell", homeAirport: "OAK", distanceUnit: "mi" });
+    await writePreferences(subject, {
+      displayName: "Mitchell",
+      homeAirport: "OAK",
+      distanceUnit: "mi",
+      timeFormat: "24h",
+    });
 
     await recordSignIn(signInAs(subject, { name: "Mitchell" }), fakeJar(null));
 
@@ -298,6 +315,7 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
       displayName: "Mitchell",
       homeAirport: "OAK",
       distanceUnit: "mi",
+      timeFormat: "24h",
     });
   });
 
