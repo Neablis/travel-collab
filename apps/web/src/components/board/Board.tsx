@@ -660,7 +660,7 @@ export function Board({
         {!oneDay && (
           <div
             ref={barRef}
-            data-testid="day-columns-scrollbar"
+            data-testid="board-columns-scrollbar"
             aria-hidden
             tabIndex={-1}
             onScroll={onBarScroll}

@@ -388,7 +388,7 @@ test("switching to Plan lands at the top of the columns, not part-way down them"
  * pointer route to "scroll right", and it was off screen on load.
  *
  * The fix is a stand-in scrollbar pinned to the viewport bottom
- * (`day-columns-scrollbar`, Board.tsx). Its GEOMETRY is what this asserts,
+ * (`board-columns-scrollbar`, Board.tsx — deliberately not `day-column…`, which `m26-phone-plan.spec.ts` counts as columns). Its GEOMETRY is what this asserts,
  * plus that it really drives the row: headless Chromium draws overlay
  * scrollbars, so the bar itself cannot be seen or dragged here (the KI's own
  * "NOT CONFIRMED" note) — a drag is a `scrollLeft` write, which is exactly
@@ -428,7 +428,7 @@ test("the day columns' scrollbar is on screen on load, even when the columns run
   await expect(page.getByTestId("day-column")).toHaveCount(14);
 
   const row = page.getByRole("group", { name: "Day columns" });
-  const bar = page.getByTestId("day-columns-scrollbar");
+  const bar = page.getByTestId("board-columns-scrollbar");
   const viewportHeight = 919;
   // The unscheduled rack is `position: fixed` along the bottom edge, so "on
   // screen" means above it, not merely above the viewport's edge.
