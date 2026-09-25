@@ -1,4 +1,4 @@
-import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, Location, TripDetail } from "@tc/contracts";
 import { chipModel } from "@/lib/dayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
@@ -13,6 +13,11 @@ import { haversineKm } from "@/lib/geo";
 // before the field existed carries none, and that is not a claim of `venue`.
 // MapLens groups on it (markerGroups below); the rail, the strip and the focus
 // card ignore it.
+// `end` is where a transit stop's leg arrives (M24's `endLocation`), set only
+// when the stop is `transit` and both ends are located, so routeLegs can draw
+// the leg itself. `mode` rides with it to style that leg. Neither gets a marker
+// of its own: the line ending there is what shows the destination, and the stop
+// that happens there next has its own pin.
 export type MapStop = {
   activityId: string;
   title: string;
@@ -20,6 +25,8 @@ export type MapStop = {
   lng: number;
   kind: ActivityKind;
   precision?: Location["precision"];
+  mode?: ActivityMode | null;
+  end?: { lat: number; lng: number };
 };
 
 export type MapDay = {
@@ -31,8 +38,8 @@ export type MapDay = {
   accent: AccentFamily;
   stops: MapStop[]; // located stops, in the day's activity order
   unlocatedCount: number;
-  totalKm: number | null; // summed straight-line legs; null with fewer than 2 located stops
-  bars: { grow: number; color: AccentFamily }[]; // one per located stop, grow proportional to that leg's share
+  totalKm: number | null; // summed straight-line hops of the drawn route (hops()); null when it has none
+  bars: { grow: number; color: AccentFamily }[]; // one per hop, grow proportional to that hop's share
   // A day with no stops at all. Deliberately NOT folded into `flagText`: the
   // Phase 6 copy table gives the map's two surfaces *different* strings for
   // this one state — the rail says "Nothing planned yet" (it is a list of
@@ -48,7 +55,7 @@ export type MapDay = {
   flagText: string | null;
   /**
    * The day's longest hop, or null when there is nothing to travel between
-   * (fewer than two located stops). Feeds the hover card's third note — the one
+   * (the drawn route has no lines). Feeds the hover card's third note — the one
    * fact about a day's shape that "5 stops · 40 km" cannot carry.
    */
   longest: LongestLeg | null;
@@ -60,6 +67,9 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
     const activity = activities[activityId];
     const location = activity?.location;
     if (location?.lat !== undefined && location.lng !== undefined) {
+      // `kind` is checked, not trusted: the contract refuses an endLocation off
+      // a transit stop on commands, but a read model never refuses a stored row.
+      const end = activity!.kind === "transit" ? activity!.endLocation : null;
       stops.push({
         activityId,
         title: activity!.title,
@@ -67,21 +77,46 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
         lng: location.lng,
         kind: activity!.kind,
         precision: location.precision,
+        mode: activity!.mode ?? null,
+        ...(end?.lat !== undefined && end.lng !== undefined ? { end: { lat: end.lat, lng: end.lng } } : {}),
       });
     }
   }
   return stops;
 }
 
-// Legs are consecutive located-stop pairs, in stop order — the same
-// straight-line honesty TimelineLens.tsx's Leg component uses for a single
-// gap, summed across a whole day here.
-function legKms(stops: MapStop[]): number[] {
-  const kms: number[] = [];
-  for (let i = 1; i < stops.length; i++) {
-    kms.push(haversineKm(stops[i - 1]!, stops[i]!));
+type Point = { lat: number; lng: number };
+
+/**
+ * One straight line of a day's route, `a` → `b`. `to` is the stop it reaches,
+ * or null when the line is `from`'s own leg (a transit stop with an `end`).
+ */
+type Hop = { a: Point; b: Point; from: MapStop; to: MapStop | null };
+
+/**
+ * The day's route as the ordered lines it is made of — the ONE place the
+ * pairing rule lives, walked by routeLegs to draw and by legKms/longestLeg to
+ * measure, so the rail's numbers cannot describe a different route from the
+ * map's (they did: a day of one Odawara → Kyoto train drew ~300 km and read
+ * "A single anchor").
+ *
+ * Each stop is reached from the previous stop's destination if it had one,
+ * else its location; a stop with an `end` then contributes its own leg. With
+ * no `end` anywhere this is exactly the consecutive pairs.
+ */
+function* hops(stops: readonly MapStop[]): Generator<Hop> {
+  let prev: MapStop | undefined;
+  for (const stop of stops) {
+    if (prev !== undefined) yield { a: prev.end ?? prev, b: stop, from: prev, to: stop };
+    if (stop.end !== undefined) yield { a: stop, b: stop.end, from: stop, to: null };
+    prev = stop;
   }
-  return kms;
+}
+
+// Straight-line, the same honesty TimelineLens.tsx's Leg component uses for a
+// single gap, summed across a whole day here.
+function legKms(stops: MapStop[]): number[] {
+  return Array.from(hops(stops), (hop) => haversineKm(hop.a, hop.b));
 }
 
 /**
@@ -115,8 +150,12 @@ export function monthEdges(days: readonly { date: string | null }[]): boolean[] 
   });
 }
 
-/** The longest single hop of a day, and the two stops it runs between. */
-export type LongestLeg = { km: number; from: string; to: string };
+/**
+ * The longest single hop of a day: the two stops it runs between, or — when
+ * it is a transit stop's own leg — that stop's title, which already names
+ * both ends ("Shinkansen Odawara → Kyoto").
+ */
+export type LongestLeg = { km: number; from: string; to: string } | { km: number; leg: string };
 
 /**
  * The longest leg of a day, or `null` when there is nothing to travel between.
@@ -132,16 +171,16 @@ export type LongestLeg = { km: number; from: string; to: string };
  * equal length would otherwise pick whichever the loop saw last, which is an
  * implementation detail leaking into copy.
  *
- * Fewer than two located stops is `null`, which is the caller's cue for the
- * *"A single anchor. Nothing to travel between."* note rather than an error.
+ * A route with no hops — fewer than two located stops, none of them a leg — is
+ * `null`, which is the caller's cue for the *"A single anchor. Nothing to
+ * travel between."* note rather than an error.
  */
 export function longestLeg(stops: readonly MapStop[]): LongestLeg | null {
-  if (stops.length < 2) return null;
   let best: LongestLeg | null = null;
-  for (let i = 1; i < stops.length; i++) {
-    const km = haversineKm(stops[i - 1]!, stops[i]!);
+  for (const hop of hops(stops)) {
+    const km = haversineKm(hop.a, hop.b);
     if (best === null || km > best.km) {
-      best = { km, from: stops[i - 1]!.title, to: stops[i]!.title };
+      best = hop.to === null ? { km, leg: hop.from.title } : { km, from: hop.from.title, to: hop.to.title };
     }
   }
   return best;
@@ -158,7 +197,7 @@ export function mapDays(detail: TripDetail): MapDay[] {
     const stops = locatedStops(day, detail.activities);
     const unlocatedCount = day.activityIds.length - stops.length;
     const legs = legKms(stops);
-    const totalKm = stops.length >= 2 ? legs.reduce((sum, km) => sum + km, 0) : null;
+    const totalKm = legs.length > 0 ? legs.reduce((sum, km) => sum + km, 0) : null;
     const accent = accents[index]?.solid ?? "neutral";
 
     // **One bar per LEG, not per stop** (M26 link 5b). The bar row is a picture
@@ -168,10 +207,12 @@ export function mapDays(detail: TripDetail): MapDay[] {
     // made every day's shape read a little wrong, worst on a two-stop day where
     // a single real leg was drawn as two bars of 50% each.
     //
-    // A day with fewer than two located stops now renders NO bars, which is
-    // correct: nothing was travelled. The even split remains only for the real
-    // degenerate case — legs that exist but sum to zero, i.e. stops sharing one
-    // coordinate — where proportion is undefined but the legs are real.
+    // A "leg" here is a hop of the drawn route (hops()), so a transit stop with
+    // a destination is a bar of its own. A route with no hops renders NO bars,
+    // which is correct: nothing was travelled. The even split remains only for
+    // the real degenerate case — legs that exist but sum to zero, i.e. stops
+    // sharing one coordinate — where proportion is undefined but the legs are
+    // real.
     const bars =
       legs.length === 0
         ? []
@@ -205,41 +246,92 @@ export function mapDays(detail: TripDetail): MapDay[] {
   });
 }
 
+/** The two route layers MapLens draws per day — see routeLegs for why two. */
+export type RouteVariant = "rest" | "travel";
+
+/**
+ * How each transport mode draws (M24 link 3; Mitchell, 2026-09-25: two line
+ * styles, matching the legend's two keys). Walking and cycling are the solid
+ * line; everything with a vehicle is the dashed one. Two and not seven because
+ * a dash pattern costs a layer (routeLegs), and nothing on the map yet needs to
+ * tell a bus from a ferry. A `Record` over the whole enum, so an eighth mode is
+ * a compile error here rather than a leg that silently draws one way.
+ */
+const MODE_VARIANT: Record<ActivityMode, RouteVariant> = {
+  walk: "rest",
+  bike: "rest",
+  bus: "travel",
+  train: "travel",
+  flight: "travel",
+  ferry: "travel",
+  car: "travel",
+};
+
+/**
+ * The style of a transit stop's own leg. No mode is dashed: the stop says it
+ * is travel, only not by what, and solid is the claim "on foot or by bike".
+ */
+export function legVariant(mode: ActivityMode | null | undefined): RouteVariant {
+  return mode == null ? "travel" : MODE_VARIANT[mode];
+}
+
 // GeoJSON order: [lng, lat], the opposite of maplibre's Marker#setLngLat
 // argument order in some call sites. Getting this backwards puts every route
 // in the ocean off West Africa.
 /**
- * The day's route split into two sets of legs — the ones that touch a
- * `transit` stop, and the ones that don't — so MapLens can draw the first
- * dashed and the second solid (Mitchell, 2026-08-30 design pass: "Travel
+ * The day's route split into two sets of legs — dashed `travel` and solid
+ * `rest` — for MapLens's two layers (Mitchell, 2026-08-30 design pass: "Travel
  * activity kinds should be dotted line, not solid"). Two sets rather than a
  * per-leg flag because `line-dasharray` is a plain paint property in
  * MapLibre: it takes no data-driven expression, so a dashed leg and a solid
  * one cannot share a layer however the feature is tagged.
  *
- * A leg counts as travel when **either** end of it is a transit stop, not
- * just the one it arrives at. A "Train to Kyoto" stop is the movement itself,
- * so the hop that reaches it and the hop that leaves it are both part of
- * that movement; dashing only one side left a solid half-leg hanging off
- * every train.
+ * **A transit stop with a destination (`end`) is its own leg**, origin →
+ * destination, styled by `legVariant(mode)`. The hops either side of it — the
+ * previous stop to its origin, its destination to the next stop — are ordinary
+ * legs, judged as if it were not transit: getting to the station is not the
+ * train. The next hop leaves from the destination, not the origin, so the
+ * route stays continuous and never draws the old guessed line (origin straight
+ * to the next stop) beside the real one.
  *
- * Legs are consecutive pairs in stop order, the same pairing `legKms()` uses.
- * A day with fewer than two located stops has no legs and yields two empty
- * lists.
+ * **A transit stop without one keeps the adjacency rule exactly** — most have
+ * none. Its point is the movement, so the hop that reaches it and the hop that
+ * leaves it are both travel; dashing only one side left a solid half-leg
+ * hanging off every train. Its mode is ignored, because it has no line of its
+ * own for a mode to style.
+ *
+ * **A real leg that retraces one already drawn in the same style is drawn
+ * once.** A day trip out and back by train is two legs on one path, and MapLibre
+ * starts each line's dashes at its own first point: two dashed lines laid in
+ * opposite directions fill each other's gaps and read as the solid line —
+ * found walking the Japan fixture's day 4 (Asakusa → Nikkō and back).
+ *
+ * Legs come back in route order. A day with no located stops has none; a day
+ * of one stop has none unless that stop is a leg itself.
  */
-export function routeLegs(day: MapDay): { travel: [number, number][][]; rest: [number, number][][] } {
-  const travel: [number, number][][] = [];
-  const rest: [number, number][][] = [];
-  for (let i = 1; i < day.stops.length; i++) {
-    const from = day.stops[i - 1]!;
-    const to = day.stops[i]!;
-    const leg: [number, number][] = [
-      [from.lng, from.lat],
-      [to.lng, to.lat],
+export function routeLegs(day: MapDay): Record<RouteVariant, [number, number][][]> {
+  const legs: Record<RouteVariant, [number, number][][]> = { travel: [], rest: [] };
+  const inferred = (stop: MapStop) => stop.kind === "transit" && stop.end === undefined;
+  const drawn = new Set<string>();
+  for (const { a, b, from, to } of hops(day.stops)) {
+    const line: [number, number][] = [
+      [a.lng, a.lat],
+      [b.lng, b.lat],
     ];
-    (from.kind === "transit" || to.kind === "transit" ? travel : rest).push(leg);
+    if (to !== null) {
+      legs[inferred(from) || inferred(to) ? "travel" : "rest"].push(line);
+      continue;
+    }
+    // Only the drawing dedupes: the rail still counts a retraced leg, because
+    // it was travelled twice.
+    const variant = legVariant(from.mode);
+    const ends = [`${a.lng}:${a.lat}`, `${b.lng}:${b.lat}`].sort().join("|");
+    if (!drawn.has(`${variant}|${ends}`)) {
+      drawn.add(`${variant}|${ends}`);
+      legs[variant].push(line);
+    }
   }
-  return { travel, rest };
+  return legs;
 }
 
 /**

@@ -72,24 +72,11 @@ export const PREVIEW_REGISTRY = {
   // the design has not drawn. M9 keeps the work it actually owns (grounding,
   // durability, the eval harness) and loses a shell for a screen that no longer
   // exists. `DRIFT.md` §3 lists this entry and is now one shorter.
-  // RETAGGED M9 -> "unplaced", 2026-09-01, on Mitchell's call. M9's scope has no
-  // transport-mode link, no contract change and no migration, so "M9 will wire
-  // this up" was not a claim M9's file supported — the same species as the cost
-  // shells that were tagged M11 until M11b's sweep caught them and minted M19.
-  // The consequence of leaving it: M9's gate would have had to either wire a
-  // surface outside its scope or narrow a box to close, which is exactly how
-  // M11b's gate got stuck on "no M11-tagged entry remains".
-  //
-  // Transport mode per leg is a real product idea with no owner — it is in
-  // TODO.md's Candidate ideas so it is not lost. `unplaced` is the honest value
-  // per the rule below; do not retag it to a milestone that merely sounds
-  // adjacent. See docs/reviews/2026-09-01-milestone-audit.md §3b.
-  //
-  // RETAGGED "unplaced" -> M24, 2026-09-25, in M24's first PR as its milestone
-  // file says. The idea now has an owner: M24 link 1 adds `mode` to a transit
-  // stop, and link 3 is the one that honours this claim — it wires the legend
-  // up or deletes it (docs/milestones/M24-travel-legs.md, exit gate).
-  "map-legend-modes": { milestone: "M24", wiredUpBy: "Transport mode per leg — `mode` exists (M24 link 1); the map does not draw it until link 3" },
+  // `map-legend-modes` was here, and M24 link 3 wired it up (2026-09-25): a
+  // transit stop now says how it travels, `routeLegs` draws its own leg in that
+  // mode's style, and MapLegend's two stroke keys name the two styles. It was
+  // tagged "unplaced" and then M24 on the way — the history is in git and in
+  // docs/milestones/M24-travel-legs.md.
   // `cost-estimate-state` was here, and SPEC §24 deleted the surface it was
   // drawn on — the timeline was its only host, the same as `timeline-ghost`
   // above. The difference is that this one had a real owner: **M19 keeps the
