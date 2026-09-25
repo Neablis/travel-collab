@@ -1,4 +1,4 @@
-### KI-46 — Below ~1100px the app is the desktop layout, not the designed mobile companion
+### KI-46 — Below ~1100px the app is the desktop layout, not the designed mobile companion — RESOLVED
 
 - **Severity:** cosmetic (unusable rather than wrong — nothing is lost, but the
   trip header alone exceeds the viewport)
@@ -105,3 +105,4 @@
 - **Cross-reference:** KI-19 (the 1180px blind spot the `narrow` Playwright
   project exists to cover — it runs at 1100px, above this).
 - **First noted:** 2026-08-26 (design-sync UI audit, C2).
+- **Closed 2026-09-25 (overnight sweep, validation):** every symptom this entry still claimed is contradicted by the tree, and its residue now has its own entries. On the code at `73b04ad`: the meta pill is gone on a phone (`TripHeader.tsx:450`, `trip-meta-row` is `hidden … md:flex`, pinned by `TripHeader.test.tsx:359-361`). Plan on a phone renders one day at full width (`Board.tsx` `oneDay` prop, docstring at lines 157-175, from `ffce992` / M26 #196). The 44px floor is on `buttonVariants`' base and `Input` (`button.tsx:64`, `input.tsx:16`) and on `PHONE_TOUCH` for both axes (`button.tsx:39`). The Timeline lens and its 92px gutter no longer exist (no `components/lenses/*Timeline*`). The stop editor stacks below 768px (`globals.css:1093-1098`, `69fe0db` / #220). `e2e/m26-phone-plan.spec.ts` (incl. *"fits the stop editor inside the phone, with Save on screen"*, line 110) and `e2e/m26-phone-targets.spec.ts` keep measuring it. The "real-phone walk" this entry waited for is now carried by the successors that hold what a phone still gets wrong: KI-2026-09-24-i (header height), -j (the 768–1100px tablet band, which this entry wrongly called fine), -k, -l and -m. Keeping a second, stale entry open for the same surface would split one defect across two entries. No tests were run for this closure (read-only validation; e2e is out of budget on this box).
