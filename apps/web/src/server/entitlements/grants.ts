@@ -45,6 +45,22 @@ export async function activeGrantsFor(userId: string, now: Date = new Date()): P
 }
 
 /**
+ * Every account holding an active grant right now, one row per grant, as
+ * `{ source, userId }`.
+ *
+ * The operator console's read, for `grantSourcePanel` and for the grant-funded
+ * half of Billing's `underwaterReport`. Billing takes the result as an argument
+ * rather than reading this table (ADR-047's 2026-09-25 amendment). An account
+ * holding two grants appears twice; callers that count accounts dedupe.
+ */
+export async function activeGrantHolders(now: Date = new Date()): Promise<{ source: GrantSource; userId: string }[]> {
+  return db
+    .select({ source: entitlementGrants.source, userId: entitlementGrants.userId })
+    .from(entitlementGrants)
+    .where(activeAt(now));
+}
+
+/**
  * Every grant this account has EVER held, active or not.
  *
  * The eligibility read. It exists separately from `activeGrantsFor` because the

@@ -4,13 +4,18 @@ import type { TripSummary } from "@tc/contracts";
  * **Home's trips in the order Home shows them: the "Next trip" hero first,
  * then *Other trips*** (KI-034).
  *
- * Three bands, in this order:
+ * Four bands, in this order:
  *
- * 1. **Upcoming** — `startDate` on or after `today` — soonest first. A trip
- *    starting today is still the next trip, not a past one.
- * 2. **Undated** — no `startDate`. Its start is unknown, not past, so it
- *    outranks a trip that has already begun.
- * 3. **Past** — `startDate` before `today` — most recent first.
+ * 1. **Under way** — `startDate` on or before `today` and `endDate` on or
+ *    after it — most recently started first (KI-2026-09-24-e). The hero
+ *    matters most while you are on the trip.
+ * 2. **Upcoming** — `startDate` after `today`, or today with no known end —
+ *    soonest first. A trip starting today is never a past one.
+ * 3. **Undated** — no `startDate`. Its start is unknown, not past, so it
+ *    outranks a trip that is over.
+ * 4. **Past** — `startDate` before `today` and not under way — most recent
+ *    first. That includes a dated trip with no days (`endDate` null): its end
+ *    is unknown, and a start already gone by is the only evidence there is.
  *
  * **Ties keep the list's own order** (`sort` is stable). `GET /api/trips`
  * returns newest-created first with `tripId` as the final tie-break
@@ -23,28 +28,28 @@ import type { TripSummary } from "@tc/contracts";
  * the server does not know it. `null` — before the first client frame has read
  * the clock — treats every dated trip as upcoming; Home's trips cannot arrive
  * before that frame, so it does not show.
- *
- * A trip that has started but not finished counts as past: `TripSummary`
- * carries a start date and no end, so "still under way" is not knowable here.
  */
 export function orderHomeTrips(trips: readonly TripSummary[], today: string | null): TripSummary[] {
   return [...trips].sort((a, b) => {
-    const bandA = band(a.startDate, today);
-    const bandB = band(b.startDate, today);
+    const bandA = band(a, today);
+    const bandB = band(b, today);
     if (bandA !== bandB) return bandA - bandB;
     if (a.startDate === null || b.startDate === null || a.startDate === b.startDate) return 0;
     // ISO calendar dates compare correctly as strings.
     const soonerFirst = a.startDate < b.startDate ? -1 : 1;
-    return bandA === PAST ? -soonerFirst : soonerFirst;
+    return bandA === UPCOMING ? soonerFirst : -soonerFirst;
   });
 }
 
-const UPCOMING = 0;
-const UNDATED = 1;
-const PAST = 2;
+const UNDER_WAY = 0;
+const UPCOMING = 1;
+const UNDATED = 2;
+const PAST = 3;
 
-function band(startDate: string | null, today: string | null): number {
+function band({ startDate, endDate }: TripSummary, today: string | null): number {
   if (startDate === null) return UNDATED;
-  if (today === null || startDate >= today) return UPCOMING;
+  if (today === null) return UPCOMING;
+  if (startDate <= today && endDate !== null && endDate >= today) return UNDER_WAY;
+  if (startDate >= today) return UPCOMING;
   return PAST;
 }

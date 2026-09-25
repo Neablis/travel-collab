@@ -49,7 +49,7 @@ function response(over: Partial<DiscoverResponse> = {}): DiscoverResponse {
     // A complete answer unless a test says otherwise: the match IS the page.
     matchCount: days.length,
     matchCountExact: true,
-    sharedDayCount: 1,
+    sharedPlaybookCount: 1,
     ...over,
   };
 }
@@ -512,7 +512,7 @@ describe("Discover", () => {
   });
 
   // "Who shares the most" over a library nobody has shared into ranks an empty
-  // column. `sharedDayCount` ignores every filter on the query, so a search
+  // column. `sharedPlaybookCount` ignores every filter on the query, so a search
   // that matches nothing does not take the link away — only an empty library
   // does.
   it("shows the leaderboard link only when something is published", async () => {
@@ -527,7 +527,7 @@ describe("Discover", () => {
     );
 
     cleanup();
-    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedDayCount: 0 })));
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedPlaybookCount: 0 })));
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());
@@ -536,7 +536,7 @@ describe("Discover", () => {
 
   // A filtered-to-nothing search is not an empty library: the link stays.
   it("keeps the leaderboard link when the query matches nothing but the library is not empty", async () => {
-    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedDayCount: 7 })));
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [], sharedPlaybookCount: 7 })));
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByText("No days match")).toBeTruthy());

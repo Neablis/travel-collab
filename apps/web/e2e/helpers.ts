@@ -42,11 +42,16 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   await page.mouse.move(sx + 6, sy + 6, { steps: 3 });
 
   // KI-21's traced root cause: a target whose box sat (partly) outside the
-  // viewport — a day column pushed below the fold — depended on
-  // drag-triggered auto-scroll (Board.tsx's autoScrollWindowForElements) to
-  // finish inside a hand-rolled 5s polling budget, which a loaded machine
-  // sometimes missed. Scrolling the target into view *after the drag has
-  // already started* (rather than before, which could scroll a distant
+  // viewport — a day column pushed below the fold — was left to be reached
+  // during the drag within a hand-rolled 5s polling budget, which sometimes
+  // ran out. KI-21 put this down to drag-triggered auto-scroll (Board.tsx's
+  // autoScrollWindowForElements) being slow on a loaded machine. In fact that
+  // auto-scroll could not have run before 2026-09-25: two copies of the pdnd
+  // core meant it never saw a drag start (KI-2026-09-25-g, inferred from the
+  // mechanism, not separately tested), so whatever let
+  // those drags sometimes arrive, it was not pdnd. The fix below does not
+  // depend on auto-scroll at all. Scrolling the target into view *after the
+  // drag has already started* (rather than before, which could scroll a distant
   // source out of view before mouse.down ever fires at it) removes that
   // race entirely instead of widening the window: by the time the mouse
   // moves toward the target, it's already on screen. Re-read the target's

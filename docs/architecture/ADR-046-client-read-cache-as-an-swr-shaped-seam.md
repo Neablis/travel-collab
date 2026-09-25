@@ -158,7 +158,10 @@ test blind spot is worse than shipping neither.
   belongs on the server, where the request still happens and every
   client-observable state survives: a short server-side memo, an `ETag` with
   `must-revalidate` so a repeat is a 304, or a maintained `city -> count`
-  projection. The last removes the aggregate instead of hiding it.
+  projection. The last removes the aggregate instead of hiding it. *Paid
+  2026-09-25 with the first option, a 30 s per-process memo in `searchCities`
+  that is cleared on publish, unpublish and moderation. The entry's Decision
+  line explains why the projection was rejected.*
 - **The general lesson, worth more than the cache.** Two of the three targets
   were safe to cache because a *local write invalidates them*. The third was not,
   because its interesting state is a *failure*, and failure is the one answer a

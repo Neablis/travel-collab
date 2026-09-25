@@ -1,6 +1,7 @@
 import { auth } from "@/server/auth";
 import { LeaderboardResponse } from "@/lib/playbooks";
 import { leaderboard } from "@/server/playbooks";
+import { withDeprecatedLeaderboardAlias } from "@/server/playbookWireAliases";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,8 @@ export async function GET() {
     return Response.json({ error: "unauthenticated" }, { status: 401 });
   }
   return Response.json(
-    LeaderboardResponse.parse({ authors: await leaderboard(), meUserId: session.user.id }),
+    withDeprecatedLeaderboardAlias(
+      LeaderboardResponse.parse({ authors: await leaderboard(), meUserId: session.user.id }),
+    ),
   );
 }

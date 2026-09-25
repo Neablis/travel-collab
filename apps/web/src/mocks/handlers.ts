@@ -547,6 +547,7 @@ export function makeAccountPlanHandler(overrides: Partial<AccountPlanView> = {})
     conferredVersionRef: "plus@v1",
     entitlements: ["ai.ask"],
     grantedVersionRefs: ["plus@v1"],
+    grants: [{ planId: "plus", version: 1, source: "founder", expiresAt: null }],
     questions: { used: 0, limit: 100 },
     steps: { used: 0, limit: 1000 },
     catalogue: [],

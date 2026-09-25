@@ -25,3 +25,4 @@
 - **Cross-reference:** KI-47 (resolved — the `tags` field itself);
   the 2026-08-27 contracts changelog entry.
 - **First noted:** 2026-08-27 (M18 contract PR).
+- **Re-verified 2026-09-25 (overnight sweep):** still true. `packages/contracts/src/activity.ts:195` is `z.enum(["meal", "lodging", "ticketed", "outdoors"])`, and the handoff's `TAGS` (`Trip Planner Redesign.dc.html:8896-8903`) still lists six, `considering` and `travel` included. One thing above is stale: "before the tag surfaces exist". They exist now: `ActivityEditor.tsx`, `ActivityCard.tsx`, `lib/activityTags.ts`, the board's filter and the notebook's `widgetBind.tsx` all read `ActivityTag`. The delta is still settled by decision, not scheduled.

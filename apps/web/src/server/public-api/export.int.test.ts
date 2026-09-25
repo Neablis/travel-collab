@@ -20,8 +20,31 @@ import { upsertUser } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
+import { eq } from "drizzle-orm";
+import { db } from "@/server/db/client";
+import { events } from "@/server/db/schema";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
+
+// **A pass-through, except when a test switches it on** (KI-2026-09-19-b).
+// Switched on, projecting any event other than a trip's genesis throws — inside
+// whatever transaction is projecting it, so that transaction rolls back. It
+// stands in for the failure an import cannot cause and cannot rule out (a
+// dropped connection, a pool timeout), and it fails a compensating
+// `DeleteTrip` as well, which is the case that entry was about.
+const injectProjectionFailure = vi.hoisted(() => ({ on: false }));
+vi.mock("@/server/projections", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/projections")>();
+  return {
+    ...real,
+    applyTripEvents: (...args: Parameters<typeof real.applyTripEvents>) => {
+      if (injectProjectionFailure.on && args[1].some((e) => e.type !== "TripCreated")) {
+        return Promise.reject(new Error("Injected: projecting after the trip's genesis failed."));
+      }
+      return real.applyTripEvents(...args);
+    },
+  };
+});
 
 const { POST: CREATE_TRIP, GET: LIST_TRIPS } = await import("@/app/api/v1/trips/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
@@ -438,5 +461,32 @@ describe("POST /v1/trips/import", () => {
     expect(detail.days).toHaveLength(1);
     expect(detail.days[0].date).toBeNull();
     expect(Object.values(detail.activities)[0]).toMatchObject({ title: "Fushimi Inari" });
+  });
+
+  // **Create and import are one transaction** (KI-2026-09-19-b). The failure is
+  // injected after `CreateTrip` has been appended and projected, and it fails
+  // any cleanup write as well — so the only thing that can keep the trip from
+  // existing is that its creation rolled back with the import.
+  it("leaves no trip at all when the import fails after the trip was created", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId } = await seedTrip(secret);
+    const { bundle } = await exportTrip(secret, tripId);
+    const before = await db.select().from(events).where(eq(events.actorId, owner));
+
+    injectProjectionFailure.on = true;
+    let failed: Response;
+    try {
+      failed = await IMPORT(req(secret, bundle, "POST"), NO_PARAMS);
+    } finally {
+      injectProjectionFailure.on = false;
+    }
+    expect(failed.status).toBe(500);
+
+    // Not "no live trip" — no new stream at all, deleted or otherwise.
+    const after = await db.select().from(events).where(eq(events.actorId, owner));
+    expect(after.map((e) => e.streamId)).toEqual(before.map((e) => e.streamId));
+    const list = await LIST_TRIPS(req(secret), NO_PARAMS);
+    expect((await list.json()).items.map((t: { tripId: string }) => t.tripId)).toEqual([tripId]);
   });
 });

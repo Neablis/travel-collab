@@ -96,9 +96,15 @@ A token is either account-wide or confined to named trips.
   hold the role the endpoint needs. Remove yourself from a trip and every token
   you hold loses it on the next request.
 
-**A confined token is refused on any endpoint that is not about one trip**
-(`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`, `POST /v1/playbooks`). Creating a new trip
-from a credential restricted to two existing ones is a widening.
+**A confined token is refused on any request that is not about one trip**
+(`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`, an inline
+`POST /v1/playbooks`). Creating a new trip from a credential restricted to two
+existing ones is a widening.
+
+**A write that names its trip in the body is about that trip.**
+`POST /v1/library` and a `POST /v1/playbooks` with `source` may be sent by a
+confined token for a trip it names, and are refused (`trip-out-of-scope`) for
+any other.
 
 ### Two gates, always in this order
 
@@ -176,10 +182,10 @@ refusals (a date not on the calendar, an end before the start), and a refused
 date creates **no trip at all**. Unlike `PATCH`, they cannot be `null` — a trip
 being created has no dates to clear.
 
-A trip with dates is created in two steps behind the one call. In the rare case
-the second fails for a reason that is not your request (a server fault), you get
-the error and the half-made trip is deleted, so it will not appear in your list
-(`KI-2026-09-19-f`).
+A trip and its dates are written in one transaction. If anything fails, even a
+server fault that has nothing to do with your request, you get the error and no
+trip exists at all. `POST /v1/trips/import` works the same way for a trip and
+everything the file puts in it.
 
 ### Putting a stop on the map
 
@@ -644,8 +650,12 @@ Three things, stated so nobody is surprised:
   token is refused, not deleted, because the row is how its owner learns what
   happened. `apiTokens.retention.test.ts` fails if a deletion appears.
 - **A confined token must be refused on tripless endpoints.** The wrapper does
-  this; an endpoint that reaches a trip from its *body* rather than its path has
-  to check it by hand — `POST /v1/library` is the worked example.
+  this. An endpoint that reaches a trip from its *body* rather than its path
+  declares `trip: { body: (body) => tripId | null }` instead of `trip: "path"`,
+  and gets the same two gates and `ctx.trip`; `null` means the request is
+  tripless and a confined token is refused. Never gate a body trip by hand in
+  the handler — a confined token does not reach it (KI-2026-09-24-a).
+  `POST /v1/playbooks` is the worked example.
 
 ### Deployment
 

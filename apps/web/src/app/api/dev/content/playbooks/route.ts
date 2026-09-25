@@ -8,6 +8,7 @@ import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
 import { recomputeReviewCounters } from "@/server/reviews";
 import { carryModeration, restoreModeration } from "@/server/reports";
+import { forgetCitySearches } from "@/server/cities";
 
 export const runtime = "nodejs";
 
@@ -143,6 +144,9 @@ export async function POST(request: Request) {
     for (const id of ids) await recomputeReviewCounters(tx, id);
     await restoreModeration(tx, moderation);
   });
+  // Rewrote published days: the city index moved, and this process may be
+  // holding the old answer (`forgetCitySearches`).
+  forgetCitySearches();
 
   return Response.json({
     bundle: bundleId,

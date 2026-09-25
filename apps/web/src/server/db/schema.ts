@@ -619,7 +619,7 @@ export const savedDays = pgTable(
     // **Every non-owner read filters on it, `deletedAt`'s risk exactly.** The
     // list: `savedDays.ts` (`readableSavedDay` — the shared-day read, insert
     // and report paths, non-owners only), `playbooks.ts` (`notModerated` in
-    // `publishedDayCount`, `review_totals`, `leaderboard`, `publicAuthor` and
+    // `publishedPlaybookCount`, `review_totals`, `leaderboard`, `publicAuthor` and
     // `citiesKnownBy`; `notModeratedUnlessMine` in `matchPredicate`, which
     // keeps the owner's own day in Discover but not on their profile) and
     // `cities.ts` (`searchCities`). NOT filtered, deliberately: `listSavedDays`
@@ -663,7 +663,7 @@ export const savedDays = pgTable(
     // **Every read filters on it, and missing one is the whole risk.** The list
     // is in `savedDays.ts` (`listSavedDays`, `getSavedDay`, `readableSavedDay`,
     // `setSavedDayVisibility`), `playbooks.ts` (`matchPredicate`, which covers
-    // Discover and the sibling chips, plus `publishedDayCount`, `leaderboard`,
+    // Discover and the sibling chips, plus `publishedPlaybookCount`, `leaderboard`,
     // `publicAuthor` and `citiesKnownBy`) and `cities.ts` (`searchCities`). A
     // deleted day must 404 exactly the way a private one does — see
     // `access/saved-day-access.ts` on why those two answers must be the same.

@@ -117,51 +117,45 @@ function paramsInDocument(editor: Editor): unknown[] {
   return out;
 }
 
-describe("WidgetSettings — one entry per widget in the block (SPEC §26)", () => {
-  it("shows both widgets of the sentence, numbered, and neither of them is the other paragraph's", async () => {
-    // Selected via the SECOND widget: the panel is the block's, whichever of its
-    // widgets was clicked.
+describe("WidgetSettings — one widget at a time (KI-2026-09-24-x)", () => {
+  // Mitchell, PR #221: *"Just have 1 selected at a time."* A sentence holding
+  // two widgets opens a panel about the ONE that was clicked: no list of the
+  // whole block, and no numbers on the handles to match it against.
+  it("shows only the selected widget of the sentence, unnumbered, in the panel and in the text", async () => {
     await openOn(1);
     const panel = within(screen.getByTestId("widget-settings"));
-    const entries = panel.getAllByTestId("widget-settings-entry");
-    expect(entries.map((e) => e.getAttribute("aria-label"))).toEqual(["1 · The cities", "2 · The cities"]);
-
-    // And the numbers in the text agree with the entries, in document order.
-    // The other paragraph's lone widget has no number: nothing to tell apart.
-    const handles = screen.getAllByTestId("widget-handle");
-    expect(handles.map((h) => h.textContent)).toEqual(["▸1", "▸2", "▸"]);
+    expect(panel.getAllByTestId("widget-settings-entry").map((e) => e.getAttribute("aria-label"))).toEqual(["The cities"]);
+    expect(screen.getAllByTestId("widget-handle").map((h) => h.textContent)).toEqual(["▸", "▸", "▸"]);
   });
 
-  // **The box that fails if someone adds an aggregate control.** Rebinding one
-  // entry must leave the other widget of the same sentence where it was.
-  it("rebinds each widget of the sentence on its own", async () => {
-    const editor = await openOn(0);
-    const panel = within(screen.getByTestId("widget-settings"));
+  // **The box that fails if someone adds an aggregate control** (ADR-037 open
+  // question 1), and the proof that the one entry is the SELECTED widget's.
+  // Showing one at a time changes the panel, not that rule: widening either
+  // widget of the sentence leaves the other on its own day.
+  it.each([
+    { which: "first", selected: 0, after: [{}, DAY_2, {}] },
+    { which: "second", selected: 1, after: [DAY_1, {}, {}] },
+  ])("rebinds the $which widget of the sentence on its own", async ({ selected, after }) => {
+    const editor = await openOn(selected);
+    await userEvent.click(within(screen.getByTestId("widget-settings")).getByRole("button", { name: "The cities: dates" }));
+    await userEvent.click(await screen.findByRole("button", { name: "All days" }));
 
-    await userEvent.click(panel.getByRole("button", { name: "2 · The cities: dates" }));
-    await userEvent.click(within(await screen.findByRole("group", { name: "Trip days" })).getByRole("button", { name: /Day 1/ }));
-
-    await waitFor(() => expect(paramsInDocument(editor)).toEqual([DAY_1, DAY_1, {}]));
-    // The selection stayed on the widget the panel was opened for, so the
-    // panel is still up and still holds both entries.
-    expect(within(screen.getByTestId("widget-settings")).getAllByTestId("widget-settings-entry")).toHaveLength(2);
+    await waitFor(() => expect(paramsInDocument(editor)).toEqual(after));
+    // The selection stayed on the widget the panel was opened for.
+    expect(within(screen.getByTestId("widget-settings")).getAllByTestId("widget-settings-entry")).toHaveLength(1);
   });
 
-  it("removes one widget of the sentence and keeps the other, and the prose", async () => {
-    const editor = await openOn(0);
-    const panel = within(screen.getByTestId("widget-settings"));
-
-    await userEvent.click(panel.getByRole("button", { name: "Remove 2 · The cities" }));
+  it("removes the selected widget, keeps the other and the prose, and closes", async () => {
+    const editor = await openOn(1);
+    await userEvent.click(within(screen.getByTestId("widget-settings")).getByRole("button", { name: "Remove The cities" }));
 
     await waitFor(() => expect(paramsInDocument(editor)).toEqual([DAY_1, {}]));
     expect(editor.state.doc.child(0).textContent).toBe("We land on Day 1 in  and by Day 2 we are in .");
-    // One left, so it is no longer numbered — in the panel or in the text.
-    await waitFor(() =>
-      expect(within(screen.getByTestId("widget-settings")).getByTestId("widget-settings-entry").getAttribute("aria-label")).toBe(
-        "The cities",
-      ),
-    );
-    expect(screen.getAllByTestId("widget-handle").map((h) => h.textContent)).toEqual(["▸", "▸"]);
+    // Nothing is selected any more, so there is nothing for the panel to be
+    // about. Moving the selection to the sentence's other widget would put a
+    // panel titled "The cities" straight back up, reading as if Remove had not
+    // worked.
+    await waitFor(() => expect(screen.queryByTestId("widget-settings")).toBeNull());
   });
 });
 

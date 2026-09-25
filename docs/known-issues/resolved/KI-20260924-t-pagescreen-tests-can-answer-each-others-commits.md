@@ -1,0 +1,15 @@
+### KI-2026-09-24-t — a PageScreen test's unmount commit can be answered by the next test's handlers — RESOLVED
+
+- **Severity:** reliability (latent flake source; not observed failing in correct code).
+- **Milestone:** M14, carried rather than gating.
+- **Area:** `apps/web/src/components/pages/PageScreen.test.tsx` (`afterEach`), `apps/web/src/components/pages/useEditSession.ts` (the unmount commit).
+- **Symptom / What happens:**
+  - `afterEach` unmounts `PageScreen`, and unmounting fires the session's final commit. That PATCH can still be in flight when the next test installs its MSW handlers, so the next test's handler answers it.
+  - This was seen only under deliberate mutations during the stale-save fix: a leaked PATCH moved a later test's page revision. It was never seen with the code correct.
+- **Fix when it bites:** await settled commits before resetting handlers (for example, `await waitFor` on no requests in flight in `afterEach`), or give each test its own page id so a leaked write can't match.
+- **First noted:** 2026-09-24, stale-save fix on PR #222.
+- **Resolved:** 2026-09-25 (overnight KI sweep). The leak needs a commit *sent* after the test ended: MSW picks handlers when a request is intercepted, and the unmount's `settle` is queued behind an ordinary commit still in flight (`useEditSession`), so it is sent only when that one answers. Every test used `pageFixture()`'s one fixed id, so the next test's PATCH handler matched it.
+  - The fix is in `PageScreen.test.tsx` only. Each test gets a fresh page id (`beforeEach`, through a local `pageFixture` wrapper). A guard handler goes in front of every `server.use` set and answers 410 to any `/api/trips/:tripId/pages/:pageId` request for another test's id, so a leaked write can no longer reach a test's handlers. `useEditSession.ts` is unchanged: the queued unmount commit is correct product behaviour (KI-2026-09-24-g).
+  - Reproduced first with a new pair at the end of the file. The first test ends with its unmount commit queued behind a PATCH it holds open. The second releases that PATCH and records every PATCH its own handler sees. It failed with `expected [ "7f8a9b0c-1d2e-4f3a-8b4c-5d6e7f8a9b0c" ] to deeply equal []`. The pair is now the regression test. It goes red again if you remove the guard (a random id arrives) or put the shared id back (the fixed id arrives).
+  - Checks: `PageScreen.test.tsx` passed 56/56 three times, `src/components/pages` passed 30 files / 316 tests three times, `pnpm --filter web typecheck` and eslint on the file were clean.
+- **Decision (2026-09-25 overnight sweep):** M14-carried, but test-only reliability, so the sweep took it. Chose a per-test page id plus a refusing guard, which makes the leak impossible. Rejected draining in-flight requests in `afterEach`: several tests hold a PATCH open for good (an unloading page), so a drain needs a timeout, and then it only makes the leak unlikely. Rejected changing `pageFixture`'s default id in `@tc/factories`: other suites key on it, and it is outside this entry's Area.

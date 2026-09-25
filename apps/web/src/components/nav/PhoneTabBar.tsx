@@ -135,12 +135,17 @@ export function taskOwnsScreen(pathname: string): boolean {
 function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null {
   if (tripIdFromPathname(pathname)) {
     if (/^\/trips\/[^/]+\/pages(?:\/|$)/.test(pathname)) return "notebook";
-    // **Every non-Map view lights Plan, including Overview and Calendar**, and
-    // that is the bar's scope rather than a fallback: SPEC §10 gives the phone
-    // two in-trip destinations, and the desktop's four views all live behind
-    // them. What it must NOT do is light Plan while the reader is on Map, which
-    // is what reading the wrong query parameter did.
-    return view === "Map" ? "map" : "plan";
+    // **A tab is current only when its own view is on screen.** Overview and
+    // Calendar have no phone tab, so they light nothing. This used to light
+    // Plan for every non-Map view, on the reading that §10's two phone views
+    // stand for all four desktop ones. But §24 lands a trip on Overview, so a
+    // phone opened a trip on Overview with Plan marked `aria-current` — and
+    // tapping that "current" tab navigated away to a different screen
+    // (KI-2026-09-24-l). `null` also covers "not known yet" (the SSR fallback
+    // below), for the same reason: no tab is better than a wrong one.
+    if (view === "Map") return "map";
+    if (view === "Plan") return "plan";
+    return null;
   }
   if (pathname === "/") return "trips";
   if (pathname === "/playbooks/board" || pathname.startsWith("/playbooks/profile/")) return "trips";
@@ -345,19 +350,13 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
  *
  * `usePathname()` triggers no such bailout, and the route alone settles which
  * SET the bar shows (§22's trip three vs account pair) and which tab is current
- * in every case but one. The exception is Plan-vs-Map inside a trip, which is
- * the only thing the query decides — so this renders `view: null`, which
- * `activePhoneTab` reads as Plan.
- *
- * **That is still the right guess, for a different reason than it used to be.**
- * This said a bare `/trips/<id>` normalises to Timeline, so Plan is where such
- * a route lands; §24 deleted Timeline and a bare trip URL opens Overview now,
- * which made the sentence false while the conclusion stayed true (CodeRabbit,
- * PR 170). Overview is one of the three desktop views the phone's Plan tab
- * stands for — see `activePhoneTab` — so a trip route with no view in it lights
- * Plan whichever way you get there. A reader who deep-links
- * `?view=Map` sees Plan lit for one paint and Map thereafter; the bar's
- * contents, position, size and hit targets never move.
+ * everywhere except the trip page itself, where the query picks the view. So
+ * this renders `view: null`, which `activePhoneTab` reads as "unknown" and
+ * lights no trip tab. It used to guess Plan, which was wrong for the commonest
+ * case — a bare trip URL renders Overview (§24), which has no phone tab
+ * (KI-2026-09-24-l). A reader who deep-links `?view=Plan` sees no tab lit for
+ * one paint and Plan thereafter; the bar's contents, position, size and hit
+ * targets never move.
  */
 export function PhoneTabBarFallback() {
   return <PhoneTabBarView pathname={usePathname()} view={null} />;

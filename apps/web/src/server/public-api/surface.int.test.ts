@@ -12,22 +12,26 @@ import { mintToken } from "@/server/api-tokens";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
+import { PAGE_TITLE_MAX } from "@tc/contracts";
+import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 // **A pass-through, except when a test switches it on.** `POST /v1/trips` with
-// dates is two writes (KI-2026-09-19-f); the second can only fail after the
-// first on something the caller did not send — a lost race, a dropped
-// connection — so the only way to reach the rollback is to make it fail here.
+// dates writes the trip and its dates in one transaction (KI-2026-09-19-f); the
+// dates half can only fail after the create on something the caller did not
+// send — a dropped connection, a pool timeout — so the only way to reach the
+// rollback is to make it fail here. Switched on, projecting any event other than
+// a trip's genesis throws inside the transaction projecting it.
 const injectDatesFailure = vi.hoisted(() => ({ on: false }));
-vi.mock("@/server/public-api/commands", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./commands")>();
+vi.mock("@/server/projections", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/projections")>();
   return {
     ...real,
-    runCommand: (actor: Parameters<typeof real.runCommand>[0], command: Parameters<typeof real.runCommand>[1]) =>
-      injectDatesFailure.on && (command.type === "SetTripDates" || command.type === "SetTripStartDate")
-        ? Promise.resolve({ ok: false as const, status: 409, message: "Injected: the dates write lost a race." })
-        : real.runCommand(actor, command),
+    applyTripEvents: (...args: Parameters<typeof real.applyTripEvents>) =>
+      injectDatesFailure.on && args[1].some((e) => e.type !== "TripCreated")
+        ? Promise.reject(new Error("Injected: the dates write failed after the create."))
+        : real.applyTripEvents(...args),
   };
 });
 
@@ -551,6 +555,39 @@ describe("a patch changes what it names, and nothing else", () => {
     expect(late.status).toBe(200);
     expect((await late.json()).title).toBe("Third");
   });
+
+  // KI-2026-09-05-f item 1: the session routes cap a page write's body and
+  // title, and a token must not be the way round either.
+  it("refuses a page body over the byte cap and a title over the length cap, and stores neither", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["notebook:read", "notebook:write"]);
+    const { tripId } = await seed(await tokenFor(owner, ["trips:read", "trips:write"]));
+    const added = await ADD_PAGE(
+      req(secret, { title: "Ideas", context: { tripId }, content: { type: "doc", content: [] } }, "POST"),
+      P({ tripId }),
+    );
+    const page = await added.json();
+    const huge = {
+      content: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "x".repeat(MAX_PAGE_BODY_BYTES) }] }],
+      },
+    };
+
+    const tooBig = await PATCH_PAGE(req(secret, huge, "PATCH"), P({ tripId, pageId: page.id }));
+    expect(tooBig.status).toBe(400);
+    expect((await tooBig.json()).error.message).toContain(MAX_PAGE_BODY_BYTES.toLocaleString("en-US"));
+    const created = await ADD_PAGE(req(secret, { title: "Big", context: { tripId }, ...huge }, "POST"), P({ tripId }));
+    expect(created.status).toBe(400);
+
+    const longTitle = "t".repeat(PAGE_TITLE_MAX + 1);
+    expect((await PATCH_PAGE(req(secret, { title: longTitle }, "PATCH"), P({ tripId, pageId: page.id }))).status).toBe(400);
+
+    const listed = await LIST_PAGES(req(secret), P({ tripId }));
+    const titles = ((await listed.json()).items as { title: string }[]).map((p) => p.title);
+    expect(titles).toContain("Ideas");
+    expect(titles).not.toContain("Big");
+  });
 });
 
 // **A pager that skips a row is worse than one that repeats it**, because the
@@ -652,7 +689,7 @@ describe("POST /v1/trips with dates", () => {
     expect(await eventsBy(owner)).toEqual([]);
   });
 
-  it("leaves no live trip behind when the dates write fails after the create", async () => {
+  it("leaves no trip at all when the dates write fails after the create", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
     injectDatesFailure.on = true;
@@ -665,10 +702,10 @@ describe("POST /v1/trips with dates", () => {
     } finally {
       injectDatesFailure.on = false;
     }
-    expect(failed.status).toBe(409);
-    expect((await failed.json()).error.message).toBe("Injected: the dates write lost a race.");
-    // The create DID commit; the compensation is what keeps it off the list.
-    expect((await eventsBy(owner)).map((e) => e.type)).toContain("TripCreated");
+    expect(failed.status).toBe(500);
+    // The create was appended and projected before the failure, and rolled back
+    // with it: no stream, not even a created-then-deleted one.
+    expect(await eventsBy(owner)).toEqual([]);
     const list = await LIST_TRIPS(req(secret), NO_PARAMS);
     expect((await list.json()).items).toEqual([]);
   });

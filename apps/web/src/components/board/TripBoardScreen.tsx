@@ -332,7 +332,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // Both fancier answers were considered and cost more than they return. A
   // timed gate on the word is a second piece of timing state to own, for a
   // word. A skeleton of the board's shape is what link 7 actually asks for,
-  // and that is real work rather than a line in a branch — KI-2026-09-20-e.
+  // and that is real work rather than a line in a branch, weighed against a
+  // server-first read in KI-2026-09-20-f. `scripts/check-loading-wall.mjs`
+  // keeps the word from coming back anywhere (KI-2026-09-20-e).
   //
   // `null` and not an empty container: `trips/[tripId]/page.tsx` already owns
   // the <main> landmark and its padding, so the chrome around this stays

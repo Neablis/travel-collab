@@ -61,6 +61,7 @@ const VIEW: AccountPlanView = {
   planVersionRef: "free@v1",
   conferredVersionRef: "free@v1",
   grantedVersionRefs: [],
+  grants: [],
   entitlements: [],
   questions: { used: 0, limit: 0 },
   steps: { used: 0, limit: 0 },
@@ -291,6 +292,25 @@ describe("the confirm step", () => {
     // The amount is in the button because the amount is what is being agreed
     // to — a button reading "Confirm" makes the reader look back up.
     expect(screen.getByTestId("confirm-pay").textContent).toContain("$9");
+  });
+
+  // KI-2026-09-20-e. The order card's heading is real from the first frame;
+  // what Stripe has not answered yet is simply absent, not announced.
+  it("keeps the order card's heading and paints no loading word while Stripe's preview is pending", async () => {
+    serve();
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).startsWith("/api/billing/change") && (init?.method ?? "GET") === "GET"
+        ? new Promise<never>(() => {})
+        : realFetch(input, init),
+    );
+    render(<PlansScreen />);
+    await screen.findByTestId("plan-cards");
+    await userEvent.click(screen.getByTestId("plan-choose-plus"));
+
+    const order = await screen.findByTestId("confirm-order");
+    expect(within(order).getByRole("heading", { name: "Order" })).toBeTruthy();
+    expect(order.textContent).not.toMatch(/Loading/);
   });
 
   it("asks the server for the numbers instead of computing them from the catalogue", async () => {

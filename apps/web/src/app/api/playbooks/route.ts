@@ -1,4 +1,5 @@
 import { auth } from "@/server/auth";
+import { withDeprecatedDiscoverAlias } from "@/server/playbookWireAliases";
 import {
   BudgetBand,
   LengthBand,
@@ -68,5 +69,5 @@ export async function GET(request: Request) {
     rating: RatingFloor.catch("any").parse(params.get("rating")),
     readerId: session.user.id,
   });
-  return Response.json(DiscoverResponse.parse(result));
+  return Response.json(withDeprecatedDiscoverAlias(DiscoverResponse.parse(result)));
 }

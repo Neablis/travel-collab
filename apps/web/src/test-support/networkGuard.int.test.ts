@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import https from "node:https";
+import { describe, expect, it, vi } from "vitest";
 import { blockedRequestMessage } from "./networkGuard";
 
 // The integration lane's half of "no test reaches a third party", asserted in
@@ -12,8 +13,21 @@ describe("the integration lane's third-party guard", () => {
     await expect(fetch(url)).rejects.toThrow(blockedRequestMessage(url));
   });
 
-  // Sentry's node transport posts over `https`, not `fetch`, so the guard above
-  // cannot see it; the DSN is the only lever. Asserted through the module every
+  // Beneath `fetch` (KI-2026-09-24-u): Node's `https`, which is what an SDK
+  // that skips `fetch` would use, is refused at the socket in this lane too.
+  it("refuses an https.request to a third-party host", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const message = await new Promise<string>((resolve) => {
+      https.get("https://third-party.invalid/v1/search", () => resolve("response")).on("error", (e) => resolve(e.message));
+    });
+    expect(message).toBe(blockedRequestMessage("third-party.invalid:443"));
+    vi.restoreAllMocks();
+  });
+
+  // Sentry's node transport posts over `https`, not `fetch`. The socket guard
+  // would refuse the post, but Sentry would still attempt it and report the
+  // failure in the middle of someone else's test, so an empty DSN — Sentry
+  // never tries — stays the first line. Asserted through the module every
   // `Sentry.init` reads, not through `process.env`, because the module's own
   // fallback — the real DSN when the variable is unset — is the thing that
   // must not win.

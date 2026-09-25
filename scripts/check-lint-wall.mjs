@@ -578,3 +578,69 @@ expectRejectedBy(
   "playwright/expect-expect",
   "test-quality wall: e2e spec without an assertion correctly rejected (is e2e/ still in the lint lane?)",
 );
+
+// THE SLEEP WALL. No `waitForTimeout` in an e2e spec: a sleep is a guess about
+// how long something takes, re-evaluated by a loaded machine rather than by its
+// author (KI-13, KI-21, and nine regrown sleeps in m10-map-rail.spec.ts). This
+// used to be its own script, `check-sleep-wall.mjs`, from before `e2e/` was
+// linted at all; once `playwright/no-wait-for-timeout` was at error over
+// `e2e/**` it was a second copy of one rule with a second exemption spelling,
+// and was deleted (KI-2026-09-05-w item 4). This fixture is what keeps the rule
+// from being switched off silently in its place. A wait with genuinely no event
+// to hang off is exempted in writing, at the sleep, naming the rules that fire:
+// `// eslint-disable-next-line playwright/no-wait-for-timeout, no-restricted-properties -- <reason>`
+// on `page.waitForTimeout`, just `no-restricted-properties` on `bob.waitForTimeout`.
+expectRejectedBy(
+  lintFixture(
+    "sleep_wall_fixture",
+    'import { test, expect } from "@playwright/test";\n\n' +
+      'test("fixture", async ({ page }) => {\n  await page.waitForTimeout(500);\n' +
+      '  await expect(page).toHaveTitle("x");\n});\n',
+    { dir: "e2e", ext: "ts" },
+  ),
+  "playwright/no-wait-for-timeout",
+  "sleep wall: waitForTimeout in an e2e spec correctly rejected",
+);
+
+// ...and on a page NOT named like one. The plugin rule above only matches a
+// receiver called `page`/`frame`/`…Page`/`…Frame`, and the multi-user specs
+// call theirs `bob`, `finder`, `reader`, `visitor` — so `bob.waitForTimeout`
+// linted clean once `check-sleep-wall.mjs` was gone (PR #234 review). The
+// `no-restricted-properties` block in eslint.config.mjs closes that; this is
+// what stops it being replaced away by a later block setting the same rule.
+expectRejectedBy(
+  lintFixture(
+    "sleep_wall_named_page_fixture",
+    'import { test, expect } from "@playwright/test";\n\n' +
+      'test("fixture", async ({ browser }) => {\n  const bob = await browser.newPage();\n' +
+      '  await bob.waitForTimeout(1);\n  await expect(bob).toHaveTitle("x");\n});\n',
+    { dir: "e2e", ext: "ts" },
+  ),
+  "no-restricted-properties",
+  "sleep wall: waitForTimeout on a page not named `page` correctly rejected",
+);
+
+// THE FETCH WALL (KI-2026-09-05-q): UI code reaches the app's API through the
+// client modules, whose helpers never reject. The second assertion on the same
+// fixture is the one that matters most: the wall is `no-restricted-globals`
+// precisely so it does not become the last block to set `no-restricted-syntax`
+// on a `.tsx` file, which would silently switch the element wall off.
+const fetchWallFixture = lintFixture(
+  "fetch_wall_fixture",
+  'export async function load() {\n  return fetch("/api/trips");\n}\n' +
+    "export default function Fixture() {\n  return <button>go</button>;\n}\n",
+  { dir: "src/components" },
+);
+expectRejectedBy(fetchWallFixture, "no-restricted-globals", "fetch wall: a bare fetch in UI code correctly rejected");
+expectRejectedBy(
+  fetchWallFixture,
+  "no-restricted-syntax",
+  "fetch wall: the element wall still applies to the same .tsx file",
+);
+expectClean(
+  lintFixture("fetch_wall_server_fixture", 'export async function probe() {\n  return fetch("https://example.test");\n}\n', {
+    dir: "src/server",
+    ext: "ts",
+  }),
+  "fetch wall: server code may still call fetch",
+);

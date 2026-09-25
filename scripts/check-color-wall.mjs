@@ -45,13 +45,12 @@ const colorMath = new Set([
   "apps/web/src/components/lenses/mapTokens.test.ts",
 ]);
 
-const generatedNonProduct = new Set([
-  // Sentry's `npx @sentry/wizard` scaffold — a throwaway route for verifying
-  // error capture, not a page a user ever sees. Its `<style jsx>` block ships
-  // Sentry's own brand colors, not ours (landed via 6a5501e, pushed directly
-  // to main without a PR review — docs/guidelines/ci-cost-and-capacity.md).
-  "apps/web/src/app/sentry-example-page/page.tsx",
-]);
+// Third-party codegen that ships its own brand colours and is not product UI.
+// EMPTY since KI-2026-09-05-f deleted its only entry, Sentry's wizard scaffold
+// (`sentry-example-page`). An entry added here needs a non-vacuity test like
+// the one that went with it: feed the file's own contents back through the
+// wall at an unexcluded path and prove it fails, or the exclusion is a guess.
+const generatedNonProduct = new Set([]);
 // --others --exclude-standard adds untracked-but-not-ignored files to the
 // tracked (--cached) list: a brand-new file was invisible to the wall until it
 // was staged (KI-51), which is exactly the file most likely to carry a raw

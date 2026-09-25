@@ -13,8 +13,10 @@
 
 - **Measured, 2026-09-20** (`find app -name page.tsx`, then what each mounts):
   **16 route pages under `(app)` and `(front)`; 14 mount a client screen that
-  fetches its own data; exactly one — `app/(app)/page.tsx`, Home — does any
-  server-side reading at all.** `app/(app)/trips/[tripId]/page.tsx` is typical
+  fetches its own data; ~~exactly one — `app/(app)/page.tsx`, Home — does any
+  server-side reading at all.~~** *(Struck 2026-09-25: Home is `"use client"`
+  and reads `fetch("/api/trips")` in an effect, both today and at `ffce992`,
+  the commit this was measured against. No route page reads data server-side.)* `app/(app)/trips/[tripId]/page.tsx` is typical
   and is the clearest case: it is already an `async` server component, it
   `await`s `params`, and it fetches nothing.
 
@@ -65,3 +67,5 @@
 
 - **Deliberately not in PR #196.** That PR is 163 files trying to land, and this
   is an architecture change across 14 routes with its own test surface.
+
+- **Re-verified 2026-09-25 (overnight sweep):** still true, and it is now 17 route pages (`find 'app/(app)' 'app/(front)' -name page.tsx`), not 16. None of them reads data server-side. The only server-side `await`s are `params`/`searchParams`, and `signup`'s `headers()`/`cookies()` for a Server Action write. `trips/[tripId]/page.tsx` is still an `async` component that awaits `params` and mounts `TripProvider`, fetching nothing. The Home claim above was wrong when it was written and is struck. **A constraint the fix sketch does not mention:** `apps/web/eslint.config.mjs:121-129` (`domainAndServerWallPatterns`, applied to `src/**` except `src/server/**` and `src/app/api/**`) forbids page files from importing `@/server/*`. Three page files say so in comments (`trips/[tripId]/page.tsx:10`, `signin/page.tsx:13`, `signup/page.tsx:36`). "Move the first read into the server component" therefore needs that wall changed, or a sanctioned read seam, first. That is an AGENTS.md lint-wall decision, not a local edit.
