@@ -14895,7 +14895,7 @@
     },
     "/v1/trips/{tripId}/globals": {
       "get": {
-        "summary": "Summarise a trip: its days and their time zones, the cities and tags it uses, and how many stops are booked",
+        "summary": "Summarise a trip: its days and their time zones, and the cities and tags it uses",
         "description": "Requires the `trips:read` scope. Requires at least the `viewer` role on the trip.",
         "security": [
           {
