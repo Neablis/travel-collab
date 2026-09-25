@@ -4,6 +4,7 @@ import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
 import { listPages } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
+import { readBody } from "@/server/readBody";
 
 export async function GET(req: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
@@ -23,8 +24,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ tripId:
   const { tripId } = await params;
   const g = await guard(tripId, "editor");
   if ("error" in g) return g.error;
-  const body = CreatePageInput.safeParse(await req.json());
-  if (!body.success) return Response.json({ error: "invalid-page" }, { status: 400 });
+  const body = await readBody(req, CreatePageInput, "invalid-page");
+  if ("error" in body) return body.error;
   if (body.data.context.tripId !== tripId) return Response.json({ error: "context tripId mismatch" }, { status: 400 });
   // **The id is minted HERE, not by the database**, which is what a command
   // needs: `CreatePage` names the page it creates, so the event is the same

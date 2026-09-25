@@ -4,6 +4,7 @@ import { inviteTokenOf } from "@/server/access/trip-access";
 import { isUuid } from "@/server/ids";
 import { getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
+import { readBody } from "@/server/readBody";
 
 // `pages.id` is a uuid column, so `getPage("not-a-uuid")` is not a miss — it is
 // `22P02` out of the driver, and all three handlers here answered 500 instead
@@ -34,8 +35,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tripId
   if (!isUuid(pageId)) return notFound();
   const existing = await getPage(pageId);
   if (!existing || existing.tripId !== tripId) return notFound();
-  const body = UpdatePageInput.safeParse(await req.json());
-  if (!body.success) return Response.json({ error: "invalid-page" }, { status: 400 });
+  const body = await readBody(req, UpdatePageInput, "invalid-page");
+  if ("error" in body) return body.error;
   if (body.data.context && body.data.context.tripId !== tripId) return Response.json({ error: "context tripId mismatch" }, { status: 400 });
 
   // **A command now, not a table write.** The edit goes through the same

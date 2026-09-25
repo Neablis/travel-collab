@@ -167,6 +167,7 @@ export function PlansScreen() {
 
   const load = useCallback(async (): Promise<AccountPlanView | null> => {
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/account/plan");
       if (!res.ok) return null;
       const body = (await res.json()) as { plan: AccountPlanView };
@@ -297,6 +298,7 @@ export function PlansScreen() {
     setPreviewError(null);
     setConflict(false);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch(`/api/billing/change?planId=${encodeURIComponent(planId)}`);
       const body = (await res.json()) as { preview?: PlanChangePreview; message?: string };
       if (!res.ok) {
@@ -314,6 +316,7 @@ export function PlansScreen() {
     setBusy(true);
     setConflict(false);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/billing/change", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -105,6 +105,7 @@ export function PlanSection() {
 
   useEffect(() => {
     let live = true;
+    // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
     void fetch("/api/account/plan")
       .then((res) => (res.ok ? (res.json() as Promise<{ plan: AccountPlanView }>) : null))
       .then((body) => {
@@ -119,6 +120,7 @@ export function PlanSection() {
   }, []);
 
   async function mintCode() {
+    // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
     const res = await fetch("/api/account/referrals", { method: "POST" });
     if (!res.ok) return;
     const body = (await res.json()) as { code: string };
@@ -136,6 +138,7 @@ export function PlanSection() {
   async function openPortal() {
     setOpeningPortal(true);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/billing/portal", { method: "POST" });
       if (!res.ok) {
         setOpeningPortal(false);

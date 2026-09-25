@@ -500,6 +500,50 @@ export default [
     },
   },
   {
+    // THE FETCH WALL (KI-2026-09-05-q, F-E03): client code reaches the app's
+    // API through the client modules, never through a bare `fetch`. Their
+    // invariant is that a helper NEVER rejects — every failure comes back as
+    // an `ApiResult` — and `apiClient.test.ts` / `pagesClient.test.ts` guard
+    // it by enumerating their own exports, which means a raw `fetch` anywhere
+    // else is outside every guard there is. This is the cheap half of that
+    // entry; collapsing the clients onto one core is the half still open.
+    //
+    // `no-restricted-globals`, not `no-restricted-syntax`: flat config
+    // REPLACES a rule's options with the last matching block's, and the
+    // element wall above already owns `no-restricted-syntax` for every
+    // `.tsx` file. A second `no-restricted-syntax` block here would silently
+    // switch that wall off for the whole UI.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      // Server code: route handlers, the server tree and the public API are
+      // where requests are answered, and their outbound calls go to third
+      // parties through their own adapters.
+      "src/server/**",
+      "src/app/api/**",
+      "src/app/.well-known/**/route.ts",
+      // The client modules themselves — the only place a fetch is supposed
+      // to be written.
+      "src/lib/apiClient.ts",
+      "src/lib/pagesClient.ts",
+      "src/lib/savedNotebooksClient.ts",
+      // Tests stub `fetch` rather than calling it, and the network guard
+      // exists to wrap it.
+      "src/**/*.test.{ts,tsx}",
+      "src/test-support/**",
+      "src/mocks/**",
+    ],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "fetch",
+          message:
+            "Call the app's API through src/lib/apiClient.ts (or pagesClient / savedNotebooksClient) — its helpers never reject, and a bare fetch is outside the guard that proves it (KI-2026-09-05-q). A fetch that is not an API call needs a line disable with its reason.",
+        },
+      ],
+    },
+  },
+  {
     // THE TEST-QUALITY WALL, part 1: @testing-library's own rules.
     //
     // test-overhaul Task 7.1 asked for these in July and they never landed —

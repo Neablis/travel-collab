@@ -78,6 +78,7 @@ export default function Page() {
                 op: "test",
               },
               async () => {
+                // eslint-disable-next-line no-restricted-globals -- Sentry wizard scaffolding whose whole job is to hit an endpoint that throws; not product code
                 const res = await fetch("/api/sentry-example-api");
                 if (!res.ok) {
                   setHasSentError(true);

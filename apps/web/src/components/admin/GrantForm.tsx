@@ -71,6 +71,7 @@ export function GrantForm({
     setBusy(true);
     setMessage(null);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/admin/grants", {
         method: "POST",
         headers: { "content-type": "application/json" },

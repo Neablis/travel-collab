@@ -24,6 +24,7 @@ export const accountPlanKey = "account:plan";
  * is the invariant `apiClient.ts` states at the top of the file.
  */
 async function readAccountPlan(): Promise<ApiResult<AccountPlanView>> {
+  // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
   const res = await fetch("/api/account/plan");
   if (!res.ok) {
     return { ok: false, error: { status: res.status, message: "could not read the plan" } };

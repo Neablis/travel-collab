@@ -23,7 +23,7 @@ import { ImportTripButton, type ImportTripHandle } from "@/components/home/Impor
 
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
 const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
-import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTripDetail } from "@/lib/apiClient";
+import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTripDetail, fetchTrips } from "@/lib/apiClient";
 import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
@@ -203,31 +203,25 @@ export default function Home() {
   const load = useCallback(async () => {
     const ticket = ++loadTicket.current;
     const isStale = () => ticket !== loadTicket.current;
-    try {
-      const res = await fetch("/api/trips");
-      if (isStale()) return;
-      if (res.status === 401) {
+    // Through the client rather than a bare fetch (KI-2026-09-05-q): it never
+    // rejects, so there is no try/catch to forget, and it parses each summary
+    // against the contract rather than casting.
+    const result = await fetchTrips();
+    if (isStale()) return;
+    if (!result.ok) {
+      if (result.error.status === 401) {
         setUnauthenticated(true);
         return;
       }
-      if (!res.ok) {
-        setLoadError("Could not load your trips.");
-        return;
-      }
-      const data = (await res.json()) as { trips: TripSummary[] };
-      // Re-checked AFTER the second await: `res.json()` is its own suspension
-      // point, and a newer load can win during it.
-      if (isStale()) return;
-      setUnauthenticated(false);
-      setLoadError(null);
-      setTrips(data.trips);
-    } catch {
-      if (isStale()) return;
-      // Deliberately not the thrown message: a `TypeError: Failed to fetch`
-      // or a JSON parse error is about the transport, not about anything the
-      // reader can act on. The retry is the actionable half.
+      // Deliberately not `result.error.message`: a `Failed to fetch` or a
+      // parse error is about the transport, not about anything the reader can
+      // act on. The retry is the actionable half.
       setLoadError("Could not load your trips.");
+      return;
     }
+    setUnauthenticated(false);
+    setLoadError(null);
+    setTrips(result.value);
   }, []);
 
   useEffect(() => {
