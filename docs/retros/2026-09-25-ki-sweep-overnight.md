@@ -23,6 +23,21 @@ Starting point: `main` at `cdb3582`, **84** entries in `docs/known-issues/open/`
   is small and the point of the morning is one review pass. Each fix is its own
   commit(s) with the KI id in the subject, so any one can be reverted alone.
 
+## Scope: every one of the 84 entries is either fixed or re-validated
+
+Mitchell, mid-sweep: *"make sure you are taking on a pretty big chunk of the
+ki … whether that means fix or validate it's no longer true."* So the sweep
+has two halves:
+
+- **Fix** (~30 entries): buckets D and B below, plus KI-3 / KI-48 item by item.
+- **Validate** (the other ~54, including the milestone-owned ones): a
+  first-hand check of every claim against today's code. Each ends as
+  **closed** (no longer true — evidence in the entry), **narrowed** (struck in
+  place), or **re-verified 2026-09-25** (still true — evidence, stale line
+  numbers and counts corrected). Validation never fixes; a still-true entry
+  with a small, obvious fix becomes a fixer candidate for a later wave, unless
+  a milestone owns it.
+
 ## Triage
 
 ### A — owned by a milestone; not touched
