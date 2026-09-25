@@ -153,6 +153,14 @@ imports no resolver, no capability check, no grant store, and no cost ledger.
   argument (`TrailingCost`, declared in Billing). The operator console
   (`entitlements/admin.ts`) reads the ledger and hands it across. That edge is
   Entitlements → Billing, the direction decision 1 sanctions.
+- **So do the grant holders** (KI-2026-09-25-d). `underwaterReport` also
+  takes the active grants as an argument (`GrantHolding`, declared in Billing).
+  The console reads them with `entitlements/grants.ts`'s `activeGrantHolders`.
+  The import rule cannot see this edge, because a table is reached through the
+  shared `db/schema` module, not `server/entitlements/`. So
+  `billing/storeBoundary.test.ts` sweeps Billing's source and fails on any use
+  of the grant store or the cost ledger (`entitlementGrants`, `aiUsage`, or
+  their SQL names).
 - **The folders still form a cycle, and this amendment sanctions it.**
   Entitlements reads Billing's standing; Billing reads the catalog. No *file*
   cycle exists. The folder cycle stays in `KNOWN_CYCLE_CLUSTERS`, relabelled as

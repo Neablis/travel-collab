@@ -21,11 +21,13 @@
 // ledger is Entitlements' (`entitlements/usage.ts`), and ADR-047 decision 1 —
 // as amended 2026-09-25 — lets Billing read exactly one thing of Entitlements,
 // the plan catalog. So the caller that already holds both halves, the operator
-// console in `entitlements/admin.ts`, reads the cost and hands it in.
+// console in `entitlements/admin.ts`, reads the cost and hands it in. The
+// active grant holders arrive the same way, for the same reason: the grant
+// store is Entitlements' too (KI-2026-09-25-d).
 import type { PlanId } from "@tc/contracts";
 import { PLAN_VERSIONS, planVersionRefOf } from "@/server/entitlements/planVersions";
 import { db } from "@/server/db/client";
-import { entitlementGrants, users } from "@/server/db/schema";
+import { users } from "@/server/db/schema";
 import { sql } from "drizzle-orm";
 import { subscriptionsWithStatus, type SubscriptionRow } from "./subscriptions";
 import { standingOf } from "./standing";
@@ -42,6 +44,18 @@ export interface TrailingCost {
   userId: string;
   microUsd: number;
   unpriced: number;
+}
+
+/**
+ * One active grant an account holds: which account, and the grant's source.
+ *
+ * Declared here so Billing names no Entitlements type; `activeGrantHolders` in
+ * `entitlements/grants.ts` returns rows of this shape. An account holding two
+ * grants is two rows.
+ */
+export interface GrantHolding {
+  source: string;
+  userId: string;
 }
 
 /** One cent is ten thousand micro-dollars. The only unit conversion here. */
@@ -282,21 +296,16 @@ export async function revenueSummary(
  * Grant-funded accounts are counted by source and set aside; paying accounts
  * that are underwater are listed, because each of those is a row that needs a
  * decision. `costs` is the trailing window's, as for `revenueSummary`.
+ * `grants` must be every grant active at `now`; the one production caller reads
+ * them with `activeGrantHolders(now)`.
  */
 export async function underwaterReport(
   windowDays: number,
   costs: readonly TrailingCost[],
+  grants: readonly GrantHolding[],
   now: Date = new Date(),
 ): Promise<UnderwaterReport> {
-  const [live, grants] = await Promise.all([
-    conferringNow(now),
-    db
-      .select({ source: entitlementGrants.source, userId: entitlementGrants.userId })
-      .from(entitlementGrants)
-      .where(
-        sql`${entitlementGrants.revokedAt} is null and (${entitlementGrants.expiresAt} is null or ${entitlementGrants.expiresAt} > ${now})`,
-      ),
-  ]);
+  const live = await conferringNow(now);
 
   const paysByUser = new Map<string, number>();
   for (const row of live) {

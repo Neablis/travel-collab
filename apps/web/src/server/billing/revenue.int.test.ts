@@ -19,7 +19,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { aiUsage, entitlementGrants, subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
-import { issueGrant } from "@/server/entitlements/grants";
+import { activeGrantHolders, issueGrant } from "@/server/entitlements/grants";
 import { costPerAccount } from "@/server/entitlements/usage";
 import { MICRO_USD_PER_MINOR, monthlyMicroUsd, revenueSummary, underwaterReport } from "./revenue";
 
@@ -31,6 +31,8 @@ const DAY = 24 * 60 * 60 * 1000;
  * The trailing window's cost, read from the real ledger as the operator console
  * reads it — the revenue functions take cost as an argument (ADR-047's
  * 2026-09-25 amendment), and these tests are about the join, not the plumbing.
+ * `underwaterReport` takes the active grant holders the same way, read with
+ * `activeGrantHolders(NOW)` as the console reads them.
  */
 const trailingCosts = () => costPerAccount(new Date(NOW.getTime() - WINDOW * DAY));
 
@@ -212,7 +214,7 @@ describe("costs more than it pays, segmented by why", () => {
 
   it("puts the comped account and the paying one in different buckets", async () => {
     const { comped, underwater } = await seedBothKinds();
-    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), await activeGrantHolders(NOW), NOW);
 
     expect(report.paying.map((row) => row.userId)).toEqual([underwater]);
     // **And the comped one is nowhere near that list.** It is a count under its
@@ -223,7 +225,7 @@ describe("costs more than it pays, segmented by why", () => {
 
   it("reports the grant-funded half as a count, never as a list of accounts", async () => {
     await seedBothKinds();
-    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), await activeGrantHolders(NOW), NOW);
     const founder = report.grantFunded.find((row) => row.source === "founder");
     expect(founder).toBeDefined();
     expect(Object.keys(founder!)).toEqual(["source", "accounts", "costMicroUsd"]);
@@ -236,7 +238,7 @@ describe("costs more than it pays, segmented by why", () => {
     const thrifty = await account();
     await subscribe(thrifty, "premium");
     await spend(thrifty, 2);
-    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), await activeGrantHolders(NOW), NOW);
     expect(report.paying).toEqual([]);
   });
 
@@ -261,7 +263,7 @@ describe("costs more than it pays, segmented by why", () => {
     });
     await spend(both, 400);
 
-    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), await activeGrantHolders(NOW), NOW);
     expect(report.paying.map((row) => row.userId)).toEqual([both]);
     expect(report.grantFunded.find((row) => row.source === "admin")).toBeUndefined();
   });
@@ -280,7 +282,7 @@ describe("costs more than it pays, segmented by why", () => {
     });
     await spend(both, 400);
 
-    const report = await underwaterReport(WINDOW, await trailingCosts(), NOW);
+    const report = await underwaterReport(WINDOW, await trailingCosts(), await activeGrantHolders(NOW), NOW);
     expect(report.paying.map((row) => row.userId)).toEqual([both]);
   });
 });
