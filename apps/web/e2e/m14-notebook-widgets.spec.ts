@@ -501,10 +501,10 @@ test("two widgets on one page read two different days", async ({ page }) => {
 test("two widgets in ONE sentence read two different days, and each rebinds on its own", async ({ page }) => {
   // The M14 gate box *"And two widgets in the SAME BLOCK read two different
   // days"*, in its own words: "We land on Day 1 in Tokyo and by Day 9 we are in
-  // Kyoto" is one paragraph holding two day-bound widgets. SPEC §26: the panel
-  // shows one entry per widget of the block, numbered to match the marks in the
-  // text, and never a single aggregated control — ADR-037 open question 1, as
-  // Mitchell settled it.
+  // Kyoto" is one paragraph holding two day-bound widgets. Each is pointed on
+  // its own, never through a single aggregated control — ADR-037 open question
+  // 1, as Mitchell settled it — and the panel shows the one selected widget,
+  // not the whole sentence (KI-2026-09-24-x).
   //
   // `city` rather than `dates`, because it is the sentence the gate names and
   // because a city pointed at a day is a value the day actually decides: wide it
@@ -559,35 +559,39 @@ test("two widgets in ONE sentence read two different days, and each rebinds on i
   await expect(sentence.locator('[data-macro-name="city"]')).toHaveCount(2);
   const [first, second] = [sentence.locator('[data-macro-name="city"]').nth(0), sentence.locator('[data-macro-name="city"]').nth(1)];
 
-  // Inserting selected the second widget, and the panel holds the SENTENCE:
-  // two entries, numbered, and the same numbers on the widgets in the text.
-  const one = settingsPanel(page).getByRole("region", { name: "1 · The cities" });
-  const two = settingsPanel(page).getByRole("region", { name: "2 · The cities" });
-  await expect(one).toBeVisible();
-  await expect(two).toBeVisible();
-  await expect(first.getByTestId("widget-handle")).toHaveText("▸1");
-  await expect(second.getByTestId("widget-handle")).toHaveText("▸2");
+  // Inserting selected the second widget, and the panel is about THAT widget
+  // alone (KI-2026-09-24-x, Mitchell on #221: *"Just have 1 selected at a
+  // time."*): one entry, and no numbers on the handles in the text.
+  const entry = settingsPanel(page).getByRole("region", { name: "The cities" });
+  await expect(settingsPanel(page).getByTestId("widget-settings-entry")).toHaveCount(1);
+  await expect(first.getByTestId("widget-handle")).toHaveText("▸");
+  await expect(second.getByTestId("widget-handle")).toHaveText("▸");
   // Both land wide — the whole trip's cities.
   await expect(first).toContainText("Kyoto");
   await expect(second).toContainText("Kyoto");
 
-  // Entry 1 to Day 1. Only widget 1 narrows: widget 2 is still wide, which is
-  // exactly what an aggregated control would have changed.
-  await one.getByRole("button", { name: "1 · The cities: dates" }).click();
-  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 1\b/ }).click();
-  await page.keyboard.press("Escape");
-  await expect(first).not.toContainText("Kyoto");
-  await expect(first).toContainText("Tokyo");
-  await expect(second).toContainText("Kyoto");
-  await expect(second).toContainText("Tokyo");
-
-  // Entry 2 to Day 9 — from the same panel, without reselecting anything — and
-  // widget 1 keeps the day it was just given.
-  await two.getByRole("button", { name: "2 · The cities: dates" }).click();
+  // The selected (second) widget to Day 9. Only it narrows: the first is still
+  // wide, which is exactly what an aggregated control would have changed.
+  await entry.getByRole("button", { name: "The cities: dates" }).click();
   await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 9\b/ }).click();
   await page.keyboard.press("Escape");
   await expect(second).not.toContainText("Tokyo");
+  await expect(second).toContainText("Kyoto");
+  await expect(first).toContainText("Kyoto");
+  await expect(first).toContainText("Tokyo");
+
+  // Then the first, reached by clicking it: the panel follows the selection,
+  // and the second widget keeps the day it was just given.
+  // On the widget's own output, not its wrapper: the wrapper's centre is
+  // claimed by the editor surface, and `m14-mobile-notebook`'s `widget()`
+  // clicks the same way.
+  await first.locator('span:not([data-testid="widget-handle"])').first().click();
+  await expect(settingsPanel(page).getByTestId("widget-settings-entry")).toHaveCount(1);
+  await entry.getByRole("button", { name: "The cities: dates" }).click();
+  await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 1\b/ }).click();
+  await page.keyboard.press("Escape");
   await expect(first).not.toContainText("Kyoto");
+  await expect(second).not.toContainText("Tokyo");
 
   // What persisted, read in Reading after a reload: the gate's sentence, with
   // each widget resolved against its own day.

@@ -805,6 +805,11 @@ milestone opens:**
       reload. It was run red first: an aggregate rebind fails it at the second
       widget (`Received string: "▸2Tokyo"`). ci-like green (27/27 across
       `m14-notebook-widgets` and `m14-mobile-notebook`).
+
+      *Changed 2026-09-25 (KI-2026-09-24-x):* the panel now shows only the
+      selected widget, and the handles carry no numbers (Mitchell on #221:
+      *"Just have 1 selected at a time."*). Each widget is still bound on its
+      own; the same e2e walk now reaches the second widget by clicking it.
 - [x] A repeater renders one line per day/stop/city, each filled from its own
       item, and renders its empty case the way the ADR says it should.
       *(**Ticked 2026-09-24** (T13), for the AUTHORED repeat — Mitchell's call 6;
@@ -1075,6 +1080,9 @@ in this repo's own hands.
    built. **Wording closed with item 3:** the design shows it only for a block
    with authored wording (`hasWording: !!b.editRow`), which is the repeat's
    sentence, and a selected repeat's panel is where that sentence is written.
+   **The multi-entry, numbered panel was then reversed on Mitchell's call**
+   (2026-09-25, KI-2026-09-24-x): one entry, the selected widget's, and no
+   numbers in the text.
 3. **§18's author-supplied repeat template is the one real catalogue hole left.**
    The repeat shape renders resolver-supplied rows, not an authored sentence.
    That needs a macro param schema for the template, and it is the *"one new
