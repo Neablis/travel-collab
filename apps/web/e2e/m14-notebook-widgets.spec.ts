@@ -880,10 +880,17 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // "Still to book" — the fourth locator on this branch to meet a widget the
   // page now supplies. `toBeVisible()` tripped strict mode on the pair.
   await expect(page.locator('[data-macro-name="stop.rows"]')).toHaveCount(2);
-  // The claim itself, and it is unaffected by the seeded one: this trip has no
-  // bookings, so the seeded `stop.rows{kind: "booked"}` says "nothing booked
-  // yet" and only this walk's widget can put "Ramen" on the page.
-  await expect(page.getByText("Ramen")).toBeVisible();
+  // The claim itself — and narrower than this used to say. The walk's widget
+  // resolves to NOTHING: its day is Day 2, and both stops are unscheduled.
+  // Until M28 this asserted `getByText("Ramen")` was visible and read that as
+  // the widget's doing, but the Ramen it found was "What needs you" (the `open`
+  // widget lists parked stops); the seeded list said "nothing booked yet".
+  // What the reload provably kept is the KIND binding: "nothing left to book"
+  // is the empty sentence of a `kind: "pending"` filter only (`stop.rows`'
+  // NOTHING_MATCHED), and the seeded "Still to book" is not empty here — it
+  // lists Ramen and Kinkaku-ji — so exactly one widget can be saying it.
+  await expect(page.getByText("nothing left to book", { exact: true })).toHaveCount(1);
+  await expect(page.locator('[data-macro-name="stop.rows"]').filter({ hasText: "Kinkaku-ji" })).toHaveCount(1);
 });
 
 // **The stated cost of storing a date range, pinned so it cannot become a
