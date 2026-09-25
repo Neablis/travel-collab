@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
+import { decideTripCommand, foldEnvelopes } from "@tc/domain";
 import { db } from "./db/client";
 import { events, tripDetails, tripSummaries } from "./db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "./commands";
+import { appendToStream, readStream } from "./eventStore";
 import { getTripDetail, rebuildProjections } from "./projections";
 
 const exec = (command: object, actorId = "user-1") => executeTripCommand(command, actorId);
@@ -368,5 +370,115 @@ describe("executeTripCommandBatch", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected rejection");
     expect(result.error.code).toBe("no-op");
+  });
+});
+
+// KI-5 residual race #1. A page's unload flush (one keepalive batch, no
+// `expectedSeq`) reaching the server while the command in flight ahead of it is
+// still inside its transaction: both read the same head, both insert the same
+// seq, and the second inserter waits on `events_stream_seq` and then loses.
+// The in-flight command is stood in for by a transaction that appends a real
+// AddDay and then stays open until the test lets it go — the window CI's slower
+// runner opened by itself.
+describe("executeTripCommandBatch racing an uncommitted append on the same stream (KI-5)", () => {
+  async function holdAppend(tripId: string) {
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    let appended!: (pid: number) => void;
+    const holding = new Promise<number>((resolve) => (appended = resolve));
+    const done = db.transaction(async (tx) => {
+      const { rows } = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+      const history = await readStream(tx, tripId);
+      const decision = decideTripCommand(
+        foldEnvelopes(history),
+        { type: "AddDay", tripId, dayId: randomUUID() },
+        { actorId: "user-1" },
+      );
+      if (!decision.ok) throw new Error(decision.rejection.message);
+      const result = await appendToStream(tx, {
+        streamId: tripId,
+        expectedSeq: history.length,
+        events: decision.events,
+        actorId: "user-1",
+        occurredAt: new Date().toISOString(),
+        batchId: randomUUID(),
+        origin: { kind: "user" },
+      });
+      if (!result.ok) throw new Error("the held append should own the head");
+      appended(rows[0]!.pid);
+      await released;
+    });
+    const pid = await holding;
+    return { release, done, pid };
+  }
+
+  // Resolves once another backend is queued behind `pid` — i.e. the racing
+  // batch has read the old head, decided, and is waiting at its insert.
+  async function blockedBehind(pid: number) {
+    for (;;) {
+      const { rows } = await db.execute<{ n: number }>(
+        sql`select count(*)::int as n from pg_stat_activity where ${pid} = any(pg_blocking_pids(pid))`,
+      );
+      if (rows[0]!.n > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  async function seqsOf(tripId: string) {
+    const rows = await db
+      .select({ seq: events.seq })
+      .from(events)
+      .where(eq(events.streamId, tripId))
+      .orderBy(asc(events.seq));
+    return rows.map((r) => r.seq);
+  }
+
+  it("a batch with no precondition lands after the concurrent append instead of being refused", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Unload flush race" });
+    const held = await holdAppend(tripId);
+
+    const flushedDays = [randomUUID(), randomUUID()];
+    const flush = executeTripCommandBatch(
+      flushedDays.map((dayId) => ({ type: "AddDay", tripId, dayId })),
+      "user-1",
+    );
+    await blockedBehind(held.pid);
+    held.release();
+    await held.done;
+
+    const result = await flush;
+    // The refusal itself, not just `ok: false`, is what a red run should show.
+    expect(result.ok ? "applied" : result.error).toBe("applied");
+    if (!result.ok) return;
+    // The held command first, then the flushed units in the order they were sent.
+    expect(result.detail.days.map((d) => d.dayId).slice(1)).toEqual(flushedDays);
+    expect(await seqsOf(tripId)).toEqual([1, 2, 3, 4]);
+    expect((await getTripDetail(tripId))?.days).toHaveLength(3);
+  });
+
+  it("a batch WITH an expectedSeq precondition is still refused by the same race", async () => {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Pinned race" });
+    const held = await holdAppend(tripId);
+
+    const pinned = executeTripCommandBatch(
+      [{ type: "AddDay", tripId, dayId: randomUUID() }],
+      "user-1",
+      undefined,
+      { expectedSeq: 1 },
+    );
+    await blockedBehind(held.pid);
+    held.release();
+    await held.done;
+
+    const result = await pinned;
+    // Refused by the append it lost, not by a re-run's precondition check (which
+    // would carry `currentSeq`): a pinned batch is never decided a second time.
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+    });
+    expect(await seqsOf(tripId)).toEqual([1, 2]);
   });
 });

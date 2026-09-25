@@ -224,7 +224,10 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // N". It is compared against the stream this transaction read, and the append
 // then insists on that same head — so a stale caller is refused and a race
 // after the read still loses at the unique index, with no window between. Absent,
-// the batch decides against whatever it read, exactly as before.
+// the batch decides against whatever it read — and if another write to the same
+// stream commits between that read and this append, the whole transaction is
+// run again (see BATCH_APPEND_ATTEMPTS), because a batch with no precondition
+// asked for nothing more than "on top of whatever is there when you get to it".
 export async function executeTripCommandBatch(
   input: unknown,
   actorId: string,
@@ -248,56 +251,85 @@ export async function executeTripCommandBatch(
     };
   }
 
-  return db.transaction(async (tx): Promise<CommandResult> => {
-    // 2-3. load, fold, authorize — for EVERY sub-command (see loadAndAuthorize)
-    const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
-    if (!loaded.ok) return loaded;
-    const { history, members } = loaded;
-    let state = loaded.state;
+  // One attempt is one transaction. `lostAppendRace` marks the only failure a
+  // fresh attempt can change: step 5's append losing `events_stream_seq` to a
+  // write that committed after step 2's read. Nothing of that attempt survives:
+  // Postgres aborts the transaction at the failed insert, and step 8's hook has
+  // not run yet — so a re-run starts from nothing.
+  const attempt = async () => {
+    let lostAppendRace = false;
+    const result = await db.transaction(async (tx): Promise<CommandResult> => {
+      // 2-3. load, fold, authorize — for EVERY sub-command (see loadAndAuthorize)
+      const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
+      if (!loaded.ok) return loaded;
+      const { history, members } = loaded;
+      let state = loaded.state;
 
-    // 3b. the caller's precondition, after authorization so a non-member learns
-    //     nothing about the trip's revision.
-    if (options.expectedSeq !== undefined && options.expectedSeq !== history.length) {
-      return {
-        ok: false,
-        error: {
-          code: "concurrency-conflict",
-          message: `This trip has changed since revision ${options.expectedSeq}; it is at ${history.length}. Re-read it and retry.`,
-          currentSeq: history.length,
-        },
-      };
-    }
-
-    // 4. decide each command in order against the evolving state. A no-op
-    //    sub-command is SKIPPED, not fatal — one redundant Set*/etc. must not roll
-    //    back an otherwise-valid batch (2026-07-25 live-testing finding). Real
-    //    rejections (day-not-found, activity-already-exists, …) still abort.
-    const events: TripEvent[] = [];
-    for (const command of commands) {
-      const decision = decideTripCommand(state, command, { actorId });
-      if (!decision.ok) {
-        if (decision.rejection.code === "no-op") continue;
-        return { ok: false, error: decision.rejection };
+      // 3b. the caller's precondition, after authorization so a non-member learns
+      //     nothing about the trip's revision.
+      if (options.expectedSeq !== undefined && options.expectedSeq !== history.length) {
+        return {
+          ok: false,
+          error: {
+            code: "concurrency-conflict",
+            message: `This trip has changed since revision ${options.expectedSeq}; it is at ${history.length}. Re-read it and retry.`,
+            currentSeq: history.length,
+          },
+        };
       }
-      for (const event of decision.events) state = evolveTrip(state, event);
-      events.push(...decision.events);
-    }
-    // If every sub-command was a no-op there is nothing to append — report it the
-    // same way a single no-op command does, rather than appending an empty batch
-    // (appendToStream requires ≥1 event and one batch = one history entry).
-    if (events.length === 0) {
-      return { ok: false, error: { code: "no-op", message: "This change would have no effect." } };
-    }
 
-    // 5-7. append every event from every command under ONE batchId, and project
-    const projected = await appendAndProject(tx, { tripId, history, events, actorId, origin: { kind: "user" } });
-    if (!projected.ok) return projected;
+      // 4. decide each command in order against the evolving state. A no-op
+      //    sub-command is SKIPPED, not fatal — one redundant Set*/etc. must not roll
+      //    back an otherwise-valid batch (2026-07-25 live-testing finding). Real
+      //    rejections (day-not-found, activity-already-exists, …) still abort.
+      const events: TripEvent[] = [];
+      for (const command of commands) {
+        const decision = decideTripCommand(state, command, { actorId });
+        if (!decision.ok) {
+          if (decision.rejection.code === "no-op") continue;
+          return { ok: false, error: decision.rejection };
+        }
+        for (const event of decision.events) state = evolveTrip(state, event);
+        events.push(...decision.events);
+      }
+      // If every sub-command was a no-op there is nothing to append — report it the
+      // same way a single no-op command does, rather than appending an empty batch
+      // (appendToStream requires ≥1 event and one batch = one history entry).
+      if (events.length === 0) {
+        return { ok: false, error: { code: "no-op", message: "This change would have no effect." } };
+      }
 
-    // 8. the non-planning write that has to commit with this batch, if any.
-    //    Last, so it sees the trip exactly as this batch left it.
-    const answer = withMembers(projected.detail, members);
-    if (alsoInSameTransaction) await alsoInSameTransaction(tx, { tripId, detail: answer });
+      // 5-7. append every event from every command under ONE batchId, and project
+      const projected = await appendAndProject(tx, { tripId, history, events, actorId, origin: { kind: "user" } });
+      if (!projected.ok) {
+        lostAppendRace = true;
+        return projected;
+      }
 
-    return { ok: true, tripId, detail: answer, history: projected.history };
-  });
+      // 8. the non-planning write that has to commit with this batch, if any.
+      //    Last, so it sees the trip exactly as this batch left it.
+      const answer = withMembers(projected.detail, members);
+      if (alsoInSameTransaction) await alsoInSameTransaction(tx, { tripId, detail: answer });
+
+      return { ok: true, tripId, detail: answer, history: projected.history };
+    });
+    return { result, lostAppendRace };
+  };
+
+  // A lost append race is re-run only when the caller named no revision. With an
+  // `expectedSeq` the refusal IS the answer the caller asked for (ADR-050).
+  for (let tries = 1; ; tries++) {
+    const { result, lostAppendRace } = await attempt();
+    if (!lostAppendRace || options.expectedSeq !== undefined || tries >= BATCH_APPEND_ATTEMPTS) return result;
+  }
 }
+
+// How many times a batch with no precondition is run before a lost append race
+// is reported as `concurrency-conflict` (KI-5 residual race #1: a page's unload
+// flush reaching the server while the command ahead of it is still committing).
+// A re-run is the batch arriving a moment later: it re-reads, re-folds and
+// re-decides against the write it lost to, so a sub-command that no longer makes
+// sense is refused by the domain exactly as it would have been had it arrived
+// second. Bounded so a stream under sustained contention answers its caller
+// instead of holding the request open.
+const BATCH_APPEND_ATTEMPTS = 3;
