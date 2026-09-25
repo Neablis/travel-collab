@@ -107,7 +107,7 @@ describe a stop the command API would refuse.
 | `title` | required, ≤ 200 chars |
 | `timeWindow` | `HH:MM` 24h, `end` strictly after `start`. Omit for a backlog item or an untimed stop |
 | `location` | `name` required; `city` is what Discover matches on, so **give every stop a city**. `area` is the neighbourhood. `lat`/`lng` come as a pair or not at all — and if you are not certain of a coordinate, omit it: a wrong pin is worse than no pin, and the checked-in bundles carry none for exactly that reason |
-| `kind` | `planned` (default), `booked`, `hold`, `idea`, `transit` |
+| `kind` | `planned` (default), `pending`, `transit` — a file written before M28 may still say `booked`, `hold` or `idea`, which import as `planned`, `pending` and `pending` (ADR-054) |
 | `tags` | any of `meal`, `lodging`, `ticketed`, `outdoors` |
 | `notes` | ≤ 2000 chars |
 | `cost` | `{ "amountMinor": 1250, "currency": "USD" }` — **minor units, integer** (ADR-008). $12.50 is `1250` |
@@ -211,8 +211,8 @@ The bar the starter library set, and the one to hold to:
 - **Advice, not a list of names.** The Sintra day in the starter library is the
   most-added one because it says *"the 07:41 is the whole trick"*. A day that is
   five venue names in time order is a search result, not a playbook.
-- **Mixed kinds.** Real days have a `booked` ticket, a `transit` hop and an
-  `idea` somebody has not committed to.
+- **Mixed kinds.** Real days have a `transit` hop and a `pending` table
+  somebody has not booked yet, among the `planned` stops.
 
 ## Loose activities
 
@@ -221,7 +221,7 @@ a wishlist.
 
 ```json
 "activities": [
-  { "title": "Asador Etxebarri in Axpe", "kind": "idea",
+  { "title": "Asador Etxebarri in Axpe", "kind": "pending",
     "location": { "name": "Asador Etxebarri", "city": "Axpe", "area": "Atxondo" },
     "notes": "Books out months ahead. Worth planning a day around, not fitting in." }
 ]
