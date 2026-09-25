@@ -23,7 +23,7 @@ import type { AccessError, AccessResult } from "./access/invites";
 // save). Lives in src/lib because the lint wall forbids UI importing
 // @/server/*, and two copies of "what's included" would be two chances to
 // disagree in the one place a user is asked to trust a summary.
-import { stopsForDays } from "@/lib/savedStops";
+import { isDroppedFromPlaybook, stopsForDays } from "@/lib/savedStops";
 
 // The Library: a person's saved day fragments (M11 link 6, ADR-029). CRUD,
 // owned by a person rather than by a trip, and not event-sourced — the same
@@ -807,7 +807,7 @@ export function withoutDateAnchors(stops: readonly SavedStop[]): {
   const removed: RemovedDateAnchor[] = [];
   const kept = stops.map((stop, stopIndex) => {
     const anchors = stop.anchors.filter((anchor) => {
-      if (anchor.kind !== "dateRange") return true;
+      if (!isDroppedFromPlaybook(anchor)) return true;
       removed.push({ stopIndex, title: stop.title, from: anchor.from, to: anchor.to });
       return false;
     });

@@ -1,4 +1,4 @@
-import type { SavedStop, TripDetail } from "@tc/contracts";
+import type { Anchor, SavedStop, TripDetail } from "@tc/contracts";
 
 /**
  * The stops on one day of a trip, in order, as a reusable fragment (M11 link 6).
@@ -97,4 +97,20 @@ export function stopsForDays(
     for (const stop of stops) sequence.push({ ...stop, dayIndex });
   }
   return sequence;
+}
+
+/**
+ * True for an anchor a Playbook does not keep: a `dateRange`, which is a
+ * calendar date by another name (ADR-050 decision 8). "Only 3–5 May" carried
+ * into October is a conflict on that stop, and a Playbook has no dates.
+ * Weekday, time-of-day and public-holiday anchors describe the place rather
+ * than the trip, and are kept.
+ *
+ * Here rather than in `server/savedDays.ts` for `stopsForDay`'s reason: the
+ * server's `withoutDateAnchors` applies it, and the Keep dialog warns with it
+ * before the button acts (KI-2026-09-24-c). It was a hand copy in the dialog
+ * until PR #234's review; one rule cannot disagree with itself.
+ */
+export function isDroppedFromPlaybook(anchor: Anchor): anchor is Extract<Anchor, { kind: "dateRange" }> {
+  return anchor.kind === "dateRange";
 }

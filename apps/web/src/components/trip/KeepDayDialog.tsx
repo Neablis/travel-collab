@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { Text } from "@/components/ui/text";
 import { createSavedDay } from "@/lib/apiClient";
+import { isDroppedFromPlaybook } from "@/lib/savedStops";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -152,13 +153,13 @@ function includedSummary(selected: KeepDayCandidate[], all: KeepDayCandidate[], 
  * `POST /v1/playbooks` does (ADR-050 decision 8): a Playbook has no dates, and
  * "only 3–5 May" carried into October is a conflict on that stop. Weekday,
  * time-of-day and holiday anchors describe the place and are kept, so they are
- * not mentioned. The rule here is the server's `withoutDateAnchors`, restated,
- * because that module is server-only; the server is what decides.
+ * not mentioned. The rule is `isDroppedFromPlaybook`, the one the server's
+ * `withoutDateAnchors` applies, so this note and the keep cannot disagree.
  */
 function droppedDatesNote(selected: KeepDayCandidate[]): string | null {
   const titles = selected
     .flatMap((d) => d.stops)
-    .filter((s) => s.anchors.some((a) => a.kind === "dateRange"))
+    .filter((s) => s.anchors.some(isDroppedFromPlaybook))
     .map((s) => `"${s.title}"`);
   if (titles.length === 0) return null;
   return titles.length === 1
