@@ -32,7 +32,7 @@ general setup.
 
 **M14 — RICH LAYER — IS THE CURRENT MILESTONE AS OF 2026-09-25**, by **M24's
 gate closing at 11 of 11**. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M14 → M19`.
+`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M14 → M19`.
 M14's code is already merged (built ahead of M24 on 2026-09-24). Its gate is
 at 17 of 22, and the five open boxes need a person, not code (next section).
 M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
