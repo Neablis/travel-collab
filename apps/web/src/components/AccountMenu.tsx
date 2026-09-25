@@ -38,7 +38,8 @@ export function AccountMenu({
   onResetDemoData,
 }: {
   name: string;
-  email: string;
+  /** `null` for an account with none — dev-login's — which gets no line at all. */
+  email: string | null;
   onSignOut?: () => void;
   // Preview-only "Reset to demo data" item (see AppHeader.tsx /
   // src/lib/demoDataReset.ts) — a deliberate addition to the design's
@@ -102,13 +103,15 @@ export function AccountMenu({
       <Popover open={open} onOpenChange={setOpen} align="end" contentClassName="w-56 p-1" trigger={trigger}>
         <div className="flex flex-col gap-0.5 border-b border-hairline px-2.5 pt-2 pb-2.5">
           <span className="text-sm font-semibold text-ink">{name}</span>
-          <span
-            className="font-mono text-slate"
-            // eslint-disable-next-line no-restricted-syntax -- 11.5px email text (handoff `…dc.html:97`) is below Tailwind's text-xs (12px) floor, same convention as UnscheduledRack/MapRail's 11.5px labels
-            style={{ fontSize: "11.5px" }}
-          >
-            {email}
-          </span>
+          {email !== null && email !== "" && (
+            <span
+              className="font-mono text-slate"
+              // eslint-disable-next-line no-restricted-syntax -- 11.5px email text (handoff `…dc.html:97`) is below Tailwind's text-xs (12px) floor, same convention as UnscheduledRack/MapRail's 11.5px labels
+              style={{ fontSize: "11.5px" }}
+            >
+              {email}
+            </span>
+          )}
         </div>
         {/* M17. Task 8b.2 omitted this item rather than ship one that did
             nothing — the design's own "Your account" — and it has been absent
@@ -345,7 +348,7 @@ function AccountMenuFor({
         name: user.name,
         email: user.email,
       })}
-      email={user.email ?? ""}
+      email={user.email ?? null}
       // `/welcome`, not `/` — sign-out must not depend on a redirect it races.
       // `signOut` POSTs to /api/auth/signout (whose response clears the session
       // cookie) and then sets `window.location.href`. Pointed at `/`, the
