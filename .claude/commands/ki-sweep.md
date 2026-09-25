@@ -137,6 +137,17 @@ pnpm check                                                            # one full
 gh pr create --draft ...                                              # one PR, one CI cycle
 ```
 
+**If anything is stacked on a branch in this sweep, bring the stacked branch
+up to date with its base BEFORE the base merges — and merge the base, do not
+squash it.** A squash drops the base's commits from `main`'s ancestry, so a
+later `git merge main` into the stacked branch has no rename to follow: every
+`git mv open/ → resolved/` the base made comes back as a pre-fix copy in
+`open/` beside the `resolved/` one, and git reports **no conflict**
+(KI-2026-08-30-d, PR #94 → #95). `node scripts/check-ki-filenames.mjs` (part
+of `pnpm lint`) now fails on any entry that sits in two status directories, so
+run it after that merge. If the base was already squashed, do not merge — replay
+the stacked branch instead, per the recovery in that entry.
+
 O(N) instead of O(N²): on the 2026-08-29 sweep, landing four branches serially
 cost **10 conflict resolutions (4+3+2+1) and 4 extra CI cycles**, because every
 merge to `main` invalidated every remaining branch's resolution.
