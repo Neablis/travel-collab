@@ -472,3 +472,57 @@ here two days later.
   placed** — it needs a decision about whether the origin is a field on the
   activity (which replay would have to maintain) or something read back off
   the event log, and that is a real design question rather than a line.
+
+- **Design critique: phone and tablet layout, decided once (2026-09-25).**
+  Mitchell, after the overnight KI sweep: *"I want to do a design critique
+  soon too, so we can combine those layout issues."* Five open entries are
+  one conversation, not five fixes — each was left by the sweep because it
+  says it needs a layout decision, and deciding them separately would give
+  three answers to "what does a phone show":
+  - `KI-2026-09-24-i` — the pinned phone trip header takes ~305 of 844px, so
+    Plan's first stop starts at the fold (what collapses, what pins; SPEC
+    §13.4–13.5).
+  - `KI-2026-09-25-f` — a trip opens on a phone into the desktop Overview
+    document in a padded card, ~8,560px tall (what Overview IS on a phone, or
+    whether a phone lands elsewhere — SPEC §24 says Overview, with no phone
+    exception; the phone tab bar now marks nothing current there, per
+    `resolved/KI-20260924-l-…`).
+  - `KI-2026-09-24-j` — tablets (768–1100px) get the desktop layout with
+    mouse-sized controls, and the Ask button covers stop costs (does a touch
+    tablet keep SPEC §13.1's 44px floor; what the tablet board looks like).
+  - `KI-048` items 3 and 5 — the day-chip row gives no sign it scrolls, and
+    the trip-settings date editor opens as a popover over "Total for the trip"
+    (inline is already the settled answer; it needs building and an e2e).
+  - Worth walking in the same session, already fixed but new on screen:
+    the Plan board's sticky stand-in scrollbar (`resolved/KI-20260922-b-…`,
+    never looked at on a Windows mouse), the Calendar's hidden-days control
+    (`resolved/KI-20260924-k-…`), and phone tag chips' 44px hit area
+    (`resolved/KI-20260924-m-…`).
+  **Output of the critique:** a decision per bullet recorded in the entries
+  (or a SPEC amendment through a design sync — `.design-sync/**` is a build
+  input), then one milestone or one PR per decision. **Not placed.**
+
+- **The cloud container's e2e browser matches the one CI runs (2026-09-25,
+  `KI-2026-09-25-i`).** `/opt/pw-browsers` files Chromium 141 under the
+  revision `@playwright/test@1.62.1` asks for as Chrome Headless Shell 151.
+  That gap hid a real KI-5 data-loss bug overnight: the spec passed locally
+  every time and failed in CI every time, and only downloading CI's exact
+  build from Chrome for Testing reproduced it. Small and mechanical:
+  `link_playwright_shell` in `.claude/hooks/session-start.sh` compares the
+  linked binary's version with `browsers.json`'s `browserVersion` and installs
+  the matching build (Chrome for Testing is reachable through the proxy;
+  `cdn.playwright.dev` is not), or warns loudly, and `pnpm state`'s LANES line
+  reports the mismatch instead of "OK browser". **Repo automation, not a
+  milestone. Not placed — do it before the next e2e-heavy change.**
+
+- **`/ask` survives a throw while building its proposal (2026-09-25,
+  `KI-2026-09-24-w`).** A throw inside `buildProposal` (called from
+  `messageMetadata` on the stream's `finish` part in `handleAskRequest.ts`)
+  errors the response body instead of reaching `onError`, so the client gets
+  neither the failure message nor a proposal. No known trigger today — it needs
+  a bug in `buildProposal` — and the entry has a reproduction already
+  (`route.int.test.ts` with `buildProposal` mocked to throw). Small. It is AI
+  code, so it belongs with M9's carried cluster; it is listed here only because
+  the 2026-09-24 KI pass never gave it a `Milestone:` line and the overnight
+  sweep missed it. **Either take it standalone or give the entry M9's
+  Milestone line and a row in M9's Parked table.**
