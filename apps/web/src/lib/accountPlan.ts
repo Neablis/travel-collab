@@ -10,6 +10,8 @@
 // said it would: a price on each choice, and a `billing` record carrying the
 // state, the renewal date and the two dates the past-due copy names.
 
+import type { GrantSource } from "@tc/contracts";
+
 /** One policy's standing: what is used today, and the cap that version sold. */
 export interface AccountQuotaStanding {
   used: number;
@@ -69,6 +71,15 @@ export interface AccountBillingView {
   available: boolean;
 }
 
+/** Mirrors `PlanGrantView`: one active grant, and why the account has it. */
+export interface AccountGrantView {
+  planId: string;
+  version: number;
+  source: GrantSource;
+  /** ISO, or `null` for a permanent grant. */
+  expiresAt: string | null;
+}
+
 export interface AccountPlanView {
   planVersionRef: string;
   /** What that version confers now — differs from the above only after a lapse. */
@@ -88,6 +99,13 @@ export interface AccountPlanView {
    * it is rendering — see its comment for why that matters.
    */
   grantedVersionRefs: readonly string[];
+  /**
+   * The same grants with their source and expiry, so the sheet can say WHICH
+   * grants there are and why — not only the best tier they add up to
+   * (KI-20260916-b-the-account-sheet-never-names-the-grants-an-account-holds).
+   * Same order as `grantedVersionRefs`.
+   */
+  grants: readonly AccountGrantView[];
   questions: AccountQuotaStanding;
   steps: AccountQuotaStanding;
   catalogue: AccountPlanChoice[];

@@ -61,6 +61,7 @@ const VIEW: AccountPlanView = {
   planVersionRef: "free@v1",
   conferredVersionRef: "free@v1",
   grantedVersionRefs: [],
+  grants: [],
   entitlements: [],
   questions: { used: 0, limit: 0 },
   steps: { used: 0, limit: 0 },

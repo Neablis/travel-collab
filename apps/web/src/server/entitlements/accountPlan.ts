@@ -28,6 +28,7 @@
 // left this screen at the same time — SPEC §29 makes it a route — so what this
 // module feeds is the sheet's Plan section and the `plans` route's chooser
 // alike, which is why the catalogue is still here.
+import type { GrantSource } from "@tc/contracts";
 import { billingConfigured } from "@/server/billing/config";
 import {
   entitlementsFor,
@@ -137,6 +138,16 @@ export interface PlanBillingView {
   available: boolean;
 }
 
+/** One active grant as the account sheet names it. */
+export interface PlanGrantView {
+  planId: string;
+  version: number;
+  /** Why the account has it — the same four words the operator console uses. */
+  source: GrantSource;
+  /** ISO, or `null` for a permanent grant. */
+  expiresAt: string | null;
+}
+
 export interface AccountPlanView {
   planVersionRef: string;
   /**
@@ -166,6 +177,18 @@ export interface AccountPlanView {
    * `planVersions.noExtension.test.ts` sweeps for.
    */
   grantedVersionRefs: readonly string[];
+  /**
+   * **Every active grant, with where it came from and when it ends**
+   * (KI-20260916-b-the-account-sheet-never-names-the-grants-an-account-holds).
+   *
+   * `grantedVersionRefs` lets the sheet name the best tier a grant confers; it
+   * cannot say WHICH grants there are or why. An account holding `free` with an
+   * admin comp to `premium` and a founder grant to `plus` read as one
+   * unexplained tier, and the founder grant appeared nowhere — on the one
+   * screen whose job is to explain the account. Same order as
+   * `grantedVersionRefs`, and the same rule: data, not a verdict.
+   */
+  grants: readonly PlanGrantView[];
   /** Today's standing against the pinned version's ceilings. */
   questions: QuotaStanding;
   steps: QuotaStanding;
@@ -288,6 +311,12 @@ export async function accountPlanView(
     // The versions the grants pin, in the order the resolver returned them. No
     // ordering is applied and none may be: see the field's comment.
     grantedVersionRefs: resolved.grants.map((grant) => `${grant.planId}@v${grant.planVersion}`),
+    grants: resolved.grants.map((grant) => ({
+      planId: grant.planId,
+      version: grant.planVersion,
+      source: grant.source,
+      expiresAt: grant.expiresAt?.toISOString() ?? null,
+    })),
     questions,
     steps,
     catalogue,
