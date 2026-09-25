@@ -95,6 +95,7 @@ Listed with their outcome under *Results*.
 | KI-2026-08-30-d | RESOLVED | `check-ki-filenames.mjs` now fails on an entry in two status dirs; reproduced with three copied entries (two passed the old wall, one was misreported as a shared id); two new tests seen red; 10/10 green. |
 | KI-2026-09-24-a | RESOLVED | `route()` gains `trip: { body }`; confined token + own trip → 201 on `/v1/library` and `/v1/playbooks`, other trip / no trip → 403. Red first (`expected 403 to be 201`); both guards broken and seen red; 81/81 int across six public-api files. |
 | KI-2026-09-16-b (account grants) | RESOLVED | `AccountPlanView.grants` + a `plan-grants` row: *"Granted to you: premium v1 (admin, permanent) and plus v1 (founder, until December 1)."* Reproduced (card named no grant); four breaks seen red; 263 unit + 1 int green. |
+| KI-2026-09-19-c | RESOLVED | `PublicAuthor.daysShared` → `playbooksShared` (+ SQL alias, `publishedPlaybookCount`); not on `/v1` or in contracts (checked first). New int test: a three-day Playbook counts one; old key seen red (ZodError + TS2353); 69 unit + 62 int green. |
 
 ## Validation results
 
@@ -146,3 +147,4 @@ Listed with their outcome under *Results*.
 - **KI-2026-09-16-b wording:** `Granted to you: <plan> v<n> (<source>, <term>)`; source words are the operator console's (`admin`, `founder`, `referral`), except `trial` → `free week` to match the badge; term `permanent` or `until <date>`; the free week's date is dropped when the trial-ends line already shows it. Separate row under `plan-held`, absent when there are no grants. Rejected: softer customer words ("comped by us", "founding member") — the console and the sheet would name one grant two ways.
 - **Found, left:** `plan-held` reads *"You bought free v1"* for an account that bought nothing (from #195). Worth a small follow-up.
 - **KI-046 closed by validation** although the entry asked to wait for a real-phone walk: every claim it still made is contradicted by the code, and each remaining phone/tablet symptom has its own narrower entry (09-24-i/j/k/l/m). Rejected: keeping a broad umbrella entry open beside five specific ones.
+- **KI-2026-09-19-c renamed in one step** (app is the only consumer, same deploy). Rejected: emitting both keys for a transition. Discover's `sharedDayCount` has the same misnomer and was left — filed as **KI-2026-09-25-a** (new entry, this sweep).
