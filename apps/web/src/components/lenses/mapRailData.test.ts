@@ -198,6 +198,18 @@ describe("routeLegs — a transit stop with a destination", () => {
     expect(routeLegs(day)).toEqual({ rest: [[[-77.70, 43.20], [-76.00, 44.00]]], travel: [] });
   });
 
+  // Found walking the Japan fixture's day 4 (Asakusa → Nikkō and back): two
+  // dashed lines on one path, dashed from opposite ends, fill each other's gaps
+  // and read as the solid "on foot" line.
+  it("draws a leg that retraces an earlier one in the same style only once", () => {
+    const day = dayOf({
+      out: leg("out", 43.20, -77.70, [44.00, -76.00], "train"),
+      x: at("x", 44.10, -76.10),
+      back: leg("back", 44.00, -76.00, [43.20, -77.70], "train"),
+    });
+    expect(routeLegs(day).travel).toEqual([[[-77.70, 43.20], [-76.00, 44.00]]]);
+  });
+
   // The contract refuses this on a command; a stored row is never refused, so
   // the map must not draw a leg for a stop that is not travel.
   it("draws no leg for a destination left on a stop that is not transit", () => {

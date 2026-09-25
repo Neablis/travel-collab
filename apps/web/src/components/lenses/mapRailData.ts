@@ -271,12 +271,19 @@ export function legVariant(mode: ActivityMode | null | undefined): RouteVariant 
  * hanging off every train. Its mode is ignored, because it has no line of its
  * own for a mode to style.
  *
+ * **A real leg that retraces one already drawn in the same style is drawn
+ * once.** A day trip out and back by train is two legs on one path, and MapLibre
+ * starts each line's dashes at its own first point: two dashed lines laid in
+ * opposite directions fill each other's gaps and read as the solid line —
+ * found walking the Japan fixture's day 4 (Asakusa → Nikkō and back).
+ *
  * Legs come back in route order. A day with no located stops has none; a day
  * of one stop has none unless that stop is a leg itself.
  */
 export function routeLegs(day: MapDay): Record<RouteVariant, [number, number][][]> {
   const legs: Record<RouteVariant, [number, number][][]> = { travel: [], rest: [] };
   const inferred = (stop: MapStop) => stop.kind === "transit" && stop.end === undefined;
+  const drawn = new Set<string>();
   let prev: MapStop | undefined;
   for (const stop of day.stops) {
     if (prev !== undefined) {
@@ -287,10 +294,15 @@ export function routeLegs(day: MapDay): Record<RouteVariant, [number, number][][
       ]);
     }
     if (stop.end !== undefined) {
-      legs[legVariant(stop.mode)].push([
-        [stop.lng, stop.lat],
-        [stop.end.lng, stop.end.lat],
-      ]);
+      const variant = legVariant(stop.mode);
+      const ends = [`${stop.lng}:${stop.lat}`, `${stop.end.lng}:${stop.end.lat}`].sort().join("|");
+      if (!drawn.has(`${variant}|${ends}`)) {
+        drawn.add(`${variant}|${ends}`);
+        legs[variant].push([
+          [stop.lng, stop.lat],
+          [stop.end.lng, stop.end.lat],
+        ]);
+      }
     }
     prev = stop;
   }
