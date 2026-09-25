@@ -119,6 +119,18 @@ function scan(dir, file) {
   return got === want ? null : `heading says ${got}, filename implies ${want}`;
 }
 
+// ONE ENTRY, ONE DIRECTORY. Status is the directory an entry sits in, so a
+// basename present in two of `open/`, `resolved/`, `dormant/` is an entry that
+// is open AND resolved at once. That is what merging `main` into a stacked
+// branch does after its base was SQUASH-merged (KI-2026-08-30-d, PR #94 → #95):
+// the squash drops the base's `git mv` from `main`'s ancestry, so git sees
+// `main` adding the old `open/` copies, keeps them beside the branch's
+// `resolved/` ones, and reports no conflict. This is checked by basename, before
+// any grandfathering, because no allowlist above excuses one entry sitting in
+// two places — a grandfathered name or a grandfathered shared id is exactly
+// where the id check below cannot see it.
+const dirsByBasename = new Map();
+
 const ROOT = process.argv[2] ?? "docs/known-issues";
 const violations = [];
 const filesById = new Map();
@@ -135,6 +147,7 @@ for (const sub of ["open", "resolved", "dormant"]) {
   for (const file of entries) {
     if (!file.endsWith(".md") || file === "README.md") continue;
     scanned += 1;
+    dirsByBasename.set(file, [...(dirsByBasename.get(file) ?? []), sub]);
     const problem = scan(dir, file);
     if (problem) violations.push(`${join(sub, file)}: ${problem}`);
     const name = FILENAME.exec(file);
@@ -146,8 +159,22 @@ for (const sub of ["open", "resolved", "dormant"]) {
   }
 }
 
+for (const [file, dirs] of dirsByBasename) {
+  if (dirs.length > 1) {
+    violations.push(
+      `${file} is in ${dirs.map((d) => `${d}/`).join(" AND ")} — one entry, two statuses. ` +
+        `Usually a merge after a squash-merged base resurrected the pre-fix copy ` +
+        `(KI-2026-08-30-d): keep the copy carrying the proof line, delete the other.`,
+    );
+  }
+}
+
 for (const [id, files] of filesById) {
-  if (files.length > 1 && !SHARED_IDS_GRANDFATHERED.has(id)) {
+  // Count distinct entries, not paths: the same basename in two directories is
+  // reported once, above, with the remedy that fits it. "Give the newer one the
+  // next free letter" would mint a fake second entry out of a stale copy.
+  const distinct = new Set(files.map((f) => f.slice(f.indexOf("/") + 1)));
+  if (distinct.size > 1 && !SHARED_IDS_GRANDFATHERED.has(id)) {
     violations.push(
       `${id} is used by ${files.length} entries — give the newer one the next free letter:\n    ${files.join("\n    ")}`,
     );
@@ -157,7 +184,7 @@ for (const [id, files] of filesById) {
 if (violations.length > 0) {
   for (const line of violations) console.error(line);
   console.error(
-    `\nKI FILENAME WALL BREACHED: ${violations.length} entr(y|ies) whose name and heading disagree, or that share an id.\n` +
+    `\nKI FILENAME WALL BREACHED: ${violations.length} entr(y|ies) whose name and heading disagree, that share an id, or that sit in two status directories.\n` +
       "The convention is two shapes for one id, and each has a job:\n" +
       "  filename  KI-20260905-c-<slug>.md   dashless, so `ls open/` sorts by date\n" +
       "                                       (a date id may take two letters,\n" +

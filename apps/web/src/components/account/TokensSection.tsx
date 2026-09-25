@@ -173,7 +173,9 @@ export function TokensSection() {
   useEffect(() => {
     let live = true;
     void Promise.all([
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       fetch("/api/account/tokens").then((res) => (res.ok ? res.json() : null)),
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       fetch("/api/account/plan").then((res) => (res.ok ? res.json() : null)),
     ])
       .then(([tokenBody, planBody]) => {
@@ -221,6 +223,7 @@ export function TokensSection() {
     setBusy(true);
     setError(null);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/account/tokens", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -292,6 +295,7 @@ export function TokensSection() {
   }
 
   async function revoke(tokenId: string) {
+    // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
     const res = await fetch(`/api/account/tokens/${tokenId}`, { method: "DELETE" });
     if (!res.ok) {
       setError("That token could not be revoked.");
@@ -636,16 +640,15 @@ export function TokensSection() {
                   A token limited to trips cannot create one, and it will never see a trip added
                   after today unless you mint a new token.
                 </Text>
+                {/* While the list is in flight, nothing: the sentence above is
+                    the picker's chrome and the chips are its data — never the
+                    word `Loading…` (KI-2026-09-20-e). */}
                 {tripsFailed ? (
                   <Text variant="secondary" className="text-xs" data-testid="token-trips-failed">
                     Your trips could not be loaded just now, so this token can only be scoped to all
                     of them.
                   </Text>
-                ) : trips === null ? (
-                  <Text variant="secondary" className="text-xs">
-                    Loading your trips…
-                  </Text>
-                ) : trips.length === 0 ? (
+                ) : trips === null ? null : trips.length === 0 ? (
                   <Text variant="secondary" className="text-xs" data-testid="token-trips-empty">
                     You have no trips yet, so there is nothing to choose.
                   </Text>

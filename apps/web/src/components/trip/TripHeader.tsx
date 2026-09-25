@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -107,6 +107,8 @@ export function TripHeader({
     isBusy: pending,
   });
 
+  const publishStickyStack = useStickyStackHeight();
+
   if (trip === null || activeTrip === null || status !== "ready") return null;
 
   // Handoff §2: "neutral `Badge` state" next to the trip name — just a
@@ -116,6 +118,7 @@ export function TripHeader({
 
   return (
     <header
+      ref={publishStickyStack}
       aria-label="Trip"
       // `top-14` is the height of AppHeader, which is `sticky top-0 h-14` and
       // sits above this one on every `(app)` route. `/demo` draws
@@ -499,4 +502,42 @@ export function TripHeader({
       />
     </header>
   );
+}
+
+/**
+ * Publishes the height of the sticky stack this header ends — `AppHeader`'s
+ * 56px above it where there is one, plus this header's own height — as
+ * `--sticky-stack-height` on the document element, for the scroll margin on the
+ * day-sync scroll targets (`.day-sync-target`, globals.css, KI-2026-09-13-a).
+ *
+ * `scrollIntoView` aligns with the scrollport's top edge and knows nothing
+ * about what is pinned there, so a day header picked with the page scrolled
+ * down landed under this header. The margin cannot be a constant: this header
+ * wraps at narrow widths, and `AppHeader` is absent on `/demo` and an invite's
+ * look screen. So it is measured — this header's resolved `top` (0 or 56px,
+ * which is exactly the part of the stack above it) plus its own height,
+ * re-read by a ResizeObserver whenever it wraps.
+ *
+ * A callback ref rather than `useRef` + effect because the header renders
+ * `null` until the trip is ready, and an effect that ran first would find the
+ * ref empty and never run again. The cleanup unpublishes the height, so a route
+ * without this header does not inherit a margin for a stack that is not there.
+ */
+function useStickyStackHeight() {
+  return useCallback((el: HTMLElement | null) => {
+    if (el === null) return;
+    const root = document.documentElement;
+    const sync = () => {
+      const top = parseFloat(getComputedStyle(el).top) || 0;
+      root.style.setProperty("--sticky-stack-height", `${top + el.getBoundingClientRect().height}px`);
+    };
+    sync();
+    // Feature-detected: jsdom ships no ResizeObserver (PhoneTabBar's guard).
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(sync) : null;
+    observer?.observe(el);
+    return () => {
+      observer?.disconnect();
+      root.style.removeProperty("--sticky-stack-height");
+    };
+  }, []);
 }

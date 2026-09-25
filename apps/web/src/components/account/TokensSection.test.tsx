@@ -297,6 +297,26 @@ describe("the one-time reveal", () => {
     expect((posted[0]!.body as { tripIds: string[] | null }).tripIds).toEqual([TRIP_ONE]);
   });
 
+  // KI-2026-09-20-e. The picker's own sentence is real from the first frame;
+  // the trips it has not read yet are simply absent, not announced.
+  it("paints no loading word while the trip list is pending", async () => {
+    serve();
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", (input: string | URL, init?: RequestInit) =>
+      new URL(String(input), "http://localhost").pathname === "/api/trips"
+        ? new Promise<never>(() => {})
+        : realFetch(input, init),
+    );
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-section");
+    fireEvent.click(screen.getByTestId("token-new"));
+    fireEvent.click(screen.getByRole("radio", { name: "Chosen trips" }));
+
+    const picker = screen.getByTestId("token-trip-picker");
+    expect(picker.textContent).toMatch(/cannot create one/i);
+    expect(picker.textContent).not.toMatch(/Loading/);
+  });
+
   // A token scoped to no trips can do nothing at all, which nobody means to
   // create — the one state the three-choice control can still get wrong.
   it("refuses to create a token scoped to no trips at all", async () => {

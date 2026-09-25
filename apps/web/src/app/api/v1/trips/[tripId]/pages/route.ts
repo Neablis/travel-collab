@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CreatePageInput, Page, PageSummary, serializePageDoc } from "@tc/contracts";
-import { listPages } from "@/server/pages";
+import { MAX_PAGE_BODY_BYTES, listPages } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { randomUUID } from "node:crypto";
 import { PublicApiError } from "@/server/public-api/commands";
@@ -48,6 +48,9 @@ export const { GET, POST } = route({
     trip: "path",
     role: "editor",
     body: CreatePageInput,
+    // The same ceiling the session route has (KI-2026-09-05-f item 1): a
+    // token must not be the way round it.
+    maxBodyBytes: MAX_PAGE_BODY_BYTES,
     response: Page,
     handle: async ({ actor, params, body }) => {
       const input = body as z.infer<typeof CreatePageInput>;

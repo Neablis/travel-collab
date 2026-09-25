@@ -1790,7 +1790,7 @@
       },
       "post": {
         "summary": "Save one day of a trip you can see into your library",
-        "description": "Requires the `library:write` scope.",
+        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one.",
         "security": [
           {
             "bearerAuth": [
@@ -6115,7 +6115,7 @@
       },
       "post": {
         "summary": "Create a Playbook — from days (or some activities) of a trip you can see, or written inline",
-        "description": "Requires the `library:write` scope.",
+        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one.",
         "security": [
           {
             "bearerAuth": [
@@ -15469,7 +15469,8 @@
                 "properties": {
                   "title": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 200
                   },
                   "context": {
                     "type": "object",
@@ -16579,7 +16580,8 @@
                 "properties": {
                   "title": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 200
                   },
                   "context": {
                     "type": "object",
@@ -21744,6 +21746,12 @@
                             "type": "string"
                           },
                           "startDate": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "nullable": true,
+                            "default": null
+                          },
+                          "endDate": {
                             "type": "string",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "nullable": true,

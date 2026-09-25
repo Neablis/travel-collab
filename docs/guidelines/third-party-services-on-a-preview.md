@@ -66,8 +66,9 @@ that route as you type.
 **What the automated tests do instead:** `LocationInput.test.tsx` answers
 `/api/geocode` with MSW. One case returns a 502 and asserts the placeholder,
 *"Could not search for that place"*, with no results list. The unit and
-integration lanes' fetch guard (`src/test-support/networkGuard.ts`) refuses any
-request to a non-localhost host that MSW does not answer.
+integration lanes' network guard (`src/test-support/networkGuard.ts`) refuses any
+`fetch`, and any socket (`http`/`https`, XHR, WebSocket), to a non-localhost host
+that MSW does not answer.
 
 **Manual check:**
 

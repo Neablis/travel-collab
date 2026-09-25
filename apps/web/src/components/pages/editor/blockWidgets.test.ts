@@ -3,7 +3,7 @@ import { getSchema } from "@tiptap/react";
 import { EditorState, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { PAGE_EDITOR_EXTENSIONS } from "./extensions";
-import { removeWidget, selectedBlock, widgetMarks, widgetsInBlockAt } from "./blockWidgets";
+import { removeWidget, selectedWidget } from "./blockWidgets";
 
 const schema = getSchema(PAGE_EDITOR_EXTENSIONS);
 
@@ -11,8 +11,7 @@ const macro = (name: string, params: Record<string, unknown> = {}) => ({ type: "
 const text = (t: string) => ({ type: "text", text: t });
 
 // The gate sentence (M14, "two widgets in the SAME BLOCK read two different
-// days"), then a paragraph with one widget of its own — which is the one that
-// must never appear in the first sentence's settings, and must not be numbered.
+// days"), then a paragraph with one widget of its own.
 function gateDoc(): PMNode {
   return schema.nodeFromJSON({
     type: "doc",
@@ -43,62 +42,24 @@ function macroPositions(doc: PMNode): number[] {
   return out;
 }
 
-describe("widgetsInBlockAt", () => {
-  it("lists every widget in the selected widget's own block, numbered in document order", () => {
-    const doc = gateDoc();
-    const [first, second] = macroPositions(doc);
-
-    // From EITHER widget in the sentence, the answer is the same two entries —
-    // the panel is about the block, and which of its widgets you clicked only
-    // decides which one is highlighted.
-    for (const from of [first!, second!]) {
-      const entries = widgetsInBlockAt(doc, from);
-      expect(entries.map((e) => [e.mark, e.pos, e.params])).toEqual([
-        [1, first, { dates: { from: "2027-06-01", through: "2027-06-01" } }],
-        [2, second, { dates: { from: "2027-06-09", through: "2027-06-09" } }],
-      ]);
-    }
-  });
-
-  it("does not reach into another block", () => {
-    const doc = gateDoc();
-    const third = macroPositions(doc)[2]!;
-    expect(widgetsInBlockAt(doc, third).map((e) => [e.mark, e.name])).toEqual([[1, "cost"]]);
-  });
-
-  it("answers nothing for a position that is not a widget", () => {
-    expect(widgetsInBlockAt(gateDoc(), 1)).toEqual([]);
-  });
-});
-
-describe("widgetMarks", () => {
-  // The in-text number is a cross-reference to the panel. A block with one
-  // widget has nothing to tell apart, so it carries no number (dc.html's
-  // `multi: rows.length > 1`).
-  it("numbers the widgets of a block holding two or more, and only those", () => {
-    const doc = gateDoc();
-    const [first, second] = macroPositions(doc);
-    expect(widgetMarks(doc)).toEqual([
-      { pos: first, mark: 1 },
-      { pos: second, mark: 2 },
-    ]);
-  });
-});
-
-describe("selectedBlock", () => {
-  it("reads the block from the editor's own node selection", () => {
+describe("selectedWidget", () => {
+  // The panel is about ONE widget (KI-2026-09-24-x): the one the node selection
+  // is on, even when its sentence holds another.
+  it("reads the one widget the editor's node selection is on", () => {
     const doc = gateDoc();
     const [, second] = macroPositions(doc);
     const state = EditorState.create({ doc, selection: NodeSelection.create(doc, second!) });
-    const block = selectedBlock(state);
-    expect(block?.selectedPos).toBe(second);
-    expect(block?.entries.map((e) => e.mark)).toEqual([1, 2]);
+    expect(selectedWidget(state)).toEqual({
+      pos: second,
+      name: "city",
+      params: { dates: { from: "2027-06-09", through: "2027-06-09" } },
+    });
   });
 
   it("is null when the selection is a caret in the prose", () => {
     const doc = gateDoc();
     const state = EditorState.create({ doc, selection: TextSelection.create(doc, 3) });
-    expect(selectedBlock(state)).toBeNull();
+    expect(selectedWidget(state)).toBeNull();
   });
 });
 
@@ -115,18 +76,16 @@ describe("removeWidget", () => {
     expect(next.doc.firstChild!.textContent).toBe("We land on Day 1 in  and by Day 9 we are in .");
   });
 
-  // Removing the SELECTED widget would otherwise leave nothing selected, and the
-  // panel would close under the person still working through the sentence.
-  it("moves the selection to a remaining widget of the block when the selected one goes", () => {
+  // The panel shows one widget at a time, so a selection moved onto a sibling
+  // would reopen it at once — often under the same title — and read as if
+  // Remove had not worked.
+  it("lets the selection fall into the text when the selected widget goes, even with a sibling left", () => {
     const doc = gateDoc();
-    const [first, second] = macroPositions(doc);
+    const [first] = macroPositions(doc);
     const state = EditorState.create({ doc, selection: NodeSelection.create(doc, first!) });
 
     const next = state.apply(removeWidget(state, first!));
-    expect(next.selection).toBeInstanceOf(NodeSelection);
-    const selected = (next.selection as NodeSelection).node;
-    expect(selected.attrs.params).toEqual({ dates: { from: "2027-06-09", through: "2027-06-09" } });
-    // It really did move: this widget sat at `second` before the delete.
-    expect(next.selection.from).toBe(second! - 1);
+    expect(macroPositions(next.doc)).toHaveLength(2);
+    expect(selectedWidget(next)).toBeNull();
   });
 });

@@ -40,7 +40,7 @@ const profile: PublicProfileResponse = {
   // server), which for `dev-alice` is "Alice" — not the raw id this fixture
   // used to carry, which the endpoint has never returned and which the page
   // now renders verbatim because it stopped re-deriving the name itself.
-  author: { userId: "dev-alice", displayName: "Alice", daysShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
+  author: { userId: "dev-alice", displayName: "Alice", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
   knows: [
     { city: "Kyoto", days: 2 },
     { city: "Hakone", days: 1 },
@@ -69,7 +69,7 @@ describe("a public profile", () => {
     expect(screen.getByTestId("profile-number-added-to-trips").textContent).toBe("3Added to trips");
 
     const cards = within(screen.getByTestId("profile-days")).getAllByTestId("discover-card");
-    expect(cards).toHaveLength(profile.author.daysShared);
+    expect(cards).toHaveLength(profile.author.playbooksShared);
     // Both sides RENDERED. This used to sum the fixture and compare it to the
     // fixture, which held whatever the fixture said and never touched the page
     // (CodeRabbit, PR 102) — the agreement being claimed is between the
@@ -106,12 +106,12 @@ describe("a public profile", () => {
     expect(screen.getByTestId("profile-number-reviews-received").textContent).toBe("0Reviews received");
   });
 
-  // The day list is a PAGE (`discoverDays` caps it), and `daysShared` counts
+  // The day list is a PAGE (`discoverDays` caps it), and `playbooksShared` counts
   // every published day. When they disagree the page says which it is showing
   // rather than letting the card count read as the total.
   it("says so when it is showing fewer days than the person has shared", async () => {
     fetchPublicProfileMock.mockResolvedValue(
-      ok({ ...profile, author: { ...profile.author, daysShared: 30 } }),
+      ok({ ...profile, author: { ...profile.author, playbooksShared: 30 } }),
     );
     renderProfile();
     expect((await screen.findByTestId("profile-day-page")).textContent).toBe(
@@ -179,7 +179,7 @@ describe("a public profile", () => {
 
   it("says plainly when somebody has shared nothing", async () => {
     fetchPublicProfileMock.mockResolvedValue(
-      ok({ author: { userId: "dev-dan", displayName: "Dan", daysShared: 0, adds: 0, reviewsReceived: 0, averageRating: null }, knows: [], days: [] }),
+      ok({ author: { userId: "dev-dan", displayName: "Dan", playbooksShared: 0, adds: 0, reviewsReceived: 0, averageRating: null }, knows: [], days: [] }),
     );
     renderProfile();
     expect(await screen.findByText("Nothing shared yet")).toBeTruthy();
@@ -195,7 +195,7 @@ describe("a public profile", () => {
   // (KI-2026-09-05-y / F-G05).
   it("heads the page with the name the endpoint resolved, not one minted from the id in the URL", async () => {
     fetchPublicProfileMock.mockResolvedValue(
-      ok({ author: { userId: "dev-alice", displayName: "A traveler", daysShared: 0, adds: 0, reviewsReceived: 0, averageRating: null }, knows: [], days: [] }),
+      ok({ author: { userId: "dev-alice", displayName: "A traveler", playbooksShared: 0, adds: 0, reviewsReceived: 0, averageRating: null }, knows: [], days: [] }),
     );
     renderProfile();
     expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("A traveler");

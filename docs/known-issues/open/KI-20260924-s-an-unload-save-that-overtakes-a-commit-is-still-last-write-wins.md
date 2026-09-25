@@ -9,3 +9,10 @@
 - **Second, smaller gap in the same guard:** the revision is `updatedAt`, which has millisecond precision (`occurredAt = new Date().toISOString()`). Two writes to one page in the same millisecond, with the older arriving second, compare as the same revision. A sequence-based page revision would close both gaps.
 - **Why not fixed here:** a keepalive that can name a revision would need the in-flight commit's *result* before it is sent, and a `pagehide` handler cannot wait for it. That trade-off, relying on ordering for this one case, was accepted.
 - **First noted:** 2026-09-24, stale-save fix (commits 6d3fa2e, ac4c933).
+- **Re-verified 2026-09-25 (overnight sweep):** still true. `useEditSession`
+  sets `overtaking = keepalive && inFlight.current` (`useEditSession.ts:131`);
+  `PageScreen` then sends no `expectedUpdatedAt`
+  (`const expected = overtaking ? null : baseRef.current`); the server guard
+  compares `Date.parse` of `updatedAt` — millisecond instants — and only when a
+  revision is sent (`pageCommands.ts:170-174`). No sequence-based page
+  revision exists.

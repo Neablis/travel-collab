@@ -56,7 +56,7 @@
   `packages/fixtures/src/savedDayCoordinates.test.ts` holds all three facts and
   was seen red for each of them.
 
-- **Still open, and it is small:** the other ~44 stops across both fixtures, plus the 5 bundle days of 148 that still lack two located stops. **They were not
+- **Still open, and it is small:** the other ~42 stops across both fixtures, plus the ~~5~~ **2** bundle days of 148 that still lack two located stops. **They were not
   hand-authored on purpose.** KI-39 is the entry that cost this seed a pin in
   the wrong country, `geocode-content.py`'s `--apply` skips any stop that
   already has a `lat` — so a wrong coordinate written here is permanent until
@@ -90,3 +90,4 @@
   about the CONTENT and lives in `packages/fixtures`.
 
 - **First noted:** 2026-09-20.
+- **Re-verified 2026-09-25 (overnight sweep):** the fixture half is still true: `packages/fixtures/src/japan/savedDays.ts` has 17 `stop(` calls carrying exactly the three lifted coordinates (lines 169, 186, 266), and `library/starterDays.ts` has 28 with none, so ~42 of 45 fixture stops are unlocated. The bundle side has moved since the table above. Re-counted over `content/playbooks` (19 files): 148 days, 1156 stops, **1007 located, 146 of 148 days whose map draws** (was 929 / 143), after `cec7b1a` and `5c41985`. The "5 bundle days" line above is corrected to 2 accordingly.

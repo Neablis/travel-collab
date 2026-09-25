@@ -338,4 +338,196 @@ test("switching to Plan lands at the top of the columns, not part-way down them"
   expect(nameBox.y, "the day's name sits below the sticky header, not behind it").toBeGreaterThanOrEqual(
     stickyBottom.y + stickyBottom.height,
   );
+
+  // KI-2026-09-13-a: the same claim for a pick made with the page scrolled
+  // DOWN, which the arrival fix above left as it was. `scrollIntoView` aligns
+  // with the scrollport's top, `y = 0`, and knows nothing of the sticky stack
+  // pinned there. Two depths, because they fail differently: at 400px the
+  // headers sit in view but under the stack, where `block: "nearest"` moves
+  // nothing at all; scrolled to the bottom they are above the fold, where it
+  // aligns them with `y = 0`.
+  //
+  // The pick is Right on a chip that kept focus while the page scrolled away:
+  // the chips row is not sticky (SPEC §35.3), so once the columns' headers are
+  // under the stack the row is too, and the keyboard is the way to pick from
+  // it. Red-checked by removing `clearStickyStack` from `jumpTo`, each depth
+  // run first: the picked name came back at y=61 (400px down) and y=23 (at the
+  // bottom), under a sticky header ending at y=244.
+  await chips.locator('[data-day-index="7"]').focus();
+  for (const [depth, next] of [
+    ["400px down", 8],
+    ["at the bottom", 9],
+  ] as const) {
+    await page.evaluate((d) => window.scrollTo(0, d === "400px down" ? 400 : document.body.scrollHeight), depth);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(400);
+    const sticky = (await page.locator('header[aria-label="Trip"]').boundingBox())!;
+    const bottom = sticky.y + sticky.height;
+    const name = () => columns.nth(next).getByRole("button", { name: new RegExp(`^Day ${next + 1}`) });
+    // The condition the defect needs, stated rather than hoped for.
+    expect((await name().boundingBox())!.y, `${depth}: the headers start under the sticky header`).toBeLessThan(bottom);
+
+    await page.keyboard.press("ArrowRight");
+    await expect(chips.locator('button[aria-pressed="true"]')).toHaveAttribute("data-day-index", String(next));
+    await expect(columns.nth(next)).toBeInViewport();
+    expect((await name().boundingBox())!.y, `${depth}: the picked day's name clears the sticky header`).toBeGreaterThanOrEqual(
+      bottom,
+    );
+  }
+});
+
+/**
+ * KI-2026-09-22-b. Mitchell, on PR #201's preview: *"I am no longer able to
+ * scroll right in the container with the actual day plans. I have to click in
+ * the above bar."*
+ *
+ * The row scrolls sideways inside its own box, and a box's scrollbar sits on
+ * its bottom inside edge. The row is as tall as its tallest column, so with a
+ * few stops a day that edge is below the fold — measured at 1920×919 before
+ * the fix: row bottom at y=1218, 299px under the viewport. On a Windows mouse
+ * with classic scrollbars and no horizontal wheel, that bar was the only
+ * pointer route to "scroll right", and it was off screen on load.
+ *
+ * The fix is a stand-in scrollbar pinned to the viewport bottom
+ * (`board-columns-scrollbar`, Board.tsx — deliberately not `day-column…`, which `m26-phone-plan.spec.ts` counts as columns). Its GEOMETRY is what this asserts,
+ * plus that it really drives the row: headless Chromium draws overlay
+ * scrollbars, so the bar itself cannot be seen or dragged here (the KI's own
+ * "NOT CONFIRMED" note) — a drag is a `scrollLeft` write, which is exactly
+ * what the browser's scrollbar does to the element.
+ *
+ * Red-checked by dropping `position: sticky` from `.day-columns-scrollbar`
+ * (the bar falls back to directly under the row, below the fold) and by
+ * removing the bar-to-row write in `onBarScroll` (the row stays at 0).
+ */
+test("the day columns' scrollbar is on screen on load, even when the columns run past the fold", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const tripName = e2eTripName("ColumnsScrollbar");
+  const { tripId } = await page.request
+    .post("/api/trips", { data: { name: tripName } })
+    .then((r) => r.json());
+  // Fourteen days of six stops — the KI's own measured shape: wide enough to
+  // scroll sideways at 1920px, tall enough to run past a 919px viewport.
+  for (const command of commandsFor("mappedTrip", tripId, {
+    dayCount: 14,
+    activitiesPerDay: 6,
+    timeWindows: [
+      { start: "09:00", end: "10:00" },
+      { start: "10:00", end: "11:00" },
+      { start: "11:00", end: "12:00" },
+      { start: "12:00", end: "13:00" },
+      { start: "13:00", end: "14:00" },
+      { start: "14:00", end: "15:00" },
+    ],
+  })) {
+    await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+  }
+
+  await page.setViewportSize({ width: 1920, height: 919 });
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await expect(page.getByTestId("day-column")).toHaveCount(14);
+
+  const row = page.getByRole("group", { name: "Day columns" });
+  const bar = page.getByTestId("board-columns-scrollbar");
+  const viewportHeight = 919;
+  // The unscheduled rack is `position: fixed` along the bottom edge, so "on
+  // screen" means above it, not merely above the viewport's edge.
+  const rackHeight = await page
+    .getByTestId("trip-board-content")
+    .evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue("--rack-height")) || 0);
+
+  // The condition the defect needs, stated rather than hoped for: the row's
+  // own bottom edge — where its native scrollbar would be — is below the fold.
+  const rowBox = (await row.boundingBox())!;
+  expect(rowBox.y + rowBox.height, "the columns run past the fold").toBeGreaterThan(viewportHeight);
+  expect(await row.evaluate((el) => el.scrollWidth > el.clientWidth), "the row scrolls sideways").toBe(true);
+
+  // The affordance is on screen, above the rack, and spans the row.
+  const barBox = (await bar.boundingBox())!;
+  expect(barBox.y + barBox.height, "the scrollbar's bottom edge is above the rack").toBeLessThanOrEqual(
+    viewportHeight - rackHeight + 0.5,
+  );
+  expect(barBox.y, "the scrollbar is below the top of the columns").toBeGreaterThan(rowBox.y);
+  expect(barBox.width).toBeCloseTo(rowBox.width, 0);
+  // Same scroll range as the row, or a full drag would stop short of day 14.
+  const rowRange = await row.evaluate((el) => el.scrollWidth - el.clientWidth);
+  const barRange = await bar.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(barRange).toBe(rowRange);
+
+  // Dragging the bar scrolls the columns, and the page does not move.
+  await bar.evaluate((el) => {
+    el.scrollLeft = 900;
+  });
+  await expect.poll(() => row.evaluate((el) => Math.round(el.scrollLeft))).toBe(900);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  // And the other way: a scroll of the row by any other route (shift+wheel,
+  // keyboard, a chip) moves the bar with it, so it never shows a stale thumb.
+  await row.evaluate((el) => {
+    el.scrollLeft = 1500;
+  });
+  await expect.poll(() => bar.evaluate((el) => Math.round(el.scrollLeft))).toBe(1500);
+});
+
+/**
+ * Dragging the stand-in scrollbar moves the columns with it, and neither ever
+ * steps backwards (PR #234 review, on KI-2026-09-22-b's fix).
+ *
+ * The bar and the row mirror each other's `scrollLeft`, and Board.tsx's
+ * `echoes` counter makes the bar ignore the scroll events the row's writes
+ * raise. That is only safe while each echo is spent in the frame it was
+ * raised. The review worried that the row's event could land a frame late,
+ * write the row's old position back into the bar and use up the bar's next
+ * real event as that echo. In Chromium it does not (see the KI's follow-up
+ * line), and this pins that. Red-checked by delaying the row-to-bar mirror by
+ * one frame: the last drag step was lost (ended at 900, not 960).
+ *
+ * Headless Chromium draws overlay scrollbars (the KI's "NOT CONFIRMED" note),
+ * so the thumb cannot be grabbed with `page.mouse`. The drag is the button
+ * held down on the bar plus one `scrollLeft` write per frame — what the
+ * browser's own thumb drag does to the element — sampled every frame.
+ */
+test("dragging the day columns' scrollbar moves the columns with it, never back a frame", async ({ page }) => {
+  const tripId = await createMappedTrip(page, e2eTripName("ScrollbarDrag"), 14);
+  await page.setViewportSize({ width: 1920, height: 919 });
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await expect(page.getByTestId("day-column")).toHaveCount(14);
+
+  const bar = page.getByTestId("board-columns-scrollbar");
+  const step = 60;
+  const steps = 16;
+  // The premise: room to drag the whole way without reaching the end.
+  expect(await bar.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(step * steps);
+
+  const barBox = (await bar.boundingBox())!;
+  await page.mouse.move(barBox.x + 20, barBox.y + barBox.height / 2);
+  await page.mouse.down();
+  const samples = await bar.evaluate(
+    async (el, { step, steps }) => {
+      const row = document.querySelector<HTMLElement>('[role="group"][aria-label="Day columns"]')!;
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const seen: { bar: number; row: number }[] = [];
+      for (let index = 1; index <= steps; index++) {
+        await frame();
+        seen.push({ bar: el.scrollLeft, row: row.scrollLeft });
+        el.scrollLeft = index * step;
+      }
+      // Let the last write's scroll events land.
+      for (let index = 0; index < 10; index++) {
+        await frame();
+        seen.push({ bar: el.scrollLeft, row: row.scrollLeft });
+      }
+      return seen;
+    },
+    { step, steps },
+  );
+  await page.mouse.up();
+
+  const backwards = (values: number[]) =>
+    values.flatMap((value, index) =>
+      index > 0 && value < values[index - 1]! ? [`${values[index - 1]} -> ${value}`] : [],
+    );
+  expect(backwards(samples.map((s) => s.bar)), "the thumb never jumps back").toEqual([]);
+  expect(backwards(samples.map((s) => s.row)), "the columns never step back").toEqual([]);
+  expect(samples.at(-1), "both end where the drag let go").toEqual({ bar: step * steps, row: step * steps });
 });

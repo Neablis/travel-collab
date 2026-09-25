@@ -38,7 +38,8 @@ export function AccountMenu({
   onResetDemoData,
 }: {
   name: string;
-  email: string;
+  /** `null` for an account with none — dev-login's — which gets no line at all. */
+  email: string | null;
   onSignOut?: () => void;
   // Preview-only "Reset to demo data" item (see AppHeader.tsx /
   // src/lib/demoDataReset.ts) — a deliberate addition to the design's
@@ -102,13 +103,15 @@ export function AccountMenu({
       <Popover open={open} onOpenChange={setOpen} align="end" contentClassName="w-56 p-1" trigger={trigger}>
         <div className="flex flex-col gap-0.5 border-b border-hairline px-2.5 pt-2 pb-2.5">
           <span className="text-sm font-semibold text-ink">{name}</span>
-          <span
-            className="font-mono text-slate"
-            // eslint-disable-next-line no-restricted-syntax -- 11.5px email text (handoff `…dc.html:97`) is below Tailwind's text-xs (12px) floor, same convention as UnscheduledRack/MapRail's 11.5px labels
-            style={{ fontSize: "11.5px" }}
-          >
-            {email}
-          </span>
+          {email !== null && email !== "" && (
+            <span
+              className="font-mono text-slate"
+              // eslint-disable-next-line no-restricted-syntax -- 11.5px email text (handoff `…dc.html:97`) is below Tailwind's text-xs (12px) floor, same convention as UnscheduledRack/MapRail's 11.5px labels
+              style={{ fontSize: "11.5px" }}
+            >
+              {email}
+            </span>
+          )}
         </div>
         {/* M17. Task 8b.2 omitted this item rather than ship one that did
             nothing — the design's own "Your account" — and it has been absent
@@ -293,9 +296,9 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
         </Link>
       </nav>
       <div className="ml-auto flex items-center">
-        {/* AccountMenuFor, not AccountMenuFromSession: the latter resolves the
-            session itself, which would make this header fetch the same fact
-            twice. We already have `user`. */}
+        {/* AccountMenuFor takes the `user` already resolved above rather than
+            resolving the session itself, which would make this header fetch
+            the same fact twice. */}
         <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />
       </div>
     </>
@@ -308,9 +311,10 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
 // the first version doing precisely that, and the comment here claiming
 // otherwise was a lie the code did not keep.
 
-// The session-independent half: given a user, wire up the menu. Both entry
-// points below render this — HeaderSessionChrome with the user it already
-// resolved, AccountMenuFromSession with one it resolves itself.
+// The session-independent half: given a user, wire up the menu. Its one
+// caller is HeaderSessionChrome, with the user it already resolved. (A second,
+// self-resolving entry point had only its own tests as callers and was removed,
+// KI-2026-09-05-w; those tests now render HeaderSessionChrome.)
 function AccountMenuFor({
   user,
   demoResetEnabled = false,
@@ -345,7 +349,7 @@ function AccountMenuFor({
         name: user.name,
         email: user.email,
       })}
-      email={user.email ?? ""}
+      email={user.email ?? null}
       // `/welcome`, not `/` — sign-out must not depend on a redirect it races.
       // `signOut` POSTs to /api/auth/signout (whose response clears the session
       // cookie) and then sets `window.location.href`. Pointed at `/`, the
@@ -364,12 +368,4 @@ function AccountMenuFor({
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />
   );
-}
-
-// Standalone entry point: resolves the session itself. Kept for callers that
-// have no user to hand (its own tests today).
-export function AccountMenuFromSession({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
-  const user = useSessionUser();
-  if (!user) return null;
-  return <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />;
 }

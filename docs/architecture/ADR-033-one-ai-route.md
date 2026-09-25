@@ -94,6 +94,16 @@ route are deleted; `planningTools`, `batchResolver`, `flushPlanningBatch`,
 `geocodeEnrichment` and `planSummary` **survive and stay shared** — they were
 always the pipeline, not the door.
 
+> **Note (2026-09-25, KI-2026-09-05-w items 2 and 3).** What survives is the
+> *pipeline* — resolve, enrich, one atomic batch — not every named wrapper in
+> it. `flushPlanningBatch` was a one-line pass-through to
+> `executeTripCommandBatch` with an unused `tripId`, and has been deleted;
+> `commitProposal` calls the executor directly, and `planningTools.ts` (by then
+> holding only that wrapper) went with it. Inside the executor, the two entry
+> points (`executeTripCommand`, `executeTripCommandBatch`) now share one
+> load → authorise and one append → project tail in `commands.ts`, so the
+> invariant-1 sequence is written once.
+
 **6. The lessons in `handleAiRequest` move with the code, and the ones that no
 longer apply are recorded as retired rather than dropped.** That file carries
 the step-budget reasoning, `AI_MAX_STEPS`, the truncation notice, geocode

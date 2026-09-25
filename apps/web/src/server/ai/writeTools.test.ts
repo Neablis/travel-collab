@@ -23,15 +23,15 @@ import { aiToolsFor, contextTool, type AssistantToolSet } from "@/server/assista
 import { PLANNING_TOOLS } from "@/server/assistant/tools/planning";
 import { insertPlaybookDayTool } from "@/server/assistant/tools/insertPlaybookDay";
 
-// `commitProposal` submits through `flushPlanningBatch`, which reaches
+// `commitProposal` submits through `executeTripCommandBatch`, which reaches
 // Postgres. Its behaviour against a real database is the apply route's
 // integration suite; what is unit-testable here is the ORDER of the two steps
 // it owns — enrichment before the batch — and that is what these mocks pin.
-vi.mock("./planningTools", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./planningTools")>();
-  return { ...actual, flushPlanningBatch: vi.fn() };
+vi.mock("@/server/commands", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/commands")>();
+  return { ...actual, executeTripCommandBatch: vi.fn() };
 });
-const { flushPlanningBatch } = await import("./planningTools");
+const { executeTripCommandBatch } = await import("@/server/commands");
 
 // `insert_playbook_day` resolves the row before collecting, which is Postgres —
 // reached through the `savedDays` PORT since P2, whose one adapter
@@ -149,7 +149,7 @@ describe("the write tools collect and commit nothing", () => {
     )({ title: "Coffee", dayRef: "day 1" }, {});
     expect(output).toEqual({ queued: true, type: "AddActivity" });
     expect(getCollected()).toEqual([{ type: "AddActivity", args: { title: "Coffee", dayRef: "day 1" } }]);
-    expect(flushPlanningBatch).not.toHaveBeenCalled();
+    expect(executeTripCommandBatch).not.toHaveBeenCalled();
   });
 
   // The collector half of `MAX_PROPOSAL_INSERTS` (limits.ts). The apply door
@@ -800,7 +800,7 @@ describe("commitProposal", () => {
   const okBatch = { ok: true as const, tripId: TRIP_ID, detail, history: { tripId: TRIP_ID, entries: [], canUndo: false, canRedo: false } };
 
   it("geocodes before it commits, and commits ONE batch", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
+    vi.mocked(executeTripCommandBatch).mockResolvedValue(okBatch);
     const order: string[] = [];
     const geocoder = {
       forward: vi.fn(async () => {
@@ -808,7 +808,7 @@ describe("commitProposal", () => {
         return [{ name: "Trevi Fountain, Rome, Italy", lat: 41.9009, lng: 12.4833, city: "Rome", countryCode: "IT" }];
       }),
     };
-    vi.mocked(flushPlanningBatch).mockImplementation(async () => {
+    vi.mocked(executeTripCommandBatch).mockImplementation(async () => {
       order.push("batch");
       return okBatch;
     });
@@ -832,8 +832,8 @@ describe("commitProposal", () => {
     // enrichment the command path runs, before the batch, and there is exactly
     // one batch for the whole proposal (ADR-013 — one history entry, one undo).
     expect(order).toEqual(["geocode", "batch"]);
-    expect(vi.mocked(flushPlanningBatch)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(flushPlanningBatch).mock.calls[0]![1]).toHaveLength(2);
+    expect(vi.mocked(executeTripCommandBatch)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(executeTripCommandBatch).mock.calls[0]![0]).toHaveLength(2);
   });
 
   // **KI-93's wiring, asserted at the call site that binds it.**
@@ -845,7 +845,7 @@ describe("commitProposal", () => {
   // the far side of this file's own `@/server/quota` mock, and the assertion
   // M9 Phase 0's retro says a mock boundary always needs.
   it("charges the geocode quota, as the approver, once per lookup it makes", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
+    vi.mocked(executeTripCommandBatch).mockResolvedValue(okBatch);
     vi.mocked(consumeQuota).mockClear();
     const geocoder = {
       forward: vi.fn(async () => [{ canonicalName: "Trevi Fountain, Rome, Italy", lat: 41.9009, lng: 12.4833 }]),
@@ -881,7 +881,7 @@ describe("commitProposal", () => {
   // beside the lookup rather than around the request, or a rest day would cost
   // somebody a geocode.
   it("charges nothing when no command carries a location", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
+    vi.mocked(executeTripCommandBatch).mockResolvedValue(okBatch);
     vi.mocked(consumeQuota).mockClear();
     await commitProposal(
       TRIP_ID,
@@ -893,7 +893,7 @@ describe("commitProposal", () => {
   });
 
   it("never reaches a geocoder when no command carries a location", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
+    vi.mocked(executeTripCommandBatch).mockResolvedValue(okBatch);
     const geocoder = { forward: vi.fn() };
     const result = await commitProposal(
       TRIP_ID,
@@ -907,7 +907,7 @@ describe("commitProposal", () => {
   });
 
   it("answers with summarizeBatch's receipt — derived from the committed commands", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
+    vi.mocked(executeTripCommandBatch).mockResolvedValue(okBatch);
     const result = await commitProposal(
       TRIP_ID,
       [{ type: "RemoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID }],
@@ -923,7 +923,7 @@ describe("commitProposal", () => {
   // for X" about a stop it had just placed; with the bucket and no sentence,
   // it said nothing at all. Both are wrong in opposite directions.
   it("tells the user which stops were only placed at city level", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue(okBatch);
+    vi.mocked(executeTripCommandBatch).mockResolvedValue(okBatch);
     const geocoder = {
       forward: vi.fn(async (query: string) =>
         query === "Jeonju-si, KR"
@@ -972,7 +972,7 @@ describe("commitProposal", () => {
   // just approved, with no way to learn that a vendor lookup was the reason
   // and no retry that would behave differently.
   it("explains a refusal with the enrichment report instead of discarding it", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue({
+    vi.mocked(executeTripCommandBatch).mockResolvedValue({
       ok: false,
       error: { code: "no-op", message: "This change would have no effect." },
     });
@@ -1003,7 +1003,7 @@ describe("commitProposal", () => {
   // "that pin is approximate" about a batch that wrote no events is the same
   // claim-without-a-change this branch exists to stop (CodeRabbit, PR 169).
   it("does not describe a city-level pin as placed when the batch committed nothing", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue({
+    vi.mocked(executeTripCommandBatch).mockResolvedValue({
       ok: false,
       error: { code: "concurrency-conflict", message: "someone else changed this trip" },
     });
@@ -1043,7 +1043,7 @@ describe("commitProposal", () => {
   });
 
   it("passes a refused batch straight through, with its domain code", async () => {
-    vi.mocked(flushPlanningBatch).mockResolvedValue({
+    vi.mocked(executeTripCommandBatch).mockResolvedValue({
       ok: false,
       error: { code: "concurrency-conflict", message: "someone else changed this trip" },
     });

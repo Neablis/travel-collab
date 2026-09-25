@@ -105,6 +105,39 @@ test("skips the register's own README rather than reading it as an entry", () =>
   assert.equal(status, 0);
 });
 
+// KI-2026-08-30-d: merging `main` into a branch stacked on a SQUASH-merged base
+// kept `main`'s pre-fix `open/` copies beside the branch's `resolved/` ones,
+// with no conflict reported. The first file is a real grandfathered filename
+// and the second carries a real grandfathered shared id — the two places the id
+// check cannot see — so this fails only if duplicates are checked by basename.
+test("fails when one entry sits in two status directories, grandfathered or not", () => {
+  const eslint = "KI-20260830-eslint-src-misses-app-root-files.md";
+  const coords = "KI-20260906-c-imported-content-carries-no-coordinates.md";
+  const { status, stderr } = runWall({
+    [`open/${eslint}`]: body("KI-20260830"),
+    [`resolved/${eslint}`]: body("KI-20260830"),
+    [`open/${coords}`]: body("KI-2026-09-06-c"),
+    [`dormant/${coords}`]: body("KI-2026-09-06-c"),
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /KI-20260830-eslint-src-misses-app-root-files\.md is in open\/ AND resolved\//);
+  assert.match(stderr, /KI-20260906-c-imported-content-carries-no-coordinates\.md is in open\/ AND dormant\//);
+});
+
+// A stale copy is not a second entry, so it must not get the shared-id remedy:
+// "give the newer one the next free letter" would mint a fake entry from it.
+test("reports a two-directory duplicate once, not also as a shared id", () => {
+  const file = "KI-095-hot-insertion-points.md";
+  const { status, stderr } = runWall({
+    [`open/${file}`]: body("KI-95"),
+    [`resolved/${file}`]: body("KI-95"),
+  });
+  assert.equal(status, 1);
+  assert.match(stderr, /KI-095-hot-insertion-points\.md is in open\/ AND resolved\//);
+  assert.doesNotMatch(stderr, /next free letter/);
+  assert.match(stderr, /BREACHED: 1 entr/);
+});
+
 // Two DIFFERENT entries sharing one id: the name and heading of each agree, so
 // the per-file check passes, and "KI-2026-09-16-b" in prose names two things.
 // The 2026-09-24 KI pass found eight such ids, all filed by parallel branches

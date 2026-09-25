@@ -30,9 +30,18 @@ import { Money } from "./money.ts";
  * saved. A defaulted field is additive: an old row parses, and the default is
  * what it always meant. `dayIndex` below is the first field to adopt the rule.
  *
- * The rule holds until there is a `{ v, stops }` wrapper and a migration chain
- * to hang a non-additive change on. There is not one yet, and ADR-048 says why
- * this milestone deliberately did not build it.
+ * **The rule is enforced, not remembered.** `test/saved.test.ts` parses
+ * `test/fixtures/savedStopV0.ts` — frozen copies of the oldest stops ever
+ * stored — through `SavedStop.array()`, and fails on a new required field here
+ * or in anything nested (`Location`, `Money`, …). The fix for that red is a
+ * `.default()`, never an edit to the fixture.
+ *
+ * **There is no `{ v, stops }` wrapper, deliberately** (KI-2026-09-05-l,
+ * resolved 2026-09-25). An additive change needs only the default. A change a
+ * default cannot express — a rename, a type change, a money-model change — is
+ * the moment to build the wrapper and a migration on read, and ADR-048 says the
+ * first such change pays for it. The guard makes sure that moment is a red
+ * contract test rather than empty libraries.
  */
 export const SavedStop = z.object({
   title: z.string(),
@@ -301,6 +310,30 @@ export const SavedDay = z.object({
   summary: z.string().max(500).nullable().default(null),
 });
 export type SavedDay = z.infer<typeof SavedDay>;
+
+/**
+ * **An operator hid this day from the library** (M12 link 6), as its AUTHOR is
+ * told it — `hide-day`'s `saved_days.moderated_at` and `moderation_note`, the
+ * note being "the one line the author's copy can show about why it left the
+ * library" (`AdminReportAction`). KI-2026-09-23-i.
+ *
+ * **Deliberately not a field on `SavedDay`.** `SavedDay` is what every reader
+ * gets — the shared-day read, `/v1/playbooks`, `/v1/library` — and a note
+ * written to the author is not for any of them. It rides beside the day on
+ * `GET /api/saved-days/:id`'s envelope, as `publishedAt` does, and the route
+ * sends it only when `isAuthor`; everyone else's envelope carries `null`. A
+ * field on `SavedDay` would instead need every future non-author read path to
+ * remember to blank it.
+ *
+ * `moderationNote` is defaulted to null so a payload that predates it parses.
+ */
+export const SavedDayModeration = z.object({
+  /** When the operator hid it (ISO-8601). Kept, not re-stamped, by a second hide. */
+  moderatedAt: z.string().min(1),
+  /** The operator's note to the author, or null when they left none. */
+  moderationNote: z.string().nullable().default(null),
+});
+export type SavedDayModeration = z.infer<typeof SavedDayModeration>;
 
 /**
  * The client names a day and points at it; the SERVER reads the stops.

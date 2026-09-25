@@ -31,10 +31,14 @@ export const { GET, POST } = route({
     summary: "Save one day of a trip you can see into your library",
     scope: "library:write",
     body: SaveDayBody,
+    // The trip is in the body, so the wrapper gates it there: a token confined
+    // to that trip may save from it, and one confined elsewhere may not.
+    trip: { body: (body) => (body as z.infer<typeof SaveDayBody>).tripId },
+    role: "viewer",
     response: LibraryDay,
-    handle: ({ actor, body }) => {
-      const input = body as z.infer<typeof SaveDayBody>;
-      return keepDays(actor, { tripId: input.tripId, name: input.name, dayIds: [input.dayId] });
+    handle: (ctx) => {
+      const input = ctx.body as z.infer<typeof SaveDayBody>;
+      return keepDays(ctx, { name: input.name, dayIds: [input.dayId] });
     },
   },
 });

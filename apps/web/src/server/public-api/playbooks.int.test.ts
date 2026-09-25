@@ -32,7 +32,7 @@ const { GET: LIST_PLAYBOOKS, POST: KEEP } = await import("@/app/api/v1/playbooks
 const { GET: GET_PLAYBOOK, PATCH: PATCH_PLAYBOOK } = await import(
   "@/app/api/v1/playbooks/[playbookId]/route"
 );
-const { GET: LIST_LIBRARY } = await import("@/app/api/v1/library/route");
+const { GET: LIST_LIBRARY, POST: SAVE_TO_LIBRARY } = await import("@/app/api/v1/library/route");
 const { PATCH: PATCH_LIBRARY } = await import("@/app/api/v1/library/[savedDayId]/route");
 const { POST: APPLY } = await import("@/app/api/v1/trips/[tripId]/playbook-applications/route");
 const { GET: GET_TRIP } = await import("@/app/api/v1/trips/[tripId]/route");
@@ -147,23 +147,64 @@ describe("POST /v1/playbooks keeps several days as one Playbook", () => {
     expect((await listed.json()).items.map((d: SavedDay) => d.savedDayId)).toContain(playbook.savedDayId);
   });
 
-  // The hand gate's reason to exist: the trip is in the body, not the path.
-  // Today `route()` refuses every confined token on a tripless endpoint before
-  // the handler runs, so the named trip is refused too — the same answer
-  // `POST /v1/library` gives.
-  it("refuses a trip-confined token, including for a trip it does not name", async () => {
+});
+
+// **A trip-confined token may keep days of the trips it names, and nothing
+// else** (KI-2026-09-24-a). Both creates declare `trip: { body }`, so the wrapper
+// reads the trip out of the parsed body and runs the same two gates a
+// `/trips/{tripId}` path gets. A body naming no trip is tripless, and a
+// confined token is refused on it as on `GET /v1/account`.
+describe("a trip-confined token writing the library", () => {
+  const INLINE = { name: "Inline", days: [{ stops: [inlineStop("Somewhere")] }] };
+
+  it("keeps days of the trip it names, through both creates", async () => {
     const owner = await entitled();
     const { tripId: named, dayIds: namedDays } = await sourceTrip(owner);
+    const confined = await tokenFor(owner, [named]);
+
+    const playbook = await keep(confined, fromTrip(named, "Home", [namedDays[0]]));
+    expect(playbook.status, "POST /v1/playbooks").toBe(201);
+    expect(((await playbook.json()) as Written).playbook.sourceTripId).toBe(named);
+
+    const saved = await SAVE_TO_LIBRARY(
+      req(confined, { tripId: named, dayId: namedDays[1], name: "Home" }, "POST"),
+      NO_PARAMS,
+    );
+    expect(saved.status, "POST /v1/library").toBe(201);
+    expect(((await saved.json()) as SavedDay).sourceTripId).toBe(named);
+  });
+
+  it("is refused a trip it does not name", async () => {
+    const owner = await entitled();
+    const { tripId: named } = await sourceTrip(owner);
     const { tripId: other, dayIds: otherDays } = await sourceTrip(owner);
     const confined = await tokenFor(owner, [named]);
 
-    const elsewhere = await keep(confined, fromTrip(other, "Nope", [otherDays[0]]));
-    expect(elsewhere.status, "a trip the token does not name").toBe(403);
-    expect((await elsewhere.json()).error.code).toBe("trip-out-of-scope");
+    const playbook = await keep(confined, fromTrip(other, "Nope", [otherDays[0]]));
+    expect(playbook.status, "POST /v1/playbooks").toBe(403);
+    expect((await playbook.json()).error.code).toBe("trip-out-of-scope");
 
-    const home = await keep(confined, fromTrip(named, "Nope", [namedDays[0]]));
-    expect(home.status, "the trip the token names").toBe(403);
-    expect((await home.json()).error.code).toBe("trip-out-of-scope");
+    const saved = await SAVE_TO_LIBRARY(
+      req(confined, { tripId: other, dayId: otherDays[0], name: "Nope" }, "POST"),
+      NO_PARAMS,
+    );
+    expect(saved.status, "POST /v1/library").toBe(403);
+    expect((await saved.json()).error.code).toBe("trip-out-of-scope");
+  });
+
+  // An inline Playbook names no trip, so from a confined token it is a
+  // widening. The account-wide half shows the refusal is the confinement and
+  // not the body.
+  it("is refused a body that names no trip", async () => {
+    const owner = await entitled();
+    const { tripId: named } = await sourceTrip(owner);
+    const confined = await tokenFor(owner, [named]);
+
+    const res = await keep(confined, INLINE);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe("trip-out-of-scope");
+
+    expect((await keep(await tokenFor(owner), INLINE)).status).toBe(201);
   });
 });
 

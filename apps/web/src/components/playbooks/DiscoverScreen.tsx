@@ -727,13 +727,13 @@ export function DiscoverScreen({ initial = {} }: { initial?: Partial<DiscoverUrl
 
           Withheld while the library holds nothing published: "who shares the
           most" over nobody sharing anything is a link to an empty ranking
-          (Mitchell, 2026-09-01). Keyed on `sharedDayCount`, which ignores every
-          filter on this query — so a Hakone search that matches nothing does
+          (Mitchell, 2026-09-01). Keyed on `sharedPlaybookCount`, which ignores
+          every filter on this query — so a Hakone search that matches nothing does
           not take the link away, only an empty library does. Absent until the
           first read lands, rather than flashing in and out: `feed.data` is null
           then, and a link that appears and vanishes is worse than one that
           arrives a beat late. */}
-      {(feed.data?.sharedDayCount ?? 0) > 0 && (
+      {(feed.data?.sharedPlaybookCount ?? 0) > 0 && (
         <div className="border-t border-hairline pt-4">
           <Link
             href="/playbooks/board"

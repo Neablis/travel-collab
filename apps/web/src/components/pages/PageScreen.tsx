@@ -749,7 +749,13 @@ export function PageScreen({
 
   const toggleEditing = () => setEditing((was) => !was);
 
-  if (status === "loading") return <PageContainer>Loading…</PageContainer>;
+  // **No loading state at all** — the trip board's rule (TripBoardScreen.tsx),
+  // on Mitchell's call: *"dont even have the loading state. KEep it simple."*
+  // It used to paint `Loading…` alone, the flicker on Overview → Edit Overview.
+  // The chrome cannot stand in for it: the breadcrumb's first crumb is the
+  // trip's name and every button acts on a page that is not here yet, so a
+  // first frame of it would be a placeholder too (KI-2026-09-20-e).
+  if (status === "loading") return null;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
       <PageContainer>

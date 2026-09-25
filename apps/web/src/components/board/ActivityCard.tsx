@@ -273,17 +273,33 @@ export function ActivityCard({
                       event.stopPropagation();
                       onToggleTag(tag);
                     }}
-                    className={cn(
-                      chipClass,
-                      "cursor-pointer hover:opacity-80",
-                      // The focused chip's ring, M18b scope. `ring-inset` for
-                      // the same reason the calendar cell's is: a chip sits
-                      // inside rows that clip, and an outset ring on the first
-                      // one loses its left edge.
-                      isFocused && "ring-2 ring-brand ring-inset",
-                    )}
+                    // **A 44px target, a 20px chip** — SPEC §13.1 on a phone,
+                    // KI-2026-09-24-m. The button is the hit area and the inner
+                    // span is the chip, so the card keeps its density: `-my-3`
+                    // hands back exactly the 24px `min-h-11` adds, and the row
+                    // lays out as if the button were still chip-sized. It grows
+                    // vertically only — sideways it would reach into the next
+                    // chip. `md:` releases it on the same line `PHONE_TOUCH`
+                    // does (not reused: its `min-w-11` is the sideways growth).
+                    className="group inline-flex min-h-11 -my-3 cursor-pointer items-center md:my-0 md:min-h-0"
                   >
-                    {TAG_LABEL[tag]}
+                    {/* `relative` so that when the chips wrap, a visible chip
+                        paints — and so hit-tests — above the next row's
+                        invisible reach, which overlaps it by 6px: a tap on
+                        the chip you can see always goes to that chip. */}
+                    <span
+                      className={cn(
+                        chipClass,
+                        "relative group-hover:opacity-80",
+                        // The focused chip's ring, M18b scope. `ring-inset` for
+                        // the same reason the calendar cell's is: a chip sits
+                        // inside rows that clip, and an outset ring on the first
+                        // one loses its left edge.
+                        isFocused && "ring-2 ring-brand ring-inset",
+                      )}
+                    >
+                      {TAG_LABEL[tag]}
+                    </span>
                   </button>
                 );
               })}

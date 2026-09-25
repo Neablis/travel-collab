@@ -69,7 +69,8 @@ describe("PhoneTabBar", () => {
     ["/playbooks/day/d1", "Playbooks"],
     ["/playbooks/board", "Trips"],
     ["/playbooks/profile/u1", "Trips"],
-    ["/trips/t1", "Plan"],
+    // A bare trip URL renders Overview (§24), which has no phone tab.
+    ["/trips/t1", null],
     ["/trips/t1?lens=Schedule&view=Timeline", "Plan"],
     ["/trips/t1?lens=Board", "Plan"],
     ["/trips/t1?lens=Map", "Map"],
@@ -81,16 +82,27 @@ describe("PhoneTabBar", () => {
     // tab the URL resolves to.
     ["/trips/t1?view=Map", "Map"],
     ["/trips/t1?view=Plan", "Plan"],
-    // Overview and Calendar have no tab of their own: SPEC §10 gives the phone
-    // two in-trip destinations, so they light Plan rather than nothing.
-    ["/trips/t1?view=Overview", "Plan"],
-    ["/trips/t1?view=Calendar", "Plan"],
+    // Overview and Calendar have no tab of their own, so they light nothing.
+    // They used to light Plan, which marked a tab current whose link leads to
+    // a different screen than the one showing (KI-2026-09-24-l).
+    ["/trips/t1?view=Overview", null],
+    ["/trips/t1?view=Calendar", null],
     ["/trips/t1/pages", "Notebook"],
     ["/trips/t1/pages/p1", "Notebook"],
     ["/invite/tok", null],
   ])("selects %s → %s", (at, expected) => {
     renderAt(at);
     expect(currentTab()).toBe(expected);
+  });
+
+  // KI-2026-09-24-l, the invariant: `aria-current="page"` is on the tab of the
+  // view that is ON SCREEN, or on none. A bare trip URL renders Overview
+  // (SPEC §24, "Entering a trip lands on Overview"), and the phone has no
+  // Overview tab — so nothing may be current. This bar used to light Plan
+  // there, while tapping Plan would have navigated AWAY to `?view=Plan`.
+  it("marks no tab current when a trip opens on Overview, which has no phone tab", () => {
+    renderAt("/trips/t1");
+    expect(currentTab()).toBeNull();
   });
 
   // DRIFT build-check 4, as a test rather than a comment. No click, no
@@ -189,14 +201,15 @@ describe("PhoneTabBar", () => {
   });
 
   describe("PhoneTabBarFallback (what the server renders)", () => {
-    it("renders the same scoped set and current tab, from the pathname alone", () => {
-      url = "/trips/t1";
+    it("renders the trip's scoped set from the pathname alone, and marks no trip tab it cannot know", () => {
+      // `?view=Plan` in the URL on purpose: the fallback cannot read the query,
+      // so even when Plan IS the view, it must not claim it. Guessing Plan is
+      // what lit it over Overview on a bare trip URL (KI-2026-09-24-l).
+      url = "/trips/t1?view=Plan";
       render(<PhoneTabBarFallback />);
 
       expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map", "Notebook"]);
-      // `?lens=` is the one thing it cannot read, so Plan is current — which is
-      // where a bare trip URL actually lands under SPEC §10.
-      expect(screen.getByRole("link", { name: "Plan" }).getAttribute("aria-current")).toBe("page");
+      expect(currentTab()).toBeNull();
     });
 
     it("renders the account pair outside a trip", () => {

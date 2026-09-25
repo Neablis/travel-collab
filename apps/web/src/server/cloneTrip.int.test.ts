@@ -1,9 +1,9 @@
 import { newPageDoc } from "@tc/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "./db/client";
-import { pages } from "./db/schema";
+import { events, pages } from "./db/schema";
 import { executeTripCommand } from "./commands";
 import { getTripDetail } from "./projections";
 import { executePageCommand } from "./pageCommands";
@@ -13,6 +13,25 @@ import { acceptInvite, createInvite } from "./access/invites";
 import { createShare, revokeShare } from "./access/shares";
 
 const actor = "user-1";
+
+// **A pass-through, except when a test switches it on** (KI-2026-09-25-h), the
+// same seam `public-api/export.int.test.ts` uses. Switched on, projecting any
+// event other than a trip's genesis throws inside the transaction projecting
+// it: it stands in for a dropped connection or a pool timeout after the copy's
+// `CreateTrip`, and it fails a compensating `DeleteTrip` as well.
+const injectProjectionFailure = vi.hoisted(() => ({ on: false }));
+vi.mock("./projections", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./projections")>();
+  return {
+    ...real,
+    applyTripEvents: (...args: Parameters<typeof real.applyTripEvents>) => {
+      if (injectProjectionFailure.on && args[1].some((e) => e.type !== "TripCreated")) {
+        return Promise.reject(new Error("Injected: projecting after the trip's genesis failed."));
+      }
+      return real.applyTripEvents(...args);
+    },
+  };
+});
 
 // No beforeEach truncation: every test mints its own randomUUID() tripId and
 // every assertion below reads back through that tripId (getTripDetail,
@@ -378,5 +397,31 @@ describe("clone id remapping — referential integrity", () => {
     const after = (await getTripDetail(source.tripId))!;
     expect(after.days.map((d) => d.dayId)).toEqual(source.dayIds);
     expect(Object.keys(after.activities).sort()).toEqual([...source.activityIds].sort());
+  });
+});
+
+// **A copy's creation and its contents are one transaction** (KI-2026-09-25-h).
+// The failure lands after the copy's `CreateTrip` has been appended and
+// projected, and it fails any cleanup write too, so the only thing that can
+// keep a bare "<name> (copy)" out of the cloner's list is that its creation
+// rolled back with the rest of it.
+describe("a clone that fails after its trip was created", () => {
+  it("leaves no stream at all, not even a deleted one", async () => {
+    const cloner = `user-${randomUUID()}`;
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Lisbon" }, cloner);
+    await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, cloner);
+    const streamsOf = async () =>
+      [...new Set((await db.select().from(events).where(eq(events.actorId, cloner))).map((e) => e.streamId))];
+    const before = await streamsOf();
+
+    injectProjectionFailure.on = true;
+    try {
+      await expect(duplicateTrip(tripId, cloner)).rejects.toThrow("Injected");
+    } finally {
+      injectProjectionFailure.on = false;
+    }
+
+    expect(await streamsOf()).toEqual(before);
   });
 });

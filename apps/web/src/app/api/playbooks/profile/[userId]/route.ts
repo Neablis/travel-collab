@@ -1,6 +1,7 @@
 import { auth } from "@/server/auth";
 import { PublicProfileResponse } from "@/lib/playbooks";
 import { citiesKnownBy, discoverDays, publicAuthor } from "@/server/playbooks";
+import { withDeprecatedProfileAlias } from "@/server/playbookWireAliases";
 
 export const runtime = "nodejs";
 
@@ -56,10 +57,12 @@ export async function GET(
   ]);
 
   return Response.json(
-    PublicProfileResponse.parse({
-      author,
-      knows,
-      days: discovered.days,
-    }),
+    withDeprecatedProfileAlias(
+      PublicProfileResponse.parse({
+        author,
+        knows,
+        days: discovered.days,
+      }),
+    ),
   );
 }

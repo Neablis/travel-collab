@@ -7,8 +7,14 @@
 
 - **What happens.** Two people open the same notebook page. One edits and the
   autosave lands. The other's editor keeps showing the document as it was when
-  they opened it, and their next save overwrites the first person's work —
-  last-write-wins, silently.
+  they opened it~~, and their next save overwrites the first person's work —
+  last-write-wins, silently~~. **Struck 2026-09-25:** every commit now names
+  the revision it was typed against (`expectedUpdatedAt`, a78843b); the server
+  refuses a stale one (`pageCommands.ts:170-174`), and `PageScreen`'s
+  `pageChanged` shows the other person's document and offers the author's own
+  as a restorable draft (`PageScreen.tsx:530-556`). The one remaining
+  last-write-wins path is an unload save overtaking a commit —
+  `KI-2026-09-24-s`.
 
   The Overview tab (`OverviewLens`) DOES live-update as of 2026-09-22: page
   writes became events, so a notebook save moves the trip's `headSeq`, the poll
@@ -22,9 +28,12 @@
   triggered by somebody else's keystroke. That is worse than the staleness it
   fixes.
 
-  A second reason it is not wiring: `PageScreen` is not inside `TripProvider`,
+  ~~A second reason it is not wiring: `PageScreen` is not inside `TripProvider`,
   so it has no `remoteRevision` and no poll. That is fixable (`useTripBroadcast`
-  is a standalone hook and takes a trip id) and is not the hard part.
+  is a standalone hook and takes a trip id) and is not the hard part.~~
+  **Struck 2026-09-25:** `PageScreen` now subscribes with `useTripBroadcast`
+  (`PageScreen.tsx:452`, a029066) — but refetches only `trip` and `globals`,
+  never the page, deliberately, citing this entry (`PageScreen.tsx:423-426`).
 
 - **What it actually wants** is the shape M13 link 4 already chose for stops: a
   CONFLICT, as data, in the page. *"Alice edited this page while you had it
@@ -43,3 +52,8 @@
 
 - **Found by:** building the notebook broadcast, 2026-09-22.
 - **First noted:** 2026-09-22.
+- **Re-verified 2026-09-25 (overnight sweep):** the core still holds — an open
+  editor does not show a co-traveller's edit to the document; the poll now
+  exists but does not re-read the page, and there is no "edited while you had
+  it open" affordance until a save is refused. Two supporting claims struck in
+  place (the silent overwrite on the next save, and "no poll"), with evidence.

@@ -76,6 +76,7 @@ export function ImportTripButton({
     setBusy(true);
     setFailure(null);
     try {
+      // eslint-disable-next-line no-restricted-globals -- the public /api/v1 surface, which answers in its own error envelope rather than the internal routes' shape
       const response = await fetch("/api/v1/trips/import", {
         method: "POST",
         headers: { "content-type": "application/json" },

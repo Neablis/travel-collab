@@ -10,3 +10,4 @@
 - **Not the same as KI-88**, which is the CLASSIFIER failing open on an unparseable verdict. That one has a safe default (the full tool set); this one has no default at all.
 - **Cross-reference:** KI-11 (resolved 2026-09-16 — the harness that found this), `repairToolInput.ts`'s own header, M9's exit gate.
 - **First noted:** 2026-09-16, building M9's replay harness.
+- **Re-verified 2026-09-25 (overnight sweep):** STILL TRUE. `repairToolCall` (`handleAskRequest.ts:483-492`) still returns `null` when `JSON.parse(toolCall.input)` throws (:486-489), which aborts the run; the replay transcript `server/ai/eval/transcripts/mangled-tool-input.json` still records `"outcome": "error"`, `"answered": false`.

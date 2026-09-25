@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Page, UpdatePageInput, serializePageDoc } from "@tc/contracts";
-import { getPage } from "@/server/pages";
+import { MAX_PAGE_BODY_BYTES, getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { PublicApiError } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
@@ -35,6 +35,8 @@ export const { GET, PATCH, DELETE } = route({
     trip: "path",
     role: "editor",
     body: V1UpdatePageInput,
+    // The same ceiling the session route has (KI-2026-09-05-f item 1).
+    maxBodyBytes: MAX_PAGE_BODY_BYTES,
     response: Page,
     handle: async ({ actor, params, body }) => {
       await ofThisTrip(params["pageId"]!, params["tripId"]!);
