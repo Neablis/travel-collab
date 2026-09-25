@@ -10,7 +10,7 @@ import { useEffect, type RefObject } from "react";
  * scrollport. `AssistantRail`'s `overflow-y-auto` column does, and the New-trip
  * sheet's thread will. `scrollIntoView` moves **every** scrollable ancestor
  * rather than the one that was meant, which is why SPEC §30.6 bans it repo-wide
- * and why KI-2026-09-13-a is an open bug in that family. Dropped into a second
+ * and why KI-2026-09-13-a was a bug in that family. Dropped into a second
  * scrollport it would have fought the sheet's own pinning.
  *
  * So the job moves to whoever owns the scrollport, and becomes explicit about

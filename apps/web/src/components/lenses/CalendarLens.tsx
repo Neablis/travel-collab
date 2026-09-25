@@ -439,7 +439,10 @@ export function CalendarLens({
         aria-pressed={focusedDay === ordinal - 1}
         onClick={() => setFocusedDay(ordinal - 1)}
         className={cn(
-          "h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90",
+          // `day-sync-target`: the clause-2/3 follow above scrolls this cell
+          // into view, and the class keeps it clear of the sticky header
+          // stack when it does (globals.css, KI-2026-09-13-a).
+          "day-sync-target h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90",
           // Mitchell, preview feedback on PR #55: "There should be a border on
           // the day card when i click, and the day is selected, either on the
           // day cards at top, or the clicking here." The click already set

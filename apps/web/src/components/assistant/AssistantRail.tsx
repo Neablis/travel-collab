@@ -520,7 +520,7 @@ export function AssistantRail({
   // **This column is the scrollport, so pinning belongs here** rather than
   // inside `Transcript`, which owns none. The component used to scroll itself
   // with `scrollIntoView`, which moves every scrollable ancestor — banned by
-  // SPEC §30.6, and the reason KI-2026-09-13-a is open.
+  // SPEC §30.6, and the family KI-2026-09-13-a belonged to.
   const scrollportRef = useRef<HTMLDivElement | null>(null);
   // `[turns]` and not `[turns.length]`: a streaming answer mutates the LAST
   // turn without adding one, and following the tokens as they arrive is the
