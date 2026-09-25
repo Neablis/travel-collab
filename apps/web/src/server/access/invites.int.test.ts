@@ -14,7 +14,8 @@ import {
   listInvites,
   revokeInvite,
 } from "./invites";
-import { effectiveMembers, grantMembership, sharedTripIds, withProfiles } from "./members";
+import { effectiveMembers, grantMembership, removeMember, sharedTripIds, withProfiles } from "./members";
+import { readInviteLanding } from "../inviteLanding";
 
 // Fresh identities per TEST (KI-69), replacing the fixed "dev-alice"/"dev-bob".
 //
@@ -182,6 +183,33 @@ describe("invites — create, accept, revoke", () => {
       ok: true,
       value: { tripId, role: "editor" },
     });
+  });
+
+  // KI-2026-09-05-f item 5 (F-A06): `removeMember` deletes the membership and
+  // leaves the invite `accepted`, so "you already spent this link" is no longer
+  // true in the sense that matters — and accept said `ok` with a role the
+  // person no longer held, while the landing said "already been used". Both
+  // endpoints are asked here, because agreeing with each other is the claim.
+  it("stops answering success for a spent link once its member is removed", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    expect((await acceptInvite(invite.token, GUEST)).ok).toBe(true);
+    const detail = (await getTripDetail(tripId))!;
+    expect(await removeMember(tripId, GUEST, detail.members)).toBe("removed");
+
+    const used = "This invite has already been used.";
+    expect(await acceptInvite(invite.token, GUEST)).toEqual({
+      ok: false,
+      error: { code: "gone", message: used },
+    });
+    expect((await readInviteLanding(invite.token, GUEST)).landing).toMatchObject({
+      state: "unavailable",
+      message: used,
+    });
+    // And nothing was re-granted on the way.
+    expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
+      { userId: OWNER, role: "owner" },
+    ]);
   });
 
   // CodeRabbit, PR #70, confirmed against the code: the already-a-member guard

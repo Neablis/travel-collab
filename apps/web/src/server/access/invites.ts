@@ -7,7 +7,7 @@ import type {
   InviteStatus,
   TripInvite,
 } from "@tc/contracts";
-import { db } from "../db/client";
+import { db, type Queryable } from "../db/client";
 import { tripInvites } from "../db/schema";
 import { isUuid } from "../ids";
 import { getTripDetail } from "../projections";
@@ -252,7 +252,18 @@ export async function acceptInvite(
   // Re-visiting a link you already spent is a success, not an error — checked
   // BEFORE the membership guard below, which would otherwise turn a
   // double-click into "You are already on this trip."
-  if (existing.status === "accepted" && existing.acceptedBy === userId) {
+  //
+  // Only while the membership it bought still stands (KI-2026-09-05-f item 5).
+  // `removeMember` deletes the membership and leaves this row `accepted`, and
+  // without the check a removed person re-opening their link was told `ok`
+  // with a role they no longer hold — then 403'd on the trip — while the
+  // landing (`readInviteLanding`) told them "already been used". Falling
+  // through lands in the transaction's re-read, which now says the same.
+  if (
+    existing.status === "accepted" &&
+    existing.acceptedBy === userId &&
+    (await isOnTrip(db, detail, userId))
+  ) {
     return { ok: true, value: { tripId: existing.tripId, role: existing.role as InviteRole } };
   }
   try {
@@ -263,6 +274,12 @@ export async function acceptInvite(
     }
     throw error;
   }
+}
+
+/** Whether `userId` is on the trip now — the planning log's owner or a granted row. */
+async function isOnTrip(tx: Queryable, detail: TripDetail, userId: string): Promise<boolean> {
+  const members = mergeMembers(detail.members, await grantedMembers(tx, detail.tripId));
+  return members.some((m) => m.userId === userId);
 }
 
 function acceptInviteTransaction(
@@ -298,10 +315,19 @@ function acceptInviteTransaction(
     if (row === undefined) {
       // Lost the race, or the link was already spent/revoked. Re-read to say
       // which, because "already used by you" is a success from where the
-      // person clicking is standing.
+      // person clicking is standing — if it bought a membership that is still
+      // there. The membership read is a fresh statement, so under READ
+      // COMMITTED it sees a racing double-click's committed grant (a success)
+      // and, equally, the absence left by `removeMember` (not one: the fast
+      // path above falls through to here for exactly that person).
       const found = await tx.select().from(tripInvites).where(eq(tripInvites.token, token));
       const current = found[0];
-      if (current !== undefined && current.status === "accepted" && current.acceptedBy === userId) {
+      if (
+        current !== undefined &&
+        current.status === "accepted" &&
+        current.acceptedBy === userId &&
+        (await isOnTrip(tx, detail, userId))
+      ) {
         return { ok: true, value: { tripId: current.tripId, role: current.role as InviteRole } };
       }
       return {
