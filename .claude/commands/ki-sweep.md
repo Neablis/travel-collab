@@ -114,7 +114,8 @@ appended to the heading inside that file, and the proof line present, per the
 In the main session, one KI at a time:
 
 1. Run the **full `pnpm check`** once — serially, never concurrently.
-2. Open a PR using `.github/PULL_REQUEST_TEMPLATE.md`. Fill in **Verification
+2. Open a **draft** PR using `.github/PULL_REQUEST_TEMPLATE.md` (the
+   draft-PR guard hook asks otherwise). Fill in **Verification
    actually performed** honestly, including what was *not* run and why.
 3. Wait on checks in the correct order — straight after a push, `--watch` can
    return in a second with the *previous* commit's green results:
