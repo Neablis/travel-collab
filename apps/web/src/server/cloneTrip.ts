@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { BatchableCommand, TripDetail, TripLineage } from "@tc/contracts";
-import { diffTripStates, hydrate, type TripState } from "@tc/domain";
-import { executeTripCommand, executeTripCommandBatch, type CommandResult } from "./commands";
+import { decideTripCommand, diffTripStates, evolveTrip, hydrate, type TripState } from "@tc/domain";
+import { executeTripCreation, type CommandResult } from "./commands";
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { readShareForClone } from "./access/shares";
@@ -77,11 +77,7 @@ async function cloneFrom(
   { clearDates = false }: { clearDates?: boolean } = {},
 ): Promise<CommandResult> {
   const tripId = randomUUID();
-  const created = await executeTripCommand(
-    { type: "CreateTrip", tripId, name, forkedFrom: lineage },
-    actorId,
-  );
-  if (!created.ok) return created;
+  const create = { type: "CreateTrip", tripId, name, forkedFrom: lineage } as const;
   // Planning state only. The source's Notebook pages are NOT copied: pages are
   // a separate CRUD module referencing trips by id (ADR-014), and cloning prose
   // is template machinery, which is link 6's bet.
@@ -90,15 +86,23 @@ async function cloneFrom(
   // state and a target, emit the events that produce the target. Turning those
   // events back into commands keeps the copy inside the normal pipeline.
   //
+  // The empty state is the copy's genesis, folded here rather than read back
+  // after a write: the commands have to exist BEFORE anything is written so the
+  // creation and the contents can be one transaction (below). It is the same
+  // decide + evolve the pipeline runs on `CreateTrip`, so it is the state the
+  // follow-up will be decided against.
+  //
   // The target's name must be the COPY's name, not the source's. CreateTrip
-  // above already set it; if the target still carried the source name the diff
+  // already sets it; if the target still carried the source name the diff
   // would emit a TripNameSet stripping the change straight back off — the copy
   // would silently end up sharing the original's name.
   //
   // `forkedFrom` is taken from the copy's own genesis state for the same
   // reason: the source's lineage (if it was itself a clone) is not this trip's,
   // and lineage is not diffable anyway — no command changes it.
-  const empty = hydrate(created.detail);
+  const genesis = decideTripCommand(null, create, { actorId });
+  if (!genesis.ok) return { ok: false, error: genesis.rejection };
+  const empty = genesis.events.reduce<TripState | null>(evolveTrip, null)!;
   const target = {
     ...remapIds(hydrate(source), tripId),
     name,
@@ -109,36 +113,19 @@ async function cloneFrom(
     // the days too would make Duplicate a rename of an empty trip.
     ...(clearDates ? { startDate: null } : {}),
   };
+  // `eventToCommand` is total over what an empty→target diff can emit, and
+  // throws by construction if that ever stops being true — before any write.
   const commands = diffTripStates(empty, target).map((e) => eventToCommand(e, tripId));
-  if (commands.length === 0) return created;
 
-  // `CreateTrip` above committed in its OWN transaction — the command pipeline
-  // opens one per execution — so by the time the batch runs, the copy already
-  // exists. Without compensation a failed batch strands a bare, named
-  // "<name> (copy)" trip in the cloner's list with none of the plan in it, and
-  // reports an error at the same time (CodeRabbit, PR #70).
-  //
-  // A compensating DeleteTrip rather than one transaction spanning both: the
-  // atomic version means threading an outer transaction through
-  // executeTripCommand/executeTripCommandBatch, which is a change to the
-  // command pipeline itself (AGENTS.md invariant 1's machinery) and much
-  // larger than the defect. This is a soft delete, so the stream survives and
-  // the husk is filtered out of every summary read — visible only to a
-  // rebuild, which is the correct trace of an attempt that happened.
-  //
-  // The throw path matters too: `eventToCommand` is total over what an
-  // empty→target diff can emit, but it throws by construction if that ever
-  // stops being true, and an exception would strand the trip just as a
-  // rejection does.
-  let batched: CommandResult;
-  try {
-    batched = await executeTripCommandBatch(commands, actorId);
-  } catch (error) {
-    await executeTripCommand({ type: "DeleteTrip", tripId }, actorId);
-    throw error;
-  }
-  if (!batched.ok) await executeTripCommand({ type: "DeleteTrip", tripId }, actorId);
-  return batched;
+  // **Creation and contents are ONE transaction** (KI-2026-09-25-h). The copy
+  // used to be `CreateTrip` in its own transaction, then the batch, then a
+  // compensating `DeleteTrip` if the batch failed — and when that delete failed
+  // too, a bare "<name> (copy)" stayed live in the cloner's list with none of
+  // the plan in it. `executeTripCreation` rolls the genesis back with the
+  // contents on a refusal or a throw alike, so a failed copy leaves no stream.
+  // Two appends inside it, so the copy's history reads "created", then the
+  // copied plan, exactly as before.
+  return executeTripCreation(create, commands, actorId);
 }
 
 /**
@@ -157,8 +144,9 @@ export async function duplicateTrip(sourceTripId: string, actorId: string): Prom
   // (ADR-031). It has to branch before the membership check below rather than
   // satisfy it: the demo grants every visitor `viewer` at the access seam, but
   // its member list names invented people, so `hasAtLeast` would refuse a real
-  // account. Everything after this line — the id remap, the diff, the
-  // compensating delete — is the path any other copy takes.
+  // account. Everything after this line — the id remap, the diff, the one
+  // transaction that creates and fills the copy — is the path any other copy
+  // takes.
   if (isDemoTripId(sourceTripId)) return cloneDemoTrip(actorId);
   const source = await getTripDetail(sourceTripId);
   if (source === null) {
