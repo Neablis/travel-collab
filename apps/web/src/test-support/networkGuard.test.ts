@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { http as mswHttp, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { blockedRequestMessage, connectTarget, guardFetch } from "./networkGuard";
+import { blockedRequestMessage, connectTarget, guardFetch, isAllowedSocketHost } from "./networkGuard";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -135,6 +135,50 @@ describe("the test network guard, beneath fetch", () => {
       expect(server.hits()).toBe(2);
     } finally {
       server.close();
+    }
+  });
+
+  // The integration lane's Postgres is not always `localhost`: in a container
+  // `DATABASE_URL` names `db:5432` or `postgres`, on Docker Desktop
+  // `host.docker.internal`, and on some Linux boxes `127.0.1.1`. Refusing those
+  // killed the whole lane at its first query, so the guard also lets through
+  // whatever host `DATABASE_URL` names (read at connect time), and all of
+  // 127.0.0.0/8 (next case). `lookup` points `db` at a local server so nothing
+  // leaves.
+  it("lets through the host DATABASE_URL names, and still refuses a third party", async () => {
+    vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@db:5432/travel");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const server = await countingServer();
+    const lookup = ((_host: string, options: { all?: boolean }, callback: (...args: unknown[]) => void) =>
+      options.all ? callback(null, [{ address: "127.0.0.1", family: 4 }]) : callback(null, "127.0.0.1", 4)) as never;
+    try {
+      expect(await get({ host: "db", port: server.port, path: "/", lookup })).toBe("reached");
+      expect(await get({ host: "third-party.invalid", port: server.port, path: "/", lookup })).toBe(
+        `error: ${blockedRequestMessage(`third-party.invalid:${server.port}`)}`,
+      );
+      expect(server.hits()).toBe(1);
+    } finally {
+      vi.unstubAllEnvs();
+      server.close();
+    }
+  });
+
+  // Decided on the name alone, so no server is needed — and binding one on
+  // 127.0.1.1 would not work on macOS, whose loopback is only 127.0.0.1.
+  it("treats all of 127/8 as this machine, and each DATABASE_URL host only while it is named", () => {
+    vi.stubEnv("DATABASE_URL", "postgres://u:p@host.docker.internal:5432/travel");
+    try {
+      for (const host of ["127.0.1.1", "127.255.255.254", "host.docker.internal"]) {
+        expect(isAllowedSocketHost(host), host).toBe(true);
+      }
+      for (const host of ["128.0.0.1", "127.example.com", "db", "third-party.invalid"]) {
+        expect(isAllowedSocketHost(host), host).toBe(false);
+      }
+      vi.stubEnv("DATABASE_URL", "postgres://u:p@[fd00::5]:5432/travel");
+      expect(isAllowedSocketHost("fd00::5")).toBe(true);
+      expect(isAllowedSocketHost("host.docker.internal")).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
     }
   });
 
