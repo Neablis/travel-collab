@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { executeTripCommand } from "./commands";
 import { getTripDetail, listTripSummaries, listTripSummariesPage, listTripSummariesVisibleTo, rebuildProjections } from "./projections";
 import { db } from "./db/client";
-import { tripDetails, tripSummaries } from "./db/schema";
+import { events, tripDetails, tripSummaries } from "./db/schema";
 
 // Per run rather than the fixed "u1" (KI-69), so this file's events cannot be
 // confused with another suite's or a developer's own.
@@ -168,6 +168,35 @@ describe("getTripDetail parses the stored document", () => {
     expect(activities[0]!.kind).toBe("planned");
     expect(activities[0]!.tags).toEqual([]);
     expect(detail!.forkedFrom).toBeNull();
+  });
+
+  // M28 (ADR-054): `idea`, `hold` and `booked` are retired, and every trip
+  // older than M28 still holds them — in its log and in its stored doc. The
+  // contract translates them on read; these two assert it at the two places a
+  // real old trip is read from, rather than at the schema alone.
+  it("reads a doc stored with a retired kind as its replacement", async () => {
+    const tripId = await seedDay();
+    await rewriteDoc(tripId, (doc) => {
+      const activities = doc.activities as Record<string, Record<string, unknown>>;
+      for (const activity of Object.values(activities)) activity.kind = "booked";
+    });
+
+    const detail = await getTripDetail(tripId);
+    expect(Object.values(detail!.activities).map((a) => a.kind)).toEqual(["planned"]);
+  });
+
+  it("rebuilds a trip whose log holds a retired kind, with the kind translated", async () => {
+    const tripId = await seedDay();
+    // The log is append-only in the product; only a test (standing in for a
+    // pre-M28 server) writes an old kind back into a stored payload.
+    await db
+      .update(events)
+      .set({ payload: sql`jsonb_set(${events.payload}, '{kind}', '"hold"')` })
+      .where(and(eq(events.streamId, tripId), eq(events.type, "ActivityAdded")));
+
+    await rebuildProjections();
+    const detail = await getTripDetail(tripId);
+    expect(Object.values(detail!.activities).map((a) => a.kind)).toEqual(["pending"]);
   });
 
   it("refuses a stored doc that is not a TripDetail, rather than returning it", async () => {
