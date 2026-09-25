@@ -5,7 +5,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
-import { pageFixture, tripDetailFixture } from "@tc/factories";
+import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
@@ -56,6 +56,32 @@ const server = setupServer(
     HttpResponse.json({ history: { tripId: params.tripId, entries: [], canUndo: false, canRedo: false } }),
   ),
 );
+
+// **Each test gets its own page id, and a request for any other page is
+// refused before the test's handlers see it** (KI-2026-09-24-t). Unmounting
+// commits the session, and a commit queued behind a slow one is sent only when
+// that one answers — which can be during the next test. With one shared id the
+// next test's PATCH handler answered it, and moved its page. Waiting in
+// `afterEach` for requests to settle would only make that unlikely: several
+// tests here hold a PATCH open for good, so the wait needs a timeout. Refusing
+// by id makes it impossible. `server.use` prepends, so the guard is re-added in
+// front of every set a test installs.
+let testPageId = "";
+beforeEach(() => {
+  testPageId = crypto.randomUUID();
+});
+function pageFixture(overrides: Parameters<typeof sharedPageFixture>[0] = {}) {
+  return sharedPageFixture({ id: testPageId, ...overrides });
+}
+/** Page ids an earlier test's request carried, refused on the way in. */
+const refusedWrites: string[] = [];
+const otherTestsPages = http.all("/api/trips/:tripId/pages/:pageId", ({ params }) => {
+  if (params.pageId === testPageId) return undefined;
+  refusedWrites.push(params.pageId as string);
+  return HttpResponse.json({ error: "a page from another test" }, { status: 410 });
+});
+const installHandlers = server.use.bind(server);
+server.use = (...handlers) => installHandlers(otherTestsPages, ...handlers);
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 // Unmount FIRST: leaving a page mid-session commits it (ADR-036), and that
 // write has to reach this test's handlers rather than the defaults.
@@ -1816,5 +1842,55 @@ describe("PageScreen while its first read is pending", () => {
     const { container } = render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
 
     expect(container.textContent).not.toMatch(/Loading/);
+  });
+});
+
+// KI-2026-09-24-t, the guard at the top of this file. The first test ends with
+// its unmount commit queued behind a PATCH it never lets answer; the second
+// lets it answer, so the queued write is sent during the second test. Without
+// the guard, the second test's handler takes it. The pair runs in order and
+// must stay together.
+describe("PageScreen — a write left behind by an earlier test", () => {
+  let releaseEarlier: (() => void) | undefined;
+
+  it("ends with its unmount commit queued behind a slow one", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    const answered = new Promise<void>((resolve) => (releaseEarlier = resolve));
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", async () => {
+        await answered;
+        return HttpResponse.json({ page: { ...page, updatedAt: new Date().toISOString() } });
+      }),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const box = () => screen.queryAllByRole("textbox").find((el) => el.getAttribute("contenteditable") === "true")!;
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    await userEvent.type(box(), "Q");
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    await userEvent.type(box(), "Z");
+  });
+
+  it("is not answered by the next test's handlers", async () => {
+    expect(releaseEarlier, "runs only after the test above").toBeDefined();
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    const mine: string[] = [];
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", ({ params }) => {
+        mine.push(params.pageId as string);
+        return HttpResponse.json({ page });
+      }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    // Cleared first: an earlier test's refusal would end the wait below
+    // before this pair's write had been sent at all.
+    refusedWrites.length = 0;
+    releaseEarlier?.();
+    await vi.waitFor(() => expect(mine.length + refusedWrites.length).toBeGreaterThan(0));
+    expect(mine).toEqual([]);
   });
 });
