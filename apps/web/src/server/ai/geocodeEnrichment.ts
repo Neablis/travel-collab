@@ -73,10 +73,12 @@ export interface LocationEnrichmentReport {
   // verify the location for X" about a stop we had in fact just placed.
   cityLevel: string[];
   // Accepted, but there was nothing to check it against: no model hint, and no
-  // region yet. Only reachable for the FIRST lookup of a trip that has no
-  // geocoded activities — after that, bootstrapping supplies a region. Reported
-  // for honesty but deliberately NOT surfaced to the user: on a freshly planned
-  // trip it would otherwise fire on every location, every time.
+  // region yet. Reachable for the FIRST lookup of a trip that has no geocoded
+  // activities — after that, bootstrapping supplies a region — and for a transit
+  // leg's hint-less destination, which is never judged against the region (see
+  // `enrichCommandLocations`). Reported for honesty but deliberately NOT
+  // surfaced to the user: on a freshly planned trip it would otherwise fire on
+  // every location, every time.
   unchecked: string[];
   // The lookup threw: rate limit, vendor outage, missing API key.
   failed: string[];
@@ -408,7 +410,8 @@ function cityLookupOf(location: Location): { key: string; query: string } | null
  * trip has no geocoded activities, so `tripRegion` is null and the first lookup
  * has nothing to check against; lookups are sequential, so each coordinate
  * settled on anchors the rest. Only the first lookup of a region-less trip can
- * come back `unchecked`.
+ * come back `unchecked` — bar a transit leg's destination, which is judged
+ * without the region at all (`destinations`; see `enrichCommandLocations`).
  *
  * **Dedupe is one lookup per name, not one answer per name.** Two commands
  * sharing a display name are not guaranteed to be the same place, so the
@@ -422,14 +425,24 @@ function cityLookupOf(location: Location): { key: string; query: string } | null
  *
  * @param tripRegion - Bias from the trip's already-geocoded activities, if any
  * @param sleep - Throttle delay, injected as a no-op by tests
+ * @param destinations - The slots that are a transit leg's `endLocation`
  */
-export async function enrichCommandLocations(
+async function enrichLocationSlots(
   commands: BatchableCommand[],
   getGeocoder: () => Geocoder,
   tripRegion: BoundingBox | null = null,
   sleep?: (ms: number) => Promise<void>,
   charge: GeocodeCharge = UNMETERED,
+  destinations: ReadonlySet<BatchableCommand> = new Set(),
 ): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
+  // A destination is judged differently (see `enrichCommandLocations`), so it
+  // must never share a lookup — or an answer — with an ordinary stop of the
+  // same name. Both kinds are prefixed, so no name can forge the other's key;
+  // the keys never leave this function, and the report is built from `name`.
+  const kindOf = (command: BatchableCommand) => (destinations.has(command) ? "end|" : "stop|");
+  const keyOf = (command: LocationCommand & { location: Location }) =>
+    kindOf(command) + normalize(command.location.name);
+
   // Dedupe by normalized name, keeping the first spelling and the first
   // plausible coordinate hint seen for it. This drives the ONE shared
   // geocoder lookup per unique name and nothing else — it is not the source
@@ -439,7 +452,7 @@ export async function enrichCommandLocations(
   // the stops it SKIPS looking up (see `isServerLocated` below), so the report
   // has to exist by then.
   const report = emptyReport();
-  const pending = new Map<string, { name: string; hint: LatLng | null }>();
+  const pending = new Map<string, { name: string; hint: LatLng | null; destination: boolean }>();
   for (const command of commands) {
     if (!hasLocation(command)) continue;
     // **Already located by the server — do not look it up again** (M9
@@ -461,11 +474,11 @@ export async function enrichCommandLocations(
       report.verified.push(command.location.name);
       continue;
     }
-    const key = normalize(command.location.name);
+    const key = keyOf(command);
     const existing = pending.get(key);
     const hint = plausibleCoords(command.location);
     if (!existing) {
-      pending.set(key, { name: command.location.name, hint });
+      pending.set(key, { name: command.location.name, hint, destination: destinations.has(command) });
     } else if (!existing.hint && hint) {
       existing.hint = hint;
     }
@@ -503,15 +516,17 @@ export async function enrichCommandLocations(
   // rest of the batch where this trip is — the Rochester run anchors on
   // whichever place resolves first, and a Shropshire match for the next name is
   // then rejected on region alone, with no model hint needed. Only the first
-  // lookup of a region-less trip can come back `unchecked`.
+  // lookup of a region-less trip can come back `unchecked` — and a destination,
+  // which never sees the region and never anchors it.
   const anchors: LatLng[] = [];
-  const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint }]) => {
-    const region = tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
+  const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint, destination }]) => {
+    const region = destination ? null : tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
     const resolution = await resolveOne(geocoder, name, hint, region);
     // Anything we settled on is evidence about where the trip is — including a
     // rejected lookup's surviving model hint. A `failed` lookup taught us
-    // nothing new, so it contributes nothing.
-    if (resolution.outcome !== "failed") {
+    // nothing new, so it contributes nothing, and neither does a destination:
+    // it was judged without the region, so it cannot be evidence for it.
+    if (resolution.outcome !== "failed" && !destination) {
       const coords = plausibleCoords(resolution.location);
       if (coords) anchors.push(coords);
     }
@@ -547,18 +562,22 @@ export async function enrichCommandLocations(
   // carry different cities, and applying one command's city to another's stop is
   // the relocation bug the per-command resolution below already exists to
   // prevent.
-  const cityQueries = new Map<string, string>();
+  const cityQueries = new Map<string, { query: string; destination: boolean }>();
   const wantsCity = new Map<BatchableCommand, { cityKey: string; nameKey: string }>();
   for (const command of commands) {
     if (!hasLocation(command)) continue;
-    const nameKey = normalize(command.location.name);
+    const nameKey = keyOf(command);
     const outcome = resolutionByKey.get(nameKey)?.outcome;
     if (outcome !== "unverified" && outcome !== "failed") continue;
     if (plausibleCoords(command.location)) continue;
     const lookup = cityLookupOf(command.location);
     if (!lookup) continue;
-    wantsCity.set(command, { cityKey: lookup.key, nameKey });
-    if (!cityQueries.has(lookup.key)) cityQueries.set(lookup.key, lookup.query);
+    // Keyed apart for the same reason as the venue lookup: a destination's
+    // city is judged without the region, an ordinary stop's city is not.
+    const destination = destinations.has(command);
+    const cityKey = kindOf(command) + lookup.key;
+    wantsCity.set(command, { cityKey, nameKey });
+    if (!cityQueries.has(cityKey)) cityQueries.set(cityKey, { query: lookup.query, destination });
   }
 
   // City lookups spend the SAME per-batch budget as venue lookups and go
@@ -592,7 +611,8 @@ export async function enrichCommandLocations(
     const resolvedCities = await mapRateLimited(
       affordableCities,
       MIN_INTERVAL_MS,
-      async ([key, query]) => [key, await resolveCityCoords(geocoder, query, region)] as const,
+      async ([key, { query, destination }]) =>
+        [key, await resolveCityCoords(geocoder, query, destination ? null : region)] as const,
       wait,
     );
     for (const [key, coords] of resolvedCities) if (coords) cityCoords.set(key, coords);
@@ -655,7 +675,7 @@ export async function enrichCommandLocations(
       // one thing this module may never do (KI-15) and precisely the demotion
       // M9's grounding is supposed to guarantee.
       if (isServerLocated(command.location)) return command;
-      const resolution = resolutionByKey.get(normalize(command.location.name));
+      const resolution = resolutionByKey.get(keyOf(command));
       if (!resolution) return command;
       // `verified`/`unchecked` both carry a real geocoder match (`found`,
       // stored as `resolution.location`) keyed only by name — reusing it
@@ -697,4 +717,77 @@ export async function enrichCommandLocations(
     }),
     report,
   };
+}
+
+function hasEndLocation(command: BatchableCommand): command is LocationCommand & { endLocation: Location } {
+  return (command.type === "AddActivity" || command.type === "UpdateActivity") && command.endLocation != null;
+}
+
+/**
+ * A batch's locations, resolved — each command's `location` and, for a transit
+ * stop, its `endLocation` (M24). See `enrichLocationSlots` above for the rules.
+ *
+ * **An `endLocation` goes through the same pipeline as a `location`, because it
+ * is handed to it as one.** Each is expanded into a slot of its own — a copy of
+ * its command with the destination in `location` — so it gets the same dedupe,
+ * budget, quota, refine-never-relocate check and city fallback, and is folded
+ * back afterwards. One slot per place, so a leg costs the batch two lookups
+ * against the same per-batch cap rather than one uncounted extra.
+ *
+ * **One exception: a destination is judged without the region box**
+ * (KI-2026-09-25-m, CodeRabbit on #230). The box is the trip's footprint, or on
+ * a trip with no located stops 150 km around the batch's first answer — and a
+ * leg's far end is outside it by nature: Odawara → Kyoto is ~290 km, a flight
+ * to a new country is a continent. Judged by the box, every such destination
+ * came back `unverified` with no coordinates. So a destination slot is resolved
+ * exactly as the region-less first stop of a new trip is:
+ *
+ * - with a model hint, the match must still sit within `MAX_REFINE_KM` of it —
+ *   `verified` if so, the hint kept as the `unverified` fallback if not. The
+ *   hint is the only check left, so a same-named place in the wrong country is
+ *   still refused whenever the model said where it meant;
+ * - with no hint, the match is taken and reported `unchecked` — coordinates
+ *   applied, never claimed `verified`, not surfaced to the user;
+ * - its city fallback is region-less on the same terms.
+ *
+ * And it **never anchors** the region the batch bootstraps for everything else:
+ * an answer judged without the box is not evidence about where the trip is, and
+ * letting a Kyoto destination widen an Odawara box would admit ordinary stops
+ * the box exists to refuse. Origins and ordinary stops are judged, anchor and
+ * dedupe exactly as before; a batch with no leg is byte-for-byte the old path.
+ */
+export async function enrichCommandLocations(
+  commands: BatchableCommand[],
+  getGeocoder: () => Geocoder,
+  tripRegion: BoundingBox | null = null,
+  sleep?: (ms: number) => Promise<void>,
+  charge: GeocodeCharge = UNMETERED,
+): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
+  const slots: BatchableCommand[] = [];
+  const destinations = new Set<BatchableCommand>();
+  for (const command of commands) {
+    slots.push(command);
+    if (!hasEndLocation(command)) continue;
+    const destination = { ...command, location: command.endLocation };
+    destinations.add(destination);
+    slots.push(destination);
+  }
+  if (slots.length === commands.length) {
+    return enrichLocationSlots(commands, getGeocoder, tripRegion, sleep, charge);
+  }
+  const enriched = await enrichLocationSlots(slots, getGeocoder, tripRegion, sleep, charge, destinations);
+  const folded: BatchableCommand[] = [];
+  let i = 0;
+  for (const command of commands) {
+    const resolved = enriched.commands[i++]!;
+    if (!hasEndLocation(command)) {
+      folded.push(resolved);
+      continue;
+    }
+    const end = enriched.commands[i++] as LocationCommand;
+    // The end slot's `location` IS the resolved destination; the origin slot's
+    // own `endLocation` is still the raw one, so it is replaced, not merged.
+    folded.push({ ...(resolved as LocationCommand), endLocation: end.location ?? command.endLocation });
+  }
+  return { commands: folded, report: enriched.report };
 }

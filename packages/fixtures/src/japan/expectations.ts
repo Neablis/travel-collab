@@ -7,7 +7,7 @@
 //
 // See docs/guidelines/fixtures-and-seed-data.md for the procedure.
 
-import type { ActivityKind, ActivityTag } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag } from "@tc/contracts";
 import type { JapanTripReport, SavedDayOwnerReport } from "./verify.ts";
 
 export type JapanTripExpectations = {
@@ -17,6 +17,8 @@ export type JapanTripExpectations = {
   activityCount: number;
   kinds: Record<ActivityKind, number>;
   tags: Record<ActivityTag, number>;
+  modes: Record<ActivityMode, number>;
+  withEndLocation: number;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -47,6 +49,16 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   kinds: { booked: 18, hold: 2, idea: 6, planned: 37, transit: 9 },
   tags: { lodging: 4, meal: 33, outdoors: 11, ticketed: 8 },
   untaggedCount: 18,
+
+  // M24. Every one of the nine transit stops says how it travels, and five
+  // name where they end (the rest end somewhere the fixture has no row for —
+  // see `endsAt` in trip.ts). Typed over every ActivityMode like `kinds`, but
+  // NOT held to "every value > 0": this trip really is trains, a flight and
+  // two ferries, and a walk/bus/car/bike leg invented to fill the histogram
+  // would be the fixture lying about the trip. Zeros are pinned instead, so a
+  // mode appearing or vanishing is still a finding.
+  modes: { walk: 0, bus: 0, train: 6, flight: 1, ferry: 2, car: 0, bike: 0 },
+  withEndLocation: 5,
 
   // All 72, including the 21 the geocoder could not pin to the right venue
   // (KI-39) and which carry hand-authored coordinates instead. The Map and
@@ -175,6 +187,8 @@ export function diffAgainstExpectations(
   scalar("activityCount", report.activityCount, expected.activityCount);
   scalar("kinds", report.kinds, expected.kinds);
   scalar("tags", report.tags, expected.tags);
+  scalar("modes", report.modes, expected.modes);
+  scalar("withEndLocation", report.withEndLocation, expected.withEndLocation);
   scalar("untaggedCount", report.untaggedCount, expected.untaggedCount);
   scalar("withCoordinates", report.withCoordinates, expected.withCoordinates);
   scalar("withCost", report.withCost, expected.withCost);

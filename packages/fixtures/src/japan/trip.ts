@@ -18,7 +18,7 @@
 // asserts every field below still matches that export, so a re-sync that
 // changes the trip fails loudly instead of diverging in silence.
 //
-// `tags`, `lat`/`lng` and the backlog's `city` are OURS — the export carries
+// `tags`, `lat`/`lng`, `mode`/`endsAt` (M24) and the backlog's `city` are OURS — the export carries
 // none of them (its `enums` block lists only `stopStatus`). Tags are
 // hand-authored per M18's rule that inferring them from title text is the
 // prose parse that milestone disqualifies. Coordinates are the union of
@@ -36,7 +36,7 @@
 // here, extend `expectations.ts` so every value of a new enum is covered, and
 // `pnpm seed:verify` will tell you what you missed.
 
-import type { ActivityKind, ActivityTag } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag } from "@tc/contracts";
 
 /** One scheduled stop, placed on a numbered day. */
 export type JapanStop = {
@@ -97,6 +97,19 @@ export type JapanStop = {
   who: "all" | string[];
   lat: number;
   lng: number;
+  /** How a `transit` stop travels (M24). Ours, like `tags`: the export has no such field. */
+  mode?: ActivityMode;
+  /**
+   * Where a `transit` stop's leg ENDS, named as the id of another row whose
+   * place it arrives at — "Shinkansen Odawara → Kyoto" ends at the Kyoto
+   * Station row. A reference rather than a place of its own so every
+   * `endLocation` coordinate is one this file already carries and verifies,
+   * never one typed from memory (KI-39). Set only where the from/to is
+   * obvious and the destination is a place the trip visits; a leg into
+   * somewhere the fixture has no row for (Tokyo Station, Hakone-Yumoto) or a
+   * two-mode leg whose far end is a city carries a `mode` alone.
+   */
+  endsAt?: string;
 };
 
 /** A parked idea with no day and no time window. */
@@ -137,7 +150,7 @@ export const REFERENCE_START_DATE = "2026-09-20";
 
 export const JAPAN_STOPS: readonly JapanStop[] = [
   // Day 1 — Tokyo
-  { id: "d1-s1-land-at-haneda", day: 1, title: "Land at Haneda", place: "HND Terminal 3", area: "Ōta", city: "Tokyo", start: "14:30", end: "16:00", kind: "transit", tags: [], costUsd: 310, note: null, who: "all", lat: 35.5494, lng: 139.7798 },
+  { id: "d1-s1-land-at-haneda", day: 1, title: "Land at Haneda", place: "HND Terminal 3", area: "Ōta", city: "Tokyo", start: "14:30", end: "16:00", kind: "transit", tags: [], costUsd: 310, note: null, who: "all", lat: 35.5494, lng: 139.7798, mode: "flight" },
   { id: "d1-s2-check-in-at-trunk-hotel", day: 1, title: "Check in at Trunk Hotel", place: "Trunk Hotel", area: "Shibuya", city: "Tokyo", start: "17:00", end: "17:30", kind: "booked", tags: ["lodging"], costUsd: 385, note: "Bags to the room, then straight out — nobody sleeps yet.", who: "all", lat: 35.6684, lng: 139.704 },
   { id: "d1-s3-dinner-at-gonpachi", day: 1, title: "Dinner at Gonpachi", place: "Gonpachi Nishiazabu", area: "Nishi-Azabu", city: "Tokyo", start: "19:00", end: "20:30", kind: "hold", tags: ["meal"], costUsd: 295, note: null, who: "all", lat: 35.6564, lng: 139.7238 },
   { id: "d1-s4-nightcap-at-bar-trench", day: 1, title: "Nightcap at Bar Trench", place: "Bar Trench", area: "Ebisu", city: "Tokyo", start: "21:00", end: "22:30", kind: "idea", tags: ["meal"], costUsd: null, note: null, who: ["Sam K", "Jonah M"], lat: 35.6467, lng: 139.7133 },
@@ -157,11 +170,11 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d3-s5-dinner-at-den", day: 3, title: "Dinner at Den", place: "Den", area: "Jingūmae", city: "Tokyo", start: "19:30", end: "21:30", kind: "booked", tags: ["meal"], costUsd: 260, note: "Held with a card. 48h cancellation.", who: "all", lat: 35.6688, lng: 139.7096 },
 
   // Day 4 — Nikkō
-  { id: "d4-s1-limited-express-to-nikko", day: 4, title: "Limited Express to Nikkō", place: "Tobu Asakusa Station", area: "Asakusa", city: "Tokyo", start: "07:10", end: "09:10", kind: "transit", tags: [], costUsd: 100, note: null, who: "all", lat: 35.7107, lng: 139.8017 },
+  { id: "d4-s1-limited-express-to-nikko", day: 4, title: "Limited Express to Nikkō", place: "Tobu Asakusa Station", area: "Asakusa", city: "Tokyo", start: "07:10", end: "09:10", kind: "transit", tags: [], costUsd: 100, note: null, who: "all", lat: 35.7107, lng: 139.8017, mode: "train", endsAt: "d4-s5-train-back-to-tokyo" },
   { id: "d4-s2-tosho-gu-shrine", day: 4, title: "Tōshō-gū Shrine", place: "Tōshō-gū", area: "Nikkō", city: "Nikkō", start: "10:00", end: "12:30", kind: "planned", tags: ["outdoors"], costUsd: 20, note: null, who: "all", lat: 36.7581, lng: 139.5994 },
   { id: "d4-s3-lunch-at-hippari-dako", day: 4, title: "Lunch at Hippari Dako", place: "Hippari Dako", area: "Nikkō", city: "Nikkō", start: "13:00", end: "14:00", kind: "planned", tags: ["meal"], costUsd: 65, note: null, who: "all", lat: 36.7508, lng: 139.5989 },
   { id: "d4-s4-kegon-falls", day: 4, title: "Kegon Falls", place: "Kegon Falls", area: "Chūzenji", city: "Nikkō", start: "15:00", end: "16:30", kind: "planned", tags: ["outdoors"], costUsd: 15, note: null, who: "all", lat: 36.7383, lng: 139.4994 },
-  { id: "d4-s5-train-back-to-tokyo", day: 4, title: "Train back to Tokyo", place: "Tobu Nikkō Station", area: "Nikkō", city: "Nikkō", start: "18:30", end: "20:30", kind: "transit", tags: [], costUsd: 135, note: null, who: "all", lat: 36.7578, lng: 139.6122 },
+  { id: "d4-s5-train-back-to-tokyo", day: 4, title: "Train back to Tokyo", place: "Tobu Nikkō Station", area: "Nikkō", city: "Nikkō", start: "18:30", end: "20:30", kind: "transit", tags: [], costUsd: 135, note: null, who: "all", lat: 36.7578, lng: 139.6122, mode: "train", endsAt: "d4-s1-limited-express-to-nikko" },
 
   // Day 5 — Tokyo
   { id: "d5-s1-coffee-at-koffee-mameya", day: 5, title: "Coffee at Koffee Mameya", place: "Koffee Mameya", area: "Omotesandō", city: "Tokyo", start: "09:00", end: "10:00", kind: "planned", tags: ["meal"], costUsd: 65, note: null, who: "all", lat: 35.6674, lng: 139.7104 },
@@ -171,14 +184,14 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d5-s5-omakase-at-sushi-yoshitake", day: 5, title: "Omakase at Sushi Yoshitake", place: "Sushi Yoshitake", area: "Ginza", city: "Tokyo", start: "20:00", end: "22:00", kind: "booked", tags: ["meal"], costUsd: 155, note: "Concierge is chasing this one.", who: "all", lat: 35.671, lng: 139.7638 },
 
   // Day 6 — Hakone
-  { id: "d6-s1-romancecar-to-hakone-yumoto", day: 6, title: "Romancecar to Hakone-Yumoto", place: "Shinjuku Station", area: "Shinjuku", city: "Tokyo", start: "08:20", end: "09:55", kind: "transit", tags: [], costUsd: 35, note: null, who: "all", lat: 35.6896, lng: 139.7006 },
+  { id: "d6-s1-romancecar-to-hakone-yumoto", day: 6, title: "Romancecar to Hakone-Yumoto", place: "Shinjuku Station", area: "Shinjuku", city: "Tokyo", start: "08:20", end: "09:55", kind: "transit", tags: [], costUsd: 35, note: null, who: "all", lat: 35.6896, lng: 139.7006, mode: "train" },
   { id: "d6-s2-hakone-open-air-museum", day: 6, title: "Hakone Open-Air Museum", place: "Open-Air Museum", area: "Ninotaira", city: "Hakone", start: "10:30", end: "12:30", kind: "booked", tags: ["ticketed", "outdoors"], costUsd: 475, note: null, who: "all", lat: 35.2444, lng: 139.0464 },
   { id: "d6-s3-lunch-at-bakery-table", day: 6, title: "Lunch at Bakery & Table", place: "Bakery & Table", area: "Motohakone", city: "Hakone", start: "13:00", end: "14:00", kind: "planned", tags: ["meal"], costUsd: 95, note: null, who: "all", lat: 35.201, lng: 139.0269 },
   { id: "d6-s4-check-in-at-gora-kadan", day: 6, title: "Check in at Gora Kadan", place: "Gora Kadan", area: "Gōra", city: "Hakone", start: "16:40", end: "17:10", kind: "booked", tags: ["lodging"], costUsd: 250, note: "Check-in closes at 16:00 — this is the conflict the assistant flagged.", who: "all", lat: 35.2379, lng: 139.0561 },
   { id: "d6-s5-kaiseki-dinner-at-the-ryokan", day: 6, title: "Kaiseki dinner at the ryokan", place: "Gora Kadan", area: "Gōra", city: "Hakone", start: "18:30", end: "20:30", kind: "booked", tags: ["meal"], costUsd: 320, note: null, who: "all", lat: 35.2379, lng: 139.0561 },
 
   // Day 7 — Kyoto
-  { id: "d7-s1-shinkansen-odawara-kyoto", day: 7, title: "Shinkansen Odawara → Kyoto", place: "Odawara Station", area: "Odawara", city: "Odawara", start: "09:30", end: "11:45", kind: "transit", tags: [], costUsd: 30, note: null, who: "all", lat: 35.2547, lng: 139.1546 },
+  { id: "d7-s1-shinkansen-odawara-kyoto", day: 7, title: "Shinkansen Odawara → Kyoto", place: "Odawara Station", area: "Odawara", city: "Odawara", start: "09:30", end: "11:45", kind: "transit", tags: [], costUsd: 30, note: null, who: "all", lat: 35.2547, lng: 139.1546, mode: "train", endsAt: "d11-s1-train-kyoto-osaka" },
   { id: "d7-s2-lunch-at-honke-owariya", day: 7, title: "Lunch at Honke Owariya", place: "Honke Owariya", area: "Nakagyō", city: "Kyoto", start: "12:30", end: "13:30", kind: "planned", tags: ["meal"], costUsd: 20, note: null, who: "all", lat: 35.0149, lng: 135.7592 },
   { id: "d7-s3-nijo-castle", day: 7, title: "Nijō Castle", place: "Nijō Castle", area: "Nakagyō", city: "Kyoto", start: "14:30", end: "16:30", kind: "planned", tags: ["ticketed"], costUsd: 75, note: null, who: "all", lat: 35.0142, lng: 135.7481 },
   { id: "d7-s4-check-in-at-nazuna-gosho", day: 7, title: "Check in at Nazuna Gosho", place: "Nazuna Kyoto Gosho", area: "Kamigyō", city: "Kyoto", start: "17:00", end: "17:30", kind: "booked", tags: ["lodging"], costUsd: 305, note: null, who: "all", lat: 35.0246, lng: 135.7601 },
@@ -205,7 +218,7 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d10-s3-pottery-at-kyoto-handicraft-center", day: 10, title: "Pottery at Kyoto Handicraft Center", place: "Handicraft Center", area: "Sakyō", city: "Kyoto", start: "14:00", end: "16:00", kind: "planned", tags: [], costUsd: 30, note: null, who: ["Mei T"], lat: 35.0202, lng: 135.7784 },
 
   // Day 11 — Osaka
-  { id: "d11-s1-train-kyoto-osaka", day: 11, title: "Train Kyoto → Osaka", place: "Kyoto Station", area: "Shimogyō", city: "Kyoto", start: "10:00", end: "10:40", kind: "transit", tags: [], costUsd: 190, note: null, who: "all", lat: 34.9858, lng: 135.7588 },
+  { id: "d11-s1-train-kyoto-osaka", day: 11, title: "Train Kyoto → Osaka", place: "Kyoto Station", area: "Shimogyō", city: "Kyoto", start: "10:00", end: "10:40", kind: "transit", tags: [], costUsd: 190, note: null, who: "all", lat: 34.9858, lng: 135.7588, mode: "train", endsAt: "d14-s2-shinkansen-to-tokyo" },
   { id: "d11-s2-check-in-at-zentis-osaka", day: 11, title: "Check in at Zentis Osaka", place: "Zentis Osaka", area: "Kita", city: "Osaka", start: "11:30", end: "12:00", kind: "booked", tags: ["lodging"], costUsd: 465, note: null, who: "all", lat: 34.6971, lng: 135.4938 },
   { id: "d11-s3-lunch-at-harukoma-sushi", day: 11, title: "Lunch at Harukoma Sushi", place: "Harukoma Sushi", area: "Nakazakichō", city: "Osaka", start: "12:30", end: "14:00", kind: "planned", tags: ["meal"], costUsd: 30, note: null, who: "all", lat: 34.7043, lng: 135.5064 },
   { id: "d11-s4-osaka-castle-park", day: 11, title: "Osaka Castle Park", place: "Osaka Castle", area: "Chūō", city: "Osaka", start: "15:00", end: "17:00", kind: "planned", tags: ["outdoors"], costUsd: 10, note: null, who: "all", lat: 34.6873, lng: 135.5262 },
@@ -219,15 +232,15 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d12-s5-kushikatsu-at-yaekatsu", day: 12, title: "Kushikatsu at Yaekatsu", place: "Yaekatsu", area: "Naniwa", city: "Osaka", start: "20:00", end: "22:00", kind: "hold", tags: ["meal"], costUsd: 370, note: null, who: "all", lat: 34.6529, lng: 135.5083 },
 
   // Day 13 — Naoshima
-  { id: "d13-s1-train-and-ferry-to-naoshima", day: 13, title: "Train and ferry to Naoshima", place: "Uno Port", area: "Tamano", city: "Tamano", start: "07:00", end: "10:00", kind: "transit", tags: [], costUsd: 130, note: null, who: "all", lat: 34.4903, lng: 133.9491 },
+  { id: "d13-s1-train-and-ferry-to-naoshima", day: 13, title: "Train and ferry to Naoshima", place: "Uno Port", area: "Tamano", city: "Tamano", start: "07:00", end: "10:00", kind: "transit", tags: [], costUsd: 130, note: null, who: "all", lat: 34.4903, lng: 133.9491, mode: "ferry", endsAt: "d13-s5-ferry-and-train-back-to-osaka" },
   { id: "d13-s2-chichu-art-museum", day: 13, title: "Chichū Art Museum", place: "Chichū Art Museum", area: "Naoshima", city: "Naoshima", start: "10:30", end: "12:30", kind: "booked", tags: ["ticketed"], costUsd: 340, note: "Timed ticket 10:30 am. Late arrivals are turned away.", who: "all", lat: 34.459, lng: 133.995 },
   { id: "d13-s3-lunch-at-aisunao", day: 13, title: "Lunch at Aisunao", place: "Aisunao", area: "Honmura", city: "Naoshima", start: "13:00", end: "14:00", kind: "planned", tags: ["meal"], costUsd: 95, note: null, who: "all", lat: 34.4602827, lng: 133.9951957 },
   { id: "d13-s4-benesse-house-and-yellow-pumpkin", day: 13, title: "Benesse House and Yellow Pumpkin", place: "Benesse House", area: "Naoshima", city: "Naoshima", start: "14:30", end: "16:30", kind: "booked", tags: ["ticketed", "outdoors"], costUsd: 130, note: null, who: "all", lat: 34.4551, lng: 133.9945 },
-  { id: "d13-s5-ferry-and-train-back-to-osaka", day: 13, title: "Ferry and train back to Osaka", place: "Miyanoura Port", area: "Naoshima", city: "Naoshima", start: "17:30", end: "20:30", kind: "transit", tags: [], costUsd: 180, note: null, who: "all", lat: 34.4614, lng: 133.9782 },
+  { id: "d13-s5-ferry-and-train-back-to-osaka", day: 13, title: "Ferry and train back to Osaka", place: "Miyanoura Port", area: "Naoshima", city: "Naoshima", start: "17:30", end: "20:30", kind: "transit", tags: [], costUsd: 180, note: null, who: "all", lat: 34.4614, lng: 133.9782, mode: "ferry" },
 
   // Day 14 — Tokyo
   { id: "d14-s1-breakfast-at-the-hotel", day: 14, title: "Breakfast at the hotel", place: "Zentis Osaka", area: "Kita", city: "Osaka", start: "08:00", end: "08:45", kind: "planned", tags: ["meal"], costUsd: 25, note: null, who: "all", lat: 34.6971, lng: 135.4938 },
-  { id: "d14-s2-shinkansen-to-tokyo", day: 14, title: "Shinkansen to Tokyo", place: "Shin-Osaka Station", area: "Yodogawa", city: "Osaka", start: "09:30", end: "11:45", kind: "transit", tags: [], costUsd: 140, note: null, who: "all", lat: 34.7333, lng: 135.5002 },
+  { id: "d14-s2-shinkansen-to-tokyo", day: 14, title: "Shinkansen to Tokyo", place: "Shin-Osaka Station", area: "Yodogawa", city: "Osaka", start: "09:30", end: "11:45", kind: "transit", tags: [], costUsd: 140, note: null, who: "all", lat: 34.7333, lng: 135.5002, mode: "train" },
   { id: "d14-s3-last-lunch-at-maisen", day: 14, title: "Last lunch at Maisen", place: "Tonkatsu Maisen", area: "Omotesandō", city: "Tokyo", start: "12:30", end: "14:00", kind: "planned", tags: ["meal"], costUsd: 40, note: null, who: "all", lat: 35.6659, lng: 139.7123 },
   { id: "d14-s4-transfer-to-haneda", day: 14, title: "Transfer to Haneda", place: "HND Terminal 3", area: "Ōta", city: "Tokyo", start: "16:30", end: "18:00", kind: "booked", tags: [], costUsd: 175, note: null, who: "all", lat: 35.5494, lng: 139.7798 },
   { id: "d14-s5-flight-home", day: 14, title: "Flight home", place: "HND Terminal 3", area: "Ōta", city: "Tokyo", start: "20:10", end: "21:00", kind: "booked", tags: [], costUsd: 160, note: "Check-in opens 5:10 pm.", who: "all", lat: 35.5494, lng: 139.7798 },

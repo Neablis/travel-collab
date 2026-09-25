@@ -14,8 +14,8 @@
 // A command the domain would reject shows up here as a rejection, which is the
 // same thing `db:seed` would hit at runtime, found earlier.
 
-import type { ActivityKind, ActivityTag, TripEvent } from "@tc/contracts";
-import { ActivityKind as ActivityKindEnum, ActivityTag as ActivityTagEnum } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, TripEvent } from "@tc/contracts";
+import { ActivityKind as ActivityKindEnum, ActivityMode as ActivityModeEnum, ActivityTag as ActivityTagEnum } from "@tc/contracts";
 import {
   citiesOfStops,
   decideCreateTrip,
@@ -49,6 +49,10 @@ export type JapanTripReport = {
   /** Every ActivityKind, including ones at zero — a zero is the interesting case. */
   kinds: Record<ActivityKind, number>;
   tags: Record<ActivityTag, number>;
+  /** M24: every ActivityMode, zeros included, over the transit stops. */
+  modes: Record<ActivityMode, number>;
+  /** M24: transit stops that name where their leg ends. */
+  withEndLocation: number;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -194,6 +198,8 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   // equal to nothing and would slip past the expectations diff.
   const kinds = Object.fromEntries(ActivityKindEnum.options.map((k) => [k, 0])) as Record<ActivityKind, number>;
   const tags = Object.fromEntries(ActivityTagEnum.options.map((t) => [t, 0])) as Record<ActivityTag, number>;
+  const modes = Object.fromEntries(ActivityModeEnum.options.map((m) => [m, 0])) as Record<ActivityMode, number>;
+  let withEndLocation = 0;
 
   let untaggedCount = 0;
   let withCoordinates = 0;
@@ -212,6 +218,8 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     kinds[activity.kind] += 1;
     if (activity.tags.length === 0) untaggedCount += 1;
     for (const tag of activity.tags) tags[tag] += 1;
+    if (activity.mode !== null) modes[activity.mode] += 1;
+    if (activity.endLocation !== null) withEndLocation += 1;
     // BOTH components, matching what actually decides whether a stop can be
     // drawn: mapRailData.ts's `locatedStops` requires lat AND lng, and a day
     // with any unlocated stop renders "N stops have no place yet". Counting lat
@@ -388,6 +396,8 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     activityCount: Object.keys(state.activities).length,
     kinds,
     tags,
+    modes,
+    withEndLocation,
     untaggedCount,
     withCoordinates,
     withCost,
@@ -438,6 +448,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("activities", report.activityCount);
   row("kinds", histogram(report.kinds));
   row("tags", `${histogram(report.tags)} / untagged ${report.untaggedCount}`);
+  row("travel modes", `${histogram(report.modes)} / with a destination ${report.withEndLocation}`);
   row("with coordinates", `${report.withCoordinates}/${report.activityCount}`);
   row("with a cost", `${report.withCost}/${report.activityCount}`);
   row("cities", report.cities.join(", "));

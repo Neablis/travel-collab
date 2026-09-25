@@ -201,10 +201,39 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
  * `UpdateActivity` is untouched: an omitted `kind` there means "unchanged"
  * (activity.ts), not "nothing was ever stated" — defaulting it would silently
  * flip an edit that never mentioned kind into one that does.
+ *
+ * A kindless stop that names a travel leg never reaches here — it cannot parse
+ * without a kind — so its `transit` default is `withLegKind`'s, applied before.
  */
 export function withDefaultKind(command: BatchableCommand): BatchableCommand {
   if (command.type !== "AddActivity" || command.kind !== undefined) return command;
   return { ...command, kind: "hold" };
+}
+
+/**
+ * **A created stop that names a travel leg and no kind is `transit`** (M24).
+ * A `mode` or `endLocation` is legal on nothing else, so the leg is the model
+ * having stated what the stop is.
+ *
+ * **Why this half runs on the UNPARSED fields, unlike `withDefaultKind`.** The
+ * contract unions (`refuseTravelLegOffTransit`) read a missing kind as
+ * `planned` and refuse the leg, so a default applied to the resolved command
+ * never runs: `resolveBatch` has already dropped the stop into `skipped`, and
+ * `parseApprovedCommands` has already refused the approval. The fixtures'
+ * reason for keeping `hold` late does not apply — a leg with no kind is not a
+ * command they can build at all. Takes a plain record so both doors share it:
+ * a model intent's `args` and an approved command's raw body.
+ */
+function withLegKind(type: unknown, fields: Record<string, unknown>): Record<string, unknown> {
+  if (type !== "AddActivity" || fields.kind !== undefined) return fields;
+  if (fields.mode == null && fields.endLocation == null) return fields;
+  return { ...fields, kind: "transit" };
+}
+
+// `withLegKind` over one turn's intents — `buildProposal` and
+// `droppedWriteCalls` must run the same dry run, so both call this.
+function legIntentsAsTransit(intents: RawToolIntent[]): RawToolIntent[] {
+  return intents.map((intent) => ({ ...intent, args: withLegKind(intent.type, intent.args) }));
 }
 
 /**
@@ -270,11 +299,15 @@ export function groundCitedPlaces(
   const grounded = intents.map((intent) => {
     if (intent.type !== "AddActivity" && intent.type !== "UpdateActivity") return intent;
     const args: Record<string, unknown> = { ...intent.args };
-    const claimed = args.location;
-    if (claimed !== null && typeof claimed === "object" && "precision" in claimed) {
-      const cleaned: Record<string, unknown> = { ...(claimed as Record<string, unknown>) };
-      delete cleaned.precision;
-      args.location = cleaned;
+    // Both places a stop can name (M24): enrichment skips an `endLocation`
+    // carrying precision and coordinates exactly as it skips a `location`.
+    for (const field of ["location", "endLocation"] as const) {
+      const claimed = args[field];
+      if (claimed !== null && typeof claimed === "object" && "precision" in claimed) {
+        const cleaned: Record<string, unknown> = { ...(claimed as Record<string, unknown>) };
+        delete cleaned.precision;
+        args[field] = cleaned;
+      }
     }
     const cited = args.placeRef;
     if (cited === undefined) return { ...intent, args };
@@ -372,7 +405,7 @@ export function buildProposal(
   // **Grounding first, on the intents, before the domain is consulted** — see
   // `groundCitedPlaces` for why after does not work.
   const { intents: cited, unresolved } = groundCitedPlaces(intents, opts.placeCache ?? null);
-  const { commands, errors } = resolveBatch(cited, detail, {
+  const { commands, errors } = resolveBatch(legIntentsAsTransit(cited), detail, {
     tripId: opts.tripId,
     actorId: opts.actorId,
     ...(opts.mintId ? { mintId: opts.mintId } : {}),
@@ -429,7 +462,7 @@ export function droppedWriteCalls(
   // user was in fact shown and did in fact approve. This function's whole
   // contract is that it is the same dry run.
   const { intents: cited } = groundCitedPlaces(intents, opts.placeCache ?? null);
-  const { errors } = resolveBatch(cited, detail, opts);
+  const { errors } = resolveBatch(legIntentsAsTransit(cited), detail, opts);
   return errors
     .filter((e) => e.code !== "no-op")
     .map((e) => ({
@@ -700,7 +733,9 @@ export async function commitProposal(
  * on the way in, so both guarantees hold at this door too and not only at the
  * one that built the proposal. A round-trip through `buildProposal` already
  * carries a stated `kind`, so this is defense in depth rather than the usual
- * path — the same relationship `withoutFabricatedCost` has here.
+ * path — the same relationship `withoutFabricatedCost` has here. A leg's
+ * `transit` default (`withLegKind`) goes on before the parse, for the reason
+ * given there.
  */
 export function parseApprovedCommands(
   value: unknown,
@@ -714,7 +749,7 @@ export function parseApprovedCommands(
   const commands: BatchableCommand[] = [];
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return { ok: false, error: "malformed change in this approval" };
-    const parsed = BatchableCommand.safeParse(raw);
+    const parsed = BatchableCommand.safeParse(withLegKind((raw as { type?: unknown }).type, raw as Record<string, unknown>));
     if (!parsed.success) {
       return { ok: false, error: `malformed change in this approval: ${parsed.error.issues[0]?.message ?? "invalid"}` };
     }

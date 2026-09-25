@@ -70,6 +70,8 @@ export function addActivityCommand(
     cost,
     bookedBy,
     participants,
+    mode,
+    endLocation,
     ...rest
   } = value;
   const _exhaustive: NothingLeftOver = rest;
@@ -90,6 +92,8 @@ export function addActivityCommand(
     cost: cost ?? undefined,
     bookedBy,
     participants,
+    mode: mode ?? undefined,
+    endLocation: endLocation ?? undefined,
   };
 }
 
@@ -124,6 +128,8 @@ export function updateActivityCommand(
     cost,
     bookedBy,
     participants,
+    mode,
+    endLocation,
     ...rest
   } = value;
   const _exhaustive: NothingLeftOver = rest;
@@ -143,5 +149,7 @@ export function updateActivityCommand(
     cost,
     bookedBy,
     participants,
+    mode,
+    endLocation,
   };
 }

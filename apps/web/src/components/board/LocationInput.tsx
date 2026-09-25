@@ -13,13 +13,23 @@ type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryC
 export function LocationInput({
   value,
   onChange,
+  // Overridable so a form can hold two (M24: a transit stop's `endLocation`)
+  // without two inputs sharing an id and an accessible name.
+  id = "location-search",
+  label = "Place name",
 }: {
   value: Location | null;
   onChange: (next: Location | null) => void;
+  id?: string;
+  label?: string;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // A second input's controls say which place they act on, or a form holding
+  // two has two "Search" and two "Clear" buttons a screen reader cannot tell
+  // apart. The lone default keeps its bare names, which specs select by.
+  const own = (name: string) => (id === "location-search" ? name : `${name} ${label}`);
 
   async function search() {
     setError(null);
@@ -44,20 +54,20 @@ export function LocationInput({
       {value?.name != null && (
         <div className="flex items-center gap-1.5">
           <Text as="span">{displayPlace(value)}</Text>
-          <Button variant="ghost" onClick={() => onChange(null)}>
+          <Button variant="ghost" aria-label={own("Clear")} onClick={() => onChange(null)}>
             Clear
           </Button>
         </div>
       )}
       <FormField
-        id="location-search"
-        label="Place name"
+        id={id}
+        label={label}
         description="Search for a place by name, then pick a match from the results."
       >
         <div className="flex gap-1.5">
           <Input
-            id="location-search"
-            aria-label="Place name"
+            id={id}
+            aria-label={label}
             placeholder="place name"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -68,14 +78,14 @@ export function LocationInput({
               }
             }}
           />
-          <Button variant="secondary" onClick={() => void search()}>
+          <Button variant="secondary" aria-label={own("Search")} onClick={() => void search()}>
             Search
           </Button>
         </div>
       </FormField>
       {error !== null && <Text as="p" role="alert" className="text-danger-ink">{error}</Text>}
       {results.length > 0 && (
-        <ul role="listbox" aria-label="Search results" className="m-0 list-none divide-y divide-hairline p-0">
+        <ul role="listbox" aria-label={id === "location-search" ? "Search results" : `${label} results`} className="m-0 list-none divide-y divide-hairline p-0">
           {results.map((r, index) => (
             <li key={index} role="presentation">
               <Button
