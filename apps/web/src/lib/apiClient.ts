@@ -10,6 +10,7 @@ import {
   SIMULATED_HEADER,
   migratePageDoc,
   SavedDay,
+  SavedDayModeration,
   SharedTripView,
   TripAccess,
   TripDetail,
@@ -718,13 +719,28 @@ export async function insertSavedDay(
 export async function fetchSavedDay(
   savedDayId: string,
 ): Promise<
-  ApiResult<{ savedDay: SavedDay; isAuthor: boolean; pinning: boolean; publishedAt?: string | null }>
+  ApiResult<{
+    savedDay: SavedDay;
+    isAuthor: boolean;
+    pinning: boolean;
+    publishedAt?: string | null;
+    moderation: SavedDayModeration | null;
+  }>
 > {
   try {
     const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`));
     return await readJson(res, (data) => {
-      const body = data as { savedDay: unknown; isAuthor: unknown; pinning: unknown; publishedAt?: unknown };
+      const body = data as {
+        savedDay: unknown;
+        isAuthor: unknown;
+        pinning: unknown;
+        publishedAt?: unknown;
+        moderation?: unknown;
+      };
       return {
+        // An operator hid it, and why — sent to the author only
+        // (KI-2026-09-23-i). Absent (an older server) reads as "not hidden".
+        moderation: body.moderation == null ? null : SavedDayModeration.parse(body.moderation),
         savedDay: SavedDay.parse(body.savedDay),
         isAuthor: body.isAuthor === true,
         // True while the server is putting this day's stops on the map after

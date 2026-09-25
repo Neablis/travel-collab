@@ -3,6 +3,7 @@ import {
   ActivityView,
   CreateSavedDayInput,
   SavedDay,
+  SavedDayModeration,
   SavedDaySequence,
   SavedDayVisibility,
   SavedStop,
@@ -257,5 +258,24 @@ describe("CreateSavedDayInput", () => {
   it("rejects ids that are not uuids", () => {
     expect(CreateSavedDayInput.safeParse({ name: "A day", tripId: "x", dayIds: [dayId] }).success).toBe(false);
     expect(CreateSavedDayInput.safeParse({ name: "A day", tripId, dayIds: ["x"] }).success).toBe(false);
+  });
+});
+
+// KI-2026-09-23-i: what the author's read of a hidden day carries beside it.
+describe("SavedDayModeration", () => {
+  it("round-trips", () => {
+    const moderation = { moderatedAt: "2026-09-23T10:00:00.000Z", moderationNote: "Advertising, not a day." };
+    expect(SavedDayModeration.parse(JSON.parse(JSON.stringify(moderation)))).toEqual(moderation);
+  });
+
+  it("reads a payload without a note as one with none", () => {
+    expect(SavedDayModeration.parse({ moderatedAt: "2026-09-23T10:00:00.000Z" }).moderationNote).toBeNull();
+  });
+
+  // The note is written to the author. On `SavedDay` it would ride every
+  // reader's copy of the day, and each non-author path would have to blank it.
+  it("is not carried on SavedDay", () => {
+    expect(Object.keys(SavedDay.shape)).not.toContain("moderatedAt");
+    expect(Object.keys(SavedDay.shape)).not.toContain("moderationNote");
   });
 });

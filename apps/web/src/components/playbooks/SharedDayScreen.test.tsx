@@ -892,6 +892,46 @@ describe("starting a new trip from a shared day", () => {
 // Deleting your own day (Mitchell, 2026-09-01). The server decides all three
 // rules — owner, unpublished, soft — and these assert only what the rail
 // offers and what it does with the answer.
+// KI-2026-09-23-i: an operator hid the day, and its author opened it to find it
+// exactly as before. The note is addressed to them and to nobody else.
+describe("a day an operator hid from the library", () => {
+  const moderation = { moderatedAt: "2026-09-23T10:00:00.000Z", moderationNote: "Advertising a tour company, not a day." };
+
+  it("tells its author, with the operator's note", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true, moderation }));
+    renderDay();
+    const banner = await screen.findByTestId("day-hidden");
+    expect(banner.textContent).toContain("A moderator hid this day from the library");
+    expect(banner.textContent).toContain("“Advertising a tour company, not a day.”");
+  });
+
+  it("says so without a note line when the operator left none", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({ savedDay: savedDay(), isAuthor: true, moderation: { ...moderation, moderationNote: null } }),
+    );
+    renderDay();
+    const banner = await screen.findByTestId("day-hidden");
+    expect(banner.textContent).toContain("A moderator hid this day from the library");
+    expect(banner.textContent).not.toContain("note");
+  });
+
+  it("says nothing on a day that is not hidden", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true, moderation: null }));
+    renderDay();
+    await screen.findByTestId("author-strip");
+    expect(screen.queryByTestId("day-hidden")).toBeNull();
+  });
+
+  // The route never sends a non-author one; this is the screen's own wall.
+  it("never shows the note to somebody who is not the author", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: false, moderation }));
+    renderDay();
+    await screen.findByTestId("author-strip");
+    expect(screen.queryByTestId("day-hidden")).toBeNull();
+    expect(screen.queryByText(/Advertising a tour company/)).toBeNull();
+  });
+});
+
 describe("deleting your own day", () => {
   const authorsPrivateDay = () =>
     fetchSavedDayMock.mockResolvedValue(

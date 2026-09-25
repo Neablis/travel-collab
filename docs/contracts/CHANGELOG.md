@@ -13,6 +13,27 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-25 — `SavedDayModeration` (KI-2026-09-23-i)
+
+- **Added:** `SavedDayModeration = { moderatedAt: string; moderationNote:
+  string | null }`, `moderationNote` `.default(null)`. **`SavedDay` is
+  unchanged.**
+- Why: KI-2026-09-23-i — an author whose day an operator hid (`hide-day`)
+  opened it to find it exactly as before, and the operator's note was shown
+  only in the admin queue. `GET /api/saved-days/:id` now carries
+  `moderation: SavedDayModeration | null` on its envelope beside `publishedAt`,
+  **non-null only when `isAuthor`**; `SharedDayScreen` shows the author a
+  warning banner with the note. Not a field on `SavedDay`, because `SavedDay`
+  is every reader's copy (`/v1/playbooks`, `/v1/library`, the shared-day read)
+  and the note is addressed to the author alone.
+- **No column, no migration** — `saved_days.moderated_at` and
+  `moderation_note` already existed (M12 link 6); `savedDays.moderationOf`
+  reads them.
+- Consumers updated: `apps/web` — the shared-day route, `apiClient.fetchSavedDay`,
+  `SharedDayScreen`. `openapi.json` unchanged (the public API does not carry it).
+- Breaking? no — additive, and the client reads an absent `moderation` as
+  `null` ("not hidden").
+
 ## 2026-09-25 — `TripSummary.endDate` (KI-2026-09-24-e)
 
 - **Changed:** `TripSummary` gains `endDate: string (YYYY-MM-DD) | null`,
