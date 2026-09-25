@@ -505,6 +505,8 @@ describe("withDefaultKind", () => {
       title: "Gelato",
     } as BatchableCommand;
     expect(withDefaultKind(command)).toMatchObject({ kind: "hold" });
+    // A leg is legal only on a transit stop (M24), so one that names a mode is one.
+    expect(withDefaultKind({ ...command, mode: "train" } as BatchableCommand)).toMatchObject({ kind: "transit" });
   });
 
   it("leaves a stated kind alone", () => {
@@ -752,11 +754,14 @@ describe("grounding — a cited placeRef becomes the location that commits", () 
         args: {
           title: "Invented",
           dayRef: "day 1",
+          kind: "transit",
           location: { name: "Nowhere", lat: 52.7, lng: -2.75, precision: "venue" },
+          endLocation: { name: "Elsewhere", lat: 52.8, lng: -2.7, precision: "venue" },
         },
       },
     ]);
     expect((proposal!.commands[0] as { location: { precision?: string } }).location.precision).toBeUndefined();
+    expect((proposal!.commands[0] as { endLocation: { precision?: string } }).endLocation.precision).toBeUndefined();
     expect((proposal!.commands[0] as { location: { name: string } }).location.name).toBe("Nowhere");
   });
 

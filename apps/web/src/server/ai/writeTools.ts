@@ -201,10 +201,16 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
  * `UpdateActivity` is untouched: an omitted `kind` there means "unchanged"
  * (activity.ts), not "nothing was ever stated" — defaulting it would silently
  * flip an edit that never mentioned kind into one that does.
+ *
+ * **A stop that names a travel leg defaults to `transit`, not `hold`** (M24).
+ * A `mode` or `endLocation` is legal on nothing else, so `hold` there would
+ * turn "a train to Kyoto" into a command the unions refuse and sink the whole
+ * batch; the leg is the model having stated what the stop is.
  */
 export function withDefaultKind(command: BatchableCommand): BatchableCommand {
   if (command.type !== "AddActivity" || command.kind !== undefined) return command;
-  return { ...command, kind: "hold" };
+  const isLeg = command.mode != null || command.endLocation != null;
+  return { ...command, kind: isLeg ? "transit" : "hold" };
 }
 
 /**
@@ -270,11 +276,15 @@ export function groundCitedPlaces(
   const grounded = intents.map((intent) => {
     if (intent.type !== "AddActivity" && intent.type !== "UpdateActivity") return intent;
     const args: Record<string, unknown> = { ...intent.args };
-    const claimed = args.location;
-    if (claimed !== null && typeof claimed === "object" && "precision" in claimed) {
-      const cleaned: Record<string, unknown> = { ...(claimed as Record<string, unknown>) };
-      delete cleaned.precision;
-      args.location = cleaned;
+    // Both places a stop can name (M24): enrichment skips an `endLocation`
+    // carrying precision and coordinates exactly as it skips a `location`.
+    for (const field of ["location", "endLocation"] as const) {
+      const claimed = args[field];
+      if (claimed !== null && typeof claimed === "object" && "precision" in claimed) {
+        const cleaned: Record<string, unknown> = { ...(claimed as Record<string, unknown>) };
+        delete cleaned.precision;
+        args[field] = cleaned;
+      }
     }
     const cited = args.placeRef;
     if (cited === undefined) return { ...intent, args };

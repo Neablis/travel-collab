@@ -62,6 +62,12 @@ function markedTrip(): TripDetail {
           location: activity.location
             ? { ...activity.location, name: `${MARK} place`, city: `${MARK} city` }
             : activity.location,
+          // M24: a leg's destination is typed like its origin. Given to EVERY
+          // transit stop rather than only those the fixture gives one, because
+          // the scoped day below (day 1) has a transit stop with no destination
+          // and the walk can only find a marker that is in the input.
+          endLocation:
+            activity.kind === "transit" ? { name: `${MARK} destination`, city: `${MARK} city` } : activity.endLocation,
         },
       ]),
     ),

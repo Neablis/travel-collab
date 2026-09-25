@@ -423,7 +423,7 @@ function cityLookupOf(location: Location): { key: string; query: string } | null
  * @param tripRegion - Bias from the trip's already-geocoded activities, if any
  * @param sleep - Throttle delay, injected as a no-op by tests
  */
-export async function enrichCommandLocations(
+async function enrichLocationSlots(
   commands: BatchableCommand[],
   getGeocoder: () => Geocoder,
   tripRegion: BoundingBox | null = null,
@@ -697,4 +697,53 @@ export async function enrichCommandLocations(
     }),
     report,
   };
+}
+
+function hasEndLocation(command: BatchableCommand): command is LocationCommand & { endLocation: Location } {
+  return (command.type === "AddActivity" || command.type === "UpdateActivity") && command.endLocation != null;
+}
+
+/**
+ * A batch's locations, resolved — each command's `location` and, for a transit
+ * stop, its `endLocation` (M24). See `enrichLocationSlots` above for the rules.
+ *
+ * **An `endLocation` goes through exactly the same rules as a `location`,
+ * because it is handed to them as one.** Each is expanded into a slot of its
+ * own — a copy of its command with the destination in `location` — so it gets
+ * the same dedupe, budget, quota, refine-never-relocate check and city
+ * fallback, and is folded back afterwards. Its own slot, rather than a
+ * second code path, so the two places cannot drift into two different
+ * policies; and one slot per place, so a leg costs the batch two lookups
+ * against the same per-batch cap rather than one uncounted extra.
+ */
+export async function enrichCommandLocations(
+  commands: BatchableCommand[],
+  getGeocoder: () => Geocoder,
+  tripRegion: BoundingBox | null = null,
+  sleep?: (ms: number) => Promise<void>,
+  charge: GeocodeCharge = UNMETERED,
+): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
+  const slots: BatchableCommand[] = [];
+  for (const command of commands) {
+    slots.push(command);
+    if (hasEndLocation(command)) slots.push({ ...command, location: command.endLocation });
+  }
+  if (slots.length === commands.length) {
+    return enrichLocationSlots(commands, getGeocoder, tripRegion, sleep, charge);
+  }
+  const enriched = await enrichLocationSlots(slots, getGeocoder, tripRegion, sleep, charge);
+  const folded: BatchableCommand[] = [];
+  let i = 0;
+  for (const command of commands) {
+    const resolved = enriched.commands[i++]!;
+    if (!hasEndLocation(command)) {
+      folded.push(resolved);
+      continue;
+    }
+    const end = enriched.commands[i++] as LocationCommand;
+    // The end slot's `location` IS the resolved destination; the origin slot's
+    // own `endLocation` is still the raw one, so it is replaced, not merged.
+    folded.push({ ...(resolved as LocationCommand), endLocation: end.location ?? command.endLocation });
+  }
+  return { commands: folded, report: enriched.report };
 }

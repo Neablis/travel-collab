@@ -679,6 +679,26 @@ describe("enrichCommandLocations", () => {
     expect(report.skipped[0]).toBe("place 15");
   });
 
+  // M24. A transit stop's destination is resolved like any other place and
+  // lands back on ITS command — the origin, the destination and the next
+  // command each keep their own answer.
+  it("resolves a transit stop's endLocation as its own place and folds it back onto its command", async () => {
+    const { geocoder } = fakeGeocoder({
+      "Odawara Station": [{ lat: 35.2564, lng: 139.1553, canonicalName: "Odawara Station", countryCode: "JP" }],
+      "Kyoto Station": [{ lat: 34.9858, lng: 135.7588, canonicalName: "Kyoto Station", countryCode: "JP" }],
+      "Nishiki Market": [{ lat: 35.005, lng: 135.7649, canonicalName: "Nishiki Market", countryCode: "JP" }],
+    });
+    const leg = { ...addActivity("Shinkansen", { name: "Odawara Station" }), kind: "transit", endLocation: { name: "Kyoto Station" } } as BatchableCommand;
+    // A trip region spanning both ends: without one, the batch bootstraps a
+    // 150 km box around the first answer, and a leg's far end falls outside it.
+    const honshu = { minLat: 33, maxLat: 37, minLng: 134, maxLng: 141 };
+    const { commands } = await enrichCommandLocations([leg, addActivity("Lunch", { name: "Nishiki Market" })], () => geocoder, honshu, async () => {});
+    expect(commands).toHaveLength(2);
+    expect(commands[0]).toMatchObject({ location: { lat: 35.2564 }, endLocation: { name: "Kyoto Station", lat: 34.9858 } });
+    expect(commands[1]).toMatchObject({ title: "Lunch", location: { lat: 35.005 } });
+    expect(commands[1]).not.toHaveProperty("endLocation");
+  });
+
   it("ignores a cleared location (null) on UpdateActivity", async () => {
     const getGeocoder = vi.fn(() => { throw new Error("must not construct"); });
     const command = {

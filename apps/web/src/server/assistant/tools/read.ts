@@ -41,7 +41,7 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, LocationPrecision, Money, TimeWindow, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityMode, LocationPrecision, Money, TimeWindow, type Location, type TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
@@ -194,17 +194,44 @@ export interface StopReadout {
    * city-level is a fact the model can SAY; a lat/lng is a fact it would be
    * tempted to invent a near-miss of.
    */
-  location: {
-    name: string;
-    city: string | null;
-    countryCode: string | null;
-    precision: LocationPrecision | null;
-  } | null;
+  location: PlaceReadout | null;
   notes: string | null;
   kind: ActivityKind;
   tags: string[];
   cost: { amountMinor: number; currency: string } | null;
+  /**
+   * A transit stop's leg (M24): by what, and where it arrives — `location` is
+   * where it leaves. Narrowed like `location`. The model needs both to say what
+   * a travel stop IS, and to know that moving one off `transit` must clear them.
+   */
+  mode: ActivityMode | null;
+  endLocation: PlaceReadout | null;
 }
+
+type PlaceReadout = {
+  name: string;
+  city: string | null;
+  countryCode: string | null;
+  precision: LocationPrecision | null;
+};
+
+function placeReadout(location: Location | null): PlaceReadout | null {
+  return location
+    ? {
+        name: location.name,
+        city: location.city ?? null,
+        countryCode: location.countryCode ?? null,
+        precision: location.precision ?? null,
+      }
+    : null;
+}
+
+const PlaceReadoutSchema = z.object({
+  name: z.string(),
+  city: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  precision: LocationPrecision.nullable(),
+});
 
 export interface DayReadout {
   day: number;
@@ -238,7 +265,7 @@ export const ReadToolProblemSchema: z.ZodType<ReadToolProblem> = z.object({ erro
 // four of `Location`'s fields, with the coordinates the model must never see
 // left behind — so it is written out, and `precision` is still the contract's
 // own enum rather than a respelling of it.
-export const DayReadoutSchema: z.ZodType<DayReadout> = z.object({
+export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.object({
   day: z.number(),
   date: z.string().nullable(),
   costSubtotal: z.number(),
@@ -246,18 +273,15 @@ export const DayReadoutSchema: z.ZodType<DayReadout> = z.object({
     z.object({
       title: z.string(),
       timeWindow: TimeWindow.nullable(),
-      location: z
-        .object({
-          name: z.string(),
-          city: z.string().nullable(),
-          countryCode: z.string().nullable(),
-          precision: LocationPrecision.nullable(),
-        })
-        .nullable(),
+      location: PlaceReadoutSchema.nullable(),
       notes: z.string().nullable(),
       kind: ActivityKind,
       tags: z.array(z.string()),
       cost: Money.nullable(),
+      // Defaulted, not required: a `read_day` result produced before M24 has
+      // neither key, and the simulated model re-parses results it is handed.
+      mode: ActivityMode.nullable().default(null),
+      endLocation: PlaceReadoutSchema.nullable().default(null),
     }),
   ),
   conflicts: z.array(ConflictSummarySchema),
@@ -300,18 +324,13 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
         {
           title: activity.title,
           timeWindow: activity.timeWindow,
-          location: activity.location
-            ? {
-                name: activity.location.name,
-                city: activity.location.city ?? null,
-                countryCode: activity.location.countryCode ?? null,
-                precision: activity.location.precision ?? null,
-              }
-            : null,
+          location: placeReadout(activity.location),
           notes: activity.notes,
           kind: activity.kind,
           tags: [...activity.tags],
           cost: activity.cost,
+          mode: activity.mode,
+          endLocation: placeReadout(activity.endLocation),
         },
       ];
     }),
@@ -336,7 +355,7 @@ export interface DayBatchReadout {
   days: (DayReadout | ReadToolProblem)[];
 }
 
-export const DayBatchReadoutSchema: z.ZodType<DayBatchReadout> = z.object({
+export const DayBatchReadoutSchema: z.ZodType<DayBatchReadout, z.ZodTypeDef, unknown> = z.object({
   days: z.array(z.union([DayReadoutSchema, ReadToolProblemSchema])),
 });
 
@@ -664,7 +683,11 @@ function fencedTrip(readout: TripReadout): TripReadout {
   };
 }
 
-/** A day readout, fenced: each stop's title, notes, and its location's name and city. */
+function fencedPlace(place: PlaceReadout | null): PlaceReadout | null {
+  return place ? { ...place, name: untrusted(place.name), city: untrustedOrNull(place.city) } : null;
+}
+
+/** A day readout, fenced: each stop's title, notes, and its places' names and cities. */
 function fencedDay(readout: DayReadout): DayReadout {
   return {
     ...readout,
@@ -684,9 +707,10 @@ function fencedDay(readout: DayReadout): DayReadout {
       // into it, so there is nothing to fence, and fencing it would have broken
       // the one consumer that MATCHES on the values (`needsBooking`, through
       // the simulated model) for no security gain at all.
-      location: stop.location
-        ? { ...stop.location, name: untrusted(stop.location.name), city: untrustedOrNull(stop.location.city) }
-        : null,
+      location: fencedPlace(stop.location),
+      // M24: a leg's destination is typed by a person exactly as its origin
+      // is, so it is fenced the same way. `mode` is a closed enum.
+      endLocation: fencedPlace(stop.endLocation),
     })),
     conflicts: fencedConflicts(readout.conflicts),
   };
