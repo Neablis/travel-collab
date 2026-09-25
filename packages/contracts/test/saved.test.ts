@@ -8,6 +8,7 @@ import {
   SavedDayVisibility,
   SavedStop,
 } from "../src";
+import { SAVED_STOP_V0_KEYS, SAVED_STOPS_V0_GOLDEN } from "./fixtures/savedStopV0";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const dayId = "11111111-1111-4111-8111-111111111111";
@@ -95,6 +96,24 @@ describe("SavedStop", () => {
   it("defaults dayIndex to 0, so a stop written before M23 reads as day one", () => {
     const { dayIndex: _omitted, ...beforeM23 } = stop;
     expect(SavedStop.parse(beforeM23).dayIndex).toBe(0);
+  });
+
+  // KI-2026-09-05-l: the header's `.default()` rule, made mechanical. The
+  // golden is frozen bytes, not the `stop` literal above — that literal grows
+  // with the schema, so a test built from it cannot notice the schema leaving
+  // old rows behind. A red here means a stored Playbook would vanish from its
+  // owner's library and from Discover: give the new field a `.default()`.
+  it("still reads the oldest stops ever stored, through the parse both read sites run", () => {
+    const result = SavedStop.array().safeParse(SAVED_STOPS_V0_GOLDEN);
+    expect(result.error?.issues ?? []).toEqual([]);
+    expect(result.data?.map((s) => s.dayIndex)).toEqual([0, 0, 0]);
+  });
+
+  // The same rule, per field, so the failure names the field that broke it.
+  it("defaults every field added since the oldest stored shape", () => {
+    const added = Object.keys(SavedStop.shape).filter((key) => !SAVED_STOP_V0_KEYS.includes(key));
+    const required = added.filter((key) => !SavedStop.shape[key as keyof typeof SavedStop.shape].isOptional());
+    expect(required).toEqual([]);
   });
 
   it("refuses a dayIndex that is negative or fractional", () => {
