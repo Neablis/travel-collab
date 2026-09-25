@@ -24,6 +24,8 @@ const JSDOM_TS_FILES = [
   // The same, for M9's conversation durability: every access is wrapped, and
   // what the wrapping is FOR is a browser that throws or has no storage at all.
   "src/components/assistant/askThreadStore.test.ts",
+  // The network guard's jsdom half: XHR and jsdom's WebSocket only exist here.
+  "src/test-support/networkGuard.jsdom.test.ts",
 ];
 
 // Never a unit test in either project: integration specs have their own
