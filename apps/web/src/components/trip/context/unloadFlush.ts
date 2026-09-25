@@ -41,21 +41,36 @@ export function unloadFlush(
   units: readonly PendingUnit[],
   { unloading, budget = KEEPALIVE_BODY_BUDGET }: { unloading: boolean; budget?: number },
 ): UnloadFlush | null {
-  const encoder = new TextEncoder();
-  const size = (commands: BatchableCommand[]) => encoder.encode(JSON.stringify({ commands })).length;
-
   const all = units.flatMap((u) => u.commands);
   if (all.length === 0) return null;
-  if (size(all) <= budget) return { units: [...units], commands: all, keepalive: true };
-  if (!unloading) return { units: [...units], commands: all, keepalive: false };
 
+  // One pass, each command encoded once: this runs synchronously inside
+  // `pagehide`, and re-encoding the growing batch per unit is quadratic in the
+  // queue. The body is `{"commands":[c1,c2,…]}`, so its size is the empty
+  // envelope, plus every command's own bytes, plus one comma between each pair
+  // — exactly what `JSON.stringify({ commands })` would produce.
+  const encoder = new TextEncoder();
+  const bytes = (value: unknown) => encoder.encode(JSON.stringify(value)).length;
+  const envelope = bytes({ commands: [] });
+  const bodySize = (payload: number, count: number) => envelope + payload + Math.max(count - 1, 0);
+
+  let payload = 0;
+  let count = 0;
   let taken = 0;
-  let commands: BatchableCommand[] = [];
   for (const unit of units) {
-    const next = [...commands, ...unit.commands];
-    if (size(next) > budget) break;
-    commands = next;
+    const nextPayload = payload + unit.commands.reduce((sum, c) => sum + bytes(c), 0);
+    const nextCount = count + unit.commands.length;
+    // Staying pages send everything (see above), so only an unloading one stops.
+    if (unloading && bodySize(nextPayload, nextCount) > budget) break;
+    payload = nextPayload;
+    count = nextCount;
     taken += 1;
   }
-  return taken === 0 ? null : { units: units.slice(0, taken), commands, keepalive: true };
+
+  if (taken === units.length) {
+    return { units: [...units], commands: all, keepalive: bodySize(payload, count) <= budget };
+  }
+  return taken === 0
+    ? null
+    : { units: units.slice(0, taken), commands: units.slice(0, taken).flatMap((u) => u.commands), keepalive: true };
 }

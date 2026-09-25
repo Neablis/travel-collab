@@ -28,6 +28,7 @@ import {
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
+import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
@@ -256,6 +257,9 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // KI-5. Units the unload flush has taken over. The sender never sends one:
   // it stops at the first and waits for the flush to answer.
   const handedOff = useRef(new Set<string>());
+  // KI-5. The sender's current send, so an unmount can wait for it to settle
+  // before draining what is behind it (`drainAfter`).
+  const inFlightSend = useRef<Promise<void> | null>(null);
   useEffect(() => {
     // The `failure` clause is load-bearing (KI-36): now that a failed send
     // RETAINS its queue, emptiness alone no longer stops the sender, and
@@ -266,13 +270,10 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     if (handedOff.current.has(head.id)) return;
     inFlight.current = true;
     sentIds.current.add(head.id);
-    (async () => {
+    inFlightSend.current = (async () => {
       let result: { ok: true; value: CommandOutcome } | { ok: false; error: { message: string; code?: string } };
       try {
-        result =
-          head.commands.length === 1
-            ? await sendTripCommand(head.commands[0]! as BoardCommand)
-            : await sendTripCommandBatch(tripId, head.commands);
+        result = await sendUnit(tripId, head);
       } catch (err) {
         // A throw here is a failed send like any other, and is treated as one
         // so the user gets KI-36's retained queue and manual retry. It should
@@ -486,30 +487,37 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // The queue lives in memory and the sender drains it one unit per round
   // trip, so a reload, a closed tab or an in-app navigation away from the trip
   // used to drop everything still queued behind the unit in flight — with the
-  // header having already shown it as applied. On `pagehide`, and when this
-  // provider unmounts, every unit the sender has not yet sent goes to the
-  // server as ONE keepalive batch (`unloadFlush.ts` says why one).
+  // header having already shown it as applied. Two exits, handled differently:
+  //
+  // - **`pagehide`** — the document is going. Nothing can be waited for, so
+  //   every unit the sender has not yet sent goes to the server at once as ONE
+  //   keepalive batch (`unloadFlush.ts` says why one), racing the unit in
+  //   flight. The server re-runs a precondition-free batch that loses the
+  //   sequence race to it (`executeTripCommandBatch`); if the flush overtakes
+  //   it instead, the flushed units are decided before it. Neither applies
+  //   anything twice or half a batch.
+  // - **Unmount with the page alive** — an in-app navigation away from the
+  //   trip. Here there is time, so the queue is drained properly: after the
+  //   unit in flight has answered, one unit at a time, in order, each its own
+  //   history entry, by a drain that outlives this provider (`queueDrain.ts`).
   //
   // Deliberately not a `beforeunload` prompt, and nothing here delays leaving
   // (Mitchell, 2026-07-20). The save light still says "Saving…" for as long
   // as it is true.
   //
-  // What this does not send, on purpose:
+  // What neither sends, on purpose:
   // - **A unit already sent.** It may already be applied (see `sentIds`).
   // - **A queue whose head the server refused** (KI-36). Nothing re-sends a
   //   refused change without the user asking, and leaving is not asking.
-  //
-  // The flushed batch lands after the unit in flight only if that unit's
-  // transaction has committed first. If the two overlap, the event store's
-  // sequence check refuses one of them whole; if the flush overtakes it, the
-  // flushed units are decided before it. Neither applies anything twice or
-  // half a batch.
-  const flushUnsent = useCallback(
-    (unloading: boolean) => {
-      const state = optimisticRef.current;
-      if (!state || state.failure) return;
-      const unsent = state.pending.filter((u) => !sentIds.current.has(u.id) && !handedOff.current.has(u.id));
-      const flush = unloadFlush(unsent, { unloading });
+  const unsentUnits = useCallback(() => {
+    const state = optimisticRef.current;
+    if (!state || state.failure) return [];
+    return state.pending.filter((u) => !sentIds.current.has(u.id) && !handedOff.current.has(u.id));
+  }, []);
+
+  const flushOnPageHide = useCallback(
+    () => {
+      const flush = unloadFlush(unsentUnits(), { unloading: true });
       if (!flush) return;
       const ids = flush.units.map((u) => u.id);
       for (const id of ids) handedOff.current.add(id);
@@ -535,17 +543,24 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         }
       });
     },
-    [tripId, onRemoteChange],
+    [tripId, onRemoteChange, unsentUnits],
   );
 
   useEffect(() => {
-    const onPageHide = () => flushUnsent(true);
-    window.addEventListener("pagehide", onPageHide);
+    const handed = handedOff.current; // one Set for the provider's life
+    window.addEventListener("pagehide", flushOnPageHide);
     return () => {
-      window.removeEventListener("pagehide", onPageHide);
-      flushUnsent(false);
+      window.removeEventListener("pagehide", flushOnPageHide);
+      // The provider is going and the page is not. Its state updates stop
+      // here, so the drain's answers are not reconciled into anything: the
+      // board that mounts next reads the trip after the drain is done
+      // (KI-2026-09-14-e, fed by the drain's write scope).
+      const units = unsentUnits();
+      if (units.length === 0) return;
+      for (const unit of units) handed.add(unit.id);
+      void drainAfter(tripId, inFlightSend.current, units);
     };
-  }, [flushUnsent]);
+  }, [flushOnPageHide, unsentUnits, tripId]);
 
   // KI-36: the manual retry. Clearing the failure is all it takes — the
   // sequential sender's effect re-runs on the new state and picks the retained
