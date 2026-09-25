@@ -108,21 +108,28 @@ function fromRow(row: SavedDayRow): SavedDay | null {
  * the Playbook is three days, whatever the third one holds.
  *
  * The two halves — `captureDays` and `storeSavedDay` — are exported because
- * `/v1/playbooks` runs a step between them (ADR-050, Pass A). This composition
- * is what the app's keep does, unchanged.
+ * `/v1/playbooks` runs a step between them (ADR-050, Pass A).
+ *
+ * **`dateAnchors: "strip"` is the app's keep** (KI-2026-09-24-c): it runs the
+ * same `withoutDateAnchors` step `/v1/playbooks` does, so a Playbook kept in the
+ * app no longer carries "only 3–5 May" into every trip it is added to. The
+ * Keep dialog says which stops lose one before the button acts. The default is
+ * `"keep"` only because `POST /v1/library` also calls this and its behaviour is
+ * not changed here.
  */
 export async function saveDay(
-  input: { name: string; dayIds: readonly string[] },
+  input: { name: string; dayIds: readonly string[]; dateAnchors?: "keep" | "strip" },
   detail: TripDetail,
   ownerId: string,
   now: string = new Date().toISOString(),
 ): Promise<AccessResult<SavedDay>> {
   const captured = captureDays(detail, input.dayIds);
   if (!captured.ok) return captured;
+  const stops = input.dateAnchors === "strip" ? withoutDateAnchors(captured.value).stops : captured.value;
   return storeSavedDay({
     ownerId,
     name: input.name,
-    stops: captured.value,
+    stops,
     dayCount: input.dayIds.length,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
@@ -785,8 +792,8 @@ export type RemovedDateAnchor = { stopIndex: number; title: string; from: string
  * time-of-day and public-holiday anchors describe the place rather than the
  * trip, and are kept.
  *
- * Only `/v1/playbooks` applies this today; the app's keep does not, and that
- * difference is recorded in ADR-050 rather than decided here.
+ * `/v1/playbooks` applies this, and so does the app's keep (`saveDay` with
+ * `dateAnchors: "strip"`, KI-2026-09-24-c); `POST /v1/library` does not.
  */
 export function withoutDateAnchors(stops: readonly SavedStop[]): {
   stops: SavedStop[];

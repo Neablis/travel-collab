@@ -86,6 +86,10 @@ object type.
    describe the place and are kept. **The app's keep does not strip them**:
    changing what the UI saves was outside this pass, and doing it silently
    would contradict the warning this API gives. That gap is open.
+   *Closed 2026-09-25 (KI-2026-09-24-c):* the app's keep (`POST
+   /api/saved-days`) now strips them too, via `saveDay`'s `dateAnchors:
+   "strip"`, and the Keep dialog names the affected stops before the button
+   acts. `POST /v1/library`'s keep still does not strip; that is unchanged.
 9. **Content edits are versioned by one guarded UPDATE.** Changing `name`,
    `summary` or `days` requires `expectedVersion`; the UPDATE matches only
    `version = expectedVersion` and sets `version = version + 1` in the same

@@ -236,6 +236,29 @@ describe("KeepDayDialog", () => {
     });
   });
 
+  // KI-2026-09-24-c: the server drops a calendar-date anchor on the way in, so
+  // the dialog says which stops lose one before the button acts — and says
+  // nothing about a weekday anchor, which is kept.
+  it("names the stops whose calendar-date anchor will not be kept, and only those", async () => {
+    const dated = (title: string): SavedStop => ({
+      ...stop(title, "10:00", "11:00"),
+      anchors: [{ kind: "dateRange", from: "2027-05-03", to: "2027-05-05" }],
+    });
+    const weekly: SavedStop = { ...stop("Temple", "12:00", "13:00"), anchors: [{ kind: "dayOfWeek", days: ["sun"] }] };
+    renderDialog({ stops: [dated("Flea market"), weekly] });
+    expect(screen.getByTestId("keep-day-dropped-dates").textContent).toBe(
+      'A Playbook has no dates, so the date anchor on "Flea market" won\'t be kept.',
+    );
+    cleanup();
+    renderDialog({ stops: [dated("Flea market"), weekly, dated("Night market")] });
+    expect(screen.getByTestId("keep-day-dropped-dates").textContent).toBe(
+      'A Playbook has no dates, so the date anchors on 2 stops won\'t be kept: "Flea market", "Night market".',
+    );
+    cleanup();
+    renderDialog({ stops: [weekly] });
+    expect(screen.queryByTestId("keep-day-dropped-dates")).toBeNull();
+  });
+
   // M23 link 4. The pennant still opens on one day; the picker adds others, and
   // they need not be adjacent — Mitchell, 2026-09-19: "you aren't selecting a
   // range".
