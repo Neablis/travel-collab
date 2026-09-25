@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
-import { longestLeg, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
+import { ActivityMode, type ActivityKind, type Location, type TripDetail } from "@tc/contracts";
+import { legVariant, longestLeg, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
 import type { MapStop } from "./mapRailData";
 
 function detailWith(days: { dayId: string; date: string | null; activityIds: string[] }[], activities: Record<string, unknown>): TripDetail {
@@ -162,6 +162,81 @@ describe("routeLegs", () => {
     const legs = routeLegs(mapDays(d)[0]!);
     expect(legs.rest).toEqual([[[-77.60, 43.10], [-77.70, 43.20]]]);
     expect(legs.travel).toEqual([[[-77.70, 43.20], [-77.80, 43.30]]]);
+  });
+});
+
+// M24 link 3: a transit stop that knows both ends draws the leg it IS, instead
+// of the map guessing one from its neighbours.
+describe("routeLegs — a transit stop with a destination", () => {
+  const leg = (name: string, lat: number, lng: number, end: [number, number] | null, mode: ActivityMode | null) => ({
+    ...at(name, lat, lng, "transit"),
+    mode,
+    endLocation: end === null ? null : { name: `${name} end`, lat: end[0], lng: end[1] },
+  });
+  const dayOf = (activities: Record<string, unknown>) =>
+    mapDays(detailWith([{ dayId: "d1", date: null, activityIds: Object.keys(activities) }], activities))[0]!;
+
+  it("draws origin → destination as one leg in its mode's style, and the hops either side of it as ordinary legs", () => {
+    const day = dayOf({
+      a: at("a", 43.10, -77.60),
+      t: leg("t", 43.20, -77.70, [44.00, -76.00], "train"),
+      b: at("b", 44.10, -76.10),
+    });
+    // The route runs a → origin, origin → destination, destination → b: it
+    // stays continuous, and nothing is drawn from origin straight to b.
+    expect(routeLegs(day)).toEqual({
+      rest: [
+        [[-77.60, 43.10], [-77.70, 43.20]],
+        [[-76.00, 44.00], [-76.10, 44.10]],
+      ],
+      travel: [[[-77.70, 43.20], [-76.00, 44.00]]],
+    });
+  });
+
+  it("draws a real leg even when the transit stop is the day's only stop", () => {
+    const day = dayOf({ t: leg("t", 43.20, -77.70, [44.00, -76.00], "walk") });
+    expect(routeLegs(day)).toEqual({ rest: [[[-77.70, 43.20], [-76.00, 44.00]]], travel: [] });
+  });
+
+  // The contract refuses this on a command; a stored row is never refused, so
+  // the map must not draw a leg for a stop that is not travel.
+  it("draws no leg for a destination left on a stop that is not transit", () => {
+    const day = dayOf({ p: { ...leg("p", 43.20, -77.70, [44.00, -76.00], "train"), kind: "planned" } });
+    expect(routeLegs(day)).toEqual({ rest: [], travel: [] });
+  });
+
+  // Most transit stops have no destination, and for them nothing moves — not
+  // even when they carry a mode, because a mode with no second place has no
+  // line of its own to style.
+  it("leaves a transit stop with no destination on the adjacency rule, whatever its mode", () => {
+    const day = dayOf({
+      a: at("a", 43.10, -77.60),
+      t: leg("t", 43.20, -77.70, null, "walk"),
+      b: at("b", 43.30, -77.80),
+    });
+    expect(routeLegs(day)).toEqual({
+      rest: [],
+      travel: [
+        [[-77.60, 43.10], [-77.70, 43.20]],
+        [[-77.70, 43.20], [-77.80, 43.30]],
+      ],
+    });
+  });
+});
+
+describe("legVariant", () => {
+  // Every value of the contract's enum, so a mode added there without a
+  // decision here fails this as well as the compile.
+  it("draws walk and bike solid, and every other mode dashed", () => {
+    const byVariant = Object.fromEntries(ActivityMode.options.map((mode) => [mode, legVariant(mode)]));
+    expect(byVariant).toEqual({
+      walk: "rest", bike: "rest",
+      bus: "travel", train: "travel", flight: "travel", ferry: "travel", car: "travel",
+    });
+  });
+
+  it("draws a leg of unknown mode dashed — it is travel, by means nobody said", () => {
+    expect(legVariant(null)).toBe("travel");
   });
 });
 

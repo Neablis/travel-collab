@@ -1,4 +1,4 @@
-import type { ActivityKind, Location, TripDetail } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, Location, TripDetail } from "@tc/contracts";
 import { chipModel } from "@/lib/dayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
@@ -13,6 +13,11 @@ import { haversineKm } from "@/lib/geo";
 // before the field existed carries none, and that is not a claim of `venue`.
 // MapLens groups on it (markerGroups below); the rail, the strip and the focus
 // card ignore it.
+// `end` is where a transit stop's leg arrives (M24's `endLocation`), set only
+// when the stop is `transit` and both ends are located, so routeLegs can draw
+// the leg itself. `mode` rides with it to style that leg. Neither gets a marker
+// of its own: the line ending there is what shows the destination, and the stop
+// that happens there next has its own pin.
 export type MapStop = {
   activityId: string;
   title: string;
@@ -20,6 +25,8 @@ export type MapStop = {
   lng: number;
   kind: ActivityKind;
   precision?: Location["precision"];
+  mode?: ActivityMode | null;
+  end?: { lat: number; lng: number };
 };
 
 export type MapDay = {
@@ -60,6 +67,9 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
     const activity = activities[activityId];
     const location = activity?.location;
     if (location?.lat !== undefined && location.lng !== undefined) {
+      // `kind` is checked, not trusted: the contract refuses an endLocation off
+      // a transit stop on commands, but a read model never refuses a stored row.
+      const end = activity!.kind === "transit" ? activity!.endLocation : null;
       stops.push({
         activityId,
         title: activity!.title,
@@ -67,6 +77,8 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
         lng: location.lng,
         kind: activity!.kind,
         precision: location.precision,
+        mode: activity!.mode ?? null,
+        ...(end?.lat !== undefined && end.lng !== undefined ? { end: { lat: end.lat, lng: end.lng } } : {}),
       });
     }
   }
@@ -205,41 +217,84 @@ export function mapDays(detail: TripDetail): MapDay[] {
   });
 }
 
+/** The two route layers MapLens draws per day — see routeLegs for why two. */
+export type RouteVariant = "rest" | "travel";
+
+/**
+ * How each transport mode draws (M24 link 3; Mitchell, 2026-09-25: two line
+ * styles, matching the legend's two keys). Walking and cycling are the solid
+ * line; everything with a vehicle is the dashed one. Two and not seven because
+ * a dash pattern costs a layer (routeLegs), and nothing on the map yet needs to
+ * tell a bus from a ferry. A `Record` over the whole enum, so an eighth mode is
+ * a compile error here rather than a leg that silently draws one way.
+ */
+const MODE_VARIANT: Record<ActivityMode, RouteVariant> = {
+  walk: "rest",
+  bike: "rest",
+  bus: "travel",
+  train: "travel",
+  flight: "travel",
+  ferry: "travel",
+  car: "travel",
+};
+
+/**
+ * The style of a transit stop's own leg. No mode is dashed: the stop says it
+ * is travel, only not by what, and solid is the claim "on foot or by bike".
+ */
+export function legVariant(mode: ActivityMode | null | undefined): RouteVariant {
+  return mode == null ? "travel" : MODE_VARIANT[mode];
+}
+
 // GeoJSON order: [lng, lat], the opposite of maplibre's Marker#setLngLat
 // argument order in some call sites. Getting this backwards puts every route
 // in the ocean off West Africa.
 /**
- * The day's route split into two sets of legs — the ones that touch a
- * `transit` stop, and the ones that don't — so MapLens can draw the first
- * dashed and the second solid (Mitchell, 2026-08-30 design pass: "Travel
+ * The day's route split into two sets of legs — dashed `travel` and solid
+ * `rest` — for MapLens's two layers (Mitchell, 2026-08-30 design pass: "Travel
  * activity kinds should be dotted line, not solid"). Two sets rather than a
  * per-leg flag because `line-dasharray` is a plain paint property in
  * MapLibre: it takes no data-driven expression, so a dashed leg and a solid
  * one cannot share a layer however the feature is tagged.
  *
- * A leg counts as travel when **either** end of it is a transit stop, not
- * just the one it arrives at. A "Train to Kyoto" stop is the movement itself,
- * so the hop that reaches it and the hop that leaves it are both part of
- * that movement; dashing only one side left a solid half-leg hanging off
- * every train.
+ * **A transit stop with a destination (`end`) is its own leg**, origin →
+ * destination, styled by `legVariant(mode)`. The hops either side of it — the
+ * previous stop to its origin, its destination to the next stop — are ordinary
+ * legs, judged as if it were not transit: getting to the station is not the
+ * train. The next hop leaves from the destination, not the origin, so the
+ * route stays continuous and never draws the old guessed line (origin straight
+ * to the next stop) beside the real one.
  *
- * Legs are consecutive pairs in stop order, the same pairing `legKms()` uses.
- * A day with fewer than two located stops has no legs and yields two empty
- * lists.
+ * **A transit stop without one keeps the adjacency rule exactly** — most have
+ * none. Its point is the movement, so the hop that reaches it and the hop that
+ * leaves it are both travel; dashing only one side left a solid half-leg
+ * hanging off every train. Its mode is ignored, because it has no line of its
+ * own for a mode to style.
+ *
+ * Legs come back in route order. A day with no located stops has none; a day
+ * of one stop has none unless that stop is a leg itself.
  */
-export function routeLegs(day: MapDay): { travel: [number, number][][]; rest: [number, number][][] } {
-  const travel: [number, number][][] = [];
-  const rest: [number, number][][] = [];
-  for (let i = 1; i < day.stops.length; i++) {
-    const from = day.stops[i - 1]!;
-    const to = day.stops[i]!;
-    const leg: [number, number][] = [
-      [from.lng, from.lat],
-      [to.lng, to.lat],
-    ];
-    (from.kind === "transit" || to.kind === "transit" ? travel : rest).push(leg);
+export function routeLegs(day: MapDay): Record<RouteVariant, [number, number][][]> {
+  const legs: Record<RouteVariant, [number, number][][]> = { travel: [], rest: [] };
+  const inferred = (stop: MapStop) => stop.kind === "transit" && stop.end === undefined;
+  let prev: MapStop | undefined;
+  for (const stop of day.stops) {
+    if (prev !== undefined) {
+      const from = prev.end ?? prev;
+      legs[inferred(prev) || inferred(stop) ? "travel" : "rest"].push([
+        [from.lng, from.lat],
+        [stop.lng, stop.lat],
+      ]);
+    }
+    if (stop.end !== undefined) {
+      legs[legVariant(stop.mode)].push([
+        [stop.lng, stop.lat],
+        [stop.end.lng, stop.end.lat],
+      ]);
+    }
+    prev = stop;
   }
-  return { travel, rest };
+  return legs;
 }
 
 /**
