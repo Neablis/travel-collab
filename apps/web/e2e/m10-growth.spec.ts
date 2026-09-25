@@ -468,3 +468,66 @@ test("the day columns' scrollbar is on screen on load, even when the columns run
   });
   await expect.poll(() => bar.evaluate((el) => Math.round(el.scrollLeft))).toBe(1500);
 });
+
+/**
+ * Dragging the stand-in scrollbar moves the columns with it, and neither ever
+ * steps backwards (PR #234 review, on KI-2026-09-22-b's fix).
+ *
+ * The bar and the row mirror each other's `scrollLeft`, and Board.tsx's
+ * `echoes` counter makes the bar ignore the scroll events the row's writes
+ * raise. That is only safe while each echo is spent in the frame it was
+ * raised. The review worried that the row's event could land a frame late,
+ * write the row's old position back into the bar and use up the bar's next
+ * real event as that echo. In Chromium it does not (see the KI's follow-up
+ * line), and this pins that. Red-checked by delaying the row-to-bar mirror by
+ * one frame: the last drag step was lost (ended at 900, not 960).
+ *
+ * Headless Chromium draws overlay scrollbars (the KI's "NOT CONFIRMED" note),
+ * so the thumb cannot be grabbed with `page.mouse`. The drag is the button
+ * held down on the bar plus one `scrollLeft` write per frame — what the
+ * browser's own thumb drag does to the element — sampled every frame.
+ */
+test("dragging the day columns' scrollbar moves the columns with it, never back a frame", async ({ page }) => {
+  const tripId = await createMappedTrip(page, e2eTripName("ScrollbarDrag"), 14);
+  await page.setViewportSize({ width: 1920, height: 919 });
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await expect(page.getByTestId("day-column")).toHaveCount(14);
+
+  const bar = page.getByTestId("board-columns-scrollbar");
+  const step = 60;
+  const steps = 16;
+  // The premise: room to drag the whole way without reaching the end.
+  expect(await bar.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(step * steps);
+
+  const barBox = (await bar.boundingBox())!;
+  await page.mouse.move(barBox.x + 20, barBox.y + barBox.height / 2);
+  await page.mouse.down();
+  const samples = await bar.evaluate(
+    async (el, { step, steps }) => {
+      const row = document.querySelector<HTMLElement>('[role="group"][aria-label="Day columns"]')!;
+      const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const seen: { bar: number; row: number }[] = [];
+      for (let index = 1; index <= steps; index++) {
+        await frame();
+        seen.push({ bar: el.scrollLeft, row: row.scrollLeft });
+        el.scrollLeft = index * step;
+      }
+      // Let the last write's scroll events land.
+      for (let index = 0; index < 10; index++) {
+        await frame();
+        seen.push({ bar: el.scrollLeft, row: row.scrollLeft });
+      }
+      return seen;
+    },
+    { step, steps },
+  );
+  await page.mouse.up();
+
+  const backwards = (values: number[]) =>
+    values.flatMap((value, index) =>
+      index > 0 && value < values[index - 1]! ? [`${values[index - 1]} -> ${value}`] : [],
+    );
+  expect(backwards(samples.map((s) => s.bar)), "the thumb never jumps back").toEqual([]);
+  expect(backwards(samples.map((s) => s.row)), "the columns never step back").toEqual([]);
+  expect(samples.at(-1), "both end where the drag let go").toEqual({ bar: step * steps, row: step * steps });
+});

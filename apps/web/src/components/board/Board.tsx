@@ -289,11 +289,16 @@ export function Board({
   // The two mirror each other's `scrollLeft`. `echoes` counts the scroll
   // events the row's own writes into the bar still owe, so the bar ignores
   // them rather than writing them back: without that, a smooth
-  // `scrollIntoView` on the row (the day-sync follow above) would be dragged
-  // back to the previous frame's position by the bar's one-frame-late scroll
-  // event, which carries the value the row had a frame ago. A drag of the bar
-  // itself owes nothing, and moves the row — which then runs the spy above,
-  // exactly as a drag of the row's own scrollbar would.
+  // `scrollIntoView` on the row (the day-sync follow above) stops dead after
+  // its first frame, because any write to the row's `scrollLeft`, even of the
+  // value it already holds, cancels a smooth scroll in flight (measured
+  // 2026-09-25 with the guard removed: the row stopped at 3px of 2316).
+  // Chromium delivers the scroll event a handler's write raises within the
+  // same dispatch pass, so the counter settles every frame; a bar drag
+  // sampled per frame never stepped back or lost a step (m10-growth's "never
+  // back a frame"). A drag of the bar itself owes nothing, and moves the
+  // row — which then runs the spy above, exactly as a drag of the row's own
+  // scrollbar would.
   const barRef = useRef<HTMLDivElement>(null);
   const barSpacerRef = useRef<HTMLDivElement>(null);
   const echoes = useRef(0);
