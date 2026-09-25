@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import Link from "next/link";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
+import { autoScrollForElements, autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import type { ActivityTag, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -342,6 +342,34 @@ export function Board({
     observer.observe(row);
     return () => observer.disconnect();
   }, [oneDay, readOnly, trip.days.length, mirrorRowIntoBar]);
+
+  // **Dragging a card toward an off-screen day scrolls the row**
+  // (KI-2026-09-25-c). The window was the only thing registered for
+  // drag auto-scroll (see the monitor below), and the row scrolls in its own
+  // box, so holding a card at the row's right edge moved nothing — apart from
+  // the browser's native drag auto-scroll, which Chromium only starts within a
+  // few pixels of the edge (measured: 8px scrolled, 60px did not). pdnd's
+  // element auto-scroll engages across a band a quarter of the row wide, capped
+  // at 180px.
+  //
+  // **This only works while `@atlaskit/pragmatic-drag-and-drop` and the
+  // auto-scroll package resolve to ONE copy of the core.** The auto-scroll
+  // package listens through its own import of the core's element adapter; when
+  // web pinned core 2.x and auto-scroll brought 3.x, the draggables here spoke
+  // to one adapter and auto-scroll to another, so it never saw a drag. By the
+  // same mechanism the window auto-scroll below was dead too, for as long as
+  // the lockfile has held both copies. Keep web's core range the one
+  // auto-scroll depends on.
+  //
+  // The stand-in bar needs nothing extra: these are ordinary writes to the
+  // row's `scrollLeft`, so `onRowScroll` mirrors them like any other scroll.
+  // Not on the phone's one-day column, which does not scroll sideways (and
+  // which pdnd would warn about as a non-scrollable registration).
+  useEffect(() => {
+    const row = scrollRef.current;
+    if (oneDay || row === null) return;
+    return autoScrollForElements({ element: row });
+  }, [oneDay]);
 
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
