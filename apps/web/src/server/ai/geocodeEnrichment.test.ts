@@ -689,14 +689,127 @@ describe("enrichCommandLocations", () => {
       "Nishiki Market": [{ lat: 35.005, lng: 135.7649, canonicalName: "Nishiki Market", countryCode: "JP" }],
     });
     const leg = { ...addActivity("Shinkansen", { name: "Odawara Station" }), kind: "transit", endLocation: { name: "Kyoto Station" } } as BatchableCommand;
-    // A trip region spanning both ends: without one, the batch bootstraps a
-    // 150 km box around the first answer, and a leg's far end falls outside it.
+    // A trip region spanning both ends, so the origin and the lunch are judged
+    // as they always are; the destination is judged without it (see below).
     const honshu = { minLat: 33, maxLat: 37, minLng: 134, maxLng: 141 };
     const { commands } = await enrichCommandLocations([leg, addActivity("Lunch", { name: "Nishiki Market" })], () => geocoder, honshu, async () => {});
     expect(commands).toHaveLength(2);
     expect(commands[0]).toMatchObject({ location: { lat: 35.2564 }, endLocation: { name: "Kyoto Station", lat: 34.9858 } });
     expect(commands[1]).toMatchObject({ title: "Lunch", location: { lat: 35.005 } });
     expect(commands[1]).not.toHaveProperty("endLocation");
+  });
+
+  // KI-2026-09-25-m, CodeRabbit on #230. A leg's destination is far from its
+  // origin by nature, so the region box every other stop answers to would
+  // refuse it. The ordinary-stop half of this — a stop outside the bootstrapped
+  // region stays `unverified` — is pinned by "bootstraps a region from accepted
+  // results" above.
+  describe("a transit leg's destination", () => {
+    const ODAWARA = { lat: 35.2564, lng: 139.1553, canonicalName: "Odawara Station", countryCode: "JP" };
+    const KYOTO = { lat: 34.9858, lng: 135.7588, canonicalName: "Kyoto Station", countryCode: "JP" };
+    const NARITA = { lat: 35.772, lng: 140.3929, canonicalName: "Narita International Airport", countryCode: "JP" };
+    const NIAGARA_REGION = { minLat: 42, maxLat: 44, minLng: -80, maxLng: -77 };
+    const leg = (origin: Location, destination: Location) =>
+      ({ ...addActivity("Leg", origin), kind: "transit", endLocation: destination }) as BatchableCommand;
+    const endOf = (command: BatchableCommand) => (command as { endLocation: Location }).endLocation;
+
+    it("gets its coordinates ~300 km from an origin that anchored a region-less trip", async () => {
+      const { geocoder } = fakeGeocoder({ "Odawara Station": [ODAWARA], "Kyoto Station": [KYOTO] });
+      const { commands, report } = await enrichCommandLocations(
+        [leg({ name: "Odawara Station" }, { name: "Kyoto Station" })],
+        () => geocoder,
+        null,
+        async () => {},
+      );
+      expect(endOf(commands[0]!)).toMatchObject({ name: "Kyoto Station", lat: 34.9858, lng: 135.7588, precision: "venue" });
+      // Nothing to check it against, so it is `unchecked` — the same answer the
+      // first stop of a region-less trip gets, and never `verified`.
+      expect(report.unchecked).toEqual(["Odawara Station", "Kyoto Station"]);
+      expect(report.unverified).toEqual([]);
+    });
+
+    it("gets its coordinates on a trip whose existing region is on another continent", async () => {
+      const { geocoder } = fakeGeocoder({ "Narita International Airport": [NARITA] });
+      const { commands, report } = await enrichCommandLocations(
+        [leg({ name: "Buffalo Niagara International Airport", ...NIAGARA }, { name: "Narita International Airport" })],
+        () => geocoder,
+        NIAGARA_REGION,
+        async () => {},
+      );
+      expect(endOf(commands[0]!)).toMatchObject({ lat: 35.772, lng: 140.3929 });
+      expect(report.unchecked).toContain("Narita International Airport");
+    });
+
+    it("still answers to the model's own hint, outside the region or not", async () => {
+      const { geocoder } = fakeGeocoder({
+        "Narita International Airport": [NARITA],
+        // A same-named place in the wrong country: the hint is what catches it.
+        "Kyoto Station": [{ lat: 52.2, lng: 0.12, canonicalName: "Kyoto Station, Cambridge", countryCode: "GB" }],
+      });
+      const { commands, report } = await enrichCommandLocations(
+        [
+          leg({ name: "Buffalo Niagara International Airport", ...NIAGARA }, { name: "Narita International Airport", lat: 35.77, lng: 140.39 }),
+          leg({ name: "Buffalo Niagara International Airport", ...NIAGARA }, { name: "Kyoto Station", lat: 34.98, lng: 135.76 }),
+        ],
+        () => geocoder,
+        NIAGARA_REGION,
+        async () => {},
+      );
+      expect(report.verified).toContain("Narita International Airport");
+      expect(endOf(commands[0]!)).toMatchObject({ lat: 35.772, precision: "venue" });
+      expect(report.unverified).toContain("Kyoto Station");
+      expect(endOf(commands[1]!)).toEqual({ name: "Kyoto Station", lat: 34.98, lng: 135.76 });
+    });
+
+    it("never anchors the region an ordinary stop is judged against", async () => {
+      const { geocoder } = fakeGeocoder({
+        "Odawara Station": [ODAWARA],
+        "Kyoto Station": [KYOTO],
+        "Nishiki Market": [{ lat: 35.005, lng: 135.7649, canonicalName: "Nishiki Market", countryCode: "JP" }],
+      });
+      const { commands, report } = await enrichCommandLocations(
+        [leg({ name: "Odawara Station" }, { name: "Kyoto Station" }), addActivity("Lunch", { name: "Nishiki Market" })],
+        () => geocoder,
+        null,
+        async () => {},
+      );
+      // An unchecked destination is not evidence about where the trip is, so
+      // the market is judged against Odawara's box alone and refused by it.
+      expect(report.unverified).toEqual(["Nishiki Market"]);
+      expect((commands[1] as { location: Location }).location.lat).toBeUndefined();
+    });
+
+    // Dedupe is per name, and the two are judged differently — so sharing one
+    // lookup would hand the ordinary stop a verdict it never had to earn.
+    it("is looked up apart from an ordinary stop of the same name, which still answers to the region", async () => {
+      const { geocoder, calls } = fakeGeocoder({ "Kyoto Station": [KYOTO] });
+      const { commands } = await enrichCommandLocations(
+        [
+          leg({ name: "Buffalo Niagara International Airport", ...NIAGARA }, { name: "Kyoto Station" }),
+          addActivity("Pick up", { name: "Kyoto Station" }),
+        ],
+        () => geocoder,
+        NIAGARA_REGION,
+        async () => {},
+      );
+      expect(calls.filter((q) => q === "Kyoto Station")).toHaveLength(2);
+      expect(endOf(commands[0]!)).toMatchObject({ lat: 34.9858 });
+      expect((commands[1] as { location: Location }).location.lat).toBeUndefined();
+    });
+
+    it("takes a city-level pin outside the region when the venue is not found", async () => {
+      const { geocoder } = fakeGeocoder({
+        "Kyoto, JP": [{ lat: 35.0116, lng: 135.7681, canonicalName: "Kyoto, Japan", countryCode: "JP" }],
+      });
+      const { commands, report } = await enrichCommandLocations(
+        [leg({ name: "Buffalo Niagara International Airport", ...NIAGARA }, { name: "Hotel Kanra", city: "Kyoto", countryCode: "JP" })],
+        () => geocoder,
+        NIAGARA_REGION,
+        async () => {},
+      );
+      expect(report.cityLevel).toEqual(["Hotel Kanra"]);
+      expect(endOf(commands[0]!)).toMatchObject({ name: "Hotel Kanra", lat: 35.0116, precision: "city" });
+    });
   });
 
   it("ignores a cleared location (null) on UpdateActivity", async () => {
