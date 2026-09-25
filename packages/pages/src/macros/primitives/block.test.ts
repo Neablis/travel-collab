@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderMacro } from "../../registry";
 import type { ItineraryTripPayload, WidgetContext } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
+import { readerOn } from "../../test-support/reader";
 import { formatDate } from "../../format";
 
 // `block` is the shape ADR-039 was written about: `itinerary.trip` rendered a
@@ -56,6 +57,26 @@ describe("day.detail", () => {
           activities: [
             { title: "Colosseum", timeWindow: "9 am – 10 am", cost: expect.any(String) },
             { title: "Lunch", timeWindow: "12 pm – 1 pm", cost: expect.any(String) },
+          ],
+        },
+      },
+    });
+  });
+
+  // Both of the card's clocks — the day's window and each stop's — follow the
+  // reader's setting, from the same `ctx.user` the rest of the page reads.
+  it("prints the card's times on the reader's 24-hour clock when that is their setting", () => {
+    const ctx = { ...contextOf(selectionTrip()), user: readerOn("24h") };
+    const outcome = renderMacro(ctx, "day.detail", { day: { kind: "index", index: 0 } });
+    expect(outcome).toMatchObject({
+      status: "ok",
+      rendered: {
+        kind: "block",
+        block: {
+          window: "09:00 – 13:00",
+          activities: [
+            { title: "Colosseum", timeWindow: "09:00 – 10:00" },
+            { title: "Lunch", timeWindow: "12:00 – 13:00" },
           ],
         },
       },

@@ -18,7 +18,7 @@ import { selectionTrip } from "./test-support/selectionTrip";
 const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetContext => ({
   trip,
   page: { tripId: trip.tripId },
-  user: { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" },
+  user: { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" },
   globals,
   // No widget under test here reads it; `attribute{trip.countdown}` is the
   // only one that does and `attribute.test.ts` pins its every branch.

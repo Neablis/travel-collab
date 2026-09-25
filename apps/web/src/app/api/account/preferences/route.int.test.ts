@@ -44,6 +44,7 @@ describe("GET /api/account/preferences", () => {
       displayName: null,
       homeAirport: null,
       distanceUnit: "km",
+      timeFormat: "12h",
     });
   });
 
@@ -56,6 +57,7 @@ describe("GET /api/account/preferences", () => {
       displayName: "Mitchell",
       homeAirport: "LHR",
       distanceUnit: "km",
+      timeFormat: "12h",
     });
   });
 });
@@ -73,7 +75,24 @@ describe("PATCH /api/account/preferences", () => {
       displayName: null,
       homeAirport: null,
       distanceUnit: "mi",
+      timeFormat: "12h",
     });
+  });
+
+  it("switches the clock to 24-hour, and back", async () => {
+    currentUserId = await seedUser();
+    const res = await patch({ timeFormat: "24h" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ preferences: { timeFormat: "24h" } });
+    expect(await (await GET()).json()).toMatchObject({ preferences: { timeFormat: "24h" } });
+
+    await patch({ timeFormat: "12h" });
+    expect(await (await GET()).json()).toMatchObject({ preferences: { timeFormat: "12h" } });
+  });
+
+  it("400s a time format that is not one of the two", async () => {
+    currentUserId = await seedUser();
+    expect((await patch({ timeFormat: "military" })).status).toBe(400);
   });
 
   // The contract validates `^[A-Z]{3}$` and carries no transform — the package
@@ -106,6 +125,7 @@ describe("PATCH /api/account/preferences", () => {
       displayName: "Mitchell",
       homeAirport: null,
       distanceUnit: "mi",
+      timeFormat: "12h",
     });
   });
 

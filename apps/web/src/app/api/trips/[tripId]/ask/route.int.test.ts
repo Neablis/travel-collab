@@ -11,7 +11,7 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
-import { askScopeLine, parseAskScope } from "@/server/assistant/context";
+import { askScopeLine, clockTimesLine, parseAskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
 import { tripDetailFactory } from "@tc/factories";
@@ -30,6 +30,9 @@ const ACTOR_ID = "ask-owner";
 const LIBRARY_AUTHOR_ID = "ask-library-author";
 const VIEWER_ID = "ask-viewer";
 const OUTSIDER_ID = "ask-outsider";
+// Their own account, so the 24-hour setting below is never written onto an
+// actor another test reads the default clock from.
+const CLOCK_READER_ID = "ask-24h-reader";
 
 let currentUserId = ACTOR_ID;
 
@@ -148,7 +151,7 @@ const PAGE_TURN_TOOL_NAMES = pageTurnTools.map((t) => t.name);
 const WRITE_ONLY_NAMES = planningTools.filter((t) => t.effect === "propose").map((t) => t.name);
 const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
-const { upsertUser } = await import("@/server/users");
+const { upsertUser, writePreferences } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
 const { aiUsage } = await import("@/server/db/schema");
 const { eq } = await import("drizzle-orm");
@@ -855,6 +858,43 @@ describe("POST /api/trips/:id/ask", () => {
       // this trip.
       expect(instruction).not.toContain("You can READ this trip and nothing else");
       expect(instruction).not.toContain("only answer questions about the trip for now");
+    });
+
+    // Account → Profile's Time setting reaches the assistant: its answers name
+    // times in the asker's clock, read from their stored preferences on every
+    // turn — not the 24-hour `HH:mm` read_day hands the model.
+    it("tells the model to write times in the asker's own clock", async () => {
+      const tripId = await seedTrip();
+      await upsertUser({ id: CLOCK_READER_ID, email: null, name: null, image: null });
+      await writePreferences(CLOCK_READER_ID, { timeFormat: "24h" });
+      await grantViewer(tripId, CLOCK_READER_ID);
+      currentUserId = CLOCK_READER_ID;
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("when does day 1 start?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      expect(turnInstruction()).toContain(clockTimesLine("24h"));
+      expect(turnInstruction()).not.toContain(clockTimesLine("12h"));
+    });
+
+    it("tells the model the 12-hour clock for an asker who never changed it", async () => {
+      const tripId = await seedTrip();
+      const { model, turnInstruction } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("when does day 1 start?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      expect(turnInstruction()).toContain(clockTimesLine("12h"));
+      expect(turnInstruction()).not.toContain(clockTimesLine("24h"));
     });
 
     // **A narrowed turn must be TOLD it was narrowed**, or the filter turns a

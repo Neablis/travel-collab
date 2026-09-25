@@ -3,6 +3,7 @@ import type { TripDetail, TripGlobals, UserPreferences } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { Rendered, WidgetContext } from "../../registry-types";
+import { readerOn } from "../../test-support/reader";
 
 // "Sunrise and sunset" and "Time difference from home" (M14 link 11). Both
 // read the day's place and zone off the globals projection — the server put
@@ -82,6 +83,15 @@ describe("day.sun", () => {
   it("says so when a sunset falls after midnight, rather than printing it as the morning's", () => {
     const [, reykjavik] = sun(contextOf(trip()));
     expect(reykjavik![3]).toMatch(/^sunset 12(:0\d)? am \(next day\)$/);
+  });
+
+  // The reader's clock, not the design's: a 24-hour reader gets "04:25", and
+  // Reykjavik's after-midnight sunset keeps its marker in either format.
+  it("prints the sun's times on the reader's 24-hour clock when that is their setting", () => {
+    const [tokyo, reykjavik] = sun(contextOf(trip(), readerOn("24h")));
+    expect(tokyo![2]).toMatch(/^sunrise 04:2[4-7]$/);
+    expect(tokyo![3]).toMatch(/^sunset (18:5[89]|19:0[0-2])$/);
+    expect(reykjavik![3]).toMatch(/^sunset 00:0\d \(next day\)$/);
   });
 
   // West of 180° on UTC+13: the day's own sun, never the next day's marked
@@ -176,7 +186,7 @@ describe("day.fromHome", () => {
       status: "empty",
       because: "set a home airport in Account to see this",
     });
-    const user = { displayName: null, homeAirport: "QQQ", distanceUnit: "km" } as unknown as UserPreferences;
+    const user = { displayName: null, homeAirport: "QQQ", distanceUnit: "km", timeFormat: "12h" } as unknown as UserPreferences;
     expect(renderMacro(contextOf(trip, user), "day.fromHome", {})).toMatchObject({
       status: "empty",
       because: "no time zone known for QQQ",

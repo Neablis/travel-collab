@@ -9,6 +9,7 @@ import { formatMoney } from "@/lib/formatMoney";
 import { displayNameFor } from "@/lib/displayName";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { toClockLabel, toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
 import { backQuery, type BackOrigin } from "./backLink";
@@ -54,6 +55,7 @@ export function ratingLine(day: Pick<DiscoverDay, "rating" | "reviewCount">): st
  * too, so "the day came from Discover" is not something the card may assume.
  */
 export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOrigin }) {
+  const clock = useTimeFormat();
   const line = matchLine(day);
   const rated = ratingLine(day);
   const back = backQuery(origin);
@@ -137,7 +139,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
               a clock range across three midnights as if it were one day's
               (ADR-048 decision 4) — so nothing renders here rather than
               something false. */}
-          {day.window !== null && ` · ${toClockRange(day.window.start, day.window.end)}`}
+          {day.window !== null && ` · ${toClockRange(day.window.start, day.window.end, clock)}`}
           {/* No trailing "each": this is the day's TOTAL. The card read
               "$27.00 each" for a number `savedDayFacts` produces by adding up
               stop costs and dividing by nothing — Mitchell, 2026-09-01: *"why
@@ -178,7 +180,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           {day.preview.map((stop, i) => (
             <li key={i} className="flex gap-2.5 text-sm">
               <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 text-2xs" data-testid="preview-time">
-                {stop.start !== null ? toClockLabel(stop.start) : ""}
+                {stop.start !== null ? toClockLabel(stop.start, clock) : ""}
               </DataText>
               <span className="text-ink" data-testid="preview-title">
                 {stop.title}

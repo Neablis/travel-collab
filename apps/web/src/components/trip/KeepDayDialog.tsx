@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import type { SavedStop } from "@tc/contracts";
+import type { SavedStop, TimeFormat } from "@tc/contracts";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Text } from "@/components/ui/text";
 import { createSavedDay } from "@/lib/apiClient";
 import { submitOnEnter } from "@/lib/submitOnEnter";
 import { toClockLabel, toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { formatTripDate } from "@/lib/formatDate";
 
 // Handoff README §"Keep this day": the pennant flag opens this dialog. Real as
@@ -117,7 +118,7 @@ export type KeepDayCandidate = {
  * thing being kept. What is left is only what varies — how many days, how many
  * stops, the clock range when there is one, and which days are rest days.
  */
-function includedSummary(selected: KeepDayCandidate[], all: KeepDayCandidate[]): string {
+function includedSummary(selected: KeepDayCandidate[], all: KeepDayCandidate[], clock: TimeFormat): string {
   const stops = selected.flatMap((d) => d.stops);
   if (selected.length === 0) return "Pick at least one day.";
   if (stops.length === 0) {
@@ -140,7 +141,7 @@ function includedSummary(selected: KeepDayCandidate[], all: KeepDayCandidate[]):
   const first = windows[0];
   const last = windows[windows.length - 1];
   if (first === undefined || last === undefined) return `${count}, in order.`;
-  return `${count}, ${toClockRange(first.start, last.end)}.`;
+  return `${count}, ${toClockRange(first.start, last.end, clock)}.`;
 }
 
 /**
@@ -167,6 +168,7 @@ function defaultName(selected: KeepDayCandidate[], all: KeepDayCandidate[], trip
  * reason the summary names rest days.
  */
 function KeepPreview({ selected, all }: { selected: KeepDayCandidate[]; all: KeepDayCandidate[] }) {
+  const clock = useTimeFormat();
   return (
     <div className="flex flex-col gap-2.5 rounded-md border border-hairline bg-paper p-3" data-testid="keep-day-preview">
       {selected.map((day, i) => {
@@ -187,7 +189,7 @@ function KeepPreview({ selected, all }: { selected: KeepDayCandidate[]; all: Kee
               day.stops.map((stop, k) => (
                 <div key={k} className="flex gap-2.5 py-0.75 text-sm">
                   <span className="w-21 flex-none pt-0.5 font-mono text-2xs text-slate">
-                    {stop.timeWindow === null ? "" : toClockLabel(stop.timeWindow.start)}
+                    {stop.timeWindow === null ? "" : toClockLabel(stop.timeWindow.start, clock)}
                   </span>
                   <span className="text-ink">{stop.title}</span>
                 </div>
@@ -220,6 +222,7 @@ export function KeepDayDialog({
   /** Called once the keep lands, with how many days went into it. */
   onSaved?: (dayCount: number) => void;
 }) {
+  const clock = useTimeFormat();
   const nameId = useId();
   const includedId = useId();
   const [name, setName] = useState("");
@@ -430,7 +433,7 @@ export function KeepDayDialog({
         )}
         <FormField id={includedId} label="What's included">
           <Text as="span" id={includedId} className="text-sm text-ink">
-            {includedSummary(selected, days)}
+            {includedSummary(selected, days, clock)}
           </Text>
         </FormField>
         {selected.length > 0 && <KeepPreview selected={selected} all={days} />}

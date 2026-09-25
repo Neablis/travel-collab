@@ -101,7 +101,7 @@ beforeEach(() => {
 
 const server = setupServer(
   http.get("/api/account/preferences", () =>
-    HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km" } }),
+    HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" } }),
   ),
   // Same reasoning as the preferences default above. Without it the rail's
   // `useAiEntitled` never learns the plan and sits on "unknown" for the whole

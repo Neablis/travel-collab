@@ -12,6 +12,7 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { formatMoney } from "@/lib/formatMoney";
 import { displayPlace } from "@/lib/place";
 
@@ -191,6 +192,7 @@ function ReadOnlyActivity({
   currency: string;
   onClose: () => void;
 }) {
+  const clock = useTimeFormat();
   return (
     <div className="flex flex-col gap-3">
       {activity === null ? (
@@ -203,7 +205,7 @@ function ReadOnlyActivity({
           <DataText size="xs" className="block">
             {activity.timeWindow === null
               ? "No time yet"
-              : toClockRange(activity.timeWindow.start, activity.timeWindow.end)}
+              : toClockRange(activity.timeWindow.start, activity.timeWindow.end, clock)}
           </DataText>
           {activity.location && (
             <Text as="p" variant="secondary">{displayPlace(activity.location)}</Text>
