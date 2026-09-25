@@ -2,8 +2,8 @@
 // A third party's failure is covered by a UI placeholder tested against an MSW
 // stub, and its success by a manual walkthrough on a Vercel preview — never by
 // a test that dials out. This module is the unit and integration lanes' half of
-// enforcing that: any `fetch` to a host that is not this machine rejects, loudly,
-// naming the URL.
+// enforcing that: any request to a host that is not this machine fails, loudly,
+// naming where it was going.
 //
 // **Why it has to be enforced rather than remembered.** The integration lane
 // loads `.env.local`, which on a developer machine carries real LocationIQ,
@@ -11,21 +11,41 @@
 // it succeeds against the real vendor, spends real quota, and goes red in CI
 // where the key is absent. That is the worst shape a test can have.
 //
-// **How it composes with MSW.** `setupServer().listen()` (called in a test
-// file's `beforeAll`, i.e. after the setup file that installs this) captures
-// whatever `globalThis.fetch` is at that moment as its passthrough and wraps it.
-// So a request MSW has a handler for is answered by MSW and never reaches this;
-// an unhandled one under the default `onUnhandledRequest: "warn"` passes
-// through to this and is rejected here; under `"error"` MSW refuses it first.
+// **Two layers.** `fetch` is guarded at the call, so its rejection names the
+// full URL. Everything else — Node's `http`/`https` (`request` and `get`),
+// jsdom's `XMLHttpRequest`, `WebSocket` in either environment, and any library
+// built on them — is guarded where all of it ends up: `net.Socket#connect`,
+// which `net.connect`, `tls.connect` and undici all call. A connect to a
+// non-local host is refused there with the same message, emitted as the
+// socket's `error` the way a real connection failure is. `sendBeacon` needs no
+// guard of its own: neither Node nor jsdom implements it, and if jsdom ever
+// does it will be built on the same sockets. (KI-2026-09-24-u.)
 //
-// **Only `fetch`.** Every third-party client in `src/server` (LocationIQ,
-// Stripe's REST calls, the AI SDK's gateway provider) uses `fetch`, and so does
-// every browser-side client. Node's `http`/`https`, `XMLHttpRequest`,
-// `navigator.sendBeacon` and `WebSocket` are not guarded; nothing a test
-// imports uses them today. The Sentry SDK's node transport does, which is why
-// every test that initialises Sentry passes its own in-memory `transport`, and
-// why `networkGuard.setup.ts` forces `NEXT_PUBLIC_SENTRY_DSN` empty in both
-// lanes.
+// **Why the socket and not `http.request`.** MSW's `ClientRequestInterceptor`
+// wraps `http.request` in a Proxy that calls whatever it wrapped — for EVERY
+// request, handled or not, with its own agent whose sockets are
+// `MockHttpSocket`s. A guard on `http.request` would therefore refuse requests
+// MSW was about to answer. `MockHttpSocket` overrides `connect`, so a handled
+// request never reaches `net.Socket#connect`; only a passthrough does, through
+// the real agent's `createConnection` — which is exactly the one to refuse.
+//
+// **How the fetch guard composes with MSW.** `setupServer().listen()` (called
+// in a test file's `beforeAll`, i.e. after the setup file that installs this)
+// captures whatever `globalThis.fetch` is at that moment as its passthrough
+// and wraps it. So a request MSW has a handler for is answered by MSW and never
+// reaches this; an unhandled one under the default `onUnhandledRequest: "warn"`
+// passes through to this and is rejected here; under `"error"` MSW refuses it
+// first.
+//
+// **What it does not cover.** A worker thread or child process gets its own
+// `net` module, unpatched — which includes jsdom's SYNCHRONOUS XHR, run in a
+// worker. And a request sent through an HTTP proxy on this machine connects to
+// the proxy, which is local; Node only does that when `NODE_USE_ENV_PROXY` is
+// set, which neither lane does. The Sentry SDK's node transport is closed
+// separately, by `networkGuard.setup.ts` forcing `NEXT_PUBLIC_SENTRY_DSN`
+// empty.
+
+import net from "node:net";
 
 const GUARDED = Symbol.for("travel-collab.networkGuard");
 
@@ -95,12 +115,65 @@ export function guardFetch(inner: typeof fetch): typeof fetch {
 }
 
 /**
- * Replaces `globalThis.fetch` with the guarded version. Idempotent, so a test
+ * Replaces `globalThis.fetch` with the guarded version and installs the
+ * socket guard beneath everything else. Idempotent, so a test
  * that imports this module after the setup file already ran does not wrap the
  * guard in itself.
  */
 export function installNetworkGuard(): void {
+  installSocketGuard();
   const current = globalThis.fetch as typeof fetch & { [GUARDED]?: boolean };
   if (typeof current !== "function" || current[GUARDED]) return;
   globalThis.fetch = guardFetch(current);
+}
+
+type ConnectArgs = Parameters<net.Socket["connect"]>;
+
+/**
+ * The host a `net.Socket#connect` call is dialling, or `undefined` for a Unix
+ * socket / named pipe. Accepts every overload plus the pre-normalised array
+ * `net.connect` and `tls.connect` pass internally. An omitted host is
+ * `localhost`, as it is to Node.
+ */
+export function connectTarget(args: readonly unknown[]): { host: string; port?: number } | undefined {
+  const first = Array.isArray(args[0]) ? args[0][0] : args[0];
+  if (first !== null && typeof first === "object") {
+    const options = first as { host?: string | null; port?: number | string | null; path?: string | null };
+    // Truthiness, as Node's own `net` decides it: `http` hands its sockets
+    // `path: null`, and that is a TCP connect, not a pipe.
+    if (options.path) return undefined;
+    return { host: options.host || "localhost", port: options.port == null ? undefined : Number(options.port) };
+  }
+  if (typeof first === "number" || (typeof first === "string" && /^\d+$/.test(first))) {
+    return { host: typeof args[1] === "string" && args[1] ? args[1] : "localhost", port: Number(first) };
+  }
+  return undefined;
+}
+
+/**
+ * Patches `net.Socket.prototype.connect` so a connection to anything other
+ * than this machine is destroyed with {@link blockedRequestMessage} before it
+ * is attempted — no DNS lookup, no packet. Local hosts and Unix sockets
+ * (Postgres, the app under test) connect as normal.
+ * Idempotent.
+ */
+export function installSocketGuard(): void {
+  const proto = net.Socket.prototype as net.Socket & { [GUARDED]?: boolean };
+  if (proto[GUARDED]) return;
+  const original = proto.connect;
+  proto.connect = function guardedConnect(this: net.Socket, ...args: ConnectArgs) {
+    const target = connectTarget(args);
+    if (target && !isLocalHostname(target.host)) {
+      const where = target.port === undefined ? target.host : `${target.host}:${target.port}`;
+      const error = new Error(blockedRequestMessage(where));
+      // Also said out loud, because the socket error is not always what a
+      // test sees: XHR reports a bare network error and WebSocket a 1006
+      // close, neither of which carries this message.
+      console.error(error.message);
+      process.nextTick(() => this.destroy(error));
+      return this;
+    }
+    return original.apply(this, args);
+  } as net.Socket["connect"];
+  Object.defineProperty(proto, GUARDED, { value: true });
 }

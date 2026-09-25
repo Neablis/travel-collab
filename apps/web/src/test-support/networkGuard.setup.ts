@@ -4,12 +4,16 @@
 // two lanes cannot drift into guarding different things.
 import { installNetworkGuard } from "./networkGuard";
 
-// Any `fetch` to a host other than this machine rejects, naming the URL. See
-// `networkGuard.ts` for how it composes with MSW and what it does not cover.
+// Any `fetch` to a host other than this machine rejects, naming the URL, and
+// any socket connect to one (Node `http`/`https`, jsdom's XHR, `WebSocket`) is
+// refused the same way. See `networkGuard.ts` for how it composes with MSW and
+// what it does not cover.
 installNetworkGuard();
 
-// **Sentry off, forced — not `??=`.** Its node transport posts over `https`,
-// which the fetch guard above never sees, so the DSN is the only lever. And
+// **Sentry off, forced — not `??=`.** Its node transport posts over `https`.
+// The socket guard above would refuse that post, but Sentry would still
+// attempt it and report the failure in the middle of someone else's test, so
+// an empty DSN — Sentry never tries — stays the first line. And
 // `sentry.shared.ts` falls back to the REAL production DSN when the variable
 // is unset, so "unset" is not "off".
 //
