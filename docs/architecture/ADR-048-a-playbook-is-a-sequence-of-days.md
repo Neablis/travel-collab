@@ -411,6 +411,11 @@ was built to refuse.
   cost this change does not incur, for the benefit of the next change that does.
   The entry stays open, and the first genuinely non-additive `SavedStop` change
   is what should pay for it.
+  *(2026-09-25: the entry is resolved — a frozen golden of the oldest stored
+  `SavedStop` now fails the contract suite on any new required field, which
+  makes the `.default()` rule mechanical; the wrapper is still what the first
+  non-additive change should pay for. See
+  `resolved/KI-20260905-l-kept-days-carry-no-version.md`.)*
 * **Deriving `dayCount` from `max(dayIndex) + 1`.** Loses trailing empty days
   while gaps preserve interior ones, which is an asymmetry no user can state.
   See Decision 2.
