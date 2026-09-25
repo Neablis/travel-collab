@@ -186,41 +186,75 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
 
 ## Exit gate
 
-- [ ] **A `mode` on a non-transit stop is refused by the schema**, enforced by a
+- [x] **A `mode` on a non-transit stop is refused by the schema**, enforced by a
       `superRefine` on the activity object (the pattern already at
       `activity.ts:25`) rather than by convention — with a test that asserts the
       rejection, and that is **seen to fail** against a schema without the
       refinement.
-- [ ] **The transport-mode vocabulary is settled in an accepted ADR**, which
+- [x] **The transport-mode vocabulary is settled in an accepted ADR**, which
       names the values and what it rejected.
-- [ ] `docs/contracts/CHANGELOG.md` carries an entry for `mode` and for
+- [x] `docs/contracts/CHANGELOG.md` carries an entry for `mode` and for
       `endLocation`, and **every consumer moved in the same PR** — invariant 5's
       protocol, not a follow-up.
-- [ ] An `endLocation` on a **non-transit** stop is refused by the same
+- [x] An `endLocation` on a **non-transit** stop is refused by the same
       mechanism, with its own test.
-- [ ] **A two-location leg renders as a real line on the map, walked in a real
+- [x] **A two-location leg renders as a real line on the map, walked in a real
       browser.** Per **KI-49**, a screenshot of this lens may only claim what it
       actually shows: **a blank canvas is not a pass**, and the evidence must
       say which half was verified — tile *transport* (style, tilejson, sprites,
       glyphs, a 200 on the style fetch) or *pixels*. Neither a cloud session nor
       a laptop has yet produced a picture of a rendered basemap, so the gate box
       is closed by a stated, bounded claim, not by "looks fine".
-- [ ] `map-legend-modes` is **wired up or deleted**, and no M24-tagged entry
+- [x] `map-legend-modes` is **wired up or deleted**, and no M24-tagged entry
       remains in `apps/web/src/lib/preview-registry.ts`.
 - [ ] **Every city-deriving surface has made an explicit choice** about which of
       a transit stop's two locations it reads — `citiesOfStops`, `cityFor()`,
       `shortPlace()` — each recorded in a comment beside the code, with a test
       pinning the choice.
-- [ ] **`geographyRule` excuses a distance only when the transit stop's
+- [x] **`geographyRule` excuses a distance only when the transit stop's
       destination agrees**, and a transit stop with no `endLocation` behaves
       exactly as it does today — both directions covered by tests, both **seen
       to fail** before the change.
-- [ ] The Japan fixture's `conflictTotal` is either unchanged or changed with
+- [x] The Japan fixture's `conflictTotal` is either unchanged or changed with
       each moved conflict named in the PR body.
-- [ ] `pnpm --filter web test:e2e:ci-like` green — **never plain `test:e2e`**,
+- [x] `pnpm --filter web test:e2e:ci-like` green — **never plain `test:e2e`**,
       which serves `pnpm dev` and produces timeouts CI does not have.
 - [ ] The full Definition of Done is green, and a retro is appended at gate
       close.
+
+### Gate evidence, 2026-09-25 (the stack #229 → #230 → #232 → #233, unmerged)
+
+Ticked above on the top part's tree, which contains all four parts. **9 of 11.**
+
+- **Schema refusals:** `packages/contracts/test/m24-travel-leg.test.ts`. The `superRefine` sits on the
+  `TripCommand` / `BatchableCommand` unions rather than the `AddActivity` object, because a zod 3
+  `discriminatedUnion` member must be a plain object (the `Anchor` pattern). The decider refuses an
+  update whose *result* holds a leg off transit (`travel-leg-off-transit`). Seen red: refinement
+  short-circuited → `expected [] to deeply equal [ 'mode' ]`, and `[ 'endLocation' ]` for its own
+  test. Event payloads and read models are deliberately not refined, so replay never refuses.
+- **ADR:** ADR-053, Accepted. The vocabulary was decided 2026-09-25.
+- **CHANGELOG and consumers:** one entry covering both fields. Every compile-time consumer is in
+  #229. The assistant, editor and fixture follow in #230, which was split off only because the
+  whole of part 1 had 106 reviewable files and CodeRabbit skips any PR over 100. The two merge
+  back to back.
+- **Map, per KI-49:** a local **production build** of `/demo?view=Map` in Chromium. **Transport:**
+  style, tilejson, sprites ×2, glyphs ×6 and 27 vector tiles, all 200. **Pixels:** a rendered
+  basemap with labels, roads and coastline, and the dashed Odawara → Kyoto (day 7) and
+  Asakusa ⇄ Nikkō (day 4) legs. Checked by eye by two separate sessions. Not a Vercel preview.
+- **`map-legend-modes`:** deleted from the registry. The legend's two keys are real.
+- **`geographyRule`:** `packages/domain/test/conflicts.test.ts` M24 block, both directions plus
+  two fast-check properties with measured witness floors, each seen red (#233).
+- **`conflictTotal`:** 2 → 2. Checked to be non-vacuous with a probe that moved every destination to
+  (0, 0). The fixture's legs all end where the next stops are.
+- **e2e:** `pnpm --filter web test:e2e:ci-like` on the stack top: **176 passed**.
+
+**Still open:**
+- **City surfaces.** All three choices are made and commented. `citiesOfStops` and `cityFor`
+  (`dayCity`, with the return-leg rule for day trips) have tests seen red. **`shortPlace` has no
+  pinning test:** it takes one `Location`, so no edit to it can fail a test. A real pin would sit at
+  its call site (the rack, `TripBoardScreen.tsx`). Left for the gate owner to accept as structural
+  or ask for.
+- **Full DoD and retro:** at gate close, after merge, when CI and the Vercel preview have spoken.
 
 ## Parked 2026-09-24
 
