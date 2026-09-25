@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ActivityView, Anchor } from "@tc/contracts";
 import { ActivityEditor } from "./ActivityEditor";
@@ -124,10 +125,10 @@ describe("ActivityEditor travel leg", () => {
 
   it("edits the mode and destination only while the stop is transit", () => {
     renderEditor(existingStop(leg), "edit");
-    expect((screen.getByLabelText("Travelling by") as HTMLSelectElement).value).toBe("train");
+    expect(screen.getByRole("radio", { name: "Train" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByLabelText("Going to")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
-    expect(screen.queryByLabelText("Travelling by")).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "Travelling by" })).toBeNull();
     expect(screen.queryByLabelText("Going to")).toBeNull();
   });
 
@@ -139,6 +140,42 @@ describe("ActivityEditor travel leg", () => {
     fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "booked", mode: null, endLocation: null }));
+  });
+
+  // Preview feedback on #230: icon buttons, no visible header — so the group's
+  // name and each mode's name exist only for assistive tech, and are asserted.
+  it("offers every mode as a named radio in a group named Travelling by, none chosen on a new transit stop", () => {
+    renderEditor(null, "create");
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "transit" } });
+    const radios = within(screen.getByRole("radiogroup", { name: "Travelling by" })).getAllByRole("radio");
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["On foot", "Bus", "Train", "Flight", "Ferry", "Car", "Bike"]);
+    expect(radios.filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(0);
+  });
+
+  it("chooses a mode on click and clears it when the chosen one is clicked again", () => {
+    const onSave = renderEditor(existingStop({ kind: "transit" }), "edit");
+    const train = screen.getByRole("radio", { name: "Train" });
+    fireEvent.click(train);
+    expect(train.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "train" }));
+
+    fireEvent.click(train);
+    expect(train.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ mode: null }));
+  });
+
+  // Focus is proven by where the NEXT keypress lands, not by reading
+  // `document.activeElement` (the test-quality wall bans it): each arrow only
+  // reaches the radio it is meant to if the previous one moved focus there.
+  it("moves the choice and focus with the arrow keys, wrapping at the ends", async () => {
+    renderEditor(existingStop(leg), "edit");
+    screen.getByRole("radio", { name: "Train" }).focus();
+    await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+    expect(screen.getByRole("radio", { name: "Ferry" }).getAttribute("aria-checked")).toBe("true");
+    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+    expect(screen.getByRole("radio", { name: "Bike" }).getAttribute("aria-checked")).toBe("true");
   });
 
   // Two place pickers on one form: a screen reader listing the buttons must be
