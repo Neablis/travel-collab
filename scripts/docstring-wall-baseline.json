@@ -83,7 +83,6 @@
   "apps/web/src/app/layout.tsx::RootLayout",
   "apps/web/src/app/sentry-example-page/page.tsx::Page",
   "apps/web/src/components/AccountMenu.tsx::AccountMenu",
-  "apps/web/src/components/AccountMenu.tsx::AccountMenuFromSession",
   "apps/web/src/components/AppHeader.tsx::AppHeader",
   "apps/web/src/components/BrandMark.tsx::BrandMark",
   "apps/web/src/components/SaveLight.tsx::SaveLightMark",
