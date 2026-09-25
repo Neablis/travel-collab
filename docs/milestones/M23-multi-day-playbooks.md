@@ -503,7 +503,8 @@ half no test in this repo was asked to check.
   wrapper, so the first non-additive `SavedStop` change still has nowhere to
   land — and should pay for it.
 - `KI-2026-09-19-c` — `daysShared` counts playbooks, not days. Labels fixed;
-  the field keeps its name rather than widening a PR carrying a migration.
+  the field kept its name here rather than widening a PR carrying a migration,
+  and was renamed `playbooksShared` afterwards (resolved 2026-09-25).
 - `KI-2026-09-19-d` — the Keep dialog's unfocused name field. Pre-existing.
 - **Unwalked:** the four surfaces fixed after the first walk were re-walked and
   four of five confirmed; the `AddToTripDialog` hint fix and the rest-day line

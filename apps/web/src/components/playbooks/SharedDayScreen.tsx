@@ -475,7 +475,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 {isAuthor ? "You" : displayNameFor({ userId: author.userId })}
               </Link>
               <Text variant="secondary">
-                {author.daysShared} playbook{author.daysShared === 1 ? "" : "s"} shared · added to{" "}
+                {author.playbooksShared} playbook{author.playbooksShared === 1 ? "" : "s"} shared · added to{" "}
                 {author.adds} trip{author.adds === 1 ? "" : "s"}
               </Text>
             </div>

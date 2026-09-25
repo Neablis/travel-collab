@@ -257,7 +257,7 @@ describe("hide-day", () => {
       const seen = await profile(MOD_AUTHOR);
       expect(seen.days.map((d) => d.savedDayId)).toEqual([day]);
       expect(seen.knows).toEqual([{ city: CITY, days: 1 }]);
-      expect(seen.author.daysShared).toBe(1);
+      expect(seen.author.playbooksShared).toBe(1);
       expect(await citiesFor(CITY)).toEqual([{ city: CITY, days: 1 }]);
       expect((await read(day)).status).toBe(200);
     });
@@ -294,7 +294,7 @@ describe("hide-day", () => {
       const seen = await profile(MOD_AUTHOR);
       expect(seen.days).toEqual([]);
       expect(seen.knows).toEqual([]);
-      expect(seen.author.daysShared).toBe(0);
+      expect(seen.author.playbooksShared).toBe(0);
       expect(await citiesFor(CITY)).toEqual([]);
     });
 

@@ -53,7 +53,7 @@ import type { GeocodeResult, Geocoder } from "@/server/geocoding";
  * is worth taking", and it is the ranking Discover offers a person making the
  * same choice.
  *
- * It costs one extra `count(*)` (`publishedDayCount`) that this caller does not
+ * It costs one extra `count(*)` (`publishedPlaybookCount`) that this caller does not
  * read. That is the price of the shared query, and it is one indexed count over
  * a small table — cheap next to a second predicate to keep in step.
  */
