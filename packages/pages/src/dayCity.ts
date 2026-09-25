@@ -44,14 +44,27 @@ import type { TripDetail } from "@tc/contracts";
 // neither falls through to the origin. Deliberately unlike `citiesOfStops`,
 // which lists both, and `shortPlace`, which keeps the origin: each answers a
 // different question.
-/** The city (or, failing that, the area) of a day's last located activity — a leg's destination before its origin — or `null` when none of its stops names either. */
+//
+// **Except a return leg** (Mitchell, 2026-09-25): a leg whose destination is
+// the place the day STARTED in is the trip home from a day trip, not where the
+// day was spent. Its destination is skipped and its origin names the day, so
+// Tokyo → Nikkō → "Train back to Tokyo" stays a Nikkō day instead of erasing
+// Nikkō from every label. "Started in" is the first place the day names,
+// walking forward over origins only.
+/** The city (or, failing that, the area) of a day's last located activity — a leg's destination before its origin, unless that leg returns to where the day started — or `null` when none of its stops names either. */
 export function dayCity(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
+  const startedIn = day.activityIds.map((id) => placeOf(activities[id]?.location)).find((place) => place !== null) ?? null;
   for (let index = day.activityIds.length - 1; index >= 0; index--) {
     const activity = activities[day.activityIds[index]!];
-    for (const location of [activity?.endLocation, activity?.location]) {
-      const place = location?.city ?? location?.area;
-      if (place !== undefined && place !== "") return place;
-    }
+    const destination = placeOf(activity?.endLocation);
+    if (destination !== null && destination !== startedIn) return destination;
+    const origin = placeOf(activity?.location);
+    if (origin !== null) return origin;
   }
   return null;
+}
+
+function placeOf(location: { city?: string | undefined; area?: string | undefined } | null | undefined): string | null {
+  const place = location?.city ?? location?.area;
+  return place !== undefined && place !== "" ? place : null;
 }

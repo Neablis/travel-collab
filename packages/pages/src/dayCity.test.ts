@@ -51,4 +51,13 @@ describe("dayCity and a transit stop's destination (M24)", () => {
     };
     expect(dayCity(day(["s"]), activities)).toBe("Tamano");
   });
+
+  it("skips a leg that returns to where the day started, so a day trip keeps its city", () => {
+    const activities = {
+      out: stop("out", { name: "Asakusa Station", city: "Tokyo" }, { name: "Tobu-Nikko Station", city: "Nikko" }),
+      shrine: stop("shrine", { name: "Toshogu", city: "Nikko" }),
+      back: stop("back", { name: "Tobu-Nikko Station", city: "Nikko" }, { name: "Asakusa Station", city: "Tokyo" }),
+    };
+    expect(dayCity(day(["out", "shrine", "back"]), activities)).toBe("Nikko");
+  });
 });
