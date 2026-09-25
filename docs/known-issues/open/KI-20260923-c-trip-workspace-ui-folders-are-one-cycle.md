@@ -46,3 +46,4 @@
 - **Cross-reference:** `KI-2026-09-23-d`, `KI-2026-09-23-b`,
   `docs/reviews/2026-09-23-architecture-wall-first-run.md`.
 - **First noted:** 2026-09-23, the first run of `pnpm arch`.
+- **Re-verified 2026-09-25 (overnight sweep):** still true. `pnpm arch` at `73b04ad` reports 9 warnings (0 errors). Seven are `no-folder-cycle-known` inside this cluster (trip↔board, trip↔lenses, board↔trip/editor, board→lenses→trip→board), and the other two are KI-2026-09-23-d's billing↔entitlements pair. `.dependency-cruiser.cjs:43` still names the cluster. Every `trip → board`/`lenses` edge listed above is exactly as written: `TripHeader.tsx:17-18`, `SettingsSheet.tsx:18-19`, `editor/ActivityEditorSheet.tsx:8-9`. Counting `@/components/…` import statements, not depcruise edges, gives board→trip 22, board→lenses 6 and lenses→trip 2.

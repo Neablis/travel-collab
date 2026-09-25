@@ -72,7 +72,8 @@
 // word.
 import { z } from "zod";
 import { generateText, Output, type LanguageModel } from "ai";
-import { sanitizeForLog, type AskIntentRecord, type AskUsage } from "@/server/assistant/askAnalytics";
+import { modelIdOf } from "@/server/assistant/admission";
+import { sanitizeForLog, usageOf, type AskIntentRecord, type AskUsage } from "@/server/assistant/askAnalytics";
 import type { TaskClass } from "@/server/assistant/taskClass";
 
 export type AskIntent = AskIntentRecord["intent"];
@@ -511,14 +512,6 @@ export async function classifyAskIntent(
 
 const NO_USAGE: AskUsage = { inputTokens: null, outputTokens: null, totalTokens: null };
 
-// A LanguageModel is either a bare model-id string or a provider model object
-// carrying `.modelId` — the same normalisation handleAskRequest does for the
-// answer model, duplicated rather than imported because that module imports
-// this one.
-function modelIdOf(model: LanguageModel): string {
-  return typeof model === "string" ? model : model.modelId;
-}
-
 /**
  * Why the classifier failed open, and — when it can be recovered — what the
  * model actually emitted.
@@ -553,14 +546,6 @@ const MAX_LOGGED_CONTEXT_CHARS = 1000;
 // is the failure this field is for — while staying a field rather than a
 // payload.
 const MAX_LOGGED_VERDICT_CHARS = 120;
-
-function usageOf(result: { usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } }): AskUsage {
-  return {
-    inputTokens: result.usage?.inputTokens ?? null,
-    outputTokens: result.usage?.outputTokens ?? null,
-    totalTokens: result.usage?.totalTokens ?? null,
-  };
-}
 
 // `String(err)` can itself throw — a null-prototype rejection has no
 // `toString`. The catch above exists so a classification failure cannot break

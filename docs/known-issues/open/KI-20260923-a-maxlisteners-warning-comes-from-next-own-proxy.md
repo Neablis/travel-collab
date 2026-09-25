@@ -77,3 +77,4 @@
 - **Found by:** Mitchell, reading `pnpm --filter web test:e2e` output,
   2026-09-23.
 - **First noted:** 2026-09-23.
+- **Re-verified 2026-09-25 (overnight sweep), statically:** still true. `next` is still pinned at `16.3.3` (`apps/web/package.json:65`, lock `:4965`). `grep -n -i "compress\|proxy\|rewrites" apps/web/next.config.ts` finds nothing. Both vendored modules the stack names still ship in the installed package, at `node_modules/.pnpm/next@16.3.3_*/node_modules/next/dist/compiled/{compression,httpxy}`. The warning count was **not** re-measured, because e2e runs are out of a validator's budget. The entry's own closing condition, a Next upgrade, has not happened.

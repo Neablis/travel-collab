@@ -477,13 +477,6 @@ export default [
       // context (e.g. a "probe" input standing in for some other field on
       // the page) — this is not shipped UI, so the element wall doesn't apply.
       "src/**/*.test.tsx",
-      // Sentry wizard-generated scaffolding (landed on main via 6a5501e,
-      // pushed directly without a PR, so `pnpm lint` never ran on it — see
-      // docs/guidelines/ci-cost-and-capacity.md for why CI is PR-only). It's
-      // a throwaway verification route, not product UI, so the design-system
-      // wall doesn't apply. If this file is ever deleted, delete this line
-      // with it rather than leaving a dangling exemption.
-      "src/app/sentry-example-page/page.tsx",
     ],
     rules: {
       "no-restricted-syntax": [
@@ -495,6 +488,50 @@ export default [
         {
           selector: "JSXAttribute[name.name='style']",
           message: "No inline styles — use tokens. Enumerated exceptions need a line disable with a reason (design-system.md).",
+        },
+      ],
+    },
+  },
+  {
+    // THE FETCH WALL (KI-2026-09-05-q, F-E03): client code reaches the app's
+    // API through the client modules, never through a bare `fetch`. Their
+    // invariant is that a helper NEVER rejects — every failure comes back as
+    // an `ApiResult` — and `apiClient.test.ts` / `pagesClient.test.ts` guard
+    // it by enumerating their own exports, which means a raw `fetch` anywhere
+    // else is outside every guard there is. This is the cheap half of that
+    // entry; collapsing the clients onto one core is the half still open.
+    //
+    // `no-restricted-globals`, not `no-restricted-syntax`: flat config
+    // REPLACES a rule's options with the last matching block's, and the
+    // element wall above already owns `no-restricted-syntax` for every
+    // `.tsx` file. A second `no-restricted-syntax` block here would silently
+    // switch that wall off for the whole UI.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      // Server code: route handlers, the server tree and the public API are
+      // where requests are answered, and their outbound calls go to third
+      // parties through their own adapters.
+      "src/server/**",
+      "src/app/api/**",
+      "src/app/.well-known/**/route.ts",
+      // The client modules themselves — the only place a fetch is supposed
+      // to be written.
+      "src/lib/apiClient.ts",
+      "src/lib/pagesClient.ts",
+      "src/lib/savedNotebooksClient.ts",
+      // Tests stub `fetch` rather than calling it, and the network guard
+      // exists to wrap it.
+      "src/**/*.test.{ts,tsx}",
+      "src/test-support/**",
+      "src/mocks/**",
+    ],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "fetch",
+          message:
+            "Call the app's API through src/lib/apiClient.ts (or pagesClient / savedNotebooksClient) — its helpers never reject, and a bare fetch is outside the guard that proves it (KI-2026-09-05-q). A fetch that is not an API call needs a line disable with its reason.",
         },
       ],
     },
@@ -549,15 +586,42 @@ export default [
     // recommended rules ship at "warn", and `eslint` exits 0 on warnings — so
     // `pnpm lint` is green and `pnpm check` is green while the rule reports.
     // A wall that does not fail the build is a suggestion. `no-wait-for-timeout`
-    // is in that warn set, which would have made a second, weaker copy of
-    // `scripts/check-sleep-wall.mjs` — a wall this repo built precisely because
-    // guidance alone did not hold it three times.
+    // is in that warn set, and at error it is half the sleep wall (the other
+    // half, for pages not named `page`, is the next block): the standalone
+    // `scripts/check-sleep-wall.mjs` this repo built because guidance alone did
+    // not hold it three times became a duplicate once this block existed, and
+    // was deleted (KI-2026-09-05-w item 4). `check-lint-wall.mjs` fixtures it.
     rules: Object.fromEntries(
       Object.entries(playwright.configs["flat/recommended"].rules).map(([rule, setting]) => [
         rule,
         Array.isArray(setting) ? ["error", ...setting.slice(1)] : "error",
       ]),
     ),
+  },
+  {
+    // THE SLEEP WALL's other half. `playwright/no-wait-for-timeout` only fires
+    // when the receiver is NAMED like a page — it matches
+    // `/(^(page|frame)|(Page|Frame)$)/` — and the multi-user specs name theirs
+    // `bob`, `finder`, `reader`, `visitor`. `await bob.waitForTimeout(500)`
+    // linted clean after the standalone script was deleted (PR #234 review).
+    // This catches the property on ANY object. On `page.waitForTimeout` both
+    // rules fire, so an exemption there names both.
+    //
+    // Nothing else in this file sets `no-restricted-properties`. Flat config
+    // REPLACES a rule's options rather than merging them, so a later block that
+    // adds one for `e2e/**` must merge this entry into it, or it silently
+    // switches this off — `check-lint-wall.mjs` fixtures `bob.waitForTimeout`.
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          property: "waitForTimeout",
+          message:
+            "No sleeps in e2e: wait for the event instead (a locator, a response, a URL). Exempt only in writing, naming every rule that fires: `// eslint-disable-next-line no-restricted-properties -- <reason>` (add `playwright/no-wait-for-timeout, ` first when the receiver is named like a page).",
+        },
+      ],
+    },
   },
   {
     // No automated test talks to a real third party (Mitchell, 2026-09-24).

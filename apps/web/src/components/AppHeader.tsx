@@ -8,7 +8,7 @@ import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 // side. The prototype's "Quick add" is omitted: it needs a trip to add to, so
 // it belongs on the trip surface, not here.
 //
-// The account avatar (task 8b.2) is `AccountMenuFromSession`, the one client
+// The account avatar (task 8b.2) lives in `HeaderSessionChrome`, the one client
 // island this renders — it resolves its own identity client-side rather than
 // AppHeader calling `auth()`, because `auth()` lives in src/server and this
 // file is UI (see AccountMenu.tsx's comment for why that boundary holds).

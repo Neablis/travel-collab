@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BatchableCommand,
+  CreateTrip,
   TripCommand,
   type EventEnvelope,
   type Origin,
@@ -75,21 +76,10 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
   const command = parsed.data;
 
   return db.transaction(async (tx): Promise<CommandResult> => {
-    // 2. load the stream and fold to current state
-    const history = await readStream(tx, command.tripId);
-    const state = foldEnvelopes(history);
-
-    // 3. authorize via the AccessPolicy seam.
-    //
-    // The member list is the EFFECTIVE one — the log's owner merged with the
-    // Access module's accepted-invite rows (M11 link 3). The planning domain
-    // still knows nothing about invites: `state.members` is unchanged, and the
-    // merge happens out here, on the way into the seam that was always the
-    // only interpreter of a role (AGENTS.md invariant 6c).
-    const members = state === null ? null : await effectiveMembers(tx, command.tripId, state.members);
-    if (!memberRolePolicy.canExecute(actorId, command.type, members)) {
-      return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
-    }
+    // 2-3. load, fold, authorize
+    const loaded = await loadAndAuthorize(tx, command.tripId, actorId, [command.type]);
+    if (!loaded.ok) return loaded;
+    const { history, state, members } = loaded;
 
     // 4. decide — history commands need the envelope history (already loaded;
     //    zero extra I/O), everything else the folded state.
@@ -111,34 +101,83 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
       origin = { kind: "user" };
     }
 
-    // 5. append with optimistic concurrency (one batch per command execution)
-    const appended = await appendToStream(tx, {
-      streamId: command.tripId,
-      expectedSeq: history.length,
-      events,
-      actorId,
-      occurredAt: new Date().toISOString(),
-      batchId: crypto.randomUUID(),
-      origin,
-    });
-    if (!appended.ok) {
-      return {
-        ok: false,
-        error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
-      };
-    }
-
-    // 6-7. update projections + build the authoritative response — a revert
+    // 5-7. append (one batch per command execution) and project — a revert
     //    into a formerly-conflicted state resurfaces its badges here.
-    await applyTripEvents(tx, appended.envelopes);
-    const { detail, history: historyDto } = await projectAndHistory(
-      tx,
-      [...history, ...appended.envelopes],
-      command.tripId,
-    );
+    const projected = await appendAndProject(tx, { tripId: command.tripId, history, events, actorId, origin });
+    if (!projected.ok) return projected;
 
-    return { ok: true, tripId: command.tripId, detail: withMembers(detail, members), history: historyDto };
+    return {
+      ok: true,
+      tripId: command.tripId,
+      detail: withMembers(projected.detail, members),
+      history: projected.history,
+    };
   });
+}
+
+type Tx = Parameters<typeof upsertTripDetail>[0];
+type CommandFailure = Extract<CommandResult, { ok: false }>;
+
+// Steps 2-3 of the pipeline, shared by both entry points: load the stream, fold
+// it, and authorize EVERY command type the call will decide. Roles are
+// per-command (accessPolicy.ts), so a batch that checked only its first command
+// could smuggle in one the actor's role does not permit.
+//
+// The member list is the EFFECTIVE one — the log's owner merged with the
+// Access module's accepted-invite rows (M11 link 3). The planning domain still
+// knows nothing about invites: `state.members` is unchanged, and the merge
+// happens out here, on the way into the seam that was always the only
+// interpreter of a role (AGENTS.md invariant 6c).
+async function loadAndAuthorize(
+  tx: Tx,
+  tripId: string,
+  actorId: string,
+  commandTypes: readonly TripCommand["type"][],
+): Promise<
+  | { ok: true; history: EventEnvelope[]; state: ReturnType<typeof foldEnvelopes>; members: TripMember[] | null }
+  | CommandFailure
+> {
+  const history = await readStream(tx, tripId);
+  const state = foldEnvelopes(history);
+  const members = state === null ? null : await effectiveMembers(tx, tripId, state.members);
+  if (commandTypes.some((type) => !memberRolePolicy.canExecute(actorId, type, members))) {
+    return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
+  }
+  return { ok: true, history, state, members };
+}
+
+// Steps 5-7, shared by both entry points: append under ONE batchId with
+// optimistic concurrency against the head this transaction read, then update
+// the projections and build the authoritative detail and history (invariant 1).
+// The two callers differ only in `origin` — a history command carries its own.
+async function appendAndProject(
+  tx: Tx,
+  { tripId, history, events, actorId, origin }: {
+    tripId: string;
+    history: EventEnvelope[];
+    events: TripEvent[];
+    actorId: string;
+    origin: Origin;
+  },
+): Promise<{ ok: true; detail: TripDetail; history: TripHistory } | CommandFailure> {
+  const appended = await appendToStream(tx, {
+    streamId: tripId,
+    expectedSeq: history.length,
+    events,
+    actorId,
+    occurredAt: new Date().toISOString(),
+    batchId: crypto.randomUUID(),
+    origin,
+  });
+  if (!appended.ok) {
+    return {
+      ok: false,
+      error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+    };
+  }
+  await applyTripEvents(tx, appended.envelopes);
+  const { detail, history: historyDto } = await projectAndHistory(tx, [...history, ...appended.envelopes], tripId);
+  return { ok: true, detail, history: historyDto };
 }
 
 // The stored projection stays exactly what the log produces (invariant 2 —
@@ -186,7 +225,10 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // N". It is compared against the stream this transaction read, and the append
 // then insists on that same head — so a stale caller is refused and a race
 // after the read still loses at the unique index, with no window between. Absent,
-// the batch decides against whatever it read, exactly as before.
+// the batch decides against whatever it read — and if another write to the same
+// stream commits between that read and this append, the whole transaction is
+// run again (see BATCH_APPEND_ATTEMPTS), because a batch with no precondition
+// asked for nothing more than "on top of whatever is there when you get to it".
 export async function executeTripCommandBatch(
   input: unknown,
   actorId: string,
@@ -210,84 +252,209 @@ export async function executeTripCommandBatch(
     };
   }
 
-  return db.transaction(async (tx): Promise<CommandResult> => {
-    // 2. load the stream and fold to current state
-    const history = await readStream(tx, tripId);
-    let state = foldEnvelopes(history);
+  // One attempt is one transaction. `lostAppendRace` marks the only failure a
+  // fresh attempt can change: step 5's append losing `events_stream_seq` to a
+  // write that committed after step 2's read. Nothing of that attempt survives:
+  // Postgres aborts the transaction at the failed insert, and step 8's hook has
+  // not run yet — so a re-run starts from nothing.
+  const attempt = async () => {
+    let lostAppendRace = false;
+    const result = await db.transaction(async (tx): Promise<CommandResult> => {
+      // 2-3. load, fold, authorize — for EVERY sub-command (see loadAndAuthorize)
+      const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
+      if (!loaded.ok) return loaded;
+      const { history, members } = loaded;
 
-    // 3. authorize via the AccessPolicy seam (same check as executeTripCommand),
-    //    for EVERY sub-command: roles are per-command (accessPolicy.ts), so
-    //    checking only the first would let a batch smuggle in a command the
-    //    actor's role does not permit.
-    const members = state === null ? null : await effectiveMembers(tx, tripId, state.members);
-    if (commands.some((c) => !memberRolePolicy.canExecute(actorId, c.type, members))) {
-      return { ok: false, error: { code: "forbidden", message: "Not a member of this trip." } };
-    }
-
-    // 3b. the caller's precondition, after authorization so a non-member learns
-    //     nothing about the trip's revision.
-    if (options.expectedSeq !== undefined && options.expectedSeq !== history.length) {
-      return {
-        ok: false,
-        error: {
-          code: "concurrency-conflict",
-          message: `This trip has changed since revision ${options.expectedSeq}; it is at ${history.length}. Re-read it and retry.`,
-          currentSeq: history.length,
-        },
-      };
-    }
-
-    // 4. decide each command in order against the evolving state. A no-op
-    //    sub-command is SKIPPED, not fatal — one redundant Set*/etc. must not roll
-    //    back an otherwise-valid batch (2026-07-25 live-testing finding). Real
-    //    rejections (day-not-found, activity-already-exists, …) still abort.
-    const events: TripEvent[] = [];
-    for (const command of commands) {
-      const decision = decideTripCommand(state, command, { actorId });
-      if (!decision.ok) {
-        if (decision.rejection.code === "no-op") continue;
-        return { ok: false, error: decision.rejection };
+      // 3b. the caller's precondition, after authorization so a non-member learns
+      //     nothing about the trip's revision.
+      if (options.expectedSeq !== undefined && options.expectedSeq !== history.length) {
+        return {
+          ok: false,
+          error: {
+            code: "concurrency-conflict",
+            message: `This trip has changed since revision ${options.expectedSeq}; it is at ${history.length}. Re-read it and retry.`,
+            currentSeq: history.length,
+          },
+        };
       }
-      for (const event of decision.events) state = evolveTrip(state, event);
-      events.push(...decision.events);
-    }
-    // If every sub-command was a no-op there is nothing to append — report it the
-    // same way a single no-op command does, rather than appending an empty batch
-    // (appendToStream requires ≥1 event and one batch = one history entry).
-    if (events.length === 0) {
-      return { ok: false, error: { code: "no-op", message: "This change would have no effect." } };
-    }
 
-    // 5. append every event from every command under ONE batchId
-    const appended = await appendToStream(tx, {
-      streamId: tripId,
-      expectedSeq: history.length,
-      events,
-      actorId,
-      occurredAt: new Date().toISOString(),
-      batchId: crypto.randomUUID(),
-      origin: { kind: "user" },
+      // 4. decide each command in order against the evolving state
+      const decided = decideInOrder(loaded.state, commands, actorId);
+      if (!decided.ok) return decided;
+      const { events } = decided;
+      // If every sub-command was a no-op there is nothing to append — report it the
+      // same way a single no-op command does, rather than appending an empty batch
+      // (appendToStream requires ≥1 event and one batch = one history entry).
+      if (events.length === 0) {
+        return { ok: false, error: { code: "no-op", message: "This change would have no effect." } };
+      }
+
+      // 5-7. append every event from every command under ONE batchId, and project
+      const projected = await appendAndProject(tx, { tripId, history, events, actorId, origin: { kind: "user" } });
+      if (!projected.ok) {
+        lostAppendRace = true;
+        return projected;
+      }
+
+      // 8. the non-planning write that has to commit with this batch, if any.
+      //    Last, so it sees the trip exactly as this batch left it.
+      const answer = withMembers(projected.detail, members);
+      if (alsoInSameTransaction) await alsoInSameTransaction(tx, { tripId, detail: answer });
+
+      return { ok: true, tripId, detail: answer, history: projected.history };
     });
-    if (!appended.ok) {
-      return {
-        ok: false,
-        error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
-      };
-    }
+    return { result, lostAppendRace };
+  };
 
-    // 6-7. update projections + build the authoritative response
-    await applyTripEvents(tx, appended.envelopes);
-    const { detail, history: historyDto } = await projectAndHistory(
-      tx,
-      [...history, ...appended.envelopes],
-      tripId,
-    );
-
-    // 8. the non-planning write that has to commit with this batch, if any.
-    //    Last, so it sees the trip exactly as this batch left it.
-    const answer = withMembers(detail, members);
-    if (alsoInSameTransaction) await alsoInSameTransaction(tx, { tripId, detail: answer });
-
-    return { ok: true, tripId, detail: answer, history: historyDto };
-  });
+  // A lost append race is re-run only when the caller named no revision. With an
+  // `expectedSeq` the refusal IS the answer the caller asked for (ADR-050).
+  for (let tries = 1; ; tries++) {
+    const { result, lostAppendRace } = await attempt();
+    if (!lostAppendRace || options.expectedSeq !== undefined || tries >= BATCH_APPEND_ATTEMPTS) return result;
+  }
 }
+
+// Step 4 for a list of batchable commands, shared by the batch and by a
+// creation's follow-up: decide each in order against the state the ones before
+// it left. A no-op sub-command is SKIPPED, not fatal — one redundant Set*/etc.
+// must not roll back an otherwise-valid batch (2026-07-25 live-testing
+// finding). Real rejections (day-not-found, activity-already-exists, …) abort.
+function decideInOrder(
+  initial: ReturnType<typeof foldEnvelopes>,
+  commands: readonly BatchableCommand[],
+  actorId: string,
+): { ok: true; events: TripEvent[] } | CommandFailure {
+  let state = initial;
+  const events: TripEvent[] = [];
+  for (const command of commands) {
+    const decision = decideTripCommand(state, command, { actorId });
+    if (!decision.ok) {
+      if (decision.rejection.code === "no-op") continue;
+      return { ok: false, error: decision.rejection };
+    }
+    for (const event of decision.events) state = evolveTrip(state, event);
+    events.push(...decision.events);
+  }
+  return { ok: true, events };
+}
+
+// A failure raised INSIDE a transaction that has already written, so that
+// throwing it rolls those writes back. Returning a failure from a
+// `db.transaction` callback commits whatever came before it — harmless for the
+// two entry points above, which refuse before their only append, and exactly the
+// window `executeTripCreation` exists to close.
+class RolledBack extends Error {
+  readonly failure: CommandFailure;
+  constructor(failure: CommandFailure) {
+    super(failure.error.message);
+    this.failure = failure;
+  }
+}
+
+// **A trip's genesis and the commands that follow it, as ONE transaction**
+// (KI-2026-09-19-b, KI-2026-09-19-f). For a caller that creates a trip and fills
+// it in the same request — `POST /v1/trips/import`, `POST /v1/trips` with dates
+// — so a failure anywhere after `CreateTrip` rolls the trip back with it instead
+// of leaving it for a compensating `DeleteTrip` that can itself fail.
+//
+// It is the pipeline run twice inside one transaction, not a third way to
+// write: steps 2-7 for `CreateTrip` exactly as `executeTripCommand` runs them,
+// then steps 2-7 for the follow-up exactly as `executeTripCommandBatch` does,
+// against the stream the first half just wrote (invariant 1 holds for each
+// half). Two appends, so two batches and two history entries — the same history
+// the two separate writes used to produce, and the reason undo on a fresh
+// import still unwinds the import and not the trip's creation.
+//
+// `CreateTrip` stays out of `BatchableCommand` on purpose: genesis mints the
+// trip's id and its owner, and that union is also the assistant's command
+// vocabulary. This takes the genesis as its own argument instead.
+//
+// There is no retry loop like the batch's: the trip id is minted by the caller
+// for this request, so nothing else can be writing to its stream.
+/**
+ * Create a trip and apply `then` (batchable commands on that same trip) in one
+ * transaction. Returns the trip as the follow-up left it, or a refusal after
+ * which no trip exists at all. `then` may be empty.
+ */
+export async function executeTripCreation(
+  create: unknown,
+  then: unknown,
+  actorId: string,
+): Promise<CommandResult> {
+  // 1. validate both halves against the contract
+  const parsedCreate = CreateTrip.safeParse(create);
+  if (!parsedCreate.success) {
+    return { ok: false, error: { code: "invalid-command", message: parsedCreate.error.message } };
+  }
+  const parsedThen = z.array(BatchableCommand).safeParse(then);
+  if (!parsedThen.success) {
+    return { ok: false, error: { code: "invalid-command", message: parsedThen.error.message } };
+  }
+  const genesis = parsedCreate.data;
+  const commands = parsedThen.data;
+  const tripId = genesis.tripId;
+  if (!commands.every((c) => c.tripId === tripId)) {
+    return {
+      ok: false,
+      error: { code: "invalid-command", message: "Every command must target the trip being created." },
+    };
+  }
+
+  const refuse = (failure: CommandFailure): never => {
+    throw new RolledBack(failure);
+  };
+
+  try {
+    return await db.transaction(async (tx): Promise<CommandResult> => {
+      // 2-7 for the genesis — CreateTrip is decided against the empty stream,
+      // and appendAndProject writes the summary row and the owner.
+      const empty = await loadAndAuthorize(tx, tripId, actorId, ["CreateTrip"]);
+      if (!empty.ok) return refuse(empty);
+      const created = decideTripCommand(empty.state, genesis, { actorId });
+      if (!created.ok) return refuse({ ok: false, error: created.rejection });
+      const born = await appendAndProject(tx, {
+        tripId,
+        history: empty.history,
+        events: created.events,
+        actorId,
+        origin: { kind: "user" },
+      });
+      if (!born.ok) return refuse(born);
+
+      // 2-7 for the follow-up, authorized against the trip as it now stands —
+      // its creator is its owner. Every follow-up refusal from here on throws,
+      // so the genesis above goes with it.
+      const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
+      if (!loaded.ok) return refuse(loaded);
+      const decided = decideInOrder(loaded.state, commands, actorId);
+      if (!decided.ok) return refuse(decided);
+      // Nothing to follow with (none sent, or every one a no-op): the trip as
+      // created is the whole answer.
+      if (decided.events.length === 0) {
+        return { ok: true, tripId, detail: withMembers(born.detail, loaded.members), history: born.history };
+      }
+      const filled = await appendAndProject(tx, {
+        tripId,
+        history: loaded.history,
+        events: decided.events,
+        actorId,
+        origin: { kind: "user" },
+      });
+      if (!filled.ok) return refuse(filled);
+      return { ok: true, tripId, detail: withMembers(filled.detail, loaded.members), history: filled.history };
+    });
+  } catch (error) {
+    if (error instanceof RolledBack) return error.failure;
+    throw error;
+  }
+}
+
+// How many times a batch with no precondition is run before a lost append race
+// is reported as `concurrency-conflict` (KI-5 residual race #1: a page's unload
+// flush reaching the server while the command ahead of it is still committing).
+// A re-run is the batch arriving a moment later: it re-reads, re-folds and
+// re-decides against the write it lost to, so a sub-command that no longer makes
+// sense is refused by the domain exactly as it would have been had it arrived
+// second. Bounded so a stream under sustained contention answers its caller
+// instead of holding the request open.
+const BATCH_APPEND_ATTEMPTS = 3;

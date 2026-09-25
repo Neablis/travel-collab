@@ -6,3 +6,10 @@
 - **Symptom / What happens:** a reader who inserts "Weather" has a rounded stop location sent to two third parties, and nothing in the product says so. The block's footer credits the sources but does not describe what is sent.
 - **Why not fixed here:** a privacy page is a product and legal surface, not a widget change. Mitchell accepted the data flow on 2026-09-24; the wording of the disclosure is his.
 - **First noted:** 2026-09-24, M14 T24.
+- **Re-verified 2026-09-25 (overnight sweep):** still true. No privacy, legal or
+  terms route exists under `apps/web/src/app` (`find -ipath '*privacy*'` etc.
+  returns nothing), and the only product mentions of MET Norway / NASA POWER
+  are `WeatherBlock.tsx`'s source credit. `roundForExport` is still the sole
+  constructor of an exportable point (`apps/web/src/server/external/roundedPoint.ts:29`);
+  `EXTERNAL_DATA_CONTACT` is read in `server/config.ts:23` and required by
+  `external/weather/index.ts:43`.

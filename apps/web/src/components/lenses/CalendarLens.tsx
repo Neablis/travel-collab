@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TimeFormat, TripDetail } from "@tc/contracts";
 import { Text } from "../ui/text";
 import { DataText } from "../ui/data-text";
@@ -112,6 +113,157 @@ function DayGrip({ accent }: { accent: AccentFamily }) {
         </span>
       ))}
     </span>
+  );
+}
+
+/** "Sat" for one weekday, "Fri–Sat" for a run of them. */
+function weekdayRun(labels: string[]): string {
+  return labels.length === 1 ? labels[0]! : `${labels[0]}–${labels[labels.length - 1]}`;
+}
+
+type HiddenWeekdays = { before: string[]; after: string[] };
+
+/**
+ * One month block: its header, and its week grid inside a sideways scroller
+ * that SAYS when part of the week is off-screen (KI-2026-09-24-k).
+ *
+ * The grid's 144px column floor (see the note on the scroller below) makes a
+ * week 1014px wide, so it overflows at any content width under that: at 820px
+ * Friday was half cut off and Saturday entirely gone, and at 1024px Saturday was
+ * clipped, with nothing on screen saying the week went on. The scrollbar that
+ * did say so sits at the bottom of the month, a screen or more below the cut, and
+ * a mouse wheel scrolls down, not sideways.
+ *
+ * So, while any weekday column is not fully inside the scroller, two things
+ * appear. A fade on that edge, so a cut-off column reads as "continues" instead
+ * of as broken layout. And a button in the month header naming the hidden days
+ * ("Fri–Sat"), which scrolls them into view — a way over for someone with a
+ * mouse and no horizontal wheel, and a target a keyboard can reach. Both go away
+ * when the whole week fits, which from 1054px up it does.
+ *
+ * Measured from the weekday header cells' real positions rather than from
+ * `scrollLeft` arithmetic, so the names in the button are the columns the person
+ * cannot actually see.
+ */
+function MonthBlock({ label, note, children }: { label: string; note?: string; children: ReactNode }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [hidden, setHidden] = useState<HiddenWeekdays>({ before: [], after: [] });
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const measure = () => {
+      const box = scroller.getBoundingClientRect();
+      const next: HiddenWeekdays = { before: [], after: [] };
+      for (const head of scroller.querySelectorAll<HTMLElement>("[data-weekday]")) {
+        const r = head.getBoundingClientRect();
+        // 1px of slack for sub-pixel layout, so a column that fits exactly is
+        // not announced as hidden.
+        if (r.left < box.left - 1) next.before.push(head.dataset.weekday ?? "");
+        else if (r.right > box.right + 1) next.after.push(head.dataset.weekday ?? "");
+      }
+      setHidden((prev) =>
+        prev.before.join() === next.before.join() && prev.after.join() === next.after.join() ? prev : next,
+      );
+    };
+    measure();
+    scroller.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, []);
+
+  function reveal(direction: -1 | 1) {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const left = scroller.scrollLeft + direction * scroller.clientWidth;
+    // jsdom has no `scrollTo`; assigning `scrollLeft` is what an engine without
+    // smooth scrolling would do anyway (same fallback as MapRail).
+    if (typeof scroller.scrollTo === "function") scroller.scrollTo({ left, behavior: "smooth" });
+    else scroller.scrollLeft = left;
+  }
+
+  return (
+    <div data-testid="calendar-month">
+      <div className="flex items-baseline gap-2.5 pb-2">
+        <span
+          className="font-display font-semibold text-ink"
+          // eslint-disable-next-line no-restricted-syntax -- 17px month header (handoff spec) has no token equivalent
+          style={MONTH_LABEL_SIZE}
+        >
+          {label}
+        </span>
+        {note && <DataText size="xs">{note}</DataText>}
+        {(hidden.before.length > 0 || hidden.after.length > 0) && (
+          <span className="ml-auto flex items-center gap-1 self-center">
+            {hidden.before.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid="calendar-week-scroll"
+                aria-label={`Scroll to ${weekdayRun(hidden.before)}`}
+                onClick={() => reveal(-1)}
+              >
+                <ChevronLeft aria-hidden className="h-3.5 w-3.5" />
+                {weekdayRun(hidden.before)}
+              </Button>
+            )}
+            {hidden.after.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid="calendar-week-scroll"
+                aria-label={`Scroll to ${weekdayRun(hidden.after)}`}
+                onClick={() => reveal(1)}
+              >
+                {weekdayRun(hidden.after)}
+                <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </span>
+        )}
+      </div>
+      <div className="relative">
+        {/* dc.html:663: 7-column grid, 1px hairline gaps drawing the grid
+            lines (gap-px is a stock Tailwind utility, not an arbitrary
+            bracket value) over a hairline background, ringed by a
+            hairline border and clipped to a 10px radius.
+
+            Each column has a MINIMUM width and the whole grid scrolls
+            sideways inside this wrapper below it. Seven equal fractions of
+            a 411px phone is a 51px cell (Mitchell, on the preview from an
+            Android at 411px: "the cards are totally unreadable on mobile
+            even when there's only one day, it might need to grow in some
+            way") — at that width "Tokyo" truncated to "T" and "4 stops ·
+            $990.00" to "4…", so the cell rendered nothing a person could
+            read.
+
+            144px is measured, not chosen: the widest line a cell renders
+            ("2:30 pm – 10:30 pm") needs 108px, plus the cell's own 9px
+            side padding and the card's 8px — 142px, rounded up. Below that
+            something in every cell truncates to an ellipsis.
+
+            Scrolling rather than restacking into a list, because the week
+            shape is what this view is FOR — "what cities are on what days
+            of the week". A vertical list of days would be readable and
+            would no longer be a calendar. */}
+        <div ref={scrollerRef} data-testid="calendar-week-scroller" className="-mx-1 overflow-x-auto px-1">
+          {children}
+        </div>
+        {/* The edge fades. Over the grid, not the page, so they end where the
+            scroller does; `pointer-events-none` so a half-faded cell can still
+            be clicked. */}
+        {hidden.before.length > 0 && (
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-surface" />
+        )}
+        {hidden.after.length > 0 && (
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-l from-surface" />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -287,7 +439,10 @@ export function CalendarLens({
         aria-pressed={focusedDay === ordinal - 1}
         onClick={() => setFocusedDay(ordinal - 1)}
         className={cn(
-          "h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90",
+          // `day-sync-target`: the clause-2/3 follow above scrolls this cell
+          // into view, and the class keeps it clear of the sticky header
+          // stack when it does (globals.css, KI-2026-09-13-a).
+          "day-sync-target h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90",
           // Mitchell, preview feedback on PR #55: "There should be a border on
           // the day card when i click, and the day is selected, either on the
           // day cards at top, or the clicking here." The click already set
@@ -484,41 +639,7 @@ export function CalendarLens({
         style={MONTH_GAP}
       >
         {months.map((month) => (
-          <div key={month.label}>
-            <div className="flex items-baseline gap-2.5 pb-2">
-              <span
-                className="font-display font-semibold text-ink"
-                // eslint-disable-next-line no-restricted-syntax -- 17px month header (handoff spec) has no token equivalent
-                style={MONTH_LABEL_SIZE}
-              >
-                {month.label}
-              </span>
-              {month.note && <DataText size="xs">{month.note}</DataText>}
-            </div>
-            {/* dc.html:663: 7-column grid, 1px hairline gaps drawing the grid
-                lines (gap-px is a stock Tailwind utility, not an arbitrary
-                bracket value) over a hairline background, ringed by a
-                hairline border and clipped to a 10px radius.
-
-                Each column has a MINIMUM width and the whole grid scrolls
-                sideways inside this wrapper below it. Seven equal fractions of
-                a 411px phone is a 51px cell (Mitchell, on the preview from an
-                Android at 411px: "the cards are totally unreadable on mobile
-                even when there's only one day, it might need to grow in some
-                way") — at that width "Tokyo" truncated to "T" and "4 stops ·
-                $990.00" to "4…", so the cell rendered nothing a person could
-                read.
-
-                144px is measured, not chosen: the widest line a cell renders
-                ("2:30 pm – 10:30 pm") needs 108px, plus the cell's own 9px
-                side padding and the card's 8px — 142px, rounded up. Below that
-                something in every cell truncates to an ellipsis.
-
-                Scrolling rather than restacking into a list, because the week
-                shape is what this view is FOR — "what cities are on what days
-                of the week". A vertical list of days would be readable and
-                would no longer be a calendar. */}
-            <div className="-mx-1 overflow-x-auto px-1">
+          <MonthBlock key={month.label} label={month.label} note={month.note}>
             <div
               role="grid"
               aria-label={`Trip calendar, ${month.label}`}
@@ -544,6 +665,7 @@ export function CalendarLens({
               {WEEKDAY_LABELS.map((label) => (
                 <div
                   key={label}
+                  data-weekday={label}
                   className="bg-surface py-2.5 px-3 text-center font-semibold uppercase tracking-wider text-slate"
                   // eslint-disable-next-line no-restricted-syntax -- dc.html:662's 11px weekday head has no token equivalent
                   style={DOW_HEAD_SIZE}
@@ -553,8 +675,7 @@ export function CalendarLens({
               ))}
               {month.cells.map((cell, cellIndex) => renderCell(cell, cellIndex))}
             </div>
-            </div>
-          </div>
+          </MonthBlock>
         ))}
       </div>
     </section>

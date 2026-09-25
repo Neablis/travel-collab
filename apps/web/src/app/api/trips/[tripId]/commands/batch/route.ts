@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BatchableCommand } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { executeTripCommandBatch } from "@/server/commands";
+import { readBody } from "@/server/readBody";
 
 const STATUS: Record<string, number> = {
   "invalid-command": 400,
@@ -18,10 +19,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
     return Response.json({ error: "unauthenticated" }, { status: 401 });
   }
   const { tripId } = await params;
-  const body = BatchRequest.safeParse(await request.json());
-  if (!body.success) {
-    return Response.json({ error: "malformed batch" }, { status: 400 });
-  }
+  const body = await readBody(request, BatchRequest, "malformed batch");
+  if ("error" in body) return body.error;
   if (!body.data.commands.every((c) => c.tripId === tripId)) {
     return Response.json({ error: "a command tripId does not match the URL" }, { status: 400 });
   }

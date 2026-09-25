@@ -169,6 +169,39 @@ export function endWrite(prefix: string): void {
   if (left <= 0) writing.delete(prefix);
   else writing.set(prefix, left);
   invalidate(prefix);
+  for (const waiter of [...settleWaiters]) {
+    if (writesOverlapping(waiter.prefix)) continue;
+    settleWaiters.delete(waiter);
+    waiter.resolve();
+  }
+}
+
+/** Callers of `writesSettled` still waiting for their scope to close. */
+const settleWaiters = new Set<{ prefix: string; resolve: () => void }>();
+
+/** Whether any open write scope could move a key under `prefix`, or be moved by one. */
+function writesOverlapping(prefix: string): boolean {
+  for (const open of writing.keys()) {
+    if (prefix.startsWith(open) || open.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolves once no write overlapping `prefix` is outstanding, or `null` if
+ * none is outstanding now.
+ *
+ * **For a reader that must not be left behind by a write it cannot see**
+ * (KI-2026-09-14-e). A read taken while a write is open is not cached, but it
+ * is still RETURNED — and if the write is applied after that read was
+ * answered, the reader holds the pre-write state with nothing to correct it.
+ * The write that did it is usually one a component that has since unmounted
+ * sent: the optimistic sender's head, or KI-5's unmount flush. A reader that
+ * mounts during such a write asks this, and reads again when it resolves.
+ */
+export function writesSettled(prefix: string): Promise<void> | null {
+  if (!writesOverlapping(prefix)) return null;
+  return new Promise((resolve) => settleWaiters.add({ prefix, resolve }));
 }
 
 /** The scope that matches every key — `"".startsWith` is true of all of them. */
@@ -287,4 +320,7 @@ export function clearQueryCache(): void {
   inFlight.clear();
   invalidatedAt.clear();
   writing.clear();
+  // No scope is open any more, so nobody is waiting on one.
+  for (const waiter of settleWaiters) waiter.resolve();
+  settleWaiters.clear();
 }

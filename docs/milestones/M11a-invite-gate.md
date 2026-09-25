@@ -93,8 +93,11 @@ written once even though it is asked twice.
 > **What ships instead:** a wrong code is caught authoritatively at sign-in
 > and lands on the designed `INVALID_INVITE_CODE` screen, which already says
 > what to do next. The cost is one wasted OAuth round trip for someone who
-> mistypes. `checkAdmission` remains in the module, exported and tested, so
-> restoring the advisory path later is wiring rather than rewriting.
+> mistypes. `checkAdmission` was left in the module, exported and tested, so
+> restoring the advisory path later would be wiring rather than rewriting; it
+> had no caller for the life of the milestone and was deleted on 2026-09-25
+> (KI-2026-09-05-w item 5) — git history holds it if the advisory path is ever
+> wanted, and the brute-force objection above is why it has not been.
 
 **Link 2 — A trip invite is an invitation.** Mitchell's explicit call,
 2026-08-30: holding a **pending, unrevoked** M11 invite token admits you with no

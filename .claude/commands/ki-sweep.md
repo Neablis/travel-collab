@@ -114,7 +114,8 @@ appended to the heading inside that file, and the proof line present, per the
 In the main session, one KI at a time:
 
 1. Run the **full `pnpm check`** once — serially, never concurrently.
-2. Open a PR using `.github/PULL_REQUEST_TEMPLATE.md`. Fill in **Verification
+2. Open a **draft** PR using `.github/PULL_REQUEST_TEMPLATE.md` (the
+   draft-PR guard hook asks otherwise). Fill in **Verification
    actually performed** honestly, including what was *not* run and why.
 3. Wait on checks in the correct order — straight after a push, `--watch` can
    return in a second with the *previous* commit's green results:
@@ -136,6 +137,17 @@ for b in <sweep branches>; do git merge --no-ff "$b" || break; done   # resolve 
 pnpm check                                                            # one full run
 gh pr create --draft ...                                              # one PR, one CI cycle
 ```
+
+**If anything is stacked on a branch in this sweep, bring the stacked branch
+up to date with its base BEFORE the base merges — and merge the base, do not
+squash it.** A squash drops the base's commits from `main`'s ancestry, so a
+later `git merge main` into the stacked branch has no rename to follow: every
+`git mv open/ → resolved/` the base made comes back as a pre-fix copy in
+`open/` beside the `resolved/` one, and git reports **no conflict**
+(KI-2026-08-30-d, PR #94 → #95). `node scripts/check-ki-filenames.mjs` (part
+of `pnpm lint`) now fails on any entry that sits in two status directories, so
+run it after that merge. If the base was already squashed, do not merge — replay
+the stacked branch instead, per the recovery in that entry.
 
 O(N) instead of O(N²): on the 2026-08-29 sweep, landing four branches serially
 cost **10 conflict resolutions (4+3+2+1) and 4 extra CI cycles**, because every

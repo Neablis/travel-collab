@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { auth } from "@/server/auth";
+import { readBody } from "@/server/readBody";
 import { executeTripCommand } from "@/server/commands";
 import { grantedMembersByTrip, mergeMembers } from "@/server/access/members";
 import { db } from "@/server/db/client";
@@ -57,10 +58,8 @@ export async function POST(request: Request) {
   if (!session?.user?.id) {
     return Response.json({ error: "unauthenticated" }, { status: 401 });
   }
-  const body = CreateTripBody.safeParse(await request.json());
-  if (!body.success) {
-    return Response.json({ error: "name is required (1-200 chars)" }, { status: 400 });
-  }
+  const body = await readBody(request, CreateTripBody, "name is required (1-200 chars)");
+  if ("error" in body) return body.error;
   const result = await executeTripCommand(
     { type: "CreateTrip", tripId: body.data.tripId ?? randomUUID(), name: body.data.name },
     session.user.id,

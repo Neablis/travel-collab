@@ -71,6 +71,34 @@ describe("POST /api/saved-days", () => {
     currentUserId = GUEST;
     expect((await post({ name: "Theirs, kept by me", tripId, dayIds: [dayId] })).status).toBe(201);
   });
+
+  // KI-2026-09-24-c: the app's keep agrees with `POST /v1/playbooks` (ADR-050
+  // decision 8) — a calendar-date anchor does not survive into a Playbook, and
+  // a weekday one on the same stop does.
+  it("drops a stop's calendar-date anchor on the way in and keeps its weekday anchor", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const activityId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Anchored" }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand({ type: "AddActivity", tripId, activityId, dayId, title: "Flea market" }, OWNER);
+    const weekday = { kind: "dayOfWeek", days: ["sun"] } as const;
+    const updated = await executeTripCommand(
+      {
+        type: "UpdateActivity",
+        tripId,
+        activityId,
+        anchors: [{ kind: "dateRange", from: "2027-05-03", to: "2027-05-05" }, weekday],
+      },
+      OWNER,
+    );
+    expect(updated.ok).toBe(true);
+
+    const res = await post({ name: "Sundays", tripId, dayIds: [dayId] });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { savedDay: { stops: { anchors: unknown[] }[] } };
+    expect(body.savedDay.stops[0]!.anchors).toEqual([weekday]);
+  });
 });
 
 describe("GET /api/saved-days", () => {

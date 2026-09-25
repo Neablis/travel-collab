@@ -9,6 +9,7 @@ import type {
 } from "@tc/contracts";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import { displayNameFor } from "@/lib/displayName";
+import { forgetCitySearches } from "./cities";
 import { db, type Queryable } from "./db/client";
 import { contentReports, savedDayReviews, savedDays } from "./db/schema";
 import { isUuid } from "./ids";
@@ -248,7 +249,7 @@ export async function actOnReport(
   if (!isUuid(reportId)) return { ok: false, error: { code: "not-found", message: "No such report." } };
   const at = new Date(now);
 
-  return db.transaction(async (tx): Promise<ReportResult<ContentReport>> => {
+  const result = await db.transaction(async (tx): Promise<ReportResult<ContentReport>> => {
     const found = await tx.select().from(contentReports).where(eq(contentReports.id, reportId)).for("update");
     const row = found[0];
     if (row === undefined) return { ok: false, error: { code: "not-found", message: "No such report." } };
@@ -335,6 +336,10 @@ export async function actOnReport(
     const after = await tx.select().from(contentReports).where(eq(contentReports.id, reportId));
     return { ok: true, value: toDto(after[0]!) };
   });
+  // After the commit, not inside it: a search in between would re-memoise the
+  // index as it was before the hide or restore (`forgetCitySearches`).
+  if (result.ok && (action.action === "hide-day" || action.action === "restore-day")) forgetCitySearches();
+  return result;
 }
 
 /** A day's moderation state as `carryModeration` saw it before a rewrite. */

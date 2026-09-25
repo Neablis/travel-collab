@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CityMatch } from "@/lib/cities";
 import { executeTripCommand } from "@/server/commands";
+import { db } from "@/server/db/client";
 
 // City search (M11b link 2), against the real index.
 //
@@ -157,5 +158,39 @@ describe("GET /api/cities", () => {
     await publish(await saveDayIn([city("Kyoto")]));
     expect((await search("%")).cities).toEqual([]);
     expect((await search("_")).cities).toEqual([]);
+  });
+
+  // KI-2026-09-14-d. The typeahead asks the same question again whenever
+  // someone backspaces and retypes, and the index only moves when a day is
+  // published, unpublished or moderated — so a repeat is answered from the
+  // server's memo instead of re-running the aggregate. Counted at `db.execute`,
+  // the one call `searchCities` makes; the request itself still happens, which
+  // is what keeps the search box's failure state reachable.
+  it("answers a repeated query without re-running the aggregate", async () => {
+    const kyoto = city("Kyoto");
+    await publish(await saveDayIn([kyoto]));
+    const execute = vi.spyOn(db, "execute");
+    try {
+      expect((await search(kyoto)).cities).toEqual([{ city: kyoto, days: 1 }]);
+      expect((await search(kyoto)).cities).toEqual([{ city: kyoto, days: 1 }]);
+      expect(execute).toHaveBeenCalledTimes(1);
+    } finally {
+      execute.mockRestore();
+    }
+  });
+
+  // The memo must not turn one failed aggregate into a window of them: a
+  // dropped query is the search box's failure state, and the retry it offers
+  // has to reach the database.
+  it("does not remember a failed search", async () => {
+    const kyoto = city("Kyoto");
+    await publish(await saveDayIn([kyoto]));
+    const execute = vi.spyOn(db, "execute").mockRejectedValueOnce(new Error("connection dropped"));
+    try {
+      await expect(search(kyoto)).rejects.toThrow("connection dropped");
+      expect((await search(kyoto)).cities).toEqual([{ city: kyoto, days: 1 }]);
+    } finally {
+      execute.mockRestore();
+    }
   });
 });

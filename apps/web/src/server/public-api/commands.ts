@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import { daySpan, isCalendarDate } from "@tc/domain";
 import { BatchableCommand, TripCommand, type TripDetail } from "@tc/contracts";
-import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
+import { executeTripCommand, executeTripCommandBatch, executeTripCreation } from "@/server/commands";
 import type { Actor } from "./actor";
 
 // **Where a REST write becomes a planning command** (M22 Phase 4).
@@ -96,6 +96,23 @@ export async function runBatch(actor: Actor, commands: CommandInput[]): Promise<
   }
   if (commands.length === 1) return runCommand(actor, commands[0]!);
   const result = await executeTripCommandBatch(commands, actor.userId);
+  return result.ok ? { ok: true, detail: result.detail } : refusal(result.error);
+}
+
+/**
+ * Create a trip and run `then` against it, as one transaction.
+ *
+ * For an endpoint that makes a trip and fills it in the same request. A refusal
+ * or a throw anywhere after the create rolls the create back too, so there is
+ * no half — and no compensating delete for a caller to write
+ * (KI-2026-09-19-b). `then` may be empty.
+ */
+export async function runCreation(
+  actor: Actor,
+  create: Extract<CommandInput, { type: "CreateTrip" }>,
+  then: CommandInput[],
+): Promise<WriteOutcome> {
+  const result = await executeTripCreation(create, then, actor.userId);
   return result.ok ? { ok: true, detail: result.detail } : refusal(result.error);
 }
 

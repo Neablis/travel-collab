@@ -73,3 +73,11 @@
 - **Found by:** writing the page aggregate, 2026-09-22 — the revert test was
   written to pin the safe state before the unsafe wiring existed.
 - **First noted:** 2026-09-22.
+- **Re-verified 2026-09-25 (overnight sweep):** still true. `decideHistoryCommand`
+  still diffs the trip aggregate only — `foldEnvelopes` skips page events
+  (`history.ts:36`) and `deriveUndoRedo` skips page-only batches, citing this
+  entry (`history.ts:113-126`); `diffPageStates` (`pageState.ts:136`) has no
+  caller outside `packages/domain/test/pageState.test.ts`; no backfill marker
+  exists on `PageCreated` (grep `backfill` in `packages/domain/src` finds only
+  comments). The guard test is present at `pageCommands.int.test.ts:241`, and
+  `packages/domain/test/pageHistory.property.test.ts` exists.

@@ -1,6 +1,7 @@
 import { TripCommand } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { executeTripCommand } from "@/server/commands";
+import { readBody } from "@/server/readBody";
 
 const STATUS: Record<string, number> = {
   "invalid-command": 400,
@@ -19,10 +20,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
     return Response.json({ error: "unauthenticated" }, { status: 401 });
   }
   const { tripId } = await params;
-  const body = TripCommand.safeParse(await request.json());
-  if (!body.success) {
-    return Response.json({ error: "malformed command" }, { status: 400 });
-  }
+  const body = await readBody(request, TripCommand, "malformed command");
+  if ("error" in body) return body.error;
   if (body.data.type === "CreateTrip") {
     return Response.json({ error: "use POST /api/trips to create trips" }, { status: 400 });
   }

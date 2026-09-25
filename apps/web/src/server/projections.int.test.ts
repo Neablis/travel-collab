@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { executeTripCommand } from "./commands";
-import { getTripDetail, listTripSummaries, listTripSummariesVisibleTo, rebuildProjections } from "./projections";
+import { getTripDetail, listTripSummaries, listTripSummariesPage, listTripSummariesVisibleTo, rebuildProjections } from "./projections";
 import { db } from "./db/client";
 import { tripDetails, tripSummaries } from "./db/schema";
 
@@ -81,15 +81,22 @@ describe("trip summaries carry the start date, in a stated order", () => {
     await executeTripCommand({ type: "SetTripName", tripId: newer, name: "Newer" }, member);
 
     const listed = await listTripSummariesVisibleTo(member);
-    expect(listed.map((r) => [r.name, r.startDate])).toEqual([
-      ["Newer", null],
-      ["Older", "2099-03-01"],
+    expect(listed.map((r) => [r.name, r.startDate, r.endDate])).toEqual([
+      ["Newer", null, null],
+      // KI-2026-09-24-e: the end is the document's last day.
+      ["Older", "2099-03-01", "2099-03-02"],
     ]);
 
     await executeTripCommand({ type: "SetTripStartDate", tripId: older, startDate: "2099-04-01" }, member);
     const where = eq(tripSummaries.tripId, older);
     const before = await db.select().from(tripSummaries).where(where);
     expect(before.map((r) => r.startDate)).toEqual(["2099-04-01"]);
+    // The end moves with the start, in both queries that list trips.
+    const paged = await listTripSummariesPage(member, { limit: 10, after: null });
+    expect(paged.map((r) => [r.name, r.endDate])).toEqual([
+      ["Newer", null],
+      ["Older", "2099-04-02"],
+    ]);
     await rebuildProjections();
     expect(await db.select().from(tripSummaries).where(where)).toEqual(before);
 

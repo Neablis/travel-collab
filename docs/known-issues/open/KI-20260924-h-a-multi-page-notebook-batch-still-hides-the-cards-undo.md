@@ -22,3 +22,11 @@
 - **Cross-reference:** `resolved/KI-20260923-f-…` (which named this limit),
   KI-2026-09-22-c.
 - **First noted:** 2026-09-24, review of PR #218.
+- **Re-verified 2026-09-25 (overnight sweep):** still true. `proposalUndoFor`
+  takes the head as the first entry with no `pageId`
+  (`ProposalCard.tsx:64`); `pageId` is set only when a batch has no trip events
+  AND touches exactly one page (`packages/domain/src/trip/history.ts:363-365`);
+  `HistoryEntry` still has no has-trip-events field
+  (`packages/contracts/src/history.ts`, `pageId` optional at `:99`).
+  Area corrected: `buildHistoryEntries` lives in
+  `packages/domain/src/trip/history.ts`, not `apps/web/src/server/history`.
