@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEDUPE, beginWrite, cachedRead, clearQueryCache, endWrite, invalidate } from "@/lib/queryCache";
+import { DEDUPE, beginWrite, cachedRead, clearQueryCache, endWrite, invalidate, writesSettled } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import type { ApiResult } from "@/lib/apiClient";
 
@@ -284,5 +284,37 @@ describe("invalidate", () => {
     const next = await cachedRead(tripKeys.detail(TRIP), fresh.read);
     expect(next).toEqual({ ok: true, value: { name: "after the command" } });
     expect(fresh.calls.count).toBe(1);
+  });
+});
+
+// KI-2026-09-14-e: TripProvider re-reads when this resolves, so resolving while
+// a write is still out re-reads too early, and never resolving never re-reads.
+describe("writesSettled", () => {
+  it("is null when nothing overlapping is being written", () => {
+    beginWrite(tripKeys.all(OTHER));
+    expect(writesSettled(tripKeys.all(TRIP))).toBeNull();
+    endWrite(tripKeys.all(OTHER));
+  });
+
+  it("resolves only when the LAST overlapping write closes", async () => {
+    let settled = false;
+    beginWrite(tripKeys.all(TRIP));
+    beginWrite(tripKeys.all(TRIP));
+    void writesSettled(tripKeys.all(TRIP))!.then(() => { settled = true; });
+
+    endWrite(tripKeys.all(TRIP));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    endWrite(tripKeys.all(TRIP));
+    await Promise.resolve();
+    expect(settled).toBe(true);
+  });
+
+  it("resolves when the cache is cleared, since no scope is open after that", async () => {
+    beginWrite(tripKeys.all(TRIP));
+    const settled = writesSettled(tripKeys.all(TRIP))!;
+    clearQueryCache();
+    await expect(settled).resolves.toBeUndefined();
   });
 });
