@@ -10,6 +10,7 @@ import { DEDUPE, cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { inspectStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 import { PageEditor } from "@/components/pages/editor/PageEditor";
+import { usePreferences } from "@/components/account/PreferencesProvider";
 import { buttonVariants } from "@/components/ui/button";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
@@ -86,6 +87,11 @@ export function OverviewLens({
   // serve Overview. A widget renders without it, one value shorter — the
   // honest degradation `day.rows` already documents — and `open`, the only
   // widget the seeded page carries, does not read it at all.
+  // The reader's own preferences, for the widgets on this page — the same
+  // read `PageScreen` makes. Without it every widget here rendered for nobody:
+  // times on the 12-hour default whatever the reader chose, and "your name" /
+  // "home airport" empty. Defaults, not a throw, outside a provider.
+  const user = usePreferences();
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
   const [state, setState] = useState<
     | { status: "loading" }
@@ -315,6 +321,7 @@ export function OverviewLens({
       <PageEditor
         detail={detail}
         context={state.page.context}
+        user={user}
         globals={globals ?? null}
         value={state.doc}
         // Reading mode never writes. The tab does not edit (§25), so there is

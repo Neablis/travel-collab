@@ -9,14 +9,18 @@ import { ActivityCard } from "./ActivityCard";
 // it. Only the time-format tests below mount the provider; every other test
 // renders the card bare, which is the provider-less default ("12h").
 const stored = vi.hoisted(() => ({ timeFormat: "12h" as TimeFormat }));
+const fetched = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/apiClient", () => ({
-  fetchPreferences: async () => ({
-    ok: true as const,
-    value: {
-      preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: stored.timeFormat },
-      isAdmin: false,
-    },
-  }),
+  fetchPreferences: async () => {
+    fetched();
+    return {
+      ok: true as const,
+      value: {
+        preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: stored.timeFormat },
+        isAdmin: false,
+      },
+    };
+  },
   updatePreferences: vi.fn(),
 }));
 
@@ -253,9 +257,14 @@ describe("ActivityCard time window", () => {
     );
   }
 
+  // The stored "12h" read has to have ARRIVED for this to mean anything: the
+  // provider's pre-fetch default is also 12-hour, so asserting before the
+  // fetch settles would pass with the setting never read at all.
   it("prints 12-hour times for a reader on the default clock", async () => {
     renderSignedIn("12h");
-    await waitFor(() => expect(screen.getByText("9 am – 2:30 pm")).toBeTruthy());
+    await waitFor(() => expect(fetched).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(screen.getByText("9 am – 2:30 pm")).toBeTruthy();
   });
 
   it("prints 24-hour times for a reader who chose them", async () => {

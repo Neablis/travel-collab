@@ -49,8 +49,8 @@ const clockOf = (at: Date) =>
 /**
  * The forecast's as-of in the READER's own zone (decision 7): the time alone
  * when it is from today, the date as well when it is not — a stale row served
- * after a failed revalidation must not read as this morning's. On the house
- * 12-hour clock (Mitchell: *"All times should be in AM/PM not military time"*).
+ * after a failed revalidation must not read as this morning's. In the reader's
+ * clock (`UserPreferences.timeFormat`), 12-hour unless they chose otherwise.
  * Printed beside the forecast's credit, so it needs no "Forecast" of its own.
  */
 export function asOfText(iso: string, today: string, clock: TimeFormat): string {
