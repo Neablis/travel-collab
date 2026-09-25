@@ -4,11 +4,42 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-22 — a simplify pass, plus four new surfaces.** New users
-were meeting too much at once. This pass removes duplicates and demotes rare actions to quiet
-links without orphaning any of them, and adds the invite landing, a named new-trip assistant
-(Cass), proposal cards in the assistant transcript, and the M23 multi-day keep dialog as
-shipped. **SPEC §35 is the whole pass; §35.10 is the build list.**
+Last substantive pass: **2026-09-25 — resync against `main` @ `7892bed`, then a design pass on
+how a day reads.** The build had shipped M13, M12, M14 and most of M24 with four surfaces
+undrawn; those are drawn. Then: kind collapses to three values with one line language, Plan
+becomes a to-scale time river, travel between cities is implied, the widget catalogue is the
+build's own 30 presets, and the seeded Overview is rewritten as a prose-and-widgets document.
+**SPEC §36 is the whole pass.** The files here are **design references in HTML** — recreate them
+in `apps/web` with its components and tokens; do not ship the markup.
+
+### What changed on 2026-09-25, in build terms — the resync (§36)
+
+Read against `main` at `7892bed`. The build shipped four surfaces with no drawing; these are
+the drawings. **§36 is the whole pass.**
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| Travel mode + destination | §36.1 | *By* (seven) and *To* appear only for a Travel stop; card badge names the mode; legend names real modes |
+| **Kind is three values** | §36.9 | Planned · Pending · Transit; solid / dashed / dotted on cards, pins and lines (D19) |
+| **Plan is a time river** | §36.9b | Columns to scale on one shared axis; darkness = how locked in; drop lands at pointer time |
+| **Implied transit** | §36.10 | A day whose start city differs, with no travel, gets a dotted *Moving* leg and one question — how |
+| Booked by | §36.2 | One select under *Who is in* |
+| Co-edit conflict | §36.3 | On the stop card, *Keep yours / Keep Mei's*; compare with `ConflictBanner` (DRIFT D18) |
+| Seven widgets | §36.4 | Weather says which number it is; every emergency number labelled (D17) |
+| Insert picker | §36.5 | **Fixed sample** — answers M14's open box |
+| Save as a template | §36.6 | Ghost button in Reading; *Your template* card |
+| Report | §36.7 | Per review + per day; five reasons, optional note |
+| Place search | §36.8 | CITY / COUNTRY tag on every row |
+| Time river gestures | §36.9b | Double-click empty time to add; drag across empty time to sketch a stop; drag a block's bottom edge to change its end |
+| Booked in the river | §36.9b | The day's city colour at full strength, white text, *BOOKED ✓*; planned = surface + city-colour edge; tags plain outlines, bottom-aligned |
+| Card badges | §36.9 | *To book*, *Maybe*, *Booked* — never wrap |
+| Widget catalogue | `specs/widgets-in-build.md` | The design's rail is the build's 30 presets, same ids; unbound = the whole trip; only *A stop's detail* waits for a choice |
+| **The Overview** | §36.10b | One column, itinerary-letter prose between widgets, every widget drawn as `blocks/*.tsx` draws it; no name/dates/money (the trip header has them) |
+| One *needs booking* rule | DRIFT §3e | Calendar's *N to book*, the Home hero and *Still to book* all read `needsBooking` |
+| Time format | DRIFT §3e | Account → Display → *Time: 12-hour · 24-hour*, applied to every clock time |
+
+New tweak props: `coEditConflict`, `overviewStage` (`full` · `new`). Exploration file:
+`design/Day Flow Explorations.dc.html` (1b was picked).
 
 ### What changed on 2026-09-22, in build terms (§35)
 
@@ -220,10 +251,12 @@ what may exist on a page — read `RULES.md` first.
 | Path | What it is |
 |---|---|
 | `RULES.md` | The six project rules. Read this first — they decide what may exist on a page |
-| `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour. **Refreshed 2026-09-22: the simplify pass, the invite landing, Cass, proposal cards, the multi-day keep dialog (SPEC §35)** |
+| `design/Trip Planner Redesign.dc.html` | The living desktop design reference — every screen, all copy, all interaction behaviour. **Refreshed 2026-09-25: §36 — travel legs, three kinds, the time river, implied transit, the build's widget catalogue, the Overview.** |
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
-| `SPEC.md` | Written spec for what the design file cannot say out loud. **§35 (simplify pass, invite landing, Cass, proposal cards) is the newest**; §30 (new-trip conversation, transcript type) is this pass**; §29 (plans route); §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
+| `SPEC.md` | Written spec for what the design file cannot say out loud. **§36 (resync, kinds, time river, implied transit, the Overview) is the newest**, §35 before it; §30 (new-trip conversation, transcript type) is this pass**; §29 (plans route); §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
 | `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
+| **`specs/widgets-in-build.md`** | Every widget and template the build ships today (main @ 7892bed), how each reads and is used — the reference for new templates |
+| `design/Day Flow Explorations.dc.html` | The three day-flow explorations; 1b (time river) is what Plan now uses |
 | **`specs/notebook-widget-framework.md`** | **The notebook widget framework** — three shape components, four states per shape, the ghost. `SPEC.md` §21 summarises it; this file is the contract |
 | `design/NotebookInline.dc.html` | Component — an inline widget: a segment list of your text, its values, and ghosts |
 | `design/NotebookBlock.dc.html` | Component — a block widget: declared columns, rows, caption, total, one note line per state |
@@ -232,43 +265,6 @@ what may exist on a page — read `RULES.md` first.
 | `specs/save-a-day-as-a-playbook.md` | The Save-a-day-as-a-Playbook flow: entry point, dialog, save action, the exact animation, five open questions |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 | `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
-
-<!-- ROUTE-ARTBOARD-INDEX:START -->
-
-### Route → artboard → spec
-
-**Generated — do not edit by hand.** Run `node scripts/route-artboard-index.mjs --write`;
-`pnpm test` fails when a gate below has been renamed out of the design file, when a line
-number has drifted, or when the app grows a route nobody has decided an artboard for.
-
-The design file is one document, not a folder of artboards: a screen is the
-`<sc-if value="{{ … }}">` block named below, reached by driving `startScreen` and the nav.
-Open the line, then read the `SPEC.md` sections beside it — **in that order**, and diff both
-against the milestone link that owns the screen before writing code
-(`docs/guidelines/building-from-the-design.md`).
-
-| Route | Where it is drawn | Spec | Notes |
-|---|---|---|---|
-| `/` | `isHome` · line 1456 | §28, §32 | Trips, the new-trip fork and the import entry |
-| `/trips/[tripId]` | `isTrip` · line 1740 | §24, §25 | The four tabs; Overview is a notebook page |
-| `/trips/[tripId]/pages` | `isNotebook` · line 3584 | §7, §18, §19 | Notebook index |
-| `/trips/[tripId]/pages/[pageId]` | `isDoc` · line 3679 | §18, §21, §26 | One page, and the widget framework |
-| `/playbooks` | `isPlaybooks` · line 2442 | §15, §33 | Discover — §33 re-sorts the header by kind of decision |
-| `/playbooks/day/[savedDayId]` | `isDay` · line 2678 | §15, §16, §33 | The shared day; §16 gives it a map, §33 gives it day scope |
-| `/playbooks/board` | `isBoard` · line 3484 | §15 | Leaderboard |
-| `/playbooks/profile/[userId]` | `isProfile` · line 3518 | §15 | Public profile |
-| `/plans` | `isPlansRoute` · line 3191 | §29, §34 | §34.3 adds the phone treatment |
-| `/account` | `isAccountRoute` · line 2929 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
-| `/admin` | `isAdminRoute` · line 3323 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
-| `/welcome` | `isDeskLanding` · line 4699 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
-| `/signin` | `isSignin` · line 5112 | §14, §28 | Inside the `isAuth` block |
-| `/signup` | `isSignup` · line 5109 | §14, §28 | Inside the `isAuth` block |
-| `/demo` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
-| `/s/[token]` | `isTrip` · line 1740 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
-| `/invite/[token]` | `isInvite` · line 5120 | §35 | §35.6: `valid`, `revoked`, `member` (M27 D9 — no `expired`) |
-| `/invite/[token]/look` | `isTrip` · line 1740 | §27, §35 | No artboard of its own — the trip surface in `readOnly`, §35.6's invite banner (M27 D12) |
-
-<!-- ROUTE-ARTBOARD-INDEX:END -->
 
 ## How to read the design file
 

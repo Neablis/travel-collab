@@ -9,57 +9,6 @@ any widget UI, and §11's "the logo is the save light" alongside §28.
 under `specs/`: `specs/notebook-widget-framework.md` (§21 — the three shape components and
 the ghost rule) and `specs/save-a-day-as-a-playbook.md` (§20).
 
-<!-- SPEC-INDEX:START -->
-
-## Sections, by number
-
-**Generated — do not edit by hand.** Run `node scripts/spec-section-index.mjs --write`
-after adding a section; `pnpm test` fails when this table and the headings disagree.
-
-This file is append-by-date and is never renumbered, so the sections below are **not**
-in file order — §17 sits after §18, and §21–§23 after §24. Jump by the line number here
-rather than grepping for `§n` and reading forward (KI-2026-09-14-c).
-
-| § | Section | Line |
-|---|---|---|
-| §1 | Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build** | 63 |
-| §2 | Save state | 104 |
-| §3 | Trip dates — start only | 116 |
-| §4 | Calendar spans months | 126 |
-| §5 | Component mapping — the "unnamed element" answers | 145 |
-| §6 | Decisions (2026-08-22) | 165 |
-| §7 | Notebook — pages that read like documents | 177 |
-| §8 | Deliberately not designed yet | 310 |
-| §9 | The assistant — one panel, three presentations | 319 |
-| §10 | Mobile is a companion, not a second planner | 346 |
-| §11 | Project rules (2026-08-25) | 359 |
-| §12 | Calendar as a city view, account settings, focus rings — 2026-08-26 | 450 |
-| §13 | Mobile foundations | 556 |
-| §14 | The landing page — 2026-08-26 | 636 |
-| §15 | Playbooks becomes a public library — 2026-08-30 | 683 |
-| §16 | The shared day gets a map, and Playbooks reaches the phone — 2026-09-01 | 756 |
-| §17 | Billing surfaces — M20 / M21 — 2026-09-02 | 795 |
-| §18 | Notebook widgets — a page has no scope — 2026-09-02 | 235 |
-| §19 | The phone Notebook is the whole model — 2026-09-03 | 894 |
-| §20 | Save this day as a Playbook — 2026-09-04 | 973 |
-| §21 | The notebook widget framework — 2026-09-04 | 1081 |
-| §22 | The phone tab bar is scoped, not disabled — 2026-09-05 | 1046 |
-| §23 | The assistant reaches the phone — as a pill, not a tab — 2026-09-05 | 1000 |
-| §24 | The trip's four tabs, renamed and rescoped — 2026-09-12 | 1115 |
-| §25 | Overview IS a notebook page — 2026-09-12 | 1153 |
-| §26 | Widget settings live outside the page — 2026-09-12 | 1179 |
-| §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1220 |
-| §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1261 |
-| §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1319 |
-| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1406 |
-| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1523 |
-| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1585 |
-| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1657 |
-| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1747 |
-| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1904 |
-
-<!-- SPEC-INDEX:END -->
-
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
 > **Struck 2026-08-26.** Mitchell rejected this section **as a whole**, not deferred it, and
@@ -2086,3 +2035,198 @@ The design adopts the shipped `KeepDayDialog` (M23) and supersedes the §3 dialo
 **Undrawn states owed:** the invite landing offline; Join failing (account created, membership
 not); the Playbook-day turn when the query errors (skip the turn, never block the script); a
 proposal accepted while another collaborator changed the same day (the §8 conflict path).
+
+
+---
+
+## 36. Travel legs, co-travellers, the rich layer and reporting — 2026-09-25
+
+A resync against `main` at `7892bed`. The build shipped M13, M12, M14 and most of M24 and had
+to decide four surfaces without a drawing. This section draws them. Nothing here adds a
+field the build does not have.
+
+### 36.1 A travel stop says by what and to where (M24)
+
+- In **Add / Edit a stop**, choosing the **Travel** tag reveals one bordered group: **By** — a
+  radio row of exactly seven: *On foot, Bus, Train, Flight, Ferry, Car, Bike* (ADR-053, closed
+  enum; never a free string) — and **To**, one input. *What or where* is the leg's start.
+- The group is **absent** for any other stop, because the schema refuses `mode` / `endLocation`
+  off transit. Not disabled — absent (rule 2).
+- The Plan card's badge for a transit stop names the mode: *By train*, *By bus*, *Ferry*,
+  *Flight*, *By car*, *By bike*, *On foot*. It replaces *Travel*, it does not sit beside it.
+- A map legend names the modes the day actually uses (*Train, Ferry*), never a generic
+  *By train or taxi*. Dash styling stays the build's call (a layer per dash pattern).
+
+### 36.2 Booked by is not who is going (M13 link 5)
+
+**Booked by** is one select under **Who is in** — *Nobody yet* plus the trip's members. Two
+relations, two controls. Neither travels into a published Playbook (`SavedStop` omits both).
+
+### 36.3 Two people, one stop (M13 link 4)
+
+The conflict renders **on the stop's card**, in the warning tint, as one sentence naming who
+and what — *Mei moved this to 3:30 pm while your change was still sending* — and two buttons:
+**Keep yours** (send and overwrite) and **Keep Mei's** (undo yours). No ✕: it leaves when the
+queue drains. No modal. Review with the `coEditConflict` tweak.
+
+### 36.4 Seven widgets (M14 link 11)
+
+| Widget | Shape | Input | Reads |
+|---|---|---|---|
+| Trip strip | block | — | One band per city, width = nights, the city's accent |
+| Still to book | block | days | A row per *Holding* or *Idea* stop; empty line when there are none |
+| Spend by day | block | days | A bar per day and a total. Single currency |
+| Weather | block | days | Per day: high/low and **which number it is** — *Forecast*, or *Typical for Oct — too far out to forecast*. A credit line names only the sources shown and an as-of time. When the source is down: one quiet line, never a stale number |
+| Sunrise and sunset | inline | day | *sunrise 5:41 am, sunset 5:38 pm in Kyoto* |
+| Time difference from home | inline | — | Reads the home airport on the account |
+| Know before you go | block | — | Plugs, driving side, calling code, **each emergency number labelled by service**, with its source |
+
+Credits (weather, the factbook) render as a mono line under the block, not inside it. The two
+person widgets are removed from the rail rather than shown disabled (M14 decision 5).
+
+### 36.5 Two answers the build asked for
+
+- **The insert picker shows a fixed sample, not a resolved preview.** A row that resolves
+  against the open trip can disagree with what lands; a sample cannot. This closes M14's open
+  insert-Sheet box from our side.
+- **One step, then bind.** SPEC §18/§19's two-step *search → Point it at* sheet is superseded by
+  what the build ships: insert lands the widget, and it binds in the settings panel (§26).
+
+### 36.6 Save a page as a template (M14 link 10)
+
+In **Reading**, a ghost **Save as a template** sits left of **Edit**. After saving it goes away
+for that page. The page appears in the Notebook's *Start from* cards as **Your template** — its
+wording comes across; every widget re-points to whichever trip uses it. Personal, not
+published (ADR-029's rules).
+
+### 36.7 Report (M12 link 6)
+
+- **Report** — a quiet text button at the end of each review row that is not yours.
+- **Report this day** — centred under the shared day's CTAs, for days that are not yours.
+  After sending it reads *Reported — an operator will look at it.*
+- One **Dialog**: *Why are you reporting it?* as a radio list of the build's five reasons, an
+  optional note, **Cancel / Send report**. Send is disabled until a reason is picked.
+- The operator's **Reports** panel on `/admin` is still build-drawn; not redrawn here.
+
+### 36.8 Places, not cities (M12 link 7)
+
+Search copy says *a city or country*. Every result row starts with a mono **CITY** / **COUNTRY**
+tag, because *Mexico* and *Mexico City* are different clicks. A country chip filters to every
+day that touches it.
+
+### 36.9 Kind is three values, and every surface reads it — **proposal to the build**
+
+Supersedes the five-value version drawn earlier today. **Kind answers one question — how firm is
+my intent — and booking is a separate fact.**
+
+| Kind | Meaning | Second row |
+|---|---|---|
+| **Planned** (default) | You intend to do it | — · a *Booked* badge appears when a confirmation is attached |
+| **Pending** | Not locked in | **Why:** *Needs booking* · *If there's time* |
+| **Transit** | Moving between the stops either side | **By:** the seven modes (ADR-053) |
+
+Pending and Transit share one control shape: a three-way segmented **Kind**, then one chip row
+for the second dimension. Booking a *Needs booking* stop is what makes it Planned.
+
+**Maps onto today's contract without a migration:** `hold` → Pending · needs booking, `idea` →
+Pending · if there's time, `booked` → Planned + booked, `planned` → Planned, `transit` →
+Transit. Collapsing the enum itself is the build's call (DRIFT D19).
+
+Card badges are one or two words and never wrap: **To book**, **Maybe**, **Booked**. The long names stay in the Kind control.
+
+**One line language, used everywhere:** solid = planned, **dashed = pending**, **dotted = transit**.
+
+| Surface | Planned | Pending · needs booking | Pending · if there's time | Transit |
+|---|---|---|---|---|
+| Plan card | Solid card | Dashed card, warning badge *To book* | Dashed card on the normal surface, full-ink title, badge *Maybe* — never faded | Not a card — a dotted leg: mode, time, cost, *from → to* |
+| Map pin | Filled, numbered | Ring in the day colour | Dashed ring, 80% | Dotted slate ring |
+| Map line | Walk: solid | — | — | Dotted, labelled with the mode and time (*Train · 2 h 15 m*) |
+| *Still to book* | — | Listed | Listed, labelled *Maybe* — the build's \`needsBooking\` rule, which Calendar and the Home hero share | Not listed |
+
+### 36.9b Plan is a time river (exploration 1b, picked 2026-09-25)
+
+Day columns are drawn **to scale on one shared axis** (the trip's earliest start to latest end,
+44 px an hour), so a glance across the week lines up mornings with mornings and free time is
+visible as empty space. How dark a block is says how locked in it is:
+
+| Kind | Block |
+|---|---|
+| Booked | The day's own city colour at full strength, white text, a soft lift shadow, *BOOKED ✓*. No ticket iconography. Planned is a surface block with a 1.5 px edge in the same city colour (the column is already the tint), so booked reads as the planned day, made real |
+| Planned | Surface, 1.5 px edge in the city colour |
+| To book | Surface, dashed warning outline, *TO BOOK* |
+| Maybe | Surface with a faint hatch, dashed outline, *MAYBE* — never faded |
+| Transit | Info tint, dotted outline, *Train · Shinkansen…* and its duration |
+
+- Overlapping stops sit side by side in half-width lanes with a warning outline and *OVERLAP ✕*.
+- Short stops show the title only; 40 px+ adds time and area; 70 px+ adds tags.
+- **Double-click** empty time to add a stop there; **drag across empty time** to sketch one that long (the sheet opens with that start and length).
+- **Drag a block's bottom edge** to change when it ends (a faint grip marks it).
+- **+ Add a stop** sits 22 px below the axis, brand-tinted and full width. **Drag** a block and the drop lands at the
+  time under the pointer, previewed as an outline of the block's own length.
+- The co-edit conflict grows its block to hold *Keep yours / Keep Mei's*.
+- Exploration file: `Day Flow Explorations.dc.html` (1a thread and 1c trunk kept for reference).
+
+### 36.10 Implied transit — the move nobody typed
+
+Adding a Transit stop by hand asks for two places. Most of the time the app already knows both.
+
+- **A day that starts somewhere other than where it ends up, with no transit on it, is an implied
+  move** (`day.startCity !== day.city`, no `transit` stop). The build already stores both.
+- **Plan** draws it at the top of the day as a dotted *MOVING · Kyoto → Osaka* leg with one
+  question — *How are you getting there?* — and five mode chips (Train, Bus, Car, Flight, Ferry).
+  One tap creates the transit stop: `location` = the previous stop, `endLocation` = the next
+  one, a time just before the day's first stop, **no typing**. Readers see the leg without the
+  question.
+- **Map** draws the move as a dotted grey line from yesterday's last stop to today's first,
+  labelled *Moving to Osaka · how?*, and frames both ends.
+- **Adding Transit by hand** no longer asks for a start and end: the sheet shows
+  *Handicraft Center → Zentis Osaka* — the stops either side of the chosen time, across day
+  boundaries — and **Change where it ends** is the only field, collapsed.
+- Never nags: an implied move is a drawn fact, not a warning, and it counts toward nothing.
+- The demo seed drops Day 11's typed *Train Kyoto → Osaka* so the implied state is visible.
+
+### 36.10b The Overview, built only from widgets
+
+The seeded, undeletable Overview is **only registry widgets** plus headings and joining words —
+nothing a person couldn't insert into any page (SPEC §25's rule, kept). Order, top to bottom:
+
+| Section | Widgets | Why here |
+|---|---|---|
+| (hook) | `trip.name` — `trip.countdown` | what it is and how soon |
+| (shape) | `dates` · `count.days` · `count.cities` · `count.booked` *of* `count` | four self-describing values; booked-of-total is the progress bar in words |
+| — | `trip-strip` | the whole trip at a glance, in city colours |
+| What needs you | `open` | the reason to open the page |
+| Before you go | `time-difference-from-home`, `weather`, `know-before-you-go` | what changes as the date nears |
+| Where it goes | `city.detail` | how long in each place |
+| Day by day | `day.detail` | the body of the trip |
+| Settled | `booking.line` | the part that is certain |
+| Still to book | `still-to-book` | the part that isn't |
+| Money | *Spent so far* `cost` · *left in the budget* `budget.remaining`, `spend-by-day` | the two ambiguous values get labels; the chart shows the expensive days |
+
+**Layout: a document, one column, prose between widgets.** No side-by-side — a page is text
+and widgets in one flow, and every widget is an inline atom. The copy reads like a travel
+agent's itinerary letter and is written to stay true at every stage (it never claims there *is*
+something open, booked or priced): the hook sentence carries the countdown, days, cities, stops
+and booked count as inline values; then the trip strip; *The route runs* {cities}; and a short
+line of prose before each block — *What needs you*, *Where you'll be*, *Day by day*, *Before
+you go* (time difference in a sentence, then weather, then know-before-you-go), *Locked in*,
+*Still to book*, *Spend by day*. Blocks are drawn as `blocks/*.tsx` draws them: the strip's
+runs 4 px apart and days 1 px, ordinal + city over each run; one tinted table for days and for
+cities (128 px label column); weather's fixed-height rows with High / Low / Rain columns and a
+credit footer naming only the sources shown; the country card; the spend chart stacked by tag
+with a dashed budget-per-day line, money ticks, ordinals under the bars, no numbers on bars.
+**No trip name, dates or money sentence** — the trip header above already shows them (rule 4).
+
+**It evolves without anyone editing it**: every widget has an honest empty line, so a trip
+created a minute ago reads as a list of what the page will become (*add a day to see this*,
+*nothing is waiting on you*), and each line fills in as days and stops arrive. Tweak
+`overviewStage: new` shows that state.
+
+**Build owes**: the seeded-template rule in `templates.ts` (*only widgets that read well empty*)
+must be relaxed for this page, or each empty line above must be accepted as "reads well". The
+design's position: an empty line that says what fills it reads well.
+
+### 36.11 Still owed by the design
+
+- **One repeater** — *A sentence for each…* with the collection as an input (DRIFT D16).
+- A privacy line for data sent to weather providers (KI-2026-09-24-o).

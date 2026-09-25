@@ -50,6 +50,14 @@ here two days later.
   protocol, `soleWriter.test.ts`, `planVersions.noExtension.test.ts`.
   **Approved in principle 2026-09-18; the spec is for approval and mints
   nothing.** Proposed to run before M23.
+  **Status (audited 2026-09-25): the drift-check half shipped** — `pnpm arch`
+  runs dependency-cruiser inside `pnpm lint` (#204, `AGENTS.md`'s architecture
+  wall). **What is left:** a committed map, or the `pnpm map --for <path>`
+  query that `docs/reviews/2026-09-23-architecture-wall-first-run.md` proposes
+  instead (`pnpm arch:graph` only prints Mermaid on demand); the gate-close
+  annotation step, which `docs/milestones/README.md` records as not adopted and
+  `scripts/milestone.mjs`'s checklist does not have; and the KI `Area:` → node
+  binding.
 
 - **Stripe test mode alongside live, without a redeploy to switch.** Asked for
   2026-09-16: *"i would like to be able to use test card without needing to take
@@ -104,20 +112,20 @@ here two days later.
   Not guessed at in the M21 branch — RULES.md 2 ("no purposeless UI") and RULES.md
   4 ("challenge to simplify") point opposite ways here until someone picks.
   *(Filed 2026-09-15 from PR #177's preview feedback.)*
-- **`ADMIN_USER_IDS` must be set in production before `/admin` is reachable
-  there.** The operator console is gated on `users.is_admin` and nothing in the
-  product sets that column, so the allowlist read at sign-in
-  (`apps/web/src/lib/adminBootstrap.ts`) is the only way a first operator
-  exists. Unset promotes nobody, which is the safe default and also a console
-  nobody can open. *(Filed 2026-09-13 with the M20 build.)*
-- **A fourth capability would make M20's fourth-plan proof stronger.**
-  `studio` grants `trip.collaborators` without `ai.command`, which makes it
-  incomparable with `plus` — but it is still a *subset of `premium`*, because
-  `premium` holds the whole three-word vocabulary. That is a fact about the
-  vocabulary rather than the plans, and `planVersions.fourthPlan.test.ts` says
-  so rather than hiding it. The day a capability exists that `premium` does not
-  grant, the proof becomes unconditional. *(Filed 2026-09-13 with the M20
-  build; not a defect, a sharper version of a claim already true.)*
+- **A capability `premium` does not grant would make M20's fourth-plan proof
+  unconditional.** `studio` grants `trip.collaborators` without `ai.command`,
+  which makes it incomparable with `plus` — but it is still a *subset of
+  `premium`*, because the latest `premium` holds every capability. A fourth
+  capability now exists (`api.tokens`, `packages/contracts/src/entitlement.ts`)
+  and did not change that: `premium@v2` grants it (`planVersions.ts`). So the
+  proof still becomes unconditional only the day a capability exists that no
+  `premium` version grants. **Stale on the way, noticed 2026-09-25:**
+  `planVersions.fourthPlan.test.ts` asserts `setOf("premium").size === 3`, which
+  holds because `setOf` returns the first entry (`premium@v1`), and its comment
+  that premium "holds the whole vocabulary" is no longer true of v1 — a
+  one-line fix to fold into whatever touches that test next. *(Filed 2026-09-13
+  with the M20 build; not a defect, a sharper version of a claim already
+  true.)*
 
 - **`open` ("What needs you") is built as a two-column table and the design is
   not a table (raised by Mitchell on the PR 170 preview, 2026-09-13).** *"it
@@ -159,11 +167,13 @@ here two days later.
   notebook"*.
 
   Today it is `PageContext.kind === "overview"` inside the `pages.context`
-  jsonb, and the delete refusal reads it in the `WHERE` clause with
-  `coalesce(context->>'kind', '') <> 'overview'`. That works and is enforced at
-  the database — but it is a string inside a document, so nothing in the schema
-  says a trip has exactly one, and the uniqueness that matters
-  (`pages_system_seed_unique`) is keyed off the seed rather than off this.
+  jsonb (`buildContext` in `packages/pages/src/templates.ts`). The delete
+  refusal used to read it in SQL; since M13 (#201) it reads it in
+  `apps/web/src/server/pageCommands.ts` instead, so it is no longer even
+  enforced at the database. Either way it is a string inside a document, so
+  nothing in the schema says a trip has exactly one, and the uniqueness that
+  matters (`pages_system_seed_unique`) is keyed off the seed rather than off
+  this.
 
   A real column — `pages.kind`, or a nullable `pages.is_overview` with a partial
   unique index on `(trip_id)` — makes "one undeletable Overview per trip" a
@@ -267,71 +277,19 @@ here two days later.
   on wherever it eventually lands: it may only **name a price at or after
   M21**, or it ships priceless; and it is a **section on a route that already
   exists**, so it is small wherever it goes. Revisit when M21 opens.
+  **Unblocked (audited 2026-09-25):** M21's gate closed 2026-09-19 with prices
+  set, so it can now name one. `PlansScreen` / `PlanComparison` on the
+  signed-in `/plans` route (#177) are the obvious parts to reuse; the landing
+  route (`LandingScreen.tsx`) still has no section and no `#pricing` anchor.
 
-- **The shared day gets a map, and Playbooks becomes a fifth phone tab
-  (designed 2026-09-01, `.design-sync/handoff/SPEC.md` §16, `DRIFT.md` §2d).**
-  Both arrived in the 2026-09-02 handoff and **neither has an owner: M11b's
-  gate closed 2026-08-31**, so the shared day is a shipped surface and this is
-  an addition to it. Two pieces, and they are not the same size:
-  - **The map on the shared day** is the smaller one and is buildable — it
-    needs no field the library does not already have. Its three constraints are
-    each a bug the design file hit: the map node **stays mounted** (a
-    conditional container detaches it mid-style-load and the load aborts
-    silently — DRIFT §6 build-check 5, and this is its second recurrence);
-    pins draw immediately while lines wait for the style; and style-load
-    recovery is **per instance**, rebuilding at 3.5s and 7.5s with a list-only
-    fallback at 11s. Accents reaching a map paint property must leave `oklch`
-    first (build-check 2) — MapLibre parses CSS Color 3 only and falls back to
-    black in silence.
-  - **The fifth phone tab is the larger one, and it lands on a gap that
-    predates this handoff: no milestone in this file owns the phone at all.**
-    `SPEC.md` §13's mobile foundations, §16's tab bar (Plan / Map / Notebook /
-    Playbooks / Trips, superseding §13's four) and DRIFT §8's *"the phone has
-    no conflict state"* — which project rule 6 requires — are all designed and
-    all unowned. **Placing the phone is a milestone-sized decision**, not
-    something to bolt onto whichever milestone touches a screen next.
-  - **WHERE DOES THE PHONE EDIT? Open, and deliberately deferred — 2026-09-12.**
-    SPEC §24 deletes the Timeline lens, and the Timeline lens *was* the phone's
-    editing surface: `PhoneTabBar`'s Plan tab pointed at
-    `?lens=Schedule&view=Timeline`, and `usePhoneTwoViews` existed only to send
-    a bare `/trips/<id>` there, on §10's grounds — *"Day columns and Calendar
-    exist to show density, which a phone cannot show honestly."* §10 and §22
-    are carried forward unchanged in the same handoff, so the bundle now says
-    both that Plan (day columns) is the only surface that edits and that a
-    phone cannot render day columns honestly.
-    **Built as the design states it, on Mitchell's call** (2026-09-12: *"Lets
-    just build the plan as is for now, and when its ready we will figure out
-    where editing moved to"*), so **a phone renders day columns at 390px
-    today** and that is a known, accepted, temporary state rather than an
-    answer. It is not papered over with a phone-only fallback view, and it
-    should not be. Whoever picks this up owes either a phone treatment of Plan
-    or a design decision that §10 no longer holds.
-
-- **Drop Travelers from the trip header bar (2026-08-30, Mitchell, on PR #89's
-  preview — "Drop Travelers from this bar, its not needed, it can live just in
-  the trip settings").** It is a delete, not a move, and smaller than it sounds
-  — checked before filing:
-  - The control is the avatar stack plus "N travellers" in
-    `components/trip/TripMetaPill.tsx:39-58`, beside days / stops / cities.
-  - **Its `onClick` is already `onOpenSettings`** — it opens the same
-    `SettingsSheet` the trip title does. So the routing Mitchell describes is
-    not something to build; the control is a link there already.
-  - **Settings already lists members.** `SettingsSheet.tsx:327` has a "Who is
-    invited" section whose `TravelersPanel` shows the effective members and, for
-    an owner, creates, copies and revokes invite links (M11 link 3). Nothing is
-    lost by removing the header display.
-  So the work is deleting the `<Button>` and its avatar stack from
-  `TripMetaPill`, and its assertions from `TripMetaPill.test.tsx`. Watch the
-  divider: each meta item is preceded by a `bg-hairline` spacer, so the one
-  before it goes too or the pill ends on a stray rule.
-  The one judgement left is what it costs on a **shared** trip: after M11 the
-  avatar stack is the only at-a-glance sign that a trip has other people on it.
-  On a solo trip it reads "1 travellers" and earns nothing, which is the case
-  Mitchell was looking at. Removing it unconditionally is the literal ask;
-  hiding it below two members is the smaller-blast-radius alternative.
-  Deliberately not done in PR #89 — that PR closed M18's gate, and removing a
-  control from a different surface would have made the gate evidence harder to
-  read.
+- **The phone has no conflict state (2026-09-01, DRIFT §8).** The remainder
+  of the "shared day gets a map, Playbooks becomes a fifth phone tab" entry,
+  audited 2026-09-25. Everything else in it shipped: the shared day's map
+  (`SharedDayMap.tsx`, #196/#197), the five-tab `PhoneTabBar` (#143), and where
+  the phone edits (M26 link 13's phone treatment of Plan). DRIFT §8's *"the
+  phone has no conflict state"* — which project rule 6 requires — is recorded
+  by `docs/milestones/M26-design-parity.md` as design-owed rather than built:
+  it needs a design before it needs a build.
 
 - **PLACED 2026-09-18 — this is M24, and its open question is answered.**
   *Scheduled as `docs/milestones/M24-travel-legs.md`. The question below —
@@ -359,38 +317,6 @@ here two days later.
   Not scoped, not placed, and deliberately not attached to a milestone until
   someone wants it.
 
-- **Timeline: scrolling should move the day chips, the way the map rail
-  already does (2026-08-28, Mitchell, walking PR #71's preview — "Add this to
-  the future tasks").** The timeline's focus binding is one-way today. A chip
-  click scrolls the timeline (`TimelineLens`'s `scrollIntoView` effect on
-  `focusedDay`), but nothing reads scroll position back out, so scrolling never
-  moves the chips. `MapRail.tsx:186` is the only scroll listener in the app and
-  there are no IntersectionObservers at all.
-  It reads as a regression because **the behaviour already exists on another
-  lens**: the map rail focuses whichever day its focus line is over, through
-  the same `onFocus` callback a click uses, and `m10-map-rail.spec.ts`
-  ("scrolling tracks focus through every day") pins it. Having it in one place
-  and not the other is what makes its absence feel like breakage rather than
-  an unbuilt feature.
-  Build it by reusing the rail's approach rather than inventing a second one —
-  measure the day headers, cache the offsets, refresh with a `ResizeObserver`,
-  and pick whichever header is nearest a focus line on each scroll. The rail's
-  own comment argues against an IntersectionObserver for two reasons that
-  apply here unchanged: a header sitting at ratio 1.0 never re-reports while
-  its real position keeps moving, and IO delivers nothing in a backgrounded
-  tab — both leave focus on stale data.
-  The one thing to get right is the feedback loop: focus-on-scroll must not
-  re-trigger the `scrollIntoView` effect, or the view fights the user. The rail
-  avoids it by calling `onFocus` only when the resolved day actually changes;
-  the timeline additionally needs that effect to skip scrolling when the change
-  came *from* scrolling.
-  **Raised a second time on 2026-08-30**, on PR #89's preview — "As i scroll
-  through the timeline, it should select the day you are passing, and show the
-  selection at the top bar to". Same request as the 2026-08-28 one above, now
-  with the top-bar half stated explicitly: the day chips should show the
-  selection, not just the timeline. Two asks for the same thing in two days is
-  the strongest signal on this list that it is worth scheduling.
-
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
   logo is the save light" justifies putting trip-scoped save state in an
@@ -414,32 +340,14 @@ here two days later.
 
 - **Design-sync items with no milestone yet (2026-08-23).** From
   `docs/design-feedback/2026-08-23-design-sync-review.md`, which writes each one
-  up in full. Decided items are struck through with where they went:
-  - **`TripSummary.startDate`** — one field, so home's "next trip" is real
-    rather than `visibleTrips[0]`. The data already exists on
-    `TripDetail.startDate`; only the summaries read model lacks it. Per
-    `AGENTS.md` a contract change is its own reviewed step, so it goes **before**
-    M10 Phase 8's home-hero task, not inside it. **This subsumes the "Trip list
-    row: richer, human-readable metadata" idea below** — that item wants exactly
-    this field.
-  - ~~**Start-only trip dates**~~ — **DECIDED 2026-08-23, landed 2026-08-24.**
-    The end is always start + day count; there is no end-date input anywhere.
-    Shipped as **Task 8b.6** of M10 Wave 2 — its plan file was deleted at the
-    gate close per `docs/plans/README.md`; the durable record is
-    `docs/milestones/M10-visual-craft.md`'s Wave-2 retro. Phase 7's wizard
-    already matched (its length chips predate this task). It turned out to be UI-only: `endDate` is stored nowhere — not on
-    `TripState`, not on `TripDetail` — and `TripHeader.tsx:228` already
-    derives it from the plan's last day, so no contract, command or domain
-    change was involved. **This also closed the "trip end-date picker may
-    drift from the day count" item that used to sit below** (removed from
-    Candidate ideas by this task): not stored-field drift, but a derived
-    value presented in an editable field.
-  - **Design coverage the build is still owed** — History beyond the popover,
-    `MapRail`, trip lifecycle (delete → undo → restore, duplicate), and
-    error/empty states for the new landing, auth and first-run screens. Design
-    work, not build work. (The three undesigned extra lenses this used to name
-    alongside them — Itinerary, Daily overview, Full trip — are gone: **KI-20**
-    was closed by retiring them, not by designing a home for them.)
+  up in full. **Audited 2026-09-25; what shipped is gone from this entry:**
+  `TripSummary.startDate` (#218, KI-034), start-only trip dates (M10 Task 8b.6),
+  trip lifecycle (SPEC §27, M26 D13), the landing page (SPEC says it needs no
+  states) and first run (rebuilt as the new-trip conversation, SPEC §30–32).
+  What is left is design work, not build work:
+  - **History beyond the popover** and **`MapRail`** — `SPEC.md` §8 still lists
+    both as not designed.
+  - **Auth-screen error/empty states** — not yet checked against the design.
 
 - **M8 Wave C/D trim: quick-add, search-to-add button, move-via-menu,
   first-run state, empty states (Mitchell, 2026-08-07).** Deferred out of M8
@@ -466,14 +374,20 @@ here two days later.
   per `docs/plans/README.md`'s staging-area rule. Revisit once M10's
   direction is set — these are exactly the kind of task that direction
   should inform, not the reverse.
+  **Status (audited 2026-09-25):** D1 and D2 landed in a different shape —
+  first run became the Home-level new-trip conversation (`FirstTripStart`,
+  then SPEC §30–32), and Map, Notebook and Calendar have empty states. **What is
+  left:** C1 quick-add (`AppHeader.tsx` still omits the prototype's), C2 a
+  search-to-add button (place search lives only inside the editor), C3 a
+  "Move to…" menu for a *scheduled* stop (the editor's Day select is disabled
+  in edit mode; only the rack's dropdown moves anything, and only off the
+  rack), and empty states for the day column, the rack and History.
 
-- **Trip list row: richer, human-readable metadata (Mitchell, 2026-08-01, from
-  M8 dogfooding).** The "Your trips" list currently shows each row's
-  `createdAt` as a raw ISO timestamp (`2026-08-01 23:52:35.026+00`) — should be
-  human-readable, and more useful than the creation date anyway: start date,
-  trip length (day count), and cost are all already on `TripSummary`/derivable
-  from `TripDetail` and would tell the user more at a glance than when the row
-  was created.
+- **Trip list row: show the trip's length (Mitchell, 2026-08-01, from M8
+  dogfooding).** The rest of this entry shipped: the card shows a formatted
+  start date (or "Created <date>") instead of the raw ISO `createdAt` (#218,
+  KI-034), and a "{planned} planned of {budget}" cost line (`TripCard.tsx`).
+  The trip's length in days is still not on the card.
 
 - **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
   2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
@@ -483,23 +397,6 @@ here two days later.
   redirect fires) and Undo (`page.tsx`'s `undoDelete` does a full `load()`
   refetch rather than re-inserting the row locally) are lower-value/more work
   for now — deferred rather than done reflexively.
-
-- **Expose geocoding as a model tool — now scoped into M9 as "Grounding"
-  (`SearchPlaces` + `placeRef`).** Filed 2026-08-01 (Mitchell, M8 dogfooding)
-  as the deferred half of the geocoding work: server-side auto-geocode was
-  landing as the fix for the model guessing `Location.lat/lng` (observed:
-  `lat: 0, lng: 0`), and giving the model a tool to *disambiguate candidates
-  itself* was held back as more steps/tokens for cases "auto-geocode's 'take
-  the top match' can't — e.g. two same-named places in different cities the
-  model needs to pick between using trip context."
-  **The 2026-08-02 dogfood run hit that exact case and the deferral proved
-  wrong.** "The Red Coach Inn" top-matched to a coaching inn in Shropshire,
-  England and overwrote coordinates the model had gotten right; seven more
-  lookups were silently dropped by a rate limit (KI-15). Auto-geocode is not
-  a weaker version of the tool — it is strictly worse than doing nothing when
-  it is confidently wrong, because it launders a guess into a stored fact.
-  Kept here only as the record of why it was deferred and what killed the
-  deferral; the live scope is M9.
 
 - **Contained activities: a meal inside a day-long activity is not a conflict
   (Mitchell, 2026-08-02, from M8 dogfooding).** Every day of the Rochester run
@@ -522,16 +419,6 @@ here two days later.
   Deliberately kept out of M9 — it is a `packages/domain` contract question
   with conflict-detector consequences and deserves its own design pass.
 
-- **AI "Preview" before apply — now scoped into M9.** Kept here only for the
-  two implementation directions it records, which M9's design spec has to choose
-  between (Mitchell, 2026-07-25): (a) lean on the event-sourcing/history
-  substrate — a single pending "future" branch the user reviews and approves (or
-  discards) to fast-forward into the real log; or (b) an intermediate, validated
-  model of the proposed batch surfaced to the frontend for approval before it is
-  applied. Becomes more valuable again at M13, where multiple actors make
-  "propose then approve" a collaboration primitive rather than just an undo
-  affordance.
-
 - **AI cost/quality tuning — "best model for my buck" (Mitchell, 2026-07-25).**
   **Thread (1), prompt trimming, was measured on 2026-07-27 and is NOT worth
   doing.** The per-round-trip payload is small: context envelope ~623 tokens for
@@ -551,51 +438,29 @@ here two days later.
   (input/output tokens, steps, durationMs) alongside a quality score (did the
   batch apply? correct day placement? no dropped/duplicate commands?). Goal:
   pick the cheapest model that clears a quality bar. Weak models loop and
-  over-generate; the harness makes that measurable instead of anecdotal. This
-  doubles as the fix for KI-11 (no test ever calls a real model).
+  over-generate; the harness makes that measurable instead of anecdotal.
+  **Status (audited 2026-09-25):** the measuring side exists — `ai.ask` usage
+  records and the `ai-usage` skill that reports them, and a replay harness over
+  recorded transcripts (`server/ai/eval/replay.int.test.ts`, which closed
+  KI-011). What does not exist is the comparison itself: nothing runs the same
+  prompts against several models and scores them side by side.
 
-- **Unscheduled rack: drag support is Board-view-only (2026-08-23, manual QA
-  on PR #26's preview deploy).** **The drawer now follows this, not the other
-  way round (2026-08-26, Mitchell, PR #55):** it renders only where a stop can
-  actually be dropped, so closing any of the four gaps below brings the drawer
-  back to that lens. The gate is `board/lensAcceptsDrops.ts` — one function,
-  deliberately not a lens list, so "the drawer is here" and "you can drop here"
-  cannot drift apart. Phase 3 wired `dropTargetForElements` for the
-  rack's own drop zone, `Column.tsx`'s day columns, and each `ActivityCard` —
-  all inside the Board (day-columns) lens. Nothing under
-  `apps/web/src/components/lenses/` registers a drop target, so dragging a
-  stop out of the rack does nothing in Calendar or Timeline view even though
-  the rack itself is visible there too (it's mounted once, outside the lens
-  switch, on purpose — see `TripBoardScreen.tsx`'s own comment). Four related
-  gaps, captured together since they're all this same rack/lens boundary:
-  1. Drag-from-rack onto a day in Calendar view — no drop target exists.
-  2. Drag-from-rack onto Timeline view — no drop target exists.
-  3. Whether the drawer should stay mounted across every lens (current,
-     deliberate behavior) or collapse/hide itself on a view change is worth
-     revisiting now that dragging into it only actually works from Board —
-     showing it everywhere reads as "this works here" in views where it
-     doesn't. **Decided (Mitchell, preview review, 2026-08-25):** hide it on
-     Map only — Map is the one lens where the rack is a `position: fixed`
-     overlay over a full-bleed canvas with nothing under it. Timeline and
-     Calendar keep it mounted, because unlike Map they have a working
-     non-drag path (the day-assign `NativeSelect` → real `MoveActivity`/
-     `UpdateActivity`), so hiding it there would remove a capability, not
-     just a misleading affordance.
-  4. The drawer is `position: fixed; bottom: 0` (`globals.css`) with no
-     clearance reserved in any lens's own content — unlike the assistant
-     rail, which gets `.trip-board-content`'s right-padding reservation, no
-     lens pads its bottom for the drawer. In Timeline (day list) and Calendar
-     (month grid), real content can end up sitting underneath it near the
-     bottom of the viewport instead of alongside it.
-  5. (2026-08-24, Phase 8b cell rebuild) `CalendarLens.tsx`'s day cards and
-     stop chips are now built to the design's drag affordance (dc.html:670-
-     672's 6-dot grip, `cursor: grab` on both the grip and each chip) but
-     are not draggable — `cursor: grab` was deliberately withheld so the UI
-     never promises a drag it can't perform (the same failure mode gap 1-2
-     already describe). Wiring them needs a drop target registered in the
-     calendar lens itself (nothing under `apps/web/src/components/lenses/`
-     does today, per the gap above) and reuses `MoveActivity`, the same
-     command Board's `ActivityCard` drag already dispatches.
+- **Drag works in Calendar: from the rack onto a day, and a stop between days
+  (2026-08-23, manual QA on PR #26's preview deploy).** What is left of the
+  "unscheduled rack is Board-view-only" entry, audited 2026-09-25: the Timeline
+  gap went with the Timeline (#170); the drawer now renders only where a stop
+  can be dropped, gated by `board/lensAcceptsDrops.ts` (#55), which also settled
+  where it shows; and its bottom clearance is reserved (`globals.css`, #98).
+  Nothing under `apps/web/src/components/lenses/` registers
+  `dropTargetForElements`, so two gaps remain, and closing either brings the
+  drawer to Calendar:
+  1. Drag from the rack onto a day in Calendar — no drop target exists.
+  2. `CalendarLens.tsx`'s day cards and stop chips are built to the design's
+     drag affordance (dc.html:670-672's 6-dot grip) but are not draggable;
+     `cursor: grab` is withheld so the UI never promises a drag it can't
+     perform. Wiring them needs a drop target in the calendar lens itself and
+     reuses `MoveActivity`, the command Board's `ActivityCard` drag already
+     dispatches.
 
 - **A parked stop remembers which day it came from (2026-09-22).** Half of the
   `rack-provenance` preview M13 link 5 retired. That link modelled **who**
