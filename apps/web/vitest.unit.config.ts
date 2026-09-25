@@ -103,6 +103,13 @@ export default defineConfig({
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,
+          // `next-auth` imports `next/server` with no extension, which Node's
+          // own ESM loader refuses when the package is externalized; letting
+          // Vite resolve it instead is what lets `authConfig.test.ts` build a
+          // real Auth.js instance and read the session cookie it writes
+          // (KI-2026-09-05-f item 4). No other unit test loaded it unmocked,
+          // because none could.
+          server: { deps: { inline: ["next-auth"] } },
         },
       },
       {
