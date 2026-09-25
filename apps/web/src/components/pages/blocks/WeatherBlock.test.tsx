@@ -163,11 +163,18 @@ describe("the weather block", () => {
 });
 
 // Mitchell, on the #221 preview: *"All times should be in AM/PM not military
-// time."* The house clock (`toClockLabel`), never a second format.
+// time"* — and *"maybe a good idea to have that as a setting"*. The house
+// clock (`toClockLabel`) in the reader's format, never a second formatter.
 describe("asOfText", () => {
   it("says the time alone for today, and the date too when it is older, on a 12-hour clock", () => {
-    expect(asOfText(new Date(2026, 10, 10, 9, 10).toISOString(), TODAY)).toBe("updated 9:10 am");
-    expect(asOfText(new Date(2026, 10, 10, 13, 0).toISOString(), TODAY)).toBe("updated 1 pm");
-    expect(asOfText(new Date(2026, 10, 9, 21, 5).toISOString(), TODAY)).toBe("updated Mon, Nov 9, 9:05 pm");
+    expect(asOfText(new Date(2026, 10, 10, 9, 10).toISOString(), TODAY, "12h")).toBe("updated 9:10 am");
+    expect(asOfText(new Date(2026, 10, 10, 13, 0).toISOString(), TODAY, "12h")).toBe("updated 1 pm");
+    expect(asOfText(new Date(2026, 10, 9, 21, 5).toISOString(), TODAY, "12h")).toBe("updated Mon, Nov 9, 9:05 pm");
+  });
+
+  it("says the same on a 24-hour clock for a reader who chose one", () => {
+    expect(asOfText(new Date(2026, 10, 10, 9, 10).toISOString(), TODAY, "24h")).toBe("updated 09:10");
+    expect(asOfText(new Date(2026, 10, 10, 13, 0).toISOString(), TODAY, "24h")).toBe("updated 13:00");
+    expect(asOfText(new Date(2026, 10, 9, 21, 5).toISOString(), TODAY, "24h")).toBe("updated Mon, Nov 9, 21:05");
   });
 });

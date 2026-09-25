@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import type { SavedDay } from "@tc/contracts";
+import type { SavedDay, TimeFormat } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
@@ -32,6 +32,7 @@ import { displayNameFor } from "@/lib/displayName";
 import { type PublicAuthor } from "@/lib/playbooks";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { backQuery } from "./backLink";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
@@ -128,12 +129,12 @@ export function ledgerLabel(dayCount: number, scope: "all" | number): string {
 }
 
 /** `9:45 am – 6:30 pm · 4 stops`, or what is true instead. */
-export function dayDividerLine(group: PlaybookDay): string {
+export function dayDividerLine(group: PlaybookDay, clock: TimeFormat): string {
   if (group.stops.length === 0) return "Rest day";
   const count = `${group.stops.length} stop${group.stops.length === 1 ? "" : "s"}`;
   return group.window === null
     ? count
-    : `${toClockRange(group.window.start, group.window.end)} · ${count}`;
+    : `${toClockRange(group.window.start, group.window.end, clock)} · ${count}`;
 }
 
 type DayView = {
@@ -181,6 +182,7 @@ async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
 }
 
 export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayId: string; backHref: string; backLabel: string }) {
+  const clock = useTimeFormat();
   const read = useCallback(() => readDay(savedDayId), [savedDayId]);
   // Visibility and the adds count are what somebody else can move under a
   // reader — the day's stops are a snapshot and never change after it is saved.
@@ -389,7 +391,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               {[
                 day.dayCount > 1 ? `${day.dayCount} days` : null,
                 `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`,
-                facts.window !== null ? toClockRange(facts.window.start, facts.window.end) : null,
+                facts.window !== null ? toClockRange(facts.window.start, facts.window.end, clock) : null,
                 `kept in ${keptInLine(day.createdAt)}`,
               ]
                 .filter((part) => part !== null)
@@ -427,7 +429,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   line already speaks for the whole Playbook. */}
               {scopedGroup !== null && (
                 <DataText size="xs" data-testid="day-scope-line">
-                  {dayDividerLine(scopedGroup)}
+                  {dayDividerLine(scopedGroup, clock)}
                 </DataText>
               )}
             </div>
@@ -525,7 +527,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                           Day {group.dayIndex + 1}
                         </Text>
                         <DataText size="xs" className="text-slate" data-testid="day-divider-line">
-                          {dayDividerLine(group)}
+                          {dayDividerLine(group, clock)}
                         </DataText>
                         <span aria-hidden className="h-px flex-1 bg-hairline" />
                       </li>
@@ -551,7 +553,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                                   a full range wraps to two lines in 86px, and
                                   the next row's start already says when this
                                   one gives way. */}
-                              {stop.timeWindow !== null ? toClockLabel(stop.timeWindow.start) : ""}
+                              {stop.timeWindow !== null ? toClockLabel(stop.timeWindow.start, clock) : ""}
                             </DataText>
                             {/* §33.1's continuous numbering. Scoped to one day
                                 it restarts at 1 — see `playbookDays`. */}
