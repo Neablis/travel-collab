@@ -685,11 +685,10 @@ function Confirm({
         {/* **The order card. Every figure is Stripe's** (§29). */}
         <div className="flex flex-col gap-2 rounded-lg border border-hairline p-4" data-testid="confirm-order">
           <Heading level={2}>Order</Heading>
-          {preview === null ? (
-            <Text variant="secondary" className="text-sm">
-              Loading…
-            </Text>
-          ) : preview.kind === "cancel" ? (
+          {/* Nothing while Stripe's preview is pending: the heading is real
+              from the first frame and the figures arrive when they exist
+              (KI-2026-09-20-e) — never the word `Loading…`. */}
+          {preview === null ? null : preview.kind === "cancel" ? (
             <Text variant="secondary" className="text-sm">
               Nothing is charged, and nothing is refunded. You keep what you have until the date
               above.
