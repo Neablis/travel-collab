@@ -73,8 +73,8 @@ test("every route in the app is either mapped to an artboard or explicitly not d
   );
 });
 
-// Non-vacuity for the escape hatch, the same argument the colour wall's Sentry
-// exclusion gets: an exemption for a route that no longer exists is dead weight
+// Non-vacuity for the escape hatch, the same argument the colour wall's
+// generated-non-product exclusion gets: an exemption for a route that no longer exists is dead weight
 // that makes the list look more principled than it is.
 test("every NOT_DRAWN exemption is a route that still exists", () => {
   const routes = new Set(appRoutes());

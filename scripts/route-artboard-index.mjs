@@ -57,9 +57,8 @@ export const ROUTES = [
 // A route that is deliberately outside the design. Anything not here and not
 // above fails the test, so a new route forces the question "what draws this?"
 // to be answered once rather than rediscovered per builder.
-export const NOT_DRAWN = new Map([
-  ["/sentry-example-page", "Sentry's wizard scaffold — not product UI (see the colour wall's same exemption)"],
-]);
+// Empty since KI-2026-09-05-f deleted its only entry, `/sentry-example-page`.
+export const NOT_DRAWN = new Map([]);
 
 /** Every route in the app, as a Next.js path with its groups stripped. */
 export function appRoutes(dir = APP_DIR, prefix = "") {
