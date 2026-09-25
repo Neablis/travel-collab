@@ -813,7 +813,8 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   }
 }
 
-function usageOf(step: AskStepLike): AskUsage {
+/** One step's token usage, `null` for each count the provider did not report. Also read by the classifier (`askIntent.ts`). */
+export function usageOf(step: AskStepLike): AskUsage {
   return {
     inputTokens: step.usage?.inputTokens ?? null,
     outputTokens: step.usage?.outputTokens ?? null,
