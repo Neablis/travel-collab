@@ -18,18 +18,20 @@ import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 // **A pass-through, except when a test switches it on.** `POST /v1/trips` with
-// dates is two writes (KI-2026-09-19-f); the second can only fail after the
-// first on something the caller did not send — a lost race, a dropped
-// connection — so the only way to reach the rollback is to make it fail here.
+// dates writes the trip and its dates in one transaction (KI-2026-09-19-f); the
+// dates half can only fail after the create on something the caller did not
+// send — a dropped connection, a pool timeout — so the only way to reach the
+// rollback is to make it fail here. Switched on, projecting any event other than
+// a trip's genesis throws inside the transaction projecting it.
 const injectDatesFailure = vi.hoisted(() => ({ on: false }));
-vi.mock("@/server/public-api/commands", async (importOriginal) => {
-  const real = await importOriginal<typeof import("./commands")>();
+vi.mock("@/server/projections", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/projections")>();
   return {
     ...real,
-    runCommand: (actor: Parameters<typeof real.runCommand>[0], command: Parameters<typeof real.runCommand>[1]) =>
-      injectDatesFailure.on && (command.type === "SetTripDates" || command.type === "SetTripStartDate")
-        ? Promise.resolve({ ok: false as const, status: 409, message: "Injected: the dates write lost a race." })
-        : real.runCommand(actor, command),
+    applyTripEvents: (...args: Parameters<typeof real.applyTripEvents>) =>
+      injectDatesFailure.on && args[1].some((e) => e.type !== "TripCreated")
+        ? Promise.reject(new Error("Injected: the dates write failed after the create."))
+        : real.applyTripEvents(...args),
   };
 });
 
@@ -687,7 +689,7 @@ describe("POST /v1/trips with dates", () => {
     expect(await eventsBy(owner)).toEqual([]);
   });
 
-  it("leaves no live trip behind when the dates write fails after the create", async () => {
+  it("leaves no trip at all when the dates write fails after the create", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
     injectDatesFailure.on = true;
@@ -700,10 +702,10 @@ describe("POST /v1/trips with dates", () => {
     } finally {
       injectDatesFailure.on = false;
     }
-    expect(failed.status).toBe(409);
-    expect((await failed.json()).error.message).toBe("Injected: the dates write lost a race.");
-    // The create DID commit; the compensation is what keeps it off the list.
-    expect((await eventsBy(owner)).map((e) => e.type)).toContain("TripCreated");
+    expect(failed.status).toBe(500);
+    // The create was appended and projected before the failure, and rolled back
+    // with it: no stream, not even a created-then-deleted one.
+    expect(await eventsBy(owner)).toEqual([]);
     const list = await LIST_TRIPS(req(secret), NO_PARAMS);
     expect((await list.json()).items).toEqual([]);
   });

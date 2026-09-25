@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BatchableCommand,
+  CreateTrip,
   TripCommand,
   type EventEnvelope,
   type Origin,
@@ -263,7 +264,6 @@ export async function executeTripCommandBatch(
       const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
       if (!loaded.ok) return loaded;
       const { history, members } = loaded;
-      let state = loaded.state;
 
       // 3b. the caller's precondition, after authorization so a non-member learns
       //     nothing about the trip's revision.
@@ -278,20 +278,10 @@ export async function executeTripCommandBatch(
         };
       }
 
-      // 4. decide each command in order against the evolving state. A no-op
-      //    sub-command is SKIPPED, not fatal — one redundant Set*/etc. must not roll
-      //    back an otherwise-valid batch (2026-07-25 live-testing finding). Real
-      //    rejections (day-not-found, activity-already-exists, …) still abort.
-      const events: TripEvent[] = [];
-      for (const command of commands) {
-        const decision = decideTripCommand(state, command, { actorId });
-        if (!decision.ok) {
-          if (decision.rejection.code === "no-op") continue;
-          return { ok: false, error: decision.rejection };
-        }
-        for (const event of decision.events) state = evolveTrip(state, event);
-        events.push(...decision.events);
-      }
+      // 4. decide each command in order against the evolving state
+      const decided = decideInOrder(loaded.state, commands, actorId);
+      if (!decided.ok) return decided;
+      const { events } = decided;
       // If every sub-command was a no-op there is nothing to append — report it the
       // same way a single no-op command does, rather than appending an empty batch
       // (appendToStream requires ≥1 event and one batch = one history entry).
@@ -321,6 +311,141 @@ export async function executeTripCommandBatch(
   for (let tries = 1; ; tries++) {
     const { result, lostAppendRace } = await attempt();
     if (!lostAppendRace || options.expectedSeq !== undefined || tries >= BATCH_APPEND_ATTEMPTS) return result;
+  }
+}
+
+// Step 4 for a list of batchable commands, shared by the batch and by a
+// creation's follow-up: decide each in order against the state the ones before
+// it left. A no-op sub-command is SKIPPED, not fatal — one redundant Set*/etc.
+// must not roll back an otherwise-valid batch (2026-07-25 live-testing
+// finding). Real rejections (day-not-found, activity-already-exists, …) abort.
+function decideInOrder(
+  initial: ReturnType<typeof foldEnvelopes>,
+  commands: readonly BatchableCommand[],
+  actorId: string,
+): { ok: true; events: TripEvent[] } | CommandFailure {
+  let state = initial;
+  const events: TripEvent[] = [];
+  for (const command of commands) {
+    const decision = decideTripCommand(state, command, { actorId });
+    if (!decision.ok) {
+      if (decision.rejection.code === "no-op") continue;
+      return { ok: false, error: decision.rejection };
+    }
+    for (const event of decision.events) state = evolveTrip(state, event);
+    events.push(...decision.events);
+  }
+  return { ok: true, events };
+}
+
+// A failure raised INSIDE a transaction that has already written, so that
+// throwing it rolls those writes back. Returning a failure from a
+// `db.transaction` callback commits whatever came before it — harmless for the
+// two entry points above, which refuse before their only append, and exactly the
+// window `executeTripCreation` exists to close.
+class RolledBack extends Error {
+  readonly failure: CommandFailure;
+  constructor(failure: CommandFailure) {
+    super(failure.error.message);
+    this.failure = failure;
+  }
+}
+
+// **A trip's genesis and the commands that follow it, as ONE transaction**
+// (KI-2026-09-19-b, KI-2026-09-19-f). For a caller that creates a trip and fills
+// it in the same request — `POST /v1/trips/import`, `POST /v1/trips` with dates
+// — so a failure anywhere after `CreateTrip` rolls the trip back with it instead
+// of leaving it for a compensating `DeleteTrip` that can itself fail.
+//
+// It is the pipeline run twice inside one transaction, not a third way to
+// write: steps 2-7 for `CreateTrip` exactly as `executeTripCommand` runs them,
+// then steps 2-7 for the follow-up exactly as `executeTripCommandBatch` does,
+// against the stream the first half just wrote (invariant 1 holds for each
+// half). Two appends, so two batches and two history entries — the same history
+// the two separate writes used to produce, and the reason undo on a fresh
+// import still unwinds the import and not the trip's creation.
+//
+// `CreateTrip` stays out of `BatchableCommand` on purpose: genesis mints the
+// trip's id and its owner, and that union is also the assistant's command
+// vocabulary. This takes the genesis as its own argument instead.
+//
+// There is no retry loop like the batch's: the trip id is minted by the caller
+// for this request, so nothing else can be writing to its stream.
+/**
+ * Create a trip and apply `then` (batchable commands on that same trip) in one
+ * transaction. Returns the trip as the follow-up left it, or a refusal after
+ * which no trip exists at all. `then` may be empty.
+ */
+export async function executeTripCreation(
+  create: unknown,
+  then: unknown,
+  actorId: string,
+): Promise<CommandResult> {
+  // 1. validate both halves against the contract
+  const parsedCreate = CreateTrip.safeParse(create);
+  if (!parsedCreate.success) {
+    return { ok: false, error: { code: "invalid-command", message: parsedCreate.error.message } };
+  }
+  const parsedThen = z.array(BatchableCommand).safeParse(then);
+  if (!parsedThen.success) {
+    return { ok: false, error: { code: "invalid-command", message: parsedThen.error.message } };
+  }
+  const genesis = parsedCreate.data;
+  const commands = parsedThen.data;
+  const tripId = genesis.tripId;
+  if (!commands.every((c) => c.tripId === tripId)) {
+    return {
+      ok: false,
+      error: { code: "invalid-command", message: "Every command must target the trip being created." },
+    };
+  }
+
+  const refuse = (failure: CommandFailure): never => {
+    throw new RolledBack(failure);
+  };
+
+  try {
+    return await db.transaction(async (tx): Promise<CommandResult> => {
+      // 2-7 for the genesis — CreateTrip is decided against the empty stream,
+      // and appendAndProject writes the summary row and the owner.
+      const empty = await loadAndAuthorize(tx, tripId, actorId, ["CreateTrip"]);
+      if (!empty.ok) return refuse(empty);
+      const created = decideTripCommand(empty.state, genesis, { actorId });
+      if (!created.ok) return refuse({ ok: false, error: created.rejection });
+      const born = await appendAndProject(tx, {
+        tripId,
+        history: empty.history,
+        events: created.events,
+        actorId,
+        origin: { kind: "user" },
+      });
+      if (!born.ok) return refuse(born);
+
+      // 2-7 for the follow-up, authorized against the trip as it now stands —
+      // its creator is its owner. Every follow-up refusal from here on throws,
+      // so the genesis above goes with it.
+      const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
+      if (!loaded.ok) return refuse(loaded);
+      const decided = decideInOrder(loaded.state, commands, actorId);
+      if (!decided.ok) return refuse(decided);
+      // Nothing to follow with (none sent, or every one a no-op): the trip as
+      // created is the whole answer.
+      if (decided.events.length === 0) {
+        return { ok: true, tripId, detail: withMembers(born.detail, loaded.members), history: born.history };
+      }
+      const filled = await appendAndProject(tx, {
+        tripId,
+        history: loaded.history,
+        events: decided.events,
+        actorId,
+        origin: { kind: "user" },
+      });
+      if (!filled.ok) return refuse(filled);
+      return { ok: true, tripId, detail: withMembers(filled.detail, loaded.members), history: filled.history };
+    });
+  } catch (error) {
+    if (error instanceof RolledBack) return error.failure;
+    throw error;
   }
 }
 

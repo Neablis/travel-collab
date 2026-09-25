@@ -1,4 +1,33 @@
-### KI-2026-09-19-f — creating a trip with dates is two writes, so a failure between them leaves a soft-deleted trip
+### KI-2026-09-19-f — creating a trip with dates is two writes, so a failure between them leaves a soft-deleted trip — RESOLVED
+
+- **Resolved 2026-09-25 (overnight KI sweep), with KI-2026-09-19-b.** The
+  pipeline operation that closed that entry,
+  `executeTripCreation` in `apps/web/src/server/commands.ts` (exposed as
+  `runCreation` in `public-api/commands.ts`), runs `CreateTrip` and the dates
+  command (`SetTripDates`/`SetTripStartDate`, built by the unchanged
+  `tripDatesCommand`) in ONE transaction. `POST /v1/trips` is now one
+  `runCreation` call. The pre-decide probe and the compensating `DeleteTrip` on
+  both branches are gone. A domain refusal is still a 400 with the domain's own
+  message, and "writes nothing at all" still passes, because a refusal now rolls
+  the genesis back. `docs/guidelines/using-the-api.md` no longer says the
+  half-made trip "is deleted". It says no trip exists at all.
+- **Proof.** `surface.int.test.ts`'s injection moved from a mocked `runCommand`
+  (the route no longer calls one for the dates) to a pass-through mock of
+  `applyTripEvents` that throws inside the dates half's projection. The test
+  used to assert the two-write residue (`toContain("TripCreated")`). It now
+  asserts `eventsBy(owner)` is `[]`, which is a stronger claim than before, not
+  a weaker one. Re-committing the genesis separately made it fail with
+  `expected [ { globalSeq: 7, … }, …(3) ] to deeply equal []`. It is green with
+  the fix. Checks are as listed on KI-2026-09-19-b.
+- **Decision (2026-09-25 overnight sweep):** close the window without option B.
+  Mitchell chose option A knowing about the window. The one-transaction pipeline
+  operation built for KI-2026-09-19-b closes that window with **no contract
+  change**, so option B (optional dates on `CreateTrip`/`TripCreated`, a full
+  `pnpm check` change touching contracts, domain, projections and the demo
+  fixture) is no longer needed to close it. Option B stays available if dates at
+  genesis are wanted for their own sake. Rejected: leaving this entry open
+  because option B was not taken. The entry described the window, not the
+  option.
 
 - **Severity:** correctness (a narrow window; the residue is a soft-deleted trip the caller never sees, or — if the compensation also fails — one empty, undated, caller-owned trip)
 - **Area:** `apps/web/src/app/api/v1/trips/route.ts` (`POST`: `CreateTrip` → `SetTripDates`/`SetTripStartDate`), `apps/web/src/server/commands.ts` (`executeTripCommand`, one transaction per command), `packages/contracts/src/trip.ts` (`CreateTrip`, `TripCreatedV1`, `BatchableCommand`)
