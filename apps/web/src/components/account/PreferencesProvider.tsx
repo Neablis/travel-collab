@@ -38,11 +38,12 @@ import { fetchPreferences, updatePreferences, type ApiResult } from "@/lib/apiCl
  * What a signed-out shell, an in-flight first fetch, or a failed read shows.
  *
  * These are the STORAGE defaults restated for the client, and they have to
- * agree with `PREFERENCE_DEFAULTS` in `server/users.ts` and with the column's
- * own `DEFAULT 'km'` (migration 0015) and `DEFAULT '12h'` (migration 0031). Three copies is one more than anyone
- * wants; the alternative is a client module importing `@/server/*`, which the
- * lint wall forbids, or a default in `packages/contracts`, which would be a
- * storage decision living in a package that deliberately holds none.
+ * agree with `PREFERENCE_DEFAULTS` in `server/users.ts` and with the columns'
+ * own `DEFAULT 'km'` (migration 0015) and `DEFAULT '12h'` (migration 0031).
+ * Three copies is one more than anyone wants; the alternative is a client
+ * module importing `@/server/*`, which the lint wall forbids, or a default in
+ * `packages/contracts`, which would be a storage decision living in a package
+ * that deliberately holds none.
  */
 const DEFAULTS: UserPreferences = {
   displayName: null,
