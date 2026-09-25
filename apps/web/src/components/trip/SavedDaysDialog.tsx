@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { SavedDay } from "@tc/contracts";
+import type { SavedDay, TimeFormat } from "@tc/contracts";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   type CommandOutcome,
 } from "@/lib/apiClient";
 import { toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 
 // The other half of link 6: a day you kept, put back into a trip. The list is
@@ -41,14 +42,14 @@ import { savedDayFacts } from "@/lib/savedDayFacts";
  * surface states the count it is acting on before it acts, and "Add to trip"
  * acts immediately.
  */
-function spanOf(saved: SavedDay): string {
+function spanOf(saved: SavedDay, clock: TimeFormat): string {
   const facts = savedDayFacts(saved.stops, saved.dayCount);
   const count = `${facts.stopCount} stop${facts.stopCount === 1 ? "" : "s"}`;
   const days = saved.dayCount > 1 ? `${saved.dayCount} days · ` : "";
   // Null above one day, and null for a day carrying no times — the surface
   // says nothing rather than something untrue, in both cases.
   return facts.window !== null
-    ? `${days}${count} · ${toClockRange(facts.window.start, facts.window.end)}`
+    ? `${days}${count} · ${toClockRange(facts.window.start, facts.window.end, clock)}`
     : `${days}${count}`;
 }
 
@@ -66,6 +67,7 @@ export function SavedDaysDialog({
   // TripProvider's applyOutcome rather than refetching.
   onInserted: (outcome: CommandOutcome) => void;
 }) {
+  const clock = useTimeFormat();
   const [savedDays, setSavedDays] = useState<SavedDay[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -121,7 +123,7 @@ export function SavedDaysDialog({
               <Text as="span" className="block truncate text-sm font-semibold text-ink">
                 {saved.name}
               </Text>
-              <DataText size="xs">{spanOf(saved)}</DataText>
+              <DataText size="xs">{spanOf(saved, clock)}</DataText>
               {/* The source trip's name as it was when the day was kept — a
                   snapshot, so it survives that trip being renamed or deleted
                   (the same argument ADR-028 makes for lineage). */}

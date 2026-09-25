@@ -66,7 +66,8 @@ import { primitiveCatalog } from "@tc/pages";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { settleAiSteps } from "@/server/quota";
-import type { AskScope } from "@/server/assistant/context";
+import { clockTimesLine, type AskScope } from "@/server/assistant/context";
+import { readPreferences } from "@/server/users";
 import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
 import { MAX_READ_DAYS } from "@/server/assistant/tools/read";
 import {
@@ -103,6 +104,7 @@ import {
   SIMULATED_HEADER,
   type AskStreamMetadata,
   type Page,
+  type TimeFormat,
   type TripDetail,
 } from "@tc/contracts";
 import type { LanguageModel } from "ai";
@@ -212,6 +214,15 @@ export async function handleAskRequest(
   if (!admission.ok) return admission.refusal.response;
   const { grant } = admission;
   const { userId, detail, scope, page, messages, question, turn, classification } = grant;
+  // The asker's clock, for `clockTimesLine`. Read AFTER admission, so the step
+  // budget is already reserved — and nothing settles it until the recorder's
+  // sink exists below. A throw here would strand that reservation, so a failed
+  // read answers the default clock instead: the turn loses a preference, never
+  // quota, and "12h" is what every account starts on.
+  const clock = await readPreferences(userId).then(
+    (prefs) => prefs.timeFormat,
+    () => "12h" as const,
+  );
 
   // The two halves the run's final chunk can carry, read off the GRANT rather
   // than tracked beside it. They stay mutually exclusive by construction: a
@@ -491,6 +502,7 @@ export async function handleAskRequest(
       briefFor(page),
       grant.classWithheld,
       standingOf(detail),
+      clock,
     ),
     tools,
     // The narrow set is what step 1 sends. `prepareStep` below is the only
@@ -1040,8 +1052,9 @@ export function instructionsFor(
   page: PageBrief | null = null,
   classWithheld = false,
   standing: TripStanding = FULLY_PLANNED,
+  clock: TimeFormat = "12h",
 ): string {
-  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing));
+  return renderPrompt(instructionBlocks(scope, dayCount, posture, page, classWithheld, standing, clock));
 }
 
 /**
@@ -1127,6 +1140,7 @@ export function instructionBlocks(
   page: PageBrief | null = null,
   classWithheld = false,
   standing: TripStanding = FULLY_PLANNED,
+  clock: TimeFormat = "12h",
 ): PromptBlock[] {
   // A page turn is a different job, not a variant of this one: it composes a
   // document rather than answering, and every planning rule below (activityRef,
@@ -1244,6 +1258,10 @@ export function instructionBlocks(
       : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
     "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
+    // The asker's own clock (`clockTimesLine`). Not on a page turn above: what
+    // that turn writes is a shared document every member reads in their own
+    // clock, and its widgets already print each reader's.
+    clockTimesLine(clock),
     scope.kind === "day"
       ? `This question is about DAY ${scope.dayIndex + 1}. Answer about that day. Do not summarise the other days: you may read one if the user explicitly asks about it, but an answer that wanders off the day it was asked about is the wrong answer.`
       : "This question is about the trip as a whole.",

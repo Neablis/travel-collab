@@ -28,12 +28,27 @@ export const DistanceUnit = z.enum(["km", "mi"]);
 export type DistanceUnit = z.infer<typeof DistanceUnit>;
 
 /**
+ * How a person wants clock times shown: `"12h"` ("2:30 pm", the design's copy
+ * and the default) or `"24h"` ("14:30"). **Account scope**, for
+ * `DistanceUnit`'s reason: two collaborators on one trip each read its
+ * 14:30 dinner in their own clock, and a per-trip field would have to decide
+ * whose.
+ *
+ * A rendering choice only. Every stored and transmitted time stays 24-hour
+ * `HH:MM` whatever this says — `TimeWindow`, the assistant's tools, and
+ * `<input type="time">` all speak it — so nothing but a formatter reads this.
+ */
+export const TimeFormat = z.enum(["12h", "24h"]);
+export type TimeFormat = z.infer<typeof TimeFormat>;
+
+/**
  * What a person has set about themselves, as read back.
  *
  * Every field is present in the DTO — an absent field would make a reader
  * decide whether "missing" meant "unset" or "not returned", and there is no
- * useful difference. `null` means unset; `distanceUnit` cannot be unset because
- * the storage layer defaults it, so a reader never has to pick a fallback.
+ * useful difference. `null` means unset; `distanceUnit` and `timeFormat` cannot
+ * be unset because the storage layer defaults them, so a reader never has to
+ * pick a fallback.
  */
 export const UserPreferences = z.object({
   /**
@@ -65,6 +80,7 @@ export const UserPreferences = z.object({
     .regex(/^[A-Z]{3}$/, "Use a three-letter uppercase airport code, like SFO.")
     .nullable(),
   distanceUnit: DistanceUnit,
+  timeFormat: TimeFormat,
 });
 export type UserPreferences = z.infer<typeof UserPreferences>;
 
@@ -75,7 +91,8 @@ export type UserPreferences = z.infer<typeof UserPreferences>;
  * schema whose fields were optional. The two states are different operations
  * and a reader must be able to tell them apart.
  *
- * `distanceUnit` has no `null` because it has no unset state.
+ * `distanceUnit` and `timeFormat` have no `null` because neither has an unset
+ * state.
  *
  * The empty patch is REFUSED rather than treated as a no-op write. A `PATCH`
  * carrying nothing is far more likely to be a client bug — a field name that

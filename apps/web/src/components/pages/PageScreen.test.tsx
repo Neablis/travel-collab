@@ -42,7 +42,7 @@ const server = setupServer(
   // about. Without it the suite's `onUnhandledRequest: "error"` logs on every
   // test, which is how a genuinely unhandled request later gets missed.
   http.get("/api/account/preferences", () =>
-    HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km" } }),
+    HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" } }),
   ),
   // And the same again for the plan the assistant rail reads.
   makeAccountPlanHandler(),
@@ -397,7 +397,7 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
   }
 
   it("renders the account's chosen name in a widget on the page", async () => {
-    await renderWithPreferences({ displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" });
+    await renderWithPreferences({ displayName: "Priya", homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" });
     expect(await screen.findByText("Priya")).toBeTruthy();
   });
 
@@ -433,7 +433,7 @@ describe("PageScreen and the account (ADR-037 open question 2)", () => {
     // existing violations and says not to add more of. It buys nothing here
     // either — breaking the resolver to fall back to `homeAirport` fails the
     // first assertion below on its own, which is how this was checked.
-    await renderWithPreferences({ displayName: null, homeAirport: "SFO", distanceUnit: "km" });
+    await renderWithPreferences({ displayName: null, homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" });
     expect(await screen.findByText("your name is not set")).toBeTruthy();
     expect(screen.queryByText("SFO")).toBeNull();
   });

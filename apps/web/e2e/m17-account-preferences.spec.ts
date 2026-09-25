@@ -121,3 +121,49 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await page.getByRole("button", { name: "Account menu" }).click();
   await expect(page.getByText(DISPLAY_NAME)).toBeVisible();
 });
+
+// The Time setting beside Distance (Mitchell, PR #221: *"All times should be
+// in AM/PM not military time (though maybe a good idea to have that as a
+// setting to toggle on)"*): 12-hour by default, and a board card's window
+// follows the switch to 24-hour without a reload — then keeps it across one.
+// Its own fresh account and trip, for the reason the test above gives: the
+// shared alice session is read by every other spec, and a 24-hour clock left
+// on it would move their 12-hour assertions.
+test("account preferences: the board's clock follows the Time setting", async ({ page }) => {
+  const username = `m17t${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+  await signInAsDevUser(page, username);
+
+  const post = async (path: string, data: unknown) => {
+    const response = await page.request.post(path, { data });
+    expect(response.ok(), `POST ${path} -> ${response.status()}`).toBe(true);
+    return response.json();
+  };
+  const { tripId } = (await post("/api/trips", { name: e2eTripName("M17Clock") })) as { tripId: string };
+  const dayId = crypto.randomUUID();
+  const activityId = crypto.randomUUID();
+  await post(`/api/trips/${tripId}/commands`, { type: "AddDay", tripId, dayId });
+  await post(`/api/trips/${tripId}/commands`, {
+    type: "AddActivity",
+    tripId,
+    activityId,
+    dayId,
+    title: "Tsukiji breakfast",
+    timeWindow: { start: "09:00", end: "14:30" },
+  });
+
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  const card = page.getByTestId(`activity-card-${activityId}`);
+  await expect(card).toContainText("9 am – 2:30 pm");
+
+  await openAccountPage(page);
+  await expect(page.getByRole("radio", { name: "12-hour (2:30 pm)" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "24-hour (14:30)" }).click();
+  await expect(page.getByRole("radio", { name: "24-hour (14:30)" })).toHaveAttribute("aria-checked", "true");
+
+  await page.goBack();
+  await expect(card).toContainText("09:00 – 14:30");
+  await expect(card).not.toContainText("pm");
+
+  await page.reload();
+  await expect(card).toContainText("09:00 – 14:30");
+});

@@ -28,6 +28,7 @@ import type {
   SavedDayAuthorKind,
   SavedDayVisibility,
   SavedNotebookVisibility,
+  TimeFormat,
   SavedStop,
   SubscriptionStatus,
   TripDetail,
@@ -66,6 +67,10 @@ export const users = pgTable("users", {
   // ever picks a fallback. `$type` is a compile-time cast only — the read
   // boundary in `server/users.ts` parses it, same as `savedDays.fromRow`.
   distanceUnit: text("distance_unit").$type<DistanceUnit>().notNull().default("km"),
+  // Same shape and reasoning as `distance_unit`: no unset state, so the
+  // database holds the default ("12h", the design's clock) and every existing
+  // row reads as it did before the setting existed.
+  timeFormat: text("time_format").$type<TimeFormat>().notNull().default("12h"),
   // M20 link 2 — WHAT THIS ACCOUNT HOLDS. The Entitlements module's second
   // store (ADR-045 rule 1): the committed plan file says what a plan *is*,
   // these two columns say which one this account *has*.

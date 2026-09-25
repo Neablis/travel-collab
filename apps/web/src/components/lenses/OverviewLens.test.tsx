@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { tripDetailFixture } from "@tc/factories";
+import { tripDetailFactory, tripDetailFixture } from "@tc/factories";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -28,13 +28,20 @@ vi.mock("@/lib/pagesClient", async (orig) => {
 
 // Failing by default; the local-command suite gives it an answer to cache.
 const fetchTripGlobalsMock = vi.fn();
+// The reader's preferences, for the one suite that mounts `PreferencesProvider`.
+const fetchPreferencesMock = vi.fn();
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
-  return { ...actual, fetchTripGlobals: (...args: unknown[]) => fetchTripGlobalsMock(...args) };
+  return {
+    ...actual,
+    fetchTripGlobals: (...args: unknown[]) => fetchTripGlobalsMock(...args),
+    fetchPreferences: (...args: unknown[]) => fetchPreferencesMock(...args),
+  };
 });
 
 import { invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { OverviewLens } from "./OverviewLens";
 
 afterEach(cleanup);
@@ -253,5 +260,36 @@ describe("OverviewLens — your own command re-reads the globals", () => {
     await waitFor(() => expect(fetchTripGlobalsMock).toHaveBeenCalledTimes(2));
     await new Promise((r) => setTimeout(r, 10));
     expect(fetchPageMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The Overview is the notebook's widgets on a trip tab, and they read for the
+// person looking at them — their clock included. It mounted `PageEditor` with
+// no `user`, so a reader who chose 24-hour still got "9 am – 5 pm" here while
+// the Notebook tab, which passes one, said "09:00 – 17:00".
+describe("OverviewLens — the reader's preferences", () => {
+  it("prints a widget's times on the reader's 24-hour clock", async () => {
+    fetchPreferencesMock.mockResolvedValue({
+      ok: true,
+      value: { preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "24h" }, isAdmin: false },
+    });
+    fetchPagesMock.mockResolvedValue(okPages);
+    const hours = okPageDoc("");
+    hours.value.content.content = [
+      { type: "paragraph", content: [{ type: "macro", attrs: { name: "hours", params: {} } } as never] },
+    ];
+    fetchPageMock.mockResolvedValue(hours);
+    // One day, one stop, one known window — the fixture above has no days.
+    const detail = tripDetailFactory.build({ tripId: TRIP_ID }, { transient: { dayCount: 1, activitiesPerDay: 1 } });
+    const timed = detail.days[0]!.activityIds[0]!;
+    detail.activities[timed] = { ...detail.activities[timed]!, timeWindow: { start: "09:00", end: "17:00" } };
+    render(
+      <PreferencesProvider>
+        <OverviewLens detail={detail} tripId={TRIP_ID} />
+      </PreferencesProvider>,
+    );
+
+    expect(await screen.findByText("09:00 – 17:00")).toBeTruthy();
+    expect(screen.queryByText("9 am – 5 pm")).toBeNull();
   });
 });

@@ -3,6 +3,7 @@ import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { WidgetContext } from "../../registry-types";
 import { selectionTrip } from "../../test-support/selectionTrip";
+import { readerOn } from "../../test-support/reader";
 import { formatMoney } from "../../format";
 
 // The `single` primitives.
@@ -209,6 +210,14 @@ describe("hours", () => {
     fixture.trip.activities[fixture.trip.days[0]!.activityIds[1]!]!.timeWindow = null;
     const early = renderMacro(contextOf(fixture), "hours", { day: { kind: "index", index: 0 } });
     expect(early.status === "ok" && early.rendered.kind === "inline" && early.rendered.segs[0]!.text).toBe("12 am – 9:05 am");
+  });
+
+  // The reader who picked 24-hour on Account → Profile gets it here too, not
+  // the design's clock: the widget reads `ctx.user`, it does not assume.
+  it("prints the window on the reader's 24-hour clock when that is their setting", () => {
+    const ctx = { ...contextOf(selectionTrip()), user: readerOn("24h") };
+    const wide = renderMacro(ctx, "hours", {});
+    expect(wide.status === "ok" && wide.rendered.kind === "inline" && wide.rendered.segs[0]!.text).toBe("06:00 – 14:00");
   });
 
   it("is empty when nothing selected carries a time", () => {

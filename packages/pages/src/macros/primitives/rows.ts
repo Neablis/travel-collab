@@ -5,7 +5,8 @@ import { chip, rowCity, rowLabel, rowValue, rowsOf, text } from "../../registry-
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } from "../../select";
-import { dayLabel, formatMoney, formatDate, toClockRange } from "../../format";
+import { dayLabel, formatMoney, formatDate } from "../../format";
+import { readerClock, toClockRange } from "../../clockLabel";
 import { needsBooking } from "../../needsBooking";
 import { fieldAt, formatStopField } from "../../fields";
 
@@ -242,8 +243,9 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
   // cannot phrase, and a `kind` filter gets its own words.
   emptyText: "no stops to show",
   preview: "one line per stop, with its time and cost",
-  resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
+  resolve: ({ trip, globals, user }: WidgetContext, params, item): MacroResult<RepeatPayload> => {
     if (!trip) return needsTrip();
+    const format = readerClock(user);
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const stops = params.only === "needsBooking"
@@ -268,7 +270,7 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
     const lineOf = ({ activity }: SelectedStop): RepeatRow => ({
       lead: rowLabel(activity.title),
       cells: [
-        activity.timeWindow ? [rowValue(toClockRange(activity.timeWindow.start, activity.timeWindow.end))] : [],
+        activity.timeWindow ? [rowValue(toClockRange(activity.timeWindow.start, activity.timeWindow.end, format))] : [],
         activity.cost ? [rowValue(formatMoney(activity.cost.amountMinor, activity.cost.currency))] : [],
         ...columns.map((choice) => {
           const value = formatStopField(choice, [activity], kindCtx);

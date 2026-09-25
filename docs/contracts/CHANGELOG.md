@@ -45,6 +45,31 @@ Format:
   `null`. Yes, at compile time only, for code reading `TripCommand.options` or
   `BatchableCommand.options` (all in-repo readers moved).
 
+## 2026-09-25 — `UserPreferences.timeFormat`: a 12-hour / 24-hour clock setting
+
+- **Added:** `TimeFormat` (`"12h" | "24h"`) and `UserPreferences.timeFormat`, shaped
+  like `distanceUnit`: required on read, no null, no unset state; optional on
+  `UpdateUserPreferences` like every other key. Stored as
+  `users.time_format text NOT NULL DEFAULT '12h'` (migration `0031_user_time_format`),
+  so every existing account reads `"12h"` and sees what it saw before.
+- Why: Mitchell, on the PR #221 preview: *"All times should be in AM/PM not military
+  time (though maybe a good idea to have that as a setting to toggle on)."* 12-hour is
+  the default; 24-hour is the setting, on Account → Profile beside Distance.
+- Consumers updated: `@tc/pages` — `toClockLabel` / `toClockRange` take a required
+  `format` (no default, so the typechecker names every call site) and `readerClock(user)`
+  gives a widget its reader's clock; the `hours`, `day.detail`, `stop.rows` and `day.sun`
+  widgets print in it. `apps/web` — `useTimeFormat()` on `PreferencesProvider`, read by
+  every component that prints a clock time (board, calendar, rack, stop sheet, saved-day
+  and keep-day dialogs, playbook day, discover card, weather "updated"); the public
+  shared-trip page states `"12h"` (no provider, no account). The `/ask` assistant is
+  told the asker's clock in one instruction line (`clockTimesLine`); tool input and
+  output stay 24-hour `HH:mm`.
+- **Stored times do not change:** every `TimeWindow` is still zero-padded 24-hour
+  `HH:mm`, and `<input type="time">` values never go through the formatter.
+- `/api/v1` does not expose account preferences, so the public API and its OpenAPI
+  document are unchanged.
+- Breaking? no.
+
 ## 2026-09-24 — short picker labels for the trip globals, and a `day` value kind (#221 preview)
 
 - **Changed:** `described(kind, label, schema, description?)` takes an optional fourth

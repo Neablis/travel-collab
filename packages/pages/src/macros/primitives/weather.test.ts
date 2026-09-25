@@ -202,7 +202,7 @@ describe("day.weather", () => {
   // has one unit setting, `distanceUnit`, and the weather reads it: miles is
   // °F and inches, km is °C and mm (ADR-052's 2026-09-24 amendment).
   describe("units, from the account's distance unit", () => {
-    const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi" };
+    const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi", timeFormat: "12h" };
     const km: UserPreferences = { ...miles, distanceUnit: "km" };
 
     it("prints °F and inches for an account in miles, whole degrees and two places", () => {
