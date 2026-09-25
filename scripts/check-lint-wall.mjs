@@ -1,4 +1,4 @@
-import { readFileSync, rmSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,9 +40,9 @@ const ESLINT_BIN = join(process.cwd(), "apps", "web", "node_modules", ".bin", "e
  * start", and telling those apart is what the `-o <file>` report and the
  * print-config parse below are for.
  */
-function eslint(args, input) {
-  return execFileSync(ESLINT_BIN, args, {
-    cwd: "apps/web",
+function eslint(args, input, { lane = WEB_LANE } = {}) {
+  return execFileSync(lane.bin, args, {
+    cwd: lane.cwd,
     stdio: "pipe",
     input,
   }).toString();
@@ -59,6 +59,23 @@ function eslint(args, input) {
 const configArgs = process.env.LINT_WALL_ESLINT_CONFIG
   ? ["--config", process.env.LINT_WALL_ESLINT_CONFIG]
   : [];
+
+// TWO LINT LANES (KI-2026-09-02-c). `apps/web` is linted by its own config from
+// its own directory; the six `packages/*` by the root `eslint.config.mjs`, with
+// the root's eslint (a root devDependency, so its plugins resolve from there).
+// A fixture names the lane it belongs to, and each lane has its own config
+// seam: `LINT_WALL_PACKAGES_ESLINT_CONFIG` is a path relative to the repo root,
+// for the same reason the web one is relative to `apps/web` — flat config
+// resolves `files` against the config file's own directory.
+const WEB_LANE = { bin: ESLINT_BIN, cwd: "apps/web", prefix: "apps/web/", configArgs };
+const PACKAGES_LANE = {
+  bin: join(process.cwd(), "node_modules", ".bin", "eslint"),
+  cwd: ".",
+  prefix: "",
+  configArgs: process.env.LINT_WALL_PACKAGES_ESLINT_CONFIG
+    ? ["--config", process.env.LINT_WALL_PACKAGES_ESLINT_CONFIG]
+    : [],
+};
 
 // Which RULE rejected a fixture, not merely "eslint exited non-zero".
 //
@@ -87,9 +104,9 @@ const configArgs = process.env.LINT_WALL_ESLINT_CONFIG
 // with a FIXED name, so a `tsc --noEmit` or ESLint pass over `src` in the same
 // checkout reported errors in files that were gone when anyone looked, and two
 // wall runs at once deleted each other's fixtures.
-function lintFixture(name, source, { dir = "src/app", ext = "tsx" } = {}) {
+function lintFixture(name, source, { dir = "src/app", ext = "tsx", lane = WEB_LANE } = {}) {
   const relative = `${dir}/__${name}__.${ext}`;
-  const fixture = `apps/web/${relative}`;
+  const fixture = `${lane.prefix}${relative}`;
   // `-o` rather than reading stdout: when the linted file has problems `pnpm exec` appends
   // its own `[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] ...` line to STDOUT, so the report is not
   // the last thing there and no bracket-matching heuristic survives it.
@@ -98,7 +115,9 @@ function lintFixture(name, source, { dir = "src/app", ext = "tsx" } = {}) {
   let report;
   try {
     try {
-      eslint([...configArgs, "-f", "json", "-o", reportPath, "--stdin", "--stdin-filename", relative], source);
+      eslint([...lane.configArgs, "-f", "json", "-o", reportPath, "--stdin", "--stdin-filename", relative], source, {
+        lane,
+      });
     } catch {
       // eslint exits 1 both when it reports an error and when it fails to start. Only the
       // former leaves a report behind; the latter is caught by the read/parse below.
@@ -107,7 +126,7 @@ function lintFixture(name, source, { dir = "src/app", ext = "tsx" } = {}) {
   } catch {
     // Not a wall verdict at all — eslint never ran. Reporting this as "the wall
     // fired" is exactly the blindness this helper exists to remove.
-    console.error(`LINT WALL CANNOT RUN: eslint produced no JSON report for ${relative}`);
+    console.error(`LINT WALL CANNOT RUN: eslint produced no JSON report for ${fixture}`);
     process.exitCode = 1;
     return { fixture, ranEslint: false, errorRuleIds: [] };
   } finally {
@@ -644,3 +663,52 @@ expectClean(
   }),
   "fetch wall: server code may still call fetch",
 );
+
+// THE PACKAGES' LINT LANE (KI-2026-09-02-c). Until 2026-09-25 no package had
+// an ESLint config or a `lint` script, so the test-quality wall above stopped at
+// `apps/web` and 112 test files were outside it — a guard narrower than its
+// name, with nothing reporting the difference (the same species as KI-51 and
+// KI-2026-08-30-b). These fixtures are what would report it: deleting the root
+// `eslint.config.mjs`, or its `files` globs drifting off `packages/`, turns
+// them red. `packages/pages` because it is where the KI said a DOM-shaped test
+// would land; the globs cover every package.
+expectRejectedBy(
+  lintFixture(
+    "package_test_quality_fixture",
+    'import { expect, it } from "vitest";\n' +
+      'it("fixture", () => {\n  expect({ className: "a" }).toHaveClass("bg-danger");\n});\n',
+    { dir: "packages/pages/src", ext: "test.ts", lane: PACKAGES_LANE },
+  ),
+  "no-restricted-syntax",
+  "packages lane: a toHaveClass assertion in a package test correctly rejected",
+);
+
+// The `@testing-library` half, inert on every package test today and here for
+// the first DOM-shaped one. `no-debugging-utils` ships at "warn" and is
+// promoted, as in `apps/web`; left a warning, this would read "fired: nothing".
+expectRejectedBy(
+  lintFixture(
+    "package_debug_fixture",
+    'import { screen } from "@testing-library/dom";\nimport { it } from "vitest";\n' +
+      'it("fixture", () => {\n  screen.debug();\n});\n',
+    { dir: "packages/pages/src", ext: "test.ts", lane: PACKAGES_LANE },
+  ),
+  "testing-library/no-debugging-utils",
+  "packages lane: a screen.debug() left in a package test correctly rejected",
+);
+
+// The other way this lane goes blind: a new package with no `lint` script.
+// `pnpm -r lint` skips a package that lacks the script rather than failing, so
+// the root config would cover it and nothing would ever run it.
+{
+  const unlinted = readdirSync("packages", { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join("packages", entry.name, "package.json")))
+    .map((entry) => entry.name)
+    .filter((pkg) => !JSON.parse(readFileSync(join("packages", pkg, "package.json"), "utf8")).scripts?.lint);
+  if (unlinted.length > 0) {
+    console.error(`LINT WALL BREACHED: packages with no lint script, which \`pnpm -r lint\` skips: ${unlinted.join(", ")}`);
+    process.exitCode = 1;
+  } else {
+    console.log("lint wall OK: every package under packages/ has a lint script");
+  }
+}

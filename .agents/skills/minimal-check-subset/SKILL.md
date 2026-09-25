@@ -38,9 +38,11 @@ pnpm lint && pnpm test` across every workspace package).
 4. **Otherwise, for each affected package, run only that package's own
    checks:**
    - Typecheck: `pnpm --filter <pkg> typecheck`
-   - Lint: `pnpm --filter <pkg> lint` — only if that package actually defines
-     a `lint` script. Verify via its `package.json`; today only `web` has
-     one.
+   - Lint: `pnpm --filter <pkg> lint`. Every workspace package has one since
+     2026-09-25 (KI-2026-09-02-c): `web` lints with `apps/web/eslint.config.mjs`,
+     the six `packages/*` with the root `eslint.config.mjs`. Touching either
+     config, or `scripts/check-lint-wall.mjs`, also means running
+     `node --test scripts/__tests__/check-lint-wall.test.mjs`.
    - Tests — prefer scoping to the specific touched test files over the
      whole package suite:
      - Unit tests (`*.test.ts`/`*.test.tsx`, `vitest.unit.config.ts`):

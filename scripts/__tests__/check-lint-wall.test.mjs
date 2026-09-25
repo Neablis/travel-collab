@@ -66,6 +66,7 @@ test("passes against the checked-in config, and every rejection names the rule t
     "rejected by playwright/expect-expect",
     "rejected by playwright/no-wait-for-timeout",
     "rejected by no-restricted-properties",
+    "rejected by testing-library/no-debugging-utils",
   ]) {
     assert.ok(stdout.includes(rule), `expected the wall to attribute a rejection to ${rule}`);
   }
@@ -105,7 +106,11 @@ test("passes against the checked-in config, and every rejection names the rule t
   //
   // **35 → 36 on 2026-09-25**: the same wall for a page not named `page`
   // (`bob.waitForTimeout`), which the plugin rule does not see (PR #234 review).
-  assert.equal(stdout.trim().split("\n").length, 36,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **36 → 39 on 2026-09-25**: the packages' lint lane (KI-2026-09-02-c) — a
+  // `toHaveClass` and a `screen.debug()` in a package test, linted through the
+  // root `eslint.config.mjs`, and every package having a `lint` script.
+  assert.equal(stdout.trim().split("\n").length, 39,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
@@ -177,5 +182,45 @@ test("reports that it could not run, rather than a clean sheet, when eslint cann
   assert.notEqual(status, 0);
   const output = stdout + stderr;
   assert.match(output, /LINT WALL CANNOT RUN: eslint produced no JSON report/);
-  assert.doesNotMatch(output, /correctly rejected/);
+  // Only the WEB config is broken here. The packages' lane (KI-2026-09-02-c)
+  // lints through the root config, which still starts, so its verdicts are real
+  // and are excluded; no web fixture may claim a rejection.
+  const webVerdicts = output.split("\n").filter((line) => /correctly rejected/.test(line) && !line.includes("packages lane"));
+  assert.deepEqual(webVerdicts, []);
+});
+
+// KI-2026-09-02-c: the packages' lane is the one most likely to go blind quietly,
+// because nothing else in `pnpm lint` depends on it — a root config whose globs
+// stop matching `packages/` lints every package clean. An EMPTY config at the repo
+// root is that state exactly (no block matches, so the fixture is "ignored" with
+// a warning, not an error). Minted and removed the same way as the web config
+// above, for the same reason: `files` resolve against the config's own directory.
+test("goes red when the packages' config stops reaching package tests", () => {
+  const scratch = mkdtempSync(join(REPO_ROOT, "eslint.config.__walltest__"));
+  const configPath = join(REPO_ROOT, `${basename(scratch)}.mjs`);
+  let result;
+  try {
+    rmSync(scratch, { recursive: true, force: true });
+    writeFileSync(configPath, "export default [];\n");
+    result = spawnSync(process.execPath, [WALL], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      env: { ...process.env, LINT_WALL_PACKAGES_ESLINT_CONFIG: basename(configPath) },
+    });
+  } finally {
+    rmSync(configPath, { force: true });
+    rmSync(scratch, { recursive: true, force: true });
+  }
+  assert.equal(result.status, 1);
+  const output = result.stdout + result.stderr;
+  assert.match(
+    output,
+    /LINT WALL BREACHED: packages lane: a toHaveClass assertion .* was NOT flagged by no-restricted-syntax \(fired instead: nothing\)/,
+  );
+  assert.match(
+    output,
+    /LINT WALL BREACHED: packages lane: a screen\.debug\(\) .* was NOT flagged by testing-library\/no-debugging-utils \(fired instead: nothing\)/,
+  );
+  // The web lane is untouched by the packages' seam.
+  assert.match(output, /lint wall OK: test-quality wall: a toHaveClass assertion correctly rejected/);
 });
