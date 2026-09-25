@@ -7,7 +7,7 @@
 // (AGENTS.md invariant 1). Nothing here talks to a database or an API; wiring
 // these into the command pipeline is the caller's job.
 
-import type { ActivityKind, ActivityTag, TripCommand } from "@tc/contracts";
+import type { ActivityKind, ActivityTag, Location, TripCommand } from "@tc/contracts";
 import {
   JAPAN_BACKLOG,
   JAPAN_COUNTRY_CODE,
@@ -104,6 +104,18 @@ export function buildNotes(note: string | null, who: "all" | readonly string[]):
   return parts.length > 0 ? parts.join(" ") : undefined;
 }
 
+/** A row's place as a stored `Location` — its own, or (M24) where another row's leg ends. */
+function placeOf(row: JapanStop | JapanBacklogItem): Location {
+  return {
+    name: locationName(row.place, row.area, row.city),
+    city: row.city,
+    area: row.area,
+    lat: row.lat,
+    lng: row.lng,
+    countryCode: JAPAN_COUNTRY_CODE,
+  };
+}
+
 /**
  * One `AddActivity` for one row, scheduled or backlogged.
  *
@@ -126,6 +138,10 @@ function addActivity(
   costUsd: number | null,
 ): TripCommand {
   const notes = buildNotes(row.note, row.who);
+  const end = row.endsAt === undefined ? undefined : JAPAN_STOPS.find((s) => s.id === row.endsAt);
+  // A dangling reference is a fixture bug, and a leg silently missing its
+  // destination would pass every count below it — so it throws.
+  if (row.endsAt !== undefined && end === undefined) throw new Error(`${row.id}: endsAt names no row (${row.endsAt})`);
   return {
     type: "AddActivity",
     tripId,
@@ -133,15 +149,10 @@ function addActivity(
     ...(dayId ? { dayId } : {}),
     title: row.title,
     ...(timeWindow ? { timeWindow } : {}),
-    location: {
-      name: locationName(row.place, row.area, row.city),
-      city: row.city,
-      area: row.area,
-      lat: row.lat,
-      lng: row.lng,
-      countryCode: JAPAN_COUNTRY_CODE,
-    },
+    location: placeOf(row),
     kind: row.kind satisfies ActivityKind,
+    ...(row.mode ? { mode: row.mode } : {}),
+    ...(end ? { endLocation: placeOf(end) } : {}),
     ...(row.tags.length > 0 ? { tags: row.tags as ActivityTag[] } : {}),
     ...(costUsd !== null ? { cost: { amountMinor: costUsd * 100, currency: JAPAN_TRIP_CURRENCY } } : {}),
     ...(notes ? { notes } : {}),
