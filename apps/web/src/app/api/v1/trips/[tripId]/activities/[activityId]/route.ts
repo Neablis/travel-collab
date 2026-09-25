@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, TripDetail, UpdateActivity, type Location } from "@tc/contracts";
+import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, TripDetail, UpdateActivity } from "@tc/contracts";
 import { tripRegionOf } from "@/server/geocoding/region";
-import { orThrow, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
-import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopLocation } from "@/server/public-api/locations";
+import { orThrow, refuseUnparseable, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
+import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopPlaces } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";
 
 // **The endpoint Decision 14 is about.**
@@ -43,21 +43,6 @@ export const { PATCH, DELETE } = route({
       } & Record<string, unknown>;
       const tripId = params["tripId"]!;
       const activityId = params["activityId"]!;
-      // Only a location the caller actually sent is resolved. `location: null`
-      // clears the stop's pin and an absent one leaves it alone; neither is a
-      // place to look up, so neither spends a geocode. The same holds for a
-      // transit stop's `endLocation` (M24), answered in its own header.
-      const ctx = { userId: actor.userId, region: tripRegionOf(trip!) };
-      for (const [field, header] of [
-        ["location", GEOCODE_OUTCOME_HEADER],
-        ["endLocation", GEOCODE_OUTCOME_END_HEADER],
-      ] as const) {
-        if (typeof fields[field] === "object" && fields[field] !== null) {
-          const resolved = await resolveStopLocation(fields[field] as Location, ctx);
-          fields[field] = resolved.location;
-          responseHeaders.set(header, resolved.outcome);
-        }
-      }
       const commands: CommandInput[] = [];
       if (Object.keys(fields).length > 0) {
         commands.push({ ...fields, type: "UpdateActivity", tripId, activityId } as CommandInput);
@@ -79,6 +64,17 @@ export const { PATCH, DELETE } = route({
           toDayId: dayId === undefined ? currentDayId : dayId,
           position: position ?? 0,
         });
+      }
+      // Refused before anything is looked up when the body alone decides it — a
+      // travel leg beside a non-transit `kind` (M24). A leg with no `kind` in
+      // the body depends on the stored stop, so that one is the decider's.
+      refuseUnparseable(commands);
+      // Only a place the caller actually sent is resolved: `location: null`
+      // clears the stop's pin and an absent one leaves it alone, so neither
+      // spends a geocode. `resolveStopPlaces` holds that rule for both places.
+      if (commands[0]?.type === "UpdateActivity") {
+        const ctx = { userId: actor.userId, region: tripRegionOf(trip!) };
+        commands[0] = await resolveStopPlaces(commands[0], ctx, responseHeaders);
       }
       return orThrow(await runBatch(actor, commands));
     },
