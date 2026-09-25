@@ -60,8 +60,7 @@ export function bandOf(totalMinorValue: number): BandName {
   return "over1000";
 }
 
-const SEASONS = ["winter", "spring", "summer", "autumn"] as const;
-export type Season = (typeof SEASONS)[number];
+export type Season = "winter" | "spring" | "summer" | "autumn";
 
 /**
  * The bucket Discover's season filter would put a `keptOn` in.

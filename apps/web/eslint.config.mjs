@@ -298,11 +298,14 @@ export default [
     // to stay extractable.
     //
     // `packages/assistant` would have got this from the compiler for free and
-    // was rejected for one reason (ADR-043, Alternatives): `packages/*` have no
-    // ESLint configuration at all (KI-2026-09-02-c), so the move would put the
-    // most security-sensitive code in the app somewhere unlinted. The zones
-    // below are written so the import graph is already correct on the day that
-    // KI closes and the extraction becomes a `git mv`.
+    // was rejected for one reason (ADR-043, Alternatives): `packages/*` had no
+    // ESLint configuration at all (KI-2026-09-02-c), so the move would have put
+    // the most security-sensitive code in the app somewhere unlinted. That KI
+    // closed on 2026-09-25 — the root `eslint.config.mjs` now lints every
+    // package — but it carries the TS and test-quality rules only, no import
+    // walls, so a move would still have to bring this block's rules with it.
+    // The zones below are written so the import graph is already correct for
+    // that day, and the extraction is a `git mv` plus that port.
     files: ["src/server/assistant/**/*.{ts,tsx}"],
     plugins: {
       import: importPlugin,
