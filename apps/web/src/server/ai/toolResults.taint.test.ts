@@ -142,6 +142,27 @@ describe("tool-result tainting", () => {
     },
   );
 
+  // The floor above is one marked string per tool, and `read_day` has a dozen
+  // from titles and notes alone — so a readout that stopped returning a leg's
+  // destination would pass it untouched (CodeRabbit on #230). Pinned by the
+  // destination's own marker, which nothing else in the fixture carries.
+  it("read_day returns a leg's destination fenced in both name and city", async () => {
+    const definition = READ_TOOLS.find((tool) => tool.name === "read_day")!;
+    const result = (await definition.invoke({}, depsFor(markedTrip()))) as {
+      stops: { endLocation: { name: string; city: string | null } | null }[];
+    };
+    const destination = result.stops
+      .map((stop) => stop.endLocation)
+      .find((place) => place != null && plain(place.name).includes(`${MARK} destination`));
+
+    expect(destination).toBeDefined();
+    for (const value of [destination!.name, destination!.city!]) {
+      expect(value.startsWith(UNTRUSTED_OPEN)).toBe(true);
+      expect(value.endsWith(UNTRUSTED_CLOSE)).toBe(true);
+      expect(plain(value)).toContain(MARK);
+    }
+  });
+
   // **The one WRITE tool that returns somebody else's text.** Every other write
   // tool answers `{ queued: true }` and has nothing to fence, which is why the
   // loop above is over `READ_TOOLS` — but scoping the measurement to the read
