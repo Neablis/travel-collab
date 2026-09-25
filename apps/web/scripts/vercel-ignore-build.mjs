@@ -39,7 +39,7 @@ export function decide(env, pr) {
 /**
  * Find the open pull request whose head is this branch.
  *
- * @returns `{ draft }` for the first match, `null` when there is none, or
+ * @returns `{ draft }` — a draft only if every match is — `null` when there is none, or
  *   `"unknown"` on any failure. `GITHUB_TOKEN`, if set, lifts the
  *   unauthenticated rate limit; the repo is public, so it is not required.
  */
@@ -55,10 +55,24 @@ async function openPullRequest(env) {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return "unknown";
     const pulls = await res.json();
-    return Array.isArray(pulls) && pulls.length > 0 ? { draft: Boolean(pulls[0].draft) } : null;
+    if (!Array.isArray(pulls) || pulls.length === 0) return null;
+    // One branch can head more than one open PR (into different bases); any
+    // non-draft one is reason enough to build.
+    return { draft: pulls.every((pull) => Boolean(pull.draft)) };
   } catch {
     return "unknown";
   }
+}
+
+/**
+ * Vercel's exit-code contract for an Ignored Build Step, which reads backwards:
+ * 0 means "ignore this build", anything else means "build".
+ *
+ * @param build - Whether the build should run.
+ * @returns The process exit code that tells Vercel so.
+ */
+export function exitCodeFor(build) {
+  return build ? 1 : 0;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
@@ -66,5 +80,5 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const pr = env.VERCEL_ENV === "preview" && env.VERCEL_GIT_COMMIT_REF ? await openPullRequest(env) : null;
   const { build, reason } = decide(env, pr);
   console.log(`vercel-ignore-build: ${build ? "building" : "skipping"} — ${reason}`);
-  process.exit(build ? 1 : 0);
+  process.exit(exitCodeFor(build));
 }

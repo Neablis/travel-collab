@@ -21,6 +21,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Ask Vercel for a preview of the PR head
+        # An explicit `shell: bash` runs with `-eo pipefail`; the default does
+        # not, and a failed curl piped into jq would otherwise pass the step.
+        shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           REF: ${{ github.event.pull_request.head.ref }}
