@@ -109,6 +109,17 @@ Listed with their outcome under *Results*.
 | KI-2026-09-24-p | STILL TRUE | three unchecked sums; new detail: `block.ts:88` vs `rows.ts:274` format in different currencies. |
 | KI-2026-09-24-q | STILL TRUE | `person` absent from every filter list; `isRetired` drops it. |
 | KI-2026-09-24-s | STILL TRUE | `useEditSession.ts:131` overtaking save sends no revision. |
+| KI-2026-08-30-c | STILL TRUE | this sweep's own worktrees were seeded at `origin/main`, local `main` two commits stale; agent defs have no base check. |
+| KI-2026-09-12-b | STILL TRUE | worktree had no `node_modules`; hook did not run. |
+| KI-2026-09-05-n | NARROWED | drizzle-kit and `@types/node` skews struck (fixed upstream); next-auth caret, eslint-config-next@15 under next@16 remain. |
+| KI-2026-09-16-d | STILL TRUE (code side) | `requireAdmin.ts:20-25`; Preview env not checkable here. |
+| KI-2026-09-23-a | STILL TRUE (static) | next 16.3.3, vendored proxy unchanged. |
+| KI-2026-09-01 | STILL TRUE | PR #228: CodeRabbit `success` with "Review skipped". Stale `.coderabbit.yaml` comment fixed on this branch. |
+| KI-2026-09-07-d | NARROWED | draft-PR guard (#199) struck; the rest holds. `/ki-sweep` 6a now says *draft*. |
+| KI-2026-09-20-i | **CLOSED** | decision implemented (#203: `.coderabbit.yaml`, `commenting.md`, docstring wall); backlog lives in 09-22-a. |
+| KI-2026-09-22-a | STILL TRUE | 65.5% documented (was 52.6%), 435 grandfathered (was 470). |
+| KI-2026-09-02-b | NARROWED | 165 directive lines (was 169); "can only shrink" struck — `DiscoverScreen.test.tsx` added 24 new ones on 2026-09-14. |
+| KI-2026-09-05-v | STILL TRUE | 131 disables (was 128), 80 `style={{` (was 75). |
 
 ## Decisions to review
 
