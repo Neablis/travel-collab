@@ -207,10 +207,12 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
       is closed by a stated, bounded claim, not by "looks fine".
 - [x] `map-legend-modes` is **wired up or deleted**, and no M24-tagged entry
       remains in `apps/web/src/lib/preview-registry.ts`.
-- [ ] **Every city-deriving surface has made an explicit choice** about which of
+- [x] **Every city-deriving surface has made an explicit choice** about which of
       a transit stop's two locations it reads — `citiesOfStops`, `cityFor()`,
       `shortPlace()` — each recorded in a comment beside the code, with a test
-      pinning the choice.
+      pinning the choice. *(Ticked 2026-09-25, on Mitchell's call, for the
+      three it names. `shortPlace`'s pin and every surface this list never
+      named move to `KI-2026-09-25-q`; see the retro.)*
 - [x] **`geographyRule` excuses a distance only when the transit stop's
       destination agrees**, and a transit stop with no `endLocation` behaves
       exactly as it does today — both directions covered by tests, both **seen
@@ -219,12 +221,12 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
       each moved conflict named in the PR body.
 - [x] `pnpm --filter web test:e2e:ci-like` green — **never plain `test:e2e`**,
       which serves `pnpm dev` and produces timeouts CI does not have.
-- [ ] The full Definition of Done is green, and a retro is appended at gate
-      close.
+- [x] The full Definition of Done is green, and a retro is appended at gate
+      close. *(2026-09-25, on `main` at `b398260`; the evidence is in the retro.)*
 
-### Gate evidence, 2026-09-25 (the stack #229 → #230 → #232 → #233, unmerged)
+### Gate evidence, 2026-09-25 (the stack #229 → #230 → #232 → #233, before merge)
 
-Ticked above on the top part's tree, which contains all four parts. **9 of 11.**
+Ticked above on the top part's tree, which contains all four parts. **9 of 11** at the time; **11 of 11** at gate close.
 
 - **Schema refusals:** `packages/contracts/test/m24-travel-leg.test.ts`. The `superRefine` sits on the
   `TripCommand` / `BatchableCommand` unions rather than the `AddActivity` object, because a zod 3
@@ -248,13 +250,17 @@ Ticked above on the top part's tree, which contains all four parts. **9 of 11.**
   (0, 0). The fixture's legs all end where the next stops are.
 - **e2e:** `pnpm --filter web test:e2e:ci-like` on the stack top: **176 passed**.
 
-**Still open:**
-- **City surfaces.** All three choices are made and commented. `citiesOfStops` and `cityFor`
-  (`dayCity`, with the return-leg rule for day trips) have tests seen red. **`shortPlace` has no
-  pinning test:** it takes one `Location`, so no edit to it can fail a test. A real pin would sit at
-  its call site (the rack, `TripBoardScreen.tsx`). Left for the gate owner to accept as structural
-  or ask for.
-- **Full DoD and retro:** at gate close, after merge, when CI and the Vercel preview have spoken.
+**Closed at gate close, 2026-09-25:** the city-surfaces box (the three it
+names; the rest go to `KI-2026-09-25-q`) and the full DoD. Both are in the retro
+below. What this block said before that:
+
+> **Still open:**
+> - **City surfaces.** All three choices are made and commented. `citiesOfStops` and `cityFor`
+>   (`dayCity`, with the return-leg rule for day trips) have tests seen red. **`shortPlace` has no
+>   pinning test:** it takes one `Location`, so no edit to it can fail a test. A real pin would sit at
+>   its call site (the rack, `TripBoardScreen.tsx`). Left for the gate owner to accept as structural
+>   or ask for.
+> - **Full DoD and retro:** at gate close, after merge, when CI and the Vercel preview have spoken.
 
 ## Parked 2026-09-24
 
@@ -385,3 +391,93 @@ M18 already decided that a journey is a stop, by giving `ActivityKind` a
 `transit` value and building `N to book`, the Calendar and KI-60's conflict rule
 on it. This milestone gives that stop its second place; it does not reopen what
 a journey is.
+
+## Retro — 2026-09-25
+
+**Opened, built and closed on one day.** Four stacked PRs:
+- #229: the contract and every compile-time consumer;
+- #230: the assistant, the editor and the Japan fixture;
+- #232: the map and legend;
+- #233: conflicts and city names.
+
+All four merged 2026-09-25, and the gate is ticked 11 of 11. No migration:
+`mode` and `endLocation` live in the activity snapshot.
+
+**Definition of Done, run on `main` at `b398260`** (all four parts plus #235
+and #236):
+- **`pnpm check`:** lint, typecheck and unit are green; unit is 306, 360, 450
+  and 4054 tests across the packages.
+- **Integration:** the lane `pnpm check` runs failed **one** test, in
+  `adminOverview.int.test.ts`, with `UnknownPlanVersionError: Plan version
+  "plus@v2"`. That is `KI-2026-09-25-p`, which was filed when that exact
+  symptom appeared during this build: a test-only plan version leaks by test
+  order. `pnpm --filter web test:int` run on its own passed **1082 of 1082**.
+  M24 did not cause it and did not fix it.
+- **`pnpm --filter web test:e2e:ci-like`:** **183 passed.**
+- **`pnpm seed:verify`:** **108 passed.**
+
+**What changed during the build, on Mitchell's calls:**
+- The vocabulary is seven modes (ADR-053).
+- The public API reports a destination's geocode in its own
+  `Geocode-Outcome-End` header.
+- The map has two line styles, walk/bike solid and the rest dashed, matching
+  the legend's two keys.
+- A day's city skips a return leg, so a Nikkō day trip stays Nikkō.
+- On the preview, the editor's mode picker became one-select icon buttons
+  (`role="radiogroup"`, each mode an `aria-label`ed radio), with no heading.
+
+**What was found and fixed during the build:**
+- **A destination far from the origin was held to the origin's region**, and
+  its geocode was thrown away as unverified. CodeRabbit found it on #230.
+  Fixed: a destination is judged without the region box and never anchors it.
+  `KI-2026-09-25-m`, resolved.
+- **Two dashed lines retracing one path read as a solid line.** A day trip out
+  and back drew its two dashed legs in opposite directions, and their dashes
+  filled each other's gaps. Found walking the fixture's day 4. `routeLegs` now
+  draws a retraced leg once, and the rail still counts it twice.
+- **The rail measured a different route from the one the map drew.** A day
+  whose only stop was an Odawara → Kyoto train drew about 290 km and said *"A
+  single anchor"*. One `hops()` walk now feeds the drawing and the numbers.
+
+**What was found and filed, not fixed:**
+- the content geocoder never geocodes a bundle leg's destination
+  (`KI-2026-09-25-n`);
+- the bundle location reconciler compares `location` only, so a corrected
+  `endLocation` never reaches an imported trip (`KI-2026-09-25-o`);
+- a test-only plan version leaks into the admin overview by test order
+  (`KI-2026-09-25-p`, above);
+- about a dozen surfaces read `activity.location.city` directly, so none of
+  them chose which end of a leg it means (`KI-2026-09-25-q`).
+
+**The city-surfaces box was ticked on a narrower claim than its intent.** It
+names three helpers, and those three did choose: `citiesOfStops` counts both
+ends, `dayCity` uses the destination, and `shortPlace` uses the origin, the
+last pinned only by taking a single `Location`. A survey of `location.city`
+reads at gate close found the rest: calendar city cards, per-city stop counts,
+the city behind a day's place, weather, notebook `select`, and the place labels
+on cards. None of them go through a helper. **`docs/STATUS.md` had named four
+of them on 2026-09-24**, as M14 code this box "must cover", and the milestone
+file was never widened to say so. Mitchell's call was to carry them rather
+than widen M24: `KI-2026-09-25-q` adds one activity-level helper with no
+behaviour change, and the PR that resolves it files the per-surface
+start-vs-end decision.
+
+**Process costs worth knowing next time:**
+- **Part 1 was 106 reviewable files**, and CodeRabbit skips a PR over 100. It
+  was split into #229 and #230 after the fact.
+- **CodeRabbit's included plan is about one review an hour** and reviews only
+  PRs based on `main`, so a four-part stack is at least four hours of review
+  slots. #233 merged before its slot came round and was never reviewed by
+  CodeRabbit.
+- **Each part was squash-merged**, so each part above it needed a
+  `git merge -s ours origin/main` recovery (`docs/guidelines/stacked-prs.md`
+  §4) before its diff against `main` was its own again. That happened three
+  times. Each recovery was cheap and tree-identical, but *Create a merge
+  commit* avoids it.
+
+**Lesson:** a gate box that names **functions** checks the functions, not the
+behaviour. "Every city-deriving surface" was written as a list of three
+helpers, the code had grown readers that bypass all three, and the file that
+knew (STATUS) was not the file the gate read. Say what the box is about and
+how to find its instances (here: `grep location.city`) rather than listing
+them, or the list goes stale first.
