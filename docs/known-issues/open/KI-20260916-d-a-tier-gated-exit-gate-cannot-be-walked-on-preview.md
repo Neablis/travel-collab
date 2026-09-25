@@ -91,7 +91,7 @@
   /api/account/plan` came back `free@v1` with no `api.tokens` entitlement.
   - **Not a stale build.** The served client bundle contains `token-scopes-all`
     and `Select none`, strings that exist only since `bad0ae1` (00:50Z).
-  - **Not a create-only promotion.** `apps/web/src/server/users.ts:144` sets
+  - **Not a create-only promotion.** `apps/web/src/server/users.ts:162` (was `:144`) sets
     `isAdmin` in the `onConflictDoUpdate` branch, so it promotes on *every*
     sign-in, not just on account creation. The walk signed that identity in
     against this build; had the deployed `ADMIN_USER_IDS` carried it, the column
@@ -104,3 +104,4 @@
   database — `dev-m22walk590121` (with one trip, `M22 walk 2026-09-16T20:22`)
   and a sign-in as `m20operator`. Harmless, and named here so nobody is puzzled
   by them later.
+- **Re-verified 2026-09-25 (overnight sweep), code side only:** still true as far as the repo can show. `requireAdminApi()` still returns `notFound()` for any non-operator (`apps/web/src/server/entitlements/requireAdmin.ts:20-25`). The only place the repo sets `ADMIN_USER_IDS` is still the local e2e server's env (`apps/web/playwright.config.ts:250`, `E2E_ADMIN_USER_ID`). The promotion still happens on every sign-in, in `onConflictDoUpdate` (`apps/web/src/server/users.ts:162`, line number corrected above). **Not re-checked:** Preview's actual `ADMIN_USER_IDS` value, and the entry's own recheck (`POST <preview>/api/admin/grants` → 201). Both need dashboard access or a preview walk, and a validator has neither. M22 closed its box on Mitchell's attestation (`docs/milestones/README.md:110`), not by fixing this, so the entry stays open.

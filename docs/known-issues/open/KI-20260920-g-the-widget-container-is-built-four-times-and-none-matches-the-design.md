@@ -5,7 +5,7 @@
   boxes differ from the design and from each other in ways a person notices as
   "these two widgets look like different products" rather than as breakage.
 - **Milestone:** **M14, carried (assigned 2026-09-24, KI pass)** — owned by M14 (the notebook/widget builder), not a gate box. Listed in `docs/milestones/M14-rich-layer.md` § *Parked 2026-09-24*.
-- **Area:** `apps/web/src/components/pages/MacroView.tsx:259`,
+- **Area:** `apps/web/src/components/pages/MacroView.tsx:309`,
   `apps/web/src/components/pages/blocks/ItineraryTripBlock.tsx:52`,
   `apps/web/src/components/pages/blocks/CityDetailBlock.tsx:28`,
   `apps/web/src/components/pages/blocks/ItineraryDayBlock.tsx:27`.
@@ -16,7 +16,7 @@
 
   | container | class string today |
   |---|---|
-  | `MacroView.tsx:259` — the `rows` table (`cost.rows`, `day.rows`, `city.rows`, `stop.rows`) | `tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface` |
+  | `MacroView.tsx:309` — the `rows` table (`cost.rows`, `day.rows`, `city.rows`, `stop.rows`) | `tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface` |
   | `ItineraryTripBlock.tsx:52` | `block overflow-hidden rounded-md border border-hairline` — **no `bg-surface`** |
   | `CityDetailBlock.tsx:28` | `block overflow-hidden rounded-md border border-hairline` — **no `bg-surface`** |
   | `ItineraryDayBlock.tsx:27` | was `block rounded-md border border-hairline bg-surface p-3` — **fixed 2026-09-20** |
@@ -74,12 +74,19 @@
      not claim a fix "makes something render". It matters the day either of
      them gains an untinted row, which would then render on the page's paper
      instead of on the card.
-  2. **The radius is 8px and the design says 10px**, in all four.
+  2. ~~**The radius is 8px and the design says 10px**, in all four.
      `--radius-md` is 8px and `--radius-lg` is 12px, so **10px is not on the
      scale.** This needs either a named token — `--radius-a-bubble`
      (`globals.css:145`) is the precedent, and the two re-skin themes at
      `globals.css:260` and `:335` would each owe it a value — or Mitchell's
-     ruling that `rounded-lg` is close enough. **A question, not a ticket; do
+     ruling that `rounded-lg` is close enough.~~ **Restated 2026-09-25:** the
+     only look is Ledger (`layout.tsx` hard-sets it; the other two re-skins were
+     deleted in 57922bd), and Ledger squares `--radius-md` to `0px`
+     (`globals.css:288`), so these cards render **square**, not 8px, against the
+     design's 10px. A 10px token now exists — `--radius-a-card: 10px`
+     (`globals.css:180`, "a proposal card, a Playbook-day card", added in
+     57922bd) — which Ledger does not override. Whether a widget card takes it or
+     stays squared with the rest of Ledger is still the ruling this item wants. **A question, not a ticket; do
      not invent an arbitrary value, which is what the colour wall exists to
      refuse.**
   3. **Row padding is `px-3` (12px) against the design's 14px**, everywhere.
@@ -103,9 +110,25 @@
 
 - **No test layer can hold any of this, and that is not an excuse to skip one
   where there is one.** The test-quality wall rejects `toHaveClass` outside
-  `src/components/ui` (`scripts/check-lint-wall.mjs:460`), and every item above
+  `src/components/ui` (`apps/web/eslint.config.mjs:608`), and every item above
   changes a paint and nothing else — there is no role, label or value standing
   in for it. The honest coverage is the browser: the preview, or a Playwright
   walk asserting geometry rather than classes. **Do not write a unit test that
   renders the component and asserts its text**; M26 alone shipped seven tests that asserted
   nothing (`docs/STATUS.md`), and one more here would be the eighth.
+- **Re-verified 2026-09-25 (overnight sweep):** still true, and wider than the
+  title. The four cited containers are unchanged (`MacroView.tsx:309`,
+  `ItineraryTripBlock.tsx:52` and `CityDetailBlock.tsx:28` still without
+  `bg-surface`, `ItineraryDayBlock.tsx:27`; rows still `px-3`), no
+  `.tc-widget-card` exists, and `CostsTableBlock` is still unreachable (the only
+  `"costs-table"` hits are `registry-types.ts:69` and `BlockView.tsx:53`).
+  M14's later widgets added **three more hand-rolled copies**, all live
+  (emitted by `weather.ts:262`, `countryFacts.ts:87`, `spendByDay.ts:228`):
+  `WeatherBlock.tsx:133` and `CountryFactsBlock.tsx:38`
+  (`overflow-hidden rounded-md border border-hairline bg-surface`), and
+  `SpendByDayBlock.tsx:55` (`rounded-md border border-hairline bg-surface p-3`
+  — a padded box, the shape `ItineraryDayBlock` was fixed away from). So seven
+  live copies, not four. Item 2 restated in place (Ledger renders them at 0px;
+  `--radius-a-card` is now a 10px token); line refs corrected (`MacroView` 259→309,
+  the `toHaveClass` ban is `apps/web/eslint.config.mjs:608`, not
+  `check-lint-wall.mjs:460`).

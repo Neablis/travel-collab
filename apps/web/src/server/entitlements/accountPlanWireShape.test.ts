@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type {
+  AccountGrantView as UiGrant,
   AccountPlanChoice as UiChoice,
   AccountPlanView as UiView,
   AccountQuotaStanding as UiStanding,
 } from "@/lib/accountPlan";
-import type { AccountPlanView as ServerView, PlanChoice as ServerChoice } from "./accountPlan";
+import type {
+  AccountPlanView as ServerView,
+  PlanChoice as ServerChoice,
+  PlanGrantView as ServerGrant,
+} from "./accountPlan";
 import type { QuotaStanding as ServerStanding } from "@/server/quota";
 
 // **Compile-time identity, not a comparison of field names.** The admin
@@ -39,6 +44,7 @@ type AssertEquals<A, B> = Equals<A, B>;
 const standing: AssertEquals<UiStanding, ServerStanding> = true;
 const choice: AssertEquals<UiChoice, ServerChoice> = true;
 const view: AssertEquals<UiView, ServerView> = true;
+const grant: AssertEquals<UiGrant, ServerGrant> = true;
 
 describe("the account plan wire shape", () => {
   it("is identical on both sides of the lint wall", () => {
@@ -46,6 +52,6 @@ describe("the account plan wire shape", () => {
     // declarations diverge in a field, a type, or a nullability. This body
     // exists so the file is a test rather than a type-only module that a
     // coverage run would skip.
-    expect([standing, choice, view]).toEqual([true, true, true]);
+    expect([standing, choice, view, grant]).toEqual([true, true, true, true]);
   });
 });

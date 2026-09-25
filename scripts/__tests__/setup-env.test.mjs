@@ -75,6 +75,18 @@ test("leaves a pepper that already has a value exactly as it is", () => {
   assert.equal(local, example);
 });
 
+// KI-2026-09-05-m: this printed `db:reseed` before `dev` and never migrated, so
+// following it on a fresh database died twice — no schema, then no server for
+// the seed to POST through. It must match README's order.
+test("prints the fresh-database recipe in the order that works: migrate, dev, then reseed", () => {
+  const { status, stdout } = runSetup(EXAMPLE);
+  assert.equal(status, 0);
+  const at = (script) => stdout.indexOf(`pnpm --filter web ${script} `);
+  assert.ok(at("db:migrate") >= 0, `no db:migrate step in:\n${stdout}`);
+  assert.ok(at("db:migrate") < at("dev"), `dev before migrate in:\n${stdout}`);
+  assert.ok(at("dev") < at("db:reseed"), `db:reseed before dev in:\n${stdout}`);
+});
+
 test("never rewrites an existing .env.local, and says so when its pepper is blank", () => {
   const existing = "DATABASE_URL=postgres://mine\nAPI_TOKEN_PEPPER=\n";
   const { status, stdout, local } = runSetup(EXAMPLE, existing);

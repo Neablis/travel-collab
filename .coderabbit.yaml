@@ -30,7 +30,8 @@ reviews:
   # "chill" reports genuine problems and drops the stylistic nitpicking that
   # made up most of the pre-config comment volume.
   profile: chill
-  # CodeRabbit stays a required check, but it should not hold a PR in
+  # CodeRabbit is advisory, not a required check (and on this OSS repo it can
+  # post green while skipping — KI-2026-09-01). It should not hold a PR in
   # CHANGES_REQUESTED — a human (or the DoD checklist) decides what blocks.
   request_changes_workflow: false
   high_level_summary: true

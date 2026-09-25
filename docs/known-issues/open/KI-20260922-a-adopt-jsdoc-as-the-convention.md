@@ -97,3 +97,4 @@
   the answer and the work. It stays open as the record of the three options and
   why the check behaves as it does.
 - **First noted:** 2026-09-22.
+- **Re-verified 2026-09-25 (overnight sweep):** still true. This is step 3, the ongoing part, and it is shrinking as designed. `node scripts/check-docstring-wall.mjs` prints `docstring wall OK (656 files, 1260 exported functions/classes, 65.5% documented, 435 grandfathered)`, and `scripts/docstring-wall-baseline.json` holds 435 entries. At landing the numbers were 470 grandfathered, 991 functions and classes across 541 files, and 52.6% documented; the figures above are from landing, not current. The wall runs in `pnpm lint` (`package.json:22`), and the check is at `.coderabbit.yaml:75-77`. `KI-2026-09-20-i` moved to `resolved/` in this sweep; this entry now carries the whole remaining gap.

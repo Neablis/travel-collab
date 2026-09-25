@@ -8,7 +8,11 @@ allowBuilds:
   msw: false
   sharp: true
   unrs-resolver: true
-minimumReleaseAgeExclude:
-  - '@ai-sdk/gateway@4.0.26'
-  - '@ai-sdk/provider-utils@5.0.12'
-  - ai@7.0.34
+# Supply-chain cooldown: nothing published less than a day ago is resolved.
+# pnpm 11 already defaults to 1440, but in "loose" mode, which quietly adds a
+# too-new pick to minimumReleaseAgeExclude and installs it anyway. Setting the
+# value explicitly makes pnpm strict: it prompts in a terminal and fails
+# everywhere else (CI, agents, Dependabot). A frozen install is unaffected
+# unless the lockfile itself holds a too-new version. To take one on purpose,
+# list it as `name@version` under minimumReleaseAgeExclude.
+minimumReleaseAge: 1440

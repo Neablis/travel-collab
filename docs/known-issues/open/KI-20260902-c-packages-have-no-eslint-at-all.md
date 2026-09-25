@@ -17,3 +17,4 @@
   — it is a manual deployment probe, not a wall.) The untested-walls half is
   filed as KI-2026-09-05-s; this entry stays the record for the unlinted
   packages.
+- **Re-verified 2026-09-25 (overnight sweep):** still true. `ls packages/*/eslint.config.* eslint.config.*` finds nothing (no package config and no root config), and `grep '"lint"' packages/*/package.json` finds nothing. Root `lint` is still `pnpm --filter web lint && …walls… && pnpm arch`, and `apps/web`'s is `eslint --max-warnings 0 src e2e *.ts`, which never reaches `packages/`. The six packages hold 112 test files, from which I did not recount individual tests: contracts 26, domain 31 (under `packages/domain/test/`, not `src/`), factories 6, fixtures 10, pages 39, predict 0. `pnpm arch` does now cruise `packages/*/src`, but that checks dependencies, not test quality, so it does not narrow this.

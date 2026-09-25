@@ -19,3 +19,4 @@
   stop unpinned for this pass, and nothing is written wrong. The fix path above
   is unchanged except that it now has three callers to move onto the shared
   limiter.
+- **Re-verified 2026-09-25 (overnight sweep):** STILL TRUE, and the caller list is incomplete. The three paced callers are as described — `vendorCalled` local to one `search` (`server/ai/assistantPorts.ts:137-158`), `mapRateLimited` per enrichment call (`geocodeEnrichment.ts:508,592`), `pinStops`' per-pass sleep (`savedDayPins.ts:138`) with per-instance `inFlight` (`savedDayPinBackfill.ts:22`); `REQUESTS_PER_SECOND = 2` at `rateLimit.ts:24`. No shared/distributed limiter exists. Two more doors hit the same key with no pacing at all: `app/api/geocode/route.ts:19` (the user-typed `LocationInput` lookup) and the public API — `app/api/v1/trips/[tripId]/geocode/route.ts:62` and `server/public-api/locations.ts:67`. A shared limiter would need to cover all five.

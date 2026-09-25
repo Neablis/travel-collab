@@ -7,6 +7,7 @@ import {
 } from "@tc/contracts";
 import { touchLastUsed } from "@/server/api-tokens";
 import { PublicApiError } from "./commands";
+import { TOO_LARGE, readCapped } from "@/server/readBody";
 import { tripAccessFor, type TripAccessDenial } from "@/server/access/trip-access";
 import { consumeQuota, type QuotaPolicy } from "@/server/quota";
 import {
@@ -52,8 +53,22 @@ import {
 /** The HTTP methods a `v1` route may export. */
 export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
-/** Where the wrapper finds the trip id a trip-scoped endpoint is about. */
-export type TripSource = "path";
+/**
+ * Where the wrapper finds the trip id a trip-scoped endpoint is about.
+ *
+ * - `"path"` — the `[tripId]` segment, so every request names one.
+ * - `{ body }` — read out of the *parsed* body, for a write that names its
+ *   source trip there (`POST /v1/library`, `POST /v1/playbooks`). `null` means
+ *   this request is about no trip: it runs tripless, and a trip-confined token
+ *   is refused on it exactly as on an endpoint with no trip at all.
+ *
+ * **One mode, not a per-handler check** (KI-2026-09-24-a). A trip named in the
+ * body used to be gated by hand in the handler, which a confined token never
+ * reached — `route()` had already refused it as tripless — so a token confined
+ * to trip T could not keep a day of T. Declared here, the same two gates run in
+ * the same order whichever place the id came from.
+ */
+export type TripSource = "path" | { readonly body: (body: unknown) => string | null };
 
 interface BaseDef {
   /**
@@ -208,9 +223,12 @@ export interface HandlerContext {
   readonly params: Readonly<Record<string, string>>;
   readonly query: unknown;
   readonly body: unknown;
-  /** Present exactly when the declaration set `trip`. Parsed, member-overlaid. */
+  /**
+   * Present exactly when the request is about a trip: always for `trip: "path"`,
+   * and for `trip: { body }` when the body named one. Parsed, member-overlaid.
+   */
   readonly trip?: TripDetail;
-  /** The actor's role on that trip, when `trip` is set. */
+  /** The actor's role on that trip, when `trip` is present. */
   readonly role?: TripRole;
   /**
    * The page a collection endpoint was asked for.
@@ -343,45 +361,6 @@ function tooLarge(max: number): string {
   return `That file is too large. The limit is ${max.toLocaleString("en-US")} bytes.`;
 }
 
-/** What `readCapped` returns instead of a body when the ceiling is passed. */
-const TOO_LARGE = Symbol("body over maxBodyBytes");
-
-/**
- * The request body as text, refusing as soon as it passes `max` bytes.
- *
- * **Counted while reading and cancelled on the way past**, rather than measured
- * after the fact: a body already known to be over the ceiling should not be
- * held in full first. `Content-Length` is checked before this (it is a cheap
- * early out) and is never trusted as the answer — it is a claim, and a chunked
- * upload may not send one at all.
- *
- * Decoded with a streaming `TextDecoder`, because a multi-byte character can
- * straddle two chunks and decoding each chunk alone would corrupt it.
- */
-async function readCapped(request: Request, max: number): Promise<string | undefined | typeof TOO_LARGE> {
-  const stream = request.body;
-  if (stream === null) return undefined;
-  const reader = stream.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let seen = 0;
-  let out = "";
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      seen += value.byteLength;
-      if (seen > max) {
-        await reader.cancel().catch(() => undefined);
-        return TOO_LARGE;
-      }
-      out += decoder.decode(value, { stream: true });
-    }
-  } catch {
-    return undefined;
-  }
-  return out + decoder.decode();
-}
-
 /** 401s carry `WWW-Authenticate`, because a bearer scheme that does not is guessing. */
 const BEARER_CHALLENGE = { "WWW-Authenticate": "Bearer" };
 
@@ -452,6 +431,9 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
   // openapi generator both trip on it rather than a caller.
   if (def.idempotent !== undefined && method !== "POST") {
     throw new Error(`idempotent is declared on ${method}; it is only meaningful on POST`);
+  }
+  if (typeof def.trip === "object" && def.body === undefined) {
+    throw new Error(`trip: { body } is declared on ${method} with no body schema to read it from`);
   }
   const handler = async (
     request: Request,
@@ -588,14 +570,21 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
     // ---- the two gates, in order ----------------------------------------
     let trip: TripDetail | undefined;
     let role: TripRole | undefined;
-    if (def.trip !== undefined) {
-      const tripId = params["tripId"];
+    let tripId: string | undefined;
+    if (def.trip === "path") {
+      tripId = params["tripId"];
       if (tripId === undefined) {
         // A declaration error, not a caller's: `trip: "path"` on a route with
         // no `[tripId]` segment. 500 rather than 404, because pretending the
         // trip is missing would hide our own mistake.
         return fail("server-error", "This endpoint is misdeclared.", 500);
       }
+    } else if (def.trip !== undefined) {
+      // Read from the body the schema above already accepted, so the id has
+      // been validated before either gate sees it.
+      tripId = def.trip.body(body) ?? undefined;
+    }
+    if (tripId !== undefined) {
       // **Gate one: may this CREDENTIAL reach this trip.** A trip-scoped token
       // asking about a trip it does not name is refused here, before the
       // membership question — so the answer cannot leak whether the trip
@@ -630,12 +619,15 @@ function declare(method: HttpMethod, def: MethodDef): DeclaredHandler {
       trip = outcome.detail;
       role = outcome.role;
     } else if (actor.via === "token" && actor.tripIds !== null) {
-      // **A trip-scoped token is refused on a route with no trip dimension.**
-      // `POST /v1/trips` and `GET /v1/account` are widenings for a credential
-      // restricted to named trips, and the safe answer is the boring one.
+      // **A trip-scoped token is refused on a request with no trip dimension.**
+      // `POST /v1/trips`, `GET /v1/account` and an inline Playbook are
+      // widenings for a credential restricted to named trips, and the safe
+      // answer is the boring one.
       return fail(
         "trip-out-of-scope",
-        "This token is scoped to specific trips, and this endpoint is not about one.",
+        def.trip === undefined
+          ? "This token is scoped to specific trips, and this endpoint is not about one."
+          : "This token is scoped to specific trips, and this request names none.",
         403,
       );
     }

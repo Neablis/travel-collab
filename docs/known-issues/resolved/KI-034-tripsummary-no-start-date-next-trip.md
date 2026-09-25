@@ -28,4 +28,5 @@
   removing its half of the fix (the `ORDER BY`, the `TripStartDateSet` case in
   either projector, the page's use of `orderHomeTrips`, the hero's summary
   fallback). **Limit, not fixed:** a trip that is under way ranks as past,
-  because the summary still carries no end date.
+  because the summary still carries no end date. *(Fixed 2026-09-25 by KI-2026-09-24-e: `TripSummary.endDate`,
+  read at list time, and an "under way" band first.)*

@@ -200,8 +200,14 @@ export function Column({
           centring the column.
 
           It is also the more honest target. What must come into view is the
-          day's NAME; the cards under it are what you scroll to next. */}
-      <header data-day-header className="flex items-baseline justify-between">
+          day's NAME; the cards under it are what you scroll to next.
+
+          `day-sync-target` is the other half of that: with the page scrolled
+          down, "nearest" aligns this header with the top of the scrollport,
+          which is under the sticky header stack — the class's scroll margin is
+          what makes it land just below it instead (globals.css,
+          KI-2026-09-13-a). */}
+      <header data-day-header className="day-sync-target flex items-baseline justify-between">
         {/* Mitchell, preview feedback on PR #55: "You should also be able to
             select the day here, and it syncs to the day card above." The chips
             row was the only way to focus a day; the column you are already

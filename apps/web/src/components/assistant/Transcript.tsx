@@ -71,7 +71,7 @@ export function toolNoteLabel(toolName: string, input: unknown): string {
       // The write tools (M9) are the DERIVED planning tools, so their names are
       // the `BatchableCommand` type literals — PascalCase, where every read
       // tool is snake_case. That is the actual naming convention of the two
-      // families (planningTools.ts vs readTools.ts), not a guess about this
+      // families (assistant/tools/planning.ts vs read.ts), not a guess about this
       // one string, and it means a thirteenth command reads correctly here
       // without a second manifest to update. What the change IS belongs on the
       // proposal card underneath, which describes the resolved command; this
@@ -223,7 +223,7 @@ function CassName() {
  * (`AssistantRail`'s `overflow-y-auto` column, and the New-trip sheet's
  * thread). It used to call `scrollIntoView({ block: "end" })` on a trailing
  * div, which moves EVERY scrollable ancestor rather than the intended one:
- * banned repo-wide by SPEC §30.6, and KI-2026-09-13-a is an open bug in that
+ * banned repo-wide by SPEC §30.6, and KI-2026-09-13-a was a bug in that
  * family. Pinning is `usePinToBottom`, called by whoever owns the scrollport.
  */
 export function Transcript({

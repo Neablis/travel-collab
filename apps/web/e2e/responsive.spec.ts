@@ -15,6 +15,11 @@ function freshUsername(): string {
   return `e2e${randomUUID().replace(/-/g, "").slice(0, 20)}`;
 }
 
+/** How the Calendar names a run of hidden weekdays: "Sat", or "Fri–Sat". */
+function weekdayRun(days: string[]): string {
+  return days.length === 1 ? days[0]! : `${days[0]}–${days[days.length - 1]}`;
+}
+
 // KI-19: the whole suite used to run at exactly one viewport (Playwright's
 // 1280x720 default, above the 1179px breakpoint), so a whole class of real
 // defect — most famously KI-16, a full-page click sink below 1180px — was
@@ -113,6 +118,66 @@ test.describe("responsive (narrow viewport)", () => {
     // And it is a real navigation, not just a highlight: the view is in the URL
     // where `resolveView` reads it back on reload.
     await expect(page).toHaveURL(/view=Calendar/);
+  });
+
+  // KI-2026-09-24-k. The Calendar's week has a 144px column floor, so it is
+  // 1014px wide and overflows sideways below that — at 820px Friday was cut in
+  // half and Saturday gone, at 1024px Saturday was clipped, and nothing on
+  // screen said the week went on. The property held here is not "it fits"
+  // (it cannot, at the floor) but "a weekday you cannot see is one the page
+  // names, with a control that brings it in".
+  test("a Calendar week that runs off the side names the hidden days, and the control reaches them (KI-2026-09-24-k)", async ({ page }) => {
+    const { tripId } = await page.request.post("/api/trips", { data: { name: e2eTripName("Responsive") } }).then((r) => r.json());
+    for (const command of commandsFor("threeDayTrip", tripId)) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+    await page.goto(`/trips/${tripId}?view=Calendar`);
+
+    // The trip starts ten days out, so it may straddle a month end; the first
+    // block is enough — every block has the same seven columns.
+    const month = page.getByTestId("calendar-month").first();
+    // The weekday headers not wholly inside the scroller, read from real
+    // geometry — the same thing a person sees, not the component's own state.
+    const hiddenWeekdays = () =>
+      month.evaluate((el) => {
+        const box = el.querySelector('[data-testid="calendar-week-scroller"]')!.getBoundingClientRect();
+        const heads = [...el.querySelectorAll<HTMLElement>("[data-weekday]")];
+        const outside = (side: "before" | "after") =>
+          heads
+            .filter((h) => {
+              const r = h.getBoundingClientRect();
+              return side === "before" ? r.left < box.left - 1 : r.right > box.right + 1;
+            })
+            .map((h) => h.dataset.weekday!);
+        return { before: outside("before"), after: outside("after") };
+      });
+
+    for (const width of [820, 1024]) {
+      await page.setViewportSize({ width, height: 900 });
+      // The premise: at this width the week really does overflow on the right.
+      await expect.poll(async () => (await hiddenWeekdays()).after.length, { message: `${width}px` }).toBeGreaterThan(0);
+      const { before, after } = await hiddenWeekdays();
+      // Unscrolled, so nothing is off the left and no left control claims so.
+      expect(before).toEqual([]);
+      await expect(month.getByTestId("calendar-week-scroll")).toHaveCount(1);
+      await expect(month.getByRole("button", { name: `Scroll to ${weekdayRun(after)}` })).toBeVisible();
+    }
+
+    // The control does what it names: Saturday comes all the way in, and the
+    // days that left on the other side are named in turn.
+    await page.setViewportSize({ width: 820, height: 900 });
+    await expect.poll(async () => (await hiddenWeekdays()).after).toContain("Sat");
+    await month.getByRole("button", { name: /^Scroll to .*Sat$/ }).click();
+    await expect.poll(async () => (await hiddenWeekdays()).after).toEqual([]);
+    const { before } = await hiddenWeekdays();
+    expect(before.length, "scrolling right should have pushed Sunday out on the left").toBeGreaterThan(0);
+    await expect(month.getByRole("button", { name: `Scroll to ${weekdayRun(before)}` })).toBeVisible();
+
+    // And where the week fits — this project's own 1100px — nothing is hidden
+    // and nothing claims otherwise.
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await expect.poll(hiddenWeekdays).toEqual({ before: [], after: [] });
+    await expect(month.getByTestId("calendar-week-scroll")).toHaveCount(0);
   });
 
   test("a sheet opens above the docked rail and its Close button is reachable (KI-17)", async ({ page }) => {

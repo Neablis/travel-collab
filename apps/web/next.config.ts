@@ -218,6 +218,17 @@ export default withSentryConfig(nextConfig, {
 
   project: "sentry-canary-planet",
 
+  // The build plugin reports its own errors and timings to Sentry's project,
+  // not ours, and does so by default. With `SENTRY_AUTH_TOKEN` unset, a
+  // `pnpm build` under strace opened two connections straight to
+  // o1.ingest.sentry.io:443, going around HTTPS_PROXY. No other Sentry host
+  // was contacted, because release creation and source-map upload already
+  // skip themselves when there is no token (KI-2026-09-24-v). Off everywhere,
+  // deploys included: the data helps Sentry's product and does nothing for us,
+  // and it would tag every one of our builds with our org slug.
+  // `next.config.test.ts` checks this setting.
+  telemetry: false,
+
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 

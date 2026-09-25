@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// AppHeader renders AccountMenuFromSession (task 8b.2), which calls
+// AppHeader renders HeaderSessionChrome (task 8b.2), which calls
 // next-auth/react's getSession() on mount — mock it so these stay plain
 // jsdom unit tests with no real network call.
 vi.mock("next-auth/react", () => ({
@@ -61,8 +61,8 @@ describe("AppHeader", () => {
     expect(screen.queryByRole("link", { name: "Playbooks" })).toBeNull();
   });
 
-  // CodeRabbit, PR #55: the first version of HeaderSessionChrome rendered
-  // AccountMenuFromSession, which resolves the session itself — so the header
+  // CodeRabbit, PR #55: the first version of HeaderSessionChrome rendered a
+  // menu entry point that resolved the session itself — so the header
   // fetched the same fact twice while a comment claimed it fetched it once.
   it("resolves the session exactly once for the whole header", async () => {
     vi.mocked(getSessionMock).mockResolvedValue({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });

@@ -468,7 +468,8 @@ function siblingCities(days: DiscoverDay[], queryCities: string[]): CityMatch[] 
 }
 
 /**
- * How many days are published across the whole library, ignoring every filter.
+ * How many Playbooks are published across the whole library, ignoring every
+ * filter — a count of `saved_days` rows, so a three-day Playbook is one.
  *
  * One `count(*)` on an indexed-enough predicate, run per Discover read, and
  * that is the whole cost: it exists so the page can withhold the leaderboard
@@ -476,7 +477,7 @@ function siblingCities(days: DiscoverDay[], queryCities: string[]): CityMatch[] 
  * most should be hidden when nothing to share"*), and a link that appears and
  * disappears with the city filter would be worse than one that never left.
  */
-async function publishedDayCount(): Promise<number> {
+async function publishedPlaybookCount(): Promise<number> {
   const rows = await db.execute<{ days: number }>(sql`
     select count(*)::int as days
     from saved_days d
@@ -546,18 +547,18 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     // the cards come from, band included. See `siblingCities`.
     siblings: siblingCities(filtered, query.cities),
     budgetCurrency,
-    // Unfiltered on purpose — see `sharedDayCount` on the response. It answers
+    // Unfiltered on purpose — see `sharedPlaybookCount` on the response. It answers
     // "is there a library at all", which is what decides whether the
     // leaderboard link has anything to rank, and no filter on this query may
     // change that answer.
-    sharedDayCount: await publishedDayCount(),
+    sharedPlaybookCount: await publishedPlaybookCount(),
     // BOTH caps, not just the candidate window. There is no pagination — the
     // page's answer to truncation is "narrow the cities" — so a query matching
     // 25 to 199 days used to return 24 cards flagged as the complete set, with
     // no way to reach the rest and nothing on screen saying they existed
     // (CodeRabbit, PR 102). The profile day list is this same function, and
     // it says the same thing there by comparing its card count against
-    // `daysShared`.
+    // `playbooksShared`.
     truncated: windowFull || filtered.length > PAGE_LIMIT,
     // What the results sentence states (KI-2026-09-23-h). Inside the window
     // `filtered` IS the whole match — band applied, unreadable rows dropped —
@@ -687,7 +688,7 @@ const reviewTotals = sql`review_totals as (
 type AuthorRow = {
   owner_id: string;
   adds: number;
-  days_shared: number;
+  playbooks_shared: number;
   reviews_received: number | null;
   average_rating: number | null;
 };
@@ -720,7 +721,7 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
     select
       d.owner_id,
       count(a.saved_day_id)::int as adds,
-      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as days_shared,
+      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as playbooks_shared,
       rt.reviews_received,
       rt.average_rating
     from saved_days d
@@ -729,7 +730,7 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
     -- "where true" so the shared filter drops in with its leading "and"; this
     -- is the only query here with no predicate of its own. The LEFT JOIN keeps
     -- every ledger row of a day that still exists, which is the point: deleting
-    -- a day drops it out of days_shared, and does NOT erase adds somebody
+    -- a day drops it out of playbooks_shared, and does NOT erase adds somebody
     -- genuinely made against the days that remain.
     --
     -- A moderated day is dropped the same way, adds and all: it is off the
@@ -738,7 +739,7 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
     group by d.owner_id, rt.reviews_received, rt.average_rating
     having count(a.saved_day_id) > 0
         or count(*) filter (where d.visibility = ${SavedDayVisibility.enum.public}) > 0
-    order by adds desc, days_shared desc, d.owner_id asc
+    order by adds desc, playbooks_shared desc, d.owner_id asc
   `);
   return [...rows.rows].map(toAuthor);
 }
@@ -749,7 +750,7 @@ function toAuthor(row: AuthorRow): PublicAuthor {
     // The M17 seam. One resolver, and today it returns the identifier — see
     // `lib/displayName.ts` for the recorded decision behind that.
     displayName: displayNameFor({ userId: String(row.owner_id) }),
-    daysShared: Number(row.days_shared),
+    playbooksShared: Number(row.playbooks_shared),
     adds: Number(row.adds),
     reviewsReceived: Number(row.reviews_received ?? 0),
     averageRating: row.average_rating === null ? null : Number(row.average_rating),
@@ -767,7 +768,7 @@ const NO_ONE_IN_PARTICULAR = "A traveler";
  * One person's numbers, computed the same way the board computes everyone's.
  *
  * Shared by the public profile AND by the shared-day route's author strip, so
- * "days shared / how often their days were added" cannot say one thing beside a
+ * "playbooks shared / how often their days were added" cannot say one thing beside a
  * day and another on the profile that day links to.
  *
  * Returns a zeroed author rather than null for someone with no days: a profile
@@ -780,7 +781,7 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
     select
       ${userId}::text as owner_id,
       count(a.saved_day_id)::int as adds,
-      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as days_shared,
+      count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as playbooks_shared,
       (select rt.reviews_received from review_totals rt where rt.owner_id = ${userId}) as reviews_received,
       (select rt.average_rating from review_totals rt where rt.owner_id = ${userId}) as average_rating
     from saved_days d
@@ -793,7 +794,7 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
   // and SQL evaluates one of those over the whole (possibly empty) input and
   // returns a single row of zeros. Verified against a real database for a
   // userId with no `saved_days` at all: `rows.rows.length = 1`,
-  // `{adds: 0, days_shared: 0}`. What stood here was a `row === undefined`
+  // `{adds: 0, playbooks_shared: 0}`. What stood here was a `row === undefined`
   // ternary whose branch could not be reached and whose two arms produced the
   // same author anyway (KI-2026-09-05-y / F-G05). The non-null assertion is
   // the claim above, stated where it is relied on.
@@ -814,7 +815,7 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
   // nonexistent id — so the neutral name costs nothing on a page that has
   // nothing to attribute, while everyone the leaderboard actually ranks (adds
   // or days > 0) keeps the distinct suffix it needs.
-  return author.daysShared === 0 && author.adds === 0 ? { ...author, displayName: NO_ONE_IN_PARTICULAR } : author;
+  return author.playbooksShared === 0 && author.adds === 0 ? { ...author, displayName: NO_ONE_IN_PARTICULAR } : author;
 }
 
 /**

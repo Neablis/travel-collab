@@ -70,3 +70,4 @@
   `revenue.int.test.ts` (the comped-vs-paying distinction this one mirrors);
   `TODO.md` → *Candidate ideas* → the Stripe test-mode entry, which names the
   same missing `livemode` segmentation in the same tables.
+- **Re-verified 2026-09-25 (overnight sweep):** still true. `webhook.ts:66-73` `HANDLED` is still the six subscription/invoice types without `charge.refunded`, and `:332` answers anything else `ignored`. `grep -rniE "refund|charge\.|credit_note|amount_refunded"` over `server/billing` and `app/api/stripe` (non-test) returns nothing. `revenue.ts:44` `monthlyMicroUsd` is still the catalogue price, used at `:194` and `:218`. `schema.ts` has no `billing_charges`/`billing_ledger`, and `planChange.ts:309` still sends `proration_behavior: "always_invoice"`. The refund-access decision is still unmade.

@@ -501,9 +501,13 @@ half no test in this repo was asked to check.
 - `KI-2026-09-05-l` is **narrowed, not closed**: the `.default()` rule and
   F-F05's shared parse helper are real, but there is still no `{ v, stops }`
   wrapper, so the first non-additive `SavedStop` change still has nowhere to
-  land — and should pay for it.
+  land — and should pay for it. *(Resolved 2026-09-25: a frozen oldest-shape
+  fixture in `packages/contracts/test/saved.test.ts` now fails on any new
+  required field, so the rule is enforced; the wrapper is still left to the
+  first non-additive change, as this milestone decided.)*
 - `KI-2026-09-19-c` — `daysShared` counts playbooks, not days. Labels fixed;
-  the field keeps its name rather than widening a PR carrying a migration.
+  the field kept its name here rather than widening a PR carrying a migration,
+  and was renamed `playbooksShared` afterwards (resolved 2026-09-25).
 - `KI-2026-09-19-d` — the Keep dialog's unfocused name field. Pre-existing.
 - **Unwalked:** the four surfaces fixed after the first walk were re-walked and
   four of five confirmed; the `AddToTripDialog` hint fix and the rest-day line

@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, max } from "drizzle-orm";
 import type { EventEnvelope, Origin } from "@tc/contracts";
-import type { Db } from "./db/client";
+import type { Queryable } from "./db/client";
 import { events } from "./db/schema";
 import { isUuid } from "./ids";
 
@@ -9,8 +9,6 @@ export type DomainEvent = { type: string; version: number; payload: unknown };
 export type AppendResult =
   | { ok: true; envelopes: EventEnvelope[] }
   | { ok: false; code: "concurrency-conflict" };
-
-type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 type EventRow = typeof events.$inferSelect;
 

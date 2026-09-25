@@ -477,7 +477,8 @@ amendments.
 ### What it leaves
 
 - The content re-import above, which the three corrected codes need.
-- KI-2026-09-23-h and KI-2026-09-23-i.
+- KI-2026-09-23-h and KI-2026-09-23-i. (KI-2026-09-23-i is since resolved: the author's own read
+  of a hidden day now says so, with the operator's note.)
 - A review held offline is keyed by day, not by person, so two accounts on one
   browser share a held review (`reviewQueue.ts` says so).
 - A card matched only by country shows no match line — `DiscoverDay` carries no
