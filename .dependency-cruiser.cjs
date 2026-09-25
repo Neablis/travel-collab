@@ -24,8 +24,12 @@
 // violations live in `.dependency-cruiser-known-violations.json`
 // (dependency-cruiser's baseline; it cannot hold folder cycles, which is why
 // those are here instead). Regenerate that file ONLY when an entry is fixed —
-// it shrinks — never to admit a new one: `pnpm arch:baseline`. Anything new
-// fails `pnpm lint`.
+// it shrinks — never to admit a new one: `pnpm arch:baseline`. That script
+// (scripts/arch-baseline.mjs) keeps error-severity violations only, so the
+// warn-level `no-folder-cycle-known` clusters stay out of the file and keep
+// printing on every `pnpm arch` run; do not regenerate with bare
+// `depcruise-baseline`, which records warnings too (KI-2026-09-25-e).
+// Anything new fails `pnpm lint`.
 
 // The modules the module map says Entitlements, Billing and Identity know
 // nothing about: the planning domain and Access & Membership, by path.
