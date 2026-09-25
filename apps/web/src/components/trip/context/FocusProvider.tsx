@@ -356,6 +356,31 @@ function scrollOffsets(element: Element): number[] {
   return offsets;
 }
 
+/**
+ * Finishes, on the page axis, the `scroll-margin-top` a day-sync target
+ * carries to clear the sticky header stack (`.day-sync-target`, globals.css,
+ * KI-2026-09-13-a).
+ *
+ * The margin alone does not survive the trip up the scroller chain. Chromium
+ * clips the target's rect to each inner scroller's visible box before handing
+ * it to the next one out, so a day header inside the columns row — itself a
+ * scroll container, for the sideways axis — reaches the window with its margin
+ * cut off. Measured at 1280×720 with the page at `scrollY` 400 and the header
+ * 50px down, under a 244px sticky stack: `block: "nearest"` left the page
+ * where it was, and `block: "start"` put the header at y=12 rather than 244.
+ *
+ * So after the jump, a target still inside its own margin band is scrolled
+ * clear of it by the window. Only ever upwards, and only by the overlap, which
+ * is what the browser would have done with the margin intact. A target with no
+ * margin — the chips row, the map strip — reads 0 and is left alone.
+ */
+function clearStickyStack(element: Element) {
+  const margin = parseFloat(getComputedStyle(element).scrollMarginTop) || 0;
+  if (margin <= 0) return;
+  const top = element.getBoundingClientRect().top;
+  if (top < margin) window.scrollBy({ top: top - margin, behavior: "auto" });
+}
+
 export function useDaySync(container: DayContainer): DaySync {
   const { focusSource, pickedIn, setScrolledDay, beginDayJump, endDayJump, isDayJumping } = useFocus();
 
@@ -400,6 +425,7 @@ export function useDaySync(container: DayContainer): DaySync {
         inline: "center",
         ...options,
       });
+      clearStickyStack(element);
       // Nothing moved, on a container that has just arrived — the day was
       // already in view — so there is no scroll event coming and the lock has
       // nothing to swallow but the user's own next gesture. Dropped

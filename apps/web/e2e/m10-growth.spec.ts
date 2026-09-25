@@ -338,6 +338,41 @@ test("switching to Plan lands at the top of the columns, not part-way down them"
   expect(nameBox.y, "the day's name sits below the sticky header, not behind it").toBeGreaterThanOrEqual(
     stickyBottom.y + stickyBottom.height,
   );
+
+  // KI-2026-09-13-a: the same claim for a pick made with the page scrolled
+  // DOWN, which the arrival fix above left as it was. `scrollIntoView` aligns
+  // with the scrollport's top, `y = 0`, and knows nothing of the sticky stack
+  // pinned there. Two depths, because they fail differently: at 400px the
+  // headers sit in view but under the stack, where `block: "nearest"` moves
+  // nothing at all; scrolled to the bottom they are above the fold, where it
+  // aligns them with `y = 0`.
+  //
+  // The pick is Right on a chip that kept focus while the page scrolled away:
+  // the chips row is not sticky (SPEC §35.3), so once the columns' headers are
+  // under the stack the row is too, and the keyboard is the way to pick from
+  // it. Red-checked by removing `clearStickyStack` from `jumpTo`, each depth
+  // run first: the picked name came back at y=61 (400px down) and y=23 (at the
+  // bottom), under a sticky header ending at y=244.
+  await chips.locator('[data-day-index="7"]').focus();
+  for (const [depth, next] of [
+    ["400px down", 8],
+    ["at the bottom", 9],
+  ] as const) {
+    await page.evaluate((d) => window.scrollTo(0, d === "400px down" ? 400 : document.body.scrollHeight), depth);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(400);
+    const sticky = (await page.locator('header[aria-label="Trip"]').boundingBox())!;
+    const bottom = sticky.y + sticky.height;
+    const name = () => columns.nth(next).getByRole("button", { name: new RegExp(`^Day ${next + 1}`) });
+    // The condition the defect needs, stated rather than hoped for.
+    expect((await name().boundingBox())!.y, `${depth}: the headers start under the sticky header`).toBeLessThan(bottom);
+
+    await page.keyboard.press("ArrowRight");
+    await expect(chips.locator('button[aria-pressed="true"]')).toHaveAttribute("data-day-index", String(next));
+    await expect(columns.nth(next)).toBeInViewport();
+    expect((await name().boundingBox())!.y, `${depth}: the picked day's name clears the sticky header`).toBeGreaterThanOrEqual(
+      bottom,
+    );
+  }
 });
 
 /**

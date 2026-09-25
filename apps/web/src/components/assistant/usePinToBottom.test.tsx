@@ -5,7 +5,7 @@ import { usePinToBottom } from "./usePinToBottom";
 // Pinning belongs to whoever owns the scrollport, which `Transcript` never did
 // — `AssistantRail`'s `overflow-y-auto` column does, and the New-trip sheet's
 // thread will. `scrollIntoView` moved every scrollable ancestor rather than the
-// intended one (SPEC §30.6 bans it repo-wide; KI-2026-09-13-a is an open bug in
+// intended one (SPEC §30.6 bans it repo-wide; KI-2026-09-13-a was a bug in
 // that family), so the job moves here and becomes explicit about its target.
 //
 // jsdom gives every element `scrollHeight: 0` and no layout, so these assert

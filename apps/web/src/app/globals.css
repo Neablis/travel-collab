@@ -590,6 +590,18 @@ html[data-look="ledger"] .shadow-raised {
     bottom: var(--rack-height, 0px);
   }
 
+  /* The day-sync scroll targets — a day column's header, a calendar cell —
+     clear the sticky header stack (KI-2026-09-13-a). `scrollIntoView` aligns
+     with the scrollport's top edge, `y = 0`, which is under AppHeader +
+     TripHeader whenever the page is scrolled; a scroll margin as tall as that
+     stack makes "aligned with the top" mean "just below it".
+     `--sticky-stack-height` is measured and published by TripHeader
+     (`useStickyStackHeight`); it falls back to 0px, the old behaviour, before
+     the header is measured and on any route without one. */
+  .day-sync-target {
+    scroll-margin-top: var(--sticky-stack-height, 0px);
+  }
+
   /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
      are the same `--rack-height` bargain one level up: the bar is
      `position: fixed`, so it reserves no flow space, and a page's last row

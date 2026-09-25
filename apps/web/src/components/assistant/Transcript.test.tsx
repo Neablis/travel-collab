@@ -123,7 +123,7 @@ describe("Transcript", () => {
   });
 
   // SPEC §30.6 bans `scrollIntoView` repo-wide: it moves every scrollable
-  // ancestor, not the intended one, and KI-2026-09-13-a is an open bug in that
+  // ancestor, not the intended one, and KI-2026-09-13-a was a bug in that
   // family. Pinning belongs to whoever owns the scrollport — `usePinToBottom`.
   //
   // jsdom does not implement `scrollIntoView` at all, so there is nothing to
