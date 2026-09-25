@@ -187,10 +187,10 @@ function cityDiscElement(stopCount: number, accent: string, label: string | null
 // "rest of trip" swatch) reads as de-emphasized the way the focused day's
 // pins already do.
 
-// A day draws up to two route layers: its ordinary legs, and the legs that
-// touch a `transit` stop, which are dashed. They have to be separate layers
-// because MapLibre's `line-dasharray` is a plain paint property and takes no
-// data-driven expression — see routeLegs() (mapRailData.ts) for the split.
+// A day draws up to two route layers, solid and dashed; the legend's two
+// stroke keys name them. They have to be separate layers because MapLibre's
+// `line-dasharray` is a plain paint property and takes no data-driven
+// expression — see routeLegs() (mapRailData.ts) for which leg goes where.
 // Every route paint change below therefore applies to both.
 const ROUTE_VARIANTS = ["rest", "travel"] as const;
 type RouteVariant = (typeof ROUTE_VARIANTS)[number];
@@ -339,12 +339,14 @@ export function MapLens({
   // (after `kind` and stop order): it decides whether a stop draws a teardrop
   // or joins a disc, and whether its neighbours' discs carry a count — so a
   // stop enriched from unknown to `city` without moving would otherwise keep
-  // the stale marker forever.
+  // the stale marker forever. `mode` and `end` are in it for the same reason:
+  // together they decide whether a transit stop is a leg of its own and which
+  // layer draws it (routeLegs), without the stop itself moving.
   const routeKey = days
     .map(
       (day) =>
         `${day.dayId}:${day.accent}[${day.stops
-          .map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}:${s.precision ?? ""}`)
+          .map((s) => `${s.activityId}:${s.lat}:${s.lng}:${s.kind}:${s.precision ?? ""}:${s.mode ?? ""}:${s.end ? `${s.end.lat}:${s.end.lng}` : ""}`)
           .join(",")}]`,
     )
     .join("|");
@@ -510,11 +512,11 @@ export function MapLens({
         disarmLadderRef.current?.();
         setFailed(false);
 
-        // One line source+layer per day with 2+ located stops. Sources and
-        // layers must not be touched before "load" fires — the style isn't
-        // ready synchronously after `new Map(...)`.
+        // One line source+layer per variant per day that has legs of it — a
+        // single transit stop with a destination is a leg on its own (M24).
+        // Sources and layers must not be touched before "load" fires — the
+        // style isn't ready synchronously after `new Map(...)`.
         for (const day of days) {
-          if (day.stops.length < 2) continue;
           const legs = routeLegs(day);
           for (const variant of ROUTE_VARIANTS) {
             const coordinates = legs[variant];
@@ -648,7 +650,8 @@ export function MapLens({
     for (const day of days) {
       const focused = focusedDay === null || day.index === focusedDay;
 
-      if (day.stops.length >= 2) {
+      // `> 0`, not `>= 2`: one transit stop with a destination draws a leg.
+      if (day.stops.length > 0) {
         // Ghosting a non-focused route is two changes together: a lower
         // opacity floor than pins get (a thin line reads even fainter than a
         // pin at the same opacity, so it needs to drop further — tuned live
@@ -752,7 +755,12 @@ export function MapLens({
 
     const LngLatBounds = LngLatBoundsRef.current;
     if (!LngLatBounds) return;
-    const bounds = focusedMapDay.stops.reduce((b, s) => b.extend([s.lng, s.lat]), new LngLatBounds());
+    // A leg's destination is in the frame too, or a day's last train runs off
+    // the edge of the map to a place that has no pin of its own.
+    const bounds = focusedMapDay.stops.reduce(
+      (b, s) => (s.end ? b.extend([s.lng, s.lat]).extend([s.end.lng, s.end.lat]) : b.extend([s.lng, s.lat])),
+      new LngLatBounds(),
+    );
     // animate: false — a focus change (rail click or scroll) is meant to
     // jump the camera straight to the new day, not glide/ease there; the
     // default fitBounds animation read as slow and disorienting when
