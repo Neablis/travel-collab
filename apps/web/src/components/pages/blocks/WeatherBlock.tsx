@@ -1,9 +1,11 @@
 "use client";
+import type { TimeFormat } from "@tc/contracts";
 import type { WeatherPayload, WeatherRow } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
 import { formatTripDate } from "@/lib/formatDate";
 import { toClockLabel } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { localTodayIso, useToday } from "@/lib/today";
 
 // "Weather" (M14 link 11, ADR-052) — one row per (day, city), each saying its
@@ -47,15 +49,15 @@ const clockOf = (at: Date) =>
 /**
  * The forecast's as-of in the READER's own zone (decision 7): the time alone
  * when it is from today, the date as well when it is not — a stale row served
- * after a failed revalidation must not read as this morning's. On the house
- * 12-hour clock (Mitchell: *"All times should be in AM/PM not military time"*).
+ * after a failed revalidation must not read as this morning's. In the reader's
+ * clock (`UserPreferences.timeFormat`), 12-hour unless they chose otherwise.
  * Printed beside the forecast's credit, so it needs no "Forecast" of its own.
  */
-export function asOfText(iso: string, today: string): string {
+export function asOfText(iso: string, today: string, clock: TimeFormat): string {
   const at = new Date(iso);
   const day = localTodayIso(at);
-  const clock = toClockLabel(clockOf(at));
-  return `updated ${day === today ? clock : `${formatTripDate(day)}, ${clock}`}`;
+  const time = toClockLabel(clockOf(at), clock);
+  return `updated ${day === today ? time : `${formatTripDate(day)}, ${time}`}`;
 }
 
 // One place for each column's width, so the heading row and the data rows
@@ -124,6 +126,7 @@ function Row({ row, showNow, headed }: { row: WeatherRow; showNow: boolean; head
 
 /** The weather block: a fixed-height row per (day, city) naming its mode, and the as-of and credit footer. */
 export function WeatherBlock({ payload }: { payload: WeatherPayload }) {
+  const clock = useTimeFormat();
   const today = useToday();
   const showNow = payload.rows.some((row) => row.now !== null);
   return (
@@ -144,7 +147,7 @@ export function WeatherBlock({ payload }: { payload: WeatherPayload }) {
           // as-of, the averages' period.
           const aside =
             credit.source === "met-norway" && payload.forecastAsOf
-              ? ` (${asOfText(payload.forecastAsOf, today)})`
+              ? ` (${asOfText(payload.forecastAsOf, today, clock)})`
               : credit.source === "nasa-power" && payload.typicalPeriod
                 ? `, ${payload.typicalPeriod}`
                 : "";

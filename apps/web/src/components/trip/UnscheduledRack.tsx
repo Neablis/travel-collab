@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toClockRange } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/cn";
@@ -179,6 +180,7 @@ function RackCard({
    */
   onAssign?: (activityId: string, dayId: string) => void;
 }) {
+  const clock = useTimeFormat();
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -245,7 +247,7 @@ function RackCard({
           >
             {item.timeWindow === null
               ? "No time yet"
-              : toClockRange(item.timeWindow.start, item.timeWindow.end)}
+              : toClockRange(item.timeWindow.start, item.timeWindow.end, clock)}
           </div>
         </div>
         {/* M13 link 5 modelled HALF of what this line was drawn to say.

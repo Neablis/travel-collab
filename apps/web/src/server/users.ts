@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { DistanceUnit, UserPreferences, type UpdateUserPreferences } from "@tc/contracts";
+import { DistanceUnit, TimeFormat, UserPreferences, type UpdateUserPreferences } from "@tc/contracts";
 import {
   cookiePendingAdmission,
   normalizeCredential,
@@ -168,14 +168,16 @@ export async function upsertUser(
  * What a user row means as preferences, when there is no user row.
  *
  * Spelled once, here, so the API's answer for a session whose row has gone and
- * the database's own `DEFAULT 'km'` cannot drift apart. `null` is the DTO's
- * "unset" for the two settable fields; `distanceUnit` has no unset state, which
- * is why the column is `not null default 'km'` rather than nullable.
+ * the database's own `DEFAULT 'km'` and `DEFAULT '12h'` cannot drift apart.
+ * `null` is the DTO's "unset" for the two settable fields; `distanceUnit` and
+ * `timeFormat` have no unset state, which is why their columns are
+ * `not null default …` rather than nullable.
  */
 const PREFERENCE_DEFAULTS: UserPreferences = {
   displayName: null,
   homeAirport: null,
   distanceUnit: DistanceUnit.enum.km,
+  timeFormat: TimeFormat.enum["12h"],
 };
 
 type UserRow = typeof users.$inferSelect;
@@ -205,6 +207,7 @@ function toPreferences(row: UserRow): UserPreferences {
     displayName: row.displayName,
     homeAirport: row.homeAirport,
     distanceUnit: row.distanceUnit,
+    timeFormat: row.timeFormat,
   });
   if (parsed.success) return parsed.data;
   console.error("users preference columns failed UserPreferences parse", {
@@ -215,6 +218,7 @@ function toPreferences(row: UserRow): UserPreferences {
     displayName: UserPreferences.shape.displayName.safeParse(row.displayName).data ?? null,
     homeAirport: UserPreferences.shape.homeAirport.safeParse(row.homeAirport).data ?? null,
     distanceUnit: DistanceUnit.safeParse(row.distanceUnit).data ?? PREFERENCE_DEFAULTS.distanceUnit,
+    timeFormat: TimeFormat.safeParse(row.timeFormat).data ?? PREFERENCE_DEFAULTS.timeFormat,
   };
 }
 
@@ -259,6 +263,7 @@ export async function writePreferences(
       ...("displayName" in patch ? { displayName: patch.displayName } : {}),
       ...("homeAirport" in patch ? { homeAirport: patch.homeAirport } : {}),
       ...("distanceUnit" in patch ? { distanceUnit: patch.distanceUnit } : {}),
+      ...("timeFormat" in patch ? { timeFormat: patch.timeFormat } : {}),
       updatedAt: now,
     })
     .where(eq(users.id, userId))

@@ -13,7 +13,7 @@
 //     numbering: both the read tools and `batchResolver`'s `conflictRef`
 //     resolution read it, so the number the model is shown and the id the
 //     server resolves it back to cannot drift.
-import type { TripDetail } from "@tc/contracts";
+import type { TimeFormat, TripDetail } from "@tc/contracts";
 
 // Every surface a model is selected for, and there is one: `/ask` is the only
 // AI entry point (ADR-033 Decision 1). `AiCommandSurface` — the `page` /
@@ -93,6 +93,26 @@ export function parseAskScope(instructions: string): AskScope {
     }
   }
   return { kind: "trip" };
+}
+
+/**
+ * The instruction line that tells the model which clock the asker reads, so an
+ * answer says "2:30 pm" to one person and "14:30" to another — the same
+ * `UserPreferences.timeFormat` the board and the notebook print with.
+ *
+ * Needed because nothing else would do it: `read_day` hands the model stored
+ * `HH:mm`, which is 24-hour whatever anybody chose, and a model copies the
+ * form it was shown. Tool INPUT stays 24-hour either way — a stop's time is
+ * stored `HH:mm` and the write tools validate that shape — so the line says so,
+ * rather than letting "write times as 2 pm" leak into a `timeWindow`.
+ *
+ * Built from the enum alone, never from anything a person typed, so it is a
+ * rule rather than a `data` block.
+ */
+export function clockTimesLine(format: TimeFormat): string {
+  return format === "24h"
+    ? 'Write any clock time in your answer on the 24-hour clock, the way this person reads times: "09:30", "14:00", "00:00" for midnight. Times you pass to a tool are 24-hour HH:mm as well.'
+    : 'Write any clock time in your answer on the 12-hour clock, the way this person reads times: "9:30 am", "2 pm", "12 am" for midnight — never "14:00". The tools give times as 24-hour HH:mm because that is how they are stored; convert them when you write them to the person, and keep passing HH:mm to a tool.';
 }
 
 // A single active conflict, in the stable human-referenceable form the model

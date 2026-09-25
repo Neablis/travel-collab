@@ -11,7 +11,8 @@ import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
-import { toClockLabel, toMinutes, toTimeString } from "@/lib/time";
+import { toClockRange, toMinutes, toTimeString } from "@/lib/time";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Slot } from "@/components/trip/fitIntoDay";
 import {
   closestDurationLabel,
@@ -104,6 +105,7 @@ export function ActivityEditor({
   onSave: (value: ActivityFormValue) => void;
   onCancel: () => void;
 }) {
+  const clock = useTimeFormat();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [start, setStart] = useState(initial?.timeWindow?.start ?? "");
   // Edit mode only: a stop being edited already has an end time, and forcing
@@ -324,8 +326,8 @@ export function ActivityEditor({
           // the domain's own time-overlap conflict surfaces it after save.
           <Banner variant="success">
             {selectedDay.existing.length === 0
-              ? `Open day — fits ${toClockLabel(start)}–${toClockLabel(actualEnd)} with room to spare.`
-              : `Fits ${toClockLabel(start)}–${toClockLabel(actualEnd)}, alongside ${selectedDay.existing.length} other stop${selectedDay.existing.length === 1 ? "" : "s"} already on this day.`}
+              ? `Open day — fits ${toClockRange(start, actualEnd, clock)} with room to spare.`
+              : `Fits ${toClockRange(start, actualEnd, clock)}, alongside ${selectedDay.existing.length} other stop${selectedDay.existing.length === 1 ? "" : "s"} already on this day.`}
           </Banner>
         )
       ) : null}

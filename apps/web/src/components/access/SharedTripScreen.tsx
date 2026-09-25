@@ -28,8 +28,11 @@ function dayLabel(index: number, date: string | null): string {
   return date === null ? `Day ${index + 1}` : `Day ${index + 1} · ${formatTripDate(date)}`;
 }
 
+// On the design's 12-hour clock, stated rather than read: this page is under
+// `(front)`, outside `PreferencesProvider`, and is meant for a visitor with no
+// account — there is no reader's preference here to honour.
 function timeLabel(window: SharedTripView["activities"][string]["timeWindow"]): string | null {
-  return window === null ? null : toClockRange(window.start, window.end);
+  return window === null ? null : toClockRange(window.start, window.end, "12h");
 }
 
 export function SharedTripScreen({ token }: { token: string }) {

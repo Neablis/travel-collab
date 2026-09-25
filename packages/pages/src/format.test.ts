@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatDate, formatCountdown, ordinal, toClockLabel, toClockRange } from "./format";
+import { formatMoney, formatDate, formatCountdown, ordinal } from "./format";
 import { witness } from "./test-support/witness";
 
 describe("format helpers", () => {
@@ -97,36 +97,6 @@ describe("formatCountdown", () => {
     // and inventing "in 0 days" here would put a false fact on a page.
     expect(formatCountdown("not-a-date", FIRST, LAST)).toBeNull();
     expect(formatCountdown("2026-08-01", "", LAST)).toBeNull();
-  });
-});
-
-// The house 12-hour clock, moved here from `apps/web/src/lib/time.ts` so a
-// notebook widget can print it (Mitchell, PR #221 preview: "All times should
-// be in AM/PM not military time"). `lib/time` re-exports it, and its own tests
-// still run there against the re-export.
-describe("toClockLabel", () => {
-  it("drops the minutes on the hour", () => {
-    expect(toClockLabel("13:00")).toBe("1 pm");
-  });
-
-  it("keeps the minutes otherwise, zero-padded", () => {
-    expect(toClockLabel("10:30")).toBe("10:30 am");
-    expect(toClockLabel("09:05")).toBe("9:05 am");
-  });
-
-  // The two hours where `h % 12` is 0 and a naive formatter renders "0".
-  it("renders midnight and noon as 12", () => {
-    expect(toClockLabel("00:00")).toBe("12 am");
-    expect(toClockLabel("12:00")).toBe("12 pm");
-    expect(toClockLabel("00:45")).toBe("12:45 am");
-    expect(toClockLabel("23:59")).toBe("11:59 pm");
-  });
-});
-
-describe("toClockRange", () => {
-  it("joins two clock labels with a spaced en dash", () => {
-    expect(toClockRange("09:00", "17:30")).toBe("9 am – 5:30 pm");
-    expect(toClockRange("00:00", "12:00")).toBe("12 am – 12 pm");
   });
 });
 

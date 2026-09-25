@@ -46,7 +46,7 @@ const fetchPreferencesMock = vi.fn<
   >
 >(async () => ({
   ok: true,
-  value: { preferences: { displayName: null, homeAirport: null, distanceUnit: "km" }, isAdmin: false },
+  value: { preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" }, isAdmin: false },
 }));
 vi.mock("@/lib/apiClient", () => ({
   resetDemoData: (...args: unknown[]) => resetDemoDataMock(...args),
@@ -283,7 +283,7 @@ describe("AccountMenuFromSession", () => {
 // half AGENTS.md's Definition of Done asks for.
 // Inside the provider, as the shell mounts it: the flag comes from the
 // provider's one preferences read, not from a request of the menu's own.
-const PREFS: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km" };
+const PREFS: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
 function renderInShell() {
   render(
     <PreferencesProvider>
