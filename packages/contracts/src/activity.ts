@@ -173,25 +173,64 @@ export const Location = z
   });
 export type Location = z.infer<typeof Location>;
 
-// Where a stop sits in the booking/travel workflow. Exactly one per activity,
-// and never absent: "planned" is the zero value, which is why the field
-// defaults rather than being nullable — db-seed.ts and the design handoff's
-// export (`enums.stopStatus`) both already treat it that way. Calendar reads
-// `transit` to split a travel day; `N to book` counts everything that is
-// neither `booked` nor `transit` (M18).
-export const ActivityKind = z.enum(["booked", "hold", "idea", "transit", "planned"]);
+// Where a stop sits in the planning workflow. Exactly one per activity, and
+// never absent: "planned" is the zero value, which is why the field defaults
+// rather than being nullable.
+//
+// Three values since M28 (ADR-054, Mitchell 2026-09-25): `planned` is the
+// default, `pending` is anything not settled yet (it absorbed `idea` and
+// `hold`), and `transit` is travel. `booked` went too: it was folded into
+// `planned`, because the difference was too small to be worth a badge, a
+// picker option and a rule. `needsBooking` (@tc/pages) counts `pending`.
+//
+// This is the WRITE vocabulary: commands, the editor and the assistant only
+// ever produce these three. Stored data is read through `StoredActivityKind`.
+export const ActivityKind = z.enum(["planned", "pending", "transit"]);
 export type ActivityKind = z.infer<typeof ActivityKind>;
+
+/**
+ * The kinds retired by M28, and the kind each is read back as (ADR-054).
+ * Never written again, and never offered, but every event, `trip_details`
+ * row, saved day and content file written before M28 still says them, and
+ * the event log is replayed forever (invariants 1 and 2).
+ */
+export const RETIRED_ACTIVITY_KINDS = {
+  idea: "pending",
+  hold: "pending",
+  booked: "planned",
+} as const satisfies Record<string, ActivityKind>;
+export type RetiredActivityKind = keyof typeof RETIRED_ACTIVITY_KINDS;
+
+/** A retired kind's replacement; anything else is returned untouched for the enum to judge. */
+export function readActivityKind(value: unknown): unknown {
+  return typeof value === "string" && Object.hasOwn(RETIRED_ACTIVITY_KINDS, value)
+    ? RETIRED_ACTIVITY_KINDS[value as RetiredActivityKind]
+    : value;
+}
+
+/**
+ * `ActivityKind` for a value read back from storage: a retired kind is
+ * translated on the way in, so everything past the parse sees only the three.
+ *
+ * Used exactly where a stored shape is parsed — the event payloads (through
+ * `ActivitySnapshot`), `trip_details.doc` (`ActivityView`), `saved_days`
+ * (`SavedStop`) and content bundles. Commands keep the strict enum: a command
+ * is never stored, so a retired kind on one is a caller that has not moved,
+ * and refusing it says so.
+ */
+export const StoredActivityKind = z.preprocess(readActivityKind, ActivityKind);
 
 // What sort of thing a stop IS — orthogonal to where it is in the workflow.
 // A closed vocabulary, never freeform: the design attaches behaviour to each
 // tag ("power"), and a free string can't carry one.
 //
 // The handoff lists six; `considering` and `travel` are deliberately absent
-// because ActivityKind already answers those (`idea` and `transit`). Two
+// because ActivityKind already answers those (`pending` and `transit`). Two
 // fields that can disagree about one fact is a bug generator: a stop tagged
-// `considering` while its kind says `booked` would render dashed under a
-// "Booked" badge with its cost outside the committed total, and no surface
-// would own the contradiction. See docs/milestones/M18-stop-kind.md.
+// `considering` while its kind said `booked` (a kind M28 retired) would have
+// rendered dashed under a "Booked" badge with its cost outside the committed
+// total, and no surface would own the contradiction.
+// See docs/milestones/M18-stop-kind.md.
 export const ActivityTag = z.enum(["meal", "lodging", "ticketed", "outdoors"]);
 export type ActivityTag = z.infer<typeof ActivityTag>;
 
@@ -212,7 +251,7 @@ export type TravelLegField = "mode" | "endLocation";
  * **One rule, two places it is asked.** The command unions (`trip.ts`) refuse
  * a command that states the contradiction outright; `decideTripCommand` refuses
  * an `UpdateActivity` whose RESULT would hold it (a patch that sets
- * `kind: "hold"` and leaves an earlier `mode` behind), which no schema can see
+ * `kind: "pending"` and leaves an earlier `mode` behind), which no schema can see
  * because it depends on the stored stop. Both call this, so they cannot drift.
  *
  * This is what makes `mode` beside `kind` safe where a second workflow field
@@ -395,7 +434,9 @@ export const ActivitySnapshot = z.object({
   // They are also the zero values the rest of the stack already agrees on:
   // `AddActivity.kind` is optional and documented "omitted = planned", and
   // `state.ts` calls "planned" the zero value outright.
-  kind: described("enum", "Status", ActivityKind).default("planned"), // never null — "planned" is the zero value
+  // `StoredActivityKind`: this shape IS the event payload, so a retired kind
+  // written before M28 must still replay (ADR-054).
+  kind: described("enum", "Status", StoredActivityKind).default("planned"), // never null — "planned" is the zero value
   tags: described("enum", "Tags", z.array(ActivityTag)).default([]), // never null — [] is the zero value
   cost: described("money", "Cost", Money).nullable().default(null),
   // ---- Per-stop attribution (M13 link 5) ----

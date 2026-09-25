@@ -112,7 +112,6 @@ export const TripGlobals = z.object({
   days: describedCollection("Every day of the trip", z.array(TripGlobalsDay)),
   cities: describedCollection("Every city the trip touches", z.array(TripGlobalsCity)),
   tags: describedCollection("Every tag in use on this trip", z.array(TripGlobalsTag)),
-  bookedCount: described("count", "How many stops are booked", z.number().int().nonnegative()),
   // The REQUESTING account's zone, from its home airport (M14 link 11), so a
   // widget can say "Tokyo is 16 h ahead of home". It is the one field here that
   // is about the reader rather than the trip — two members asking get two

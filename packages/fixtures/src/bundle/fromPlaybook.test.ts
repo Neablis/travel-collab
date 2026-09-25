@@ -122,7 +122,7 @@ describe("toBundleDays is the inverse of toSavedSequence", () => {
     const days = [
       { stops: [{ title: "A", kind: "planned" as const }] },
       { stops: [] },
-      { stops: [{ title: "B", kind: "idea" as const, notes: "n" }] },
+      { stops: [{ title: "B", kind: "pending" as const, notes: "n" }] },
       { stops: [] },
     ];
     const stored = toSavedSequence(authored(days));

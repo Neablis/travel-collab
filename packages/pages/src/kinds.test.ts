@@ -60,7 +60,7 @@ describe("formatKind", () => {
   it("prints text verbatim, an enum value as its label, and a location as its name", () => {
     expect(formatKind("text", "Kyoto", ctx)).toBe("Kyoto");
     expect(formatKind("enum", "meal", ctx)).toBe("Meal");
-    expect(formatKind("enum", "hold", ctx)).toBe("Holding");
+    expect(formatKind("enum", "transit", ctx)).toBe("Travel");
     expect(formatKind("location", { name: "Fushimi Inari", lat: 34.97, lng: 135.77 }, ctx)).toBe("Fushimi Inari");
   });
 });

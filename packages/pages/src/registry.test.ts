@@ -104,7 +104,7 @@ describe("registry", () => {
     // an unordered one is refused, which is what makes this exercise each
     // primitive's own validator rather than just read its keys.
     city: "Tokyo",
-    kind: "booked",
+    kind: "pending",
     dates: { from: "2026-08-01", through: "2026-08-03" },
   };
 
@@ -187,7 +187,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
         // whose stops are all merely planned, so with a null kind it never
         // reached `render` and the witness floor refused — the floor working,
         // again, rather than a reason to lower it.
-        notes: null, kind: "booked", tags: [],
+        notes: null, kind: "pending", tags: [],
       },
     } as unknown as TripDetail["activities"],
     tripCostTotal: 5000,
@@ -234,7 +234,6 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     }],
     cities: [{ name: "Tokyo", dayIndexes: [0], activityCount: 1 }],
     tags: [],
-    bookedCount: 0,
     homeTimeZone: "America/Los_Angeles",
   };
 
@@ -370,7 +369,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     day: { kind: "index", index: 0 },
     city: "Tokyo",
     tag: "meal",
-    kind: "booked",
+    kind: "pending",
     person: "u1",
     dates: { from: "2026-08-01", through: "2026-08-03" },
   };
@@ -563,7 +562,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // the same typed refusal it uses for bad params today"*. There is still
     // exactly one way a widget enters a document (ADR-037 decision 4), so the
     // vocabulary is enforced at the same door as everything else.
-    expect(insertWidget("cost", { kind: "booked" }).ok).toBe(true);
+    expect(insertWidget("cost", { kind: "pending" }).ok).toBe(true);
     const invented = insertWidget("cost", { kind: "reserved" });
     expect(invented.ok).toBe(false);
     expect(invented.ok === false && invented.error.reason).toBe("bad-params");
@@ -575,7 +574,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // caller's filter was discarded by the one function whose whole job is to
     // refuse bad input (Copilot, PR 141). `city.rows` selects over cities, and
     // a city has no kind.
-    const illegal = insertWidget("city.rows", { kind: "booked" });
+    const illegal = insertWidget("city.rows", { kind: "pending" });
     expect(illegal.ok).toBe(false);
     expect(illegal.ok === false && illegal.error.reason).toBe("bad-params");
     // The message names the dimension and what the widget does accept, because
@@ -585,7 +584,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect(message).toContain("city");
     // Strict on the way IN, permissive on the way out: the read path still
     // strips, so a document written by a newer build still opens.
-    expect(getMacro("city.rows")!.params.parse({ kind: "booked" })).not.toHaveProperty("kind");
+    expect(getMacro("city.rows")!.params.parse({ kind: "pending" })).not.toHaveProperty("kind");
     // And junk that is not a filter dimension at all still strips on insert —
     // this refuses illegal FILTERS, not unfamiliar keys.
     expect(insertWidget("city.rows", { somethingNewer: 1 }).ok).toBe(true);

@@ -71,7 +71,7 @@ const RICH_DAYS = [
         location: { name: "Fushimi Inari Taisha", lat: 34.9671, lng: 135.7727, countryCode: "JP", city: "Kyoto" },
         notes: "Before the crowds.",
         anchors: [{ kind: "dayOfWeek", days: ["tue", "wed"] }],
-        kind: "booked",
+        kind: "pending",
         tags: ["outdoors", "ticketed"],
         cost: { amountMinor: 500, currency: "JPY" },
       },
@@ -80,7 +80,7 @@ const RICH_DAYS = [
   { stops: [] },
   {
     stops: [
-      { title: "Nishiki", timeWindow: null, location: null, notes: null, anchors: [], kind: "idea", tags: [], cost: null },
+      { title: "Nishiki", timeWindow: null, location: null, notes: null, anchors: [], kind: "transit", tags: [], cost: null },
     ],
   },
   { stops: [] },

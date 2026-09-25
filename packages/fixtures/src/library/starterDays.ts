@@ -199,7 +199,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
         cost: money(500),
       }),
       stop("Pena Palace at opening", "09:00", "11:00", { name: "Palácio Nacional da Pena", city: "Sintra" }, {
-        kind: "booked",
+        kind: "planned",
         tags: ["ticketed"],
         notes: "Timed entry, booked online. The park ticket alone is not enough for the interior.",
         cost: money(2_200),
@@ -240,7 +240,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
         cost: money(900),
       }),
       stop("Museo Frida Kahlo", "11:00", "12:30", { name: "Museo Frida Kahlo", city: "Mexico City" }, {
-        kind: "booked",
+        kind: "planned",
         tags: ["ticketed"],
         notes: "Sells out days ahead. Buy the timed slot before you leave home, not that morning.",
         cost: money(1_600),

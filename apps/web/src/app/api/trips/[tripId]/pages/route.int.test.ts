@@ -394,7 +394,7 @@ describe("/api/trips/:id/pages", () => {
     it.each([
       ["an unregistered widget", widget("nope.nope")],
       ["an attribute outside the allow-list", widget("attribute", { field: "account.email" })],
-      ["a filter the widget does not select by", widget("city.rows", { kind: "booked" })],
+      ["a filter the widget does not select by", widget("city.rows", { kind: "pending" })],
     ])("400s %s, on PATCH and POST, and stores nothing", async (_label, node) => {
       const tripId = await seedTrip();
       const pageId = await seedEmpty(tripId);
@@ -408,7 +408,7 @@ describe("/api/trips/:id/pages", () => {
     it("still accepts a registered widget with legal params", async () => {
       const tripId = await seedTrip();
       const pageId = await seedEmpty(tripId);
-      expect((await patch(tripId, pageId, doc(widget("cost", { kind: "booked" })))).status).toBe(200);
+      expect((await patch(tripId, pageId, doc(widget("cost", { kind: "pending" })))).status).toBe(200);
       expect((await patch(tripId, pageId, doc(widget("attribute", { field: "trip.name" })))).status).toBe(200);
     });
 

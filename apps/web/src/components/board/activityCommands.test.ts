@@ -96,7 +96,7 @@ describe("updateActivityCommand", () => {
       ACT,
       form({
         title: "Kiyomizu-dera",
-        kind: "hold",
+        kind: "pending",
         tags: ["ticketed"],
         bookedBy: "bob",
         participants: ["bob"],
@@ -107,7 +107,7 @@ describe("updateActivityCommand", () => {
       tripId: TRIP,
       activityId: ACT,
       title: "Kiyomizu-dera",
-      kind: "hold",
+      kind: "pending",
       tags: ["ticketed"],
       bookedBy: "bob",
       participants: ["bob"],

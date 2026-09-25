@@ -11,13 +11,13 @@ const inPara = (...content: unknown[]) => ({ type: "paragraph", content });
 
 describe("findWidgetError", () => {
   it("passes a document whose widgets are all registered with legal params", () => {
-    expect(findWidgetError([inPara(macro("attribute", { field: "trip.name" })), inPara(macro("cost", { kind: "booked" }))])).toBeNull();
+    expect(findWidgetError([inPara(macro("attribute", { field: "trip.name" })), inPara(macro("cost", { kind: "pending" }))])).toBeNull();
   });
 
   it.each([
     ["an unregistered name", macro("nope.nope"), /Unknown macro "nope\.nope"/],
     ["a field outside attribute's allow-list", macro("attribute", { field: "account.email" }), /Macro "attribute" params failed/],
-    ["a filter the widget does not select by", macro("city.rows", { kind: "booked" }), /city\.rows does not accept kind/],
+    ["a filter the widget does not select by", macro("city.rows", { kind: "pending" }), /city\.rows does not accept kind/],
     ["a malformed macro node", { type: "macro", attrs: { name: "" } }, /Invalid macro node/],
   ])("refuses %s, however deeply it is nested", (_label, node, message) => {
     const nested = [{ type: "bulletList", content: [{ type: "listItem", content: [inPara(node)] }] }];
@@ -36,7 +36,7 @@ describe("findWidgetError", () => {
       type: "doc",
       content: [
         inPara(macro("cost", { person: "dev-alice" })),
-        inPara(macro("count", { person: "dev-alice", kind: "booked" })),
+        inPara(macro("count", { person: "dev-alice", kind: "pending" })),
         inPara(macro("stop.rows", { person: "dev-alice", only: "needsBooking" })),
       ],
     });
@@ -48,7 +48,7 @@ describe("findWidgetError", () => {
     // params that never had it, not a "needs a person" chip nothing can fill.
     for (const [name, params] of [
       ["cost", {}],
-      ["count", { kind: "booked" }],
+      ["count", { kind: "pending" }],
       ["stop.rows", { only: "needsBooking" }],
     ] as const) {
       const withPerson = renderMacro(ctx, name, { ...params, person: "dev-alice" });

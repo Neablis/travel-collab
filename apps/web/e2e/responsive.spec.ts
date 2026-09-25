@@ -398,7 +398,7 @@ test.describe("responsive (narrow viewport)", () => {
 // The trip is chosen to exercise both halves: one row of city pills (Rome,
 // Barcelona, Kyoto fit on one line at 390px), and an actionable line with both
 // of its parts — overlapping windows (and three cities a day apart) give
-// decisions, and `kind: "idea"` makes every stop one still to book. With both
+// decisions, and `kind: "pending"` makes every stop one still to book. With both
 // parts present, "N not booked yet" used to wrap under the button at this
 // width, which was the second half of the jump. The fetch is HELD so the
 // loading state is measured deliberately, not raced.
@@ -424,7 +424,7 @@ test.describe("responsive (Home hero on a phone, fresh account)", () => {
     );
     for (const { activityId } of stops) {
       await page.request.post(`/api/trips/${tripId}/commands`, {
-        data: { type: "UpdateActivity", tripId, activityId, kind: "idea" },
+        data: { type: "UpdateActivity", tripId, activityId, kind: "pending" },
       });
     }
 

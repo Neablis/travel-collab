@@ -153,11 +153,11 @@ describe("stop.rows", () => {
   it("is a line per booked stop on a day — what `booking.line` drew", () => {
     // ADR-039's fourth pair of widgets written twice: "booking" was already an
     // `ActivityKind` member, so `booking.line` is this primitive with
-    // `kind: "booked"` and needed no new domain data at all.
+    // `kind: "pending"` and needed no new domain data at all.
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
     const cost = formatMoney(fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor, "USD");
-    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "booked" })).toEqual([
+    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "pending" })).toEqual([
       `Colosseum 9 am – 10 am ${cost}`,
     ]);
   });
@@ -166,7 +166,7 @@ describe("stop.rows", () => {
     const fixture = selectionTrip();
     const ctx = { ...contextOf(fixture), user: readerOn("24h") };
     const cost = formatMoney(fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor, "USD");
-    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "booked" })).toEqual([
+    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 }, kind: "pending" })).toEqual([
       `Colosseum 09:00 – 10:00 ${cost}`,
     ]);
   });
@@ -186,87 +186,58 @@ describe("stop.rows", () => {
     expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 0 }, tag: "lodging" }).status).toBe("empty");
   });
 
-  it("says nothing is booked yet when a kind filter is what emptied it", () => {
+  it("says nothing is left to book when a kind filter is what emptied it", () => {
     // **The limitation this widget's own `emptyText` comment describes,
     // retired for the one case worth phrasing.** That comment says a fixed
     // string "cannot see the params, so 'no stops on this day' would be a claim
     // the widget cannot keep" — true of `emptyText`, and no longer true of the
     // resolver, which can now carry a reason (`MacroResult.because`). This is
-    // what the Overview's "What's booked" section says on a trip where nothing
+    // what the Overview's "Still to book" section says on a trip where nothing
     // is, and "no stops to show" under that heading reads as a fault rather
-    // than as a fact.
+    // than as a fact. (It said "nothing booked yet" for `booked` until M28.)
     const ctx = contextOf(selectionTrip());
-    // Day 3 holds a `planned` and an `idea`, and no booking.
-    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "booked" })).toEqual({
+    // Day 3 holds two `planned` stops and nothing pending.
+    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "pending" })).toEqual({
       status: "empty",
-      because: "nothing booked yet",
+      because: "nothing left to book",
     });
-    // **Only the kinds that make a sentence.** "nothing hold yet" is not
+    // **Only the kinds that make a sentence.** "nothing transit" is not
     // English, so the widget keeps its blanket wording rather than assembling a
     // phrase out of a stored enum value — asserted, because a `Record` that
     // covered every kind would pass the line above and read as nonsense here.
-    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "hold" })).toEqual({
+    expect(renderMacro(ctx, "stop.rows", { day: { kind: "index", index: 2 }, kind: "transit" })).toEqual({
       status: "empty",
     });
   });
 
-  it("groups under day headers, and gives the backlog its own", () => {
-    // A line with no heading over it reads as belonging to whatever came before
-    // it, which for the unscheduled stops would be the last day of the trip.
-    const ctx = contextOf(selectionTrip());
-    const rows = lines(ctx, "stop.rows");
-    // Seven stops and four headings, in order — the leads, not a flattened blob.
-    expect(rows).toHaveLength(11);
-    expect(rows.map((r) => r.split(" ")[0])).toEqual([
-      "Day", "Colosseum", "Lunch",
-      "Day", "Train", "Ryokan",
-      "Day", "Free", "Maybe",
-      "Unscheduled", "Souvenirs",
-    ]);
-    expect(rows.filter((r) => /^(Day \d|Unscheduled)$/.test(r))).toEqual(["Day 1", "Day 2", "Day 3", "Unscheduled"]);
-    // And each heading is a `header` row all the way through the renderer, not
-    // a stop line that happens to read like one — that is what makes it span
-    // both columns instead of leaving an empty cell where a number should be.
-    expect(kinds(ctx, "stop.rows")).toEqual([
-      "header", undefined, undefined,
-      "header", undefined, undefined,
-      "header", undefined, undefined,
-      "header", undefined,
-    ]);
-  });
-
-  it("uses no headings when the selection is one day", () => {
-    const ctx = contextOf(selectionTrip());
-    expect(lines(ctx, "stop.rows", { day: { kind: "index", index: 0 } })).toHaveLength(2);
-  });
-
   it("keeps only what `needsBooking` flags when asked — the Still to book list", () => {
-    // Every branch of the rule has a stop to bite on: Lunch is `planned` and
-    // made ticketed here, Free morning is made a `hold`, Maybe a hike and the
-    // backlog's Souvenirs are `idea`. The Colosseum is ticketed too but
-    // `booked`, and the Ryokan and the train are settled, so the list is the
-    // rule's answer rather than the fixture's.
+    // Since M28 the rule is "pending", and every other kind has a stop to bite
+    // on: Lunch is `planned` and made ticketed here (the exception M28
+    // removed), Free morning is made `pending`, the Colosseum and the Ryokan
+    // are `pending` in the fixture, the train is `transit`, and Maybe a hike
+    // and the backlog's Souvenirs are `planned` — so the list is the rule's
+    // answer rather than the fixture's.
     const fixture = selectionTrip();
     const { s1, s4 } = fixture.ids;
     fixture.trip.activities[s1] = { ...fixture.trip.activities[s1]!, tags: ["meal", "ticketed"] };
-    fixture.trip.activities[s4] = { ...fixture.trip.activities[s4]!, kind: "hold" };
+    fixture.trip.activities[s4] = { ...fixture.trip.activities[s4]!, kind: "pending" };
     const ctx = contextOf(fixture);
     expect(lines(ctx, "stop.rows", { only: "needsBooking" }).map((r) => r.split(" ")[0])).toEqual([
-      "Day", "Lunch",
-      "Day", "Free", "Maybe",
-      "Unscheduled", "Souvenirs",
+      "Day", "Colosseum",
+      "Day", "Ryokan",
+      "Day", "Free",
     ]);
     // It composes with the filters rather than replacing them.
     expect(lines(ctx, "stop.rows", { only: "needsBooking", day: { kind: "index", index: 0 } }).map((r) => r.split(" ")[0])).toEqual([
-      "Lunch",
+      "Colosseum",
     ]);
   });
 
   it("says nothing is left to book when the rule is what emptied it", () => {
-    // Day 2 is a train and a booked ryokan. "no stops to show" under a Still
-    // to book heading reads as a fault; this reads as the good news it is.
+    // Day 3 is two `planned` stops. "no stops to show" under a Still to book
+    // heading reads as a fault; this reads as the good news it is.
     const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "stop.rows", { only: "needsBooking", day: { kind: "index", index: 1 } })).toEqual({
+    expect(renderMacro(ctx, "stop.rows", { only: "needsBooking", day: { kind: "index", index: 2 } })).toEqual({
       status: "empty",
       because: "nothing left to book",
     });
@@ -290,7 +261,7 @@ describe("stop.rows", () => {
         return formatMoney(amountMinor, currency);
       };
       expect(cellsOf(ctx, "stop.rows", params)).toEqual([
-        ["9 am – 10 am", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "Booked", "Ticketed"],
+        ["9 am – 10 am", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "Pending", "Ticketed"],
         // Lunch has no place: its cell stays, empty, so the column stays one.
         ["12 pm – 1 pm", cost(fixture.ids.s1), "", "Planned", "Meal"],
       ]);
@@ -352,7 +323,7 @@ describe("cost.rows", () => {
   it("re-sums the days when a content filter is set, since a subtotal cannot answer that", () => {
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
-    const booked = lines(ctx, "cost.rows", { kind: "booked" });
+    const booked = lines(ctx, "cost.rows", { kind: "pending" });
     const s0 = fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor;
     const s3 = fixture.trip.activities[fixture.ids.s3]!.cost!.amountMinor;
     expect(booked).toEqual([

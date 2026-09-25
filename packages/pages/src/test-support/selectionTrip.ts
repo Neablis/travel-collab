@@ -24,12 +24,12 @@ import { tripDetailFactory } from "@tc/factories";
 //
 // Shape, and what each part is for:
 //
-//   Day 1  2027-06-01  Rome            s0 booked/ticketed, located Rome
+//   Day 1  2027-06-01  Rome            s0 pending/ticketed, located Rome
 //                                      s1 planned/meal, UNLOCATED  ← the day fallback
 //   Day 2  2027-06-02  Rome → Kyoto    s2 transit, located Rome    ← a travel day
-//                                      s3 booked/lodging, located Kyoto, no time
-//   Day 3  no date     —               s4 planned, s5 idea/outdoors, neither located
-//   Backlog                            b0 idea, located Kyoto      ← in the wide set,
+//                                      s3 pending/lodging, located Kyoto, no time
+//   Day 3  no date     —               s4 planned, s5 planned/outdoors, neither located
+//   Backlog                            b0 planned, located Kyoto   ← in the wide set,
 //                                                                     out of every dated one
 export interface SelectionTrip {
   trip: TripDetail;
@@ -75,7 +75,7 @@ export function selectionTrip(): SelectionTrip {
   };
   patch(s0, {
     title: "Colosseum",
-    kind: "booked", tags: ["ticketed"],
+    kind: "pending", tags: ["ticketed"],
     location: { name: "Colosseum, Rome, Italy", city: "Rome" },
     timeWindow: { start: "09:00", end: "10:00" },
   });
@@ -93,15 +93,15 @@ export function selectionTrip(): SelectionTrip {
   });
   patch(s3, {
     title: "Ryokan",
-    kind: "booked", tags: ["lodging"],
+    kind: "pending", tags: ["lodging"],
     location: { name: "Ryokan Kyoto", city: "Kyoto" },
     timeWindow: null,
   });
   patch(s4, { title: "Free morning", kind: "planned", tags: [], location: null, timeWindow: null });
-  patch(s5, { title: "Maybe a hike", kind: "idea", tags: ["outdoors"], location: null, timeWindow: null });
+  patch(s5, { title: "Maybe a hike", kind: "planned", tags: ["outdoors"], location: null, timeWindow: null });
   patch(b0, {
     title: "Souvenirs",
-    kind: "idea", tags: [],
+    kind: "planned", tags: [],
     location: { name: "Nishiki Market", city: "Kyoto" },
     timeWindow: null,
   });
@@ -130,7 +130,6 @@ export function selectionTrip(): SelectionTrip {
       { tag: "lodging", activityCount: 1 },
       { tag: "outdoors", activityCount: 1 },
     ],
-    bookedCount: 2,
     homeTimeZone: null,
   };
 

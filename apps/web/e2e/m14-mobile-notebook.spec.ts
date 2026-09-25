@@ -27,11 +27,12 @@ async function openTripOverview(
   for (const command of commandsFor("threeDayTrip", tripId)) {
     await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
   }
-  // `threeDayTrip` books nothing, and a walk through "A line for every
-  // booking" needs a row to draw its columns over.
+  // `threeDayTrip` has nothing pending, and a walk through the Overview's
+  // "Still to book" list needs a row to draw its columns over. (It was
+  // "A line for every booking" over a `booked` stop until M28, ADR-054.)
   if (bookedStop !== undefined) {
     const added = await page.request.post(`/api/trips/${tripId}/commands`, {
-      data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title: bookedStop, kind: "booked" },
+      data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title: bookedStop, kind: "pending" },
     });
     expect(added.ok()).toBe(true);
   }
@@ -408,20 +409,21 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
   // the sheet's bottom edge. jsdom has no layout, so only this layer can say
   // the list is reachable there (CodeRabbit, PR #222).
   //
-  // Through "A line for every booking" since the plain stop list became "A line
-  // for each…" (PR #221 preview), which lands on days and has no columns until
-  // its settings move it to stops. The booking row is still `stop.rows`, with
-  // its columns in the bind step — the control this walk is about. Its bind
-  // step is one control shorter (no kind), which put the list 2px under the
+  // Through "Still to book" since the plain stop list became "A line for
+  // each…" (PR #221 preview), which lands on days and has no columns until its
+  // settings move it to stops. The booking row is still `stop.rows`, with its
+  // columns in the bind step — the control this walk is about. (It went
+  // through "A line for every booking" until M28 retired that preset, ADR-054;
+  // that bind step, one control shorter, is where the list sat 2px under the
   // sheet body's clipped edge while it still fit the screen: the list now
-  // measures its room inside every clipping ancestor, not the viewport alone.
+  // measures its room inside every clipping ancestor, not the viewport alone.)
   test("the last field picker in the bind step opens a list you can pick from", async ({ page }) => {
     await openTripOverview(page, { bookedStop: "Tram tour" });
 
     await page.getByRole("button", { name: "Insert a widget" }).click();
     const sheet = page.getByRole("dialog");
     await sheet.getByRole("searchbox", { name: "Search widgets" }).fill("booking");
-    await sheet.getByRole("button", { name: /A line for every booking/ }).click();
+    await sheet.getByRole("button", { name: /Still to book/ }).click();
 
     const addColumn = sheet.getByRole("combobox", { name: /add a column/i });
     await addColumn.click();

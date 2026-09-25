@@ -329,13 +329,12 @@ describe("simulatedModel — the ask surface", () => {
             value: {
               ...DAY_READOUT,
               stops: [
-                // `planned` + `ticketed`: needsBooking's one exception to "planned
-                // never counts" (KI-86) — an unbooked ticketed museum genuinely
-                // owes an action.
-                { ...DAY_READOUT.stops[0]!, title: "Museum", kind: "planned", tags: ["ticketed"] },
-                { ...DAY_READOUT.stops[0]!, title: "Ryokan", kind: "booked" },
+                // Since M28 only `pending` counts: the ticketed `planned`
+                // Ryokan does not (the exception M28 removed, ADR-054).
+                { ...DAY_READOUT.stops[0]!, title: "Museum", kind: "pending", tags: ["ticketed"] },
+                { ...DAY_READOUT.stops[0]!, title: "Ryokan", kind: "planned", tags: ["ticketed"] },
                 { ...DAY_READOUT.stops[0]!, title: "Shinkansen", kind: "transit" },
-                { ...DAY_READOUT.stops[0]!, title: "Dinner", kind: "hold" },
+                { ...DAY_READOUT.stops[0]!, title: "Dinner", kind: "pending" },
               ],
             },
           },
@@ -351,12 +350,12 @@ describe("simulatedModel — the ask surface", () => {
       await probe().doGenerate(
         askPrompt({ kind: "day", dayIndex: 2 }, [
           { toolName: "read_trip", value: TRIP_READOUT },
-          { toolName: "read_day", value: { ...DAY_READOUT, stops: [{ ...DAY_READOUT.stops[0]!, kind: "booked" }] } },
+          { toolName: "read_day", value: { ...DAY_READOUT, stops: [{ ...DAY_READOUT.stops[0]!, kind: "planned" }] } },
           { toolName: "find_free_time", value: FREE_READOUT },
         ]),
       ),
     );
-    expect(answer).toContain("Everything on it is either booked or in transit.");
+    expect(answer).toContain("Nothing on it is still pending.");
   });
 
   // Was the fourth dead end: the trip-wide conflict list carries no day, so a

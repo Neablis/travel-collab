@@ -434,9 +434,11 @@ describe("v1 → v2: the widget names become primitives (ADR-039)", () => {
   });
 
   it("turns a name that WAS a filter into that filter", () => {
-    // "A line for every booking" was a widget; booking is `kind: "booked"`, an
+    // "A line for every booking" was a widget; booking was `kind: "booked"`, an
     // enum member that already existed. The name carried the filter, so the
     // migration has to write it down or the page starts listing every stop.
+    // The v3 → v4 step then reads `booked` as `planned` (M28, ADR-054), which
+    // is the kind every one of those stops now has.
     const doc = parsePageDoc({
       type: "doc",
       content: [
@@ -445,7 +447,7 @@ describe("v1 → v2: the widget names become primitives (ADR-039)", () => {
     });
     expect(doc.content[0]).toEqual({
       type: "macro",
-      attrs: { name: "stop.rows", params: { day: { kind: "index", index: 1 }, kind: "booked" } },
+      attrs: { name: "stop.rows", params: { day: { kind: "index", index: 1 }, kind: "planned" } },
     });
   });
 
@@ -474,12 +476,14 @@ describe("v1 → v2: the widget names become primitives (ADR-039)", () => {
   it("lets the name's own filter win over a stray param of the same key", () => {
     // A hand-edited document could carry `kind: "idea"` under `booking.line`,
     // where it meant nothing at all to the old resolver. It must not start
-    // meaning something under the new one.
+    // meaning something under the new one. `planned`, not `pending`: the name
+    // wrote `booked`, which v3 → v4 reads as `planned`; the stray `idea` would
+    // have become `pending`.
     const doc = parsePageDoc({
       type: "doc",
       content: [{ type: "macro", attrs: { name: "booking.line", params: { kind: "idea" } } }],
     });
-    expect(doc.content[0]).toMatchObject({ attrs: { params: { kind: "booked" } } });
+    expect(doc.content[0]).toMatchObject({ attrs: { params: { kind: "planned" } } });
   });
 
   it("leaves a name it does not recognise alone", () => {
@@ -668,15 +672,14 @@ describe("v2 → v3: a repeat's sentence becomes its template", () => {
 
 // M14 field widget, Mitchell's answer 1: a renamed or removed field converts
 // the documents that name it, so a stored page never names a field the
-// manifest lacks. The real `FIELD_CHANGES` is empty — nothing has been renamed
-// — so every case here injects its own table into `pageDocMigrations`, which
+// manifest lacks. Every case here injects its own table into `pageDocMigrations`, which
 // is the same builder the real chain comes from.
 describe("a renamed or removed field converts the documents that read it", () => {
-  const RENAME: FieldChange = { kind: "rename", from: "stop.cost", to: "stop.price", since: 4 };
-  const REMOVE: FieldChange = { kind: "remove", path: "trip.budgetRemaining", label: "Budget left", since: 4 };
-  const REMOVE_DAY_COST: FieldChange = { kind: "remove", path: "trip.days.costSubtotal", label: "Day cost", since: 4 };
+  const RENAME: FieldChange = { kind: "rename", from: "stop.cost", to: "stop.price", since: 5 };
+  const REMOVE: FieldChange = { kind: "remove", path: "trip.budgetRemaining", label: "Budget left", since: 5 };
+  const REMOVE_DAY_COST: FieldChange = { kind: "remove", path: "trip.days.costSubtotal", label: "Day cost", since: 5 };
   const migrations = pageDocMigrations([RENAME, REMOVE, REMOVE_DAY_COST]);
-  const v2 = (content: unknown[]) => PageDoc.parse({ v: 2, type: "doc", content });
+  const v2 = (content: unknown[]) => PageDoc.parse({ v: 3, type: "doc", content });
   const widget = (name: string, params: Record<string, unknown>) => ({ type: "macro", attrs: { name, params } });
   const PLACEHOLDER = { type: "text", text: "(Budget left — no longer available)" };
 
@@ -693,7 +696,7 @@ describe("a renamed or removed field converts the documents that read it", () =>
     );
     const renamed = widget("field", { field: "stop.price", day: { kind: "index", index: 1 } });
     expect(serializePageDoc(doc)).toEqual({
-      v: 4,
+      v: 5,
       type: "doc",
       content: [
         renamed,
@@ -708,7 +711,7 @@ describe("a renamed or removed field converts the documents that read it", () =>
   it("turns a token whose field moved out of the item's fields into plain words, not a dead token", () => {
     // A day's `cities` renamed onto the trip: no day token reaches it, so the
     // sentence says the words instead of printing "{cities}" on every line.
-    const moved = pageDocMigrations([{ kind: "rename", from: "trip.days.cities", to: "trip.dayCities", since: 4 }]);
+    const moved = pageDocMigrations([{ kind: "rename", from: "trip.days.cities", to: "trip.dayCities", since: 5 }]);
     const doc = migratePageDoc(
       v2([{ type: "repeat", attrs: { name: "day.rows", params: { template: "{date}: {cities}" } }, content: [] }]),
       moved,
@@ -732,7 +735,7 @@ describe("a renamed or removed field converts the documents that read it", () =>
       migrations,
     );
     expect(serializePageDoc(doc)).toEqual({
-      v: 4,
+      v: 5,
       type: "doc",
       content: [
         { type: "paragraph", content: [PLACEHOLDER] },
@@ -746,10 +749,10 @@ describe("a renamed or removed field converts the documents that read it", () =>
     // A column is not a widget: the table around it still has everything else
     // the author picked, so only the removed column goes.
     const doc = migratePageDoc(
-      v2([widget("stop.rows", { columns: ["stop.title", "stop.cost", "trip.budgetRemaining"], kind: "booked" })]),
+      v2([widget("stop.rows", { columns: ["stop.title", "stop.cost", "trip.budgetRemaining"], kind: "pending" })]),
       migrations,
     );
-    expect(doc.content).toEqual([widget("stop.rows", { columns: ["stop.title", "stop.price"], kind: "booked" })]);
+    expect(doc.content).toEqual([widget("stop.rows", { columns: ["stop.title", "stop.price"], kind: "pending" })]);
   });
 
   it("leaves widgets on other fields, and widgets with no field, as they were", () => {
@@ -759,35 +762,35 @@ describe("a renamed or removed field converts the documents that read it", () =>
       // A field param that is not a string is not a path this table can match.
       widget("field", { field: { object: "stop" } }),
     ];
-    expect(serializePageDoc(migratePageDoc(v2(content), migrations))).toEqual({ v: 4, type: "doc", content });
+    expect(serializePageDoc(migratePageDoc(v2(content), migrations))).toEqual({ v: 5, type: "doc", content });
   });
 
   it("applies batches in order, so a field can be renamed twice", () => {
     const chain = pageDocMigrations([
-      { kind: "rename", from: "stop.cost", to: "stop.price", since: 4 },
-      { kind: "rename", from: "stop.price", to: "stop.amount", since: 5 },
+      { kind: "rename", from: "stop.cost", to: "stop.price", since: 5 },
+      { kind: "rename", from: "stop.price", to: "stop.amount", since: 6 },
     ]);
-    // A page written at v3 takes both steps; one written at v4 already says
+    // A page written at v4 takes both steps; one written at v5 already says
     // `stop.price` and takes only the second.
-    for (const [v, field] of [[3, "stop.cost"], [4, "stop.price"]] as const) {
+    for (const [v, field] of [[4, "stop.cost"], [5, "stop.price"]] as const) {
       const doc = migratePageDoc(PageDoc.parse({ v, type: "doc", content: [widget("field", { field })] }), chain);
-      expect(doc, `from v${v}`).toEqual({ v: 5, type: "doc", content: [widget("field", { field: "stop.amount" })] });
+      expect(doc, `from v${v}`).toEqual({ v: 6, type: "doc", content: [widget("field", { field: "stop.amount" })] });
     }
   });
 
   it("bumps the version once per batch, not once per entry", () => {
     // Three entries, two batches: two new versions.
-    const chain = pageDocMigrations([RENAME, REMOVE, { kind: "rename", from: "trip.name", to: "trip.title", since: 5 }]);
+    const chain = pageDocMigrations([RENAME, REMOVE, { kind: "rename", from: "trip.name", to: "trip.title", since: 6 }]);
     expect(chain.length).toBe(pageDocMigrations([]).length + 2);
     // The real table follows the same rule.
-    expect(CURRENT_PAGE_DOC_VERSION).toBe(3 + new Set(FIELD_CHANGES.map((change) => change.since)).size);
+    expect(CURRENT_PAGE_DOC_VERSION).toBe(4 + new Set(FIELD_CHANGES.map((change) => change.since)).size);
   });
 
   it("refuses a table whose batches do not follow on from the chain before them", () => {
-    // A batch at v5 with no v4 would leave v4 undefined; one at v3 would join
-    // a version that already shipped, which a v3 document never runs again.
-    expect(() => pageDocMigrations([{ ...RENAME, since: 5 }])).toThrow(/since 4/);
-    expect(() => pageDocMigrations([{ ...RENAME, since: 3 }])).toThrow(/since 4/);
+    // A batch at v6 with no v5 would leave v5 undefined; one at v4 would join
+    // a version that already shipped, which a v4 document never runs again.
+    expect(() => pageDocMigrations([{ ...RENAME, since: 6 }])).toThrow(/since 5/);
+    expect(() => pageDocMigrations([{ ...RENAME, since: 4 }])).toThrow(/since 5/);
   });
 
   it("still instantiates a template snapshotted before the field moved", () => {

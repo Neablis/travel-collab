@@ -70,7 +70,7 @@ describe("sentenceLine — one line per item", () => {
     const date = (iso: string) => formatKind("date", iso, { currency: "USD" });
     // Day 3 has no date: a visible gap, not a sentence that closes up around it.
     expect(linesOf(ctx, "day.rows", "On {date}")).toEqual([`On ${date("2027-06-01")}`, `On ${date("2027-06-02")}`, `On ${SENTENCE_NO_VALUE}`]);
-    expect(linesOf(ctx, "stop.rows", "{title} ({kind})", { kind: "booked" })).toHaveLength(2);
+    expect(linesOf(ctx, "stop.rows", "{title} ({kind})", { kind: "pending" })).toHaveLength(2);
   });
 
   // #221 preview: the "Trip day" detail printed "0" on the first day, because
@@ -97,7 +97,7 @@ describe("sentenceLine — one line per item", () => {
       `${SENTENCE_NO_VALUE} in Rome, ${SENTENCE_NO_VALUE}`,
       `${SENTENCE_NO_VALUE} in Kyoto, ${SENTENCE_NO_VALUE}`,
     ]);
-    expect(linesOf(ctx, "stop.rows", "{cities}", { kind: "booked" })).toEqual([SENTENCE_NO_VALUE, SENTENCE_NO_VALUE]);
+    expect(linesOf(ctx, "stop.rows", "{cities}", { kind: "pending" })).toEqual([SENTENCE_NO_VALUE, SENTENCE_NO_VALUE]);
   });
 
   it("prints a template of only tokens as the values alone", () => {
@@ -128,13 +128,13 @@ describe("sentenceLine — one line per item", () => {
     ["ten thousand characters", "x".repeat(10_000)],
   ])("a stop named with %s prints its name, never re-read as a template", (_label, title) => {
     const { ctx, ids } = ctxOf();
-    const lines = linesOf(withTitle(ctx, ids.s0, title), "stop.rows", "«{title}»", { kind: "booked" });
+    const lines = linesOf(withTitle(ctx, ids.s0, title), "stop.rows", "«{title}»", { kind: "pending" });
     expect(lines[0]).toBe(`«${title}»`);
   });
 
   it("a value that spells another token beside that token prints both, each once", () => {
     const { ctx, ids } = ctxOf();
-    const [line] = linesOf(withTitle(ctx, ids.s0, "{cost}"), "stop.rows", "{title} / {cost}", { kind: "booked" });
+    const [line] = linesOf(withTitle(ctx, ids.s0, "{cost}"), "stop.rows", "{title} / {cost}", { kind: "pending" });
     expect(line!.startsWith("{cost} / ")).toBe(true);
     expect(line!.slice("{cost} / ".length)).not.toContain("{");
   });

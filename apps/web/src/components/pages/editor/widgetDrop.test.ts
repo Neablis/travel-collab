@@ -47,10 +47,9 @@ describe("dropping a widget onto the page", () => {
   it("builds the dropped preset through insertWidget, at the position dropped on", () => {
     const { view, dispatch } = stubView({ pos: 7 });
     // The payload is a PRESET id — what the picker row carries — and what lands
-    // in the document is the primitive it resolves to. `booking.line` is the
-    // sharpest case: the id is a retired widget name, and the node is
-    // `stop.rows` with the filter that name used to mean.
-    const event = dragEvent({ data: "booking.line" });
+    // in the document is the primitive it resolves to: "Still to book" is
+    // `stop.rows` with the one param that applies the booking rule.
+    const event = dragEvent({ data: "still-to-book" });
 
     expect(handleWidgetDrop(view, event)).toBe(true);
     expect(event.preventDefault).toHaveBeenCalled();
@@ -61,7 +60,7 @@ describe("dropping a widget onto the page", () => {
     expect(at).toBe(7);
     expect(node.type.name).toBe("macro");
     expect(node.attrs.name).toBe("stop.rows");
-    expect(node.attrs.params).toEqual({ kind: "booked" });
+    expect(node.attrs.params).toEqual({ only: "needsBooking" });
   });
 
   // A repeat is a BLOCK, so a drop point inside a sentence must not become a

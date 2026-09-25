@@ -121,12 +121,15 @@ describe("presets and the document migration agree", () => {
     // used to do — and `account.homeAirport` surfaced all four `attribute`
     // presets (Copilot, PR 141).
     const aliasesOf = (id: string) => presetCatalog().find((e) => e.name === id)!.aliases;
-    expect(aliasesOf("booking.line")).toEqual(["booking.line"]);
+    // Since M28 no preset IS `booking.line`'s combination (`booked` is
+    // retired, ADR-054). It goes to the filtered row left on `stop.rows`,
+    // "Still to book" — never to "A line for each…" as well, which is the
+    // over-grouping this test exists to stop.
+    expect(aliasesOf("still-to-book")).toEqual(["booking.line"]);
     // The three plain tables are one row now, "A line for each…", and it is
     // each of their retired names — never "Still to book", the other preset
     // on `stop.rows`, which is a filter `stop.line` never meant.
     expect([...aliasesOf("line")].sort()).toEqual(["city.line", "day.line", "stop.line"]);
-    expect(aliasesOf("still-to-book")).toEqual([]);
     expect(aliasesOf("account.homeAirport")).toEqual(["account.homeAirport"]);
     expect(aliasesOf("account.name")).toEqual(["account.name"]);
     // A pair that genuinely collapsed onto one preset keeps BOTH names, which
@@ -134,8 +137,7 @@ describe("presets and the document migration agree", () => {
     // the same widget with and without a day.
     expect([...aliasesOf("cost")].sort()).toEqual(["cost.day", "cost.trip"]);
     // And a preset nothing migrates to has none rather than borrowing any.
-    expect(aliasesOf("count.booked")).toEqual([]);
-    expect(aliasesOf("day.detail.booked")).toEqual([]);
+    expect(aliasesOf("count.pending")).toEqual([]);
   });
 
   it("lists every retired name as a search alias of the preset it became", () => {
@@ -176,19 +178,19 @@ describe("presets and the document migration agree", () => {
 
 describe("insertPreset", () => {
   it("inserts the primitive with the preset's own filters", () => {
-    expect(insertPreset("booking.line")).toEqual({
+    expect(insertPreset("count.pending")).toEqual({
       ok: true,
-      node: { type: "macro", attrs: { name: "stop.rows", params: { kind: "booked" } } },
+      node: { type: "macro", attrs: { name: "count", params: { kind: "pending" } } },
     });
   });
 
   it("lets a binding made at insert time win over the preset's", () => {
     // ADR-039 decision 4: *"rebinding a preset away from its params is not an
     // error state. It is just the general widget, which is what it always
-    // was."* An author who picks "A line for every booking" and then chooses a
-    // different kind gets that kind, not a refusal.
-    const result = insertPreset("booking.line", { kind: "idea" });
-    expect(result.ok && result.node.attrs.params).toEqual({ kind: "idea" });
+    // was."* An author who picks "How many are still to book" and then chooses
+    // a different kind gets that kind, not a refusal.
+    const result = insertPreset("count.pending", { kind: "transit" });
+    expect(result.ok && result.node.attrs.params).toEqual({ kind: "transit" });
   });
 
   it("goes through the one insert path, so a bad binding is still refused", () => {
@@ -201,23 +203,23 @@ describe("insertPreset", () => {
 
   it("refuses a non-record override instead of spreading it away", () => {
     // `{ ...preset.params, ...null }` is a silent no-op, so this used to come
-    // back `ok` carrying the preset's own `{ kind: "booked" }` — the caller's
+    // back `ok` carrying the preset's own `{ kind: "pending" }` — the caller's
     // input discarded by the path whose job is to refuse it (CodeRabbit, PR
     // 141). It is the same hole `insertWidget` closed on PR 139, reopened by
     // the spread one layer up, which is why the assertion is that BOTH doors
     // give the same answer rather than merely that this one refuses.
-    const throughPreset = insertPreset("booking.line", null);
+    const throughPreset = insertPreset("count.pending", null);
     expect(throughPreset.ok).toBe(false);
     expect(!throughPreset.ok && throughPreset.error.reason).toBe("bad-params");
-    expect(insertWidget("stop.rows", null).ok).toBe(false);
+    expect(insertWidget("count", null).ok).toBe(false);
   });
 
   it("inserts Still to book as `stop.rows` narrowed by the booking rule, and it renders that list", () => {
     // M14 link 11: the widget reads `needsBooking`, not a second rule — so the
     // preset is the primitive plus the one param that applies the rule, and
     // what it renders is exactly the stops the rule flags. On the selection
-    // trip those are the two `idea` stops; every other stop is booked,
-    // transit, or an untagged `planned`.
+    // trip those are the two `pending` stops; every other stop is `planned` or
+    // `transit`.
     const result = insertPreset("still-to-book");
     expect(result).toEqual({
       ok: true,
@@ -226,20 +228,20 @@ describe("insertPreset", () => {
     const outcome = renderMacro(contextOf(selectionTrip()), "stop.rows", result.ok ? result.node.attrs.params : {});
     if (outcome.status !== "ok" || outcome.rendered.kind !== "rows") throw new Error(`not rows: ${outcome.status}`);
     expect(outcome.rendered.rows.map((row) => row.lead.map((s) => s.text).join(""))).toEqual([
-      "Day 3", "Maybe a hike", "Unscheduled", "Souvenirs",
+      "Day 1", "Colosseum", "Day 2", "Ryokan",
     ]);
   });
 
   it("offers the three plain tables as ONE row, which inserts a line for each day", () => {
     // Mitchell, #221 preview: *"We combined a 'Sentence for every ...' and added
     // a picker for type, can we do the same for 'A line for every....'?"*. Only
-    // the unfiltered tables collapse; the booking and still-to-book shortcuts
-    // keep their rows, since each is a filter worth naming.
+    // the unfiltered tables collapse; the still-to-book shortcut keeps its row,
+    // since it is a filter worth naming.
     const tables = PRESETS.filter((p) => !p.repeat && presetWidgets(p).some((w) => ["day.rows", "city.rows"].includes(w) || (w === "stop.rows" && Object.keys(p.params).length === 0)));
     expect(tables.map((p) => p.id)).toEqual(["line"]);
     expect(insertPreset("line")).toEqual({ ok: true, node: { type: "macro", attrs: { name: "day.rows", params: {} } } });
     expect([...presetWidgets(getPreset("line")!)].sort()).toEqual(["city.rows", "day.rows", "stop.rows"]);
-    expect(PRESETS.map((p) => p.id)).toEqual(expect.arrayContaining(["booking.line", "still-to-book"]));
+    expect(PRESETS.map((p) => p.id)).toEqual(expect.arrayContaining(["count.pending", "still-to-book"]));
   });
 
   it("refuses an unknown preset id with the same typed reason", () => {
@@ -281,14 +283,14 @@ describe("presetCatalog", () => {
   });
 
   it("offers a control for every dimension the preset has not already answered", () => {
-    // A preset that fixes `kind: "booked"` is "a line for every booking";
+    // A preset that fixes `kind: "pending"` is "how many are still to book";
     // offering a kind select beside it invites the author to turn it into
     // something its own title contradicts. The dimension is still reachable —
     // that is what the unfiltered preset is for — but the row a person picked
     // by name should not immediately offer to unpick it.
-    const booking = presetCatalog().find((e) => e.name === "booking.line")!;
-    expect(booking.inputs.map((i) => i.name)).not.toContain("kind");
-    expect(booking.inputs.map((i) => i.name)).toContain("day");
+    const pending = presetCatalog().find((e) => e.name === "count.pending")!;
+    expect(pending.inputs.map((i) => i.name)).not.toContain("kind");
+    expect(pending.inputs.map((i) => i.name)).toContain("day");
     // The unfiltered table is "A line for each…": it lands on days, and its
     // settings panel moves it to stops, where the kind control is.
     expect(presetWidgets(getPreset("line")!)).toContain("stop.rows");

@@ -445,7 +445,7 @@ describe("CalendarLens", () => {
         title: string,
         city: string | null,
         window: { start: string; end: string },
-        kind: "planned" | "booked" | "hold" | "idea" | "transit",
+        kind: "planned" | "pending" | "transit",
         costMinor: number | null = null,
       ) => ({
         activityId: id,
@@ -467,10 +467,10 @@ describe("CalendarLens", () => {
         startDate: "2027-06-01",
         days: [{ dayId: day1, activityIds: [rome, forum, flight], date: "2027-06-01", costSubtotal: 0 }],
         activities: {
-          [rome]: activity(rome, "Dinner", "Rome", { start: "07:00", end: "07:40" }, "hold"),
+          [rome]: activity(rome, "Dinner", "Rome", { start: "07:00", end: "07:40" }, "pending"),
           [forum]: activity(forum, "Train to Florence", "Florence", { start: "08:20", end: "10:35" }, "transit"),
           // Priced so the accessible name's money segment is enforced, not merely claimed.
-          [flight]: activity(flight, "Uffizi", "Florence", { start: "14:00", end: "16:00" }, "idea", 2500),
+          [flight]: activity(flight, "Uffizi", "Florence", { start: "14:00", end: "16:00" }, "pending", 2500),
         },
       });
     }
@@ -496,7 +496,7 @@ describe("CalendarLens", () => {
 
     it("renders no flag at all on a card where nothing needs booking", () => {
       const detail = travelDayDetail();
-      detail.activities[rome]!.kind = "booked";
+      detail.activities[rome]!.kind = "planned";
       renderLens(detail);
       // Rome is settled, so only Florence's card carries a flag.
       expect(screen.getAllByTestId("calendar-to-book").map((f) => f.textContent)).toEqual(["1 to book"]);

@@ -5,12 +5,15 @@ const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 const A1 = "7d9a1f8e-0000-4000-8000-0000000000a1";
 
 describe("M18 kind & tags contracts", () => {
-  it("ActivityKind accepts the five workflow states and rejects anything else", () => {
-    for (const k of ["booked", "hold", "idea", "transit", "planned"]) {
+  it("ActivityKind accepts the three workflow states and rejects anything else", () => {
+    for (const k of ["planned", "pending", "transit"]) {
       expect(ActivityKind.parse(k)).toBe(k);
     }
     expect(() => ActivityKind.parse("considering")).toThrow();
-    expect(() => ActivityKind.parse("Booked")).toThrow();
+    expect(() => ActivityKind.parse("Pending")).toThrow();
+    // M28 retired these (ADR-054). The write vocabulary refuses them; only a
+    // stored shape reads them back (m28-three-kinds.test.ts).
+    for (const k of ["booked", "hold", "idea"]) expect(() => ActivityKind.parse(k)).toThrow();
   });
 
   it("ActivityTag is the closed four-value vocabulary — considering/travel are kinds, not tags", () => {
@@ -25,10 +28,10 @@ describe("M18 kind & tags contracts", () => {
   it("AddActivity carries kind and tags, both optional", () => {
     const full = TripCommand.parse({
       type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den",
-      kind: "booked", tags: ["meal"],
+      kind: "pending", tags: ["meal"],
     });
     if (full.type !== "AddActivity") throw new Error("wrong type");
-    expect(full.kind).toBe("booked");
+    expect(full.kind).toBe("pending");
     expect(full.tags).toEqual(["meal"]);
 
     const bare = TripCommand.parse({ type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den" });
@@ -136,10 +139,10 @@ describe("a projection document written before M18 still reads", () => {
   it("still does not invent a kind that was explicitly stored", () => {
     const stored = {
       ...legacyDoc,
-      activities: { [ACT]: { ...legacyDoc.activities[ACT], kind: "booked", tags: ["meal"] } },
+      activities: { [ACT]: { ...legacyDoc.activities[ACT], kind: "pending", tags: ["meal"] } },
     };
     const detail = TripDetail.parse(stored);
-    expect(detail.activities[ACT]!.kind).toBe("booked");
+    expect(detail.activities[ACT]!.kind).toBe("pending");
     expect(detail.activities[ACT]!.tags).toEqual(["meal"]);
   });
 });

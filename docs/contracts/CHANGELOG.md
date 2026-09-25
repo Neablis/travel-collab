@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-25 — three activity kinds: `planned`, `pending`, `transit` (M28)
+
+- **Changed:** `ActivityKind` is `planned | pending | transit` (was
+  `booked | hold | idea | transit | planned`). It is the write vocabulary:
+  `AddActivity.kind`, `UpdateActivity.kind` and `KindRef` refuse a retired kind.
+- **Added:** `RETIRED_ACTIVITY_KINDS` (`idea → pending`, `hold → pending`,
+  `booked → planned`), `readActivityKind`, and `StoredActivityKind` — the enum behind a
+  `z.preprocess` that translates a retired kind on the way in. Used by
+  `ActivitySnapshot` (so `ActivityAddedV1`/`ActivityUpdatedV1` payloads and replay),
+  `ActivityView`, `SavedStop`, and `@tc/fixtures`' `BundleStop`.
+- **Added:** page-document v3 → v4 step: a widget's `params.kind` that names a retired
+  kind is rewritten to its replacement. `CURRENT_PAGE_DOC_VERSION` is 5.
+- **Removed:** `TripGlobals.bookedCount`, with a `FIELD_CHANGES` removal of
+  `trip.bookedCount` (`since: 5`), so a page that printed it shows a placeholder.
+- **Changed:** `unwrapSchema` / `annotationOf` see through a `z.preprocess` wrapper (and
+  only that), so the manifest publishes `stop.kind` with the three values.
+- Why: Mitchell, 2026-09-25 — the five kinds were more UI than the distinctions were worth
+  (ADR-054, `docs/milestones/M28-three-kinds.md`).
+- Consumers updated: `@tc/domain` tests; `@tc/pages` (labels, `needsBooking` is now
+  `pending`, presets and templates, the `stop.rows` empty sentence);
+  `@tc/fixtures` (Japan fixture and its kind overrides, the drift test reading the
+  export through `readActivityKind`, starter days, bundle schema); `content/**` rewritten
+  to the three; `apps/web` (badges, the kind picker, the create-mode and assistant default
+  `pending`, trip globals, the simulated model, the regenerated OpenAPI document).
+- **Breaking?** For writers, yes: a command or API body sending `idea`, `hold` or `booked`
+  is now a 400. For stored data, no: every stored shape still reads, with the retired kind
+  translated. No database migration.
+
 ## 2026-09-25 — `mode` and `endLocation` on a transit stop (M24 links 1 and 2)
 
 - **Added:** `ActivityMode` (`walk | bus | train | flight | ferry | car | bike`, ADR-053),

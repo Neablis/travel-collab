@@ -206,7 +206,7 @@ describe("buildProposal", () => {
         activityId: "00000000-0000-4000-8000-000000000001",
         dayId: DAY_ID,
         title: "Gelato",
-        kind: "hold",
+        kind: "pending",
       },
       { type: "MoveActivity", tripId: TRIP_ID, activityId: COLOSSEUM_ID, toDayId: null, position: 0 },
     ]);
@@ -271,19 +271,20 @@ describe("buildProposal", () => {
   });
 
   // KI-86 addendum, Mitchell 2026-08-29: a created stop the model said
-  // nothing about defaults to `hold`, not the domain's `planned` zero value.
-  it("defaults an AddActivity with no stated kind to hold", () => {
+  // nothing about defaults to `pending` (`hold` until M28), not the domain's
+  // `planned` zero value.
+  it("defaults an AddActivity with no stated kind to pending", () => {
     const proposal = propose([{ type: "AddActivity", args: { title: "Gelato", dayRef: "day 1" } }]);
     const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "AddActivity" }>;
-    expect(command.kind).toBe("hold");
+    expect(command.kind).toBe("pending");
   });
 
-  it("keeps a kind the model DID state, rather than overriding it to hold", () => {
+  it("keeps a kind the model DID state, rather than overriding it to pending", () => {
     const proposal = propose([
-      { type: "AddActivity", args: { title: "Gelato", dayRef: "day 1", kind: "idea" } },
+      { type: "AddActivity", args: { title: "Gelato", dayRef: "day 1", kind: "planned" } },
     ]);
     const command = proposal!.commands[0] as Extract<BatchableCommand, { type: "AddActivity" }>;
-    expect(command.kind).toBe("idea");
+    expect(command.kind).toBe("planned");
   });
 
   // M24. The contract unions read a kindless AddActivity as `planned` and refuse
@@ -520,7 +521,7 @@ describe("withDefaultKind", () => {
       dayId: DAY_ID,
       title: "Gelato",
     } as BatchableCommand;
-    expect(withDefaultKind(command)).toMatchObject({ kind: "hold" });
+    expect(withDefaultKind(command)).toMatchObject({ kind: "pending" });
   });
 
   it("leaves a stated kind alone", () => {
@@ -530,7 +531,7 @@ describe("withDefaultKind", () => {
       activityId: "bbbbbbbb-1111-4222-8333-444455556666",
       dayId: DAY_ID,
       title: "Gelato",
-      kind: "booked",
+      kind: "planned",
     } as BatchableCommand;
     expect(withDefaultKind(command)).toEqual(command);
   });
@@ -598,7 +599,7 @@ describe("parseApprovedCommands", () => {
     );
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect((parsed.commands[0] as { kind?: unknown }).kind).toBe("hold");
+    expect((parsed.commands[0] as { kind?: unknown }).kind).toBe("pending");
   });
 
   it("reads a kindless AddActivity that names a travel leg as transit at this door too", () => {

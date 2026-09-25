@@ -87,7 +87,7 @@ const source = (over: Record<string, unknown> = {}) =>
                 timeWindow: { start: "09:00", end: "11:30" },
                 location: { name: "Fushimi Inari Taisha", lat: 34.9671, lng: 135.7727, city: "Kyoto", countryCode: "JP" },
                 notes: "Go early, the gates are empty before nine.",
-                kind: "booked",
+                kind: "pending",
                 tags: ["outdoors"],
                 cost: { amountMinor: 0, currency: "JPY" },
               }),
@@ -106,7 +106,7 @@ const source = (over: Record<string, unknown> = {}) =>
             // A day LABEL, which the product has nowhere to store — see the
             // round-trip test for what that costs and why it is not a defect.
             label: "Bamboo and the west side",
-            stops: [stop({ title: "Arashiyama", kind: "idea", tags: ["outdoors", "meal"] })],
+            stops: [stop({ title: "Arashiyama", kind: "pending", tags: ["outdoors", "meal"] })],
           },
         ],
         backlog: [stop({ title: "Nishiki Market", notes: "If there is time." })],

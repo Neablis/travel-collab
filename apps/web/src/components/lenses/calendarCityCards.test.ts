@@ -149,16 +149,16 @@ describe("calendarCityCards", () => {
     expect(cards[1]!.window).toEqual({ start: "11:00", end: "16:00" });
   });
 
-  // The `N to book` rule, narrower than SPEC §12's literal "every stop whose
-  // kind is neither `booked` nor `transit`" — that wording flagged 50 of the
-  // Japan fixture's 72 stops, including every coffee and every free shrine.
-  // Mitchell, 2026-08-29. See `lib/needsBooking.ts` for the full reasoning.
+  // The `N to book` rule: the `pending` stops (M28, ADR-054). Narrower than
+  // SPEC §12's literal "every stop whose kind is neither `booked` nor
+  // `transit`" — that wording flagged 50 of the Japan fixture's 72 stops,
+  // including every coffee and every free shrine. See `needsBooking`.
   describe("the unbooked count", () => {
-    it("counts hold and idea, which a user set deliberately to mean unsettled", () => {
+    it("counts pending, which a user set deliberately to mean unsettled", () => {
       const { day, activities } = dayOf([
-        stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "booked"),
-        stop("maybe", "Kyoto", { start: "17:00", end: "18:00" }, undefined, "idea"),
-        stop("dinner", "Kyoto", { start: "19:00", end: "21:00" }, undefined, "hold"),
+        stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "planned"),
+        stop("maybe", "Kyoto", { start: "17:00", end: "18:00" }, undefined, "pending"),
+        stop("dinner", "Kyoto", { start: "19:00", end: "21:00" }, undefined, "pending"),
       ]);
 
       expect(calendarCityCards(day, activities)[0]!.toBook).toBe(2);
@@ -175,20 +175,11 @@ describe("calendarCityCards", () => {
       expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
     });
 
-    it("DOES count a `planned` stop tagged `ticketed` — the tag's own designed power", () => {
-      // The handoff's TAGS table: "Ticketed — Wants a booking date. The
-      // assistant keeps asking until there is one."
+    // It used to: `ticketed` counted a `planned` stop until M28 retired
+    // `booked`, which was where a ticketed stop went once settled (ADR-054).
+    it("does not count a ticketed stop that is not pending", () => {
       const { day, activities } = dayOf([
         stop("museum", "Kyoto", { start: "10:00", end: "12:00" }, undefined, "planned", ["ticketed"]),
-        stop("coffee", "Kyoto", { start: "13:00", end: "13:30" }, undefined, "planned", ["meal"]),
-      ]);
-
-      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(1);
-    });
-
-    it("does not count a ticketed stop that is already booked", () => {
-      const { day, activities } = dayOf([
-        stop("museum", "Kyoto", { start: "10:00", end: "12:00" }, undefined, "booked", ["ticketed"]),
       ]);
 
       expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
@@ -196,7 +187,7 @@ describe("calendarCityCards", () => {
 
     it("is zero, not null, when nothing on the day needs booking", () => {
       const { day, activities } = dayOf([
-        stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "booked"),
+        stop("hotel", "Kyoto", { start: "15:00", end: "16:00" }, undefined, "planned"),
         transit("bus", "Kyoto", { start: "14:00", end: "14:40" }),
       ]);
 
@@ -205,10 +196,10 @@ describe("calendarCityCards", () => {
 
     it("counts per card, so a travel day's two cities each carry their own", () => {
       const { day, activities } = dayOf([
-        stop("breakfast", "Tokyo", { start: "07:00", end: "07:40" }, undefined, "idea"),
+        stop("breakfast", "Tokyo", { start: "07:00", end: "07:40" }, undefined, "pending"),
         transit("shinkansen", "Kyoto", { start: "08:20", end: "10:35" }),
-        stop("lunch", "Kyoto", { start: "12:00", end: "13:00" }, undefined, "booked"),
-        stop("temple", "Kyoto", { start: "15:00", end: "17:00" }, undefined, "hold"),
+        stop("lunch", "Kyoto", { start: "12:00", end: "13:00" }, undefined, "planned"),
+        stop("temple", "Kyoto", { start: "15:00", end: "17:00" }, undefined, "pending"),
       ]);
 
       const cards = calendarCityCards(day, activities);

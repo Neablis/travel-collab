@@ -19,7 +19,7 @@
       "description": "The whole trip in one place — the why, the shape, the money.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 3,
+        "v": 5,
         "type": "doc",
         "content": [
           {
@@ -94,7 +94,7 @@
       "description": "One day, close up. Times, reservations, notes for the group.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 3,
+        "v": 5,
         "type": "doc",
         "content": [
           {
@@ -148,7 +148,7 @@
       "description": "One day, built out of the plan — every stop, what it costs, what is still loose.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 3,
+        "v": 5,
         "type": "doc",
         "content": [
           {
@@ -235,32 +235,6 @@
             "content": [
               {
                 "type": "text",
-                "text": "Booked"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "stop.rows",
-                  "params": {
-                    "kind": "booked"
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
                 "text": "Still to sort"
               }
             ]
@@ -282,7 +256,7 @@
                 "attrs": {
                   "name": "stop.rows",
                   "params": {
-                    "kind": "hold"
+                    "kind": "pending"
                   }
                 }
               }
@@ -297,7 +271,7 @@
       "description": "Every day, every city and every cost, laid out end to end.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 3,
+        "v": 5,
         "type": "doc",
         "content": [
           {
@@ -500,7 +474,7 @@
       "description": "Every meal on the trip, what it costs, and which ones still need a table.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 3,
+        "v": 5,
         "type": "doc",
         "content": [
           {
@@ -550,7 +524,7 @@
               },
               {
                 "type": "text",
-                "text": " · Booked: "
+                "text": " · Still to book: "
               },
               {
                 "type": "macro",
@@ -558,7 +532,7 @@
                   "name": "count",
                   "params": {
                     "tag": "meal",
-                    "kind": "booked"
+                    "kind": "pending"
                   }
                 }
               }
@@ -572,7 +546,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "Booked"
+                "text": "Every meal"
               }
             ]
           },
@@ -581,7 +555,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "Tables that exist. Confirmation numbers go in the stop's notes, not here."
+                "text": "Confirmation numbers go in the stop's notes, not here."
               }
             ]
           },
@@ -593,8 +567,7 @@
                 "attrs": {
                   "name": "stop.rows",
                   "params": {
-                    "tag": "meal",
-                    "kind": "booked"
+                    "tag": "meal"
                   }
                 }
               }
@@ -617,7 +590,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "The ones that need a phone call. A restaurant that takes reservations a month out is a stop that should be booked, not held."
+                "text": "The ones that need a phone call, and the places somebody mentioned. Move one onto a day when it earns a slot."
               }
             ]
           },
@@ -630,43 +603,7 @@
                   "name": "stop.rows",
                   "params": {
                     "tag": "meal",
-                    "kind": "hold"
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Ideas"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "Places somebody mentioned. Move one onto a day when it earns a slot."
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "stop.rows",
-                  "params": {
-                    "tag": "meal",
-                    "kind": "idea"
+                    "kind": "pending"
                   }
                 }
               }
@@ -718,10 +655,10 @@
     {
       "key": "bookings-and-confirmations",
       "title": "Bookings",
-      "description": "Everything that is confirmed, in one list — flights, rooms, tickets, tables.",
+      "description": "What still needs booking, where you sleep, and how you get between places.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 3,
+        "v": 5,
         "type": "doc",
         "content": [
           {
@@ -732,7 +669,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "Confirmed"
+                "text": "Still to book"
               }
             ]
           },
@@ -741,14 +678,14 @@
             "content": [
               {
                 "type": "text",
-                "text": "Booked: "
+                "text": "Pending: "
               },
               {
                 "type": "macro",
                 "attrs": {
                   "name": "count",
                   "params": {
-                    "kind": "booked"
+                    "kind": "pending"
                   }
                 }
               },
@@ -777,7 +714,7 @@
                 "attrs": {
                   "name": "stop.rows",
                   "params": {
-                    "kind": "booked"
+                    "kind": "pending"
                   }
                 }
               }
@@ -852,42 +789,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "Not booked yet"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "On hold — held in the plan, not held by anybody."
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "stop.rows",
-                  "params": {
-                    "kind": "hold"
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "What is already paid for"
+                "text": "What it all costs"
               }
             ]
           },
@@ -898,9 +800,7 @@
                 "type": "macro",
                 "attrs": {
                   "name": "cost",
-                  "params": {
-                    "kind": "booked"
-                  }
+                  "params": {}
                 }
               }
             ]
@@ -914,7 +814,7 @@
       "description": "The list that stops a trip starting badly — packing, documents, the first day.",
       "seedIntoNewTrips": false,
       "content": {
-        "v": 3,
+        "v": 5,
         "type": "doc",
         "content": [
           {
@@ -1120,7 +1020,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "Arriving tired is the single most common way a good plan comes apart. What is already booked for day one:"
+                "text": "Arriving tired is the single most common way a good plan comes apart. What day one holds:"
               }
             ]
           },
@@ -1135,8 +1035,7 @@
                     "day": {
                       "kind": "index",
                       "index": 0
-                    },
-                    "kind": "booked"
+                    }
                   }
                 }
               }

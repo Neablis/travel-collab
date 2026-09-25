@@ -22,7 +22,7 @@ function travelTrip(): TripDetail {
     ],
     activities: {
       a1: stop("a1", "Tokyo", "09:00"),
-      a2: stop("a2", "Tokyo", "12:00", { tags: ["meal"], kind: "booked" }),
+      a2: stop("a2", "Tokyo", "12:00", { tags: ["meal"], kind: "pending" }),
       // The travel day: starts in Tokyo, ends in Kyoto.
       a3: stop("a3", "Tokyo", "09:00"),
       a4: stop("a4", "Kyoto", "18:00", { tags: ["meal", "lodging"] }),
@@ -64,14 +64,15 @@ describe("buildTripGlobals", () => {
     expect(g.tags.find((t) => t.tag === "outdoors")).toBeUndefined();
   });
 
-  it("counts booked stops", () => {
-    expect(buildTripGlobals(travelTrip()).bookedCount).toBe(1);
+  // M28 retired `booked` (ADR-054), and with it the one count built on it.
+  it("no longer carries a booked count", () => {
+    expect(buildTripGlobals(travelTrip())).not.toHaveProperty("bookedCount");
   });
 
   it("reports empty collections for a trip with nothing in it, rather than failing", () => {
     const bare = { ...tripDetailFixture(), days: [], activities: {} } as TripDetail;
     const g = buildTripGlobals(bare);
-    expect(g).toEqual({ days: [], cities: [], tags: [], bookedCount: 0, homeTimeZone: null });
+    expect(g).toEqual({ days: [], cities: [], tags: [], homeTimeZone: null });
   });
 });
 

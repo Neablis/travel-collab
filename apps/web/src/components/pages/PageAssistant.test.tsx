@@ -109,7 +109,7 @@ const server = setupServer(
   // lane's unhandled-request errors.
   makeAccountPlanHandler(),
   http.get("/api/trips/:tripId/globals", () =>
-    HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
+    HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
   ),
   // The page reads the trip's head off its history, for live chips.
   http.get("/api/trips/:tripId/history", ({ params }) =>

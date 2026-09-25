@@ -395,12 +395,12 @@ describe("NextTripHero", () => {
     expect(screen.queryByText(/not booked/)).toBeNull();
   });
 
-  // It counts stops whose kind is neither `booked` nor `transit` — the same
-  // predicate the Calendar's `N to book` flag uses, so the hero and the
-  // Calendar can never disagree about one trip (M18).
+  // It counts the `pending` stops — the same predicate the Calendar's `N to
+  // book` flag uses (`needsBooking`), so the hero and the Calendar can never
+  // disagree about one trip (M18; the rule is "pending" since M28).
   it("counts the trip's unbooked stops in the actionable line", async () => {
     const trip = tripSummaryFixture();
-    const stop = (id: string, kind: "planned" | "booked" | "hold" | "idea" | "transit", tags: ("meal" | "lodging" | "ticketed" | "outdoors")[] = []) => ({
+    const stop = (id: string, kind: "planned" | "pending" | "transit", tags: ("meal" | "lodging" | "ticketed" | "outdoors")[] = []) => ({
       activityId: id,
       title: id,
       timeWindow: null,
@@ -419,27 +419,26 @@ describe("NextTripHero", () => {
       ok: true,
       value: tripDetailFixture({
         tripId: trip.tripId,
-        // Every one of the five kinds, so a regression that stops counting any
-        // single one fails here. `hold` in particular was missing while the
-        // expected value was 2, and dropping it would still have read 2.
+        // Every one of the three kinds, twice for `pending`, so a regression
+        // that counts one pending stop and not another fails here.
         days: [{ dayId: "d1", activityIds: ["a", "b", "c", "d", "e", "f"], date: "2027-06-01", costSubtotal: 0 }],
         activities: {
-          a: stop("a", "booked"),
+          a: stop("a", "planned"),
           b: stop("b", "transit"),
-          c: stop("c", "idea"),
+          c: stop("c", "pending"),
           // A plain `planned` stop does NOT count — the default is not a
-          // decision. Tagged `ticketed`, it does.
+          // decision. Nor, since M28, does a ticketed one (ADR-054).
           d: stop("d", "planned"),
-          e: stop("e", "hold"),
+          e: stop("e", "pending"),
           f: stop("f", "planned", ["ticketed"]),
         },
       }),
     });
     render(<NextTripHero trip={trip} />);
 
-    // c (idea), e (hold) and f (planned + ticketed). Not a (booked),
-    // not b (transit), and not d — a plain `planned` stop owes nothing.
-    expect(await screen.findByText("3 not booked yet")).toBeTruthy();
+    // c and e (pending). Not a, d or f (planned, ticketed or not), and not b
+    // (transit).
+    expect(await screen.findByText("2 not booked yet")).toBeTruthy();
   });
 
   // The tiles read "—" here rather than a confident 0. The line has no dash to

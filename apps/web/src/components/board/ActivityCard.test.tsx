@@ -75,11 +75,10 @@ function renderCard(
 }
 
 describe("ActivityCard kind badge", () => {
-  // The handoff's own map (`Trip Planner Redesign.dc.html:3740`), verbatim.
+  // The handoff's own map (`Trip Planner Redesign.dc.html:3740`), cut to
+  // M28's three kinds (ADR-054): `pending` in `hold`'s place.
   const cases: [ActivityKind, string][] = [
-    ["booked", "Booked"],
-    ["hold", "Holding"],
-    ["idea", "Idea"],
+    ["pending", "Pending"],
     ["transit", "Travel"],
   ];
 
@@ -90,7 +89,7 @@ describe("ActivityCard kind badge", () => {
 
   // Not an oversight: the handoff's map falls through to an empty string for
   // `planned`, and `planned` is the contract's zero value — a "Planned" badge
-  // would sit on 68 of 68 seeded stops and signal nothing.
+  // would sit on most seeded stops and signal nothing.
   it("renders no badge at all for planned", () => {
     renderCard({ kind: "planned" });
     expect(screen.queryByTestId(`kind-badge-${ACTIVITY_ID}`)).toBeNull();
@@ -98,14 +97,14 @@ describe("ActivityCard kind badge", () => {
   });
 
   it("sits beside the conflict badge rather than replacing it", () => {
-    renderCard({ kind: "booked" }, { hasConflict: true });
+    renderCard({ kind: "pending" }, { hasConflict: true });
     expect(screen.getByLabelText("conflict")).toBeTruthy();
     expect(screen.getByTestId(`kind-badge-${ACTIVITY_ID}`)).toBeTruthy();
   });
 
   // A badge reads the plan; it is not an affordance that changes it.
   it("still renders for a viewer", () => {
-    renderCard({ kind: "hold" }, { readOnly: true });
+    renderCard({ kind: "pending" }, { readOnly: true });
     expect(screen.getByTestId(`kind-badge-${ACTIVITY_ID}`)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Edit Colosseum" })).toBeNull();
   });

@@ -241,7 +241,7 @@ describe("OverviewLens — a co-traveller's edit arrives without a reload", () =
 describe("OverviewLens — your own command re-reads the globals", () => {
   const okGlobals = (homeTimeZone: string) => ({
     ok: true as const,
-    value: { days: [], cities: [], tags: [], bookedCount: 0, homeTimeZone },
+    value: { days: [], cities: [], tags: [], homeTimeZone },
   });
 
   it("re-reads them when a local command is confirmed, without re-reading the page", async () => {

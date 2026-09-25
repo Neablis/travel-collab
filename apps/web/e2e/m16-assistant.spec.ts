@@ -186,7 +186,7 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // deliberately "not settled yet") so the chip below has something real to
   // answer.
   await page.getByRole("button", { name: "Edit Sample: coffee stop" }).click();
-  await page.getByLabel("Kind").selectOption("hold");
+  await page.getByLabel("Kind").selectOption("pending");
   await page.getByRole("button", { name: "Save" }).click();
 
   // Now the trip has a day with stops on it. Focus it, and the day-scoped chips

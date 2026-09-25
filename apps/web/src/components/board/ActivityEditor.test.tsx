@@ -74,19 +74,19 @@ function renderEditor(initial: ActivityView | null, mode: "create" | "edit", onS
 }
 
 describe("ActivityEditor kind picker", () => {
-  it("offers all five kinds", () => {
+  it("offers the three kinds", () => {
     renderEditor(null, "create");
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     const options = Array.from(screen.getByLabelText("Kind").querySelectorAll("option")).map((o) => o.value);
-    expect(options).toEqual(["planned", "idea", "hold", "booked", "transit"]);
+    expect(options).toEqual(["planned", "pending", "transit"]);
   });
 
-  // Mitchell, 2026-08-29: a stop being CREATED defaults to "hold", not the
-  // contract's "planned" zero value — more likely to need booking than not.
-  // Editing keeps its own kind; see the next test.
-  it("defaults to hold when adding, with no prefill", () => {
+  // Mitchell, 2026-08-29: a stop being CREATED defaults to "pending" ("hold"
+  // until M28), not the contract's "planned" zero value — more likely to need
+  // booking than not. Editing keeps its own kind; see the next test.
+  it("defaults to pending when adding, with no prefill", () => {
     renderEditor(null, "create");
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("hold");
+    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("pending");
   });
 
   it("defaults to the stop's own kind when editing", () => {
@@ -97,23 +97,24 @@ describe("ActivityEditor kind picker", () => {
   // A stated kind always wins over the create-mode default — the default only
   // fills in for "nothing was stated", the same rule the assistant's write
   // tool applies (writeTools.ts's withDefaultKind).
-  it("keeps an explicitly-supplied initial kind in create mode, rather than overriding to hold", () => {
-    renderEditor(existingStop({ activityId: "", kind: "idea" }), "create");
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("idea");
+  it("keeps an explicitly-supplied initial kind in create mode, rather than overriding to pending", () => {
+    renderEditor(existingStop({ activityId: "", kind: "planned" }), "create");
+    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("planned");
   });
 
   it("sends the chosen kind on save", () => {
     const onSave = renderEditor(null, "create");
     fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Gora Kadan" } });
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "hold" } });
+    // `planned`, not the create default, so the choice is what is asserted.
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "planned" } });
     fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kind: "hold" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kind: "planned" }));
   });
 
   it("round-trips the stop's kind through an untouched edit", () => {
-    const onSave = renderEditor(existingStop({ kind: "booked" }), "edit");
+    const onSave = renderEditor(existingStop({ kind: "pending" }), "edit");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kind: "booked" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kind: "pending" }));
   });
 });
 
@@ -127,7 +128,7 @@ describe("ActivityEditor travel leg", () => {
     renderEditor(existingStop(leg), "edit");
     expect(screen.getByRole("radio", { name: "Train" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByLabelText("Going to")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "pending" } });
     expect(screen.queryByRole("radiogroup", { name: "Travelling by" })).toBeNull();
     expect(screen.queryByLabelText("Going to")).toBeNull();
   });
@@ -137,9 +138,9 @@ describe("ActivityEditor travel leg", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining(leg));
 
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "pending" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "booked", mode: null, endLocation: null }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "pending", mode: null, endLocation: null }));
   });
 
   // Preview feedback on #230: icon buttons, no visible header — so the group's

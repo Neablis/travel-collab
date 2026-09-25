@@ -63,7 +63,7 @@ const globals: TripGlobals = {
     { name: "Lisbon", dayIndexes: [0], activityCount: 2 },
     { name: "Porto", dayIndexes: [1, 2], activityCount: 4 },
   ],
-  tags: [], bookedCount: 0, homeTimeZone: null,
+  tags: [], homeTimeZone: null,
 };
 
 describe("no macro syntax reaches the DOM", () => {

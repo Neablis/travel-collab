@@ -315,7 +315,7 @@ describe("v1 stop writes resolve their location", () => {
     const activityId = Object.keys((await created.json()).activities)[0] as string;
 
     const res = await PATCH_STOP(
-      req(secret, { kind: "hold", location: { name: "Old Bridge" }, endLocation: { name: "Castle" } }, "PATCH"),
+      req(secret, { kind: "pending", location: { name: "Old Bridge" }, endLocation: { name: "Castle" } }, "PATCH"),
       P({ tripId, activityId }),
     );
 

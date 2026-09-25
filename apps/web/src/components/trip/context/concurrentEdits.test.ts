@@ -80,7 +80,7 @@ describe("concurrentEditConflicts", () => {
   // ties it to KI-2026-09-05-o's compile-forcing field set.
   it.each([
     ["notes", { notes: "meet at the gate" }],
-    ["kind", { kind: "booked" as const }],
+    ["kind", { kind: "pending" as const }],
     ["tags", { tags: ["meal" as const] }],
     ["timeWindow", { timeWindow: null }],
   ])("notices a change to %s", (_label, over) => {

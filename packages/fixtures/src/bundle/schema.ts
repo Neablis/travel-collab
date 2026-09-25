@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  ActivityKind,
   ActivityMode,
   ActivityTag,
   Anchor,
@@ -8,6 +7,7 @@ import {
   Money,
   PageDoc,
   SavedDayAuthorKind,
+  StoredActivityKind,
   SavedDayVisibility,
   TimeWindow,
 } from "@tc/contracts";
@@ -25,7 +25,7 @@ import {
 //
 // --- What it does NOT do: restate the rules ---
 // Every field that has a home in `@tc/contracts` is that contract's schema,
-// imported. A stop's `kind` is `ActivityKind`, its cost is `Money`, its place
+// imported. A stop's `kind` is `StoredActivityKind`, its cost is `Money`, its place
 // is `Location`, a notebook's body is `PageDoc`. So a bundle cannot describe a
 // stop the command API would refuse, and adding a fifth `ActivityTag` reaches
 // this format with no edit here. The only shapes declared locally are the ones
@@ -61,8 +61,12 @@ export const BundleStop = z.object({
   location: Location.optional(),
   notes: z.string().max(2000).optional(),
   anchors: z.array(Anchor).optional(),
-  /** Omitted = "planned", exactly as `AddActivity` documents it. */
-  kind: ActivityKind.optional(),
+  /**
+   * Omitted = "planned", exactly as `AddActivity` documents it. Read through
+   * `StoredActivityKind`: a bundle is a file somebody may have downloaded
+   * before M28, so a retired kind in it reads as its replacement (ADR-054).
+   */
+  kind: StoredActivityKind.optional(),
   tags: z.array(ActivityTag).optional(),
   cost: Money.optional(),
   /**

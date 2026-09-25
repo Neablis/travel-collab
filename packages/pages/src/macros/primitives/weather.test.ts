@@ -52,7 +52,7 @@ function setup(dates: (string | null)[], points: TripWeatherPoint[]) {
       index, date, cities: ["Kyoto"], activityCount: 1, costSubtotal: 0,
       place: { lat: 35.01, lng: 135.77, city: "Kyoto" }, timeZone: "Asia/Tokyo",
     })),
-    cities: [], tags: [], bookedCount: 0, homeTimeZone: null,
+    cities: [], tags: [], homeTimeZone: null,
   };
   const weather: TripWeather = { points };
   return { trip, globals, weather };

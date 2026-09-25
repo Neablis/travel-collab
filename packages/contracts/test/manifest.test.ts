@@ -36,11 +36,13 @@ describe("the attribute manifest", () => {
     ]);
   });
 
-  it("lists a top-level number as a value rather than a collection", () => {
+  // `bookedCount` was the one top-level number on the trip's globals until M28
+  // retired the `booked` kind (ADR-054). It is removed by a FIELD_CHANGES
+  // entry, so a page that printed it reads a placeholder instead.
+  it("no longer publishes bookedCount, and records its removal", () => {
     const manifest = buildAttributeManifest();
-    const booked = manifest.find((e) => e.kind === "value" && e.field === "bookedCount");
-    expect(booked).toBeDefined();
-    expect(booked!.label).toBe("How many stops are booked");
+    expect(manifest.find((e) => e.kind === "value" && e.field === "bookedCount")).toBeUndefined();
+    expect(FIELD_CHANGES).toContainEqual(expect.objectContaining({ kind: "remove", path: "trip.bookedCount" }));
   });
 
   it("carries the human label from `described()`, which is what the picker shows", () => {
@@ -295,7 +297,7 @@ describe("AttributeRef", () => {
   it("accepts a collection field, a bare value and a stop field", () => {
     expect(AttributeRef.parse({ object: "trip", collection: "cities", field: "activityCount" }))
       .toEqual({ object: "trip", collection: "cities", field: "activityCount" });
-    expect(AttributeRef.parse({ object: "trip", field: "bookedCount" }).field).toBe("bookedCount");
+    expect(AttributeRef.parse({ object: "trip", field: "countdown" }).field).toBe("countdown");
     expect(AttributeRef.parse({ object: "stop", field: "cost" }).object).toBe("stop");
   });
 
@@ -315,7 +317,7 @@ describe("AttributeRef", () => {
     expect(AttributeRef.safeParse({ object: "trip", field: "" }).success).toBe(false);
     // `.strict()`, so an extra key is a parse error rather than something we
     // would drop on the next save.
-    expect(AttributeRef.safeParse({ object: "trip", field: "bookedCount", expr: "x" }).success).toBe(false);
+    expect(AttributeRef.safeParse({ object: "trip", field: "countdown", expr: "x" }).success).toBe(false);
   });
 });
 

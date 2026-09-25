@@ -46,7 +46,7 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // checking a few: add a value to either enum and this object no longer
   // typechecks until the fixture covers it, so a new kind of stop cannot ship
   // with nothing on screen that exercises it.
-  kinds: { booked: 18, hold: 2, idea: 6, planned: 37, transit: 9 },
+  kinds: { planned: 55, pending: 8, transit: 9 },
   tags: { lodging: 4, meal: 33, outdoors: 11, ticketed: 8 },
   untaggedCount: 18,
 
@@ -64,7 +64,8 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // (KI-39) and which carry hand-authored coordinates instead. The Map and
   // Timeline lenses have nothing to draw for an activity without them.
   withCoordinates: 72,
-  // The 4 backlog ideas carry no cost, and two scheduled "idea" stops have no
+  // The 4 backlog ideas carry no cost, and two scheduled "idea" stops (the
+  // export's word; `pending` since M28) have no
   // estimate yet in the upstream export (`trip.budget.unpricedStops: 2`).
   withCost: 66,
 

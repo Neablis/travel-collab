@@ -163,16 +163,13 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
 }
 
 /**
- * Mirrors `apps/web/src/lib/needsBooking.ts`'s predicate exactly (`booked`
- * and `transit` never; `hold` and `idea` always; `planned` only when
- * `ticketed`) — a copy, not an import, for the dependency-direction reason
+ * Mirrors `@tc/pages`' `needsBooking` exactly (since M28, `pending` and
+ * nothing else) — a copy, not an import, for the dependency-direction reason
  * that function's own comment and `daysWithUnlocatedStops` below both give.
  * If that rule changes, this is the other half to change with it.
  */
-function needsBookingMirror(kind: ActivityKind, tags: readonly ActivityTag[]): boolean {
-  if (kind === "booked" || kind === "transit") return false;
-  if (kind === "planned") return tags.includes("ticketed");
-  return true;
+function needsBookingMirror(kind: ActivityKind): boolean {
+  return kind === "pending";
 }
 
 /** Folds the fixture's commands through the real domain and reports on the result. */
@@ -326,7 +323,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   const daysNeedingBooking = state.days.filter((day) =>
     day.activityIds.some((id) => {
       const activity = state.activities[id];
-      return activity !== undefined && needsBookingMirror(activity.kind, activity.tags);
+      return activity !== undefined && needsBookingMirror(activity.kind);
     }),
   ).length;
 

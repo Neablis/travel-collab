@@ -53,7 +53,7 @@ describe("field", () => {
       formatMoney(colosseum.cost!.amountMinor, colosseum.cost!.currency),
     );
     expect(valueOf(ctx, { ...one, field: "stop.location" })).toBe("Colosseum, Rome, Italy");
-    expect(valueOf(ctx, { ...one, field: "stop.kind" })).toBe("Booked");
+    expect(valueOf(ctx, { ...one, field: "stop.kind" })).toBe("Pending");
     expect(valueOf(ctx, { ...one, field: "stop.tags" })).toBe("Ticketed");
     expect(valueOf(ctx, { ...one, field: "stop.title" })).toBe("Colosseum");
   });
@@ -67,8 +67,8 @@ describe("field", () => {
   it("lists every value across several stops, and each once when asked for distinct", () => {
     const ctx = contextOf(selectionTrip());
     // Board order: day 1, day 2, day 3, then the backlog.
-    expect(valueOf(ctx, { field: "stop.kind" })).toBe("Booked, Planned, Travel, Booked, Planned, Idea, Idea");
-    expect(valueOf(ctx, { field: "stop.kind", distinct: true })).toBe("Booked, Planned, Travel, Idea");
+    expect(valueOf(ctx, { field: "stop.kind" })).toBe("Pending, Planned, Travel, Pending, Planned, Planned, Planned");
+    expect(valueOf(ctx, { field: "stop.kind", distinct: true })).toBe("Pending, Planned, Travel");
     // A list field is its elements, across stops.
     expect(valueOf(ctx, { field: "stop.tags", day: { kind: "index", index: 0 } })).toBe("Ticketed, Meal");
   });
@@ -87,7 +87,7 @@ describe("field", () => {
 
   it("is empty when the filters leave no stop, and says so when no stop has the value", () => {
     const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "field", { field: "stop.cost", tag: "meal", kind: "booked" })).toEqual({ status: "empty" });
+    expect(renderMacro(ctx, "field", { field: "stop.cost", tag: "meal", kind: "pending" })).toEqual({ status: "empty" });
     // Day 3's two stops are both unlocated.
     expect(renderMacro(ctx, "field", { field: "stop.location", day: { kind: "index", index: 2 } })).toEqual({
       status: "empty",

@@ -31,18 +31,18 @@ describe("M18 domain: kind & tags on the write path", () => {
 
   it("AddActivity carries an explicit kind and tags into state", () => {
     const state = apply(newTrip(), {
-      type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den", kind: "booked", tags: ["meal"],
+      type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den", kind: "pending", tags: ["meal"],
     });
-    expect(state.activities[A1]!.kind).toBe("booked");
+    expect(state.activities[A1]!.kind).toBe("pending");
     expect(state.activities[A1]!.tags).toEqual(["meal"]);
   });
 
   it("UpdateActivity leaves an omitted kind and omitted tags unchanged", () => {
     const before = apply(newTrip(), {
-      type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den", kind: "hold", tags: ["meal"],
+      type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den", kind: "pending", tags: ["meal"],
     });
     const after = apply(before, { type: "UpdateActivity", tripId: TRIP, activityId: A1, title: "Den Kyoto" });
-    expect(after.activities[A1]!.kind).toBe("hold");
+    expect(after.activities[A1]!.kind).toBe("pending");
     expect(after.activities[A1]!.tags).toEqual(["meal"]);
   });
 
@@ -56,10 +56,10 @@ describe("M18 domain: kind & tags on the write path", () => {
 
   it("changing ONLY the kind is a real change, not a rejected no-op", () => {
     const before = apply(newTrip(), { type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den" });
-    const d = decideTripCommand(before, { type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "booked" }, CTX);
+    const d = decideTripCommand(before, { type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "pending" }, CTX);
     expect(d.ok).toBe(true); // must NOT be rejected with code "no-op"
-    const after = apply(before, { type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "booked" });
-    expect(after.activities[A1]!.kind).toBe("booked");
+    const after = apply(before, { type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "pending" });
+    expect(after.activities[A1]!.kind).toBe("pending");
   });
 
   it("changing ONLY the tags is a real change, not a rejected no-op", () => {
@@ -69,8 +69,8 @@ describe("M18 domain: kind & tags on the write path", () => {
   });
 
   it("setting the kind to the value it already has IS a no-op", () => {
-    const before = apply(newTrip(), { type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den", kind: "booked" });
-    const d = decideTripCommand(before, { type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "booked" }, CTX);
+    const before = apply(newTrip(), { type: "AddActivity", tripId: TRIP, activityId: A1, title: "Den", kind: "pending" });
+    const d = decideTripCommand(before, { type: "UpdateActivity", tripId: TRIP, activityId: A1, kind: "pending" }, CTX);
     expect(d.ok).toBe(false);
     expect(d.ok === false && d.rejection.code).toBe("no-op");
   });

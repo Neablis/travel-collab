@@ -226,7 +226,7 @@ async function insertFromList(page: Page, name: RegExp, search?: string): Promis
 // panel's "Lines for each" — the way an author does — and waits for the panel
 // to be about that table (its heading is the widget's title) before going on.
 // Not a `[data-macro-name]` wait: the seeded Overview already holds a
-// `stop.rows` ("What's booked"), so that would find the wrong widget.
+// `stop.rows` ("Still to book"), so that would find the wrong widget.
 async function insertLinesFor(page: Page, scope: "Day" | "Stop" | "City"): Promise<void> {
   await insertFromList(page, /A line for each/, "line for each");
   const panel = page.getByTestId("widget-settings");
@@ -860,8 +860,8 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // answer every filter control leads with (ADR-039 decision 2).
   await cities.selectOption({ index: 1 });
   await expect(cities).not.toHaveValue("");
-  await kinds.selectOption("booked");
-  await expect(kinds).toHaveValue("booked");
+  await kinds.selectOption("pending");
+  await expect(kinds).toHaveValue("pending");
   // Every earlier binding still standing after the last one was set — the
   // replace-instead-of-merge failure, checked at the widest point.
   await expect(tags).toHaveValue("meal");
@@ -877,13 +877,20 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // proves it is the widget resolving to the one stop that matches all four.
   //
   // Two, because the seeded Overview carries a `stop.rows` of its own under
-  // "What's booked" — the fourth locator on this branch to meet a widget the
+  // "Still to book" — the fourth locator on this branch to meet a widget the
   // page now supplies. `toBeVisible()` tripped strict mode on the pair.
   await expect(page.locator('[data-macro-name="stop.rows"]')).toHaveCount(2);
-  // The claim itself, and it is unaffected by the seeded one: this trip has no
-  // bookings, so the seeded `stop.rows{kind: "booked"}` says "nothing booked
-  // yet" and only this walk's widget can put "Ramen" on the page.
-  await expect(page.getByText("Ramen")).toBeVisible();
+  // The claim itself — and narrower than this used to say. The walk's widget
+  // resolves to NOTHING: its day is Day 2, and both stops are unscheduled.
+  // Until M28 this asserted `getByText("Ramen")` was visible and read that as
+  // the widget's doing, but the Ramen it found was "What needs you" (the `open`
+  // widget lists parked stops); the seeded list said "nothing booked yet".
+  // What the reload provably kept is the KIND binding: "nothing left to book"
+  // is the empty sentence of a `kind: "pending"` filter only (`stop.rows`'
+  // NOTHING_MATCHED), and the seeded "Still to book" is not empty here — it
+  // lists Ramen and Kinkaku-ji — so exactly one widget can be saying it.
+  await expect(page.getByText("nothing left to book", { exact: true })).toHaveCount(1);
+  await expect(page.locator('[data-macro-name="stop.rows"]').filter({ hasText: "Kinkaku-ji" })).toHaveCount(1);
 });
 
 // **The stated cost of storing a date range, pinned so it cannot become a
@@ -1636,7 +1643,7 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   // One stop, so the field widget reads one value — and a cost the seeded
   // Overview's own `cost` also prints, which is why every read below is
   // scoped to a widget rather than to the page.
-  await addStopViaApi(page, tripId, "Tram tour", { cost: { amountMinor: 4200, currency: "USD" }, kind: "booked" });
+  await addStopViaApi(page, tripId, "Tram tour", { cost: { amountMinor: 4200, currency: "USD" }, kind: "pending" });
   await openSeededPage(page);
 
   // It lands asking for a field — there is no "every field" to default to. In
@@ -1663,7 +1670,7 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
 
   const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) });
   // The board's word for the value (`KIND_LABEL`), not the stored enum.
-  await expect(table.getByRole("row").filter({ hasText: "Tram tour" })).toContainText("Booked");
+  await expect(table.getByRole("row").filter({ hasText: "Tram tour" })).toContainText("Pending");
 
   // And both survive the round trip, read in Reading where no control exists.
   await finishEditing(page);
@@ -1672,7 +1679,7 @@ test("a field the reader picks prints in a sentence, and joins a stop list as a 
   await expect(page.locator('[data-macro-name="field"]')).toHaveText("$42.00");
   await expect(
     page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Status" }) }).getByRole("row").filter({ hasText: "Tram tour" }),
-  ).toContainText("Booked");
+  ).toContainText("Pending");
 });
 
 // **The M14 gate box, walked: *"moving a day or a stop changes the page with

@@ -198,28 +198,28 @@ const headerRow = (label: string): RepeatRow => ({ lead: rowLabel(label), cells:
 /**
  * What an empty `stop.rows` says when a `kind` filter is what emptied it.
  *
- * Only the kinds that make a sentence. "nothing booked yet" is a fact about the
- * trip that names the next thing to do; "nothing hold yet" and "nothing idea
- * yet" are not English, and a widget is better off with its blanket
- * `emptyText` than with a phrase assembled out of a stored enum value. An
- * absent entry therefore falls back, deliberately, rather than being a gap.
+ * Only the kinds that make a sentence. "nothing left to book" is a fact about
+ * the trip that says there is no next thing to do; "nothing planned" would
+ * read as an empty trip when it only means an empty filter, so `planned` and
+ * `transit` fall back to the blanket `emptyText`, deliberately, rather than
+ * being a gap.
  *
  * This is the limitation `emptyText`'s own comment above describes — a fixed
  * string that cannot see the params — retired for the one case where the
- * params make the difference a reader cares about. `booking.line` is the preset
- * this serves, and the Overview's "What's booked" is where it shows.
+ * params make the difference a reader cares about. It said "nothing booked
+ * yet" for `booked` until M28 retired that kind (ADR-054).
  */
 const NOTHING_MATCHED: Partial<Record<KindRef, string>> = {
-  booked: "nothing booked yet",
+  pending: "nothing left to book",
 };
 
 /**
  * `stop.rows` — one line per stop: when it is, and what it cost.
  *
- * Wide this is `stop.line` over the whole trip; with `kind: "booked"` it is
- * `booking.line`. The fourth row of ADR-039's table of widgets written twice,
- * and the one that needed no new data at all — "booking" was already an
- * `ActivityKind` member.
+ * Wide this is `stop.line` over the whole trip; with a `kind` it is what
+ * `booking.line` was. The fourth row of ADR-039's table of widgets written
+ * twice, and the one that needed no new data at all — "booking" was already an
+ * `ActivityKind` member (`booked`, until M28 folded it into `planned`).
  *
  * **Stops are grouped under day headers when the selection spans more than one
  * day**, which is the spec's own wording. One day needs no header (the widget is

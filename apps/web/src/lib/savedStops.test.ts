@@ -16,7 +16,7 @@ const activity = (activityId: string, title: string): ActivityView => ({
   location: { name: "Kyoto" },
   notes: "bring cash",
   anchors: [],
-  kind: "booked",
+  kind: "pending",
   tags: ["meal"],
   cost: { amountMinor: 1200, currency: "USD" },
   bookedBy: null,
@@ -46,7 +46,7 @@ describe("stopsForDay", () => {
       location: { name: "Kyoto" },
       notes: "bring cash",
       anchors: [],
-      kind: "booked",
+      kind: "pending",
       tags: ["meal"],
       cost: { amountMinor: 1200, currency: "USD" },
       // `stopsForDay` answers about ONE day, so its fragment is a sequence of
