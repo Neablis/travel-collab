@@ -90,8 +90,7 @@ export default defineConfig({
           // may provision on, what URL the child gets, which database names
           // the sweep may drop, and when the template is stale. Named file by
           // file, not by a `scripts/**` glob: the other files in `scripts/`
-          // are entry points, not test subjects. `scripts/vercel-ignore-build.test.ts`
-          // covers which builds Vercel skips (previews only for open, non-draft PRs).
+          // are entry points, not test subjects.
           include: [
             "src/**/*.test.ts",
             "lint-scope.test.ts",
@@ -99,7 +98,6 @@ export default defineConfig({
             "sentry.shared.test.ts",
             "scripts/geocode-japan-seed.test.ts",
             "scripts/with-test-db.test.ts",
-            "scripts/vercel-ignore-build.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,

@@ -1,0 +1,64 @@
+name: vercel-preview
+
+# The ONLY way a Vercel preview gets built (2026-09-25). `apps/web/vercel.json`
+# turns off Vercel's automatic deploys for every branch except `main`, so a
+# push to any other branch creates no deployment at all, and this asks Vercel
+# for one when a pull request is open and not a draft.
+#
+# Why not let Vercel build and skip in an Ignored Build Step: a skipped build
+# is still a created deployment, and those count against the Hobby plan's 100
+# deployments a day. On 2026-09-24 previews used that up and Vercel refused
+# the push that merged #227, so production silently stayed a commit behind.
+#
+# Needs a `VERCEL_TOKEN` repository secret (see
+# docs/guidelines/environments-and-deploys.md). Without it — including on
+# Dependabot PRs, which do not get repository secrets — the job warns and
+# passes, and that PR has no preview.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    # The same prose-only filter as ci.yml, and for the same reason: a PR that
+    # only moves docs has nothing to preview. Keep the two lists in step.
+    paths-ignore:
+      - 'docs/**'
+      - '.agents/**'
+      - '.claude/**'
+      - '*.md'
+      - '.github/**/*.md'
+
+# A newer push supersedes a request that has not been sent yet.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  deploy-preview:
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask Vercel for a preview of the PR head
+        # An explicit `shell: bash` runs with `-eo pipefail`; the default does
+        # not, and a failed curl piped into jq would otherwise pass the step.
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          REF: ${{ github.event.pull_request.head.ref }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::warning::VERCEL_TOKEN is not set, so no preview was requested for $REF."
+            exit 0
+          fi
+          body=$(jq -n --arg ref "$REF" --arg sha "$SHA" '{
+            name: "travel-collab",
+            project: "prj_UoxcnmAsWMtHXx8jLXyespRqSULM",
+            gitSource: { type: "github", org: "Neablis", repo: "travel-collab", ref: $ref, sha: $sha }
+          }')
+          curl --fail-with-body -sS -X POST \
+            "https://api.vercel.com/v13/deployments?teamId=team_FOAEiiLfMMxICIFszLWvzfzF" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$body" | jq '{id, url, readyState}'
