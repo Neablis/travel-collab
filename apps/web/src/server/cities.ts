@@ -43,7 +43,65 @@ const SEARCH_LIMIT = 12;
  * Ordered by day count then name: the busiest city for those letters first, and
  * a stable tiebreak so the same query does not return two different orders.
  */
-export async function searchCities(q: string): Promise<CityMatch[]> {
+export function searchCities(q: string): Promise<CityMatch[]> {
+  const now = Date.now();
+  const held = memo.get(q);
+  if (held !== undefined && held.expires > now) return copied(held.answer);
+  memo.delete(q);
+  if (memo.size >= MEMO_CAP) memo.delete(memo.keys().next().value!);
+  const answer = aggregate(q);
+  const entry = { answer, expires: now + MEMO_TTL_MS };
+  memo.set(q, entry);
+  // A failure is not an answer: drop it so the next keystroke asks again rather
+  // than replaying the error for the rest of the window. Only if the entry is
+  // still this one — a `forgetCitySearches` in between already removed it.
+  answer.catch(() => {
+    if (memo.get(q) === entry) memo.delete(q);
+  });
+  return copied(answer);
+}
+
+/** Each caller gets its own rows, so one that sorts or edits them cannot rewrite the memo. */
+function copied(answer: Promise<CityMatch[]>): Promise<CityMatch[]> {
+  return answer.then((rows) => rows.map((row) => ({ ...row })));
+}
+
+// The per-process memo in front of the aggregate (KI-2026-09-14-d).
+//
+// **Why on the server.** The typeahead re-asks a question whenever someone
+// backspaces and retypes, and the client cannot keep the answer: the search
+// box's failure state has to stay reachable, and a client cache that saves the
+// request is a request that cannot fail (PR #175, ADR-046). Here the request
+// still arrives and every state survives; only the aggregate is saved.
+//
+// **Why a memo and not a materialised `city -> days` table.** That table would
+// have to be maintained by every writer of `saved_days` — the owner's publish
+// and edit paths, moderation, the dev seed routes and the production import
+// script, which runs in another process — and the repo has no trigger to hang
+// it on. A memo's worst case is bounded by its window instead.
+//
+// **What it costs in freshness.** `forgetCitySearches` is called by every
+// in-process write that can change the index, so the instance that took a
+// publish, unpublish or moderation answers the next search fresh. Another
+// serverless instance, or a write from the import script, is seen within
+// `MEMO_TTL_MS` — a day count up to that stale, never a day that was never
+// public. Keyed on the query exactly as typed, because `ILIKE`'s case folding
+// is the database's locale, not JavaScript's.
+const MEMO_TTL_MS = 30_000;
+/** Queries are user input; the oldest goes first once this many are held. */
+const MEMO_CAP = 500;
+const memo = new Map<string, { answer: Promise<CityMatch[]>; expires: number }>();
+
+/**
+ * Drop every memoised city search. Call AFTER a write that can change which
+ * published, undeleted, unmoderated day names which city has committed — inside
+ * a transaction, a search in the gap would re-memoise the pre-commit answer.
+ */
+export function forgetCitySearches(): void {
+  memo.clear();
+}
+
+async function aggregate(q: string): Promise<CityMatch[]> {
   const prefix = `${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
   const rows = await db.execute<{ city: string; days: number }>(sql`
     select city, count(*)::int as days
