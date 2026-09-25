@@ -293,9 +293,9 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
         </Link>
       </nav>
       <div className="ml-auto flex items-center">
-        {/* AccountMenuFor, not AccountMenuFromSession: the latter resolves the
-            session itself, which would make this header fetch the same fact
-            twice. We already have `user`. */}
+        {/* AccountMenuFor takes the `user` already resolved above rather than
+            resolving the session itself, which would make this header fetch
+            the same fact twice. */}
         <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />
       </div>
     </>
@@ -308,9 +308,10 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
 // the first version doing precisely that, and the comment here claiming
 // otherwise was a lie the code did not keep.
 
-// The session-independent half: given a user, wire up the menu. Both entry
-// points below render this — HeaderSessionChrome with the user it already
-// resolved, AccountMenuFromSession with one it resolves itself.
+// The session-independent half: given a user, wire up the menu. Its one
+// caller is HeaderSessionChrome, with the user it already resolved. (A second,
+// self-resolving entry point had only its own tests as callers and was removed,
+// KI-2026-09-05-w; those tests now render HeaderSessionChrome.)
 function AccountMenuFor({
   user,
   demoResetEnabled = false,
@@ -364,12 +365,4 @@ function AccountMenuFor({
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />
   );
-}
-
-// Standalone entry point: resolves the session itself. Kept for callers that
-// have no user to hand (its own tests today).
-export function AccountMenuFromSession({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
-  const user = useSessionUser();
-  if (!user) return null;
-  return <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />;
 }
