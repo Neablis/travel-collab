@@ -271,7 +271,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     inFlight.current = true;
     sentIds.current.add(head.id);
     inFlightSend.current = (async () => {
-      let result: { ok: true; value: CommandOutcome } | { ok: false; error: { message: string; code?: string } };
+      let result: { ok: true; value: CommandOutcome } | { ok: false; error: { status: number; message: string; code?: string } };
       try {
         result = await sendUnit(tripId, head);
       } catch (err) {
@@ -283,7 +283,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // sender stayed gated for the life of the page, and every queued edit
         // was lost on navigation with the header still saying "Saving…"
         // (docs/reviews/2026-08-28-project-review.md §1.1).
-        result = { ok: false, error: { message: err instanceof Error ? err.message : "Network error" } };
+        result = { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
       } finally {
         // Unconditional, and the whole point of the try/finally: nothing on
         // any path may leave the sequential sender permanently in flight.
@@ -299,7 +299,15 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
           ? null
           : { at: new Date().toISOString(), message: result.error.message };
       // Refused, so not applied: the head is retained and is unsent work again.
-      if (failure) sentIds.current.delete(head.id);
+      // Only a refusal the SERVER answered, though. `status: 0` is a request
+      // that produced no response — and a reload produces exactly that for the
+      // unit in flight: Chromium cancels its fetch as the page goes, which can
+      // be after the server applied it. From Chromium 151 on that rejection
+      // lands just before `pagehide`, ahead of the render that would record
+      // the failure, so the flush saw the head as unsent and sent it again;
+      // its duplicate refused the atomic batch and everything behind it was
+      // lost (PR #234's CI red, KI-5). Unknown is treated as sent.
+      if (failure && !result.ok && result.error.status !== 0) sentIds.current.delete(head.id);
       setOptimistic((prev) => {
         if (!prev) return prev;
         if (result.ok) {

@@ -1307,6 +1307,32 @@ describe("TripProvider unload flush (KI-5)", () => {
     expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
   });
 
+  // The CI failure on PR #234. A reload cancels the unit in flight, and from
+  // Chromium 151 on its fetch rejects just before `pagehide` is dispatched, so
+  // the sender's answer — "Failed to fetch", `status: 0` — is in before the
+  // flush runs, and before React has rendered the failure. That request had
+  // already reached the server, which applied it. Counting it as unsent put it
+  // in the flush a second time; the batch is atomic, so its duplicate refused
+  // the whole of it, and everything behind the head was lost.
+  it("on pagehide, still leaves out a unit in flight whose fetch failed as the page went", async () => {
+    sendTripCommandBatchMock.mockReturnValue(new Promise(() => {}));
+    const { settleHead } = await queueBehindAnInFlightHead();
+
+    // Not inside `act`: the page is going, so no render happens between the
+    // sender's answer and the event.
+    settleHead({ ok: false, error: { status: 0, message: "Failed to fetch" } });
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(sendTripCommandBatchMock).toHaveBeenCalledWith(
+      "x",
+      [addDayCommand("d-b"), addDayCommand("d-c")],
+      { keepalive: true },
+    );
+    // Were the page to survive, the failure still reaches the user (KI-36).
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+  });
+
   // An in-app navigation unmounts the provider but the page lives on, so the
   // queue can be drained properly: after the unit in flight, one unit at a
   // time, in order, each its own history entry — not one batch racing it.
