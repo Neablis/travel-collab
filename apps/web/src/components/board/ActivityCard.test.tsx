@@ -269,7 +269,7 @@ describe("ActivityCard time window", () => {
 
   it("prints 24-hour times for a reader who chose them", async () => {
     renderSignedIn("24h");
-    await waitFor(() => expect(screen.getByText("09:00 – 14:30")).toBeTruthy());
+    expect(await screen.findByText("09:00 – 14:30")).toBeTruthy();
     expect(screen.queryByText("9 am – 2:30 pm")).toBeNull();
   });
 });
