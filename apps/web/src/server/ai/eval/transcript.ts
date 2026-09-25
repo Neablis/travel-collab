@@ -53,6 +53,7 @@
 //
 // Then add the shape assertions the run itself justifies, and commit both.
 import type { LanguageModel } from "ai";
+import { modelIdOf } from "@/server/assistant/admission";
 import type { AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 
@@ -315,8 +316,4 @@ export function recordAskTranscript(
       steps,
     }),
   };
-}
-
-function modelIdOf(model: LanguageModel): string {
-  return typeof model === "string" ? model : model.modelId;
 }

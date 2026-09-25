@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UserPreferences } from "@tc/contracts";
-import { AccountMenu, AccountMenuFromSession } from "./AccountMenu";
+import { AccountMenu, HeaderSessionChrome } from "./AccountMenu";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
 vi.mock("next-auth/react", () => ({
@@ -219,12 +219,15 @@ describe("AccountMenu", () => {
   });
 });
 
-describe("AccountMenuFromSession", () => {
+// Through HeaderSessionChrome — the one production entry point that resolves
+// the session and wires the menu. (These used to render a second, test-only
+// entry point, `AccountMenuFromSession`, removed as dead in KI-2026-09-05-w.)
+describe("HeaderSessionChrome's account menu", () => {
   it("renders nothing while signed out", async () => {
     const { getSession } = await import("next-auth/react");
     vi.mocked(getSession).mockResolvedValueOnce(null);
 
-    render(<AccountMenuFromSession />);
+    render(<HeaderSessionChrome />);
 
     await waitFor(() => expect(vi.mocked(getSession)).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: "Account menu" })).toBeNull();
@@ -237,7 +240,7 @@ describe("AccountMenuFromSession", () => {
       expires: "",
     });
 
-    render(<AccountMenuFromSession />);
+    render(<HeaderSessionChrome />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
     await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -254,7 +257,7 @@ describe("AccountMenuFromSession", () => {
       expires: "",
     });
 
-    render(<AccountMenuFromSession />);
+    render(<HeaderSessionChrome />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
     expect(screen.queryByRole("button", { name: "Reset to demo data" })).toBeNull();
@@ -277,7 +280,7 @@ describe("AccountMenuFromSession", () => {
       value: { ...originalLocation, reload: reloadSpy },
     });
 
-    render(<AccountMenuFromSession demoResetEnabled />);
+    render(<HeaderSessionChrome demoResetEnabled />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
     await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));

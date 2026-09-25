@@ -1,11 +1,6 @@
 import { eq, sql } from "drizzle-orm";
-import type { Db } from "./db/client";
+import type { Queryable } from "./db/client";
 import { savedDayAdds, savedDays } from "./db/schema";
-
-// The same shape `projections.ts` uses for "the pool, or a transaction on it".
-// Spelled here rather than imported because that one is private to a module
-// this one has no other business importing.
-type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 // The adds ledger's write path (M11b link 4).
 //

@@ -579,6 +579,28 @@ expectRejectedBy(
   "test-quality wall: e2e spec without an assertion correctly rejected (is e2e/ still in the lint lane?)",
 );
 
+// THE SLEEP WALL. No `waitForTimeout` in an e2e spec: a sleep is a guess about
+// how long something takes, re-evaluated by a loaded machine rather than by its
+// author (KI-13, KI-21, and nine regrown sleeps in m10-map-rail.spec.ts). This
+// used to be its own script, `check-sleep-wall.mjs`, from before `e2e/` was
+// linted at all; once `playwright/no-wait-for-timeout` was at error over
+// `e2e/**` it was a second copy of one rule with a second exemption spelling,
+// and was deleted (KI-2026-09-05-w item 4). This fixture is what keeps the rule
+// from being switched off silently in its place. A wait with genuinely no event
+// to hang off is exempted in writing, at the sleep:
+// `// eslint-disable-next-line playwright/no-wait-for-timeout -- <reason>`.
+expectRejectedBy(
+  lintFixture(
+    "sleep_wall_fixture",
+    'import { test, expect } from "@playwright/test";\n\n' +
+      'test("fixture", async ({ page }) => {\n  await page.waitForTimeout(500);\n' +
+      '  await expect(page).toHaveTitle("x");\n});\n',
+    { dir: "e2e", ext: "ts" },
+  ),
+  "playwright/no-wait-for-timeout",
+  "sleep wall: waitForTimeout in an e2e spec correctly rejected",
+);
+
 // THE FETCH WALL (KI-2026-09-05-q): UI code reaches the app's API through the
 // client modules, whose helpers never reject. The second assertion on the same
 // fixture is the one that matters most: the wall is `no-restricted-globals`

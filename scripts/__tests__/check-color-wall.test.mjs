@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // check-color-wall.mjs finds its input with `git ls-files` over `apps/web/src`
-// rather than taking a directory argument (unlike check-sleep-wall.mjs). The
+// rather than taking a directory argument. The
 // one test that calls `runWall()` bare runs it against the actual tree; every
 // fixture test runs it against a throwaway repo via `COLOR_WALL_SCAN_ROOT`
 // (see `runWallAgainst`).

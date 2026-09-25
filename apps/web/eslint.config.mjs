@@ -593,9 +593,10 @@ export default [
     // recommended rules ship at "warn", and `eslint` exits 0 on warnings — so
     // `pnpm lint` is green and `pnpm check` is green while the rule reports.
     // A wall that does not fail the build is a suggestion. `no-wait-for-timeout`
-    // is in that warn set, which would have made a second, weaker copy of
-    // `scripts/check-sleep-wall.mjs` — a wall this repo built precisely because
-    // guidance alone did not hold it three times.
+    // is in that warn set, and at error it IS the sleep wall: the standalone
+    // `scripts/check-sleep-wall.mjs` this repo built because guidance alone did
+    // not hold it three times became a duplicate once this block existed, and
+    // was deleted (KI-2026-09-05-w item 4). `check-lint-wall.mjs` fixtures it.
     rules: Object.fromEntries(
       Object.entries(playwright.configs["flat/recommended"].rules).map(([rule, setting]) => [
         rule,

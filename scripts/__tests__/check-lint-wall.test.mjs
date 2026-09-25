@@ -64,6 +64,7 @@ test("passes against the checked-in config, and every rejection names the rule t
     "rejected by no-restricted-syntax",
     "rejected by testing-library/no-container",
     "rejected by playwright/expect-expect",
+    "rejected by playwright/no-wait-for-timeout",
   ]) {
     assert.ok(stdout.includes(rule), `expected the wall to attribute a rejection to ${rule}`);
   }
@@ -97,7 +98,10 @@ test("passes against the checked-in config, and every rejection names the rule t
   // **31 → 34 on 2026-09-25**: the fetch wall (KI-2026-09-05-q) — a bare fetch
   // rejected, the element wall still firing on the same `.tsx`, and server code
   // left clean.
-  assert.equal(stdout.trim().split("\n").length, 34,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **34 → 35 on 2026-09-25**: the sleep wall moved in from its own script
+  // (`check-sleep-wall.mjs`, deleted — KI-2026-09-05-w item 4).
+  assert.equal(stdout.trim().split("\n").length, 35,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
@@ -107,7 +111,7 @@ test("passes against the checked-in config, and every rejection names the rule t
 test("goes red when a rule it guards is switched off, even though a bystander rule still rejects the fixture", () => {
   const { status, stdout, stderr } = runWallWithConfig(
     configPlus(
-      '{ files: ["e2e/**/*.ts"], rules: { "playwright/expect-expect": "off" } }',
+      '{ files: ["e2e/**/*.ts"], rules: { "playwright/expect-expect": "off", "playwright/no-wait-for-timeout": "off" } }',
       '{ files: ["src/**/*.test.{ts,tsx}"], rules: { "testing-library/no-container": "off" } }',
     ),
   );
@@ -121,7 +125,12 @@ test("goes red when a rule it guards is switched off, even though a bystander ru
     output,
     /LINT WALL BREACHED: test-quality wall: container\.querySelector .* was NOT flagged by testing-library\/no-container \(fired instead: testing-library\/no-node-access\)/,
   );
-  // Everything else still passes: the wall failed for these two reasons, not because
+  // The sleep wall's fixture trips nothing else, so this one reads "fired instead: nothing".
+  assert.match(
+    output,
+    /LINT WALL BREACHED: sleep wall: waitForTimeout in an e2e spec .* was NOT flagged by playwright\/no-wait-for-timeout \(fired instead: nothing\)/,
+  );
+  // Everything else still passes: the wall failed for these reasons, not because
   // pointing it at another config broke it wholesale.
   assert.match(output, /lint wall OK: forbidden @tc\/domain import from UI correctly rejected/);
 });

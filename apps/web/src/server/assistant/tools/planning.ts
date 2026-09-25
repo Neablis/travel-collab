@@ -9,7 +9,7 @@
 // day/activity/conflict) are swapped for a human `<entity>Ref`. A tool call
 // records the model's raw intent only — resolveBatch (batchResolver.ts) turns
 // the ordered batch into concrete commands in one batch-aware pass, then
-// flushPlanningBatch submits them as ONE atomic batch (ADR-013).
+// commitProposal submits them as ONE atomic batch (ADR-013).
 //
 // `defineTool` is the envelope and this loop is the body: a thirteenth
 // BatchableCommand becomes a thirteenth tool with no hand edit here, and

@@ -113,8 +113,10 @@ Do not relearn these by failing `pnpm lint`:
 - **Never assert presentation.** `toHaveClass` and `expect(x.className)` are
   errors outside `src/components/ui/**`, where a primitive mapping a variant
   onto a token class genuinely has nothing else to assert.
-- **No sleeping in e2e.** `waitForTimeout` needs an `e2e-sleep-allowed:` marker
-  carrying a reason, written at the sleep (`scripts/check-sleep-wall.mjs`).
+- **No sleeping in e2e.** `waitForTimeout` is an error
+  (`playwright/no-wait-for-timeout`, fixtured in `scripts/check-lint-wall.mjs`).
+  A wait with genuinely no event to hang off is exempted at the sleep, with a
+  reason: `// eslint-disable-next-line playwright/no-wait-for-timeout -- <why>`.
 - **`eslint-plugin-testing-library` and `eslint-plugin-playwright`** are on, as
   errors: no `container.querySelector`, no reaching into nodes, `findBy*` over
   `waitFor` + `getBy*`, no `screen.debug()` left behind.
