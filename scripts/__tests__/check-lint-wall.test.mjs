@@ -65,6 +65,7 @@ test("passes against the checked-in config, and every rejection names the rule t
     "rejected by testing-library/no-container",
     "rejected by playwright/expect-expect",
     "rejected by playwright/no-wait-for-timeout",
+    "rejected by no-restricted-properties",
   ]) {
     assert.ok(stdout.includes(rule), `expected the wall to attribute a rejection to ${rule}`);
   }
@@ -101,7 +102,10 @@ test("passes against the checked-in config, and every rejection names the rule t
   //
   // **34 → 35 on 2026-09-25**: the sleep wall moved in from its own script
   // (`check-sleep-wall.mjs`, deleted — KI-2026-09-05-w item 4).
-  assert.equal(stdout.trim().split("\n").length, 35,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **35 → 36 on 2026-09-25**: the same wall for a page not named `page`
+  // (`bob.waitForTimeout`), which the plugin rule does not see (PR #234 review).
+  assert.equal(stdout.trim().split("\n").length, 36,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
@@ -111,7 +115,7 @@ test("passes against the checked-in config, and every rejection names the rule t
 test("goes red when a rule it guards is switched off, even though a bystander rule still rejects the fixture", () => {
   const { status, stdout, stderr } = runWallWithConfig(
     configPlus(
-      '{ files: ["e2e/**/*.ts"], rules: { "playwright/expect-expect": "off", "playwright/no-wait-for-timeout": "off" } }',
+      '{ files: ["e2e/**/*.ts"], rules: { "playwright/expect-expect": "off", "playwright/no-wait-for-timeout": "off", "no-restricted-properties": "off" } }',
       '{ files: ["src/**/*.test.{ts,tsx}"], rules: { "testing-library/no-container": "off" } }',
     ),
   );
@@ -129,6 +133,10 @@ test("goes red when a rule it guards is switched off, even though a bystander ru
   assert.match(
     output,
     /LINT WALL BREACHED: sleep wall: waitForTimeout in an e2e spec .* was NOT flagged by playwright\/no-wait-for-timeout \(fired instead: nothing\)/,
+  );
+  assert.match(
+    output,
+    /LINT WALL BREACHED: sleep wall: waitForTimeout on a page not named `page` .* was NOT flagged by no-restricted-properties \(fired instead: nothing\)/,
   );
   // Everything else still passes: the wall failed for these reasons, not because
   // pointing it at another config broke it wholesale.

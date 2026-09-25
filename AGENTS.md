@@ -627,7 +627,7 @@ is the law it expands: invariants only, each one paid for.
   copy are not contracts — roles, labels, values and behaviour are. Enforced:
   `toHaveClass` outside `src/components/ui/**` fails lint, as does reaching past
   the query layer into nodes.
-- **No test may sleep** (`playwright/no-wait-for-timeout`, fixtured in `scripts/check-lint-wall.mjs`), and **data comes from
+- **No test may sleep** (`playwright/no-wait-for-timeout` plus `no-restricted-properties` on `waitForTimeout`, which catches pages not named `page`; both fixtured in `scripts/check-lint-wall.mjs`), and **data comes from
   `@tc/factories`**, never a hand-built rollup — **except in `packages/domain`,
   where it cannot.** `packages/factories` depends on `@tc/domain`, and the
   dependency map above scopes `packages/domain` to contracts only, so importing
