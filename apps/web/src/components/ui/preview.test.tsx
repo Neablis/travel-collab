@@ -28,12 +28,12 @@ describe("Preview", () => {
     // can change freely, and the data flow stays load-bearing.
     //
     // `as const` is compile-time only, so the entry is mutable at runtime.
-    const entry = PREVIEW_REGISTRY["map-legend-modes"] as { milestone: string };
+    const entry = PREVIEW_REGISTRY["add-stop-suggestions"] as { milestone: string };
     const original = entry.milestone;
     entry.milestone = SENTINEL_MILESTONE;
     try {
       render(
-        <Preview id="map-legend-modes" size="container">
+        <Preview id="add-stop-suggestions" size="container">
           {<span>rail body</span>}
         </Preview>,
       );
@@ -46,7 +46,7 @@ describe("Preview", () => {
   it("inerts interactive controls inside it", async () => {
     const onClick = vi.fn();
     render(
-      <Preview id="map-legend-modes" size="container">
+      <Preview id="add-stop-suggestions" size="container">
         <button onClick={onClick}>Ask</button>
       </Preview>,
     );
@@ -55,7 +55,7 @@ describe("Preview", () => {
   });
   it("marks the region aria-disabled", () => {
     render(
-      <Preview id="map-legend-modes" size="container">
+      <Preview id="add-stop-suggestions" size="container">
         body
       </Preview>,
     );
@@ -63,7 +63,7 @@ describe("Preview", () => {
   });
   it("renders an icon badge instead of the text pill when compact", () => {
     render(
-      <Preview id="map-legend-modes" size="compact">
+      <Preview id="add-stop-suggestions" size="compact">
         body
       </Preview>,
     );
@@ -112,7 +112,7 @@ describe("Preview", () => {
   });
   it("does not force position:relative when the caller positions itself", () => {
     render(
-      <Preview id="map-legend-modes" size="container" className="fixed inset-0">
+      <Preview id="add-stop-suggestions" size="container" className="fixed inset-0">
         <p>x</p>
       </Preview>,
     );
