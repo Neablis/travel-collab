@@ -477,7 +477,7 @@ describe("GET /api/playbooks", () => {
     expect(names((await discover(`city=${only}`)).body)).toContain(name);
   });
 
-  // `sharedDayCount` is what decides whether Discover shows the leaderboard
+  // `sharedPlaybookCount` is what decides whether Discover shows the leaderboard
   // link at all ("Who shares the most should be hidden when nothing to share").
   // It must ignore every filter on the query — a Hakone search that matches
   // nothing is not an empty library — which is exactly what a count derived
@@ -489,12 +489,56 @@ describe("GET /api/playbooks", () => {
     currentUserId = READER;
     const matching = await discover(`city=${only}`);
     expect(matching.body.days.length).toBeGreaterThan(0);
-    expect(matching.body.sharedDayCount).toBeGreaterThanOrEqual(matching.body.days.length);
+    expect(matching.body.sharedPlaybookCount).toBeGreaterThanOrEqual(matching.body.days.length);
 
     // A query that matches nothing at all, in the same library.
     const empty = await discover(`city=${city("nomatch")}`);
     expect(empty.body.days).toHaveLength(0);
-    expect(empty.body.sharedDayCount).toBe(matching.body.sharedDayCount);
+    expect(empty.body.sharedPlaybookCount).toBe(matching.body.sharedPlaybookCount);
+  });
+
+  // KI-2026-09-25-a. The count is of PLAYBOOKS — published `saved_days` rows —
+  // and since M23 a Playbook is a sequence, so publishing one three days long
+  // adds ONE. The field used to be called `sharedDayCount`, a name the next
+  // reader would take to mean three. This pins the number to the noun.
+  it("counts a published three-day Playbook as one shared Playbook", async () => {
+    const only = city("sequence");
+    const tripId = randomUUID();
+    const dayIds = [randomUUID(), randomUUID(), randomUUID()];
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Three days" }, AUTHOR);
+    for (const dayId of dayIds) {
+      await executeTripCommand({ type: "AddDay", tripId, dayId }, AUTHOR);
+      await executeTripCommand(
+        {
+          type: "AddActivity",
+          tripId,
+          activityId: randomUUID(),
+          dayId,
+          title: `Stop in ${only}`,
+          timeWindow: { start: "09:00", end: "10:00" },
+          location: { name: `Place in ${only}`, city: only },
+        },
+        AUTHOR,
+      );
+    }
+    const res = await SAVE(
+      new Request("http://test/x", {
+        method: "POST",
+        body: JSON.stringify({ name: `Sequence ${RUN}`, tripId, dayIds }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const savedDayId = ((await res.json()) as { savedDay: { savedDayId: string } }).savedDay.savedDayId;
+
+    currentUserId = READER;
+    const before = (await discover(`city=${only}`)).body.sharedPlaybookCount;
+    currentUserId = AUTHOR;
+    await publish(savedDayId);
+
+    currentUserId = READER;
+    const after = await discover(`city=${only}`);
+    expect(after.body.days.map((d) => d.dayCount)).toEqual([3]);
+    expect(after.body.sharedPlaybookCount).toBe(before + 1);
   });
 
   it("derives the card's facts from the day's stops", async () => {

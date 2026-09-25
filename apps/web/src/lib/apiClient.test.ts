@@ -276,7 +276,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
           truncated: false,
           matchCount: 0,
           matchCountExact: true,
-          sharedDayCount: 0,
+          sharedPlaybookCount: 0,
         });
       }),
     );
@@ -323,7 +323,7 @@ describe("searchPlaybooks puts its filters on the wire", () => {
           truncated: false,
           matchCount: 0,
           matchCountExact: true,
-          sharedDayCount: 0,
+          sharedPlaybookCount: 0,
         });
       }),
     );

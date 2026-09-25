@@ -420,8 +420,9 @@ export const DiscoverResponse = z.object({
   /** False when `matchCount` is a floor rather than a total — see above. */
   matchCountExact: z.boolean().optional(),
   /**
-   * How many days are published across the WHOLE library, ignoring every filter
-   * on this query.
+   * How many Playbooks are published across the WHOLE library, ignoring every
+   * filter on this query. Playbooks, not days: since M23 a Playbook is a
+   * sequence, and a three-day one counts once (KI-2026-09-25-a).
    *
    * It exists for one control: the leaderboard link. *"Who shares the most"*
    * over a library nobody has shared anything into ranks an empty column, so
@@ -429,7 +430,7 @@ export const DiscoverResponse = z.object({
    * 2026-09-01). Deliberately not derived from `days` — that list is filtered,
    * and a Hakone query returning nothing does not mean nobody shares.
    */
-  sharedDayCount: z.number().int().nonnegative(),
+  sharedPlaybookCount: z.number().int().nonnegative(),
 });
 export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
 
