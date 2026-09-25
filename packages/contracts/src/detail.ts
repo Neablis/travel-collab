@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict.ts";
 import { TripLineage, TripMember, TripStatus } from "./trip.ts";
-import { ActivityKind, ActivitySnapshot, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
+import { ActivityKind, ActivityMode, ActivitySnapshot, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
 import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
@@ -42,6 +42,11 @@ export const ActivityView = z.object({
   // it. Membership is checked where it can be acted on — the command decider.
   bookedBy: z.string().nullable().default(null),
   participants: z.array(z.string()).default([]),
+  // M24. Defaulted for every document written before them, and — this model's
+  // rule again — NOT held to "transit only" on read: a stored contradiction
+  // must still render. The decider is where the rule is enforced.
+  mode: ActivityMode.nullable().default(null),
+  endLocation: Location.nullable().default(null),
 });
 export type ActivityView = z.infer<typeof ActivityView>;
 

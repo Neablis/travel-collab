@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ActivityKind,
+  ActivityMode,
   ActivityTag,
   Anchor,
   Location,
@@ -64,6 +65,13 @@ export const BundleStop = z.object({
   kind: ActivityKind.optional(),
   tags: z.array(ActivityTag).optional(),
   cost: Money.optional(),
+  /**
+   * The travel leg (M24): by what, and to where. Legal only with
+   * `kind: "transit"`, which the import's own `AddActivity` enforces — the
+   * command unions and the decider refuse it like any other write.
+   */
+  mode: ActivityMode.optional(),
+  endLocation: Location.optional(),
 });
 export type BundleStop = z.infer<typeof BundleStop>;
 

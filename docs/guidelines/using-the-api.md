@@ -230,6 +230,29 @@ If you send `countryCode` on the location as well, it must match the address's.
 Two country fields that can disagree is a bug generator, so the write is
 refused rather than one of them silently winning.
 
+**A travel leg has two places.** A stop with `"kind": "transit"` may also carry
+a `mode` (`walk`, `bus`, `train`, `flight`, `ferry`, `car` or `bike`) and an
+`endLocation` — where the leg arrives; `location` stays where it leaves from.
+Either field on any other kind is refused with a `400`, and so is a `PATCH` that
+changes the kind away from `transit` while the stop still has one: send
+`"mode": null, "endLocation": null` in the same request. An `endLocation` is
+resolved exactly like `location`, and answered in its own header,
+**`Geocode-Outcome-End`**, with the same values — sent only when the body had
+an `endLocation`, so `Geocode-Outcome` always means the outcome for
+`location`. Each place looked up counts against the allowance.
+
+```json
+{
+  "title": "Shinkansen to Kyoto",
+  "kind": "transit",
+  "mode": "train",
+  "location": { "name": "Odawara Station", "lat": 35.2547, "lng": 139.1546 },
+  "endLocation": { "name": "Kyoto Station" }
+}
+```
+
+That write answers `Geocode-Outcome: provided` and `Geocode-Outcome-End: name`.
+
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
 (optionally `&countryCode=JP`) returns up to five candidates. Each is a complete
 `location`: send one back as-is and the write costs no second lookup. Needs

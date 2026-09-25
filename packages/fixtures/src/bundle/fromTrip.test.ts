@@ -92,6 +92,14 @@ const source = (over: Record<string, unknown> = {}) =>
                 cost: { amountMinor: 0, currency: "JPY" },
               }),
               stop({ title: "Lunch", timeWindow: { start: "12:00", end: "13:00" } }),
+              // M24's travel leg, so the thesis above holds for it too.
+              stop({
+                title: "Train to Arashiyama",
+                kind: "transit",
+                location: { name: "Kyoto Station" },
+                mode: "train",
+                endLocation: { name: "Saga-Arashiyama Station" },
+              }),
             ],
           },
           {
@@ -205,7 +213,7 @@ describe("tripToBundle", () => {
     expect(exported.trips[0]).not.toHaveProperty("startDate");
     expect(exported.trips[0]).not.toHaveProperty("startsInDays");
     expect(exported.trips[0]!.days.map((d) => d.stops.map((s) => s.title))).toEqual([
-      ["Fushimi Inari", "Lunch"],
+      ["Fushimi Inari", "Lunch", "Train to Arashiyama"],
       ["Arashiyama"],
     ]);
   });

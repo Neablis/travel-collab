@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import { daySpan, isCalendarDate } from "@tc/domain";
-import { TripCommand, type TripDetail } from "@tc/contracts";
+import { BatchableCommand, TripCommand, type TripDetail } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch, executeTripCreation } from "@/server/commands";
 import type { Actor } from "./actor";
 
@@ -114,6 +114,24 @@ export async function runCreation(
 ): Promise<WriteOutcome> {
   const result = await executeTripCreation(create, then, actor.userId);
   return result.ok ? { ok: true, detail: result.detail } : refusal(result.error);
+}
+
+/**
+ * The contract check `runCommand`/`runBatch` will make, made early — for a
+ * handler with something to spend before it runs the commands. A v1 stop write
+ * geocodes first (ADR-007), and a travel leg on a non-transit stop (M24) is
+ * refused by the schema alone, so checking afterwards charged a lookup for a
+ * write that could never land.
+ *
+ * Throws the refusal the pipeline would have returned — same schema, same 400,
+ * same message — and nothing when the commands parse. They are parsed again
+ * when they run; this only moves the refusal earlier.
+ */
+export function refuseUnparseable(commands: CommandInput[]): void {
+  if (commands.length === 0) return;
+  const parsed =
+    commands.length === 1 ? TripCommand.safeParse(commands[0]) : BatchableCommand.array().safeParse(commands);
+  if (!parsed.success) throw new PublicApiError(400, parsed.error.message);
 }
 
 /** Throwable the wrapper turns into a response — see `PublicApiError` below. */

@@ -11,7 +11,7 @@ function dated(startDate: string | null, anchors: Anchor[], timeWindow: TripStat
   return {
     tripId: TRIP, name: "Rome", members: [{ userId: "u1", role: "owner" }], forkedFrom: null,
     startDate, days: [{ dayId: DAY, activityIds: [A1] }], backlog: [],
-    activities: { [A1]: { title: "Market", timeWindow, location: null, notes: null, anchors, kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [] } },
+    activities: { [A1]: { title: "Market", timeWindow, location: null, notes: null, anchors, kind: "planned" as const, tags: [], cost: null, bookedBy: null, participants: [], mode: null, endLocation: null } },
     dismissedConflictIds: [],
     currency: "USD", budget: null,
     status: "active",

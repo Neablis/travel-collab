@@ -29,6 +29,8 @@ function stop(title: string, start: string, location: SavedStop["location"]): Sa
     tags: [],
     cost: null,
     dayIndex: 0,
+    mode: null,
+    endLocation: null,
   };
 }
 

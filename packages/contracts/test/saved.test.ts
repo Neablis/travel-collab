@@ -23,6 +23,8 @@ const stop = {
   tags: [],
   cost: null,
   dayIndex: 0,
+  mode: null,
+  endLocation: null,
 };
 
 const savedDay = {
@@ -134,6 +136,14 @@ describe("SavedDaySequence", () => {
   it("refuses a dayIndex that goes backwards", () => {
     const bad = [{ ...stop, dayIndex: 1 }, { ...stop, dayIndex: 0 }];
     expect(SavedDaySequence.safeParse(bad).success).toBe(false);
+  });
+
+  // M24: a travel leg on a stop that is not transit could never be applied,
+  // so the write path refuses it — and only the write path (next test's seam).
+  it("refuses a travel leg on a non-transit stop, and accepts it on a transit one", () => {
+    expect(SavedDaySequence.safeParse([{ ...stop, mode: "train" }]).success).toBe(false);
+    expect(SavedDaySequence.safeParse([{ ...stop, kind: "transit", mode: "train" }]).success).toBe(true);
+    expect(SavedStop.array().safeParse([{ ...stop, mode: "train" }]).success).toBe(true);
   });
 
   // The seam that must not move. A refinement on the shared array would reach

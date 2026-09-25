@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TripCommand, type TripMember, type TripRole } from "@tc/contracts";
 import { hasAtLeast, memberRole, memberRolePolicy } from "./accessPolicy";
 
-const ALL_COMMAND_TYPES = TripCommand.options.map((o) => o.shape.type.value);
+const ALL_COMMAND_TYPES = TripCommand.innerType().options.map((o) => o.shape.type.value);
 const NON_CREATE = ALL_COMMAND_TYPES.filter((t) => t !== "CreateTrip");
 
 const as = (role: TripRole): TripMember[] => [{ userId: "u1", role }];

@@ -86,7 +86,8 @@ export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our si
 // Derived from `BatchableCommand`'s own options rather than spelled again, for
 // the reason `describeProposedChange`'s exhaustive switch exists: a thirteenth
 // command joins this for free and can never drift from the union it describes.
-const COMMAND_TYPES = BatchableCommand.options.map((option) => option.shape.type.value) as [
+// `.innerType()` because the union carries the travel-leg refinement (trip.ts).
+const COMMAND_TYPES = BatchableCommand.innerType().options.map((option) => option.shape.type.value) as [
   BatchableCommand["type"],
   ...BatchableCommand["type"][],
 ];

@@ -30,6 +30,8 @@ function fixture(): TripDetail {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       [a2]: {
         activityId: a2,
@@ -43,6 +45,8 @@ function fixture(): TripDetail {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
     },
     members: [

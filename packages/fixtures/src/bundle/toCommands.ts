@@ -55,6 +55,8 @@ function addActivity(
     ...(stop.anchors && stop.anchors.length > 0 ? { anchors: stop.anchors } : {}),
     ...(stop.cost ? { cost: stop.cost } : {}),
     ...(stop.notes ? { notes: stop.notes } : {}),
+    ...(stop.mode ? { mode: stop.mode } : {}),
+    ...(stop.endLocation ? { endLocation: stop.endLocation } : {}),
   };
 }
 

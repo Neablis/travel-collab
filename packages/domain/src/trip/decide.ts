@@ -1,4 +1,4 @@
-import type { CreateTrip, TripCommand, TripEvent } from "@tc/contracts";
+import { travelLegFieldsOffTransit, type CreateTrip, type TripCommand, type TripEvent } from "@tc/contracts";
 import { detectConflicts } from "./conflicts";
 import { daySpan, isCalendarDate } from "./dates";
 import { tripStatesEqual } from "./equality";
@@ -18,6 +18,22 @@ function ok(events: TripEvent[]): Decision {
 
 function reject(code: string, message: string): Decision {
   return { ok: false, rejection: { code, message } };
+}
+
+// M24. The command unions already refuse a command that STATES the
+// contradiction; this is the half they cannot see — an update whose result
+// would leave a `mode` or `endLocation` on a stop that is no longer transit.
+// Refused rather than silently cleared: dropping a field the caller did not
+// mention is the silent-drop class KI-2026-09-05-o is about, and the fix is one
+// explicit `mode: null` in the same command. Replay never reaches this: it is
+// the decider, not `evolveTrip`.
+function travelLegRejection(stop: Parameters<typeof travelLegFieldsOffTransit>[0]): Decision | null {
+  const off = travelLegFieldsOffTransit(stop);
+  if (off.length === 0) return null;
+  return reject(
+    "travel-leg-off-transit",
+    `Only a transit stop can have ${off.join(" or ")} — clear ${off.length > 1 ? "them" : "it"}, or keep the stop's kind as transit.`,
+  );
 }
 
 function okUnlessNoOp(state: TripState, events: TripEvent[]): Decision {
@@ -216,6 +232,12 @@ function decideCommand(
       if (command.dayId !== undefined && !state.days.some((d) => d.dayId === command.dayId)) {
         return reject("day-not-found", "This day does not exist.");
       }
+      const leg = travelLegRejection({
+        kind: command.kind ?? "planned",
+        mode: command.mode,
+        endLocation: command.endLocation,
+      });
+      if (leg) return leg;
       return ok([
         {
           type: "ActivityAdded",
@@ -234,6 +256,8 @@ function decideCommand(
             cost: command.cost ?? null,
             bookedBy: command.bookedBy ?? null,
             participants: command.participants ?? [],
+            mode: command.mode ?? null,
+            endLocation: command.endLocation ?? null,
           },
         },
       ]);
@@ -244,6 +268,11 @@ function decideCommand(
         return reject("activity-not-found", "This activity does not exist.");
       }
       // Omitted = unchanged, null = cleared; the event snapshots the result.
+      const kind = command.kind ?? current.kind;
+      const mode = command.mode === undefined ? current.mode : command.mode;
+      const endLocation = command.endLocation === undefined ? current.endLocation : command.endLocation;
+      const leg = travelLegRejection({ kind, mode, endLocation });
+      if (leg) return leg;
       return okUnlessNoOp(state, [
         {
           type: "ActivityUpdated",
@@ -256,7 +285,7 @@ function decideCommand(
             location: command.location === undefined ? current.location : command.location,
             notes: command.notes === undefined ? current.notes : command.notes,
             anchors: command.anchors === undefined ? current.anchors : command.anchors,
-            kind: command.kind ?? current.kind,
+            kind,
             tags: command.tags ?? current.tags,
             cost: command.cost === undefined ? current.cost : command.cost,
             // `=== undefined`, not `??`: `bookedBy: null` is "nobody booked
@@ -264,6 +293,8 @@ function decideCommand(
             // as "unchanged" and silently refuse the edit.
             bookedBy: command.bookedBy === undefined ? current.bookedBy : command.bookedBy,
             participants: command.participants ?? current.participants,
+            mode,
+            endLocation,
           },
         },
       ]);

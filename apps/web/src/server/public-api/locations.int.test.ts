@@ -12,6 +12,7 @@ import { upsertUser } from "@/server/users";
 import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
+import { dailyPolicy, geocodeQuota, peekQuota } from "@/server/quota";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -139,6 +140,7 @@ describe("v1 stop writes resolve their location", () => {
 
     expect(res.status).toBe(201);
     expect(res.headers.get("Geocode-Outcome")).toBe("provided");
+    expect(res.headers.get("Geocode-Outcome-End")).toBeNull();
     expect(forward).not.toHaveBeenCalled();
     expect(forwardAddress).not.toHaveBeenCalled();
   });
@@ -159,6 +161,36 @@ describe("v1 stop writes resolve their location", () => {
       location: Record<string, unknown>;
     };
     expect(stop.location.lat).toBeUndefined();
+  });
+
+  // M24 decision (Mitchell, 2026-09-25): `Geocode-Outcome` keeps meaning the
+  // outcome for `location`, and a transit stop's `endLocation` answers in its
+  // own header — sent only when the body carried one.
+  it("POST with an endLocation resolves it too and answers in Geocode-Outcome-End, leaving Geocode-Outcome to `location`", async () => {
+    const { secret, tripId, dayId } = await caller();
+    forward.mockResolvedValueOnce([HEIDELBERG]);
+
+    const res = await ADD_STOP(
+      req(
+        secret,
+        {
+          title: "Train to Heidelberg",
+          dayId,
+          kind: "transit",
+          mode: "train",
+          location: { name: "Frankfurt Hbf", lat: 50.107, lng: 8.663 },
+          endLocation: { name: "Heidelberg Hbf" },
+        },
+        "POST",
+      ),
+      P({ tripId }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(res.headers.get("Geocode-Outcome")).toBe("provided");
+    expect(res.headers.get("Geocode-Outcome-End")).toBe("name");
+    const stop = Object.values((await res.json()).activities)[0] as Record<string, unknown>;
+    expect(stop).toMatchObject({ mode: "train", endLocation: { name: "Heidelberg Hbf", lat: 49.41, lng: 8.69 } });
   });
 
   it("a stop with no location sends no Geocode-Outcome header and spends nothing", async () => {
@@ -243,6 +275,56 @@ describe("v1 stop writes resolve their location", () => {
     expect(res.status).toBe(400);
     expect(forwardAddress).not.toHaveBeenCalled();
     expect(forward).not.toHaveBeenCalled();
+  });
+
+  // M24. A leg on a stop that is not transit is refused by the command schema,
+  // and the body alone decides it — so nothing is looked up or charged for a
+  // write that could never land. The quota row is read as well as the mock,
+  // because the charge comes before the vendor call.
+  it("POST with a travel leg on a non-transit stop is a 400 before any lookup or charge", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, dayId } = await seed(secret);
+
+    const res = await ADD_STOP(
+      req(
+        secret,
+        { title: "Walk", dayId, mode: "walk", location: { name: "Old Bridge" }, endLocation: { name: "Castle" } },
+        "POST",
+      ),
+      P({ tripId }),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toContain("mode is only allowed on a transit stop");
+    expect(res.headers.get("Geocode-Outcome")).toBeNull();
+    expect(res.headers.get("Geocode-Outcome-End")).toBeNull();
+    expect(forward).not.toHaveBeenCalled();
+    expect(forwardAddress).not.toHaveBeenCalled();
+    expect((await peekQuota(dailyPolicy(geocodeQuota()), owner)).used).toBe(0);
+  });
+
+  // PATCH can decide it up front only when the body states the kind itself; a
+  // body without `kind` depends on the stored stop and is the decider's.
+  it("PATCH stating a non-transit kind beside a travel leg is a 400 before any lookup or charge", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, dayId } = await seed(secret);
+    const created = await ADD_STOP(req(secret, { title: "Somewhere", dayId }, "POST"), P({ tripId }));
+    expect(created.status).toBe(201);
+    const activityId = Object.keys((await created.json()).activities)[0] as string;
+
+    const res = await PATCH_STOP(
+      req(secret, { kind: "hold", location: { name: "Old Bridge" }, endLocation: { name: "Castle" } }, "PATCH"),
+      P({ tripId, activityId }),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toContain("endLocation is only allowed on a transit stop");
+    expect(res.headers.get("Geocode-Outcome")).toBeNull();
+    expect(res.headers.get("Geocode-Outcome-End")).toBeNull();
+    expect(forward).not.toHaveBeenCalled();
+    expect((await peekQuota(dailyPolicy(geocodeQuota()), owner)).used).toBe(0);
   });
 });
 

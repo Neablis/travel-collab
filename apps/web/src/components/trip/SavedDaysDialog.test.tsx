@@ -32,6 +32,8 @@ const saved: SavedDay = {
       tags: [],
       cost: null,
       dayIndex: 0,
+      mode: null,
+      endLocation: null,
     },
     {
       title: "Dinner",
@@ -43,6 +45,8 @@ const saved: SavedDay = {
       tags: [],
       cost: null,
       dayIndex: 0,
+      mode: null,
+      endLocation: null,
     },
   ],
   // M11b PR1's three new `SavedDay` fields. This fixture is a typed literal,

@@ -195,6 +195,48 @@ export type ActivityKind = z.infer<typeof ActivityKind>;
 export const ActivityTag = z.enum(["meal", "lodging", "ticketed", "outdoors"]);
 export type ActivityTag = z.infer<typeof ActivityTag>;
 
+// HOW a transit stop travels — `kind: "transit"` says THAT it is travel, this
+// says by what (M24, ADR-053). Closed for the reason `ActivityTag` is: each
+// value gets behaviour (a map style, a legend key), and a free string cannot
+// carry one. Taxi and rental fold into `car`; metro and tram into `train`.
+export const ActivityMode = z.enum(["walk", "bus", "train", "flight", "ferry", "car", "bike"]);
+export type ActivityMode = z.infer<typeof ActivityMode>;
+
+/** The two fields that describe a journey, and so are legal only on a transit stop. */
+export type TravelLegField = "mode" | "endLocation";
+
+/**
+ * Which travel-leg fields a stop carries while NOT being a transit stop — empty
+ * when the stop is legal.
+ *
+ * **One rule, two places it is asked.** The command unions (`trip.ts`) refuse
+ * a command that states the contradiction outright; `decideTripCommand` refuses
+ * an `UpdateActivity` whose RESULT would hold it (a patch that sets
+ * `kind: "hold"` and leaves an earlier `mode` behind), which no schema can see
+ * because it depends on the stored stop. Both call this, so they cannot drift.
+ *
+ * This is what makes `mode` beside `kind` safe where a second workflow field
+ * was not (the `ActivityTag` note above): `mode`'s presence is a function of
+ * `kind`, so the two can never assert competing answers
+ * (docs/milestones/M24-travel-legs.md, "Two decisions").
+ *
+ * Deliberately NOT applied to the event payloads or the read models. An event
+ * is a fact already decided, and replay must never refuse one; `trip_details`
+ * and `saved_days` are jsonb read back on every request, where a refinement
+ * drops or 500s a stored row (KI-20260905-l).
+ */
+export function travelLegFieldsOffTransit(stop: {
+  kind: ActivityKind;
+  mode?: ActivityMode | null;
+  endLocation?: Location | null;
+}): TravelLegField[] {
+  if (stop.kind === "transit") return [];
+  const off: TravelLegField[] = [];
+  if (stop.mode != null) off.push("mode");
+  if (stop.endLocation != null) off.push("endLocation");
+  return off;
+}
+
 // ---- Commands ----
 
 export const AddActivity = z.object({
@@ -233,6 +275,10 @@ export const AddActivity = z.object({
   kind: ActivityKind.optional(),         // omitted = "planned"
   tags: z.array(ActivityTag).optional(), // omitted = none
   cost: Money.optional(), // omitted = no cost
+  // M24. Legal only with `kind: "transit"` — refused on the command unions in
+  // trip.ts and again by the decider (see `travelLegFieldsOffTransit`).
+  mode: ActivityMode.optional(),        // omitted = no mode
+  endLocation: Location.optional(),     // omitted = no destination; `location` is where the leg starts
 });
 export type AddActivity = z.infer<typeof AddActivity>;
 
@@ -259,6 +305,12 @@ export const UpdateActivity = z.object({
   kind: ActivityKind.optional(),         // omitted = unchanged; no null (set "planned" to clear)
   tags: z.array(ActivityTag).optional(), // omitted = unchanged; whole-array replace, like anchors
   cost: Money.nullable().optional(), // omitted = unchanged, null = cleared
+  // M24. Omitted = unchanged, null = cleared. Whether the RESULT is legal
+  // depends on the stored `kind`, so the decider checks it, not this schema.
+  // Nothing clears these for you: moving a stop off `transit` while it keeps
+  // a mode is refused, and the caller sends `mode: null` alongside.
+  mode: ActivityMode.nullable().optional(),
+  endLocation: Location.nullable().optional(),
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
 
@@ -281,7 +333,7 @@ export type RemoveActivity = z.infer<typeof RemoveActivity>;
 // ---- The stored activity field set ----
 
 /**
- * **The eight fields an activity carries in state and on the wire, declared
+ * **The fields an activity carries in state and on the wire, declared
  * once.** Both event payloads below and the domain's `ActivityState` are
  * derived from this object, so a ninth field is a *compile error* at every site
  * that has to handle it rather than a silent no-op at twenty-odd. The read
@@ -310,7 +362,7 @@ export type RemoveActivity = z.infer<typeof RemoveActivity>;
  * something an activity carries.
  *
  * **`saved.ts`'s `SavedStop` is deliberately NOT derived from this.** It looks
- * like the same eight fields, but its header states a different rule about
+ * like the same fields, but its header states a different rule about
  * `.default()` and its `kind`/`tags` are required, not defaulted; deriving it
  * would silently change how already-saved `saved_days.stops` jsonb parses.
  *
@@ -379,6 +431,18 @@ export const ActivitySnapshot = z.object({
   // touched since — which is what it did to the #71 preview.
   bookedBy: z.string().nullable().default(null),
   participants: z.array(z.string()).default([]),
+  // ---- The travel leg (M24, ADR-053) ----
+  //
+  // By what (`mode`), and to where (`endLocation`). `location` keeps meaning
+  // exactly what it meant before: on a transit stop, where the leg STARTS — so
+  // no existing reader of `location` changes meaning.
+  //
+  // Defaulted to null for the reason `bookedBy` is: every stored payload and
+  // `trip_details.doc` predates them. Legal only on a transit stop, and not
+  // refined here — see `travelLegFieldsOffTransit` for why an event must parse
+  // regardless. Unlabelled (no `described()`), so no page prints them yet.
+  mode: ActivityMode.nullable().default(null),
+  endLocation: Location.nullable().default(null),
 });
 export type ActivitySnapshot = z.infer<typeof ActivitySnapshot>;
 

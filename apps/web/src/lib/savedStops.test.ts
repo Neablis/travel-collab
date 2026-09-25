@@ -21,6 +21,8 @@ const activity = (activityId: string, title: string): ActivityView => ({
   cost: { amountMinor: 1200, currency: "USD" },
   bookedBy: null,
   participants: [],
+  mode: null,
+  endLocation: null,
 });
 
 function detail(): TripDetail {
@@ -50,6 +52,8 @@ describe("stopsForDay", () => {
       // `stopsForDay` answers about ONE day, so its fragment is a sequence of
       // length one. `stopsForDays` re-stamps this per selected day (M23).
       dayIndex: 0,
+      mode: null,
+      endLocation: null,
     });
   });
 

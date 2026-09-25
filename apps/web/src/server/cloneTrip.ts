@@ -250,6 +250,8 @@ function eventToCommand(event: ReturnType<typeof diffTripStates>[number], tripId
         kind: event.payload.kind,
         tags: event.payload.tags,
         cost: event.payload.cost ?? undefined,
+        mode: event.payload.mode ?? undefined,
+        endLocation: event.payload.endLocation ?? undefined,
       };
     case "ActivityMoved":
       return {

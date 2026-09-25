@@ -37,6 +37,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       },
     });
@@ -67,6 +69,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
         [osakaActivity]: {
           activityId: osakaActivity,
@@ -80,6 +84,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       },
     });
@@ -119,6 +125,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
         [noLocationActivity]: {
           activityId: noLocationActivity,
@@ -132,6 +140,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       },
     });
@@ -169,6 +179,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
         [kyotoActivity]: {
           activityId: kyotoActivity,
@@ -182,6 +194,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       },
     });
@@ -216,6 +230,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
         [tokyoActivity]: {
           activityId: tokyoActivity,
@@ -229,6 +245,8 @@ describe("chipModel", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       },
     });
@@ -380,6 +398,8 @@ describe("cityFor", () => {
     cost: null,
     bookedBy: null,
     participants: [],
+    mode: null,
+    endLocation: null,
   });
   const oneStopDay = { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 };
   const twoStopDay = {

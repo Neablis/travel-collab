@@ -101,4 +101,6 @@ const stop = {
   cost: null,
   bookedBy: null,
   participants: [],
+  mode: null,
+  endLocation: null,
 };

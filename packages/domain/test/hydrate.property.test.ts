@@ -69,6 +69,11 @@ const activity: fc.Arbitrary<ActivityState> = fc.record({
   // exercises attribution surviving a hydrate round trip.
   bookedBy: fc.option(fc.string({ minLength: 1, maxLength: 12 }), { nil: null }),
   participants: fc.uniqueArray(fc.string({ minLength: 1, maxLength: 12 }), { maxLength: 3 }),
+  // M24, generated for the same reason. Independent of `kind` on purpose:
+  // hydrate must be lossless for any state, and the transit-only rule is the
+  // decider's, not the read model's.
+  mode: fc.option(fc.constantFrom("walk", "bus", "train", "flight", "ferry", "car", "bike"), { nil: null }),
+  endLocation: fc.option(location, { nil: null }),
 });
 
 // A non-owner member is unreachable by replay — no command adds a member, so

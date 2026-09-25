@@ -51,6 +51,6 @@ describe("ActivityAdded/ActivityUpdated payload parity", () => {
     expect(updated).toEqual(addedShared);
     // Named explicitly so a newly-added defaulting field that only reached one
     // payload cannot hide behind a toEqual over two equally-incomplete objects.
-    expect(addedShared).toMatchObject({ anchors: [], kind: "planned", tags: [], cost: null });
+    expect(addedShared).toMatchObject({ anchors: [], kind: "planned", tags: [], cost: null, mode: null, endLocation: null });
   });
 });

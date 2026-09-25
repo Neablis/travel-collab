@@ -25,10 +25,13 @@ const full = (title: string, dayIndex: number): SavedStop => ({
   },
   notes: "Go early.",
   anchors: [{ kind: "dayOfWeek", days: ["mon", "tue"] }],
-  kind: "booked",
+  // `transit`, because it is the one kind that may carry the travel leg below.
+  kind: "transit",
   tags: ["ticketed", "outdoors"],
   cost: { amountMinor: 1200, currency: "JPY" },
   dayIndex,
+  mode: "train",
+  endLocation: { name: "Inari Station", lat: 34.9669, lng: 135.7699, countryCode: "JP", city: "Kyoto" },
 });
 
 /** The zero value of every optional field. */
@@ -42,6 +45,8 @@ const bare = (title: string, dayIndex: number): SavedStop => ({
   tags: [],
   cost: null,
   dayIndex,
+  mode: null,
+  endLocation: null,
 });
 
 /** Five days: 0 full, 1 empty (interior rest day), 2 two stops, 3 one, 4 empty (trailing). */

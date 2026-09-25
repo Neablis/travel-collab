@@ -7,6 +7,7 @@ import {
   AddActivity,
   MoveActivity,
   RemoveActivity,
+  travelLegFieldsOffTransit,
   UpdateActivity,
 } from "./activity.ts";
 import {
@@ -251,7 +252,33 @@ export const TripEvent = z.discriminatedUnion("type", [
 ]);
 export type TripEvent = z.infer<typeof TripEvent>;
 
-export const TripCommand = z.discriminatedUnion("type", [
+/**
+ * **A travel-leg field on a stop that is not travel is refused here** (M24):
+ * an `AddActivity` whose kind (omitted = "planned") is not `transit` may not
+ * carry a `mode` or an `endLocation`, and nor may an `UpdateActivity` that
+ * sets a non-transit kind in the same breath. An update that leaves one behind
+ * on a stop whose stored kind changes is the decider's to refuse, because only
+ * it can see the stored stop.
+ *
+ * On the UNION, the pattern `Anchor` uses (activity.ts), because zod 3's
+ * `discriminatedUnion` accepts only plain objects as members — a refinement on
+ * `AddActivity` itself would take it out of both unions below.
+ */
+function refuseTravelLegOffTransit(command: { type: string }, ctx: z.RefinementCtx): void {
+  if (command.type !== "AddActivity" && command.type !== "UpdateActivity") return;
+  const c = command as AddActivity | UpdateActivity;
+  const kind = c.type === "AddActivity" ? (c.kind ?? "planned") : c.kind;
+  if (kind === undefined) return;
+  for (const field of travelLegFieldsOffTransit({ kind, mode: c.mode, endLocation: c.endLocation })) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [field],
+      message: `${field} is only allowed on a transit stop (kind "transit")`,
+    });
+  }
+}
+
+const TripCommandUnion = z.discriminatedUnion("type", [
   CreateTrip,
   AddDay,
   RemoveDay,
@@ -271,12 +298,13 @@ export const TripCommand = z.discriminatedUnion("type", [
   SetTripCurrency,
   SetTripBudget,
 ]);
+export const TripCommand = TripCommandUnion.superRefine(refuseTravelLegOffTransit);
 export type TripCommand = z.infer<typeof TripCommand>;
 
 // Commands eligible for atomic batching (M6): every TripCommand except
 // CreateTrip (a trip's genesis), the history commands (decided separately),
 // and destructive/stream-level operations (DeleteTrip, RestoreTrip).
-export const BatchableCommand = z.discriminatedUnion("type", [
+const BatchableCommandUnion = z.discriminatedUnion("type", [
   AddDay,
   RemoveDay,
   SetTripStartDate,
@@ -290,6 +318,7 @@ export const BatchableCommand = z.discriminatedUnion("type", [
   SetTripCurrency,
   SetTripBudget,
 ]);
+export const BatchableCommand = BatchableCommandUnion.superRefine(refuseTravelLegOffTransit);
 export type BatchableCommand = z.infer<typeof BatchableCommand>;
 
 // Ordered least- to most-privileged; `AccessPolicy` (apps/web/src/server) is

@@ -30,6 +30,8 @@ describe("ActivityEditor", () => {
       cost: null,
       bookedBy: null,
       participants: [],
+      mode: null,
+      endLocation: null,
     };
     const onSave = vi.fn();
     const props = { initial, mode: "edit" as const, days: [], onSave, onCancel: vi.fn() };
@@ -59,6 +61,8 @@ function existingStop(overrides: Partial<ActivityView> = {}): ActivityView {
     cost: null,
     bookedBy: null,
     participants: [],
+    mode: null,
+    endLocation: null,
     ...overrides,
   };
 }
@@ -175,6 +179,8 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     cost: null,
     bookedBy: null,
     participants: [],
+    mode: null,
+    endLocation: null,
     ...over,
   });
 

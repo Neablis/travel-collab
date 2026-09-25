@@ -85,6 +85,8 @@ function detailFixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       [forum]: {
         activityId: forum,
@@ -98,6 +100,8 @@ function detailFixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
       [flight]: {
         activityId: flight,
@@ -111,6 +115,8 @@ function detailFixture() {
         cost: null,
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       },
     },
   });
@@ -193,7 +199,7 @@ describe("CalendarLens", () => {
         activities: Object.fromEntries(
           ids.map((id, i) => [
             id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome", city: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: []},
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome", city: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null},
           ]),
         ),
       }),
@@ -225,6 +231,8 @@ describe("CalendarLens", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
         [forum]: {
           activityId: forum,
@@ -238,6 +246,8 @@ describe("CalendarLens", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       },
     });
@@ -264,6 +274,8 @@ describe("CalendarLens", () => {
           cost: null,
           bookedBy: null,
           participants: [],
+          mode: null,
+          endLocation: null,
         },
       },
     });
@@ -447,6 +459,8 @@ describe("CalendarLens", () => {
         cost: costMinor === null ? null : { amountMinor: costMinor, currency: "USD" },
         bookedBy: null,
         participants: [],
+        mode: null,
+        endLocation: null,
       });
 
       return tripDetailFixture({
