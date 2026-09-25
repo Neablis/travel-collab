@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ActivityMode, type ActivityKind, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type TimeWindow, type TripMember } from "@tc/contracts";
+import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type TimeWindow, type TripMember } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import { KIND_LABEL, KIND_OPTIONS } from "./activityKind";
 import { TAG_LABEL, TAG_ORDER, toggleTag } from "@/lib/activityTags";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
+import { TravelModePicker } from "./TravelModePicker";
 
 export type ActivityFormValue = {
   title: string;
@@ -44,16 +45,6 @@ export type ActivityFormValue = {
   // save otherwise, because the decider refuses a leg on any other kind.
   mode: ActivityMode | null;
   endLocation: Location | null;
-};
-
-const MODE_LABEL: Record<ActivityMode, string> = {
-  walk: "On foot",
-  bus: "Bus",
-  train: "Train",
-  flight: "Flight",
-  ferry: "Ferry",
-  car: "Car",
-  bike: "Bike",
 };
 
 // One option per trip day for the "Day" NativeSelect, plus that day's
@@ -349,20 +340,7 @@ export function ActivityEditor({
 
       {kind === "transit" && (
         <>
-          <FormField id="activity-mode" label="Travelling by" description="How this leg gets there.">
-            <NativeSelect
-              id="activity-mode"
-              value={travelMode ?? ""}
-              onChange={(e) => setTravelMode(e.target.value === "" ? null : (e.target.value as ActivityMode))}
-            >
-              <option value="">Not said</option>
-              {ActivityMode.options.map((option) => (
-                <option key={option} value={option}>
-                  {MODE_LABEL[option]}
-                </option>
-              ))}
-            </NativeSelect>
-          </FormField>
+          <TravelModePicker value={travelMode} onChange={setTravelMode} />
           {/* The place above is where the leg starts; this is where it ends. */}
           <LocationInput id="end-location-search" label="Going to" value={endLocation} onChange={setEndLocation} />
         </>
