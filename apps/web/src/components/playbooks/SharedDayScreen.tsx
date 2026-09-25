@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import type { SavedDay, TimeFormat } from "@tc/contracts";
+import type { SavedDay, SavedDayModeration, TimeFormat } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
@@ -143,6 +143,8 @@ type DayView = {
   author: PublicAuthor;
   pinning: boolean;
   publishedAt?: string | null;
+  /** An operator hid it (KI-2026-09-23-i). Only ever non-null on the author's own read. */
+  moderation: SavedDayModeration | null;
 };
 
 /**
@@ -177,6 +179,7 @@ async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
       author: authorResult.value.author,
       pinning: dayResult.value.pinning,
       publishedAt: dayResult.value.publishedAt,
+      moderation: dayResult.value.moderation ?? null,
     },
   };
 }
@@ -335,7 +338,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
     );
   }
 
-  const { day, isAuthor, author } = feed.data;
+  const { day, isAuthor, author, moderation } = feed.data;
   const facts = savedDayFacts(day.stops, day.dayCount);
   const length = dayLength(facts.window);
   const groups = playbookDays(day);
@@ -358,6 +361,22 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
         <Banner variant="warning" data-testid="day-withdrawn">
           That day is no longer in the library, so it could not be added. Its author took it back
           out while this page was open.
+        </Banner>
+      )}
+      {/* KI-2026-09-23-i. Author-only here as well as on the route: the note
+          is addressed to them. "Publishing it again" is named because it is
+          the obvious next move and it does nothing — moderation and visibility
+          are independent (the schema's `moderatedAt` note). */}
+      {isAuthor && moderation !== null && (
+        <Banner variant="warning" data-testid="day-hidden">
+          A moderator hid this day from the library. It is still yours, but nobody else can find or
+          open it, and publishing it again will not bring it back.
+          {moderation.moderationNote !== null && (
+            <>
+              {" "}
+              Their note to you: “{moderation.moderationNote}”
+            </>
+          )}
         </Banner>
       )}
 

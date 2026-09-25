@@ -407,6 +407,20 @@ describe("fetchSavedDay carries publishedAt without inventing one", () => {
     expect(unknown.ok).toBe(true);
     expect(unknown.ok && unknown.value.publishedAt).toBeUndefined();
   });
+
+  // KI-2026-09-23-i. An older server sends no `moderation`; that is "not hidden".
+  it("reads the author's moderation, and its absence as not hidden", async () => {
+    answer({ moderation: { moderatedAt: "2026-09-23T10:00:00.000Z", moderationNote: "Spam links." } });
+    const hidden = await fetchSavedDay(UUID);
+    expect(hidden.ok && hidden.value.moderation).toEqual({
+      moderatedAt: "2026-09-23T10:00:00.000Z",
+      moderationNote: "Spam links.",
+    });
+
+    answer({});
+    const older = await fetchSavedDay(UUID);
+    expect(older.ok && older.value.moderation).toBeNull();
+  });
 });
 
 // *Have a look first* (M27 D12): the look screen registers its token for one

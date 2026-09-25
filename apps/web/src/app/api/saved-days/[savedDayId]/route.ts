@@ -1,7 +1,7 @@
-import { SavedDay } from "@tc/contracts";
+import { SavedDay, SavedDayModeration } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { requireSavedDayRead } from "@/server/access/saved-day-access";
-import { deleteSavedDay, publishedAtOf } from "@/server/savedDays";
+import { deleteSavedDay, moderationOf, publishedAtOf } from "@/server/savedDays";
 import { schedulePinBackfill } from "@/server/savedDayPinBackfill";
 
 // Read one saved day: your own, or anybody's published one (M11b link 3).
@@ -22,6 +22,11 @@ import { schedulePinBackfill } from "@/server/savedDayPinBackfill";
 // offline sends it back as `seenPublishedAt`, and a republish in between turns
 // the flush into §15's conflict banner instead of stars on a day the reviewer
 // never read.
+//
+// `moderation` is on the envelope too, and ONLY for the author
+// (KI-2026-09-23-i): an operator's `hide-day` and its note are addressed to the
+// person whose day it is. Everyone else gets `null` — and cannot open a hidden
+// day anyway, so the branch is a second wall, not the only one.
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ savedDayId: string }> },
@@ -31,7 +36,14 @@ export async function GET(
   if ("error" in access) return access.error;
   const pinning = schedulePinBackfill(access.day, access.readerId);
   const publishedAt = await publishedAtOf(savedDayId);
-  return Response.json({ savedDay: SavedDay.parse(access.day), isAuthor: access.isAuthor, pinning, publishedAt });
+  const moderation = access.isAuthor ? await moderationOf(savedDayId) : null;
+  return Response.json({
+    savedDay: SavedDay.parse(access.day),
+    isAuthor: access.isAuthor,
+    pinning,
+    publishedAt,
+    moderation: moderation === null ? null : SavedDayModeration.parse(moderation),
+  });
 }
 
 // Owner-only, and scoped in the query rather than checked after the read: a

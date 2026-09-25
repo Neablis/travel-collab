@@ -7,6 +7,7 @@ import {
   SavedStop,
   type BatchableCommand,
   type SavedDay,
+  type SavedDayModeration,
   type TripDetail,
 } from "@tc/contracts";
 import { citiesOfSequence, countriesOfStops, foldEnvelopes } from "@tc/domain";
@@ -519,6 +520,26 @@ export async function publishedAtOf(savedDayId: string): Promise<string | null> 
     .from(savedDays)
     .where(eq(savedDays.id, savedDayId));
   return rows[0]?.publishedAt?.toISOString() ?? null;
+}
+
+/**
+ * Whether an operator hid this day from the library, and the note they left
+ * its author — or null when it is not hidden (KI-2026-09-23-i).
+ *
+ * **Author-only by its caller, not by this query.** Like `publishedAtOf` it
+ * answers nothing about access; the shared-day route asks it only when
+ * `isAuthor`, and `SavedDayModeration`'s note says why it is not on `SavedDay`.
+ * `reports.ts` is the only writer of both columns, and clears them together.
+ */
+export async function moderationOf(savedDayId: string): Promise<SavedDayModeration | null> {
+  if (!isUuid(savedDayId)) return null;
+  const rows = await db
+    .select({ moderatedAt: savedDays.moderatedAt, moderationNote: savedDays.moderationNote })
+    .from(savedDays)
+    .where(eq(savedDays.id, savedDayId));
+  const row = rows[0];
+  if (row?.moderatedAt == null) return null;
+  return { moderatedAt: row.moderatedAt.toISOString(), moderationNote: row.moderationNote };
 }
 
 /**

@@ -303,6 +303,30 @@ export const SavedDay = z.object({
 export type SavedDay = z.infer<typeof SavedDay>;
 
 /**
+ * **An operator hid this day from the library** (M12 link 6), as its AUTHOR is
+ * told it — `hide-day`'s `saved_days.moderated_at` and `moderation_note`, the
+ * note being "the one line the author's copy can show about why it left the
+ * library" (`AdminReportAction`). KI-2026-09-23-i.
+ *
+ * **Deliberately not a field on `SavedDay`.** `SavedDay` is what every reader
+ * gets — the shared-day read, `/v1/playbooks`, `/v1/library` — and a note
+ * written to the author is not for any of them. It rides beside the day on
+ * `GET /api/saved-days/:id`'s envelope, as `publishedAt` does, and the route
+ * sends it only when `isAuthor`; everyone else's envelope carries `null`. A
+ * field on `SavedDay` would instead need every future non-author read path to
+ * remember to blank it.
+ *
+ * `moderationNote` is defaulted to null so a payload that predates it parses.
+ */
+export const SavedDayModeration = z.object({
+  /** When the operator hid it (ISO-8601). Kept, not re-stamped, by a second hide. */
+  moderatedAt: z.string().min(1),
+  /** The operator's note to the author, or null when they left none. */
+  moderationNote: z.string().nullable().default(null),
+});
+export type SavedDayModeration = z.infer<typeof SavedDayModeration>;
+
+/**
  * The client names a day and points at it; the SERVER reads the stops.
  *
  * Deliberately not `{ name, stops }`: letting a client post the plan content
