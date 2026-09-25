@@ -38,8 +38,8 @@ export type MapDay = {
   accent: AccentFamily;
   stops: MapStop[]; // located stops, in the day's activity order
   unlocatedCount: number;
-  totalKm: number | null; // summed straight-line legs; null with fewer than 2 located stops
-  bars: { grow: number; color: AccentFamily }[]; // one per located stop, grow proportional to that leg's share
+  totalKm: number | null; // summed straight-line hops of the drawn route (hops()); null when it has none
+  bars: { grow: number; color: AccentFamily }[]; // one per hop, grow proportional to that hop's share
   // A day with no stops at all. Deliberately NOT folded into `flagText`: the
   // Phase 6 copy table gives the map's two surfaces *different* strings for
   // this one state — the rail says "Nothing planned yet" (it is a list of
@@ -55,7 +55,7 @@ export type MapDay = {
   flagText: string | null;
   /**
    * The day's longest hop, or null when there is nothing to travel between
-   * (fewer than two located stops). Feeds the hover card's third note — the one
+   * (the drawn route has no lines). Feeds the hover card's third note — the one
    * fact about a day's shape that "5 stops · 40 km" cannot carry.
    */
   longest: LongestLeg | null;
@@ -85,15 +85,38 @@ function locatedStops(day: TripDetail["days"][number], activities: TripDetail["a
   return stops;
 }
 
-// Legs are consecutive located-stop pairs, in stop order — the same
-// straight-line honesty TimelineLens.tsx's Leg component uses for a single
-// gap, summed across a whole day here.
-function legKms(stops: MapStop[]): number[] {
-  const kms: number[] = [];
-  for (let i = 1; i < stops.length; i++) {
-    kms.push(haversineKm(stops[i - 1]!, stops[i]!));
+type Point = { lat: number; lng: number };
+
+/**
+ * One straight line of a day's route, `a` → `b`. `to` is the stop it reaches,
+ * or null when the line is `from`'s own leg (a transit stop with an `end`).
+ */
+type Hop = { a: Point; b: Point; from: MapStop; to: MapStop | null };
+
+/**
+ * The day's route as the ordered lines it is made of — the ONE place the
+ * pairing rule lives, walked by routeLegs to draw and by legKms/longestLeg to
+ * measure, so the rail's numbers cannot describe a different route from the
+ * map's (they did: a day of one Odawara → Kyoto train drew ~300 km and read
+ * "A single anchor").
+ *
+ * Each stop is reached from the previous stop's destination if it had one,
+ * else its location; a stop with an `end` then contributes its own leg. With
+ * no `end` anywhere this is exactly the consecutive pairs.
+ */
+function* hops(stops: readonly MapStop[]): Generator<Hop> {
+  let prev: MapStop | undefined;
+  for (const stop of stops) {
+    if (prev !== undefined) yield { a: prev.end ?? prev, b: stop, from: prev, to: stop };
+    if (stop.end !== undefined) yield { a: stop, b: stop.end, from: stop, to: null };
+    prev = stop;
   }
-  return kms;
+}
+
+// Straight-line, the same honesty TimelineLens.tsx's Leg component uses for a
+// single gap, summed across a whole day here.
+function legKms(stops: MapStop[]): number[] {
+  return Array.from(hops(stops), (hop) => haversineKm(hop.a, hop.b));
 }
 
 /**
@@ -127,8 +150,12 @@ export function monthEdges(days: readonly { date: string | null }[]): boolean[] 
   });
 }
 
-/** The longest single hop of a day, and the two stops it runs between. */
-export type LongestLeg = { km: number; from: string; to: string };
+/**
+ * The longest single hop of a day: the two stops it runs between, or — when
+ * it is a transit stop's own leg — that stop's title, which already names
+ * both ends ("Shinkansen Odawara → Kyoto").
+ */
+export type LongestLeg = { km: number; from: string; to: string } | { km: number; leg: string };
 
 /**
  * The longest leg of a day, or `null` when there is nothing to travel between.
@@ -144,16 +171,16 @@ export type LongestLeg = { km: number; from: string; to: string };
  * equal length would otherwise pick whichever the loop saw last, which is an
  * implementation detail leaking into copy.
  *
- * Fewer than two located stops is `null`, which is the caller's cue for the
- * *"A single anchor. Nothing to travel between."* note rather than an error.
+ * A route with no hops — fewer than two located stops, none of them a leg — is
+ * `null`, which is the caller's cue for the *"A single anchor. Nothing to
+ * travel between."* note rather than an error.
  */
 export function longestLeg(stops: readonly MapStop[]): LongestLeg | null {
-  if (stops.length < 2) return null;
   let best: LongestLeg | null = null;
-  for (let i = 1; i < stops.length; i++) {
-    const km = haversineKm(stops[i - 1]!, stops[i]!);
+  for (const hop of hops(stops)) {
+    const km = haversineKm(hop.a, hop.b);
     if (best === null || km > best.km) {
-      best = { km, from: stops[i - 1]!.title, to: stops[i]!.title };
+      best = hop.to === null ? { km, leg: hop.from.title } : { km, from: hop.from.title, to: hop.to.title };
     }
   }
   return best;
@@ -170,7 +197,7 @@ export function mapDays(detail: TripDetail): MapDay[] {
     const stops = locatedStops(day, detail.activities);
     const unlocatedCount = day.activityIds.length - stops.length;
     const legs = legKms(stops);
-    const totalKm = stops.length >= 2 ? legs.reduce((sum, km) => sum + km, 0) : null;
+    const totalKm = legs.length > 0 ? legs.reduce((sum, km) => sum + km, 0) : null;
     const accent = accents[index]?.solid ?? "neutral";
 
     // **One bar per LEG, not per stop** (M26 link 5b). The bar row is a picture
@@ -180,10 +207,12 @@ export function mapDays(detail: TripDetail): MapDay[] {
     // made every day's shape read a little wrong, worst on a two-stop day where
     // a single real leg was drawn as two bars of 50% each.
     //
-    // A day with fewer than two located stops now renders NO bars, which is
-    // correct: nothing was travelled. The even split remains only for the real
-    // degenerate case — legs that exist but sum to zero, i.e. stops sharing one
-    // coordinate — where proportion is undefined but the legs are real.
+    // A "leg" here is a hop of the drawn route (hops()), so a transit stop with
+    // a destination is a bar of its own. A route with no hops renders NO bars,
+    // which is correct: nothing was travelled. The even split remains only for
+    // the real degenerate case — legs that exist but sum to zero, i.e. stops
+    // sharing one coordinate — where proportion is undefined but the legs are
+    // real.
     const bars =
       legs.length === 0
         ? []
@@ -284,27 +313,23 @@ export function routeLegs(day: MapDay): Record<RouteVariant, [number, number][][
   const legs: Record<RouteVariant, [number, number][][]> = { travel: [], rest: [] };
   const inferred = (stop: MapStop) => stop.kind === "transit" && stop.end === undefined;
   const drawn = new Set<string>();
-  let prev: MapStop | undefined;
-  for (const stop of day.stops) {
-    if (prev !== undefined) {
-      const from = prev.end ?? prev;
-      legs[inferred(prev) || inferred(stop) ? "travel" : "rest"].push([
-        [from.lng, from.lat],
-        [stop.lng, stop.lat],
-      ]);
+  for (const { a, b, from, to } of hops(day.stops)) {
+    const line: [number, number][] = [
+      [a.lng, a.lat],
+      [b.lng, b.lat],
+    ];
+    if (to !== null) {
+      legs[inferred(from) || inferred(to) ? "travel" : "rest"].push(line);
+      continue;
     }
-    if (stop.end !== undefined) {
-      const variant = legVariant(stop.mode);
-      const ends = [`${stop.lng}:${stop.lat}`, `${stop.end.lng}:${stop.end.lat}`].sort().join("|");
-      if (!drawn.has(`${variant}|${ends}`)) {
-        drawn.add(`${variant}|${ends}`);
-        legs[variant].push([
-          [stop.lng, stop.lat],
-          [stop.end.lng, stop.end.lat],
-        ]);
-      }
+    // Only the drawing dedupes: the rail still counts a retraced leg, because
+    // it was travelled twice.
+    const variant = legVariant(from.mode);
+    const ends = [`${a.lng}:${a.lat}`, `${b.lng}:${b.lat}`].sort().join("|");
+    if (!drawn.has(`${variant}|${ends}`)) {
+      drawn.add(`${variant}|${ends}`);
+      legs[variant].push(line);
     }
-    prev = stop;
   }
   return legs;
 }
