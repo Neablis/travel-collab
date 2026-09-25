@@ -15,7 +15,7 @@
     "milestone": "node scripts/milestone.mjs",
     "surface": "node scripts/surface-size.mjs",
     "arch": "depcruise --ignore-known --output-type err apps/web/src packages/*/src",
-    "arch:baseline": "depcruise-baseline apps/web/src packages/*/src",
+    "arch:baseline": "node scripts/arch-baseline.mjs",
     "arch:graph": "depcruise --collapse '^(packages/[^/]+|apps/web/src/server/[^/]+|apps/web/src/components/[^/]+|apps/web/src/[^/]+)' --output-type mermaid apps/web/src packages/*/src",
     "tier3": "node scripts/tier3-stamp.mjs",
     "typecheck": "pnpm -r typecheck",
