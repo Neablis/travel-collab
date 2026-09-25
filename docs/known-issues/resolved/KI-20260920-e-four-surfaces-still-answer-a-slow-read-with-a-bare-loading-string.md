@@ -1,4 +1,4 @@
-### KI-2026-09-20-e — four surfaces still answer a slow read with a bare `Loading…`, which link 7's own survey missed
+### KI-2026-09-20-e — four surfaces still answer a slow read with a bare `Loading…`, which link 7's own survey missed — RESOLVED
 
 - **Severity:** cosmetic on a fast connection, and a blank-looking app on a slow
   one. Not a correctness defect. (As found.)
@@ -100,3 +100,57 @@
      `SkeletonRegion`, such as `label="Loading notebooks"`, are attributes, not
      rendered text, and stay allowed. See it red on `PageScreen.tsx:646`
      before that line is fixed.
+- **Resolved 2026-09-25 (overnight KI sweep).** The last three strings are
+  gone, and the trip board's rule applies to each: render the chrome that is
+  real from the first frame, and otherwise nothing.
+  - `PageScreen.tsx`: the loading branch returns `null`.
+  - `PlansScreen.tsx`: the order card keeps its `Order` heading and shows no
+    body until Stripe's preview lands.
+  - `TokensSection.tsx`: the trip picker keeps its explanatory sentence and
+    shows no chips until the list lands.
+
+  A re-grep of `apps/web/src` found no other rendered `Loading…`.
+
+  **Guard:** `scripts/check-loading-wall.mjs` runs in `pnpm lint`, with
+  `scripts/__tests__/check-loading-wall.test.mjs`. It uses the TypeScript
+  AST, so comments are never scanned, and it has no allowlist. It fails on a
+  JSX text node or a non-attribute string literal in a non-test `.tsx` that
+  starts with `Loading` and ends in `…` or `...`. The widening is
+  deliberate: the entry's `/^\s*Loading(…|\.\.\.)/` would have missed
+  `Loading your trips…`. Run over the pre-fix tree, the wall fails and names
+  all three sites: `TokensSection.tsx:651`, `PageScreen.tsx:752`, and
+  `PlansScreen.tsx:691`. Over the fixed tree it prints
+  `loading wall OK (187 files scanned)`.
+
+  **Proof:** three component tests hold each read pending: the trip read in
+  `PageScreen.test.tsx`, Stripe's preview in `PlansScreen.test.tsx`, and the
+  trip list in `TokensSection.test.tsx`. Against the unfixed code all three
+  failed for this reason, e.g. `expected 'Loading…' not to match /Loading/`
+  and `expected 'OrderLoading…BackConfirm' not to match /Loading/`. After the
+  fix, all three files pass (110 tests).
+
+  **Not done: walking every route on a preview** (Done-means item 1). This
+  sweep cannot push, so there was no preview to walk. The wall stands in for
+  that walk on the one claim it verifies: no component renders the word. It
+  checks that statically on every lint, which a single walk cannot.
+- **Decision (2026-09-25 overnight sweep):** the rule is Mitchell's on the
+  trip board: *"dont even have the loading state. KEep it simple."* It is
+  applied as chrome-or-nothing, with no skeletons and no timers.
+  - `PageScreen` renders nothing rather than its chrome. The breadcrumb's
+    first crumb is the trip's name, and every button there acts on a page
+    that has not loaded, so a first frame of that chrome would itself be a
+    placeholder.
+  - The Plans order card and the token trip picker keep the chrome that
+    stands on its own: a heading, and the scope sentence.
+
+  Rejected:
+  - Shaped skeletons per route, which Done-means item 1 asks for "where a
+    route keeps a client read". That trade belongs to KI-2026-09-20-f, which
+    may remove the window altogether, and the owner's later call was for no
+    loading state.
+  - A 200ms gate. It was already tried and reverted.
+  - The entry's narrower regex. It misses `Loading your trips…`.
+
+  Left as is: `PlansScreen`'s *"Working out what this costs…"*. It is a
+  sentence about the work under way, not the bare word, and neither the
+  entry nor the wall covers it.

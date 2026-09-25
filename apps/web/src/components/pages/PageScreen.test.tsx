@@ -1798,3 +1798,23 @@ describe("PageScreen — the breadcrumb", () => {
     );
   });
 });
+
+// KI-2026-09-20-e. A slow read used to paint the word `Loading…` alone, which
+// is the flicker Mitchell saw going Overview → Edit Overview. The page is now
+// not there until its data is, the rule the trip board already follows. The
+// trip read never settles here, so the screen is held in exactly the window
+// the word used to fill.
+describe("PageScreen while its first read is pending", () => {
+  it("paints no loading word", () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => new Promise<never>(() => {})),
+    );
+
+    const { container } = render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(container.textContent).not.toMatch(/Loading/);
+  });
+});
