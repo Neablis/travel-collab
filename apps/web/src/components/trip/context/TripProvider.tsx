@@ -12,7 +12,7 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
-import { cachedRead, invalidate } from "@/lib/queryCache";
+import { cachedRead, invalidate, writesSettled } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import {
   activeDetail,
@@ -199,9 +199,26 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     }
   }, [tripId]);
 
+  // KI-2026-09-14-e: the read above is correct when taken, but a write to this
+  // trip already on the wire when it was taken may be applied after it — the
+  // previous board's in-flight head, or KI-5's unmount flush, landing after
+  // you navigated back. On a solo trip nothing else would ever read again, so
+  // the board stayed without that write until a reload. Asked once, at mount,
+  // and acted on only after `load` has set its state, so the re-read cannot be
+  // overtaken by the answer it corrects.
+  const onRemoteChangeRef = useRef<() => void>(() => {});
   useEffect(() => {
-    void load();
-  }, [load]);
+    let live = true;
+    const settled = writesSettled(tripKeys.all(tripId));
+    void load().then(async () => {
+      if (!settled) return;
+      await settled;
+      if (live) onRemoteChangeRef.current();
+    });
+    return () => {
+      live = false;
+    };
+  }, [load, tripId]);
 
   const exit = useCallback(() => {
     setPreviewSeq(null);
@@ -402,6 +419,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       );
     })();
   }, [tripId]);
+  onRemoteChangeRef.current = onRemoteChange;
 
   const dispatch = useCallback(
     async (command: BoardCommand) => {
