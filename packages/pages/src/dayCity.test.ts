@@ -60,4 +60,14 @@ describe("dayCity and a transit stop's destination (M24)", () => {
     };
     expect(dayCity(day(["out", "shrine", "back"]), activities)).toBe("Nikko");
   });
+
+  // "Checked, not trusted" (`mapRailData.ts`): the kind refinement guards
+  // commands and the decider only, so a stored non-transit stop may still
+  // carry an `endLocation`. Its destination must not name the day.
+  it("ignores the endLocation of a stop that is not transit", () => {
+    const activities = {
+      s: { ...stop("s", { name: "Gion", city: "Kyoto" }, { name: "Namba", city: "Osaka" }), kind: "planned" as const, mode: null },
+    };
+    expect(dayCity(day(["s"]), activities)).toBe("Kyoto");
+  });
 });

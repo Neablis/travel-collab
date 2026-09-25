@@ -32,9 +32,13 @@ import type { TripDetail } from "@tc/contracts";
 //      leg starts and `endLocation` where it ends (ADR-053's milestone), and a
 //      travel day really is in both: Discover matching a shinkansen day by the
 //      city it arrives in is the point of storing `cities` at all. Both take
-//      the leg's one slot in time, origin first. `endLocation` is read
-//      whenever present rather than gated on `kind`, because the contract's
-//      refinement already makes it legal only on a transit stop.
+//      the leg's one slot in time, origin first. `endLocation` is read only
+//      when `kind === "transit"` — checked, not trusted. The contract's
+//      refinement makes it legal only there, but it guards commands and the
+//      decider, not stored events or read models (`travelLegFieldsOffTransit`,
+//      contracts `activity.ts`), so a stored contradiction still reaches here.
+//      The map (`mapRailData.ts`) ignores such a destination; reading it here
+//      would put a place in Discover's `cities` the map never shows.
 //
 //      `countriesOfStops` shares the helper and so follows the same rule: a
 //      flight from Paris to Tokyo touches FR and JP. `saved_days.cities` and
@@ -46,15 +50,17 @@ import type { TripDetail } from "@tc/contracts";
 // empty `gaps` array already uses.
 
 /**
- * What the rule above actually reads off a stop: when it happens, and where.
+ * What the rule above actually reads off a stop: when it happens, where, and
+ * whether it is a leg (decision 4 gates `endLocation` on `kind`).
  *
  * Structural rather than a contract type because two different stop shapes
  * need the identical answer — `ActivityView` (a day inside a trip) and
- * `SavedStop` (a day lifted out of one, M11b link 1). Both spell these two
- * fields `T | null`, so both satisfy this without an adapter.
+ * `SavedStop` (a day lifted out of one, M11b link 1). Both spell these
+ * fields alike, so both satisfy this without an adapter.
  */
 type CityBearingStop = {
   timeWindow: { start: string } | null;
+  kind: string;
   location: { city?: string | undefined; countryCode?: string | null | undefined } | null;
   endLocation?: { city?: string | undefined; countryCode?: string | null | undefined } | null | undefined;
 };
@@ -137,7 +143,7 @@ function distinctInTimeOrder(
     if (!stop) continue;
     // Origin pushed before destination, both carrying the stop's own time
     // window: the sort below is stable, so the pair stays adjacent and ordered.
-    for (const location of [stop.location, stop.endLocation]) {
+    for (const location of stop.kind === "transit" ? [stop.location, stop.endLocation] : [stop.location]) {
       const value = location ? pick(location) : undefined;
       if (value) picked.push({ ...stop, value });
     }

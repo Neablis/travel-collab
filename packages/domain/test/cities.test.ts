@@ -389,4 +389,19 @@ describe("a transit stop contributes both ends (M24)", () => {
       ]),
     ).toEqual(["FR", "JP"]);
   });
+
+  // "Checked, not trusted": the kind refinement guards commands and the
+  // decider, not stored events or read models, so a non-transit stop carrying
+  // an `endLocation` can still reach here. The map ignores its destination
+  // (`mapRailData.ts`); a saved day's `cities` — what Discover matches on —
+  // must ignore it too, or the two disagree about where the day went.
+  it("ignores the endLocation of a stop that is not transit, in cities and countries alike", () => {
+    const contradiction: SavedStop = {
+      ...leg("dinner", { start: "19:00", end: "21:00" }, { city: "Kyoto", countryCode: "JP" }, { city: "Seoul", countryCode: "KR" }),
+      kind: "planned",
+      mode: null,
+    };
+    expect(citiesOfStops([contradiction])).toEqual(["Kyoto"]);
+    expect(countriesOfStops([contradiction])).toEqual(["JP"]);
+  });
 });

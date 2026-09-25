@@ -45,6 +45,12 @@ import type { TripDetail } from "@tc/contracts";
 // which lists both, and `shortPlace`, which keeps the origin: each answers a
 // different question.
 //
+// Only a `kind: "transit"` stop has a destination here — checked, not trusted,
+// as the map (`mapRailData.ts`) checks it. The contract's refinement guards
+// commands and the decider, not stored events or read models
+// (`travelLegFieldsOffTransit`), so a stored non-transit stop may still carry
+// an `endLocation`, and naming the day by it would contradict the map.
+//
 // **Except a return leg** (Mitchell, 2026-09-25): a leg whose destination is
 // the place the day STARTED in is the trip home from a day trip, not where the
 // day was spent. Its destination is skipped and its origin names the day, so
@@ -56,7 +62,7 @@ export function dayCity(day: TripDetail["days"][number], activities: TripDetail[
   const startedIn = day.activityIds.map((id) => placeOf(activities[id]?.location)).find((place) => place !== null) ?? null;
   for (let index = day.activityIds.length - 1; index >= 0; index--) {
     const activity = activities[day.activityIds[index]!];
-    const destination = placeOf(activity?.endLocation);
+    const destination = activity?.kind === "transit" ? placeOf(activity.endLocation) : null;
     if (destination !== null && destination !== startedIn) return destination;
     const origin = placeOf(activity?.location);
     if (origin !== null) return origin;
