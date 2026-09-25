@@ -369,3 +369,41 @@ describe("the session token's identity claim", () => {
     expect(await jwt({ token: {}, user: { id: "3c469060-84e8-4e8b-996a-5bd886ab2c2b" }, account: null })).toBeNull();
   });
 });
+
+// KI-2026-09-05-f item 4 (F-A05): CSRF protection for every mutation under
+// `app/api/**` rests on the session cookie's `SameSite` attribute and nothing
+// else — no Origin check, no token (SECURITY.md, *CSRF*). `authConfig` sets no
+// `cookies`, so the attribute is Auth.js's default, and that default can move
+// two ways: someone adds a `cookies` override, or an Auth.js bump changes it.
+// Reading `authConfig.cookies` would catch only the first, so this drives a
+// real Auth.js instance built from the real config into writing the session
+// cookie — a token it cannot decode makes it clear the cookie, with the same
+// options it sets it with — and reads the attribute off the wire.
+describe("the session cookie's SameSite attribute", () => {
+  it.each([
+    ["https://caesura.test", "__Secure-authjs.session-token"],
+    ["http://localhost:3001", "authjs.session-token"],
+  ])("is Lax or Strict on %s, never None", async (origin, name) => {
+    vi.stubEnv("AUTH_SECRET", "test-secret-for-the-samesite-pin-000000000");
+    try {
+      vi.resetModules();
+      const { default: NextAuth } = await import("next-auth");
+      const { NextRequest } = await import("next/server");
+      const { authConfig } = await import("./authConfig");
+      // The logger is silenced only because the undecodable token is the point;
+      // it touches nothing about cookies.
+      const { handlers } = NextAuth({ ...authConfig, logger: { error: () => {} } });
+
+      const response = await handlers.GET(
+        new NextRequest(`${origin}/api/auth/session`, {
+          headers: { cookie: `${name}=not-a-real-token` },
+        }),
+      );
+      const session = response.headers.getSetCookie().find((c) => c.startsWith(`${name}=`));
+      expect(session, "Auth.js wrote no session cookie to read the attribute from").toBeDefined();
+      expect(session).toMatch(/;\s*SameSite=(Lax|Strict)(;|$)/i);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});

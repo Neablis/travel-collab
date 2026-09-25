@@ -7,6 +7,7 @@ import {
 } from "@tc/contracts";
 import { touchLastUsed } from "@/server/api-tokens";
 import { PublicApiError } from "./commands";
+import { TOO_LARGE, readCapped } from "@/server/readBody";
 import { tripAccessFor, type TripAccessDenial } from "@/server/access/trip-access";
 import { consumeQuota, type QuotaPolicy } from "@/server/quota";
 import {
@@ -358,45 +359,6 @@ function fail(
  */
 function tooLarge(max: number): string {
   return `That file is too large. The limit is ${max.toLocaleString("en-US")} bytes.`;
-}
-
-/** What `readCapped` returns instead of a body when the ceiling is passed. */
-const TOO_LARGE = Symbol("body over maxBodyBytes");
-
-/**
- * The request body as text, refusing as soon as it passes `max` bytes.
- *
- * **Counted while reading and cancelled on the way past**, rather than measured
- * after the fact: a body already known to be over the ceiling should not be
- * held in full first. `Content-Length` is checked before this (it is a cheap
- * early out) and is never trusted as the answer — it is a claim, and a chunked
- * upload may not send one at all.
- *
- * Decoded with a streaming `TextDecoder`, because a multi-byte character can
- * straddle two chunks and decoding each chunk alone would corrupt it.
- */
-async function readCapped(request: Request, max: number): Promise<string | undefined | typeof TOO_LARGE> {
-  const stream = request.body;
-  if (stream === null) return undefined;
-  const reader = stream.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let seen = 0;
-  let out = "";
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      seen += value.byteLength;
-      if (seen > max) {
-        await reader.cancel().catch(() => undefined);
-        return TOO_LARGE;
-      }
-      out += decoder.decode(value, { stream: true });
-    }
-  } catch {
-    return undefined;
-  }
-  return out + decoder.decode();
 }
 
 /** 401s carry `WWW-Authenticate`, because a bearer scheme that does not is guessing. */

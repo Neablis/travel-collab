@@ -9,6 +9,19 @@ import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
 import { isUuid } from "@/server/ids";
 
 /**
+ * The largest request body a notebook write accepts, in bytes, measured before
+ * it is parsed (KI-2026-09-05-f item 1, F-A02) — `/ask`'s pattern, for the same
+ * reason: the size of what is stored is the size of what arrives.
+ *
+ * **512 KiB is ~190× the largest notebook the app ships** (the bundled "Before
+ * you go", 2,738 bytes of document; every template is smaller), which leaves
+ * room for tens of thousands of words of a real journal while still being a
+ * ceiling well under the platform's own 4.5 MB. It bounds only WRITES: a page
+ * already stored larger still reads, and still opens.
+ */
+export const MAX_PAGE_BODY_BYTES = 512 * 1024;
+
+/**
  * The server's judgement on a document about to be SAVED, and the version of
  * it that should be stored: parsed already, refused if it is from a version
  * this build cannot write back, migrated to the current version, and refused

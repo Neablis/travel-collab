@@ -184,9 +184,10 @@ children are already gone in their own envelope, correctly parented.
   transport, drives a real turn through the real agent, and asserts the spans
   and metrics that actually left the SDK — the only check that would notice the
   whole thing being wired to nothing.
-- From a **deployed preview**, `/sentry-example-page` is the wizard's own
-  round-trip check that events actually reach the project. It is kept for that
-  reason; `check-color-wall.mjs` exempts it as third-party codegen.
+- The Sentry wizard's `/sentry-example-page` and its always-throwing
+  `/api/sentry-example-api` were deleted on 2026-09-25 (KI-2026-09-05-f; ADR-032
+  amendment): the route was unauthenticated and let anyone fill the project with
+  errors. From a deployed preview, a real error is the round-trip check.
 - A turn only produces AI spans and non-zero token metrics when the `ai-live`
   flag is on for that session — see
   [environments-and-deploys.md](environments-and-deploys.md) for flipping it

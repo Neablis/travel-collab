@@ -2,7 +2,7 @@ import { CreatePageInput, serializePageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
-import { listPages } from "@/server/pages";
+import { MAX_PAGE_BODY_BYTES, listPages } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
 
@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ tripId:
   const { tripId } = await params;
   const g = await guard(tripId, "editor");
   if ("error" in g) return g.error;
-  const body = await readBody(req, CreatePageInput, "invalid-page");
+  const body = await readBody(req, CreatePageInput, "invalid-page", { maxBytes: MAX_PAGE_BODY_BYTES });
   if ("error" in body) return body.error;
   if (body.data.context.tripId !== tripId) return Response.json({ error: "context tripId mismatch" }, { status: 400 });
   // **The id is minted HERE, not by the database**, which is what a command

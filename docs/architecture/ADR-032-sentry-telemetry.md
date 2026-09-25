@@ -241,3 +241,15 @@ directly and never runs the real `session` callback.
 `sendDefaultPii` itself stays `false`. The distinction this ADR draws — an
 auto-attached default nobody decided to send, versus a field chosen on
 purpose — is unchanged; user identity has simply joined the second category.
+
+## Amendment — 2026-09-25: the wizard's example page and route are deleted
+
+The Consequences bullet above kept `sentry-example-page` and
+`sentry-example-api` as the preview round-trip check. They are gone
+(KI-2026-09-05-f, finding F-A03 of the 2026-09-05 review): the route had no
+`auth()` and threw on every GET, so anyone could drive error volume into the
+Sentry project in a loop, and it was the only route in the tree with neither a
+product purpose nor an authorization check. Gating it behind the dev-login flag
+was rejected for the reason the finding gives — nothing in it was worth keeping.
+`telemetry.int.test.ts` remains the check that the client is wired to a real
+transport; a real error on a preview is the round-trip check.

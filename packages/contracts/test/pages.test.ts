@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MacroNode, PageContext, Page, CreatePageInput, DateRangeRef, PageCommand, UpdatePageInput } from "../src";
+import { MacroNode, PageContext, Page, CreatePageInput, DateRangeRef, PAGE_TITLE_MAX, PageCommand, PageEditedV1, UpdatePageInput } from "../src";
 
 describe("page contracts", () => {
   it("accepts a valid inline macro node", () => {
@@ -61,6 +61,29 @@ describe("page contracts", () => {
   // not ISO, but it must be a time, because the server compares it as one.
   it("refuses an expectedUpdatedAt that is not a time", () => {
     expect(UpdatePageInput.safeParse({ title: "X", expectedUpdatedAt: "yesterday-ish" }).success).toBe(false);
+  });
+
+  // KI-2026-09-05-f item 1. The title cap is on the two WRITE inputs only; a
+  // page stored before it, with a longer title, must still read and replay —
+  // so `Page`, the commands and `PageEdited` are asserted to take one.
+  it(`caps a written title at ${PAGE_TITLE_MAX} characters and round-trips one at the cap`, () => {
+    const tripId = crypto.randomUUID();
+    const atMax = "t".repeat(PAGE_TITLE_MAX);
+    const over = `${atMax}t`;
+    const create = { title: atMax, context: { tripId }, content: { v: 1, type: "doc", content: [] } };
+    expect(CreatePageInput.parse(JSON.parse(JSON.stringify(CreatePageInput.parse(create))))).toEqual(create);
+    expect(UpdatePageInput.parse({ title: atMax })).toEqual({ title: atMax });
+    expect(CreatePageInput.safeParse({ ...create, title: over }).success).toBe(false);
+    expect(UpdatePageInput.safeParse({ title: over }).success).toBe(false);
+
+    const stored = {
+      id: crypto.randomUUID(), tripId, title: over, context: { tripId },
+      content: { type: "doc", content: [] },
+      createdAt: "2026-09-01 10:00:00+00", updatedAt: "2026-09-01 10:00:00+00", actorId: "user-1",
+    };
+    expect(Page.parse(stored).title).toBe(over);
+    expect(PageCommand.parse({ type: "EditPage", tripId, pageId: stored.id, title: over }).type).toBe("EditPage");
+    expect(PageEditedV1.parse({ type: "PageEdited", version: 1, payload: { tripId, pageId: stored.id, title: over } }).payload.title).toBe(over);
   });
 });
 
