@@ -274,7 +274,6 @@
   "apps/web/src/lib/apiClient.ts::revokeTripInvite",
   "apps/web/src/lib/apiClient.ts::revokeTripShare",
   "apps/web/src/lib/apiClient.ts::sendTripCommand",
-  "apps/web/src/lib/apiClient.ts::sendTripCommandBatch",
   "apps/web/src/lib/cn.ts::cn",
   "apps/web/src/lib/cost.ts::daySpend",
   "apps/web/src/lib/cost.ts::plannedOfBudgetLine",

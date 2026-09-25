@@ -259,9 +259,16 @@ export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<
   }
 }
 
+/**
+ * `keepalive` lets the request outlive the page that sent it — TripProvider's
+ * unload flush (KI-5). The browser refuses a keepalive body over 64 KiB, which
+ * this helper reports as a failed send like any other; staying under it is the
+ * caller's job (`unloadFlush.ts`).
+ */
 export async function sendTripCommandBatch(
   tripId: string,
   commands: BatchableCommand[],
+  options: { keepalive?: boolean } = {},
 ): Promise<ApiResult<CommandOutcome>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
@@ -270,6 +277,7 @@ export async function sendTripCommandBatch(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ commands }),
+      ...(options.keepalive ? { keepalive: true } : {}),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
