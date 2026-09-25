@@ -9,7 +9,7 @@ import {
   type PageDoc,
 } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Queryable } from "./db/client";
@@ -230,6 +230,32 @@ export async function rebuildProjections(): Promise<void> {
   });
 }
 
+/**
+ * **A listed trip: its `trip_summaries` row plus `endDate`**
+ * (KI-2026-09-24-e), for the two queries that answer with `TripSummary`.
+ *
+ * `endDate` is the date `trip_details` gives the trip's last day, read here
+ * rather than stored as a summary column. The document already holds it —
+ * `tripDetailFromState` dates every day from the start date — so a column
+ * would be a second copy of that date math, kept by a second projector, plus
+ * a migration and a backfill. Both tables are written in the same transaction
+ * by the command path and by `rebuildProjections`, so the two cannot be read
+ * out of step. The LEFT JOIN makes a summary with no document (none should
+ * exist) list with an unknown end rather than vanish.
+ *
+ * Only this one scalar is read from the unparsed document (see the `$type`
+ * note at `db/schema.ts`), so it is shape-checked here, with the contract's
+ * own pattern: the client parses the whole list with `TripSummary`, and one
+ * malformed value would fail every trip on Home, not just the one. Anything
+ * else — including a document from before days carried dates, with no `date`
+ * key — reads as null, "end unknown", the same as an undated trip.
+ */
+const LAST_DAY_DATE = sql`${tripDetails.doc} -> 'days' -> -1 ->> 'date'`;
+const LISTED_SUMMARY = {
+  ...getTableColumns(tripSummaries),
+  endDate: sql<string | null>`CASE WHEN ${LAST_DAY_DATE} ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN ${LAST_DAY_DATE} END`,
+};
+
 export async function listTripSummaries() {
   return db.select().from(tripSummaries).where(eq(tripSummaries.status, "active"));
 }
@@ -303,8 +329,9 @@ export async function listTripSummariesPage(
     ? sql`(${tripSummaries.createdAt}, ${tripSummaries.tripId}) < (${createdAt}::timestamptz, ${tripId}::uuid)`
     : undefined;
   return db
-    .select()
+    .select(LISTED_SUMMARY)
     .from(tripSummaries)
+    .leftJoin(tripDetails, eq(tripDetails.tripId, tripSummaries.tripId))
     .where(seek === undefined ? visible : and(visible, seek))
     .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId))
     .limit(page.limit);
@@ -316,14 +343,16 @@ export async function listTripSummariesPage(
  * The order is `listTripSummariesPage`'s, and it is stated because it used to
  * be absent: with no `ORDER BY` the rows came back in heap order, which an
  * `UPDATE` reshuffles, and Home made the head of that list its "Next trip".
- * Home now picks the hero by `startDate` itself (`lib/homeTripOrder.ts`) —
- * "upcoming" depends on the reader's own calendar day, which the server does
- * not know — and uses this order as its tie-break, so it has to be one.
+ * Home now picks the hero by `startDate` and `endDate` itself
+ * (`lib/homeTripOrder.ts`) — "under way" and "upcoming" depend on the
+ * reader's own calendar day, which the server does not know — and uses this
+ * order as its tie-break, so it has to be one.
  */
 export async function listTripSummariesVisibleTo(userId: string) {
   return db
-    .select()
+    .select(LISTED_SUMMARY)
     .from(tripSummaries)
+    .leftJoin(tripDetails, eq(tripDetails.tripId, tripSummaries.tripId))
     .where(
       and(
         eq(tripSummaries.status, "active"),
