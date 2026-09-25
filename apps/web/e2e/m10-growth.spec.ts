@@ -339,3 +339,97 @@ test("switching to Plan lands at the top of the columns, not part-way down them"
     stickyBottom.y + stickyBottom.height,
   );
 });
+
+/**
+ * KI-2026-09-22-b. Mitchell, on PR #201's preview: *"I am no longer able to
+ * scroll right in the container with the actual day plans. I have to click in
+ * the above bar."*
+ *
+ * The row scrolls sideways inside its own box, and a box's scrollbar sits on
+ * its bottom inside edge. The row is as tall as its tallest column, so with a
+ * few stops a day that edge is below the fold — measured at 1920×919 before
+ * the fix: row bottom at y=1218, 299px under the viewport. On a Windows mouse
+ * with classic scrollbars and no horizontal wheel, that bar was the only
+ * pointer route to "scroll right", and it was off screen on load.
+ *
+ * The fix is a stand-in scrollbar pinned to the viewport bottom
+ * (`day-columns-scrollbar`, Board.tsx). Its GEOMETRY is what this asserts,
+ * plus that it really drives the row: headless Chromium draws overlay
+ * scrollbars, so the bar itself cannot be seen or dragged here (the KI's own
+ * "NOT CONFIRMED" note) — a drag is a `scrollLeft` write, which is exactly
+ * what the browser's scrollbar does to the element.
+ *
+ * Red-checked by dropping `position: sticky` from `.day-columns-scrollbar`
+ * (the bar falls back to directly under the row, below the fold) and by
+ * removing the bar-to-row write in `onBarScroll` (the row stays at 0).
+ */
+test("the day columns' scrollbar is on screen on load, even when the columns run past the fold", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const tripName = e2eTripName("ColumnsScrollbar");
+  const { tripId } = await page.request
+    .post("/api/trips", { data: { name: tripName } })
+    .then((r) => r.json());
+  // Fourteen days of six stops — the KI's own measured shape: wide enough to
+  // scroll sideways at 1920px, tall enough to run past a 919px viewport.
+  for (const command of commandsFor("mappedTrip", tripId, {
+    dayCount: 14,
+    activitiesPerDay: 6,
+    timeWindows: [
+      { start: "09:00", end: "10:00" },
+      { start: "10:00", end: "11:00" },
+      { start: "11:00", end: "12:00" },
+      { start: "12:00", end: "13:00" },
+      { start: "13:00", end: "14:00" },
+      { start: "14:00", end: "15:00" },
+    ],
+  })) {
+    await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+  }
+
+  await page.setViewportSize({ width: 1920, height: 919 });
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await expect(page.getByTestId("day-column")).toHaveCount(14);
+
+  const row = page.getByRole("group", { name: "Day columns" });
+  const bar = page.getByTestId("day-columns-scrollbar");
+  const viewportHeight = 919;
+  // The unscheduled rack is `position: fixed` along the bottom edge, so "on
+  // screen" means above it, not merely above the viewport's edge.
+  const rackHeight = await page
+    .getByTestId("trip-board-content")
+    .evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue("--rack-height")) || 0);
+
+  // The condition the defect needs, stated rather than hoped for: the row's
+  // own bottom edge — where its native scrollbar would be — is below the fold.
+  const rowBox = (await row.boundingBox())!;
+  expect(rowBox.y + rowBox.height, "the columns run past the fold").toBeGreaterThan(viewportHeight);
+  expect(await row.evaluate((el) => el.scrollWidth > el.clientWidth), "the row scrolls sideways").toBe(true);
+
+  // The affordance is on screen, above the rack, and spans the row.
+  const barBox = (await bar.boundingBox())!;
+  expect(barBox.y + barBox.height, "the scrollbar's bottom edge is above the rack").toBeLessThanOrEqual(
+    viewportHeight - rackHeight + 0.5,
+  );
+  expect(barBox.y, "the scrollbar is below the top of the columns").toBeGreaterThan(rowBox.y);
+  expect(barBox.width).toBeCloseTo(rowBox.width, 0);
+  // Same scroll range as the row, or a full drag would stop short of day 14.
+  const rowRange = await row.evaluate((el) => el.scrollWidth - el.clientWidth);
+  const barRange = await bar.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(barRange).toBe(rowRange);
+
+  // Dragging the bar scrolls the columns, and the page does not move.
+  await bar.evaluate((el) => {
+    el.scrollLeft = 900;
+  });
+  await expect.poll(() => row.evaluate((el) => Math.round(el.scrollLeft))).toBe(900);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+  // And the other way: a scroll of the row by any other route (shift+wheel,
+  // keyboard, a chip) moves the bar with it, so it never shows a stale thumb.
+  await row.evaluate((el) => {
+    el.scrollLeft = 1500;
+  });
+  await expect.poll(() => bar.evaluate((el) => Math.round(el.scrollLeft))).toBe(1500);
+});

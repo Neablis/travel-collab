@@ -571,6 +571,25 @@ html[data-look="ledger"] .shadow-raised {
     padding-bottom: 0;
   }
 
+  /* The desktop day-columns row and its stand-in scrollbar (Board.tsx,
+     KI-2026-09-22-b). The row is as tall as its tallest column, so its own
+     horizontal scrollbar — on its bottom inside edge — sat below the fold on
+     load, out of reach of a mouse with no horizontal wheel. The row's native
+     bar is hidden and `.day-columns-scrollbar`, an empty scroller mirroring
+     the row's `scrollLeft`, is pinned to the bottom of the viewport instead.
+     `bottom` clears the fixed unscheduled rack by the same measured
+     `--rack-height` the padding above uses, or the bar would sit under it. */
+  .day-columns-row {
+    scrollbar-width: none;
+  }
+  .day-columns-row::-webkit-scrollbar {
+    display: none;
+  }
+  .day-columns-scrollbar {
+    position: sticky;
+    bottom: var(--rack-height, 0px);
+  }
+
   /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
      are the same `--rack-height` bargain one level up: the bar is
      `position: fixed`, so it reserves no flow space, and a page's last row

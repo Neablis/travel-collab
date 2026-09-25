@@ -1,4 +1,4 @@
-### KI-2026-09-22-b — the day-columns row scrolls horizontally, but its scrollbar starts ~200px below the fold
+### KI-2026-09-22-b — the day-columns row scrolls horizontally, but its scrollbar starts ~200px below the fold — RESOLVED
 
 - **Severity:** usability defect on the desktop Plan surface. Nothing is broken
   in the code sense — the box scrolls correctly by every programmatic and
@@ -106,3 +106,57 @@
 - **Found by:** Mitchell on PR #201's preview, 2026-09-22; investigated in a
   browser the same day.
 - **First noted:** 2026-09-22.
+- **Reproduction (2026-09-25, before the fix):** a Playwright walk at
+  1920×919 on a 14-day trip with 6 stops a day measured the Day columns box at
+  `top 437.7, bottom 1217.8` in a 919px viewport, with `scrollWidth 4196 >
+  clientWidth 1880`, `overflow-x auto`, and a 39px unscheduled rack fixed along
+  the bottom edge. The row's own scrollbar was 299px below the fold on load:
+  `Expected: <= 919, Received: 1217.84375`.
+- **Fix (2026-09-25):** a stand-in scrollbar pinned to the viewport bottom.
+  `Board.tsx` renders an empty `overflow-x: auto` div (`day-columns-scrollbar`,
+  `aria-hidden`, `tabIndex={-1}`) directly under the row, the same width, with a
+  spacer that a `ResizeObserver` keeps as wide as the row's `scrollWidth`. The
+  two mirror `scrollLeft` both ways. An `echoes` counter makes the bar ignore
+  the scroll events its own mirrored writes raise, so a smooth day-sync
+  `scrollIntoView` on the row is not pulled back a frame. `globals.css` hides
+  the row's native bar (`.day-columns-row`) and makes the stand-in
+  `position: sticky; bottom: var(--rack-height)`. It stays above the rack
+  while the row runs past the fold and settles directly under the row once
+  the row's bottom is on screen. The stand-in is not rendered on the phone's
+  one-day board (`oneDay`), so nothing changes below `md`.
+- **Proof:** new e2e `m10-growth.spec.ts` › "the day columns' scrollbar is on
+  screen on load, even when the columns run past the fold". It uses the
+  reproduction's shape, asserts the row's bottom really is past the fold, then
+  checks that the bar's bottom edge sits above the rack, the bar's scroll range
+  equals the row's, a bar scroll moves the row (page `scrollY` stays 0), and a
+  row scroll moves the bar. Red-checked twice. Without `position: sticky` it
+  failed with `the scrollbar's bottom edge is above the rack — Expected: <=
+  880.3125, Received: 1218.84375`. Without the bar-to-row write it failed with
+  `Expected: 900, Received: 0`. Restored, it passed. Checks: `pnpm --filter
+  web exec tsc --noEmit`, `eslint` on the two changed TS files, the colour wall,
+  `board.test.tsx` + `TripBoardScreen.test.tsx` (94/94), and
+  `pnpm test:e2e:ci-like e2e/m10-growth.spec.ts e2e/m1-board.spec.ts` from
+  `apps/web`, 9/9 passed. The second spec covers drag-and-drop and
+  scroll-to-either-end in the same row.
+- **Decision (2026-09-25 overnight sweep):** a sticky stand-in scrollbar. The
+  owner's one confirming question, whether the bar at the row's bottom is what
+  he was missing, is still unanswered. The fix is justified by the measured
+  geometry alone, since a pointer affordance that starts 299px below the fold
+  is a defect either way. Rejected:
+  (a) **Capping the row's height to the viewport**, so the columns scroll
+  vertically inside it. That turns every vertical wheel over the board into
+  a nested scroll. It also needs a measured top offset (the chrome above
+  varies with banners and the tag-focus line), and it breaks drag-and-drop to
+  a card below the cap. `autoScrollWindowForElements` scrolls only the
+  window, so that would also need an element auto-scroller. It also changes
+  what `m10-growth`'s "lands at the top of the columns" measures.
+  (b) **On-hover edge arrows.** New visible chrome and a design call, not a
+  fix to an existing affordance.
+  (c) **Remapping a vertical wheel over the row to horizontal scroll.** That
+  hijacks the page's primary scroll gesture over most of the screen, and a
+  reader could no longer scroll down to see a long day.
+  **Known limit:** where scrollbars are overlay (macOS, headless Chromium),
+  the stand-in is as invisible as the native bar was. Those platforms have
+  a horizontal trackpad gesture anyway, and a real Windows mouse is the case
+  this is for. It is still unverified by eye on Windows; a preview check there
+  is the remaining confirmation.

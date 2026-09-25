@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -270,6 +270,79 @@ export function Board({
     columnRefs.current[index]?.querySelector("[data-day-header]"),
   );
 
+  // **The row's scrollbar, pinned to the bottom of the viewport**
+  // (KI-2026-09-22-b). The row's own scrollbar sits on its bottom inside edge,
+  // and the row is as tall as its tallest column — which on a desktop with a
+  // few stops a day is below the fold, ~300px down at 1920×919. On a mouse-only
+  // desktop (Windows Chrome, classic scrollbars, no horizontal wheel) the one
+  // pointer affordance for "scroll right" was off screen on load (Mitchell,
+  // PR #201's preview: "I have to click in the above bar").
+  //
+  // So the row's native bar is hidden (`.day-columns-row`, globals.css) and
+  // this second, empty scroller stands in for it: the same width as the row,
+  // holding a spacer as wide as the row's content, `position: sticky` to the
+  // viewport bottom. It sits at the viewport bottom while the row runs past
+  // the fold and comes to rest directly under the row once the row's bottom
+  // is on screen — one scrollbar, always reachable. The rejected alternatives
+  // are recorded in the KI's resolved entry.
+  //
+  // The two mirror each other's `scrollLeft`. `echoes` counts the scroll
+  // events the row's own writes into the bar still owe, so the bar ignores
+  // them rather than writing them back: without that, a smooth
+  // `scrollIntoView` on the row (the day-sync follow above) would be dragged
+  // back to the previous frame's position by the bar's one-frame-late scroll
+  // event, which carries the value the row had a frame ago. A drag of the bar
+  // itself owes nothing, and moves the row — which then runs the spy above,
+  // exactly as a drag of the row's own scrollbar would.
+  const barRef = useRef<HTMLDivElement>(null);
+  const barSpacerRef = useRef<HTMLDivElement>(null);
+  const echoes = useRef(0);
+
+  const mirrorRowIntoBar = useCallback(() => {
+    const row = scrollRef.current;
+    const bar = barRef.current;
+    if (row === null || bar === null) return;
+    const before = bar.scrollLeft;
+    bar.scrollLeft = row.scrollLeft;
+    // Only a write that moved the bar raises a scroll event to wait for.
+    if (bar.scrollLeft !== before) echoes.current += 1;
+  }, []);
+
+  const onRowScroll = useCallback(() => {
+    onScroll();
+    mirrorRowIntoBar();
+  }, [onScroll, mirrorRowIntoBar]);
+
+  const onBarScroll = useCallback(() => {
+    if (echoes.current > 0) {
+      echoes.current -= 1;
+      return;
+    }
+    const row = scrollRef.current;
+    const bar = barRef.current;
+    if (row === null || bar === null) return;
+    row.scrollLeft = bar.scrollLeft;
+  }, []);
+
+  // The spacer tracks the row's content width: a day added or removed, the
+  // trailing column appearing, or the row itself resizing (the assistant rail
+  // opening shrinks it). Written straight to the DOM rather than through
+  // state — it is a measurement, and re-rendering every column per resize
+  // would buy nothing.
+  useLayoutEffect(() => {
+    const row = scrollRef.current;
+    const spacer = barSpacerRef.current;
+    if (oneDay || row === null || spacer === null) return;
+    const measure = () => {
+      spacer.style.width = `${row.scrollWidth}px`;
+      mirrorRowIntoBar();
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [oneDay, readOnly, trip.days.length, mirrorRowIntoBar]);
+
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -463,116 +536,138 @@ export function Board({
           `-mx-1` with the `px-1` so the row keeps the header's own gutter
           rather than indenting from it — same pairing as DayChips and
           ui/sheet.tsx, which needed it for exactly this. */}
-      <div
-        ref={scrollRef}
-        // A scrollable region is focusable so it can be scrolled from the
-        // keyboard at all; that is also what gives the arrow keys below a
-        // resting place before anything inside has been tabbed to.
-        tabIndex={0}
-        role="group"
-        aria-label="Day columns"
-        onScroll={onScroll}
-        onKeyDown={onKeyDown}
-        // **A column on a phone, a scrolling row on a desktop** (link 13).
-        // With one full-width day there is nothing to scroll sideways, and the
-        // trailing "One more day?" belongs below the day rather than beside it.
-        className={cn(
-          "-mx-1 flex gap-3 px-1 pt-1 pb-1",
-          oneDay ? "flex-col" : "overflow-x-auto",
-        )}
-      >
-        {/* **One day on a phone, every day on a desktop** (M26 link 13). The
-            index is preserved through the filter, not re-derived: every day's
-            accent, its `dayLabel`, its focus ring and its keep-a-day pennant
-            are all keyed on the day's real position in the trip, and a
-            re-indexed single day would silently become Day 1 of a fortnight.
+      {/* A plain block wrapper, so the bar below is the row's immediate
+          neighbour (no `gap-3` between them) and its `sticky` is bounded by
+          the row: it pins to the viewport bottom only while the row is on
+          screen. */}
+      <div>
+        <div
+          ref={scrollRef}
+          // A scrollable region is focusable so it can be scrolled from the
+          // keyboard at all; that is also what gives the arrow keys below a
+          // resting place before anything inside has been tabbed to.
+          tabIndex={0}
+          role="group"
+          aria-label="Day columns"
+          onScroll={onRowScroll}
+          onKeyDown={onKeyDown}
+          // **A column on a phone, a scrolling row on a desktop** (link 13).
+          // With one full-width day there is nothing to scroll sideways, and the
+          // trailing "One more day?" belongs below the day rather than beside it.
+          className={cn(
+            "-mx-1 flex gap-3 px-1 pt-1 pb-1",
+            oneDay ? "flex-col" : "day-columns-row overflow-x-auto",
+          )}
+        >
+          {/* **One day on a phone, every day on a desktop** (M26 link 13). The
+              index is preserved through the filter, not re-derived: every day's
+              accent, its `dayLabel`, its focus ring and its keep-a-day pennant
+              are all keyed on the day's real position in the trip, and a
+              re-indexed single day would silently become Day 1 of a fortnight.
 
-            `focusedDay ?? 0` matches the phone's own default — `TripBoardScreen`
-            already focuses day 1 on a phone, so this only ever falls back on a
-            frame before that landed. */}
-        {(oneDay
-          ? trip.days
-              .map((day, index) => [day, index] as const)
-              .filter(([, index]) => index === (focusedDay ?? 0))
-          : trip.days.map((day, index) => [day, index] as const)
-        ).map(([day, index]) => (
-          <Column
-            key={day.dayId}
-            fullWidth={oneDay}
-            title={dayLabel(trip.startDate, index)}
-            dayId={day.dayId}
-            activityIds={day.activityIds}
-            activities={trip.activities}
-            conflictIds={conflictIds}
-            overlaps={overlapsByActivity}
-            currency={trip.currency}
-            accent={accents[index]?.tint ?? "neutral"}
-            onEditActivity={openEdit}
-            onRemoveActivity={callbacks.onRemoveActivity}
-            // Both are optional on Column, which already treats "not given"
-            // as "do not render the control" — so a read-only board reuses
-            // that, rather than teaching Column a second way to be quiet.
-            onRemoveDay={readOnly ? undefined : () => callbacks.onRemoveDay(day.dayId)}
-            isFocused={focusedDay === index}
-            onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
-            columnRef={(node) => {
-              columnRefs.current[index] = node;
-            }}
-            onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
-            onDismissOverlap={callbacks.onDismissConflict}
-            focusedTag={focusedTag}
-            onToggleTag={onToggleTag}
-            readOnly={readOnly}
-            // SPEC §24's "keep this day" pennant, which lived in the day
-            // header of a lens this milestone DELETED. Timeline going was the
-            // handoff's own instruction ("deleted, not hidden ... do not port
-            // it"), but the pennant was not Timeline's — §24 still calls it
-            // "one entry point: a flag pill in the desktop day header", and
-            // Plan is the desktop day header now. It went out with the lens
-            // and left `KeepDayFlag` imported by nothing but its own test:
-            // the control, its dialog, its celebration and its whole server
-            // route, all still built, all unreachable. `m11-saved-days` is
-            // what said so, by waiting 90 seconds for a button nothing
-            // rendered.
-            //
-            // The stops come from the trip's own rows, so what gets kept is
-            // exactly what is drawn above them — the same reading TimelineLens
-            // did, and the reason this is a `Board` concern rather than a
-            // `Column` one: `stopsForDay` needs the whole `TripDetail`.
-            //
-            // **Every day travels, not just this one** (M23 link 4). The
-            // pennant is still about the day it sits on, and the dialog opens
-            // with that day selected — but its picker offers the whole trip, so
-            // a Playbook can span several days that need not be adjacent. Built
-            // once above the loop rather than per flag: it is the same list for
-            // every day, and rebuilding it N times would be N passes over every
-            // activity in the trip.
-            keepFlag={
-              readOnly ? undefined : (
-                <KeepDayFlag
-                  dayIndex={index}
-                  accent={accents[index]?.ink ?? "neutral"}
-                  tripId={trip.tripId}
-                  dayId={day.dayId}
-                  tripName={trip.name}
-                  days={keepCandidates}
-                />
-              )
-            }
-          />
-        ))}
-        {/* "One more day?" is an invitation to change the trip, so it is the
-            reader's cue that they are looking at somebody else's — or, on the
-            demo, at one that is not theirs yet.
+              `focusedDay ?? 0` matches the phone's own default — `TripBoardScreen`
+              already focuses day 1 on a phone, so this only ever falls back on a
+              frame before that landed. */}
+          {(oneDay
+            ? trip.days
+                .map((day, index) => [day, index] as const)
+                .filter(([, index]) => index === (focusedDay ?? 0))
+            : trip.days.map((day, index) => [day, index] as const)
+          ).map(([day, index]) => (
+            <Column
+              key={day.dayId}
+              fullWidth={oneDay}
+              title={dayLabel(trip.startDate, index)}
+              dayId={day.dayId}
+              activityIds={day.activityIds}
+              activities={trip.activities}
+              conflictIds={conflictIds}
+              overlaps={overlapsByActivity}
+              currency={trip.currency}
+              accent={accents[index]?.tint ?? "neutral"}
+              onEditActivity={openEdit}
+              onRemoveActivity={callbacks.onRemoveActivity}
+              // Both are optional on Column, which already treats "not given"
+              // as "do not render the control" — so a read-only board reuses
+              // that, rather than teaching Column a second way to be quiet.
+              onRemoveDay={readOnly ? undefined : () => callbacks.onRemoveDay(day.dayId)}
+              isFocused={focusedDay === index}
+              onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
+              columnRef={(node) => {
+                columnRefs.current[index] = node;
+              }}
+              onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
+              onDismissOverlap={callbacks.onDismissConflict}
+              focusedTag={focusedTag}
+              onToggleTag={onToggleTag}
+              readOnly={readOnly}
+              // SPEC §24's "keep this day" pennant, which lived in the day
+              // header of a lens this milestone DELETED. Timeline going was the
+              // handoff's own instruction ("deleted, not hidden ... do not port
+              // it"), but the pennant was not Timeline's — §24 still calls it
+              // "one entry point: a flag pill in the desktop day header", and
+              // Plan is the desktop day header now. It went out with the lens
+              // and left `KeepDayFlag` imported by nothing but its own test:
+              // the control, its dialog, its celebration and its whole server
+              // route, all still built, all unreachable. `m11-saved-days` is
+              // what said so, by waiting 90 seconds for a button nothing
+              // rendered.
+              //
+              // The stops come from the trip's own rows, so what gets kept is
+              // exactly what is drawn above them — the same reading TimelineLens
+              // did, and the reason this is a `Board` concern rather than a
+              // `Column` one: `stopsForDay` needs the whole `TripDetail`.
+              //
+              // **Every day travels, not just this one** (M23 link 4). The
+              // pennant is still about the day it sits on, and the dialog opens
+              // with that day selected — but its picker offers the whole trip, so
+              // a Playbook can span several days that need not be adjacent. Built
+              // once above the loop rather than per flag: it is the same list for
+              // every day, and rebuilding it N times would be N passes over every
+              // activity in the trip.
+              keepFlag={
+                readOnly ? undefined : (
+                  <KeepDayFlag
+                    dayIndex={index}
+                    accent={accents[index]?.ink ?? "neutral"}
+                    tripId={trip.tripId}
+                    dayId={day.dayId}
+                    tripName={trip.name}
+                    days={keepCandidates}
+                  />
+                )
+              }
+            />
+          ))}
+          {/* "One more day?" is an invitation to change the trip, so it is the
+              reader's cue that they are looking at somebody else's — or, on the
+              demo, at one that is not theirs yet.
 
-            **On a phone it appears only at the END of the trip** (M26 link 13).
-            With one day on screen it is no longer a column beyond the last one;
-            it would sit under Day 3 of a fortnight saying "one more day?",
-            which is a question about somewhere the reader is not. Focusing the
-            last day is what puts them at the end, and that is where the
-            invitation belongs. */}
-        {!readOnly && (!oneDay || (focusedDay ?? 0) === trip.days.length - 1) && (
-          <OneMoreDayColumn onAddDay={callbacks.onAddDay} addSavedDay={addSavedDay} fullWidth={oneDay} />
+              **On a phone it appears only at the END of the trip** (M26 link 13).
+              With one day on screen it is no longer a column beyond the last one;
+              it would sit under Day 3 of a fortnight saying "one more day?",
+              which is a question about somewhere the reader is not. Focusing the
+              last day is what puts them at the end, and that is where the
+              invitation belongs. */}
+          {!readOnly && (!oneDay || (focusedDay ?? 0) === trip.days.length - 1) && (
+            <OneMoreDayColumn onAddDay={callbacks.onAddDay} addSavedDay={addSavedDay} fullWidth={oneDay} />
+          )}
+        </div>
+        {/* The row's stand-in scrollbar (see `onRowScroll`). Desktop only: the
+            phone's one-day board does not scroll sideways. Hidden from the
+            accessibility tree and the tab order because it duplicates the row,
+            which is already focusable and arrow-key driven. */}
+        {!oneDay && (
+          <div
+            ref={barRef}
+            data-testid="day-columns-scrollbar"
+            aria-hidden
+            tabIndex={-1}
+            onScroll={onBarScroll}
+            className="day-columns-scrollbar -mx-1 overflow-x-auto overflow-y-hidden"
+          >
+            <div ref={barSpacerRef} className="h-px" />
+          </div>
         )}
       </div>
     </div>
