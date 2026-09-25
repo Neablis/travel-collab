@@ -117,6 +117,7 @@ Listed with their outcome under *Results*.
 | KI-48 | NARROWED | 3 of 6 items gone with redesigns (struck with evidence); the account menu's blank email line fixed (test red first). Left: the day-chip row's scroll affordance (needs a design), the settings date editor as a popover (inline is settled but needs an e2e-proven restructure). |
 | KI-2026-09-14-e | RESOLVED | `queryCache.writesSettled(prefix)` + TripProvider re-reads once on mount when a write to the trip was outstanding at mount (the previous board's in-flight head or KI-5's flush). Reproduced (`Expected "d1,d-a,d-b" / Received "d1"`); three breaks seen red; 172 unit green. |
 | KI-2026-09-25-e (filed tonight) | RESOLVED | `scripts/arch-baseline.mjs` keeps only error-severity violations; `arch:baseline` wired to it. Reproduced: old command wrote 9 warn cycles (they still printed only because dep-cruiser 18.4 ignores folder-level baseline entries — a `TODO` upstream). Test red with the filter removed. |
+| KI-2026-09-25-d (filed tonight) | RESOLVED | `entitlements/grants.ts` `activeGrantHolders(now)`; `admin.ts` passes holders into `underwaterReport`; Billing no longer names the grant table. New `storeBoundary.test.ts` source sweep (grants **and** the AI ledger) red first; behaviour break seen red in `revenue.int`; 151 unit + 108 int green. |
 
 ## Validation results
 
