@@ -13,9 +13,15 @@ type GeocodeResult = { lat: number; lng: number; canonicalName: string; countryC
 export function LocationInput({
   value,
   onChange,
+  // Overridable so a form can hold two (M24: a transit stop's `endLocation`)
+  // without two inputs sharing an id and an accessible name.
+  id = "location-search",
+  label = "Place name",
 }: {
   value: Location | null;
   onChange: (next: Location | null) => void;
+  id?: string;
+  label?: string;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeResult[]>([]);
@@ -49,14 +55,14 @@ export function LocationInput({
         </div>
       )}
       <FormField
-        id="location-search"
-        label="Place name"
+        id={id}
+        label={label}
         description="Search for a place by name, then pick a match from the results."
       >
         <div className="flex gap-1.5">
           <Input
-            id="location-search"
-            aria-label="Place name"
+            id={id}
+            aria-label={label}
             placeholder="place name"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -74,7 +80,7 @@ export function LocationInput({
       </FormField>
       {error !== null && <Text as="p" role="alert" className="text-danger-ink">{error}</Text>}
       {results.length > 0 && (
-        <ul role="listbox" aria-label="Search results" className="m-0 list-none divide-y divide-hairline p-0">
+        <ul role="listbox" aria-label={id === "location-search" ? "Search results" : `${label} results`} className="m-0 list-none divide-y divide-hairline p-0">
           {results.map((r, index) => (
             <li key={index} role="presentation">
               <Button

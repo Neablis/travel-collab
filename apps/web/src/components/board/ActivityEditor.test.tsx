@@ -116,6 +116,32 @@ describe("ActivityEditor kind picker", () => {
   });
 });
 
+// M24. The decider refuses a travel leg on any kind but `transit`, so a stop
+// that leaves transit has to take its leg with it — cleared by the form on
+// save, never by the domain behind the user's back.
+describe("ActivityEditor travel leg", () => {
+  const leg = { kind: "transit" as const, mode: "train" as const, endLocation: { name: "Kyoto Station" } };
+
+  it("edits the mode and destination only while the stop is transit", () => {
+    renderEditor(existingStop(leg), "edit");
+    expect((screen.getByLabelText("Travelling by") as HTMLSelectElement).value).toBe("train");
+    expect(screen.getByLabelText("Going to")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
+    expect(screen.queryByLabelText("Travelling by")).toBeNull();
+    expect(screen.queryByLabelText("Going to")).toBeNull();
+  });
+
+  it("clears the leg on save when the kind moves away from transit, and keeps it otherwise", () => {
+    const onSave = renderEditor(existingStop(leg), "edit");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining(leg));
+
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "booked", mode: null, endLocation: null }));
+  });
+});
+
 describe("ActivityEditor tag picker", () => {
   it("offers the four contract tags and never the handoff's six (KI-52)", () => {
     renderEditor(null, "create");

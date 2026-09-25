@@ -18,6 +18,8 @@ const form = (over: Partial<ActivityFormValue> = {}): ActivityFormValue => ({
   cost: null,
   bookedBy: null,
   participants: [],
+  mode: null,
+  endLocation: null,
   ...over,
 });
 
@@ -36,11 +38,13 @@ describe("addActivityCommand", () => {
         dayId: DAY,
         timeWindow: { start: "09:00", end: "10:00" },
         notes: "book ahead",
-        kind: "booked",
+        kind: "transit",
         tags: ["meal"],
         cost: { amountMinor: 4200, currency: "USD" },
         bookedBy: "alice",
         participants: ["alice", "bob"],
+        mode: "train",
+        endLocation: { name: "Kyoto Station" },
       }),
     );
     expect(command).toMatchObject({
@@ -51,11 +55,13 @@ describe("addActivityCommand", () => {
       title: "Fushimi Inari",
       timeWindow: { start: "09:00", end: "10:00" },
       notes: "book ahead",
-      kind: "booked",
+      kind: "transit",
       tags: ["meal"],
       cost: { amountMinor: 4200, currency: "USD" },
       bookedBy: "alice",
       participants: ["alice", "bob"],
+      mode: "train",
+      endLocation: { name: "Kyoto Station" },
     });
   });
 
@@ -69,6 +75,8 @@ describe("addActivityCommand", () => {
     expect(command.location).toBeUndefined();
     expect(command.notes).toBeUndefined();
     expect(command.cost).toBeUndefined();
+    expect(command.mode).toBeUndefined();
+    expect(command.endLocation).toBeUndefined();
   });
 
   // Attribution is NOT null-collapsed: `bookedBy: null` is the honest zero
@@ -117,6 +125,10 @@ describe("updateActivityCommand", () => {
     expect(command.notes).toBeNull();
     expect(command.cost).toBeNull();
     expect(command.bookedBy).toBeNull();
+    // M24: what lets a stop leave `transit` — the decider refuses a leg left
+    // behind, so the editor's cleared leg has to reach it as a clear.
+    expect(command.mode).toBeNull();
+    expect(command.endLocation).toBeNull();
   });
 
   // `ActivityEditor` disables the Day select in edit mode for this reason: a

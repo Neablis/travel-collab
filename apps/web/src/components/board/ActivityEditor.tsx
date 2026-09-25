@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ActivityKind, ActivityTag, ActivityView, Anchor, Location, Money, TimeWindow, TripMember } from "@tc/contracts";
+import { ActivityMode, type ActivityKind, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type TimeWindow, type TripMember } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,20 @@ export type ActivityFormValue = {
   // stop is not who is GOING to it, and M19's splits need the participants.
   bookedBy: string | null;
   participants: string[];
+  // M24. Only ever non-null while `kind` is "transit": the form clears both on
+  // save otherwise, because the decider refuses a leg on any other kind.
+  mode: ActivityMode | null;
+  endLocation: Location | null;
+};
+
+const MODE_LABEL: Record<ActivityMode, string> = {
+  walk: "On foot",
+  bus: "Bus",
+  train: "Train",
+  flight: "Flight",
+  ferry: "Ferry",
+  car: "Car",
+  bike: "Bike",
 };
 
 // One option per trip day for the "Day" NativeSelect, plus that day's
@@ -121,6 +135,10 @@ export function ActivityEditor({
   const [bookedBy, setBookedBy] = useState<string | null>(initial?.bookedBy ?? null);
   const [participants, setParticipants] = useState<string[]>(initial?.participants ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
+  // Kept while the kind is switched away, so switching back does not lose
+  // them; only what is SAVED is cleared (see submit).
+  const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
+  const [endLocation, setEndLocation] = useState<Location | null>(initial?.endLocation ?? null);
   const [error, setError] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(defaultDayId ?? "");
 
@@ -187,6 +205,8 @@ export function ActivityEditor({
       // replaces the array wholesale rather than adding to it.
       participants,
       cost,
+      mode: kind === "transit" ? travelMode : null,
+      endLocation: kind === "transit" ? endLocation : null,
     });
   }
 
@@ -324,6 +344,27 @@ export function ActivityEditor({
           ))}
         </NativeSelect>
       </FormField>
+
+      {kind === "transit" && (
+        <>
+          <FormField id="activity-mode" label="Travelling by" description="How this leg gets there.">
+            <NativeSelect
+              id="activity-mode"
+              value={travelMode ?? ""}
+              onChange={(e) => setTravelMode(e.target.value === "" ? null : (e.target.value as ActivityMode))}
+            >
+              <option value="">Not said</option>
+              {ActivityMode.options.map((option) => (
+                <option key={option} value={option}>
+                  {MODE_LABEL[option]}
+                </option>
+              ))}
+            </NativeSelect>
+          </FormField>
+          {/* The place above is where the leg starts; this is where it ends. */}
+          <LocationInput id="end-location-search" label="Going to" value={endLocation} onChange={setEndLocation} />
+        </>
+      )}
 
       <FormField
         id="activity-cost"
