@@ -337,3 +337,71 @@ describe("countriesOfStops", () => {
     w.atLeast(200);
   });
 });
+
+// M24 knock-on 2 (Mitchell, 2026-09-25): a transit stop touches BOTH places,
+// origin then destination, at the stop's own position in time. A travel day
+// is in both cities and both countries, and a saved day's `cities` is what
+// Discover matches on — a shinkansen day that only listed where it left from
+// would never be found by the city it arrives in.
+function leg(
+  title: string,
+  timeWindow: { start: string; end: string } | null,
+  from: { city?: string; countryCode?: string },
+  to: { city?: string; countryCode?: string },
+): SavedStop {
+  return {
+    ...savedStop(title, timeWindow),
+    kind: "transit",
+    mode: "train",
+    location: { name: title, ...from },
+    endLocation: { name: `${title} (arrival)`, ...to },
+  };
+}
+
+describe("a transit stop contributes both ends (M24)", () => {
+  it("names the destination city of a leg nothing else on the day is in", () => {
+    expect(
+      citiesOfStops([leg("shinkansen", { start: "09:30", end: "11:45" }, { city: "Osaka" }, { city: "Tokyo" })]),
+    ).toEqual(["Osaka", "Tokyo"]);
+  });
+
+  // The destination takes the leg's slot in time, not the end of the list: a
+  // Kyoto → Osaka train at 10:00 followed by a Nara stop at 13:00 is
+  // Kyoto, Osaka, Nara.
+  it("puts the destination straight after the origin, in the leg's place in time", () => {
+    expect(
+      citiesOfStops([
+        savedStop("nara", { start: "13:00", end: "15:00" }, { city: "Nara" }),
+        leg("train", { start: "10:00", end: "10:40" }, { city: "Kyoto" }, { city: "Osaka" }),
+      ]),
+    ).toEqual(["Kyoto", "Osaka", "Nara"]);
+  });
+
+  it("drops a destination with no city, as it drops an origin with none", () => {
+    expect(citiesOfStops([leg("ferry", null, { city: "Tamano" }, {})])).toEqual(["Tamano"]);
+  });
+
+  // Same shared helper, same rule: a flight is in two countries.
+  it("gives countriesOfStops both of a leg's countries", () => {
+    expect(
+      countriesOfStops([
+        leg("flight", { start: "10:00", end: "22:00" }, { city: "Paris", countryCode: "FR" }, { city: "Tokyo", countryCode: "JP" }),
+      ]),
+    ).toEqual(["FR", "JP"]);
+  });
+
+  // "Checked, not trusted": the kind refinement guards commands and the
+  // decider, not stored events or read models, so a non-transit stop carrying
+  // an `endLocation` can still reach here. The map ignores its destination
+  // (`mapRailData.ts`); a saved day's `cities` — what Discover matches on —
+  // must ignore it too, or the two disagree about where the day went.
+  it("ignores the endLocation of a stop that is not transit, in cities and countries alike", () => {
+    const contradiction: SavedStop = {
+      ...leg("dinner", { start: "19:00", end: "21:00" }, { city: "Kyoto", countryCode: "JP" }, { city: "Seoul", countryCode: "KR" }),
+      kind: "planned",
+      mode: null,
+    };
+    expect(citiesOfStops([contradiction])).toEqual(["Kyoto"]);
+    expect(countriesOfStops([contradiction])).toEqual(["JP"]);
+  });
+});

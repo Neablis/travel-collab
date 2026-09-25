@@ -35,13 +35,42 @@ import type { TripDetail } from "@tc/contracts";
 // cells through `cityAccents` → this function. Two copies of "a day's city"
 // would let a run read "Kyoto" in Osaka's colour; one copy cannot.
 // `apps/web`'s `cityFor` is this, re-exported under the name its callers use.
-/** The city (or, failing that, the area) of a day's last located activity, or `null` when none of its stops names either. */
+//
+// A transit stop's DESTINATION comes first (M24; Mitchell, 2026-09-25). This
+// names the day by where it ends, and a leg ends at its `endLocation`, so a
+// day closed by "Shinkansen Odawara → Kyoto" is a Kyoto day. Walking back, the
+// destination is checked before the stop's own `location` (its origin), under
+// the same rules: city then area, non-empty, no `name`. A destination naming
+// neither falls through to the origin. Deliberately unlike `citiesOfStops`,
+// which lists both, and `shortPlace`, which keeps the origin: each answers a
+// different question.
+//
+// Only a `kind: "transit"` stop has a destination here — checked, not trusted,
+// as the map (`mapRailData.ts`) checks it. The contract's refinement guards
+// commands and the decider, not stored events or read models
+// (`travelLegFieldsOffTransit`), so a stored non-transit stop may still carry
+// an `endLocation`, and naming the day by it would contradict the map.
+//
+// **Except a return leg** (Mitchell, 2026-09-25): a leg whose destination is
+// the place the day STARTED in is the trip home from a day trip, not where the
+// day was spent. Its destination is skipped and its origin names the day, so
+// Tokyo → Nikkō → "Train back to Tokyo" stays a Nikkō day instead of erasing
+// Nikkō from every label. "Started in" is the first place the day names,
+// walking forward over origins only.
+/** The city (or, failing that, the area) of a day's last located activity — a leg's destination before its origin, unless that leg returns to where the day started — or `null` when none of its stops names either. */
 export function dayCity(day: TripDetail["days"][number], activities: TripDetail["activities"]): string | null {
+  const startedIn = day.activityIds.map((id) => placeOf(activities[id]?.location)).find((place) => place !== null) ?? null;
   for (let index = day.activityIds.length - 1; index >= 0; index--) {
-    const activityId = day.activityIds[index]!;
-    const location = activities[activityId]?.location;
-    const place = location?.city ?? location?.area;
-    if (place !== undefined && place !== "") return place;
+    const activity = activities[day.activityIds[index]!];
+    const destination = activity?.kind === "transit" ? placeOf(activity.endLocation) : null;
+    if (destination !== null && destination !== startedIn) return destination;
+    const origin = placeOf(activity?.location);
+    if (origin !== null) return origin;
   }
   return null;
+}
+
+function placeOf(location: { city?: string | undefined; area?: string | undefined } | null | undefined): string | null {
+  const place = location?.city ?? location?.area;
+  return place !== undefined && place !== "" ? place : null;
 }

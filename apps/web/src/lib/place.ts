@@ -25,6 +25,14 @@ import type { Location } from "@tc/contracts";
 // honestly, and this is the last resort rather than the first.
 //
 // `null` only for no location at all.
+//
+// M24 (Mitchell, 2026-09-25): this stays ONE place. A transit stop's two
+// places are `location` (origin) and `endLocation` (destination), and every
+// caller passes `location`, so a leg is labelled by where it leaves from. A
+// surface that wants the leg as a leg renders `shortPlace` on each end
+// ("Odawara → Kyoto"). It should not teach this function about `endLocation`,
+// because its one-token slot has room for one place. It takes a `Location`
+// rather than an activity, so it cannot read the destination by accident.
 export function shortPlace(location: Location | null | undefined): string | null {
   if (!location) return null;
   if (location.area) return location.area;

@@ -16,6 +16,9 @@ type ActivitySpec = {
   window?: TimeWindow;
   point?: { name: string; lat: number; lng: number };
   kind?: ActivityKind;
+  // M24: a transit stop's destination. `lat`/`lng` optional because a stored
+  // Location may carry neither.
+  end?: { name: string; lat?: number; lng?: number };
 };
 
 function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySpec[] = []): TripState {
@@ -43,7 +46,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           bookedBy: null,
           participants: [],
           mode: null,
-          endLocation: null,
+          endLocation: a.end ?? null,
         },
       ]),
     ),
@@ -249,6 +252,97 @@ describe("impossible-geography rule", () => {
     });
   });
 
+  // M24 link 4. With an `endLocation` the engine can ask what KI-60 could
+  // not: does the travel go to the right place? A timed transit stop in the
+  // interval now excuses a far-apart pair only if its destination is within
+  // GEO_INFEASIBLE_KM of the pair's LATER stop. A transit stop with no
+  // destination is exactly KI-60's rule, unchanged.
+  describe("a transit stop's destination must agree with where the day goes next (M24)", () => {
+    const geo = (state: TripState) =>
+      detectConflicts(state).filter((c) => c.kind === "impossible-geography");
+    // ~5 km from NYC: "near" by the rule's own threshold, not a copy of NYC.
+    const JFK_ISH = { name: "Queens", lat: 40.7282, lng: -73.7949 };
+    const TOKYO = { name: "Tokyo", lat: 35.6812, lng: 139.7671 };
+
+    it("excuses the pair when the destination is near the later stop", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", point: ROME, end: JFK_ISH, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("flags the pair when the destination is somewhere else — travel to Tokyo does not put you in New York", () => {
+      const conflicts = geo(
+        boardState([
+          { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+          { id: "t", point: ROME, end: TOKYO, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+          { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+        ]),
+      );
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0]!.subjects).toEqual(["a", "b"]);
+    });
+
+    // "Later" is TIME order (KI-60 property 1): `b` is stored first here, so a
+    // rule that took the second-stored stop as "later" would compare Queens
+    // with Rome and flag.
+    it("reads the later stop by time, not by stored order", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+            { id: "t", point: ROME, end: JFK_ISH, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("with no endLocation, behaves exactly as KI-60 — any timed travel in the interval excuses", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", point: ROME, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    // An endLocation that was never geocoded names a place but not where it
+    // is. That is absence of evidence, not disagreement, so it falls back to
+    // the no-destination rule rather than flagging.
+    it("treats a destination without coordinates as no destination", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", point: ROME, end: { name: "Somewhere in New York" }, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+
+    it("keeps KI-60's floor — a destination does not make an untimed transit stop excuse anything", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", end: JFK_ISH, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toHaveLength(1);
+    });
+  });
+
   // Mitchell, 2026-09-21, on a real Portugal trip. A transit stop's coordinate
   // is where the journey STARTS, so its distance to anything else on the day
   // says nothing about whether the day is possible — it is never a member of a
@@ -376,6 +470,65 @@ describe("conflict engine properties", () => {
       }),
     );
     w.atLeast(130); // observed 266-334 conflicts examined
+  });
+
+  // M24 link 4's two "for ALL" claims. Each witness ticks only when today's
+  // (KI-60) rule actually excused something in the generated day, found by
+  // diffing against the same day with every transit stop untimed (an untimed
+  // transit stop excuses nothing and is never a pair member). A day where
+  // nothing was excused compares two equal lists and proves nothing.
+  const geoIds = (s: TripState) =>
+    detectConflicts(s).filter((c) => c.kind === "impossible-geography").map((c) => c.id);
+  const excusedByTravel = (specs: ActivitySpec[]) => {
+    const untimed = specs.map((a) => (a.kind === "transit" ? { ...a, window: undefined } : a));
+    return geoIds(boardState(untimed)).length > geoIds(boardState(specs.map((a) => ({ ...a, end: undefined })))).length;
+  };
+
+  it("a destination only ever narrows the excuse — it never clears a conflict KI-60 raised", () => {
+    const w = witness("destination narrows");
+    const arbStop = fc.record({
+      // Mostly timed: an untimed stop can neither be excused nor excuse, so a
+      // generator at 50% untimed spent most runs on days with nothing at stake.
+      window: fc.option(arbWindow, { nil: undefined, freq: 8 }),
+      point: arbPoint,
+      transit: fc.boolean(),
+      end: fc.option(arbPoint, { nil: undefined }),
+    });
+    fc.assert(
+      fc.property(fc.array(arbStop, { minLength: 4, maxLength: 8 }), (stops) => {
+        const specs: ActivitySpec[] = stops.map((s, i) => ({
+          id: `a${i}`,
+          window: s.window,
+          point: s.point,
+          ...(s.transit ? { kind: "transit" as const, end: s.end } : {}),
+        }));
+        if (excusedByTravel(specs)) w.tick();
+        const today = geoIds(boardState(specs.map((a) => ({ ...a, end: undefined }))));
+        const withDestinations = new Set(geoIds(boardState(specs)));
+        return today.every((id) => withDestinations.has(id));
+      }),
+      { numRuns: 300 },
+    );
+    w.atLeast(7); // observed 15-30 excusing days in 300 runs over 15 runs
+  });
+
+  it("a destination at the later stop changes nothing — every pair excused today is still excused", () => {
+    const w = witness("agreeing destination");
+    fc.assert(
+      fc.property(arbWindow, arbWindow, arbWindow, arbPoint, arbPoint, arbPoint, (wa, wb, wt, pa, pb, pt) => {
+        const later = wa.start < wb.start ? pb : wb.start < wa.start ? pa : pa;
+        const specs: ActivitySpec[] = [
+          { id: "a", window: wa, point: pa },
+          { id: "t", window: wt, point: pt, kind: "transit", end: later },
+          { id: "b", window: wb, point: pb },
+        ];
+        if (excusedByTravel(specs)) w.tick();
+        const today = geoIds(boardState(specs.map((a) => ({ ...a, end: undefined }))));
+        return JSON.stringify(geoIds(boardState(specs))) === JSON.stringify(today);
+      }),
+      { numRuns: 300 },
+    );
+    w.atLeast(13); // observed 26-47 excusing days in 300 runs over 15 runs
   });
 
   it("conflict ids are invariant under activity insertion order", () => {
