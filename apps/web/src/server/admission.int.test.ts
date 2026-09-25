@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AdmissionRefusal } from "@tc/contracts";
 import { createInvite, revokeInvite } from "./access/invites";
-import { checkAdmission, redeemAdmission } from "./admission";
+import { redeemAdmission } from "./admission";
 import { executeTripCommand } from "./commands";
 import { db } from "./db/client";
 import { inviteCodes } from "./db/schema";
@@ -88,7 +88,8 @@ describe("redeemAdmission — link 2, a pending trip invite", () => {
 
     await redeemAdmission(token, NEWCOMER);
 
-    await expect(checkAdmission(token)).resolves.toEqual({ admitted: true, via: "trip-invite" });
+    // Still pending: a second holder is admitted on the same token.
+    await expect(redeemAdmission(token, RIVAL)).resolves.toEqual({ admitted: true, via: "trip-invite" });
   });
 
   // `status = 'pending'` alone already implies unrevoked, because revocation
@@ -246,47 +247,5 @@ describe("a single-use code under real concurrency", () => {
     }
     const row = await readCode(code);
     expect(contenders).toContain(row?.redeemedBy);
-  });
-});
-
-// Asked by the /signup form so a wrong code is caught before the browser
-// leaves for Google. It answers the same question and MUST NOT spend anything.
-describe("checkAdmission is advisory", () => {
-  it("says a fresh code would admit, without redeeming it", async () => {
-    const code = await mintCode();
-
-    await expect(checkAdmission(code)).resolves.toEqual({ admitted: true, via: "invite-code" });
-
-    expect((await readCode(code))?.redeemedBy).toBeNull();
-    // …and it is still there to be spent for real afterwards.
-    await expect(redeemAdmission(code, NEWCOMER)).resolves.toEqual({
-      admitted: true,
-      via: "invite-code",
-    });
-  });
-
-  it("gives the same three refusals the authoritative call gives", async () => {
-    const spent = await mintCode();
-    await redeemAdmission(spent, NEWCOMER);
-
-    await expect(checkAdmission(null)).resolves.toEqual({
-      admitted: false,
-      reason: AdmissionRefusal.enum.MISSING_INVITE_CODE,
-    });
-    await expect(checkAdmission(`code-${randomUUID()}`)).resolves.toEqual({
-      admitted: false,
-      reason: AdmissionRefusal.enum.INVALID_INVITE_CODE,
-    });
-    await expect(checkAdmission(spent)).resolves.toEqual({
-      admitted: false,
-      reason: AdmissionRefusal.enum.SPENT_INVITE_CODE,
-    });
-  });
-
-  it("admits nobody on the super code when the variable is unset", async () => {
-    expect(process.env[SUPER_CODE_VAR]).toBeUndefined();
-
-    const outcome = await checkAdmission("super-anything");
-    expect(outcome.admitted).toBe(false);
   });
 });
