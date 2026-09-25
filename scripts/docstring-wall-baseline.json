@@ -332,7 +332,6 @@
   "apps/web/src/server/ai/modelSelection.ts::selectAiModel",
   "apps/web/src/server/ai/pageTools.ts::validateComposedPage",
   "apps/web/src/server/ai/planSummary.ts::summarizeBatch",
-  "apps/web/src/server/ai/planningTools.ts::flushPlanningBatch",
   "apps/web/src/server/ai/rateLimit.ts::mapRateLimited",
   "apps/web/src/server/ai/writeTools.ts::commitProposal",
   "apps/web/src/server/assistant/admission.ts::badRequest",

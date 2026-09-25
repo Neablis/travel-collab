@@ -12,7 +12,7 @@
 //   1. `buildProposal` — `resolveBatch` run over what the turn collected, said
 //      in a sentence per change. Nothing is committed by it.
 //   2. `commitProposal` — the ONE atomic batch (ADR-013), through the same
-//      `enrichCommandLocations` → `flushPlanningBatch` path the command
+//      `enrichCommandLocations` → `executeTripCommandBatch` path the command
 //      endpoint uses, so approval is not a second door around KI-15. It is
 //      also where an approved `{ savedDayId }` is re-read and expanded, and
 //      where the adds ledger rides the batch's own transaction.
@@ -36,7 +36,7 @@ import { getGeocoder, type Geocoder } from "@/server/geocoding";
 import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
 import { resolveBatch, type RawToolIntent } from "@/server/assistant/batchResolver";
-import { flushPlanningBatch } from "@/server/ai/planningTools";
+import { executeTripCommandBatch } from "@/server/commands";
 import {
   enrichCommandLocations,
   hasCityLevelLocations,
@@ -481,7 +481,7 @@ export interface ProposalCommitResult {
  *      that skips it, so it runs here on exactly the same terms — region bias
  *      from the trip's already-geocoded activities, best-effort, and everything
  *      unverified reported.
- *   2. **`flushPlanningBatch`.** One `executeTripCommandBatch` call.
+ *   2. **`executeTripCommandBatch`.** One call, one batch.
  *
  * **`geocoder` is resolved lazily, and that is an incident rather than a
  * style.** It used to be a `geocoder: Geocoder = getGeocoder()` default
@@ -611,8 +611,10 @@ export async function commitProposal(
   // Two calls would be two history entries and two undos for one approval; a
   // ledger write after the call returns would be a credit for a batch that
   // might have lost its optimistic-concurrency check.
-  const batch = await flushPlanningBatch(
-    tripId,
+  // Straight to the executor: this used to go through `flushPlanningBatch`, a
+  // one-line pass-through with an unused `tripId` (KI-2026-09-05-w item 2).
+  // The executor's third argument is its existing transaction seam.
+  const batch = await executeTripCommandBatch(
     [...enriched, ...inserted],
     actorId,
     days.length === 0
