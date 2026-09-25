@@ -51,3 +51,42 @@ test("edits still queued when the page reloads are not lost", async ({ page }) =
   await page.reload();
   await expect(days).toHaveCount(before + 4);
 });
+
+// The same queue, left by an IN-APP navigation instead of a reload: the page
+// lives on, so the queue is drained after the unit in flight, one unit at a
+// time — four edits, four history entries, where the reload's single keepalive
+// batch makes two (the unit in flight, then everything behind it).
+test("edits still queued when you navigate away inside the app are each saved on their own", async ({ page }) => {
+  const tripName = e2eTripName("Bodo");
+  await page.goto("/");
+  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("link", { name: tripName }).click();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
+
+  const days = page.getByTestId("day-column");
+  const before = await days.count();
+
+  await page.route("**/api/trips/*/commands", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch();
+    await new Promise((r) => setTimeout(r, 400));
+    await route.fulfill({ response }).catch(() => {});
+  });
+
+  const addDay = page.getByRole("button", { name: "Add a day", exact: true });
+  for (let i = 0; i < 4; i++) await addDay.click();
+  await expect(days).toHaveCount(before + 4);
+
+  const tripId = new URL(page.url()).pathname.split("/")[2];
+  await page.getByRole("link", { name: "Trips", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+
+  const addedDayEntries = async () => {
+    const res = await page.request.get(`/api/trips/${tripId}/history`);
+    const { history } = (await res.json()) as { history: { entries: { description: string }[] } };
+    return history.entries.map((e) => e.description).filter((d) => d.startsWith("Added Day"));
+  };
+  await expect.poll(async () => (await addedDayEntries()).length).toBe(4);
+  expect((await addedDayEntries()).filter((d) => d.includes(";"))).toEqual([]);
+});

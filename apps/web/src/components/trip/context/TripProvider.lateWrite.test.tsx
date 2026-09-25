@@ -94,22 +94,49 @@ describe("TripProvider — a write that lands after you navigated back (KI-2026-
     await waitFor(() => expect(held).toHaveLength(1));
     fireEvent.click(screen.getByRole("button", { name: "add-b" }));
 
-    // Navigate away: KI-5's flush sends d-b as a batch, also held.
+    // Navigate away: KI-5's drain waits for d-a before it sends d-b.
     first.unmount();
-    expect(held).toHaveLength(2);
-    expect(held[1]!.url).toContain("/commands/batch");
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(held).toHaveLength(1);
 
     // Come back while neither has been applied. The return read is correct
     // at the moment it is taken — the server really has only d1.
     mountBoard();
     await waitFor(() => expect(screen.getByTestId("days").textContent).toBe("d1"));
 
-    // Now the server applies both, late.
+    // Now the server applies both, late — d-b sent only once d-a has answered,
+    // on its own, through the single-command endpoint.
     serverDays = ["d1", "d-a"];
     await act(async () => held[0]!.release());
+    await waitFor(() => expect(held).toHaveLength(2));
+    expect(held[1]!.url).toMatch(/\/commands$/);
     serverDays = ["d1", "d-a", "d-b"];
     await act(async () => held[1]!.release());
 
+    await waitFor(() => expect(screen.getByTestId("days").textContent).toBe("d1,d-a,d-b"));
+  });
+
+  it("does not re-read in the gap between two drained units, only once the drain is done", async () => {
+    // The gap is real: d-a's own write scope closes before d-b's opens. A board
+    // that re-read there would see d-a, then miss d-b with nothing to correct it.
+    const first = mountBoard();
+    await waitFor(() => expect(screen.getByTestId("days").textContent).toBe("d1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    await waitFor(() => expect(held).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "add-b" }));
+    first.unmount();
+
+    mountBoard();
+    await waitFor(() => expect(screen.getByTestId("days").textContent).toBe("d1"));
+    const readsAtMount = fetchTripDetailMock.mock.calls.length;
+
+    serverDays = ["d1", "d-a"];
+    await act(async () => held[0]!.release());
+    await waitFor(() => expect(held).toHaveLength(2));
+    expect(fetchTripDetailMock.mock.calls.length).toBe(readsAtMount);
+
+    serverDays = ["d1", "d-a", "d-b"];
+    await act(async () => held[1]!.release());
     await waitFor(() => expect(screen.getByTestId("days").textContent).toBe("d1,d-a,d-b"));
   });
 

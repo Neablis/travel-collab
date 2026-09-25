@@ -1251,7 +1251,8 @@ describe("TripProvider broadcast (M13 link 2)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// KI-5: work still queued when the page goes is sent, once, as one batch.
+// KI-5: work still queued when the page goes is sent, once, as one batch; when
+// only the provider goes (an in-app navigation) it is drained unit by unit.
 // ---------------------------------------------------------------------------
 
 function FlushProbe() {
@@ -1306,18 +1307,66 @@ describe("TripProvider unload flush (KI-5)", () => {
     expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
   });
 
-  it("flushes the same way when the provider unmounts, as an in-app navigation does", async () => {
-    sendTripCommandBatchMock.mockReturnValue(new Promise(() => {}));
-    const { view } = await queueBehindAnInFlightHead();
+  // An in-app navigation unmounts the provider but the page lives on, so the
+  // queue can be drained properly: after the unit in flight, one unit at a
+  // time, in order, each its own history entry — not one batch racing it.
+  it("on an in-app navigation, waits for the unit in flight, then sends the rest one at a time in order", async () => {
+    const answers: ((v: unknown) => void)[] = [];
+    const { view, settleHead } = await queueBehindAnInFlightHead();
+    sendTripCommandMock.mockImplementation(() => new Promise((res) => answers.push(res)));
 
     view.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1); // only the head, still in flight
 
-    expect(sendTripCommandBatchMock).toHaveBeenCalledTimes(1);
-    expect(sendTripCommandBatchMock).toHaveBeenCalledWith(
-      "x",
-      [addDayCommand("d-b"), addDayCommand("d-c")],
-      { keepalive: true },
+    await act(async () => { settleHead(confirmedOutcome()); });
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(2));
+    expect(sendTripCommandMock).toHaveBeenLastCalledWith(addDayCommand("d-b"));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(2); // d-c waits for d-b's answer
+
+    await act(async () => { answers[0]!(confirmedOutcome()); });
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(3));
+    expect(sendTripCommandMock).toHaveBeenLastCalledWith(addDayCommand("d-c"));
+    await act(async () => { answers[1]!(confirmedOutcome()); });
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+  });
+
+  it("on an in-app navigation, a unit the server refuses does not stop the ones behind it", async () => {
+    const { view, settleHead } = await queueBehindAnInFlightHead();
+    sendTripCommandMock
+      .mockResolvedValueOnce({ ok: false, error: { status: 400, message: "No such day.", code: "day-not-found" } })
+      .mockResolvedValue(confirmedOutcome());
+
+    view.unmount();
+    await act(async () => { settleHead(confirmedOutcome()); });
+
+    await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(3));
+    expect(sendTripCommandMock.mock.calls.slice(1).map(([c]) => c)).toEqual([
+      addDayCommand("d-b"),
+      addDayCommand("d-c"),
+    ]);
+  });
+
+  it("on an in-app navigation, does not send a queue whose head the server already refused", async () => {
+    sendTripCommandMock.mockResolvedValue(rejection);
+    const view = render(
+      <TripProvider tripId="x">
+        <FlushProbe />
+      </TripProvider>,
     );
+    await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+    fireEvent.click(screen.getByRole("button", { name: "add-b" }));
+    await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("2"));
+
+    view.unmount();
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+
+    expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
+    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
   });
 
   it("never lets the sender send a flushed unit as well", async () => {
