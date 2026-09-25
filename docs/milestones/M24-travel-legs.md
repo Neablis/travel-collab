@@ -207,10 +207,12 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
       is closed by a stated, bounded claim, not by "looks fine".
 - [x] `map-legend-modes` is **wired up or deleted**, and no M24-tagged entry
       remains in `apps/web/src/lib/preview-registry.ts`.
-- [ ] **Every city-deriving surface has made an explicit choice** about which of
+- [x] **Every city-deriving surface has made an explicit choice** about which of
       a transit stop's two locations it reads — `citiesOfStops`, `cityFor()`,
       `shortPlace()` — each recorded in a comment beside the code, with a test
-      pinning the choice.
+      pinning the choice. *(Ticked 2026-09-25, on Mitchell's call, for the
+      three it names. `shortPlace`'s pin and every surface this list never
+      named move to `KI-2026-09-25-q`; see the retro.)*
 - [x] **`geographyRule` excuses a distance only when the transit stop's
       destination agrees**, and a transit stop with no `endLocation` behaves
       exactly as it does today — both directions covered by tests, both **seen
@@ -222,7 +224,7 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
 - [ ] The full Definition of Done is green, and a retro is appended at gate
       close.
 
-### Gate evidence, 2026-09-25 (the stack #229 → #230 → #232 → #233, unmerged)
+### Gate evidence, 2026-09-25 (the stack #229 → #230 → #232 → #233, before merge)
 
 Ticked above on the top part's tree, which contains all four parts. **9 of 11.**
 

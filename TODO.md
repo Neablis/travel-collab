@@ -266,8 +266,8 @@ reorder and the one place a reorder updates.
       geocoder bug (corrected 2026-09-22). It also owns
       per-stop attribution, which **M19's link 3 depends on** — if M13 ships
       without it, that link returns to M19.)*
-- [ ] **M24 A leg knows where it goes and by what** → ← **current milestone**
-      `docs/milestones/M24-travel-legs.md`
+- [x] **M24 A leg knows where it goes and by what** — gate closed 2026-09-25 (11 of 11; #229, #230, #232, #233; carried: `KI-2026-09-25-q`)
+      → `docs/milestones/M24-travel-legs.md`
       *(**Minted and placed 2026-09-18 by Mitchell**, running after M12 and
       before M14. A travel stop gets a **transport mode** and a **second
       location**, and the map draws a real leg instead of inferring one.
@@ -290,7 +290,7 @@ reorder and the one place a reorder updates.
       kind). It was already scheduled once, on 2026-08-29, as *"one overnight
       batch"* and did not happen; M13's gate now carries a box for it so it is
       enforced rather than remembered.)*
-- [ ] **M14 Rich layer** — the macro vocabulary deferred out of M8 returns here.
+- [ ] **M14 Rich layer** ← **current milestone** (from 2026-09-25, by M24's gate closing) — the macro vocabulary deferred out of M8 returns here.
       → `docs/milestones/M14-rich-layer.md`
       *(**Code merged 2026-09-24, built ahead of M24** on Mitchell's call, as
       #222, #223, #226 and #221. The gate is 17 of 22. The five open boxes
