@@ -23,7 +23,10 @@ export async function POST(request: Request) {
   const access = await requireTripAccess(body.data.tripId, "viewer");
   if ("error" in access) return access.error;
 
-  const result = await saveDay(body.data, access.detail, access.userId);
+  // A Playbook has no dates, so a calendar-date anchor is dropped on the way in,
+  // as `POST /v1/playbooks` does (ADR-050 decision 8, KI-2026-09-24-c). The
+  // Keep dialog names the stops that lose one before the button acts.
+  const result = await saveDay({ ...body.data, dateAnchors: "strip" }, access.detail, access.userId);
   if (!result.ok) {
     return Response.json(
       { error: result.error.message },

@@ -145,6 +145,28 @@ function includedSummary(selected: KeepDayCandidate[], all: KeepDayCandidate[], 
 }
 
 /**
+ * The stops that will lose a calendar-date anchor, said before the button acts
+ * (KI-2026-09-24-c), or null when none will.
+ *
+ * The app's keep drops every `dateRange` anchor on the way in, as
+ * `POST /v1/playbooks` does (ADR-050 decision 8): a Playbook has no dates, and
+ * "only 3–5 May" carried into October is a conflict on that stop. Weekday,
+ * time-of-day and holiday anchors describe the place and are kept, so they are
+ * not mentioned. The rule here is the server's `withoutDateAnchors`, restated,
+ * because that module is server-only; the server is what decides.
+ */
+function droppedDatesNote(selected: KeepDayCandidate[]): string | null {
+  const titles = selected
+    .flatMap((d) => d.stops)
+    .filter((s) => s.anchors.some((a) => a.kind === "dateRange"))
+    .map((s) => `"${s.title}"`);
+  if (titles.length === 0) return null;
+  return titles.length === 1
+    ? `A Playbook has no dates, so the date anchor on ${titles[0]} won't be kept.`
+    : `A Playbook has no dates, so the date anchors on ${titles.length} stops won't be kept: ${titles.join(", ")}.`;
+}
+
+/**
  * The name the dialog offers — the day, or the count, and the trip.
  *
  * A default worth keeping is one you can accept without thinking. It follows
@@ -264,6 +286,7 @@ export function KeepDayDialog({
   // Nothing to save is the WHOLE selection being empty — one blank day among
   // three is a rest day and is perfectly keepable. `saveDay` draws the same
   // line on the server, which is the boundary that actually decides.
+  const droppedDates = droppedDatesNote(selected);
   const nothingToSave = selected.length === 0 || selected.every((d) => d.stops.length === 0);
 
   function toggle(id: string) {
@@ -437,6 +460,11 @@ export function KeepDayDialog({
           </Text>
         </FormField>
         {selected.length > 0 && <KeepPreview selected={selected} all={days} />}
+        {droppedDates !== null && (
+          <Text as="span" className="text-xs text-slate" data-testid="keep-day-dropped-dates">
+            {droppedDates}
+          </Text>
+        )}
         <Text as="span" className="text-xs text-slate">
           Saved days are private to you. Add one to any trip you can edit.
         </Text>
