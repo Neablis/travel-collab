@@ -19,7 +19,7 @@ function mayReadAccount(actor: Actor): boolean {
 
 export const { GET } = route({
   GET: {
-    summary: "Summarise a trip: its days and their time zones, the cities and tags it uses, and how many stops are booked",
+    summary: "Summarise a trip: its days and their time zones, and the cities and tags it uses",
     scope: "trips:read",
     trip: "path",
     role: "viewer",
