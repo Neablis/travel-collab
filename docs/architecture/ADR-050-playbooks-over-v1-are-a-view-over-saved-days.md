@@ -244,7 +244,11 @@ A Playbook as a file, Discover over `v1`, and a keyed create. Still one
   collection declares `trip`, so `route()` refuses a trip-confined token before
   the handler's hand-written trip gate runs — as it already did on
   `POST /v1/library`. The hand gate's confinement check is reachable only by a
-  session today.
+  session today. **Superseded 2026-09-25 (KI-2026-09-24-a):** both creates now
+  declare `trip: { body }`, so `route()` reads the source trip out of the body
+  and runs its own two gates. A confined token keeps days of a trip it names,
+  is refused (`trip-out-of-scope`) for any other, and is refused an inline
+  Playbook, which names no trip. The hand gate is gone.
 - `insertSavedDay` returns `minted` on success. The internal
   `POST /api/trips/:id/saved-days/:savedDayId` picks its own fields and is
   unchanged.

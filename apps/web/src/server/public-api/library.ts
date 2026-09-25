@@ -7,8 +7,6 @@ import {
   saveDay,
   setSavedDayVisibility,
 } from "@/server/savedDays";
-import { tripAccessFor } from "@/server/access/trip-access";
-import { actorMayReachTrip, type Actor } from "./actor";
 import { PublicApiError } from "./commands";
 import {
   decodeKeyedCursor,
@@ -87,47 +85,27 @@ export function savedDayCollection(
 }
 
 /**
- * The source trip of a save, gated by hand — or a refusal thrown.
+ * The source trip of a save, as the wrapper's gates delivered it.
  *
- * **The trip gate runs here, by hand, and that is the honest cost of putting
- * these collections outside `/trips/:id`.** The wrapper checks the trip in the
- * path; a save's trip is in the body, so the same seam is called directly
- * rather than a weaker check being invented.
- *
- * **The confinement half is unreachable for a token today.** Neither route
- * declares `trip`, so `route()` refuses every trip-confined token before a
- * handler runs. It is kept so the gate stays whole if that ever changes.
+ * **The trip is in the body, and `route()` gates it there** (`trip: { body }`,
+ * KI-2026-09-24-a) — confinement first, then the role, the same two gates a
+ * `/trips/:id` path gets. This used to be a by-hand copy of them, and a
+ * confined token never reached it.
  */
-export async function sourceTrip(actor: Actor, tripId: string): Promise<TripDetail> {
-  if (!actorMayReachTrip(actor, tripId)) {
-    throw new PublicApiError(403, "This token is not scoped to that trip.", "trip-out-of-scope");
-  }
-  const access = await tripAccessFor(actor.userId, tripId, "viewer");
-  if (!access.ok) {
-    // The same three answers `route()`'s own gate gives, because this is the
-    // same gate called by hand. `malformed-trip` is a stored document this
-    // server could not parse — ours to own as a 500, and telling the caller
-    // they lack access to a trip they may well own is both wrong and
-    // unfixable from their side.
-    const mapped = {
-      "not-found": { status: 404, message: "No such trip." },
-      forbidden: { status: 403, message: "You do not have access to this trip." },
-      "malformed-trip": {
-        status: 500,
-        message: "This trip could not be read. The failure has been logged.",
-      },
-    }[access.denial];
-    throw new PublicApiError(mapped.status, mapped.message);
-  }
-  return access.detail;
+export function sourceTrip({ trip }: HandlerContext): TripDetail {
+  // A declaration error if it ever fires: the route declared no body trip, or
+  // its body schema lets the trip id be absent.
+  if (trip === undefined) throw new Error("sourceTrip on a request the wrapper did not gate a trip for");
+  return trip;
 }
 
-/** Keep `dayIds` of a trip you can see as one saved day, or throw the refusal. */
+/** Keep `dayIds` of the gated source trip as one saved day, or throw the refusal. */
 export async function keepDays(
-  actor: Actor,
-  input: { tripId: string; name: string; dayIds: readonly string[] },
+  ctx: HandlerContext,
+  input: { name: string; dayIds: readonly string[] },
 ): Promise<z.infer<typeof SavedDay>> {
-  const detail = await sourceTrip(actor, input.tripId);
+  const { actor } = ctx;
+  const detail = sourceTrip(ctx);
   const saved = await saveDay({ name: input.name, dayIds: input.dayIds }, detail, actor.userId);
   if (!saved.ok) throw new PublicApiError(400, saved.error.message);
   return saved.value;

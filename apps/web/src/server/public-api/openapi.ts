@@ -161,7 +161,9 @@ export function buildOpenApi(
           `Requires the \`${declared.scope}\` scope.`,
           declared.role === undefined
             ? undefined
-            : `Requires at least the \`${declared.role}\` role on the trip.`,
+            : declared.trip === "path"
+              ? `Requires at least the \`${declared.role}\` role on the trip.`
+              : `Requires at least the \`${declared.role}\` role on the trip the body names, if it names one.`,
         ]
           .filter(Boolean)
           .join(" "),

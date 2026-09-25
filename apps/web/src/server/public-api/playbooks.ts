@@ -209,11 +209,13 @@ function warningsFor(removed: readonly RemovedDateAnchor[]): PlaybookWritten["wa
  * source, and `sourceTripName` is the caller's `sourceName`, or the Playbook's
  * own name when they gave none.
  */
-async function createPlaybook(actor: Actor, body: CreatePlaybookBody): Promise<PlaybookWritten> {
+async function createPlaybook(ctx: HandlerContext): Promise<PlaybookWritten> {
+  const { actor } = ctx;
+  const body = ctx.body as CreatePlaybookBody;
   let stops: SavedStop[];
   let source: { dayCount: number; tripId: string; tripName: string };
   if ("source" in body) {
-    const detail = await sourceTrip(actor, body.source.tripId);
+    const detail = sourceTrip(ctx);
     const dayIds = body.source.days.map((d) => d.dayId);
     const keepOnly = new Map(
       body.source.days.flatMap((d) => (d.activityIds === undefined ? [] : [[d.dayId, d.activityIds] as const])),
@@ -254,11 +256,21 @@ export const createPlaybookDef: ResourceDef = {
   summary: "Create a Playbook — from days (or some activities) of a trip you can see, or written inline",
   scope: "library:write",
   body: CreatePlaybookBody,
+  // A keep names its source trip in the body and is gated on it there; an
+  // inline body names none, so it runs tripless and a trip-confined token is
+  // refused on it (KI-2026-09-24-a).
+  trip: {
+    body: (body) => {
+      const parsed = body as CreatePlaybookBody;
+      return "source" in parsed ? parsed.source.tripId : null;
+    },
+  },
+  role: "viewer",
   response: PlaybookWritten,
   // A dropped connection after a create leaves the caller unable to tell
   // whether it landed; a retry without a key keeps the Playbook twice (ADR-051).
   idempotent: true,
-  handle: ({ actor, body }) => createPlaybook(actor, body as CreatePlaybookBody),
+  handle: createPlaybook,
 };
 
 const playbookId = ({ params }: HandlerContext) => params["playbookId"]!;
