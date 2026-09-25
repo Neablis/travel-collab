@@ -30,9 +30,18 @@ import { Money } from "./money.ts";
  * saved. A defaulted field is additive: an old row parses, and the default is
  * what it always meant. `dayIndex` below is the first field to adopt the rule.
  *
- * The rule holds until there is a `{ v, stops }` wrapper and a migration chain
- * to hang a non-additive change on. There is not one yet, and ADR-048 says why
- * this milestone deliberately did not build it.
+ * **The rule is enforced, not remembered.** `test/saved.test.ts` parses
+ * `test/fixtures/savedStopV0.ts` — frozen copies of the oldest stops ever
+ * stored — through `SavedStop.array()`, and fails on a new required field here
+ * or in anything nested (`Location`, `Money`, …). The fix for that red is a
+ * `.default()`, never an edit to the fixture.
+ *
+ * **There is no `{ v, stops }` wrapper, deliberately** (KI-2026-09-05-l,
+ * resolved 2026-09-25). An additive change needs only the default. A change a
+ * default cannot express — a rename, a type change, a money-model change — is
+ * the moment to build the wrapper and a migration on read, and ADR-048 says the
+ * first such change pays for it. The guard makes sure that moment is a red
+ * contract test rather than empty libraries.
  */
 export const SavedStop = z.object({
   title: z.string(),
