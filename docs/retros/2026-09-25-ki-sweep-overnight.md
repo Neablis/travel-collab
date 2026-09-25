@@ -120,6 +120,7 @@ Listed with their outcome under *Results*.
 | KI-2026-09-25-d (filed tonight) | RESOLVED | `entitlements/grants.ts` `activeGrantHolders(now)`; `admin.ts` passes holders into `underwaterReport`; Billing no longer names the grant table. New `storeBoundary.test.ts` source sweep (grants **and** the AI ledger) red first; behaviour break seen red in `revenue.int`; 151 unit + 108 int green. |
 | KI-2026-09-25-c (filed tonight) | RESOLVED | row registered for pdnd element auto-scroll **and** web's pdnd core bumped `^2.0.2` → `^3.1.0` — two cores were installed, so auto-scroll (window auto-scroll included) never saw a drag. Each half alone seen red (`Received: 0`); `m1-board` 4/4 under ci-like; five other drag specs 9/9 on the same build. |
 | KI-2026-09-25-g (filed tonight) | RESOLVED | new `scripts/check-singletons.mjs` in `pnpm lint`: one version each of the pdnd core, `react`, `react-dom`. Exits 1 on the pre-fix lockfile (`2.0.2, 3.1.0` — two copies since at least 2026-09-14); three tests, two mutations seen red. Stale "window auto-scroll works" comments corrected. |
+| KI-2026-09-14-d | RESOLVED | per-process memo in `searchCities` (30 s TTL, 500 entries, failures evicted) cleared on every in-process publish/unpublish/hide/restore; client untouched, so all four search states stay reachable. Reproduced (`execute` called 2×); four breaks seen red; 68 int green; `m11b-playbooks` 4/4 under ci-like. |
 
 ## Validation results
 
@@ -161,6 +162,16 @@ Listed with their outcome under *Results*.
 | KI-2026-09-16-a (refund) | STILL TRUE | `charge.refunded` not handled; no ledger. |
 | KI-2026-09-19-f | STILL TRUE | two `runCommand`s at `v1/trips/route.ts:99,102`. |
 | KI-2026-09-02-c | STILL TRUE | no ESLint under `packages/`. |
+| KI-009 | NARROWED | classifier half struck (`Output.object` since cccbac8); final answer still unschema'd. |
+| KI-010 | STILL TRUE | `orderIntents` still fronts only `AddDay`. |
+| KI-015 | NARROWED | `placeNameVerdict` now has a request-path caller (`savedDayPins.ts:195`); `resolveOne` still accepts on distance alone — now the same residue as KI-2026-09-20-a. |
+| KI-024 | STILL TRUE | `AI_LIVE` still overrides the flag. |
+| KI-079 | NARROWED | `allowDemo` is now opt-in, so the `/ask` refusal is a second barrier, not the only one. A code comment at `admission.ts:617-630` still says otherwise (left: M9 code, and another fixer was in that file). |
+| KI-080, KI-082 | STILL TRUE | 12 cases each, no default; zero cost still stripped. |
+| KI-2026-09-05-ad, 09-08-c, 09-12-f, 09-14-b, 09-16-a (truncated), 09-17-c | STILL TRUE | line numbers and moved paths corrected. |
+| KI-2026-09-17-b | STILL TRUE | two more unpaced callers recorded (`/api/geocode`, v1 geocode). |
+| KI-2026-09-20-a | NARROWED | no longer "wired to nothing"; unwired only in `resolveOne`. M9's parked row updated. |
+| KI-2026-08-30-g (M24) | NARROWED | Timeline `Leg` gone; `kind` now read by the map rail and invite landing; Calendar still ignores it. |
 
 ## Decisions to review
 
@@ -192,3 +203,5 @@ Listed with their outcome under *Results*.
 - **KI-3 downgraded:** tone colours stay plain token classes. Rejected: a `danger` variant on `Text` (only tone with one — recreates the inconsistency) or a `tone` prop migrated across ~40 files. **KI-48:** a missing email shows no line, not a placeholder like "No email".
 - **KI-2026-09-14-e: re-read after the outstanding write settles**, only when one was open at mount. Rejected: routing the late response into whichever provider is mounted (the entry's preferred option — needs a provider registry and can go backwards), re-reading on every mount (a request per navigation), solo-trip polling (ADR-049 declines it). Touches `lib/queryCache.ts` despite the entry's "not a cache change" — the write scope only gained a way to be awaited.
 - **KI-2026-09-25-c: dependency bump** of `@atlaskit/pragmatic-drag-and-drop` to `^3.1.0` (already locked as the auto-scroll/hitbox dependency — nothing new downloaded; 3.0's only breaking change adds import paths). Rejected: downgrading auto-scroll/hitbox, a `pnpm.overrides` pin (hides the mismatch), hand-rolled row scrolling. Side effect: **window auto-scroll during drags now works for the first time.** A guard against two cores returning is filed as **KI-2026-09-25-g**.
+- **Not folded:** after validation, KI-15's residue and KI-2026-09-20-a describe the same defect (wire `placeNameVerdict` into `resolveOne`). Both are M9's; merging them is left to M9 rather than done in a sweep.
+- **KI-2026-09-14-d: option 1 (server memo)**, not a materialised `city → count` table (7 writers incl. a separate-process importer, no triggers in the repo, a new migration joining M14's unrun production queue, and `saved_days` is CRUD so invariant 2's rebuild would not cover it) and not ETag/304 (the tag still needs the aggregate). **Accepted:** another instance or a production import can show a count up to 30 s stale. Noticed, not filed: `places.ts` `publishedCountries()` is the same cost class.
