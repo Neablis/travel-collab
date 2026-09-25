@@ -51,6 +51,7 @@ export function useInviteJoin({
       // that would arrive at the gate with nothing, and a brand-new account
       // would be refused. One same-origin request refreshes it; failing it
       // costs nothing a returning account needs.
+      // eslint-disable-next-line no-restricted-globals -- a HEAD on the invite landing PAGE to re-bank its cookie, not an API call; its failure is deliberately ignored
       await fetch(landing, { method: "HEAD", cache: "no-store" }).catch(() => undefined);
       if (googleAvailable) {
         void signIn("google", { callbackUrl: landing });

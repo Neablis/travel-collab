@@ -578,3 +578,28 @@ expectRejectedBy(
   "playwright/expect-expect",
   "test-quality wall: e2e spec without an assertion correctly rejected (is e2e/ still in the lint lane?)",
 );
+
+// THE FETCH WALL (KI-2026-09-05-q): UI code reaches the app's API through the
+// client modules, whose helpers never reject. The second assertion on the same
+// fixture is the one that matters most: the wall is `no-restricted-globals`
+// precisely so it does not become the last block to set `no-restricted-syntax`
+// on a `.tsx` file, which would silently switch the element wall off.
+const fetchWallFixture = lintFixture(
+  "fetch_wall_fixture",
+  'export async function load() {\n  return fetch("/api/trips");\n}\n' +
+    "export default function Fixture() {\n  return <button>go</button>;\n}\n",
+  { dir: "src/components" },
+);
+expectRejectedBy(fetchWallFixture, "no-restricted-globals", "fetch wall: a bare fetch in UI code correctly rejected");
+expectRejectedBy(
+  fetchWallFixture,
+  "no-restricted-syntax",
+  "fetch wall: the element wall still applies to the same .tsx file",
+);
+expectClean(
+  lintFixture("fetch_wall_server_fixture", 'export async function probe() {\n  return fetch("https://example.test");\n}\n', {
+    dir: "src/server",
+    ext: "ts",
+  }),
+  "fetch wall: server code may still call fetch",
+);

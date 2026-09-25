@@ -93,7 +93,11 @@ test("passes against the checked-in config, and every rejection names the rule t
   // when `ai/askAnalytics` moved inside the kernel and stopped being one.
   // Same sequence as above — the wall run by hand exited 0, and this file
   // caught it in the full `scripts/**/__tests__` run.
-  assert.equal(stdout.trim().split("\n").length, 31, `the wall's assertion count changed:\n${stdout}`);
+  //
+  // **31 → 34 on 2026-09-25**: the fetch wall (KI-2026-09-05-q) — a bare fetch
+  // rejected, the element wall still firing on the same `.tsx`, and server code
+  // left clean.
+  assert.equal(stdout.trim().split("\n").length, 34,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule

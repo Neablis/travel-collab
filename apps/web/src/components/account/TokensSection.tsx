@@ -173,7 +173,9 @@ export function TokensSection() {
   useEffect(() => {
     let live = true;
     void Promise.all([
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       fetch("/api/account/tokens").then((res) => (res.ok ? res.json() : null)),
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       fetch("/api/account/plan").then((res) => (res.ok ? res.json() : null)),
     ])
       .then(([tokenBody, planBody]) => {
@@ -221,6 +223,7 @@ export function TokensSection() {
     setBusy(true);
     setError(null);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/account/tokens", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -292,6 +295,7 @@ export function TokensSection() {
   }
 
   async function revoke(tokenId: string) {
+    // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
     const res = await fetch(`/api/account/tokens/${tokenId}`, { method: "DELETE" });
     if (!res.ok) {
       setError("That token could not be revoked.");
