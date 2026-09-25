@@ -94,6 +94,22 @@ Listed with their outcome under *Results*.
 |---|---|---|
 | KI-2026-08-30-d | RESOLVED | `check-ki-filenames.mjs` now fails on an entry in two status dirs; reproduced with three copied entries (two passed the old wall, one was misreported as a shared id); two new tests seen red; 10/10 green. |
 
+## Validation results
+
+| Entry | Verdict | Evidence (short; full line in the entry) |
+|---|---|---|
+| KI-2026-09-20-g | NARROWED, and wider | Radius item struck (only Ledger theme left, `--radius-md: 0`); hand-rolled containers now **seven**, not four (Weather, CountryFacts, SpendByDay added). |
+| KI-2026-09-20-h | NARROWED | `cost` takes five filters (person retired); the rest holds. |
+| KI-2026-09-22-c | STILL TRUE | undo still skips page events; no marker for a backfilled genesis. |
+| KI-2026-09-22-d | NARROWED | silent overwrite struck (`expectedUpdatedAt` + conflict UI); live update still absent. |
+| KI-2026-09-24-d | STILL TRUE | no repair scan; `findWidgetError` refuses, not strips. |
+| KI-2026-09-24-h | STILL TRUE | `ProposalCard.tsx:64`; Area path corrected to `packages/domain`. |
+| KI-2026-09-24-n | NARROWED (count) | 57 of 244 countries have no numbers, not ~45. |
+| KI-2026-09-24-o | STILL TRUE | no privacy/legal route exists. |
+| KI-2026-09-24-p | STILL TRUE | three unchecked sums; new detail: `block.ts:88` vs `rows.ts:274` format in different currencies. |
+| KI-2026-09-24-q | STILL TRUE | `person` absent from every filter list; `isRetired` drops it. |
+| KI-2026-09-24-s | STILL TRUE | `useEditSession.ts:131` overtaking save sends no revision. |
+
 ## Decisions to review
 
 - **KI-2026-08-30-d closed, not narrowed**, though the wall cannot catch the loud form (add/add conflicts after a squashed base, 2026-09-11) — git reports that one itself, and `/ki-sweep` 6b now points at the recovery recipe. Rejected: keeping it open for that form.
