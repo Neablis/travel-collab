@@ -119,6 +119,7 @@ Listed with their outcome under *Results*.
 | KI-2026-09-25-e (filed tonight) | RESOLVED | `scripts/arch-baseline.mjs` keeps only error-severity violations; `arch:baseline` wired to it. Reproduced: old command wrote 9 warn cycles (they still printed only because dep-cruiser 18.4 ignores folder-level baseline entries — a `TODO` upstream). Test red with the filter removed. |
 | KI-2026-09-25-d (filed tonight) | RESOLVED | `entitlements/grants.ts` `activeGrantHolders(now)`; `admin.ts` passes holders into `underwaterReport`; Billing no longer names the grant table. New `storeBoundary.test.ts` source sweep (grants **and** the AI ledger) red first; behaviour break seen red in `revenue.int`; 151 unit + 108 int green. |
 | KI-2026-09-25-c (filed tonight) | RESOLVED | row registered for pdnd element auto-scroll **and** web's pdnd core bumped `^2.0.2` → `^3.1.0` — two cores were installed, so auto-scroll (window auto-scroll included) never saw a drag. Each half alone seen red (`Received: 0`); `m1-board` 4/4 under ci-like; five other drag specs 9/9 on the same build. |
+| KI-2026-09-25-g (filed tonight) | RESOLVED | new `scripts/check-singletons.mjs` in `pnpm lint`: one version each of the pdnd core, `react`, `react-dom`. Exits 1 on the pre-fix lockfile (`2.0.2, 3.1.0` — two copies since at least 2026-09-14); three tests, two mutations seen red. Stale "window auto-scroll works" comments corrected. |
 
 ## Validation results
 
