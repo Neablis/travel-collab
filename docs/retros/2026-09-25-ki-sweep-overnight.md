@@ -93,6 +93,7 @@ Listed with their outcome under *Results*.
 | Entry | Outcome | Proof |
 |---|---|---|
 | KI-2026-08-30-d | RESOLVED | `check-ki-filenames.mjs` now fails on an entry in two status dirs; reproduced with three copied entries (two passed the old wall, one was misreported as a shared id); two new tests seen red; 10/10 green. |
+| KI-2026-09-24-a | RESOLVED | `route()` gains `trip: { body }`; confined token + own trip → 201 on `/v1/library` and `/v1/playbooks`, other trip / no trip → 403. Red first (`expected 403 to be 201`); both guards broken and seen red; 81/81 int across six public-api files. |
 
 ## Validation results
 
@@ -125,3 +126,5 @@ Listed with their outcome under *Results*.
 
 - **KI-2026-08-30-d closed, not narrowed**, though the wall cannot catch the loud form (add/add conflicts after a squashed base, 2026-09-11) — git reports that one itself, and `/ki-sweep` 6b now points at the recovery recipe. Rejected: keeping it open for that form.
 - **KI-2026-08-30-d: extended `check-ki-filenames.mjs`** instead of adding a new `check-ki-duplicates.mjs`, matching by basename not id (the allowlists hide the id form). Rejected: a second walk of the same directories.
+- **KI-2026-09-24-a: option (a)** — confined tokens may write the library from the trip they name, via a declarative `trip: { body: fn }` on `route()`. Rejected: (b) documenting that confined tokens cannot write the library. A function, not `trip: "body"`, because a Playbook's trip is nested and optional (`source.tripId`).
+- **KI-2026-09-24-a side effect:** on `POST /v1/playbooks` a 403/404 about the source trip now happens *before* the `Idempotency-Key` is reserved (as on every trip-in-URL route), so that refusal is no longer stored and replayed. ADR-050's Consequences bullet got a dated *Superseded* note rather than a rewrite.
