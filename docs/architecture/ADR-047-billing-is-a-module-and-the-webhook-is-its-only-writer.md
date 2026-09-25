@@ -1,6 +1,6 @@
 # ADR-047: Billing is a module, its webhook is the only writer, and a lapse is a derivation
 
-**Status:** **Accepted — 2026-09-14**, with M21 Phase 2.
+**Status:** **Accepted — 2026-09-14**, with M21 Phase 2. Amended 2026-09-25 (decision 1: Billing reads the plan catalog, nothing else of Entitlements).
 **Deciders:** Mitchell (product/eng); Claude — drafted
 Related: **ADR-045** (Entitlements is a module — this one sits beside it and
 must not be folded into it), ADR-025 (JWT sessions; no entitlement claim in a
@@ -126,3 +126,51 @@ conferring — is the one that would have needed the scheduler.
 - The consistency between what a page says and what a card is charged is
   checked in one place (`prices.ts`) and nowhere else, because a divergence
   errors nowhere and is the worst class of billing bug.
+
+## Amendment — 2026-09-25: Billing reads the plan catalog, and nothing else of Entitlements
+
+Recorded during the 2026-09-25 known-issue sweep, closing KI-2026-09-23-d.
+Decision 1 above says *"Billing's store imports no plan file and no resolver,
+so nothing closes a cycle."* The first run of `pnpm arch` (2026-09-23) found
+that false as a module boundary: five Billing files import
+`entitlements/planVersions.ts`, and `revenue.ts` read Entitlements' cost
+ledger (`entitlements/usage.ts`). The folders were one cycle.
+
+**What Billing reads of Entitlements is exactly one file, the plan catalog.**
+`checkout.ts`, `planChange.ts`, `prices.ts`, `webhook.ts` and `revenue.ts`
+import `entitlements/planVersions.ts` for what is being **sold** — a version's
+id and ref, its price and lookup key, whether it is purchasable, whether a
+stored ref is published. None of them reads what a version **grants**. That is
+the half of decision 1 that was always load-bearing, and it stays true: Billing
+imports no resolver, no capability check, no grant store, and no cost ledger.
+
+- **The rule is the wall, not this sentence.** `billing-imports-no-entitlements`
+  in `.dependency-cruiser.cjs` now forbids every Billing → Entitlements import
+  except `planVersions.ts`, with no known violations. Re-adding the ledger or a
+  resolver import fails `pnpm arch`.
+- **The cost ledger goes the other way.** `revenue.ts`'s `revenueSummary`,
+  `underwaterReport` and `revenueByPlan` take the trailing window's cost as an
+  argument (`TrailingCost`, declared in Billing). The operator console
+  (`entitlements/admin.ts`) reads the ledger and hands it across. That edge is
+  Entitlements → Billing, the direction decision 1 sanctions.
+- **The folders still form a cycle, and this amendment sanctions it.**
+  Entitlements reads Billing's standing; Billing reads the catalog. No *file*
+  cycle exists. The folder cycle stays in `KNOWN_CYCLE_CLUSTERS`, relabelled as
+  sanctioned by this amendment rather than pending a KI. The file-level rule
+  bounds it: the only Billing edge it can contain is the catalog.
+
+**Rejected, 2026-09-25:**
+
+1. *Move the catalog to a neutral leaf (`server/plans/`) that both modules
+   import.* That would remove the folder cycle, but it moves plan versions out
+   of Entitlements. The `AGENTS.md` module map ("plans, plan versions … committed
+   file (definitions)") and ADR-045 rule 1 both put them there. A catalog entry
+   also carries its grant set, so a neutral file would hand Billing the grants
+   as data anyway. The move would touch about fifty importers, including a
+   `packages/contracts` comment. Revisit if Billing ever needs a catalog field
+   that is not about selling.
+2. *Move the operator console's composition (`entitlements/admin.ts`) into a
+   `server/admin/` folder.* The console's edge into Billing (`revenue.ts`,
+   `prices.ts`) runs Entitlements → Billing, the sanctioned direction, so moving
+   it does not remove the cycle. The file's header deliberately places the
+   console in Entitlements.
