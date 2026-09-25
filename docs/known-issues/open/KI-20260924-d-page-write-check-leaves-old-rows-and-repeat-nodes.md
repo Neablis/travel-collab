@@ -64,3 +64,12 @@
   (the fix and its proof), ADR-037/038/039, KI-2026-09-22-c (read before
   touching page history).
 - **First noted:** 2026-09-24, by the fixer of KI-2026-09-05-g.
+- **Re-verified 2026-09-25 (overnight sweep):** items 1, 2 and 4 still hold.
+  No repair scan exists — nothing under `apps/web/scripts/` or
+  `.github/workflows/` touches `pages` (the precedent job is now its own
+  workflow, `.github/workflows/backfill-countries-production.yml`, not a
+  `ci.yml` job); the lazy genesis is still `missingGenesis`
+  (`pageCommands.ts:112`); `findWidgetError` still refuses rather than strips a
+  filter a widget ignores (`packages/pages/src/writeCheck.ts:33-43`, via
+  `insertWidget`). Item 3's fix is present (`writeCheck.ts:51-58`,
+  `repeat.test.ts:367`).
