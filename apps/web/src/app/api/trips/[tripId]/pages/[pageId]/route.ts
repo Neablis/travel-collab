@@ -2,7 +2,7 @@ import { PAGE_CHANGED_CODE, UpdatePageInput, serializePageDoc } from "@tc/contra
 import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
 import { isUuid } from "@/server/ids";
-import { getPage } from "@/server/pages";
+import { MAX_PAGE_BODY_BYTES, getPage } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
 
@@ -35,7 +35,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tripId
   if (!isUuid(pageId)) return notFound();
   const existing = await getPage(pageId);
   if (!existing || existing.tripId !== tripId) return notFound();
-  const body = await readBody(req, UpdatePageInput, "invalid-page");
+  const body = await readBody(req, UpdatePageInput, "invalid-page", { maxBytes: MAX_PAGE_BODY_BYTES });
   if ("error" in body) return body.error;
   if (body.data.context && body.data.context.tripId !== tripId) return Response.json({ error: "context tripId mismatch" }, { status: 400 });
 

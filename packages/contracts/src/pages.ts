@@ -302,6 +302,15 @@ export const SYSTEM_ACTOR_ID = "system";
 export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, createdAt: true, updatedAt: true, actorId: true });
 export type PageSummary = z.infer<typeof PageSummary>;
 
+/**
+ * The longest page title a WRITE accepts (KI-2026-09-05-f item 1, F-A02) — the
+ * same 200 an activity title has. Only `CreatePageInput` and `UpdatePageInput`
+ * carry it: `Page`, the commands and the events do not, because they are also
+ * how stored pages are read and replayed, and a title stored before this
+ * existed must keep loading.
+ */
+export const PAGE_TITLE_MAX = 200;
+
 // The write path is `PageDoc`, not `PageContent` (ADR-038 decisions 2 and 4).
 // A document this build cannot parse is a document it cannot save losslessly,
 // and "a page that cannot be saved losslessly is a page that must not be saved
@@ -313,7 +322,7 @@ export type PageSummary = z.infer<typeof PageSummary>;
 // still parses — and comes back out of `serializePageDoc` stamped, which is
 // decision 2's "written on every save".
 export const CreatePageInput = z.object({
-  title: z.string().min(1),
+  title: z.string().min(1).max(PAGE_TITLE_MAX),
   context: PageContext,
   content: PageDoc,
 });
@@ -337,7 +346,7 @@ export const PageRevision = z.string().refine((s) => !Number.isNaN(Date.parse(s)
 export const PAGE_CHANGED_CODE = "page-changed";
 
 export const UpdatePageInput = z.object({
-  title: z.string().min(1).optional(),
+  title: z.string().min(1).max(PAGE_TITLE_MAX).optional(),
   context: PageContext.optional(),
   content: PageDoc.optional(),
   /**

@@ -12,6 +12,8 @@ import { mintToken } from "@/server/api-tokens";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
+import { PAGE_TITLE_MAX } from "@tc/contracts";
+import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -550,6 +552,39 @@ describe("a patch changes what it names, and nothing else", () => {
     );
     expect(late.status).toBe(200);
     expect((await late.json()).title).toBe("Third");
+  });
+
+  // KI-2026-09-05-f item 1: the session routes cap a page write's body and
+  // title, and a token must not be the way round either.
+  it("refuses a page body over the byte cap and a title over the length cap, and stores neither", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["notebook:read", "notebook:write"]);
+    const { tripId } = await seed(await tokenFor(owner, ["trips:read", "trips:write"]));
+    const added = await ADD_PAGE(
+      req(secret, { title: "Ideas", context: { tripId }, content: { type: "doc", content: [] } }, "POST"),
+      P({ tripId }),
+    );
+    const page = await added.json();
+    const huge = {
+      content: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "x".repeat(MAX_PAGE_BODY_BYTES) }] }],
+      },
+    };
+
+    const tooBig = await PATCH_PAGE(req(secret, huge, "PATCH"), P({ tripId, pageId: page.id }));
+    expect(tooBig.status).toBe(400);
+    expect((await tooBig.json()).error.message).toContain(MAX_PAGE_BODY_BYTES.toLocaleString("en-US"));
+    const created = await ADD_PAGE(req(secret, { title: "Big", context: { tripId }, ...huge }, "POST"), P({ tripId }));
+    expect(created.status).toBe(400);
+
+    const longTitle = "t".repeat(PAGE_TITLE_MAX + 1);
+    expect((await PATCH_PAGE(req(secret, { title: longTitle }, "PATCH"), P({ tripId, pageId: page.id }))).status).toBe(400);
+
+    const listed = await LIST_PAGES(req(secret), P({ tripId }));
+    const titles = ((await listed.json()).items as { title: string }[]).map((p) => p.title);
+    expect(titles).toContain("Ideas");
+    expect(titles).not.toContain("Big");
   });
 });
 

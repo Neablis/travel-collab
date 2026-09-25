@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { CURRENT_PAGE_DOC_VERSION, PageDoc, collectPageDocNodeTypes } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION, PAGE_TITLE_MAX, PageDoc, collectPageDocNodeTypes } from "@tc/contracts";
 import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY } from "@tc/pages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
+import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
 
 const ACTOR_ID = "user-1";
 const OUTSIDER_ID = "user-2";
@@ -425,5 +426,97 @@ describe("/api/trips/:id/pages", () => {
       const res = await create(tripId, content, title);
       expect(res.status, JSON.stringify(await res.clone().json())).toBe(201);
     });
+  });
+});
+
+// KI-2026-09-05-f item 1 (F-A02, the 2026-08-28 review's L5). A page's title
+// and document had no bound on the write path, so an editor could store pages
+// as large as the platform would carry. The body is capped in BYTES before it
+// is parsed (`MAX_PAGE_BODY_BYTES`, the `/ask` pattern) and the title in
+// characters (`PAGE_TITLE_MAX`). Read paths are deliberately untouched — a page
+// already stored larger must still load.
+describe("a notebook write is bounded", () => {
+  beforeEach(() => {
+    currentUserId = ACTOR_ID;
+  });
+
+  // One paragraph whose text pads the serialized body to exactly `bytes`.
+  const bodyOfSize = (tripId: string, bytes: number, title = "Notes") => {
+    const shell = (text: string) =>
+      JSON.stringify({
+        title,
+        context: { tripId },
+        content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] },
+      });
+    return shell("x".repeat(Math.max(1, bytes - shell("").length)));
+  };
+  const post = (tripId: string, body: string) =>
+    POST(
+      new Request(`http://test/api/trips/${tripId}/pages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      }),
+      { params: Promise.resolve({ tripId }) },
+    );
+  const patch = (tripId: string, pageId: string, body: string) =>
+    PATCH(
+      new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body,
+      }),
+      { params: Promise.resolve({ tripId, pageId }) },
+    );
+  const read = async (tripId: string, pageId: string) => {
+    const res = await GET_ITEM(new Request(`http://test/api/trips/${tripId}/pages/${pageId}`), {
+      params: Promise.resolve({ tripId, pageId }),
+    });
+    return (await res.json()).page as { title: string; content: { content: unknown[] } };
+  };
+  const pageCount = async (tripId: string) => {
+    const res = await GET(new Request(`http://test/api/trips/${tripId}/pages`), { params: Promise.resolve({ tripId }) });
+    return ((await res.json()).pages as unknown[]).length;
+  };
+
+  it("413s a PATCH over the byte cap and leaves the page as it was", async () => {
+    const tripId = await seedTrip();
+    const created = await post(tripId, bodyOfSize(tripId, 1_000));
+    const pageId = (await created.json()).page.id as string;
+    const before = await read(tripId, pageId);
+
+    const res = await patch(tripId, pageId, bodyOfSize(tripId, MAX_PAGE_BODY_BYTES + 1));
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: expect.stringContaining(MAX_PAGE_BODY_BYTES.toLocaleString("en-US")) });
+    expect(await read(tripId, pageId)).toEqual(before);
+  });
+
+  it("413s a POST over the byte cap and creates nothing", async () => {
+    const tripId = await seedTrip();
+    const before = await pageCount(tripId);
+    expect((await post(tripId, bodyOfSize(tripId, MAX_PAGE_BODY_BYTES + 1))).status).toBe(413);
+    expect(await pageCount(tripId)).toBe(before);
+  });
+
+  // The other side of the line: a cap that also refused a body AT the limit
+  // would pass both tests above.
+  it("accepts a body exactly at the cap", async () => {
+    const tripId = await seedTrip();
+    const body = bodyOfSize(tripId, MAX_PAGE_BODY_BYTES);
+    expect(new TextEncoder().encode(body).byteLength).toBe(MAX_PAGE_BODY_BYTES);
+    expect((await post(tripId, body)).status).toBe(201);
+  });
+
+  it(`400s a title over ${PAGE_TITLE_MAX} characters, on POST and PATCH, and accepts one at it`, async () => {
+    const tripId = await seedTrip();
+    const atMax = "t".repeat(PAGE_TITLE_MAX);
+    const tooLong = "t".repeat(PAGE_TITLE_MAX + 1);
+    expect((await post(tripId, bodyOfSize(tripId, 500, tooLong))).status).toBe(400);
+
+    const created = await post(tripId, bodyOfSize(tripId, 500, atMax));
+    expect(created.status).toBe(201);
+    const pageId = (await created.json()).page.id as string;
+    expect((await patch(tripId, pageId, JSON.stringify({ title: tooLong }))).status).toBe(400);
+    expect((await read(tripId, pageId)).title).toBe(atMax);
   });
 });

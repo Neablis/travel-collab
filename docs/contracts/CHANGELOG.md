@@ -13,6 +13,33 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-25 — a notebook page's title is capped on write (`PAGE_TITLE_MAX`)
+
+- **Added:** `PAGE_TITLE_MAX = 200` (the same 200 `Activity.title` has).
+- **Changed:** `CreatePageInput.title` and `UpdatePageInput.title` are
+  `.max(PAGE_TITLE_MAX)`. **Only those two** — `Page`, `PageSummary`, the
+  `CreatePage`/`EditPage` commands and the `PageCreated`/`PageEdited` events keep
+  an unbounded title, because they are also how a stored page is read and
+  replayed, and a title stored before the cap must keep loading.
+  `packages/contracts/test/pages.test.ts` round-trips a title at the cap and
+  asserts that all four read-side shapes still take one over it.
+- Why: KI-2026-09-05-f item 1 (F-A02; the 2026-08-28 review's L5) — a page's
+  title and document were unbounded on the write path. The document is bounded
+  in the web app rather than here: every page write's body is capped at
+  `MAX_PAGE_BODY_BYTES` (512 KiB, `apps/web/src/server/pages.ts`) before it is
+  parsed — a 413 on the session routes, the public API's named-limit 400 on
+  `/api/v1`.
+- Consumers updated: `apps/web` — both notebook routes and both `/api/v1` page
+  routes (`readBody` gained a `maxBytes` option and now hosts `readCapped`,
+  moved out of `server/public-api/route.ts`); `openapi.json` regenerated (the two
+  page bodies gain `maxLength: 200`). `@tc/pages` templates and the content
+  bundle's notebooks are all far inside both limits (longest title 19
+  characters, largest document 2,738 bytes); the route test that saves every
+  one of them still passes.
+- Breaking? For a client sending a title over 200 characters or a page body
+  over 512 KiB, yes — it is now refused rather than stored. No stored data is
+  touched and no read path changed.
+
 ## 2026-09-25 — `UserPreferences.timeFormat`: a 12-hour / 24-hour clock setting
 
 - **Added:** `TimeFormat` (`"12h" | "24h"`) and `UserPreferences.timeFormat`, shaped
