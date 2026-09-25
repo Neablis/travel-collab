@@ -1145,11 +1145,11 @@ gating**. Each entry's own **Milestone:** line points back here.
 | KI-2026-09-05-i | Widget vocabulary debt — unreachable `count{of}`, dead vocabulary (the keep-or-retire question above) | resolved 2026-09-24 (T13 spent `ItemScope`, the last line) |
 | ~~KI-2026-09-15-b~~ | ~~The phone Notebook insert e2e spec intermittently finds the widget bound to "All days"~~ — **resolved 2026-09-24**: the spec waited for any PATCH and caught the unchanged save a mode switch sent (fixed in `PageEditor`), then reloaded over the insert's pending save | — |
 | ~~KI-2026-09-24-g~~ | ~~An edit followed by a reload or navigation within the 800ms autosave debounce is lost: `PageScreen` cancels the pending save on unmount and never flushes it~~ — **resolved 2026-09-24 (T14)**: the debounce is gone, and the edit session commits on unmount and on `pagehide` instead of cancelling | — |
-| KI-2026-09-20-g | The widget container is built four times and none matches the design | carried |
+| KI-2026-09-20-g | The widget container is built by hand in seven live places (four when filed; re-counted 2026-09-25) and none matches the design | carried |
 | KI-2026-09-20-h | The Widgets insert rail is a popover, not the designed rail | carried |
 | KI-2026-09-22-c | Wiring undo to the page aggregate naively would delete every notebook on a revert — **read before touching notebook history** | carried |
 | KI-2026-09-22-d | An open notebook editor does not show a co-traveller's edit, deliberately, until it can do so safely | carried |
 | KI-2026-09-24-d | The page write check (KI-2026-09-05-g, fixed 2026-09-24) leaves pre-fix wrapped rows unrepaired; a stored bad widget now blocks autosave (`repeat` nodes unchecked: fixed in T13) | carried |
-| KI-2026-09-24-n | Know before you go: emergency numbers carry no service label; ~45 countries have none recorded | carried |
+| KI-2026-09-24-n | Know before you go: emergency numbers carry no service label; 57 of 244 countries have none recorded (re-counted 2026-09-25) | carried |
 | KI-2026-09-24-o | Weather sends rounded stop locations to MET Norway / NASA POWER; no privacy page says so | carried |
 | KI-2026-09-24-p | Cost totals (`costOfStops`, `rollupCosts`: the `cost` single, `cost.rows`, board totals) add amounts across currencies; `kinds.ts` and the spend chart already keep them apart | carried |
