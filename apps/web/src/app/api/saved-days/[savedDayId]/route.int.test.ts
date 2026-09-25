@@ -279,7 +279,7 @@ describe("what a deleted day disappears from", () => {
     // The sibling chips run `matchPredicate` over the same matched set the
     // cards do, so they are checked here rather than assumed to follow.
     expect((await discover(`city=${CITY}`)).siblings).toContainEqual({ city: SIBLING, days: 1 });
-    const sharedBefore = (await discover(`city=${CITY}`)).sharedDayCount;
+    const sharedBefore = (await discover(`city=${CITY}`)).sharedPlaybookCount;
 
     // Unpublish is what the product requires before a delete; going through the
     // real refusal path rather than writing the column by hand.
@@ -305,7 +305,7 @@ describe("what a deleted day disappears from", () => {
     expect(await cityChip()).toBeUndefined();
     expect((await discover(`city=${CITY}`)).siblings.map((s) => s.city)).not.toContain(SIBLING);
     // The library-wide published count behind the leaderboard link moves too.
-    expect((await discover(`city=${CITY}`)).sharedDayCount).toBe(sharedBefore - 1);
+    expect((await discover(`city=${CITY}`)).sharedPlaybookCount).toBe(sharedBefore - 1);
   });
 
   it("leaves the author's profile and their leaderboard counts", async () => {

@@ -547,11 +547,11 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     // the cards come from, band included. See `siblingCities`.
     siblings: siblingCities(filtered, query.cities),
     budgetCurrency,
-    // Unfiltered on purpose — see `sharedDayCount` on the response. It answers
+    // Unfiltered on purpose — see `sharedPlaybookCount` on the response. It answers
     // "is there a library at all", which is what decides whether the
     // leaderboard link has anything to rank, and no filter on this query may
     // change that answer.
-    sharedDayCount: await publishedPlaybookCount(),
+    sharedPlaybookCount: await publishedPlaybookCount(),
     // BOTH caps, not just the candidate window. There is no pagination — the
     // page's answer to truncation is "narrow the cities" — so a query matching
     // 25 to 199 days used to return 24 cards flagged as the complete set, with

@@ -249,7 +249,7 @@ describe("hide-day", () => {
 
     // Before: visible everywhere a stranger looks. Without this the "after"
     // assertions below would pass on a day that was never visible at all.
-    const sharedBefore = (await as(READER, () => discover(`city=${CITY}`))).sharedDayCount;
+    const sharedBefore = (await as(READER, () => discover(`city=${CITY}`))).sharedPlaybookCount;
     await as(READER, async () => {
       expect((await discover(`city=${CITY}`)).days.map((d) => d.savedDayId)).toEqual([day]);
       expect((await discover(`city=${CITY}&scope=saved`)).days.map((d) => d.savedDayId)).toEqual([day]);
@@ -287,7 +287,7 @@ describe("hide-day", () => {
     await as(READER, async () => {
       expect((await discover(`city=${CITY}`)).days).toEqual([]);
       expect((await discover(`city=${CITY}&scope=saved`)).days).toEqual([]);
-      expect((await discover(`city=${CITY}`)).sharedDayCount).toBe(sharedBefore - 1);
+      expect((await discover(`city=${CITY}`)).sharedPlaybookCount).toBe(sharedBefore - 1);
       expect(((await (await BOARD()).json()) as LeaderboardResponse).authors.map((a) => a.userId)).not.toContain(
         MOD_AUTHOR,
       );
