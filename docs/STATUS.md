@@ -35,7 +35,7 @@ Mitchell the same day and built at once: a stop's kind is `planned`,
 `pending` or `transit`, and the retired `idea`/`hold`/`booked` are read back as
 their replacement (ADR-054). Part 1 merged as #238; part 2 (content files and
 copy) is #239. Scope and gate: `docs/milestones/M28-three-kinds.md`. Order:
-`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 → M14 → M19`.
+`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 → M14 → M19`.
 
 **M14 — RICH LAYER — is next**, and was current for the hours between M24's
 gate closing (11 of 11) and M28's placement. M14's code is already merged

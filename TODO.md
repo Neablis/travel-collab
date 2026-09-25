@@ -376,7 +376,7 @@ reorder and the one place a reorder updates.
       Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
       is a plain sum of stop costs with nothing to divide by.)*
 - [x] **M15 Front door** — gate closed → `docs/milestones/M15-front-door.md`
-- [ ] **M9 The assistant cites what it plans** — **PAUSED 2026-09-13**, not cancelled: Phase 0 complete, the three real pieces of work untouched, and it keeps its place immediately after M21 (Mitchell's reorder — `docs/milestones/README.md`, 2026-09-13) →
+- [ ] **M9 The assistant cites what it plans** — **PAUSED 2026-09-13**, not cancelled: Phase 0 complete, and it keeps its place immediately after M21. **Built since, 2026-09-16:** grounding (`search_places` → `placeRef`), conversation durability (`localStorage`, by decision) and the replay harness all landed (`docs/plans/2026-09-16-M9-remainder.md`); what is left of the gate is a live model call and the browser walks that rest on it (Mitchell's reorder — `docs/milestones/README.md`, 2026-09-13) →
       `docs/milestones/M9-ai-planning-partner.md`
       *(**Retitled 2026-09-01** — was "AI as a planning partner". An audit
       against `main` found **four of its seven scope items already shipped**
