@@ -33,7 +33,6 @@
 // and stream-part shapes below are structural for the same reason.
 import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
-import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
@@ -337,10 +336,10 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
       // "What on day N still needs booking?" is a chip the rail offers whenever
       // this day has one (suggestedQuestions.ts), so it has to be a question
       // this model answers. `needsBooking` is the shared rule both halves read.
-      const unbooked = day.stops.filter((stop) => needsBooking({ kind: stop.kind, tags: stop.tags as ActivityTag[] }));
+      const unbooked = day.stops.filter((stop) => needsBooking({ kind: stop.kind }));
       sentences.push(
         unbooked.length === 0
-          ? "Everything on it is either booked or in transit."
+          ? "Nothing on it is still pending."
           : `Still to book: ${unbooked.map((stop) => plain(stop.title)).join(", ")}.`,
       );
     }

@@ -116,7 +116,7 @@ async function seedTrip(secret: string, name = "Kyoto") {
         dayId,
         timeWindow: { start: "09:00", end: "11:30" },
         notes: "Go early.",
-        kind: "booked",
+        kind: "pending",
         cost: { amountMinor: 0, currency: "JPY" },
       },
       "POST",

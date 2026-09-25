@@ -730,11 +730,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ]
                           },
                           "tags": {
@@ -1282,11 +1280,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ]
                           },
                           "tags": {
@@ -1886,11 +1882,9 @@
                                 "kind": {
                                   "type": "string",
                                   "enum": [
-                                    "booked",
-                                    "hold",
-                                    "idea",
-                                    "transit",
-                                    "planned"
+                                    "planned",
+                                    "pending",
+                                    "transit"
                                   ]
                                 },
                                 "tags": {
@@ -2443,11 +2437,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ]
                           },
                           "tags": {
@@ -3110,11 +3102,9 @@
                                 "kind": {
                                   "type": "string",
                                   "enum": [
-                                    "booked",
-                                    "hold",
-                                    "idea",
-                                    "transit",
-                                    "planned"
+                                    "planned",
+                                    "pending",
+                                    "transit"
                                   ]
                                 },
                                 "tags": {
@@ -3526,11 +3516,9 @@
                                       "kind": {
                                         "type": "string",
                                         "enum": [
-                                          "booked",
-                                          "hold",
-                                          "idea",
-                                          "transit",
-                                          "planned"
+                                          "planned",
+                                          "pending",
+                                          "transit"
                                         ]
                                       },
                                       "tags": {
@@ -4024,11 +4012,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ]
                           },
                           "tags": {
@@ -4576,11 +4562,9 @@
                               "kind": {
                                 "type": "string",
                                 "enum": [
-                                  "booked",
-                                  "hold",
-                                  "idea",
-                                  "transit",
-                                  "planned"
+                                  "planned",
+                                  "pending",
+                                  "transit"
                                 ]
                               },
                               "tags": {
@@ -5038,11 +5022,9 @@
                               "kind": {
                                 "type": "string",
                                 "enum": [
-                                  "booked",
-                                  "hold",
-                                  "idea",
-                                  "transit",
-                                  "planned"
+                                  "planned",
+                                  "pending",
+                                  "transit"
                                 ]
                               },
                               "tags": {
@@ -5799,11 +5781,9 @@
                               "kind": {
                                 "type": "string",
                                 "enum": [
-                                  "booked",
-                                  "hold",
-                                  "idea",
-                                  "transit",
-                                  "planned"
+                                  "planned",
+                                  "pending",
+                                  "transit"
                                 ]
                               },
                               "tags": {
@@ -6215,11 +6195,9 @@
                                     "kind": {
                                       "type": "string",
                                       "enum": [
-                                        "booked",
-                                        "hold",
-                                        "idea",
-                                        "transit",
-                                        "planned"
+                                        "planned",
+                                        "pending",
+                                        "transit"
                                       ]
                                     },
                                     "tags": {
@@ -6681,11 +6659,9 @@
                               "kind": {
                                 "type": "string",
                                 "enum": [
-                                  "booked",
-                                  "hold",
-                                  "idea",
-                                  "transit",
-                                  "planned"
+                                  "planned",
+                                  "pending",
+                                  "transit"
                                 ]
                               },
                               "tags": {
@@ -7324,11 +7300,9 @@
                                 "kind": {
                                   "type": "string",
                                   "enum": [
-                                    "booked",
-                                    "hold",
-                                    "idea",
-                                    "transit",
-                                    "planned"
+                                    "planned",
+                                    "pending",
+                                    "transit"
                                   ]
                                 },
                                 "tags": {
@@ -7947,11 +7921,9 @@
                                   "kind": {
                                     "type": "string",
                                     "enum": [
-                                      "booked",
-                                      "hold",
-                                      "idea",
-                                      "transit",
-                                      "planned"
+                                      "planned",
+                                      "pending",
+                                      "transit"
                                     ]
                                   },
                                   "tags": {
@@ -8418,11 +8390,9 @@
                               "kind": {
                                 "type": "string",
                                 "enum": [
-                                  "booked",
-                                  "hold",
-                                  "idea",
-                                  "transit",
-                                  "planned"
+                                  "planned",
+                                  "pending",
+                                  "transit"
                                 ]
                               },
                               "tags": {
@@ -9000,11 +8970,9 @@
                   "kind": {
                     "type": "string",
                     "enum": [
-                      "booked",
-                      "hold",
-                      "idea",
-                      "transit",
-                      "planned"
+                      "planned",
+                      "pending",
+                      "transit"
                     ]
                   },
                   "tags": {
@@ -9574,11 +9542,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -10270,11 +10236,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -10832,11 +10796,9 @@
                   "kind": {
                     "type": "string",
                     "enum": [
-                      "booked",
-                      "hold",
-                      "idea",
-                      "transit",
-                      "planned"
+                      "planned",
+                      "pending",
+                      "transit"
                     ]
                   },
                   "tags": {
@@ -11397,11 +11359,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -12095,11 +12055,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -12793,11 +12751,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -13483,11 +13439,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -14155,11 +14109,9 @@
                                       "kind": {
                                         "type": "string",
                                         "enum": [
-                                          "booked",
-                                          "hold",
-                                          "idea",
-                                          "transit",
-                                          "planned"
+                                          "planned",
+                                          "pending",
+                                          "transit"
                                         ]
                                       },
                                       "tags": {
@@ -14567,11 +14519,9 @@
                                 "kind": {
                                   "type": "string",
                                   "enum": [
-                                    "booked",
-                                    "hold",
-                                    "idea",
-                                    "transit",
-                                    "planned"
+                                    "planned",
+                                    "pending",
+                                    "transit"
                                   ]
                                 },
                                 "tags": {
@@ -15112,11 +15062,6 @@
                       },
                       "description": "Every tag in use on this trip"
                     },
-                    "bookedCount": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "description": "How many stops are booked"
-                    },
                     "homeTimeZone": {
                       "type": "string",
                       "minLength": 1,
@@ -15128,8 +15073,7 @@
                   "required": [
                     "days",
                     "cities",
-                    "tags",
-                    "bookedCount"
+                    "tags"
                   ],
                   "additionalProperties": false
                 }
@@ -15566,11 +15510,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -16256,11 +16198,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -16967,11 +16907,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -17844,11 +17782,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -21433,11 +21369,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -22123,11 +22057,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -22860,11 +22792,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -23548,11 +23478,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -24474,11 +24402,9 @@
                                     "kind": {
                                       "type": "string",
                                       "enum": [
-                                        "booked",
-                                        "hold",
-                                        "idea",
-                                        "transit",
-                                        "planned"
+                                        "planned",
+                                        "pending",
+                                        "transit"
                                       ]
                                     },
                                     "tags": {
@@ -24886,11 +24812,9 @@
                               "kind": {
                                 "type": "string",
                                 "enum": [
-                                  "booked",
-                                  "hold",
-                                  "idea",
-                                  "transit",
-                                  "planned"
+                                  "planned",
+                                  "pending",
+                                  "transit"
                                 ]
                               },
                               "tags": {
@@ -25456,11 +25380,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },
@@ -26292,11 +26214,9 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "booked",
-                              "hold",
-                              "idea",
-                              "transit",
-                              "planned"
+                              "planned",
+                              "pending",
+                              "transit"
                             ],
                             "default": "planned"
                           },

@@ -265,7 +265,7 @@ export function makeTripHandlers(
     // later gets missed. Empty collections, because no test asserts on them
     // through this path — a suite that cares overrides with `server.use`.
     http.get("/api/trips/:tripId/globals", () =>
-      HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
+      HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
     ),
     // ADR-052's weather route, ahead of the route itself (T24). Parsed through
     // the contract so the mock cannot drift from it. Nothing requests this until

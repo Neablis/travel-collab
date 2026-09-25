@@ -36,7 +36,6 @@ const globals: TripGlobals = {
     { name: "Kyoto", dayIndexes: [1], activityCount: 0 },
   ],
   tags: [],
-  bookedCount: 0,
 } as unknown as TripGlobals;
 
 const DAY_1 = { dates: { from: "2027-06-01", through: "2027-06-01" } };
@@ -179,7 +178,7 @@ describe("WidgetSettings for a line for each…", () => {
   }
 
   it("moves a stop table to cities, keeping only what a city list takes, in one undoable edit", async () => {
-    const stops = { city: "Kyoto", kind: "booked", columns: ["stop.cost"] };
+    const stops = { city: "Kyoto", kind: "pending", columns: ["stop.cost"] };
     const editor = await openTable(tableDoc("stop.rows", stops));
     const picker = within(screen.getByRole("radiogroup", { name: "Lines for each" }));
     expect(picker.getByRole("radio", { name: "Stop" }).getAttribute("aria-checked")).toBe("true");
@@ -270,7 +269,7 @@ describe("WidgetSettings for a sentence for each…", () => {
   });
 
   it("switches what it repeats for, keeping the sentence and dropping filters the new one does not take", async () => {
-    const editor = await openRepeat(repeatDoc("stop.rows", { kind: "booked", template: "Hi {name}" }));
+    const editor = await openRepeat(repeatDoc("stop.rows", { kind: "pending", template: "Hi {name}" }));
     await userEvent.click(within(screen.getByTestId("widget-settings")).getByRole("radio", { name: "City" }));
     await waitFor(() => expect(repeatAttrs(editor)).toEqual({ name: "city.rows", params: { template: "Hi {name}" } }));
     expect(lines()).toEqual(["Hi Tokyo", "Hi Kyoto"]);
@@ -301,10 +300,10 @@ describe("WidgetSettings for a sentence for each…", () => {
   });
 
   it("shows a stored filter and clears it back to every item, and offers no table columns", async () => {
-    const editor = await openRepeat(repeatDoc("stop.rows", { kind: "booked", template: "{title}" }));
+    const editor = await openRepeat(repeatDoc("stop.rows", { kind: "pending", template: "{title}" }));
     const panel = within(screen.getByTestId("widget-settings"));
     const kind = panel.getByRole("combobox", { name: "A sentence for each stop: kind" }) as HTMLSelectElement;
-    expect(kind.value).toBe("booked");
+    expect(kind.value).toBe("pending");
     // `columns` is a table's; a sentence prints a detail instead.
     expect(panel.queryByText("Columns")).toBeNull();
     await userEvent.selectOptions(kind, "");

@@ -49,7 +49,7 @@ const server = setupServer(
   // Same reasoning as the account default above: every notebook page now asks
   // for the trip's addressable collections (ADR-037 open question 4).
   http.get("/api/trips/:tripId/globals", () =>
-    HttpResponse.json({ globals: { days: [], cities: [], tags: [], bookedCount: 0 } }),
+    HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
   ),
   // And the history its live-chip cursor is read off (KI-2026-09-05-i item 5).
   http.get("/api/trips/:tripId/history", ({ params }) =>
@@ -500,7 +500,6 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
               { name: "Porto", dayIndexes: [1], activityCount: 0 },
             ],
             tags: [],
-            bookedCount: 0,
           },
         }),
       ),

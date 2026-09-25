@@ -182,7 +182,7 @@ function cases(): Case[] {
     // factory's default `planned`: `needsBooking` (KI-86) does not count a
     // `planned`/untagged stop, so a state meant to exercise "still needs
     // booking" has to put its stops in a kind that genuinely does.
-    { 0: "booked", 1: "hold", 2: "hold", 3: "transit", 4: "hold", 5: "hold" },
+    { 0: "planned", 1: "pending", 2: "pending", 3: "transit", 4: "pending", 5: "pending" },
   );
 
   const oneToBook = setKinds(
@@ -190,7 +190,7 @@ function cases(): Case[] {
       { name: "Lisbon 2027" },
       { transient: { dayCount: 2, activitiesPerDay: 2, startDate: "2027-05-01" } },
     ),
-    { 0: "booked", 1: "booked", 2: "booked", 3: "hold" },
+    { 0: "planned", 1: "planned", 2: "planned", 3: "pending" },
   );
 
   const oneConflict = tripDetailFactory.build(

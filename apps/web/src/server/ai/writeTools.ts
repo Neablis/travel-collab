@@ -181,15 +181,15 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
 }
 
 /**
- * A created stop the model said nothing about defaults to `hold`, not the
- * domain's `planned` zero value (KI-86 addendum, Mitchell 2026-08-29 — "a new
+ * A created stop the model said nothing about defaults to `pending` (`hold`
+ * until M28 folded it in, ADR-054), not the domain's `planned` zero value (KI-86 addendum, Mitchell 2026-08-29 — "a new
  * activity is more likely to need booking than one that's already booked").
  *
  * **Why here and not `decide.ts` or the `AddActivity` contract schema.** Both
  * are shared with `@tc/fixtures`, which builds the canonical Japan trip
  * through these same commands — but always states `kind` explicitly per stop
  * (`commands.ts`), so a default placed upstream of resolution would recolor
- * every fixture stop the model never asked about into `hold` and undo KI-86's
+ * every fixture stop the model never asked about into `pending` and undo KI-86's
  * tuning (3 of 14 Calendar days flagged, not 14). Defaulting here, on the
  * RESOLVED command, only reaches a real assistant-authored creation.
  *
@@ -207,7 +207,7 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
  */
 export function withDefaultKind(command: BatchableCommand): BatchableCommand {
   if (command.type !== "AddActivity" || command.kind !== undefined) return command;
-  return { ...command, kind: "hold" };
+  return { ...command, kind: "pending" };
 }
 
 /**
@@ -220,7 +220,7 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
  * `planned` and refuse the leg, so a default applied to the resolved command
  * never runs: `resolveBatch` has already dropped the stop into `skipped`, and
  * `parseApprovedCommands` has already refused the approval. The fixtures'
- * reason for keeping `hold` late does not apply — a leg with no kind is not a
+ * reason for keeping `pending` late does not apply — a leg with no kind is not a
  * command they can build at all. Takes a plain record so both doors share it:
  * a model intent's `args` and an approved command's raw body.
  */
@@ -376,7 +376,7 @@ function locationFromCandidate(candidate: PlaceCandidate) {
  * construction, and returning `null` for it would produce no card at all for
  * the only thing the user asked for.
  *
- * Also where a created stop with no stated `kind` becomes `hold` rather than
+ * Also where a created stop with no stated `kind` becomes `pending` rather than
  * `planned` — see `withDefaultKind`.
  *
  * This used to disagree with the older `/ai` command endpoint, which called

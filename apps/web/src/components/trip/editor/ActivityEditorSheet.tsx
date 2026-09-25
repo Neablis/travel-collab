@@ -54,7 +54,7 @@ export function ActivityEditorSheet() {
   // Its timeWindow (e.g. TimelineLens's nextSlot) is also what ActivityEditor
   // reverse-maps into an initial "How long" selection (closestDurationLabel).
   //
-  // `kind: "hold"`, not the contract's `"planned"` zero value: a stop a person
+  // `kind: "pending"` (`hold` before M28), not the contract's `"planned"` zero value: a stop a person
   // creates through this form is more likely to need booking than not, and the
   // picker should preselect that rather than an empty-reading default (Mitchell,
   // 2026-08-29). This is a UI default, not the domain's — a command that omits
@@ -69,7 +69,7 @@ export function ActivityEditorSheet() {
           location: state.prefill.location ?? null,
           notes: null,
           anchors: [],
-          kind: "hold" as const,
+          kind: "pending" as const,
           tags: [],
           cost: null,
           // M13 link 5. A stop being created is attributed to nobody until

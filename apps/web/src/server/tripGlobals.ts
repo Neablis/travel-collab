@@ -64,9 +64,7 @@ export function buildTripGlobals(
     .map(([name, entry]) => ({ name, dayIndexes: entry.dayIndexes, activityCount: entry.activityCount }));
 
   const tagCounts = new Map<TripGlobalsTag["tag"], number>();
-  let bookedCount = 0;
   for (const activity of Object.values(detail.activities)) {
-    if (activity.kind === "booked") bookedCount += 1;
     // DEDUPED per activity. `tags` is `z.array(ActivityTag)` with no uniqueness
     // refinement, so `["meal", "meal"]` is valid stored data — and the field
     // this feeds says "how many STOPS carry this tag", not how many tag entries
@@ -76,7 +74,7 @@ export function buildTripGlobals(
   }
   const tags: TripGlobalsTag[] = [...tagCounts.entries()].map(([tag, activityCount]) => ({ tag, activityCount }));
 
-  return { days, cities, tags, bookedCount, homeTimeZone: timeZoneOfAirport(reader.homeAirport) };
+  return { days, cities, tags, homeTimeZone: timeZoneOfAirport(reader.homeAirport) };
 }
 
 /**

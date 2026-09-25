@@ -144,7 +144,7 @@ describe("WidgetPicker", () => {
     }
     await userEvent.clear(box);
     await userEvent.type(box, "booking");
-    expect(screen.getByRole("button", { name: /A line for every booking/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Still to book/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /A line for every (day|stop|city)/ })).toBeNull();
   });
 

@@ -166,7 +166,7 @@ describe("POST /api/dev/reset-demo-data", () => {
     expect([...tagged].sort()).toEqual(["lodging", "meal", "outdoors", "ticketed"]);
 
     const kinds = new Set(activities.map((a) => a.kind));
-    expect([...kinds].sort()).toEqual(["booked", "hold", "idea", "planned", "transit"]);
+    expect([...kinds].sort()).toEqual(["pending", "planned", "transit"]);
 
     // The stop the overlay mismatched worst: it matched "Tokyo, Chiyoda, Tokyo"
     // — a city centroid, not a garden. See coordinateOverrides.ts.

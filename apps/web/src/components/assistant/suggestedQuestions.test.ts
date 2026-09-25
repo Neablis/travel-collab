@@ -81,7 +81,7 @@ describe("suggestedQuestions", () => {
       const [a] = trip.days[0]!.activityIds;
       const withHold: TripDetail = {
         ...trip,
-        activities: { ...trip.activities, [a!]: { ...trip.activities[a!]!, kind: "hold" } },
+        activities: { ...trip.activities, [a!]: { ...trip.activities[a!]!, kind: "pending" } },
       };
       expect(suggestedQuestions(withHold, 0)).toContain("What on day 1 still needs booking?");
     });
@@ -93,7 +93,7 @@ describe("suggestedQuestions", () => {
         ...trip,
         activities: {
           ...trip.activities,
-          [a!]: { ...trip.activities[a!]!, kind: "booked" },
+          [a!]: { ...trip.activities[a!]!, kind: "planned" },
           [b!]: { ...trip.activities[b!]!, kind: "transit" },
         },
       };
@@ -141,7 +141,7 @@ describe("suggestedQuestions", () => {
       const allHeld: TripDetail = {
         ...trip,
         activities: Object.fromEntries(
-          Object.entries(trip.activities).map(([id, activity]) => [id, { ...activity, kind: "hold" as const }]),
+          Object.entries(trip.activities).map(([id, activity]) => [id, { ...activity, kind: "pending" as const }]),
         ),
       };
       expect(suggestedQuestions(allHeld, null)).toContain(

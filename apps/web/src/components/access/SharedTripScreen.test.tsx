@@ -56,7 +56,7 @@ function view(overrides: Partial<SharedTripView> = {}): SharedTripView {
         location: null,
         notes: null,
         anchors: [],
-        kind: "idea",
+        kind: "pending",
         tags: [],
         cost: null,
         bookedBy: null,

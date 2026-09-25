@@ -116,14 +116,15 @@ export function ActivityEditor({
   const anchors: Anchor[] = initial?.anchors ?? [];
   const [notes, setNotes] = useState(initial?.notes ?? "");
   // A stop being edited starts wherever it already sits. One being CREATED
-  // starts at `hold`, not the contract's `planned` zero value: a new stop is
-  // more likely to need booking than not (Mitchell, 2026-08-29) — see
-  // ActivityEditorSheet's `createInitial` for the same call on the prefilled
-  // path. This `??` only fires for `initial === null` — the bare "Add stop"
-  // with no prefill; ActivityEditorSheet already supplies "hold" whenever it
-  // builds an initial value at all, and an edit's `initial` carries the
-  // activity's own real kind.
-  const [kind, setKind] = useState<ActivityKind>(initial?.kind ?? (mode === "create" ? "hold" : "planned"));
+  // starts at `pending` (`hold` before M28 folded it in), not the contract's
+  // `planned` zero value: a new stop is more likely to need booking than not
+  // (Mitchell, 2026-08-29) — see ActivityEditorSheet's `createInitial` for the
+  // same call on the prefilled path. This `??` only fires for
+  // `initial === null` — the bare "Add stop" with no prefill;
+  // ActivityEditorSheet already supplies "pending" whenever it builds an
+  // initial value at all, and an edit's `initial` carries the activity's own
+  // real kind.
+  const [kind, setKind] = useState<ActivityKind>(initial?.kind ?? (mode === "create" ? "pending" : "planned"));
   const [tags, setTags] = useState<ActivityTag[]>(initial?.tags ?? []);
   const [bookedBy, setBookedBy] = useState<string | null>(initial?.bookedBy ?? null);
   const [participants, setParticipants] = useState<string[]>(initial?.participants ?? []);
@@ -460,7 +461,7 @@ export function ActivityEditor({
       )}
 
       <div className="flex items-center justify-between gap-2 border-t border-hairline pt-4">
-        <Text variant="muted">Booked? Attach a confirmation after saving.</Text>
+        <Text variant="muted">Have a confirmation? Attach it after saving.</Text>
         <div className="flex gap-2">
           <Button type="button" variant="ghost" onClick={onCancel}>
             Cancel

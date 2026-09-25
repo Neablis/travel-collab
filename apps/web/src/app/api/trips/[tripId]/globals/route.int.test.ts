@@ -77,7 +77,6 @@ describe("/api/trips/:id/globals", () => {
     expect(globals.days).toEqual([]);
     expect(globals.cities).toEqual([]);
     expect(globals.tags).toEqual([]);
-    expect(globals.bookedCount).toBe(0);
     expect(globals.homeTimeZone).toBeNull();
   });
 

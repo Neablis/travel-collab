@@ -34,7 +34,7 @@ const globals: TripGlobals = {
     { name: "Tokyo", dayIndexes: [0, 1], activityCount: 2 },
     { name: "Kyoto", dayIndexes: [1, 2], activityCount: 2 },
   ],
-  tags: [], bookedCount: 0, homeTimeZone: null,
+  tags: [], homeTimeZone: null,
 };
 const context = { tripId: trip.tripId };
 

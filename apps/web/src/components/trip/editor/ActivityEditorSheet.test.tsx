@@ -175,30 +175,30 @@ describe("ActivityEditorSheet", () => {
   // every test in this file passed while the user's kind and tags went
   // nowhere. Only an assertion on the dispatched command catches it.
   // Mitchell, 2026-08-29: a stop being created is more likely to need booking
-  // than not, so the picker preselects "hold" rather than an empty control or
+  // than not, so the picker preselects "pending" ("hold" before M28) rather than an empty control or
   // the contract's "planned" zero value — and a save that never touches the
   // control still carries that choice.
-  it("preselects Holding for a new stop, and saves it untouched", async () => {
+  it("preselects Pending for a new stop, and saves it untouched", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
 
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("hold");
+    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("pending");
 
     await userEvent.type(screen.getByLabelText("What or where"), "Gora Kadan");
     await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
 
-    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", kind: "hold" }));
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", kind: "pending" }));
   });
 
   it("carries the chosen kind and tags into AddActivity", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
 
     await userEvent.type(screen.getByLabelText("What or where"), "Kaiseki dinner");
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "booked" } });
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "planned" } });
     await userEvent.click(screen.getByRole("button", { name: "Meal", pressed: false }));
     await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
 
     expect(dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "AddActivity", kind: "booked", tags: ["meal"] }),
+      expect.objectContaining({ type: "AddActivity", kind: "planned", tags: ["meal"] }),
     );
   });
 
@@ -218,12 +218,12 @@ describe("ActivityEditorSheet", () => {
     // This wait puts the test in the same state the user is always in.
     await screen.findByDisplayValue("Existing stop");
 
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "hold" } });
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "pending" } });
     await userEvent.click(screen.getByRole("button", { name: "Lodging", pressed: false }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "UpdateActivity", kind: "hold", tags: ["lodging"] }),
+      expect.objectContaining({ type: "UpdateActivity", kind: "pending", tags: ["lodging"] }),
     );
   });
 

@@ -78,7 +78,7 @@ const backloggedDetail: TripDetail = withCostRollups({
     ...costedDetail.activities,
     u1: {
       activityId: "u1", title: "Souvenirs", timeWindow: null,
-      location: null, notes: null, anchors: [], kind: "idea", tags: [],
+      location: null, notes: null, anchors: [], kind: "pending", tags: [],
       cost: { amountMinor: 500, currency: "USD" },
       bookedBy: null,
       participants: [],
@@ -287,7 +287,7 @@ describe("MacroView", () => {
           place: null, timeZone: null,
         }],
         cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
-        tags: [], bookedCount: 0, homeTimeZone: null,
+        tags: [], homeTimeZone: null,
       };
       render(<MacroView detail={costedDetail} context={ctx} globals={globals} name="day.rows" params={{}} />);
       expect(screen.getByText("Kyoto").getAttribute("data-widget-value")).toBe("city");
@@ -419,7 +419,7 @@ describe("every widget is legal where widgets actually go", () => {
     return params;
   }
 
-  // Rich enough that every widget resolves: a budget, a booked stop as well as a
+  // Rich enough that every widget resolves: a pending stop as well as a
   // planned one, a city projection, an account — and, since SPEC §25, something
   // waiting on a decision, because `open` resolves to `empty` on a trip where
   // nothing is. One parked idea is the cheapest thing that is true.
@@ -431,13 +431,13 @@ describe("every widget is legal where widgets actually go", () => {
     backlog: ["parked"],
     activities: {
       ...costedDetail.activities,
-      // Ticketed, so "Still to book" (bound to day 0 here) has the one
-      // `planned` stop `needsBooking` flags rather than resolving to `empty`.
-      a1: { ...costedDetail.activities.a1!, tags: ["ticketed"] },
+      // Pending, so "Still to book" (bound to day 0 here) has the one stop
+      // `needsBooking` flags rather than resolving to `empty`.
+      a1: { ...costedDetail.activities.a1!, kind: "pending", tags: ["ticketed"] },
       booked: {
         activityId: "booked", title: "Ryokan", timeWindow: { start: "15:00", end: "23:00" },
         // Located, so "Know before you go" has a country to card.
-        location: { name: "Ryokan, Kyoto", countryCode: "JP" }, notes: null, anchors: [], kind: "booked", tags: [],
+        location: { name: "Ryokan, Kyoto", countryCode: "JP" }, notes: null, anchors: [], kind: "planned", tags: [],
         cost: { amountMinor: 12000, currency: "USD" },
         bookedBy: null,
         participants: [],
@@ -446,7 +446,7 @@ describe("every widget is legal where widgets actually go", () => {
       },
       parked: {
         activityId: "parked", title: "Ghibli Museum", timeWindow: null,
-        location: null, notes: null, anchors: [], kind: "idea", tags: [], cost: null,
+        location: null, notes: null, anchors: [], kind: "pending", tags: [], cost: null,
 bookedBy: null,
 participants: [],
 mode: null,
@@ -462,7 +462,7 @@ endLocation: null,
       place: { lat: 35.0116, lng: 135.7681, city: "Kyoto" }, timeZone: "Asia/Tokyo",
     }],
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
-    tags: [], bookedCount: 1, homeTimeZone: "America/Los_Angeles",
+    tags: [], homeTimeZone: "America/Los_Angeles",
   };
   const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" };
   // Weather for the day, as the route would hand it in (ADR-052); without it
