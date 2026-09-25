@@ -56,6 +56,7 @@ export function useSessionUser() {
     let cancelled = false;
     void (async () => {
       try {
+        // eslint-disable-next-line no-restricted-globals -- Auth.js's own session endpoint, not an app route; it answers in Auth.js's shape, not ApiResult's
         const response = await fetch("/api/auth/session", { credentials: "same-origin" });
         if (!response.ok) throw new Error(`Session request failed: ${response.status}`);
         const session = (await response.json()) as { user?: SessionUser | null } | null;

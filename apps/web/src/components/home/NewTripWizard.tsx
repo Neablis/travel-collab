@@ -443,7 +443,7 @@ function Conversation({
   // **This column is the scrollport, so pinning belongs here** rather than
   // inside `Transcript`, which owns none. `scrollTop`, never `scrollIntoView`:
   // SPEC §30.6 bans it repo-wide because it moves every scrollable ancestor,
-  // and KI-2026-09-13-a is an open bug in that family.
+  // and KI-2026-09-13-a was a bug in that family.
   const threadRef = useRef<HTMLDivElement | null>(null);
   // `typing` too: the thread pins to the newest line AFTER the row resolves
   // (§35.8), which is when the acknowledgement and the question arrive.

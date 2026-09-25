@@ -8,9 +8,11 @@ import {
   SavedStop,
   type BatchableCommand,
   type SavedDay,
+  type SavedDayModeration,
   type TripDetail,
 } from "@tc/contracts";
 import { citiesOfSequence, countriesOfStops, foldEnvelopes } from "@tc/domain";
+import { forgetCitySearches } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
@@ -23,7 +25,7 @@ import type { AccessError, AccessResult } from "./access/invites";
 // save). Lives in src/lib because the lint wall forbids UI importing
 // @/server/*, and two copies of "what's included" would be two chances to
 // disagree in the one place a user is asked to trust a summary.
-import { stopsForDays } from "@/lib/savedStops";
+import { isDroppedFromPlaybook, stopsForDays } from "@/lib/savedStops";
 
 // The Library: a person's saved day fragments (M11 link 6, ADR-029). CRUD,
 // owned by a person rather than by a trip, and not event-sourced — the same
@@ -109,21 +111,28 @@ function fromRow(row: SavedDayRow): SavedDay | null {
  * the Playbook is three days, whatever the third one holds.
  *
  * The two halves — `captureDays` and `storeSavedDay` — are exported because
- * `/v1/playbooks` runs a step between them (ADR-050, Pass A). This composition
- * is what the app's keep does, unchanged.
+ * `/v1/playbooks` runs a step between them (ADR-050, Pass A).
+ *
+ * **`dateAnchors: "strip"` is the app's keep** (KI-2026-09-24-c): it runs the
+ * same `withoutDateAnchors` step `/v1/playbooks` does, so a Playbook kept in the
+ * app no longer carries "only 3–5 May" into every trip it is added to. The
+ * Keep dialog says which stops lose one before the button acts. The default is
+ * `"keep"` only because `POST /v1/library` also calls this and its behaviour is
+ * not changed here.
  */
 export async function saveDay(
-  input: { name: string; dayIds: readonly string[] },
+  input: { name: string; dayIds: readonly string[]; dateAnchors?: "keep" | "strip" },
   detail: TripDetail,
   ownerId: string,
   now: string = new Date().toISOString(),
 ): Promise<AccessResult<SavedDay>> {
   const captured = captureDays(detail, input.dayIds);
   if (!captured.ok) return captured;
+  const stops = input.dateAnchors === "strip" ? withoutDateAnchors(captured.value).stops : captured.value;
   return storeSavedDay({
     ownerId,
     name: input.name,
-    stops: captured.value,
+    stops,
     dayCount: input.dayIds.length,
     sourceTripId: detail.tripId,
     sourceTripName: detail.name,
@@ -533,6 +542,26 @@ export async function publishedAtOf(savedDayId: string): Promise<string | null> 
 }
 
 /**
+ * Whether an operator hid this day from the library, and the note they left
+ * its author — or null when it is not hidden (KI-2026-09-23-i).
+ *
+ * **Author-only by its caller, not by this query.** Like `publishedAtOf` it
+ * answers nothing about access; the shared-day route asks it only when
+ * `isAuthor`, and `SavedDayModeration`'s note says why it is not on `SavedDay`.
+ * `reports.ts` is the only writer of both columns, and clears them together.
+ */
+export async function moderationOf(savedDayId: string): Promise<SavedDayModeration | null> {
+  if (!isUuid(savedDayId)) return null;
+  const rows = await db
+    .select({ moderatedAt: savedDays.moderatedAt, moderationNote: savedDays.moderationNote })
+    .from(savedDays)
+    .where(eq(savedDays.id, savedDayId));
+  const row = rows[0];
+  if (row?.moderatedAt == null) return null;
+  return { moderatedAt: row.moderatedAt.toISOString(), moderationNote: row.moderationNote };
+}
+
+/**
  * Write coordinates the server looked up into a day's stops (M27 link 10;
  * `savedDayPins.ts` decides what they are and why a reader may trigger it).
  *
@@ -638,6 +667,8 @@ export async function setSavedDayVisibility(
     )
     .returning();
   if (updated[0] === undefined) return null;
+  // Committed (no transaction here): the city index just gained or lost a day.
+  forgetCitySearches();
   const day = fromRow(updated[0]);
   if (day === null) {
     // `null` from here means "no such row of yours", and the route turns it
@@ -767,6 +798,8 @@ export async function updatePlaybookContent(
     )
     .returning();
   if (updated[0] !== undefined) {
+    // Only visibility can move the city index: `days` is refused on a public day.
+    if (edit.visibility !== undefined) forgetCitySearches();
     const day = fromRow(updated[0]);
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.
@@ -804,8 +837,8 @@ export type RemovedDateAnchor = { stopIndex: number; title: string; from: string
  * time-of-day and public-holiday anchors describe the place rather than the
  * trip, and are kept.
  *
- * Only `/v1/playbooks` applies this today; the app's keep does not, and that
- * difference is recorded in ADR-050 rather than decided here.
+ * `/v1/playbooks` applies this, and so does the app's keep (`saveDay` with
+ * `dateAnchors: "strip"`, KI-2026-09-24-c); `POST /v1/library` does not.
  */
 export function withoutDateAnchors(stops: readonly SavedStop[]): {
   stops: SavedStop[];
@@ -814,7 +847,7 @@ export function withoutDateAnchors(stops: readonly SavedStop[]): {
   const removed: RemovedDateAnchor[] = [];
   const kept = stops.map((stop, stopIndex) => {
     const anchors = stop.anchors.filter((anchor) => {
-      if (anchor.kind !== "dateRange") return true;
+      if (!isDroppedFromPlaybook(anchor)) return true;
       removed.push({ stopIndex, title: stop.title, from: anchor.from, to: anchor.to });
       return false;
     });

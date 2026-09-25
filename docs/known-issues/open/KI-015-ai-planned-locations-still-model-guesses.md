@@ -114,8 +114,8 @@
   PERSON typed goes through `resolveOne` exactly as before, which accepts on
   distance-to-hint or `withinBox` alone and then overwrites `location.name` with
   the vendor's `canonicalName` — so a wrong venue inside the right box still
-  renames the stop, moves the pin and reports `verified`. `placeNameVerdict`
-  still has no caller on the request path. Grounding reduced the BLAST RADIUS of
+  renames the stop, moves the pin and reports `verified`. ~~`placeNameVerdict`
+  still has no caller on the request path.~~ Grounding reduced the BLAST RADIUS of
   that path (it no longer runs over assistant-chosen stops, which are the bulk
   of what a planning turn writes) and changed nothing about the path itself.
 
@@ -123,3 +123,4 @@
   Smaller than grounding was, unblocked by it, and no longer entangled with a
   milestone — it is one function acquiring the caller it was written for.
 - **Cross-reference:** KI-81 (resolved 2026-09-16 — the grounding half), KI-93 (resolved with it), F-G02, F-F12.
+- **Re-verified 2026-09-25 (overnight sweep):** NARROWED. Struck: "`placeNameVerdict` still has no caller on the request path" — since `57922bd` (#205, 2026-09-23) `server/savedDayPins.ts:195` calls it on the Playbook-read backfill (`app/api/saved-days/[savedDayId]/route.ts` → `savedDayPinBackfill.ts`). Still holds, and is the whole of this entry: `resolveOne` (`server/ai/geocodeEnrichment.ts:283-340`, was `:157-199`) still accepts on distance-to-hint or `withinBox` alone and writes `name: match.canonicalName` (line 304) with no name check — `grep placeNameVerdict geocodeEnrichment.ts` returns nothing. The KI-81 skip (`precision` beside real coordinates, line 199) still keeps assistant-grounded stops out of it. Same defect as KI-2026-09-20-a; see that entry's re-verification.

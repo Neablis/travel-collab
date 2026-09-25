@@ -103,6 +103,21 @@ describe("trip contracts", () => {
     expect(TripSummary.parse({ ...summary, startDate: "2027-05-01" }).startDate).toBe("2027-05-01");
     expect(TripSummary.safeParse({ ...summary, startDate: "May 1" }).success).toBe(false);
   });
+
+  // KI-2026-09-24-e added `endDate` on the same terms.
+  it("parses a TripSummary from before endDate existed, with the end unknown", () => {
+    const summary = {
+      tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+      name: "Rome 2027",
+      status: "active",
+      members: [{ userId: "dev-alice", role: "owner" }],
+      createdAt: "2026-07-08T12:00:00.000Z",
+      startDate: "2027-05-01",
+    };
+    expect(TripSummary.parse(summary).endDate).toBeNull();
+    expect(TripSummary.parse({ ...summary, endDate: "2027-05-08" }).endDate).toBe("2027-05-08");
+    expect(TripSummary.safeParse({ ...summary, endDate: "May 8" }).success).toBe(false);
+  });
 });
 
 describe("lifecycle commands", () => {

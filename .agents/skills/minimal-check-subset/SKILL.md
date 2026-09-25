@@ -83,6 +83,16 @@ pnpm lint && pnpm test` across every workspace package).
        shares one Postgres instance, so **if your change touches schema,
        migrations, or a projection several suites rebuild, run the full
        `pnpm --filter web test:int`**, where cross-file state is the point.
+     - E2E (a spec under `apps/web/e2e/`): the verdict lane is
+       `test:e2e:ci-like`, and it takes the spec **without** a `--`:
+
+       `pnpm --filter web test:e2e:ci-like e2e/<spec>.ts [-g "<title>"]`
+
+       The same `--` trap as the unit lane: measured 2026-09-25 (overnight KI
+       sweep), `pnpm --filter web test:e2e:ci-like -- e2e/m26-phone-targets.spec.ts`
+       dropped the file and ran **the whole e2e suite** (177 tests) against
+       the build, while `test:e2e:ci-like responsive.spec.ts -g "Calendar week"`
+       ran exactly 2.
      - For non-web packages (`@tc/contracts`, `@tc/domain`, `@tc/factories`,
        `@tc/fixtures`, `@tc/pages`), scope the same way — these have one
        vitest config, so no `-c` flag is needed:

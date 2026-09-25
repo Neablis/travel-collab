@@ -34,6 +34,7 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
     members: [{ userId: OWNER_ID, role: "owner" }],
     createdAt: "2026-07-08T12:00:00.000Z",
     startDate: null,
+    endDate: null,
     ...overrides,
   };
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures/test";
-import { dragCardTo, createEmptyTripViaWizard } from "./helpers";
+import { createMappedTrip, dragCardTo, createEmptyTripViaWizard } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("board: days, activities, drag, conflicts as data", async ({ page }) => {
@@ -121,4 +121,76 @@ test("board: scrolling to either end selects the first and the last day", async 
   await expect
     .poll(selectedIndexes, { message: "scrolled to the start, day 1 is selected" })
     .toEqual([0]);
+});
+
+// KI-2026-09-25-c: dragging a card to the day-columns row's right edge and
+// holding it there scrolled nothing, so a column that started off screen could
+// not be reached in one gesture. Two causes, and this test fails on either: the
+// row was never registered for pdnd's element auto-scroll (only the window
+// was), and the app's `@atlaskit/pragmatic-drag-and-drop` was 2.x while the
+// auto-scroll package pulled in its own 3.x — two copies, two drag monitors, so
+// auto-scroll never heard a drag start. This walks that gesture and then drops
+// on the column the row brought into view.
+//
+// `dragCardTo` is deliberately not used: it scrolls the target into view before
+// moving to it, which is the one thing this test must leave to the drag.
+test("board: holding a dragged card at the row's right edge scrolls the day columns sideways", async ({ page }) => {
+  const dayCount = 8;
+  const tripId = await createMappedTrip(page, e2eTripName("EdgeScroll"), dayCount);
+  await page.goto(`/trips/${tripId}?view=Plan`);
+
+  const row = page.getByRole("group", { name: "Day columns" });
+  const bar = page.getByTestId("board-columns-scrollbar");
+  const lastDay = page.getByTestId("day-column").nth(dayCount - 1);
+  const card = page.getByTestId("day-column").nth(0).getByTestId(/activity-card-/);
+  await expect(card).toBeVisible();
+
+  // The premise: a row wider than its box, starting at the left, with the last
+  // day out of sight. A trip that fit would pass this without testing anything.
+  expect(await row.evaluate((box) => box.scrollWidth - box.clientWidth)).toBeGreaterThan(0);
+  expect(await row.evaluate((box) => box.scrollLeft)).toBe(0);
+  await expect(lastDay).not.toBeInViewport();
+
+  const cardBox = (await card.boundingBox())!;
+  const rowBox = (await row.boundingBox())!;
+
+  const sx = cardBox.x + cardBox.width / 2;
+  const sy = cardBox.y + cardBox.height / 2;
+  const edgeX = rowBox.x + rowBox.width - 60;
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  // The same drag-intent nudge `dragCardTo` needs before Chromium fires dragstart.
+  await page.mouse.move(sx + 6, sy + 6, { steps: 3 });
+  // 60px inside the row's right edge, at the card's own height — clear of the
+  // window's top and bottom edges, so only the row has a reason to scroll.
+  // **Not closer:** Chromium's own native drag auto-scroll starts a few pixels
+  // from a scroller's edge, and at 8px it scrolled the row with the fix
+  // reverted, so this test passed without it. 60px is inside pdnd's band
+  // (a quarter of the row, capped at 180px) and outside the browser's.
+  await page.mouse.move(edgeX, sy, { steps: 10 });
+
+  // Held at the edge. The one-pixel wiggle keeps Chromium issuing `dragover`,
+  // which is what pdnd's frame loop reads the pointer from.
+  await expect
+    .poll(
+      async () => {
+        await page.mouse.move(edgeX - 1, sy);
+        await page.mouse.move(edgeX, sy);
+        return row.evaluate((box) => box.scrollLeft);
+      },
+      { message: "the row scrolls right while a card is held at its right edge" },
+    )
+    .toBeGreaterThan(0);
+  await expect(lastDay).toBeInViewport({ ratio: 1 });
+
+  // The stand-in scrollbar follows a programmatic scroll of the row as well as
+  // a hand one: it listens to the row's own scroll events.
+  await expect
+    .poll(() => bar.evaluate((el) => el.scrollLeft), { message: "the stand-in bar follows the row" })
+    .toBeGreaterThan(0);
+
+  const targetBox = (await lastDay.boundingBox())!;
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await expect(lastDay.getByTestId(/activity-card-/)).toHaveCount(2);
 });

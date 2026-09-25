@@ -11,9 +11,11 @@ import { db } from "./db/client";
 import { inviteCodes, tripInvites } from "./db/schema";
 
 // The invite gate (M11a link 1): the rule for who may get an account, written
-// once and asked twice — advisorily by the `/signup` form so a wrong code says
-// so before the browser leaves for Google, and authoritatively by
-// `recordSignIn` on the way back.
+// once and asked once — by `recordSignIn` on the way back from the provider,
+// through `redeemAdmission`. There is no advisory pre-check: M11a decided
+// against a "is this code valid?" route (a brute-force oracle over
+// `invite_codes`, and TOCTOU besides), so a wrong code is caught here and lands
+// on the `INVALID_INVITE_CODE` screen.
 //
 // Admission is evaluated ONLY for someone with no `users` row. "Never been to
 // the app" is exactly "has no `users` row" (ADR-025), so every account that
@@ -201,36 +203,6 @@ async function claimInviteCode(
     return { admitted: true, via: "invite-code" };
   }
   return { admitted: false, reason: AdmissionRefusal.enum.SPENT_INVITE_CODE };
-}
-
-/**
- * **Advisory.** Would this credential admit someone right now? Redeems nothing.
- *
- * For the `/signup` form, so "that code isn't valid" is said before the browser
- * leaves for the provider. The answer can go stale between this call and the
- * sign-in that follows it — another person can spend the same single-use code
- * in between — so this is never the gate. `redeemAdmission` is.
- */
-export async function checkAdmission(
-  credential: string | null | undefined,
-): Promise<AdmissionOutcome> {
-  const presented = normalizeCredential(credential);
-  if (presented === null) {
-    return { admitted: false, reason: AdmissionRefusal.enum.MISSING_INVITE_CODE };
-  }
-  if (await hasPendingTripInvite(presented)) return { admitted: true, via: "trip-invite" };
-  if (matchesSuperCode(configuredSuperCode(), presented)) {
-    return { admitted: true, via: "super-code" };
-  }
-  const found = await db.select().from(inviteCodes).where(eq(inviteCodes.code, presented));
-  const current = found[0];
-  if (current === undefined) {
-    return { admitted: false, reason: AdmissionRefusal.enum.INVALID_INVITE_CODE };
-  }
-  if (current.redeemedBy !== null) {
-    return { admitted: false, reason: AdmissionRefusal.enum.SPENT_INVITE_CODE };
-  }
-  return { admitted: true, via: "invite-code" };
 }
 
 /**

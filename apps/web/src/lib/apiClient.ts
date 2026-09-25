@@ -10,6 +10,7 @@ import {
   SIMULATED_HEADER,
   migratePageDoc,
   SavedDay,
+  SavedDayModeration,
   SharedTripView,
   TripAccess,
   TripDetail,
@@ -259,9 +260,16 @@ export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<
   }
 }
 
+/**
+ * `keepalive` lets the request outlive the page that sent it — TripProvider's
+ * unload flush (KI-5). The browser refuses a keepalive body over 64 KiB, which
+ * this helper reports as a failed send like any other; staying under it is the
+ * caller's job (`unloadFlush.ts`).
+ */
 export async function sendTripCommandBatch(
   tripId: string,
   commands: BatchableCommand[],
+  options: { keepalive?: boolean } = {},
 ): Promise<ApiResult<CommandOutcome>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
@@ -270,6 +278,7 @@ export async function sendTripCommandBatch(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ commands }),
+      ...(options.keepalive ? { keepalive: true } : {}),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
@@ -710,13 +719,28 @@ export async function insertSavedDay(
 export async function fetchSavedDay(
   savedDayId: string,
 ): Promise<
-  ApiResult<{ savedDay: SavedDay; isAuthor: boolean; pinning: boolean; publishedAt?: string | null }>
+  ApiResult<{
+    savedDay: SavedDay;
+    isAuthor: boolean;
+    pinning: boolean;
+    publishedAt?: string | null;
+    moderation: SavedDayModeration | null;
+  }>
 > {
   try {
     const res = await fetch(apiUrl(`/api/saved-days/${savedDayId}`));
     return await readJson(res, (data) => {
-      const body = data as { savedDay: unknown; isAuthor: unknown; pinning: unknown; publishedAt?: unknown };
+      const body = data as {
+        savedDay: unknown;
+        isAuthor: unknown;
+        pinning: unknown;
+        publishedAt?: unknown;
+        moderation?: unknown;
+      };
       return {
+        // An operator hid it, and why — sent to the author only
+        // (KI-2026-09-23-i). Absent (an older server) reads as "not hidden".
+        moderation: body.moderation == null ? null : SavedDayModeration.parse(body.moderation),
         savedDay: SavedDay.parse(body.savedDay),
         isAuthor: body.isAuthor === true,
         // True while the server is putting this day's stops on the map after

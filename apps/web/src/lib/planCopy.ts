@@ -1,4 +1,4 @@
-import type { AccountPlanState } from "./accountPlan";
+import type { AccountGrantView, AccountPlanState } from "./accountPlan";
 
 // **The words and the numbers a plan is described with**, in one place, on the
 // UI side of the lint wall.
@@ -125,4 +125,45 @@ export function lapsedSentence(losesCollaborators: boolean): string {
   return losesCollaborators
     ? "Your subscription has lapsed. The assistant is off and everyone else on your trips can read but not edit. Paying again restores both — nobody needs re-inviting."
     : "Your subscription has lapsed and the assistant is off. Paying again restores it.";
+}
+
+/**
+ * What each grant source is called on the account sheet — the operator
+ * console's own words for *why they hold it* (SPEC §17.2), except `trial`,
+ * which the sheet already calls *Free week* in its state badge (§17.4).
+ */
+export const GRANT_SOURCE_LABEL: Record<AccountGrantView["source"], string> = {
+  trial: "free week",
+  referral: "referral",
+  founder: "founder",
+  admin: "admin",
+};
+
+/**
+ * **Every grant on the account, by name, with why it is there and when it
+ * ends** (KI-20260916-b-the-account-sheet-never-names-the-grants-an-account-holds).
+ *
+ * The line above it says which tier the grants add up to; this one says what
+ * they ARE. Without it an account holding `free` with an admin comp and a
+ * founder grant read as one unexplained tier, and the founder grant appeared
+ * nowhere — a correct answer that looked like a bug.
+ *
+ * `trialEndShown` drops the free week's date when the trial-ends line below
+ * already carries it, so one card does not print the same date twice. Returns
+ * `null` for an account with no grants: there is nothing to name.
+ */
+export function grantsSentence(
+  grants: readonly AccountGrantView[],
+  trialEndShown: boolean,
+): string | null {
+  if (grants.length === 0) return null;
+  const named = grants.map((grant) => {
+    const source = GRANT_SOURCE_LABEL[grant.source];
+    const ends = formatDate(grant.expiresAt);
+    let term: string | null = null;
+    if (grant.expiresAt === null) term = "permanent";
+    else if (ends !== null && !(grant.source === "trial" && trialEndShown)) term = `until ${ends}`;
+    return `${grant.planId} v${grant.version} (${term === null ? source : `${source}, ${term}`})`;
+  });
+  return `Granted to you: ${new Intl.ListFormat("en-US", { type: "conjunction" }).format(named)}.`;
 }

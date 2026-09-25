@@ -7,13 +7,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // check-color-wall.mjs finds its input with `git ls-files` over `apps/web/src`
-// rather than taking a directory argument (unlike check-sleep-wall.mjs). The
+// rather than taking a directory argument. The
 // one test that calls `runWall()` bare runs it against the actual tree; every
 // fixture test runs it against a throwaway repo via `COLOR_WALL_SCAN_ROOT`
 // (see `runWallAgainst`).
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WALL = join(REPO_ROOT, "scripts", "check-color-wall.mjs");
-const SENTRY_PAGE = "apps/web/src/app/sentry-example-page/page.tsx";
 
 function runWall(env = process.env) {
   const result = spawnSync(process.execPath, [WALL], { encoding: "utf8", cwd: REPO_ROOT, env });
@@ -49,23 +48,6 @@ function runWallAgainst(basename, contents, dir = "fixture") {
   }
 }
 
-// The regression this guards: the exclusion could be a no-op (wrong path,
-// typo, wrong Set) and the wall would still pass today only because the file
-// happens to be clean — it isn't. Feed the excluded file's own contents back
-// through the wall at a path the exclusion does not cover, so the exclusion is
-// proven necessary by the wall itself rather than by a second copy of its
-// matcher living here and silently drifting out of sync with it.
-test("the generated-non-product exclusion is non-vacuous: the excluded file really does contain raw color literals", () => {
-  const contents = readFileSync(join(REPO_ROOT, SENTRY_PAGE), "utf8");
-  const { status, stderr, relative } = runWallAgainst("sentry-copy.tsx", contents);
-  assert.equal(
-    status,
-    1,
-    "expected the Sentry scaffold to still carry raw color literals — if this fails, the exclusion may no longer be needed",
-  );
-  assert.match(stderr, new RegExp(`${relative}:\\d+: raw color literal`));
-});
-
 test("the wall passes end-to-end and names the generated-non-product exclusion separately from the shrinking pending list", () => {
   const { status, stdout } = runWall();
   assert.equal(status, 0, `expected the wall to pass; got: ${stdout}`);
@@ -75,7 +57,7 @@ test("the wall passes end-to-end and names the generated-non-product exclusion s
   // The floor is far below today's count (825 on 2026-09-24) on purpose.
   const scanned = Number(stdout.match(/color wall OK \((\d+) files scanned/)?.[1] ?? 0);
   assert.ok(scanned > 300, `expected the default root to scan the real apps/web/src; got: ${stdout}`);
-  assert.match(stdout, /1 generated non-product excluded/);
+  assert.match(stdout, /0 generated non-product excluded/);
   // The color-math list is named separately too, and for the same reason the
   // other two are: three lists with three different rules, reported as three
   // numbers. Merging any of them into one count is how a list that should only
@@ -89,12 +71,16 @@ test("the wall passes end-to-end and names the generated-non-product exclusion s
   assert.match(stdout, /\d+ color-math excluded/);
 });
 
-test("the exclusion is scoped to the named file only, not the whole directory", () => {
+// The list was one file (Sentry's wizard page) until KI-2026-09-05-f deleted
+// that page. Pinning it empty means a new exemption cannot arrive without
+// someone editing this test — and, per the comment on the Set, bringing a
+// non-vacuity test for the file it exempts.
+test("the generated-non-product exclusion list is empty", () => {
   const source = readFileSync(WALL, "utf8");
   const match = source.match(/const generatedNonProduct = new Set\(\[([\s\S]*?)\]\);/);
   assert.ok(match, "expected a generatedNonProduct Set literal in check-color-wall.mjs");
   const entries = [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(entries, [SENTRY_PAGE]);
+  assert.deepEqual(entries, []);
 });
 
 // KI-20260830: every decimal PR number from #100 to #99999999 is also a valid
@@ -260,7 +246,7 @@ test("a token after a url ON THE SAME LINE is still scanned", () => {
   assert.match(stderr, new RegExp(`${relative}:1: \\\`text-nonexistent-token\\\` — no such token`));
 });
 
-// The same non-vacuity argument the Sentry exclusion gets above: the
+// The same non-vacuity argument any generatedNonProduct entry owes: the
 // `notAClassName` entry could be a typo or left behind after the dependency
 // stopped using the word, and the wall would still pass because nothing in the
 // tree spells it. Prove each entry is still earning its exemption.

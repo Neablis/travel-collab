@@ -186,9 +186,9 @@ describe("ActivityCard tag focus", () => {
   it("rings the focused chip and only the focused chip", () => {
     renderCard({ tags: ["meal", "lodging"] }, { onToggleTag: vi.fn(), focusedTag: "meal" });
     // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(screen.getByTestId("tag-chip-meal").className).toContain("ring-brand");
+    expect(within(screen.getByTestId("tag-chip-meal")).getByText("Meal").className).toContain("ring-brand");
     // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(screen.getByTestId("tag-chip-lodging").className).not.toContain("ring-brand");
+    expect(within(screen.getByTestId("tag-chip-lodging")).getByText("Lodging").className).not.toContain("ring-brand");
   });
 
   it("carries the handoff's hover hint, both ways round", () => {

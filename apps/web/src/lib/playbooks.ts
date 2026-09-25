@@ -420,8 +420,9 @@ export const DiscoverResponse = z.object({
   /** False when `matchCount` is a floor rather than a total — see above. */
   matchCountExact: z.boolean().optional(),
   /**
-   * How many days are published across the WHOLE library, ignoring every filter
-   * on this query.
+   * How many Playbooks are published across the WHOLE library, ignoring every
+   * filter on this query. Playbooks, not days: since M23 a Playbook is a
+   * sequence, and a three-day one counts once (KI-2026-09-25-a).
    *
    * It exists for one control: the leaderboard link. *"Who shares the most"*
    * over a library nobody has shared anything into ranks an empty column, so
@@ -429,7 +430,7 @@ export const DiscoverResponse = z.object({
    * 2026-09-01). Deliberately not derived from `days` — that list is filtered,
    * and a Hakone query returning nothing does not mean nobody shares.
    */
-  sharedDayCount: z.number().int().nonnegative(),
+  sharedPlaybookCount: z.number().int().nonnegative(),
 });
 export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
 
@@ -449,22 +450,20 @@ export const PublicAuthor = z.object({
    * (`lib/displayName.ts`), not two routes.
    */
   displayName: z.string().min(1),
-  /** Days currently published. A private day is not "shared". */
   /**
-   * How many PLAYBOOKS this author has published — **not how many days**.
+   * How many PLAYBOOKS this author has published — **not how many days**. A
+   * private Playbook is not "shared".
    *
-   * The name predates M23, when a Playbook was exactly one day and the two
-   * counts were the same number. They are not any more: a three-day Playbook
-   * adds one to this. Every surface that renders it was saying "1 day shared"
-   * over a Playbook three days long, which is the `budgetPerPerson` defect
-   * class again — a name asserting a semantic the computation does not have.
-   *
-   * **The labels are fixed here; the FIELD keeps its name on purpose.** It is
-   * produced by `publishedDayCount` and read by three screens, and renaming it
-   * in this milestone's diff would widen a PR that already carries a migration
-   * and a contract change. `KI-20260919-c` carries the rename.
+   * Called `daysShared` until KI-2026-09-19-c. The old name predated M23, when a
+   * Playbook was exactly one day and the two counts were the same number; once
+   * a Playbook became a sequence, a three-day Playbook still added one, and
+   * every surface rendering it read "1 day shared" over a Playbook three days
+   * long — the `budgetPerPerson` defect class, a name asserting a semantic the
+   * computation does not have. The name now says what the SQL counts
+   * (published `saved_days` rows), so the noun is no longer decided by each
+   * renderer.
    */
-  daysShared: z.number().int().nonnegative(),
+  playbooksShared: z.number().int().nonnegative(),
   /**
    * Ledger rows against this person's days — "how often their days were added".
    * Counted from `saved_day_adds`, never from the denormalised counter, so the

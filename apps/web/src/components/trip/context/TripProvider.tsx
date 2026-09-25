@@ -12,7 +12,7 @@ import {
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
-import { cachedRead, invalidate } from "@/lib/queryCache";
+import { cachedRead, invalidate, writesSettled } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import {
   activeDetail,
@@ -28,6 +28,8 @@ import {
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
+import { drainAfter, sendUnit } from "./queueDrain";
+import { unloadFlush } from "./unloadFlush";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 type TripCtx = {
@@ -198,9 +200,26 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     }
   }, [tripId]);
 
+  // KI-2026-09-14-e: the read above is correct when taken, but a write to this
+  // trip already on the wire when it was taken may be applied after it — the
+  // previous board's in-flight head, or KI-5's unmount flush, landing after
+  // you navigated back. On a solo trip nothing else would ever read again, so
+  // the board stayed without that write until a reload. Asked once, at mount,
+  // and acted on only after `load` has set its state, so the re-read cannot be
+  // overtaken by the answer it corrects.
+  const onRemoteChangeRef = useRef<() => void>(() => {});
   useEffect(() => {
-    void load();
-  }, [load]);
+    let live = true;
+    const settled = writesSettled(tripKeys.all(tripId));
+    void load().then(async () => {
+      if (!settled) return;
+      await settled;
+      if (live) onRemoteChangeRef.current();
+    });
+    return () => {
+      live = false;
+    };
+  }, [load, tripId]);
 
   const exit = useCallback(() => {
     setPreviewSeq(null);
@@ -228,6 +247,19 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // is ever in flight — `inFlight` is a ref (not state) so re-renders that fire
   // while a send is outstanding don't kick off a second send for the same head.
   const inFlight = useRef(false);
+  // KI-5. Units this sender has put on the wire and the server has not
+  // refused. The unload flush sends only units NOT in here: one of these may
+  // already be applied, and the batch endpoint has no idempotency key, so
+  // sending it again could apply it twice. Tracked by id rather than read off
+  // `inFlight`, which is cleared a render before `confirmHead` removes the
+  // head it was about.
+  const sentIds = useRef(new Set<string>());
+  // KI-5. Units the unload flush has taken over. The sender never sends one:
+  // it stops at the first and waits for the flush to answer.
+  const handedOff = useRef(new Set<string>());
+  // KI-5. The sender's current send, so an unmount can wait for it to settle
+  // before draining what is behind it (`drainAfter`).
+  const inFlightSend = useRef<Promise<void> | null>(null);
   useEffect(() => {
     // The `failure` clause is load-bearing (KI-36): now that a failed send
     // RETAINS its queue, emptiness alone no longer stops the sender, and
@@ -235,14 +267,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // same rejected command without bound. Only `retry()` lifts the gate.
     if (!optimistic || optimistic.pending.length === 0 || optimistic.failure || inFlight.current) return;
     const head = optimistic.pending[0]!;
+    if (handedOff.current.has(head.id)) return;
     inFlight.current = true;
-    (async () => {
-      let result: { ok: true; value: CommandOutcome } | { ok: false; error: { message: string; code?: string } };
+    sentIds.current.add(head.id);
+    inFlightSend.current = (async () => {
+      let result: { ok: true; value: CommandOutcome } | { ok: false; error: { status: number; message: string; code?: string } };
       try {
-        result =
-          head.commands.length === 1
-            ? await sendTripCommand(head.commands[0]! as BoardCommand)
-            : await sendTripCommandBatch(tripId, head.commands);
+        result = await sendUnit(tripId, head);
       } catch (err) {
         // A throw here is a failed send like any other, and is treated as one
         // so the user gets KI-36's retained queue and manual retry. It should
@@ -252,7 +283,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // sender stayed gated for the life of the page, and every queued edit
         // was lost on navigation with the header still saying "Saving…"
         // (docs/reviews/2026-08-28-project-review.md §1.1).
-        result = { ok: false, error: { message: err instanceof Error ? err.message : "Network error" } };
+        result = { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
       } finally {
         // Unconditional, and the whole point of the try/finally: nothing on
         // any path may leave the sequential sender permanently in flight.
@@ -267,6 +298,16 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         result.ok || result.error.code === "no-op"
           ? null
           : { at: new Date().toISOString(), message: result.error.message };
+      // Refused, so not applied: the head is retained and is unsent work again.
+      // Only a refusal the SERVER answered, though. `status: 0` is a request
+      // that produced no response — and a reload produces exactly that for the
+      // unit in flight: Chromium cancels its fetch as the page goes, which can
+      // be after the server applied it. From Chromium 151 on that rejection
+      // lands just before `pagehide`, ahead of the render that would record
+      // the failure, so the flush saw the head as unsent and sent it again;
+      // its duplicate refused the atomic batch and everything behind it was
+      // lost (PR #234's CI red, KI-5). Unknown is treated as sent.
+      if (failure && !result.ok && result.error.status !== 0) sentIds.current.delete(head.id);
       setOptimistic((prev) => {
         if (!prev) return prev;
         if (result.ok) {
@@ -387,6 +428,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       );
     })();
   }, [tripId]);
+  onRemoteChangeRef.current = onRemoteChange;
 
   const dispatch = useCallback(
     async (command: BoardCommand) => {
@@ -447,6 +489,86 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // stale one.
     [runDispatch, exit, readOnly, refusal, onRemoteChange],
   );
+
+  // ---- KI-5: the queue outlives the page ---------------------------------
+  //
+  // The queue lives in memory and the sender drains it one unit per round
+  // trip, so a reload, a closed tab or an in-app navigation away from the trip
+  // used to drop everything still queued behind the unit in flight — with the
+  // header having already shown it as applied. Two exits, handled differently:
+  //
+  // - **`pagehide`** — the document is going. Nothing can be waited for, so
+  //   every unit the sender has not yet sent goes to the server at once as ONE
+  //   keepalive batch (`unloadFlush.ts` says why one), racing the unit in
+  //   flight. The server re-runs a precondition-free batch that loses the
+  //   sequence race to it (`executeTripCommandBatch`); if the flush overtakes
+  //   it instead, the flushed units are decided before it. Neither applies
+  //   anything twice or half a batch.
+  // - **Unmount with the page alive** — an in-app navigation away from the
+  //   trip. Here there is time, so the queue is drained properly: after the
+  //   unit in flight has answered, one unit at a time, in order, each its own
+  //   history entry, by a drain that outlives this provider (`queueDrain.ts`).
+  //
+  // Deliberately not a `beforeunload` prompt, and nothing here delays leaving
+  // (Mitchell, 2026-07-20). The save light still says "Saving…" for as long
+  // as it is true.
+  //
+  // What neither sends, on purpose:
+  // - **A unit already sent.** It may already be applied (see `sentIds`).
+  // - **A queue whose head the server refused** (KI-36). Nothing re-sends a
+  //   refused change without the user asking, and leaving is not asking.
+  const unsentUnits = useCallback(() => {
+    const state = optimisticRef.current;
+    if (!state || state.failure) return [];
+    return state.pending.filter((u) => !sentIds.current.has(u.id) && !handedOff.current.has(u.id));
+  }, []);
+
+  const flushOnPageHide = useCallback(
+    () => {
+      const flush = unloadFlush(unsentUnits(), { unloading: true });
+      if (!flush) return;
+      const ids = flush.units.map((u) => u.id);
+      for (const id of ids) handedOff.current.add(id);
+      void sendTripCommandBatch(tripId, flush.commands, { keepalive: flush.keepalive }).then((result) => {
+        // Reached only if this page is still alive — restored from the
+        // back/forward cache, or a provider that survived its own cleanup. A
+        // provider that is gone ignores both updates.
+        const applied = result.ok || result.error.code === "no-op";
+        for (const id of ids) {
+          handedOff.current.delete(id);
+          if (applied) sentIds.current.add(id);
+        }
+        if (applied) {
+          // Applied (or changed nothing): the units leave the queue, and the
+          // authoritative trip is fetched rather than guessed at.
+          setOptimistic((prev) => (prev ? { ...prev, pending: prev.pending.filter((u) => !ids.includes(u.id)) } : prev));
+          onRemoteChange();
+        } else {
+          // Refused whole, so none of it was applied: hand the units back to
+          // the sender, which sends them one at a time and reports a refusal
+          // the way it reports any other (KI-36).
+          setOptimistic((prev) => (prev ? { ...prev } : prev));
+        }
+      });
+    },
+    [tripId, onRemoteChange, unsentUnits],
+  );
+
+  useEffect(() => {
+    const handed = handedOff.current; // one Set for the provider's life
+    window.addEventListener("pagehide", flushOnPageHide);
+    return () => {
+      window.removeEventListener("pagehide", flushOnPageHide);
+      // The provider is going and the page is not. Its state updates stop
+      // here, so the drain's answers are not reconciled into anything: the
+      // board that mounts next reads the trip after the drain is done
+      // (KI-2026-09-14-e, fed by the drain's write scope).
+      const units = unsentUnits();
+      if (units.length === 0) return;
+      for (const unit of units) handed.add(unit.id);
+      void drainAfter(tripId, inFlightSend.current, units);
+    };
+  }, [flushOnPageHide, unsentUnits, tripId]);
 
   // KI-36: the manual retry. Clearing the failure is all it takes — the
   // sequential sender's effect re-runs on the new state and picks the retained

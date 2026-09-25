@@ -15,16 +15,21 @@
 //
 // KNOWN VIOLATIONS are NOT a blanket acceptance of the first run: everything
 // cheap and uncontroversial was fixed first (55 folder-cycle reports → 9), and
-// what is left is owned by an open KI:
-//   - KI-2026-09-23-d  billing ↔ entitlements, against ADR-047 decision 1
+// what is left is owned by an open KI, or sanctioned by an ADR amendment:
 //   - KI-2026-09-23-b  the server/ root hides module cycles from this wall
 //   - KI-2026-09-23-c  the trip-workspace UI folders (board/trip/lenses)
-// Folder cycles are named in KNOWN_CYCLE_CLUSTERS below. The six
-// Billing → Entitlements imports are in `.dependency-cruiser-known-violations.json`
+//   - ADR-047 (amended 2026-09-25, closing KI-2026-09-23-d) — billing ↔
+//     entitlements, through the plan catalog only
+// Folder cycles are named in KNOWN_CYCLE_CLUSTERS below. File-level known
+// violations live in `.dependency-cruiser-known-violations.json`
 // (dependency-cruiser's baseline; it cannot hold folder cycles, which is why
 // those are here instead). Regenerate that file ONLY when an entry is fixed —
-// it shrinks — never to admit a new one: `pnpm arch:baseline`. Anything new
-// fails `pnpm lint`.
+// it shrinks — never to admit a new one: `pnpm arch:baseline`. That script
+// (scripts/arch-baseline.mjs) keeps error-severity violations only, so the
+// warn-level `no-folder-cycle-known` clusters stay out of the file and keep
+// printing on every `pnpm arch` run; do not regenerate with bare
+// `depcruise-baseline`, which records warnings too (KI-2026-09-25-e).
+// Anything new fails `pnpm lint`.
 
 // The modules the module map says Entitlements, Billing and Identity know
 // nothing about: the planning domain and Access & Membership, by path.
@@ -33,11 +38,16 @@ const PLANNING_AND_ACCESS = [
   "^apps/web/src/server/(access|accessPolicy|projections|commands|pageCommands|savedDays|savedDayAdds|savedDayRow|savedDayCities|pages|pages-guard|history|eventStore|cloneTrip|demoTrip|playbooks|tripGlobals|broadcast)(/|\\.ts$)",
 ];
 
-// Folders still in a cycle after the first run's cleanup — ONE regex per KI.
-// A folder cycle wholly inside one of these warns; any other fails. Delete a
-// line when its KI resolves; never add one without filing a KI first.
+// Folders still in a cycle after the first run's cleanup — ONE regex per KI,
+// or per ADR that sanctions the cycle. A folder cycle wholly inside one of these
+// warns; any other fails. Delete a KI's line when it resolves; never add one
+// without filing a KI or amending an ADR first.
 const KNOWN_CYCLE_CLUSTERS = [
-  // KI-2026-09-23-d — ADR-047 says Entitlements → Billing, one way.
+  // SANCTIONED, not pending — ADR-047 decision 1's 2026-09-25 amendment
+  // (KI-2026-09-23-d). Billing reads the plan catalog, `planVersions.ts`, and
+  // Entitlements reads Billing's standing, so the FOLDERS form a cycle while
+  // no file does. `billing-imports-no-entitlements` bounds the billing half to
+  // that one file, so this line cannot hide a second edge.
   "^apps/web/src/server/(billing|entitlements)$",
   // KI-2026-09-23-c — the trip workspace is three folders that are one feature.
   "^apps/web/src/components/(board|trip|trip/editor|lenses)$",
@@ -74,7 +84,7 @@ module.exports = {
     {
       name: "no-folder-cycle-known",
       comment:
-        "The two clusters that were still cyclic after the first run's cleanup, each owned by an open KI. Printed on every run so they stay visible; not failing. A cycle that leaves its cluster reaches a folder outside it and fails the rule above.",
+        "The clusters still cyclic after the first run's cleanup — each owned by an open KI, or sanctioned by an ADR amendment (billing ↔ entitlements, ADR-047 2026-09-25). Printed on every run so they stay visible; not failing. A cycle that leaves its cluster reaches a folder outside it and fails the rule above.",
       severity: "warn",
       scope: "folder",
       from: { path: KNOWN_CYCLE_CLUSTERS },
@@ -118,10 +128,13 @@ module.exports = {
     {
       name: "billing-imports-no-entitlements",
       comment:
-        "ADR-047 decision 1: 'The dependency runs Entitlements → Billing, one way … Billing imports no plan file and no resolver, so nothing closes a cycle.' The first run found six imports the other way — KI-2026-09-23-d.",
+        "ADR-047 decision 1, as amended 2026-09-25 (KI-2026-09-23-d): Billing reads the plan CATALOG — `entitlements/planVersions.ts`, for ids, prices, lookup keys and purchasability — and nothing else of Entitlements. No resolver, no capability, no grant, no cost ledger: what a plan grants and what anyone may do are Entitlements' questions, and the dependency otherwise runs Entitlements → Billing.",
       severity: "error",
       from: { path: "^apps/web/src/server/billing/" },
-      to: { path: "^apps/web/src/server/entitlements/" },
+      to: {
+        path: "^apps/web/src/server/entitlements/",
+        pathNot: "^apps/web/src/server/entitlements/planVersions\\.ts$",
+      },
     },
     {
       name: "identity-knows-no-trips",

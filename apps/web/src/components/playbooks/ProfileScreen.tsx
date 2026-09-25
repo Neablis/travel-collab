@@ -36,7 +36,7 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
   const read = useCallback(() => fetchPublicProfile(userId), [userId]);
   const signature = useCallback(
     (value: PublicProfileResponse) =>
-      `${value.author.daysShared}:${value.author.adds}:${value.days.map((d) => d.savedDayId).join(",")}`,
+      `${value.author.playbooksShared}:${value.author.adds}:${value.days.map((d) => d.savedDayId).join(",")}`,
     [],
   );
   const feed = useLibraryRead(read, signature);
@@ -92,7 +92,7 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
           </div>
 
           <Card className="flex flex-wrap gap-6 p-4" data-testid="profile-numbers">
-            <Number label="Playbooks shared" value={feed.data.author.daysShared} />
+            <Number label="Playbooks shared" value={feed.data.author.playbooksShared} />
             <Number label="Added to trips" value={feed.data.author.adds} />
             {/* An em dash with no reviews, as the design draws it
                 (`dc.html:6729`) — never `0.0`, which would read as the lowest
@@ -126,13 +126,13 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
             </div>
           )}
 
-          {/* The day list is a PAGE of `discoverDays`, and `daysShared` counts
+          {/* The day list is a PAGE of `discoverDays`, and `playbooksShared` counts
               every published day — so when the two disagree the page says which
               one it is showing rather than letting a reader read the card count
               as the total. */}
-          {feed.data.days.length < feed.data.author.daysShared && (
+          {feed.data.days.length < feed.data.author.playbooksShared && (
             <Text variant="muted" className="text-xs" data-testid="profile-day-page">
-              Showing the {feed.data.days.length} newest of {feed.data.author.daysShared} playbooks
+              Showing the {feed.data.days.length} newest of {feed.data.author.playbooksShared} playbooks
               shared.
             </Text>
           )}

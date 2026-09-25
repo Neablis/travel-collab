@@ -212,6 +212,37 @@ describe("the js-profiling document policy", () => {
 });
 
 /**
+ * KI-2026-09-24-v: when the Sentry build plugin's own telemetry is left at its
+ * default (on), every `next build`, including the one e2e serves, sends that
+ * telemetry to o1.ingest.sentry.io, bypassing the proxy (seen under strace).
+ * The real `withSentryConfig` still runs here; the spy only records the options
+ * `next.config.ts` passes it.
+ */
+describe("the Sentry build plugin", () => {
+  it("is configured with its own telemetry off", async () => {
+    vi.resetModules();
+    const seen: Array<Record<string, unknown> | undefined> = [];
+    vi.doMock("@sentry/nextjs", async (importOriginal) => {
+      const real = await importOriginal<typeof import("@sentry/nextjs")>();
+      return {
+        ...real,
+        withSentryConfig: ((config, options) => {
+          seen.push(options as Record<string, unknown> | undefined);
+          return real.withSentryConfig(config, options);
+        }) as typeof real.withSentryConfig,
+      };
+    });
+    try {
+      await import("./next.config");
+    } finally {
+      vi.doUnmock("@sentry/nextjs");
+    }
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.telemetry).toBe(false);
+  });
+});
+
+/**
  * KI-2026-09-12-d: four CSP surfaces that had only ever been reasoned about.
  * Each was counter-probed in Chromium against a `next start` production build
  * (and the dev branch against `next dev`) on 2026-09-24; the browser's own

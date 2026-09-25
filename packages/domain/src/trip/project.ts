@@ -1,7 +1,7 @@
-import { TripEvent, isPageEventType, type EventEnvelope, type TripSummary } from "@tc/contracts";
+import { TripEvent, isPageEventType, type EventEnvelope, type StoredTripSummary } from "@tc/contracts";
 
-export function projectTripSummaries(envelopes: EventEnvelope[]): TripSummary[] {
-  const byStream = new Map<string, TripSummary>();
+export function projectTripSummaries(envelopes: EventEnvelope[]): StoredTripSummary[] {
+  const byStream = new Map<string, StoredTripSummary>();
   for (const env of envelopes) {
     // Page events share this stream and belong to the other aggregate
     // (`pageState.ts`). Skipped BY NAME, exactly as `foldEnvelopes` does, so an

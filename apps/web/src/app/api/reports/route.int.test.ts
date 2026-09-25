@@ -249,7 +249,7 @@ describe("hide-day", () => {
 
     // Before: visible everywhere a stranger looks. Without this the "after"
     // assertions below would pass on a day that was never visible at all.
-    const sharedBefore = (await as(READER, () => discover(`city=${CITY}`))).sharedDayCount;
+    const sharedBefore = (await as(READER, () => discover(`city=${CITY}`))).sharedPlaybookCount;
     await as(READER, async () => {
       expect((await discover(`city=${CITY}`)).days.map((d) => d.savedDayId)).toEqual([day]);
       expect((await discover(`city=${CITY}&scope=saved`)).days.map((d) => d.savedDayId)).toEqual([day]);
@@ -257,7 +257,7 @@ describe("hide-day", () => {
       const seen = await profile(MOD_AUTHOR);
       expect(seen.days.map((d) => d.savedDayId)).toEqual([day]);
       expect(seen.knows).toEqual([{ city: CITY, days: 1 }]);
-      expect(seen.author.daysShared).toBe(1);
+      expect(seen.author.playbooksShared).toBe(1);
       expect(await citiesFor(CITY)).toEqual([{ city: CITY, days: 1 }]);
       expect((await read(day)).status).toBe(200);
     });
@@ -287,14 +287,14 @@ describe("hide-day", () => {
     await as(READER, async () => {
       expect((await discover(`city=${CITY}`)).days).toEqual([]);
       expect((await discover(`city=${CITY}&scope=saved`)).days).toEqual([]);
-      expect((await discover(`city=${CITY}`)).sharedDayCount).toBe(sharedBefore - 1);
+      expect((await discover(`city=${CITY}`)).sharedPlaybookCount).toBe(sharedBefore - 1);
       expect(((await (await BOARD()).json()) as LeaderboardResponse).authors.map((a) => a.userId)).not.toContain(
         MOD_AUTHOR,
       );
       const seen = await profile(MOD_AUTHOR);
       expect(seen.days).toEqual([]);
       expect(seen.knows).toEqual([]);
-      expect(seen.author.daysShared).toBe(0);
+      expect(seen.author.playbooksShared).toBe(0);
       expect(await citiesFor(CITY)).toEqual([]);
     });
 
@@ -322,6 +322,43 @@ describe("hide-day", () => {
     const [stored] = await db.select().from(savedDays).where(eq(savedDays.id, day));
     expect(stored).toMatchObject({ visibility: "public", moderationNote: "Spam links." });
     expect(stored!.moderatedAt).not.toBeNull();
+  });
+
+  // KI-2026-09-23-i: the author kept their copy, but opening it told them
+  // nothing — no hidden state, no note. The note is for the author alone: a
+  // stranger's read of the same day never carries it, before or after.
+  it("tells the author — and nobody else — that the day was hidden, with the operator's note", async () => {
+    const NOTE_AUTHOR = `rep-noteauthor-${RUN}`;
+    const day = await sharedDay(NOTE_AUTHOR, city("Repnote"));
+    const moderationOf = async (res: Response) => {
+      expect(res.status).toBe(200);
+      return ((await res.json()) as { moderation?: unknown }).moderation;
+    };
+
+    // Before: nothing to say, to either of them.
+    expect(await as(NOTE_AUTHOR, async () => moderationOf(await read(day)))).toBeNull();
+    expect(await as(READER, async () => moderationOf(await read(day)))).toBeNull();
+
+    const { report: filed } = await as(READER, () => reportDay(day));
+    const note = "Advertising a tour company, not a day.";
+    expect((await as(ADMIN, () => act(filed.reportId, { action: "hide-day", note }))).status).toBe(200);
+
+    const [stored] = await db.select().from(savedDays).where(eq(savedDays.id, day));
+    expect(await as(NOTE_AUTHOR, async () => moderationOf(await read(day)))).toEqual({
+      moderatedAt: stored!.moderatedAt!.toISOString(),
+      moderationNote: note,
+    });
+    // The stranger's answer is the private-day 404, which carries no body to leak into.
+    await as(READER, async () => {
+      const res = await read(day);
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: "not-found" });
+    });
+
+    // Restored: the author is no longer told it is hidden, and the reader is back to null.
+    expect((await as(ADMIN, () => act(filed.reportId, { action: "restore-day" }))).status).toBe(200);
+    expect(await as(NOTE_AUTHOR, async () => moderationOf(await read(day)))).toBeNull();
+    expect(await as(READER, async () => moderationOf(await read(day)))).toBeNull();
   });
 
   // The two axes are independent (the schema's `moderatedAt` note): an author

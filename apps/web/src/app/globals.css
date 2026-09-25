@@ -571,6 +571,37 @@ html[data-look="ledger"] .shadow-raised {
     padding-bottom: 0;
   }
 
+  /* The desktop day-columns row and its stand-in scrollbar (Board.tsx,
+     KI-2026-09-22-b). The row is as tall as its tallest column, so its own
+     horizontal scrollbar — on its bottom inside edge — sat below the fold on
+     load, out of reach of a mouse with no horizontal wheel. The row's native
+     bar is hidden and `.day-columns-scrollbar`, an empty scroller mirroring
+     the row's `scrollLeft`, is pinned to the bottom of the viewport instead.
+     `bottom` clears the fixed unscheduled rack by the same measured
+     `--rack-height` the padding above uses, or the bar would sit under it. */
+  .day-columns-row {
+    scrollbar-width: none;
+  }
+  .day-columns-row::-webkit-scrollbar {
+    display: none;
+  }
+  .day-columns-scrollbar {
+    position: sticky;
+    bottom: var(--rack-height, 0px);
+  }
+
+  /* The day-sync scroll targets — a day column's header, a calendar cell —
+     clear the sticky header stack (KI-2026-09-13-a). `scrollIntoView` aligns
+     with the scrollport's top edge, `y = 0`, which is under AppHeader +
+     TripHeader whenever the page is scrolled; a scroll margin as tall as that
+     stack makes "aligned with the top" mean "just below it".
+     `--sticky-stack-height` is measured and published by TripHeader
+     (`useStickyStackHeight`); it falls back to 0px, the old behaviour, before
+     the header is measured and on any route without one. */
+  .day-sync-target {
+    scroll-margin-top: var(--sticky-stack-height, 0px);
+  }
+
   /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
      are the same `--rack-height` bargain one level up: the bar is
      `position: fixed`, so it reserves no flow space, and a page's last row

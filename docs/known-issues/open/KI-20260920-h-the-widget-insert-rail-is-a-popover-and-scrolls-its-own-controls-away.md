@@ -144,8 +144,12 @@
      dimension, which is what `LABEL_OF`'s own comment exists to prevent** — so
      the fix, if one is wanted, is richer labels in `LABEL_OF`, never a map in
      the component.
-  2. **`cost` declares six filter dimensions**, so its line reads `takes day +
-     city + tags + kind + who + dates` and wraps in a 320px column. Pre-existing
+  2. ~~**`cost` declares six filter dimensions**, so its line reads `takes day +
+     city + tags + kind + who + dates` and wraps in a 320px column.~~ **Narrowed
+     2026-09-25:** `person` was retired in a78843b, so `cost` now declares five
+     (`COST_FILTERS`, `single.ts:29`) and reads `takes day + city + tags + kind +
+     dates`. Whether that still wraps at 320px was not measured (no browser in
+     the sweep); the cap question stands if it does. Pre-existing
      (the old `narrow it by:` line had the same problem) but more visible now
      that the line has a colour. A cap with `+N more` is the obvious fix and is
      a product call about what a person scans for.
@@ -187,3 +191,15 @@
 - **Do not read `KI-2026-09-20-g` as this entry.** That one is the widget *block*
   card — the box a rendered widget draws itself in on the page. Different
   container, different owner, also open.
+- **Re-verified 2026-09-25 (overnight sweep):** the rail is built as described
+  (`WidgetInsert.tsx` has no Popover or `autoFocus`; `.tc-widget-rail` at
+  `globals.css:520`; `role="radiogroup"` at `WidgetPicker.tsx:367`;
+  `glyphCellFill`/`KIND_CELL_ON_GROUND` at `:131`/`:155`), and the cosmetic
+  leftovers still hold: `takesLine` joins `LABEL_OF` labels (`WidgetPicker.tsx:212`,
+  `filters.ts:98`); the shape chip is a `Badge` (`WidgetPicker.tsx:491`, whose
+  base is `rounded-full`); the rail is a `Card` (`PageScreen.tsx:1179`) — and
+  under Ledger, the only look, that radius is `0px` (`globals.css:288`), see
+  `KI-2026-09-20-g` item 2; the count copy is unchanged (`WidgetPicker.tsx:434`);
+  `ItineraryDayBlock`'s caption is still `px-3` (`ItineraryDayBlock.tsx:41`);
+  Ledger's `--color-brand-pressed` is still `#1a2720` (`globals.css:269`).
+  Item 2 narrowed in place (six dimensions → five).

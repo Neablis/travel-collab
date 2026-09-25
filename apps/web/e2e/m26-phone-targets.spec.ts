@@ -40,13 +40,17 @@ test.describe("M26 — SPEC §13.1's 44px floor on a phone", () => {
     /MapLibre|OpenFreeMap|OpenMapTiles|OpenStreetMap/,
   ];
 
-  async function countUnder(page: import("@playwright/test").Page, url: string) {
+  async function countUnder(page: import("@playwright/test").Page, url: string, readyTestId?: string) {
     await page.goto(url);
     // The page's own chrome, rather than `networkidle` — which the lint wall
     // bans for good reason (a surface with a poll or a long-lived stream never
     // reaches it). Every route below renders `AppHeader`, so its wordmark is
     // the one element that says "this route has painted" on all seven.
     await page.getByRole("link", { name: "Caesura" }).first().waitFor();
+    // The wordmark is chrome, and a route whose controls arrive with the trip's
+    // data paints it first. Measured without this, the Plan route had rendered
+    // no stop card yet, so neither its chips nor its Edit/Remove were counted.
+    if (readyTestId) await page.getByTestId(readyTestId).first().waitFor();
     return page.evaluate(() =>
       [...document.querySelectorAll("button, a[href], [role='button'], input, select, textarea")]
         .filter((el) => {
@@ -65,20 +69,31 @@ test.describe("M26 — SPEC §13.1's 44px floor on a phone", () => {
   test("every control a phone offers clears 44px, bar a named few", async ({ page }) => {
     await page.setViewportSize({ width: 411, height: 852 });
     const tripId = await createMappedTrip(page, e2eTripName("Targets"), 3);
+    // Tags on the first stop, because `mappedTrip` carries none and a chip that
+    // is never rendered is never measured: the 20px chips of KI-2026-09-24-m
+    // passed this check for exactly that reason. Two tags, so the Plan card
+    // shows chips side by side as a real stop does.
+    const { trip } = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as {
+      trip: { days: { activityIds: string[] }[] };
+    };
+    const tagged = await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: { type: "UpdateActivity", tripId, activityId: trip.days[0]!.activityIds[0], tags: ["meal", "ticketed"] },
+    });
+    expect(tagged.ok()).toBe(true);
 
-    const routes = [
+    const routes: readonly (readonly [route: string, url: string, readyTestId?: string])[] = [
       ["trips", "/"],
-      ["plan", `/trips/${tripId}?view=Plan`],
+      ["plan", `/trips/${tripId}?view=Plan`, "tag-chip-meal"],
       ["map", `/trips/${tripId}?view=Map`],
       ["notebook", `/trips/${tripId}/pages`],
       ["playbooks", "/playbooks"],
       ["account", "/account"],
       ["plans", "/plans"],
-    ] as const;
+    ];
 
     const measured = [];
-    for (const [route, url] of routes) {
-      measured.push(...(await countUnder(page, url)).map((c) => ({ route, ...c })));
+    for (const [route, url, ready] of routes) {
+      measured.push(...(await countUnder(page, url, ready)).map((c) => ({ route, ...c })));
     }
     // The filter is not a conditional IN the test — it is how the exception
     // list is applied, and it keeps the assertion a single `toEqual` whose

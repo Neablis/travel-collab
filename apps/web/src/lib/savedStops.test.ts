@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { tripDetailFixture } from "@tc/factories";
 import { SavedStop, TripDetail } from "@tc/contracts";
-import type { ActivityView } from "@tc/contracts";
-import { stopsForDay } from "./savedStops";
+import type { ActivityView, Anchor } from "@tc/contracts";
+import { isDroppedFromPlaybook, stopsForDay } from "./savedStops";
 
 const dayA = "11111111-1111-4111-8111-111111111111";
 const dayB = "22222222-2222-4222-8222-222222222222";
@@ -108,5 +108,25 @@ describe("stopsForDay", () => {
     const broken = { ...detail() };
     broken.days = [{ dayId: dayA, activityIds: [a1, "ghost"], date: null, costSubtotal: 0 }];
     expect(stopsForDay(broken, dayA)!.map((s) => s.title)).toEqual(["Coffee"]);
+  });
+});
+
+// The one rule both the keep (`withoutDateAnchors`) and the Keep dialog's
+// warning read. Every anchor kind is listed, so a new kind added to the
+// contract fails `satisfies` here until someone decides which side it is on.
+describe("isDroppedFromPlaybook", () => {
+  it("drops a calendar-date anchor and keeps the three that describe the place", () => {
+    const anchors = {
+      dateRange: { kind: "dateRange", from: "2027-05-03", to: "2027-05-05" },
+      dayOfWeek: { kind: "dayOfWeek", days: ["sat"] },
+      timeOfDay: { kind: "timeOfDay", window: { start: "09:00", end: "12:00" } },
+      publicHoliday: { kind: "publicHoliday", country: "JP" },
+    } satisfies { [K in Anchor["kind"]]: Extract<Anchor, { kind: K }> };
+    expect(Object.entries(anchors).map(([kind, anchor]) => [kind, isDroppedFromPlaybook(anchor)])).toEqual([
+      ["dateRange", true],
+      ["dayOfWeek", false],
+      ["timeOfDay", false],
+      ["publicHoliday", false],
+    ]);
   });
 });

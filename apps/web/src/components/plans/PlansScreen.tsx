@@ -167,6 +167,7 @@ export function PlansScreen() {
 
   const load = useCallback(async (): Promise<AccountPlanView | null> => {
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/account/plan");
       if (!res.ok) return null;
       const body = (await res.json()) as { plan: AccountPlanView };
@@ -297,6 +298,7 @@ export function PlansScreen() {
     setPreviewError(null);
     setConflict(false);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch(`/api/billing/change?planId=${encodeURIComponent(planId)}`);
       const body = (await res.json()) as { preview?: PlanChangePreview; message?: string };
       if (!res.ok) {
@@ -314,6 +316,7 @@ export function PlansScreen() {
     setBusy(true);
     setConflict(false);
     try {
+      // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
       const res = await fetch("/api/billing/change", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -682,11 +685,10 @@ function Confirm({
         {/* **The order card. Every figure is Stripe's** (§29). */}
         <div className="flex flex-col gap-2 rounded-lg border border-hairline p-4" data-testid="confirm-order">
           <Heading level={2}>Order</Heading>
-          {preview === null ? (
-            <Text variant="secondary" className="text-sm">
-              Loading…
-            </Text>
-          ) : preview.kind === "cancel" ? (
+          {/* Nothing while Stripe's preview is pending: the heading is real
+              from the first frame and the figures arrive when they exist
+              (KI-2026-09-20-e) — never the word `Loading…`. */}
+          {preview === null ? null : preview.kind === "cancel" ? (
             <Text variant="secondary" className="text-sm">
               Nothing is charged, and nothing is refunded. You keep what you have until the date
               above.

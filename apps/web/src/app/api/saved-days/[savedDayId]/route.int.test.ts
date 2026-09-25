@@ -20,7 +20,7 @@ import { savedDayAdds, savedDays } from "@/server/db/schema";
 //
 // Two actors and a minted city, fresh per TEST rather than per file (KI-69,
 // and `savedDays.int.test.ts` carries the long version). The published library
-// is global by construction: `daysShared`, a city chip's count and the board's
+// is global by construction: `playbooksShared`, a city chip's count and the board's
 // numbers are all aggregates over whatever else is in the table, so a stem
 // shared across this file's own tests makes each of them an assertion about the
 // tests that ran before it. Minting per test lets every count below be an exact
@@ -279,7 +279,7 @@ describe("what a deleted day disappears from", () => {
     // The sibling chips run `matchPredicate` over the same matched set the
     // cards do, so they are checked here rather than assumed to follow.
     expect((await discover(`city=${CITY}`)).siblings).toContainEqual({ city: SIBLING, days: 1 });
-    const sharedBefore = (await discover(`city=${CITY}`)).sharedDayCount;
+    const sharedBefore = (await discover(`city=${CITY}`)).sharedPlaybookCount;
 
     // Unpublish is what the product requires before a delete; going through the
     // real refusal path rather than writing the column by hand.
@@ -305,7 +305,7 @@ describe("what a deleted day disappears from", () => {
     expect(await cityChip()).toBeUndefined();
     expect((await discover(`city=${CITY}`)).siblings.map((s) => s.city)).not.toContain(SIBLING);
     // The library-wide published count behind the leaderboard link moves too.
-    expect((await discover(`city=${CITY}`)).sharedDayCount).toBe(sharedBefore - 1);
+    expect((await discover(`city=${CITY}`)).sharedPlaybookCount).toBe(sharedBefore - 1);
   });
 
   it("leaves the author's profile and their leaderboard counts", async () => {
@@ -319,11 +319,11 @@ describe("what a deleted day disappears from", () => {
     currentUserId = AUTHOR;
 
     const before = await profileOf(AUTHOR);
-    expect(before.author.daysShared).toBe(1);
+    expect(before.author.playbooksShared).toBe(1);
     expect(before.author.adds).toBe(1);
     expect(before.days.map((d) => d.savedDayId)).toContain(savedDayId);
     expect(before.knows.map((k) => k.city)).toContain(CITY);
-    expect((await boardRowFor(AUTHOR))?.daysShared).toBe(1);
+    expect((await boardRowFor(AUTHOR))?.playbooksShared).toBe(1);
 
     const { DELETE: UNPUBLISH } = await import("./publish/route");
     await UNPUBLISH(new Request("http://test/x", { method: "DELETE" }), {
@@ -332,7 +332,7 @@ describe("what a deleted day disappears from", () => {
     expect((await remove(savedDayId)).status).toBe(200);
 
     const after = await profileOf(AUTHOR);
-    expect(after.author.daysShared).toBe(0);
+    expect(after.author.playbooksShared).toBe(0);
     expect(after.author.adds).toBe(0);
     expect(after.days).toEqual([]);
     expect(after.knows.map((k) => k.city)).not.toContain(CITY);
