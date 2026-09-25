@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isCalendarDate } from "@tc/domain";
 import { bundleTripCommandGroups, TripImportBundle, type BundleTrip } from "@tc/fixtures";
 import { TripDetail } from "@tc/contracts";
-import { orThrow, PublicApiError, runBatch, runCommand } from "@/server/public-api/commands";
+import { orThrow, PublicApiError, runCreation } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
 // **A file becomes a trip** (M25 link 3) — `parseBundle` as a user surface
@@ -162,8 +162,9 @@ export const { POST } = route({
       // is pure, so nothing forces it to run after `CreateTrip` — and running it
       // after was a real defect: it calls `addDays`, whose `toISOString()` throws
       // on an out-of-range date, and a throw here would have happened with the
-      // trip already committed and the cleanup below not yet in scope. Built
-      // first, that same failure is a 500 with nothing written.
+      // trip already committed. Built first, that same failure is a 500 with
+      // nothing written — now doubly so, since the create below rolls back with
+      // anything that fails after it.
       // (CodeRabbit, PR #191. `startsInDays` is also bounded at the schema now,
       // which makes the reachable version of it a 400 instead.)
       const commands = bundleTripCommandGroups(bundle.bundle.id, trip, {
@@ -173,57 +174,22 @@ export const { POST } = route({
         tripId,
       }).flat();
 
-      const created = orThrow(await runCommand(actor, { type: "CreateTrip", tripId, name: trip.name }));
-
-      // An empty trip is a real thing to export and therefore a real thing to
-      // import, and `runBatch` refuses an empty command list as "this patch
-      // changes nothing" — correctly, for a PATCH. Here there is simply
-      // nothing more to do.
-      if (commands.length === 0) return created;
-
+      // **The trip and everything in it are ONE transaction** (KI-2026-09-19-b).
+      // `CreateTrip` is not a `BatchableCommand` — a trip's genesis mints its id
+      // and its owner — so this used to be two writes, with a compensating
+      // `DeleteTrip` for when the second did not land and an empty trip left on
+      // the uploader's Home whenever that cleanup failed too. `runCreation` runs
+      // the create and the batch inside one transaction instead: a refusal or a
+      // throw anywhere in the import rolls the trip back with it, so there is
+      // nothing to clean up and no cleanup to fail.
+      //
       // **One batch, deliberately, where the seed script uses several.**
       // `bundleTripCommandGroups` splits into a group per day because one
       // History entry per day is what makes an AUTHORING run readable. An
-      // upload is one action by one person, so one entry is the honest shape —
-      // and atomicity is not a preference here but a gate requirement: any
-      // rejection inside a batch appends nothing, so a refusal cannot leave a
-      // half-written trip.
-      // **The one window this endpoint has, and it is a REFUSAL and a THROW.**
-      // `CreateTrip` is not a `BatchableCommand`, so it cannot ride in the batch
-      // and the import is unavoidably two writes. If the second does not land,
-      // the first has committed, and the uploader is left with an empty trip
-      // they did not ask for and did not name.
-      //
-      // The first version of this handled only the refusal. A *thrown* error —
-      // a dropped connection, a pool timeout — rolled the batch's own
-      // transaction back and skipped the cleanup entirely, leaving exactly the
-      // husk the refusal branch existed to prevent (CodeRabbit, PR #191). The
-      // `catch` is what makes the two paths one.
-      //
-      // The soft delete is the command path's own inverse (`RestoreTrip`
-      // exists), so this uses the domain rather than reaching past it, and it is
-      // best-effort on purpose: the caller's error is the import's failure, not
-      // whatever went wrong cleaning up after it.
-      //
-      // **What this still is not: one transaction.** A genuine create-and-apply
-      // would need `CreateTrip` to become batchable — it is deliberately not,
-      // since a trip's genesis mints its id and its owner — or a new operation
-      // on the shared command pipeline, which is a change to a seam every write
-      // in the app goes through, for one endpoint. Filed as `KI-2026-09-19-b`
-      // rather than done here, with the residue named: cleanup itself failing
-      // leaves an empty trip the uploader can delete.
-      let outcome;
-      try {
-        outcome = await runBatch(actor, commands);
-      } catch (error) {
-        await runCommand(actor, { type: "DeleteTrip", tripId }).catch(() => undefined);
-        throw error;
-      }
-      if (!outcome.ok) {
-        await runCommand(actor, { type: "DeleteTrip", tripId }).catch(() => undefined);
-        throw new PublicApiError(outcome.status, outcome.message);
-      }
-      return outcome.detail;
+      // upload is one action by one person, so one entry is the honest shape.
+      // An empty trip is a real thing to export and therefore a real thing to
+      // import: an empty `commands` is simply the trip as created.
+      return orThrow(await runCreation(actor, { type: "CreateTrip", tripId, name: trip.name }, commands));
     },
   },
 });

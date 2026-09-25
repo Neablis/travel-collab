@@ -4,7 +4,7 @@ import { asc, eq, inArray, sql } from "drizzle-orm";
 import { decideTripCommand, foldEnvelopes } from "@tc/domain";
 import { db } from "./db/client";
 import { events, tripDetails, tripSummaries } from "./db/schema";
-import { executeTripCommand, executeTripCommandBatch } from "./commands";
+import { executeTripCommand, executeTripCommandBatch, executeTripCreation } from "./commands";
 import { appendToStream, readStream } from "./eventStore";
 import { getTripDetail, rebuildProjections } from "./projections";
 
@@ -370,6 +370,77 @@ describe("executeTripCommandBatch", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected rejection");
     expect(result.error.code).toBe("no-op");
+  });
+});
+
+// KI-2026-09-19-b / -f. The genesis and its follow-up are one transaction, so a
+// follow-up refusal leaves no stream at all — the property a compensating
+// `DeleteTrip` could only approximate (it left a created-then-deleted stream,
+// and a live empty trip whenever it failed as well).
+describe("executeTripCreation", () => {
+  const streamOf = (tripId: string) => db.select().from(events).where(eq(events.streamId, tripId));
+
+  it("creates the trip and applies the follow-up as two history entries", async () => {
+    const tripId = randomUUID();
+    const result = await executeTripCreation(
+      { type: "CreateTrip", tripId, name: "Imported" },
+      [
+        { type: "AddDay", tripId, dayId: randomUUID() },
+        { type: "AddDay", tripId, dayId: randomUUID() },
+      ],
+      "user-1",
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.detail.days).toHaveLength(2);
+    expect(result.detail.members).toEqual([expect.objectContaining({ userId: "user-1", role: "owner" })]);
+    // The same history two separate writes produced: creation, then the import.
+    expect(result.history.entries.map((e) => e.description)).toEqual([
+      "Added Day 1; Added Day 2",
+      expect.stringContaining("Imported"),
+    ]);
+    expect(new Set((await streamOf(tripId)).map((e) => e.batchId)).size).toBe(2);
+  });
+
+  it("rolls the creation back when the follow-up is refused", async () => {
+    const tripId = randomUUID();
+    const result = await executeTripCreation(
+      { type: "CreateTrip", tripId, name: "Never was" },
+      [
+        { type: "AddDay", tripId, dayId: randomUUID() },
+        { type: "RemoveDay", tripId, dayId: randomUUID() }, // ghost day
+      ],
+      "user-1",
+    );
+    expect(result.ok).toBe(false);
+    expect(await streamOf(tripId)).toEqual([]);
+    expect(await getTripDetail(tripId)).toBeNull();
+    const summary = await db.select().from(tripSummaries).where(eq(tripSummaries.tripId, tripId));
+    expect(summary).toEqual([]);
+  });
+
+  it("refuses a follow-up aimed at another trip, and writes nothing", async () => {
+    const tripId = randomUUID();
+    const { tripId: other } = await seedBoard();
+    const result = await executeTripCreation(
+      { type: "CreateTrip", tripId, name: "Hijack" },
+      [{ type: "AddDay", tripId: other, dayId: randomUUID() }],
+      "user-1",
+    );
+    expect(result.ok).toBe(false);
+    expect(await streamOf(tripId)).toEqual([]);
+  });
+
+  it("refuses a CreateTrip onto an existing trip, and touches it not at all", async () => {
+    const { tripId } = await seedBoard();
+    const before = await streamOf(tripId);
+    const result = await executeTripCreation(
+      { type: "CreateTrip", tripId, name: "Again" },
+      [{ type: "AddDay", tripId, dayId: randomUUID() }],
+      "user-2",
+    );
+    expect(result.ok).toBe(false);
+    expect(await streamOf(tripId)).toHaveLength(before.length);
   });
 });
 

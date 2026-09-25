@@ -182,10 +182,10 @@ refusals (a date not on the calendar, an end before the start), and a refused
 date creates **no trip at all**. Unlike `PATCH`, they cannot be `null` — a trip
 being created has no dates to clear.
 
-A trip with dates is created in two steps behind the one call. In the rare case
-the second fails for a reason that is not your request (a server fault), you get
-the error and the half-made trip is deleted, so it will not appear in your list
-(`KI-2026-09-19-f`).
+A trip and its dates are written in one transaction. If anything fails, even a
+server fault that has nothing to do with your request, you get the error and no
+trip exists at all. `POST /v1/trips/import` works the same way for a trip and
+everything the file puts in it.
 
 ### Putting a stop on the map
 
