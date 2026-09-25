@@ -22,6 +22,9 @@ import { z } from "zod";
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// The EXPORT's vocabulary, not ours: the design handoff still speaks the five
+// kinds M28 retired to three. Read through `readActivityKind` wherever it is
+// compared with the fixture (upstreamDrift.test.ts, ADR-054).
 const StopStatus = z.enum(["booked", "hold", "idea", "transit", "planned"]);
 
 // "all" or a list of traveler names (enums.who in the export documents this

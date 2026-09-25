@@ -87,9 +87,11 @@ export const CityRef = z.string().min(1).max(200);
 export type CityRef = z.infer<typeof CityRef>;
 
 /**
- * A kind binding: one `ActivityKind`. This is what absorbs `booking.line` —
- * "a line for every booking" is `stop.rows` filtered to `kind: "booked"`
- * (ADR-039's table of widgets written twice).
+ * A kind binding: one `ActivityKind`. This is what absorbed `booking.line` —
+ * "a line for every booking" became `stop.rows` filtered to a kind (ADR-039's
+ * table of widgets written twice). Strict, like a command: a stored page
+ * filtered to a kind M28 retired is rewritten by its v3 → v4 migration before
+ * this ever sees it (`pageDoc.ts`, ADR-054).
  */
 export const KindRef = ActivityKind;
 export type KindRef = z.infer<typeof KindRef>;

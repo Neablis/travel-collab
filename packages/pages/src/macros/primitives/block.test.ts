@@ -108,7 +108,7 @@ describe("day.detail", () => {
     // has no booking, so it is dropped rather than rendered as an empty card —
     // the reader asked for the bookings, not for a census of days.
     const ctx = contextOf(selectionTrip());
-    const outcome = renderMacro(ctx, "day.detail", { kind: "booked" });
+    const outcome = renderMacro(ctx, "day.detail", { kind: "pending" });
     if (outcome.status !== "ok" || outcome.rendered.kind !== "block") throw new Error(`not a block: ${outcome.status}`);
     const payload = outcome.rendered.block as ItineraryTripPayload;
     expect(payload.kind).toBe("itinerary-trip");
@@ -129,7 +129,7 @@ describe("day.detail", () => {
     // primitives, two answers to one problem, both stated where they are made.)
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
-    const outcome = renderMacro(ctx, "day.detail", { kind: "booked", day: { kind: "index", index: 0 } });
+    const outcome = renderMacro(ctx, "day.detail", { kind: "pending", day: { kind: "index", index: 0 } });
     if (outcome.status !== "ok" || outcome.rendered.kind !== "block") throw new Error(`not a block: ${outcome.status}`);
     const card = outcome.rendered.block as { activities: { cost: string | null }[]; cost: string | null };
     // One stop survived the filter, and the card's cost is exactly that stop's
@@ -158,7 +158,7 @@ describe("day.detail", () => {
 
   it("is empty when a filter leaves no day with anything on it", () => {
     const ctx = contextOf(selectionTrip());
-    expect(renderMacro(ctx, "day.detail", { tag: "meal", kind: "booked" }).status).toBe("empty");
+    expect(renderMacro(ctx, "day.detail", { tag: "meal", kind: "pending" }).status).toBe("empty");
   });
 });
 

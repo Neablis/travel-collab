@@ -315,14 +315,14 @@ describe("resolvePlaybook", () => {
 
 describe("loose activities and notebooks", () => {
   it("turns loose activities into backlog AddActivity commands", () => {
-    const parsed = bundle({ activities: [{ title: "Etxebarri", kind: "idea" }, stop({ title: "Maybe" })] });
+    const parsed = bundle({ activities: [{ title: "Etxebarri", kind: "idea" } /* written before M28 */, stop({ title: "Maybe" })] });
     const commands = bundleActivityCommands("11111111-1111-4111-8111-111111111111", parsed.activities, mintId());
     expect(commands).toHaveLength(2);
     for (const command of commands) {
       expect(AddActivity.safeParse(command).success).toBe(true);
       expect("dayId" in command).toBe(false);
     }
-    expect(commands[0]).toMatchObject({ title: "Etxebarri", kind: "idea" });
+    expect(commands[0]).toMatchObject({ title: "Etxebarri", kind: "pending" });
   });
 
   // A template is trip-agnostic and a page is not, so instantiating is exactly

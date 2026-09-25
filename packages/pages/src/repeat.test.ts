@@ -32,7 +32,7 @@ describe("resolveRepeat — which items a repeat yields", () => {
       { kind: "city", name: "Rome" },
       { kind: "city", name: "Kyoto" },
     ]);
-    expect(items(resolveRepeat(ctx, "stop.rows", { kind: "booked" }))).toEqual([
+    expect(items(resolveRepeat(ctx, "stop.rows", { kind: "pending" }))).toEqual([
       { kind: "stop", activityId: ids.s0, dayIndex: 0 },
       { kind: "stop", activityId: ids.s3, dayIndex: 1 },
     ]);
@@ -244,7 +244,7 @@ describe("insertRepeat — the one door a repeat enters a document by", () => {
 
   it("refuses what the rows primitive refuses, a table's columns, and a sentence that is not one line of 500", () => {
     expect(insertRepeat("cost", {})).toMatchObject({ ok: false, error: { reason: "unknown-widget" } });
-    expect(insertRepeat("day.rows", { kind: "booked" })).toMatchObject({ ok: false, error: { reason: "bad-params" } });
+    expect(insertRepeat("day.rows", { kind: "pending" })).toMatchObject({ ok: false, error: { reason: "bad-params" } });
     expect(insertRepeat("stop.rows", { columns: ["stop.cost"] })).toMatchObject({
       ok: false,
       error: { reason: "bad-params" },
@@ -267,7 +267,7 @@ describe("insertRepeat — the one door a repeat enters a document by", () => {
 describe("rescopeRepeat — the collection picker", () => {
   it("carries the sentence and every filter the new collection takes, and drops the rest", () => {
     const june = { from: "2027-06-01", through: "2027-06-02" };
-    const stop = { template: "Hi {name}", city: "Kyoto", kind: "booked", dates: june };
+    const stop = { template: "Hi {name}", city: "Kyoto", kind: "pending", dates: june };
     expect(rescopeRepeat("city", stop)).toEqual({ template: "Hi {name}", city: "Kyoto", dates: june });
     expect(insertRepeat("city.rows", rescopeRepeat("city", stop)).ok).toBe(true);
     // The other way, nothing is lost that a stop takes.
@@ -318,7 +318,7 @@ describe("rescopeRows — the table's collection picker", () => {
   // key the picker should drop is always there to be dropped.
   const EVERYTHING: Record<RepeatOver, Record<string, unknown>> = {
     day: { day: { kind: "index", index: 0 }, city: "Kyoto", dates: june },
-    stop: { day: { kind: "index", index: 0 }, city: "Kyoto", tag: "meal", kind: "booked", dates: june, only: "needsBooking", columns: ["stop.cost"] },
+    stop: { day: { kind: "index", index: 0 }, city: "Kyoto", tag: "meal", kind: "pending", dates: june, only: "needsBooking", columns: ["stop.cost"] },
     city: { city: "Kyoto", dates: june },
   };
 
@@ -373,12 +373,12 @@ describe("findWidgetError inside a repeat (KI-2026-09-24-d item 3)", () => {
 
   it("passes a repeat over a collection with a sentence", () => {
     expect(findWidgetError([repeat("day.rows", { template: "Day {date} in {cities}" })])).toBeNull();
-    expect(findWidgetError([repeat("stop.rows", { kind: "booked", only: "needsBooking", template: "{title}" })])).toBeNull();
+    expect(findWidgetError([repeat("stop.rows", { kind: "pending", only: "needsBooking", template: "{title}" })])).toBeNull();
   });
 
   it.each([
     ["a repeat over nothing it can repeat", repeat("cost", {}), /Unknown repeat "cost"/],
-    ["a repeat filter its collection does not take", repeat("day.rows", { kind: "booked" }), /day\.rows does not accept kind/],
+    ["a repeat filter its collection does not take", repeat("day.rows", { kind: "pending" }), /day\.rows does not accept kind/],
     ["a repeat carrying table columns", repeat("stop.rows", { columns: ["stop.cost"] }), /columns/],
     ["a malformed repeat", { type: "repeat", attrs: { name: "" }, content: [] }, /Invalid repeat node/],
     ["a sentence over the limit", repeat("day.rows", { template: "x".repeat(501) }), /sentence/],

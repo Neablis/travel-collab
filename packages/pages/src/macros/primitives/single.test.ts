@@ -62,7 +62,7 @@ describe("cost", () => {
     const ctx = contextOf(fixture);
     const booked = fixture.trip.activities[fixture.ids.s0]!.cost!.amountMinor
       + fixture.trip.activities[fixture.ids.s3]!.cost!.amountMinor;
-    expect(renderMacro(ctx, "cost", { kind: "booked" })).toEqual({
+    expect(renderMacro(ctx, "cost", { kind: "pending" })).toEqual({
       status: "ok",
       rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: formatMoney(booked, "USD") }] },
     });
@@ -95,7 +95,7 @@ describe("count", () => {
     expect(textOf({})).toBe("7 stops");
     expect(textOf({ of: "day" })).toBe("3 days");
     expect(textOf({ of: "city" })).toBe("2 cities");
-    expect(textOf({ kind: "booked" })).toBe("2 stops");
+    expect(textOf({ kind: "pending" })).toBe("2 stops");
     expect(textOf({ day: { kind: "index", index: 0 } })).toBe("2 stops");
     // Singular, because "1 stops" is the kind of thing a reader notices instead
     // of the number.
@@ -116,7 +116,7 @@ describe("count", () => {
     expect(textOf({ of: "day" })).toBe("3 days");
     expect(textOf({ of: "day", tag: "meal" })).toBe("1 day");
     // Two bookings, on days 1 and 2.
-    expect(textOf({ of: "day", kind: "booked" })).toBe("2 days");
+    expect(textOf({ of: "day", kind: "pending" })).toBe("2 days");
     // Rome has the meal-day's located stops; Kyoto has none tagged meal.
     expect(textOf({ of: "city" })).toBe("2 cities");
     expect(textOf({ of: "city", tag: "lodging" })).toBe("1 city");
@@ -140,12 +140,12 @@ describe("count", () => {
   });
 
   it("answers zero rather than going empty", () => {
-    // The one primitive with no `empty()` against a loaded trip. "0 booked" is
+    // The one primitive with no `empty()` against a loaded trip. "0 pending" is
     // exactly what somebody asks a notebook, and `emptyText` would replace the
     // fact with a shrug — unlike `cost`, where a zero total means nothing has
     // been priced at all.
     const ctx = contextOf(selectionTrip());
-    const outcome = renderMacro(ctx, "count", { tag: "ticketed", kind: "idea" });
+    const outcome = renderMacro(ctx, "count", { tag: "ticketed", kind: "transit" });
     expect(outcome.status).toBe("ok");
     expect(outcome.status === "ok" && outcome.rendered.kind === "inline" && outcome.rendered.segs[0]!.text).toBe(
       "0 stops",

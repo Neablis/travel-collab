@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ActivityKind, ActivityMode, ActivityTag, Anchor, Location, TimeWindow, travelLegFieldsOffTransit } from "./activity.ts";
+import { ActivityMode, StoredActivityKind, ActivityTag, Anchor, Location, TimeWindow, travelLegFieldsOffTransit } from "./activity.ts";
 import { Money } from "./money.ts";
 
 // Saved parts (M11 link 6, ADR-029) — "select parts of my trip and save them
@@ -49,7 +49,9 @@ export const SavedStop = z.object({
   location: Location.nullable(),
   notes: z.string().nullable(),
   anchors: z.array(Anchor),
-  kind: ActivityKind,
+  // A retired kind in a day saved before M28 reads as its replacement
+  // (ADR-054): `saved_days` is jsonb read back on every request.
+  kind: StoredActivityKind,
   tags: z.array(ActivityTag),
   cost: Money.nullable(),
   /**

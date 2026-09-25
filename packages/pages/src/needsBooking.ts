@@ -1,33 +1,23 @@
-import type { ActivityKind, ActivityTag } from "@tc/contracts";
+import type { ActivityKind } from "@tc/contracts";
 
-/** The two fields the rule reads. Takes a shape, not a whole `ActivityView`, so
+/** The one field the rule reads. Takes a shape, not a whole `ActivityView`, so
  *  callers can pass a projected stop or a hand-built one. */
-export type BookableStop = { kind: ActivityKind; tags: ActivityTag[] };
+export type BookableStop = { kind: ActivityKind };
 
 /**
- * Whether a stop still needs booking.
+ * Whether a stop still needs booking: exactly the `pending` stops.
  *
- * SPEC §12 words this as "every stop whose kind is neither `booked` nor
- * `transit`". **Taken literally that flagged 50 of the Japan fixture's 72
- * stops** — because `planned` is the contract's zero value, so every coffee,
- * every free shrine and every browse through a record shop counted as work
- * outstanding. A number that large on every single day is not an actionable
- * flag; it is wallpaper, and SPEC §12 calls this "the one actionable thing at
- * this zoom".
+ * **M28 (ADR-054, Mitchell 2026-09-25) made this one comparison.** `pending`
+ * is the kind a person sets to say "not settled yet", so it is exactly the
+ * outstanding work. `planned` is settled or needs nothing, and `transit` is the
+ * movement between the things you book rather than one of them.
  *
- * The rule below, decided by Mitchell 2026-08-29, is narrower and is a recorded
- * delta from SPEC §12 (see KI-77, and KI-52 for the same shape of decision):
- *
- * - `booked` and `transit` — never. A settled thing, and a travel leg is the
- *   movement between the things you book rather than one of them.
- * - `hold` and `idea` — always. These are the kinds a user sets *deliberately*
- *   to say "not settled yet", so they are exactly the outstanding work.
- * - `planned` — only when tagged `ticketed`. `planned` is the default a stop
- *   gets for free, so treating it as "unbooked" reads intent into the absence
- *   of intent. The exception uses the tag's own designed power, from the
- *   handoff's `TAGS` table: *"Ticketed — Wants a booking date. The assistant
- *   keeps asking until there is one."* An unbooked ticketed museum is the one
- *   `planned` stop that genuinely owes you an action.
+ * It used to be a three-way rule over five kinds (Mitchell, 2026-08-29): never
+ * `booked` or `transit`, always `hold` and `idea`, and `planned` only when
+ * tagged `ticketed`. The `ticketed` exception existed because `booked` was
+ * where a ticketed stop went once it was settled. With `booked` retired there
+ * is nowhere for it to go, so the exception would have flagged every ticketed
+ * stop forever. A ticketed stop that still needs a ticket is `pending`.
  *
  * One predicate, deliberately, because several surfaces show this count at
  * different zooms: the Calendar's per-city `N to book` flag, the home hero's
@@ -45,7 +35,5 @@ export type BookableStop = { kind: ActivityKind; tags: ActivityTag[] };
  * keeps a mirror, because `@tc/fixtures` does not depend on this package.
  */
 export function needsBooking(stop: BookableStop): boolean {
-  if (stop.kind === "booked" || stop.kind === "transit") return false;
-  if (stop.kind === "planned") return stop.tags.includes("ticketed");
-  return true;
+  return stop.kind === "pending";
 }

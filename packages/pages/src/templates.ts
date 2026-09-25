@@ -208,12 +208,13 @@ const overviewPage: TemplateSeed = {
     // read-only day list became a widget inside the Overview document"*).
     heading("The trip, day by day"),
     block("day.detail"),
-    // ---- What is settled --------------------------------------------------
-    // `booking.line`'s selection — one line per booked stop, with its time and
-    // what it cost. Before a trip this is the section people re-read: it is the
-    // part that is certain.
-    heading("What's booked"),
-    block("stop.rows", { kind: "booked" }),
+    // ---- What is still loose ----------------------------------------------
+    // One line per `pending` stop, with its time and what it cost: the part of
+    // the plan that still needs somebody to act. It was "What's booked" until
+    // M28 retired `booked` (ADR-054); `pending` is now the kind that carries
+    // intent, so the section follows it.
+    heading("Still to book"),
+    block("stop.rows", { kind: "pending" }),
     // ---- Money -----------------------------------------------------------
     // **Labels here and nowhere else above, and the difference is not style.**
     // "$1,240.00" does not say whether it is spent, budgeted or left, so these
@@ -305,11 +306,9 @@ const dayInDetail: TemplateSeed = {
     para(text("Running from "), widget("hours"), text(", and it costs "), widget("cost"), text(".")),
     heading("Every stop"),
     block("day.detail"),
-    heading("Booked"),
-    block("stop.rows", { kind: "booked" }),
     heading("Still to sort"),
     para(text("What is not booked yet, and who is chasing it.")),
-    block("stop.rows", { kind: "hold" }),
+    block("stop.rows", { kind: "pending" }),
   ]),
 };
 
@@ -354,16 +353,13 @@ const dinnerTracker: TemplateSeed = {
       text("meal"),
       text(" on the board and it appears here. Nothing on this page is typed twice."),
     ),
-    para(text("Meals planned: "), widget("count", { tag: "meal" }), text(" · Booked: "), widget("count", { tag: "meal", kind: "booked" })),
-    heading("Booked"),
-    para(text("Tables that exist. Confirmation numbers go in the stop's notes, not here.")),
-    block("stop.rows", { tag: "meal", kind: "booked" }),
+    para(text("Meals planned: "), widget("count", { tag: "meal" }), text(" · Still to book: "), widget("count", { tag: "meal", kind: "pending" })),
+    heading("Every meal"),
+    para(text("Confirmation numbers go in the stop's notes, not here.")),
+    block("stop.rows", { tag: "meal" }),
     heading("Still to book"),
-    para(text("The ones that need a phone call. A restaurant that takes reservations a month out is a stop that should be booked, not held.")),
-    block("stop.rows", { tag: "meal", kind: "hold" }),
-    heading("Ideas"),
-    para(text("Places somebody mentioned. Move one onto a day when it earns a slot.")),
-    block("stop.rows", { tag: "meal", kind: "idea" }),
+    para(text("The ones that need a phone call, and the places somebody mentioned. Move one onto a day when it earns a slot.")),
+    block("stop.rows", { tag: "meal", kind: "pending" }),
     heading("What eating costs"),
     block("cost", { tag: "meal" }),
     block("cost.rows", { tag: "meal" }),
@@ -373,23 +369,20 @@ const dinnerTracker: TemplateSeed = {
 const bookingsAndConfirmations: TemplateSeed = {
   key: "bookings-and-confirmations",
   title: "Bookings",
-  description: "Everything that is confirmed, in one list — flights, rooms, tickets, tables.",
+  description: "What still needs booking, where you sleep, and how you get between places.",
   seedIntoNewTrips: false,
   buildContext: (tripId) => ({ tripId }),
   content: newPageDoc([
-    heading("Confirmed", 1),
-    para(text("Booked: "), widget("count", { kind: "booked" }), text(" of "), widget("count"), text(" stops.")),
-    block("stop.rows", { kind: "booked" }),
+    heading("Still to book", 1),
+    para(text("Pending: "), widget("count", { kind: "pending" }), text(" of "), widget("count"), text(" stops.")),
+    block("stop.rows", { kind: "pending" }),
     heading("Where we sleep"),
     para(text("Every stop tagged lodging, in order. A gap between two rooms is a night nobody has booked.")),
     block("stop.rows", { tag: "lodging" }),
     heading("Getting between places"),
     block("stop.rows", { kind: "transit" }),
-    heading("Not booked yet"),
-    para(text("On hold — held in the plan, not held by anybody.")),
-    block("stop.rows", { kind: "hold" }),
-    heading("What is already paid for"),
-    block("cost", { kind: "booked" }),
+    heading("What it all costs"),
+    block("cost"),
   ]),
 };
 
@@ -417,8 +410,8 @@ const beforeYouGo: TemplateSeed = {
       "The medication that is hard to buy where you are going.",
     ),
     heading("The first day"),
-    para(text("Arriving tired is the single most common way a good plan comes apart. What is already booked for day one:")),
-    block("day.detail", { day: { kind: "index", index: 0 }, kind: "booked" }),
+    para(text("Arriving tired is the single most common way a good plan comes apart. What day one holds:")),
+    block("day.detail", { day: { kind: "index", index: 0 } }),
     heading("Money"),
     para(text("Budget left before you spend anything: "), widget("attribute", { field: "trip.budgetRemaining" }), text(".")),
   ]),

@@ -29,7 +29,7 @@ function setup(days: DaySpec[], homeTimeZone: string | null = "America/Los_Angel
       index, date: spec.date, cities: spec.cities ?? (spec.city ? [spec.city] : []), activityCount: 1, costSubtotal: 0,
       place: spec.place ? { ...spec.place, city: spec.placeCity ?? spec.city ?? null } : null, timeZone: spec.zone ?? null,
     })),
-    cities: [], tags: [], bookedCount: 0, homeTimeZone,
+    cities: [], tags: [], homeTimeZone,
   };
   return { trip, globals };
 }

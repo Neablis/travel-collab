@@ -53,14 +53,14 @@ const update = (fields: Partial<Extract<TripCommand, { type: "UpdateActivity" }>
 
 describe("a travel leg is legal only while its stop is transit", () => {
   it("refuses an update that moves a stop off transit and leaves its mode or endLocation behind", () => {
-    const d = decideTripCommand(shinkansen(), update({ kind: "booked" }), CTX);
+    const d = decideTripCommand(shinkansen(), update({ kind: "pending" }), CTX);
     expect(d).toMatchObject({ ok: false, rejection: { code: "travel-leg-off-transit" } });
     expect(d.ok === false && d.rejection.message).toMatch(/mode or endLocation/);
   });
 
   it("accepts the same move when the command clears both, and never clears them for the caller", () => {
-    const next = apply(shinkansen(), update({ kind: "booked", mode: null, endLocation: null }));
-    expect(next.activities[ACT]).toMatchObject({ kind: "booked", mode: null, endLocation: null });
+    const next = apply(shinkansen(), update({ kind: "pending", mode: null, endLocation: null }));
+    expect(next.activities[ACT]).toMatchObject({ kind: "pending", mode: null, endLocation: null });
   });
 });
 

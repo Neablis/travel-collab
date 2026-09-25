@@ -15,6 +15,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { readActivityKind } from "@tc/contracts";
 import { parseTripSeed } from "./seedSchema.ts";
 import { CITY_OVERRIDES } from "./cityOverrides.ts";
 import { KIND_OVERRIDES } from "./kindOverrides.ts";
@@ -111,10 +112,12 @@ describe("the canonical copy still matches the design handoff export", () => {
         // ./kindOverrides.ts declares a deliberate divergence, with a reason.
         // Everything else on the row is still verbatim, so a re-sync that
         // retimes or renames a stop fails here exactly as before — the override
-        // list buys five rows of latitude and no more. The next test asserts
+        // list buys three rows of latitude and no more. The next test asserts
         // every listed override is real and actually applied, so a stale entry
-        // cannot quietly widen this.
-        kind: KIND_OVERRIDES[s.id]?.ours ?? s.status,
+        // cannot quietly widen this. The export still speaks the five kinds M28
+        // retired to three, so its word is read through the same translation a
+        // stored event is (ADR-054).
+        kind: KIND_OVERRIDES[s.id]?.ours ?? readActivityKind(s.status),
         costUsd: s.cost.amount, note: s.note, who: s.who,
       })),
     );
@@ -131,7 +134,7 @@ describe("the canonical copy still matches the design handoff export", () => {
       expect(upstream!.status, `${id}'s recorded upstream value is stale`).toBe(override.upstream);
       const ours = JAPAN_STOPS.find((s) => s.id === id);
       expect(ours!.kind, `${id} does not actually carry its override`).toBe(override.ours);
-      expect(override.ours, `${id} overrides to the same value it already had`).not.toBe(override.upstream);
+      expect(override.ours, `${id} overrides to the same value it already had`).not.toBe(readActivityKind(override.upstream));
       expect(override.why.length, `${id} has no reason recorded`).toBeGreaterThan(20);
     }
   });
@@ -158,7 +161,7 @@ describe("the canonical copy still matches the design handoff export", () => {
     // ("Priya added it"). The attribution is the useful half, so it is what the
     // fixture shows; nothing else reads `source`.
     expect(JAPAN_BACKLOG.map((b) => ({ id: b.id, title: b.title, place: b.place, area: b.area, kind: b.kind, note: b.note, who: b.who })))
-      .toEqual(seed.unscheduled.map((u) => ({ id: u.id, title: u.title, place: u.place, area: u.area, kind: u.status, note: u.source, who: u.who })));
+      .toEqual(seed.unscheduled.map((u) => ({ id: u.id, title: u.title, place: u.place, area: u.area, kind: readActivityKind(u.status), note: u.source, who: u.who })));
   });
 
   it("accounts for every field the export carries, including ones the schema would strip", () => {

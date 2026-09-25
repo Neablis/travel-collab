@@ -80,7 +80,7 @@ describe("filterParams / filterInputs", () => {
 
   it("validates each dimension's value against its contract shape", () => {
     const schema = filterParams(["day", "kind", "dates"]);
-    expect(schema.safeParse({ kind: "booked" }).success).toBe(true);
+    expect(schema.safeParse({ kind: "pending" }).success).toBe(true);
     expect(schema.safeParse({ kind: "reserved" }).success, "an invented kind").toBe(false);
     expect(schema.safeParse({ day: { kind: "index", index: 2 } }).success).toBe(true);
     expect(schema.safeParse({ day: 2 }).success, "a bare number is not a DayRef").toBe(false);
@@ -95,7 +95,7 @@ describe("filterParams / filterInputs", () => {
     // The other half of legality: a widget that declares `day` only must not
     // quietly carry a `kind` its resolver never reads. `.strip()` drops it, and
     // `registry.test.ts` asserts the same thing registry-wide.
-    const parsed = filterParams(["day"]).parse({ day: { kind: "index", index: 0 }, kind: "booked" });
+    const parsed = filterParams(["day"]).parse({ day: { kind: "index", index: 0 }, kind: "pending" });
     expect(parsed).not.toHaveProperty("kind");
     expect(parsed).toHaveProperty("day");
   });

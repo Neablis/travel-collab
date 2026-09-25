@@ -22,7 +22,7 @@ describe("enumLabel", () => {
   });
 
   it("uses the kind and tag words", () => {
-    expect(enumLabel("hold")).toBe(KIND_LABEL.hold);
+    expect(enumLabel("pending")).toBe(KIND_LABEL.pending);
     expect(enumLabel("outdoors")).toBe(TAG_LABEL.outdoors);
   });
 

@@ -226,7 +226,7 @@ describe("impossible-geography rule", () => {
     });
 
     it("is transit-only — no other kind excuses a distance", () => {
-      for (const kind of ["planned", "booked", "hold", "idea"] as const) {
+      for (const kind of ["planned", "pending"] as const) {
         expect(
           geo(
             boardState([
@@ -396,7 +396,7 @@ describe("impossible-geography rule", () => {
     });
 
     it("is transit-only — the same untimed pair still flags for every other kind", () => {
-      for (const kind of ["planned", "booked", "hold", "idea"] as const) {
+      for (const kind of ["planned", "pending"] as const) {
         expect(
           geo(
             boardState([

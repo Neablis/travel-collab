@@ -15,13 +15,13 @@ const issuePaths = (r: { success: boolean; error?: { issues: { path: (string | n
 describe("a travel-leg field is legal only on a transit stop", () => {
   for (const [name, schema] of [["TripCommand", TripCommand], ["BatchableCommand", BatchableCommand]] as const) {
     it(`${name} refuses a mode on a non-transit AddActivity, including one whose kind is omitted`, () => {
-      expect(issuePaths(schema.safeParse(add({ kind: "booked", mode: "train" })))).toEqual(["mode"]);
+      expect(issuePaths(schema.safeParse(add({ kind: "planned", mode: "train" })))).toEqual(["mode"]);
       expect(issuePaths(schema.safeParse(add({ mode: "train" })))).toEqual(["mode"]);
       expect(schema.safeParse(add({ kind: "transit", mode: "train" })).success).toBe(true);
     });
 
     it(`${name} refuses an endLocation on a non-transit AddActivity`, () => {
-      expect(issuePaths(schema.safeParse(add({ kind: "hold", endLocation: KYOTO })))).toEqual(["endLocation"]);
+      expect(issuePaths(schema.safeParse(add({ kind: "pending", endLocation: KYOTO })))).toEqual(["endLocation"]);
       expect(schema.safeParse(add({ kind: "transit", endLocation: KYOTO })).success).toBe(true);
     });
   }

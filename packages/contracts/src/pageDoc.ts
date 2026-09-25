@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RETIRED_ACTIVITY_KINDS, readActivityKind } from "./activity.ts";
 import { buildAttributeManifest } from "./manifest.ts";
 import {
   REPEAT_SCOPES,
@@ -390,7 +391,8 @@ export type PageDocMigration = (doc: PageDoc) => PageDoc;
  *   carried across untouched** — a `DayRef` is a `DayRef` under either key — so
  *   a page bound to day 3 is still bound to day 3 afterwards.
  * - `set` adds the filters the old NAME carried implicitly. "A line for every
- *   booking" was a widget; it is `stop.rows` with `kind: "booked"` now, and
+ *   booking" was a widget; it is `stop.rows` with `kind: "booked"` now (read as
+ *   `planned` from v4, M28), and
  *   that constant is the whole of what the name used to mean.
  *
  * **Why this lives in `packages/contracts` rather than beside the registry.**
@@ -673,7 +675,22 @@ const migrateRepeatTemplates = rewriteBlocks((node) => {
 });
 
 // ---------------------------------------------------------------------------
-// v4 onward: a field is renamed or removed (M14 field widget, answer 1)
+// v3 → v4: the retired kinds (M28, ADR-054)
+// ---------------------------------------------------------------------------
+
+// A widget filtered to a kind M28 retired is filtered to that kind's
+// replacement: `idea` and `hold` to `pending`, `booked` to `planned`. The
+// same translation `StoredActivityKind` applies to the stops themselves, so a
+// page keeps listing the stops it listed. A value that is not a retired kind
+// is left alone for the widget's own parse to judge.
+const migrateRetiredKinds = rewriteWidgets((attrs) => {
+  const kind = attrs.params.kind;
+  if (typeof kind !== "string" || !Object.hasOwn(RETIRED_ACTIVITY_KINDS, kind)) return attrs;
+  return { ...attrs, params: { ...attrs.params, kind: readActivityKind(kind) } };
+});
+
+// ---------------------------------------------------------------------------
+// v5 onward: a field is renamed or removed (M14 field widget, answer 1)
 // ---------------------------------------------------------------------------
 
 /**
@@ -698,8 +715,7 @@ export type FieldChange =
   | { kind: "remove"; path: string; label: string; since: number };
 
 /**
- * Every field rename and removal ever made, oldest first. Empty: no published
- * field has been renamed or removed yet.
+ * Every field rename and removal ever made, oldest first.
  *
  * **The versioning rule.** Each distinct `since` is ONE new document version,
  * however many entries share it, so a change of any size is a one-line entry
@@ -713,7 +729,11 @@ export type FieldChange =
  * here, and when an entry names a field that does not add up (a rename to
  * nothing, a removal of a field still published).
  */
-export const FIELD_CHANGES: readonly FieldChange[] = [];
+export const FIELD_CHANGES: readonly FieldChange[] = [
+  // M28 (ADR-054): `booked` is no longer a kind, so there is nothing left to
+  // count. The label is the one the manifest published it under.
+  { kind: "remove", path: "trip.bookedCount", label: "How many stops are booked", since: 5 },
+];
 
 /**
  * The widget params that hold a manifest path, and how many. `attribute` and
@@ -793,7 +813,7 @@ function retokenize(batch: readonly FieldChange[], scope: RepeatScope, template:
 
 // The steps that come before any field change. A future step that is not a
 // field change goes here too, and the next field batch's `since` moves past it.
-const BASE_MIGRATIONS: readonly PageDocMigration[] = [migrateWidgetNames, migrateRepeatTemplates];
+const BASE_MIGRATIONS: readonly PageDocMigration[] = [migrateWidgetNames, migrateRepeatTemplates, migrateRetiredKinds];
 
 /**
  * The migration chain for a given field-change table. The real chain is

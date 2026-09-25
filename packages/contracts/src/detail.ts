@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict.ts";
 import { TripLineage, TripMember, TripStatus } from "./trip.ts";
-import { ActivityKind, ActivityMode, ActivitySnapshot, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
+import { ActivityMode, ActivitySnapshot, StoredActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
 import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
@@ -28,7 +28,7 @@ export const ActivityView = z.object({
   // `.default("planned")` and `.default([])`, and `state.ts` calls "planned"
   // the zero value outright. The read model was the one place that did not
   // apply them.
-  kind: ActivityKind.default("planned"),
+  kind: StoredActivityKind.default("planned"), // a retired kind in an old row reads as its replacement (ADR-054)
   tags: z.array(ActivityTag).default([]),
   cost: Money.nullable(),
   // M13 link 5, added by hand because this model is deliberately not derived —

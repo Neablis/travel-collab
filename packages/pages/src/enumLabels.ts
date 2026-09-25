@@ -4,17 +4,15 @@ import type { ActivityKind, ActivityTag } from "@tc/contracts";
 // (a stop card's badge and tag chips, the stop editor's pickers) and for the
 // notebook (a `field` widget printing `stop.kind`, the widget filter selects,
 // the spend chart's stacks). They lived in `apps/web` until the notebook needed
-// them too; a second copy is how "Holding" on the card becomes "hold" on the page.
+// them too; a second copy is how "Travel" on the card becomes "transit" on the page.
 //
 // Keyed by the contract enums, so a value added there fails to compile here
 // until it has a label.
 
-/** Copy for a kind. `hold` and `transit` are not their own words ("Holding", "Travel"). */
+/** Copy for a kind. `transit` is not its own word ("Travel"). */
 export const KIND_LABEL: Record<ActivityKind, string> = {
   planned: "Planned",
-  idea: "Idea",
-  hold: "Holding",
-  booked: "Booked",
+  pending: "Pending",
   transit: "Travel",
 };
 

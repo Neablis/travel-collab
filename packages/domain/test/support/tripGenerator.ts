@@ -55,7 +55,7 @@ const COSTS = [undefined, null, { amountMinor: 1000, currency: "USD" }, { amount
 // kind/tags must appear in the generated input space, or every property test
 // that folds these commands passes while never once producing either field —
 // green and vacuous. See support/witness.ts for why that is called out.
-const KINDS = [undefined, "planned", "booked", "hold", "idea", "transit"] as const;
+const KINDS = [undefined, "planned", "pending", "transit"] as const;
 const TAGS = [undefined, [], ["meal"], ["lodging", "ticketed"], ["outdoors"]] as const;
 const CURRENCIES = ["USD", "EUR", "GBP"] as const;
 const BUDGETS = [undefined, null, { amountMinor: 100_00, currency: "USD" }, { amountMinor: 500_00, currency: "USD" }] as const;

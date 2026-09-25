@@ -88,10 +88,29 @@ export function describedCollection<T extends z.ZodArray<z.AnyZodObject>>(label:
 export function unwrapSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
   let current = schema;
   for (;;) {
-    const def = current._def as { innerType?: z.ZodTypeAny };
-    if (!def.innerType) return current;
-    current = def.innerType;
+    const inner = wrapped(current);
+    if (inner === undefined) return current;
+    current = inner;
   }
+}
+
+// The schema one wrapper holds, or `undefined` when `schema` wraps nothing.
+//
+// A `z.preprocess` counts as a wrapper: it only rewrites the raw value before
+// the schema it holds judges it, so that schema is still the field's type.
+// `StoredActivityKind` is one (ADR-054, the retired kinds read on the way in),
+// and without this the manifest lost the enum's values for `stop.kind`. Only
+// preprocess: a `.refine` or `.transform` changes what the value means, and
+// looking through one would publish a type the field does not have.
+function wrapped(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
+  const def = schema._def as {
+    innerType?: z.ZodTypeAny;
+    schema?: z.ZodTypeAny;
+    effect?: { type?: string };
+  };
+  if (def.innerType) return def.innerType;
+  if (def.effect?.type === "preprocess" && def.schema) return def.schema;
+  return undefined;
 }
 
 /** The kind `described()` attached, or `undefined` for a bare `.describe()` or a collection. */
@@ -120,9 +139,9 @@ export function annotationOf(schema: object): Annotation | undefined {
   if (own !== undefined) return own;
   let current = schema as z.ZodTypeAny;
   for (;;) {
-    const def = current._def as { innerType?: z.ZodTypeAny } | undefined;
-    if (!def?.innerType) return undefined;
-    current = def.innerType;
+    const inner = current._def === undefined ? undefined : wrapped(current);
+    if (inner === undefined) return undefined;
+    current = inner;
     const note = ANNOTATIONS.get(current);
     if (note !== undefined) return note;
   }

@@ -95,7 +95,7 @@ describe("narrow — what a filter selects (ADR-039 decisions 1 and 2)", () => {
     // `tag` and `kind` are about a day's CONTENTS. `day.detail{kind: booked}`
     // needs the days to still be there so it can decide which to keep.
     const { trip, globals } = selectionTrip();
-    const booked = selected(trip, globals, { kind: "booked" });
+    const booked = selected(trip, globals, { kind: "pending" });
     expect(titles(booked)).toEqual(["Colosseum", "Ryokan"]);
     expect(booked.days).toEqual([0, 1, 2]);
     expect(booked.contentNarrowed).toBe(true);
@@ -105,7 +105,7 @@ describe("narrow — what a filter selects (ADR-039 decisions 1 and 2)", () => {
 
   it("combines dimensions rather than letting the last one win", () => {
     const { trip, globals } = selectionTrip();
-    const bookedInRome = selected(trip, globals, { city: "Rome", kind: "booked" });
+    const bookedInRome = selected(trip, globals, { city: "Rome", kind: "pending" });
     expect(titles(bookedInRome)).toEqual(["Colosseum"]);
   });
 
@@ -154,7 +154,7 @@ describe("narrow — every dimension means something (KI-2026-09-05-h)", () => {
     day: { kind: "index", index: 0 },
     city: "Rome",
     tag: "meal",
-    kind: "hold",
+    kind: "transit",
     person: "dev-alice",
     dates: { from: "2027-06-01", through: "2027-06-01" },
   };

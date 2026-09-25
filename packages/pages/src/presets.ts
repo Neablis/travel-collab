@@ -81,8 +81,8 @@ export function presetWidgets(preset: WidgetPreset): readonly string[] {
  * by keyword.
  *
  * What is here that no widget covered before: `count`, `city.detail`, and the
- * two filtered rows §4 asks for by name — *how many stops are booked* and
- * *everything on a day, booked only*.
+ * filtered row §4 asks for by name, *how many stops are booked* — which
+ * counts `pending` since M28 retired `booked` (ADR-054).
  */
 export const PRESETS: readonly WidgetPreset[] = [
   // ---- one value, in a sentence -----------------------------------------
@@ -102,13 +102,15 @@ export const PRESETS: readonly WidgetPreset[] = [
     keywords: ["number", "count", "how many", "stops", "activities"],
   },
   {
-    id: "count.booked",
+    // Was `count.booked` until M28 retired `booked` (ADR-054). A preset is
+    // never stored (ADR-039 decision 9), so the swap migrates nothing.
+    id: "count.pending",
     widget: "count",
-    params: { kind: "booked" },
-    title: "How many are booked",
-    keywords: ["number", "count", "booked", "confirmed", "reserved", "progress"],
-    description: "How many stops are booked. Point it at a day for that day's.",
-    preview: "how many of them are booked",
+    params: { kind: "pending" },
+    title: "How many are still to book",
+    keywords: ["number", "count", "pending", "to book", "unbooked", "outstanding", "progress"],
+    description: "How many stops are still pending. Point it at a day for that day's.",
+    preview: "how many of them are still to book",
   },
   {
     id: "count.days",
@@ -245,15 +247,6 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "every stop, day by day — or one day, if you point it at one",
   },
   {
-    id: "day.detail.booked",
-    widget: "day.detail",
-    params: { kind: "booked" },
-    title: "The days, bookings only",
-    keywords: ["itinerary", "booked", "confirmed", "reservations", "day", "days"],
-    description: "The booked stops on each day, skipping the days with none.",
-    preview: "each day's bookings, and nothing else",
-  },
-  {
     id: "city.detail",
     widget: "city.detail",
     params: {},
@@ -283,8 +276,10 @@ export const PRESETS: readonly WidgetPreset[] = [
   // for 'A line for every....'?"*. It inserts `day.rows`, the first choice the
   // settings panel's "Lines for each" picker offers, and the picker moves it to
   // `stop.rows` or `city.rows` (`rescopeRows`). The document still names the
-  // primitive, so nothing stored changes. "A line for every booking" and
-  // "Still to book" stay rows of their own: each is a filter worth naming.
+  // primitive, so nothing stored changes. "Still to book" stays a row of its
+  // own: it is a filter worth naming. ("A line for every booking" was one too,
+  // until M28 retired `booked`; its old widget name now finds this row and
+  // "Still to book".)
   {
     id: "line",
     widget: "day.rows",
@@ -299,15 +294,6 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "one line per day, stop or city",
   },
   {
-    id: "booking.line",
-    widget: "stop.rows",
-    params: { kind: "booked" },
-    title: "A line for every booking",
-    keywords: ["booking", "bookings", "booked", "confirmed", "hotel", "flight", "reservation"],
-    description: "One line per booked stop: when it is, and what it cost.",
-    preview: "one line per booking, with its time and cost",
-  },
-  {
     // M14 link 11. Reads `needsBooking` — the rule the Calendar's `N to book`
     // flag and the home hero already share — through `stop.rows`' `only`
     // param, so the widget cannot come to disagree with them about which
@@ -316,9 +302,8 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "stop.rows",
     params: { only: "needsBooking" },
     title: "Still to book",
-    keywords: ["book", "booking", "to book", "unbooked", "outstanding", "todo", "reserve", "tickets", "hold", "idea"],
-    description:
-      "One line per stop that still needs booking: holds, ideas, and ticketed stops nobody has booked yet.",
+    keywords: ["book", "booking", "bookings", "to book", "unbooked", "outstanding", "todo", "reserve", "tickets", "pending"],
+    description: "One line per stop that still needs booking — every stop marked Pending.",
     // Fixed, never computed (ADR-037 decision 5): no count, no names.
     preview: "one line per stop you still have to book",
   },
@@ -453,8 +438,9 @@ export function insertPreset(id: string, extra: unknown = {}): PresetInsertResul
   if (!preset) return { ok: false, error: { reason: "unknown-widget", name: id } };
   // **A non-record override is a caller error, not "no override".**
   // `{ ...preset.params, ...null }` is a silent no-op in JS, so
-  // `insertPreset("booking.line", null)` handed `insertWidget` the preset's own
-  // `{ kind: "booked" }` and came back `ok` — the caller's input discarded by
+  // `insertPreset("booking.line", null)` (a preset M28 retired) handed
+  // `insertWidget` the preset's own `{ kind: "booked" }` and came back `ok` —
+  // the caller's input discarded by
   // the one path whose whole job is to refuse bad input.
   //
   // This is the SAME hole `insertWidget` already closed one layer down, where
@@ -537,16 +523,24 @@ const RETIRED_NAMES_BY_PRESET: Record<string, string[]> = {};
 for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
   const onPrimitive = PRESETS.filter((preset) => presetWidgets(preset).includes(step.name) && !preset.repeat);
   const exact = onPrimitive.filter((preset) => paramsKey(preset.params) === paramsKey(step.set ?? {}));
-  for (const preset of exact.length > 0 ? exact : onPrimitive) {
+  // A name that carried a filter, with no preset that IS that combination any
+  // more, goes to the filtered presets on its primitive — never to the
+  // unfiltered one, which is the over-grouping above. `booking.line` is the
+  // case: it meant `kind: "booked"`, which M28 retired (ADR-054), and "Still to
+  // book" is the filtered row left on `stop.rows`, so `/booking` still finds
+  // something (§6) without also finding "A line for each…".
+  const filtered = onPrimitive.filter((preset) => Object.keys(preset.params).length > 0);
+  const matches = exact.length > 0 ? exact : step.set !== undefined && filtered.length > 0 ? filtered : onPrimitive;
+  for (const preset of matches) {
     (RETIRED_NAMES_BY_PRESET[preset.id] ??= []).push(retired);
   }
 }
 
 /**
  * **The controls a preset offers: the ones its name does not already answer.**
- * A preset that fixes `kind: "booked"` is "a line for every booking"; offering
- * a kind select beside it invites the author to turn it into something its own
- * title contradicts. The dimension is still there — clearing the preset's
+ * A preset that fixes `kind: "pending"` is "how many are still to book";
+ * offering a kind select beside it invites the author to turn it into something
+ * its own title contradicts. The dimension is still there — clearing the preset's
  * filter is what the general widget is for — but the row a person picked by
  * name should not immediately offer to unpick it.
  *
