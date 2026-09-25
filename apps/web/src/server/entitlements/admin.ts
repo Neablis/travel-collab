@@ -38,6 +38,9 @@ import {
 import { priceConsistencyReport, type PriceConsistencyReport } from "@/server/billing/prices";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
+/** One active grant, as `activeGrantHolders` reads it. */
+type GrantHolder = Awaited<ReturnType<typeof activeGrantHolders>>[number];
+
 /**
  * **The STORED fact, about any account.** Never consults the flag.
  *
@@ -193,7 +196,14 @@ function median(values: readonly number[]): number | null {
  * what it holds and what it was granted are two different facts, and the grant
  * counts below are where the second one is answered.
  */
-export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]> {
+export async function planPanel(
+  now: Date = new Date(),
+  trailing?: readonly AccountCost[],
+): Promise<PlanPanelRow[]> {
+  // `trailing` is the overview's one ledger read, handed down so this panel is
+  // computed over the same rows as every other (see `adminOverview`). Read here
+  // only when the panel is asked for on its own.
+  const ledger = trailing ?? (await adminCostPerAccount(now));
   // Grouped by (plan, version) in ONE query rather than by plan: the design
   // wants a hold count against each published version, and the plan total is
   // the sum of those — deriving it the other way round would need a second
@@ -207,11 +217,11 @@ export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]>
       })
       .from(users)
       .groupBy(users.planId, users.planVersion),
-    costByPlan(now),
+    costByPlan(ledger),
     // Billing prices the revenue half; the cost it is compared against is this
-    // module's ledger, read here and handed across (ADR-047 decision 1, as
+    // module's ledger, read once and handed across (ADR-047 decision 1, as
     // amended 2026-09-25 — Billing reads no ledger).
-    adminCostPerAccount(now).then((trailing) => revenueByPlan(trailing, now)),
+    revenueByPlan(ledger, now),
   ]);
 
   const planIds = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))];
@@ -251,11 +261,8 @@ export async function planPanel(now: Date = new Date()): Promise<PlanPanelRow[]>
  * pulls every median to zero and tells you nothing. This is the same
  * null-is-not-zero rule `microUsdFor` follows, one level up.
  */
-async function costByPlan(now: Date): Promise<Map<PlanId, number[]>> {
-  const [holders, costs] = await Promise.all([
-    db.select({ id: users.id, planId: users.planId }).from(users),
-    costPerAccount(trailingWindowStart(now)),
-  ]);
+async function costByPlan(costs: readonly AccountCost[]): Promise<Map<PlanId, number[]>> {
+  const holders = await db.select({ id: users.id, planId: users.planId }).from(users);
   const planOf = new Map(holders.map((row) => [row.id, row.planId]));
   const byPlan = new Map<PlanId, number[]>();
   for (const cost of costs) {
@@ -314,8 +321,14 @@ export interface GrantSourceRow {
  * not "how does this total decompose". Summing the column would double-count,
  * and the design never sums it.
  */
-export async function grantSourcePanel(now: Date = new Date()): Promise<GrantSourceRow[]> {
-  const [rows, costs] = await Promise.all([activeGrantHolders(now), costPerAccount(trailingWindowStart(now))]);
+export async function grantSourcePanel(
+  now: Date = new Date(),
+  reads?: { trailing: readonly AccountCost[]; holders: readonly GrantHolder[] },
+): Promise<GrantSourceRow[]> {
+  // The overview's one read of each, when it hands them down (see `adminOverview`).
+  const [rows, costs] = reads
+    ? [reads.holders, reads.trailing]
+    : await Promise.all([activeGrantHolders(now), adminCostPerAccount(now)]);
 
   const costOf = new Map(costs.map((cost) => [cost.userId, cost.microUsd]));
   const holders = new Map<string, Set<string>>();
@@ -399,6 +412,7 @@ export interface AdminAccountRow {
 export async function adminAccounts(
   limit = 100,
   now: Date = new Date(),
+  trailing?: readonly AccountCost[],
 ): Promise<AdminAccountRow[]> {
   const since = trailingWindowStart(now);
   const [rows, costs, counts] = await Promise.all([
@@ -407,7 +421,8 @@ export async function adminAccounts(
       .from(users)
       .orderBy(desc(users.createdAt))
       .limit(limit),
-    costPerAccount(since),
+    // The overview's one ledger read, when it hands it down (see `adminOverview`).
+    trailing ?? costPerAccount(since),
     requestCounts(since),
   ]);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
@@ -447,9 +462,17 @@ export async function adminAccounts(
   );
 }
 
-/** **The top spenders** (gate box), over the trailing window. */
-export async function adminTopSpenders(n = 10, now: Date = new Date()): Promise<AccountCost[]> {
-  return topSpenders(trailingWindowStart(now), n);
+/**
+ * **The top spenders** (gate box), over the trailing window. Given the
+ * overview's `trailing` read it ranks that instead of reading again — it is the
+ * same list `topSpenders` would build, already sorted by cost.
+ */
+export async function adminTopSpenders(
+  n = 10,
+  now: Date = new Date(),
+  trailing?: readonly AccountCost[],
+): Promise<AccountCost[]> {
+  return trailing ? trailing.slice(0, n) : topSpenders(trailingWindowStart(now), n);
 }
 
 /** **Cost per account over a trailing window** (gate box). */
@@ -477,22 +500,23 @@ export interface AdminOverview {
   prices: PriceConsistencyReport;
 }
 
+/** Every panel of the operator console, computed over one read of the ledger. */
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
-  // One read of the trailing cost for both revenue reports, so the summary and
-  // the underwater list are computed over the same rows. The grant holders are
-  // read here too: Billing takes both as arguments rather than reading
-  // Entitlements' tables (ADR-047's 2026-09-25 amendment).
-  const trailing = adminCostPerAccount(now);
-  const holders = activeGrantHolders(now);
+  // **One read of the trailing cost and one of the grant holders, for every
+  // panel.** Each panel used to read its own — six `costPerAccount`s and two
+  // `activeGrantHolders` per page — so a request logged between two of them
+  // counted in some panels and not others, and the page could disagree with
+  // itself (PR #234 review). Billing takes both as arguments rather than
+  // reading Entitlements' tables (ADR-047's 2026-09-25 amendment).
+  // `adminOverview.int.test.ts` pins one read of each.
+  const [trailing, holders] = await Promise.all([adminCostPerAccount(now), activeGrantHolders(now)]);
   const [plans, grantSources, accounts, spenders, revenue, underwater, prices] = await Promise.all([
-    planPanel(now),
-    grantSourcePanel(now),
-    adminAccounts(100, now),
-    adminTopSpenders(10, now),
-    trailing.then((costs) => revenueSummary(TRAILING_WINDOW_DAYS, costs, now)),
-    Promise.all([trailing, holders]).then(([costs, grants]) =>
-      underwaterReport(TRAILING_WINDOW_DAYS, costs, grants, now),
-    ),
+    planPanel(now, trailing),
+    grantSourcePanel(now, { trailing, holders }),
+    adminAccounts(100, now, trailing),
+    adminTopSpenders(10, now, trailing),
+    revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
+    underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
     priceConsistencyReport(),
   ]);
   return {

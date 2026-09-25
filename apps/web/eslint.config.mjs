@@ -586,7 +586,8 @@ export default [
     // recommended rules ship at "warn", and `eslint` exits 0 on warnings — so
     // `pnpm lint` is green and `pnpm check` is green while the rule reports.
     // A wall that does not fail the build is a suggestion. `no-wait-for-timeout`
-    // is in that warn set, and at error it IS the sleep wall: the standalone
+    // is in that warn set, and at error it is half the sleep wall (the other
+    // half, for pages not named `page`, is the next block): the standalone
     // `scripts/check-sleep-wall.mjs` this repo built because guidance alone did
     // not hold it three times became a duplicate once this block existed, and
     // was deleted (KI-2026-09-05-w item 4). `check-lint-wall.mjs` fixtures it.
@@ -596,6 +597,31 @@ export default [
         Array.isArray(setting) ? ["error", ...setting.slice(1)] : "error",
       ]),
     ),
+  },
+  {
+    // THE SLEEP WALL's other half. `playwright/no-wait-for-timeout` only fires
+    // when the receiver is NAMED like a page — it matches
+    // `/(^(page|frame)|(Page|Frame)$)/` — and the multi-user specs name theirs
+    // `bob`, `finder`, `reader`, `visitor`. `await bob.waitForTimeout(500)`
+    // linted clean after the standalone script was deleted (PR #234 review).
+    // This catches the property on ANY object. On `page.waitForTimeout` both
+    // rules fire, so an exemption there names both.
+    //
+    // Nothing else in this file sets `no-restricted-properties`. Flat config
+    // REPLACES a rule's options rather than merging them, so a later block that
+    // adds one for `e2e/**` must merge this entry into it, or it silently
+    // switches this off — `check-lint-wall.mjs` fixtures `bob.waitForTimeout`.
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          property: "waitForTimeout",
+          message:
+            "No sleeps in e2e: wait for the event instead (a locator, a response, a URL). Exempt only in writing, naming every rule that fires: `// eslint-disable-next-line no-restricted-properties -- <reason>` (add `playwright/no-wait-for-timeout, ` first when the receiver is named like a page).",
+        },
+      ],
+    },
   },
   {
     // No automated test talks to a real third party (Mitchell, 2026-09-24).

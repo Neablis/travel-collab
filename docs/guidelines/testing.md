@@ -113,10 +113,17 @@ Do not relearn these by failing `pnpm lint`:
 - **Never assert presentation.** `toHaveClass` and `expect(x.className)` are
   errors outside `src/components/ui/**`, where a primitive mapping a variant
   onto a token class genuinely has nothing else to assert.
-- **No sleeping in e2e.** `waitForTimeout` is an error
-  (`playwright/no-wait-for-timeout`, fixtured in `scripts/check-lint-wall.mjs`).
-  A wait with genuinely no event to hang off is exempted at the sleep, with a
-  reason: `// eslint-disable-next-line playwright/no-wait-for-timeout -- <why>`.
+- **No sleeping in e2e.** `waitForTimeout` is an error on any object:
+  `no-restricted-properties` catches every receiver, and
+  `playwright/no-wait-for-timeout` also fires when the receiver is named like a
+  page (`page`, `frame`, `…Page`, `…Frame`), but not on `bob` or `visitor`.
+  Both are fixtured in `scripts/check-lint-wall.mjs`. A wait with genuinely no
+  event to hang off is exempted at the sleep, with a reason, naming the rules
+  that fire: `// eslint-disable-next-line no-restricted-properties -- <why>`
+  on `bob.waitForTimeout`, and
+  `// eslint-disable-next-line playwright/no-wait-for-timeout, no-restricted-properties -- <why>`
+  on `page.waitForTimeout`. Naming a rule that did not fire is itself an error
+  (`reportUnusedDisableDirectives`).
 - **`eslint-plugin-testing-library` and `eslint-plugin-playwright`** are on, as
   errors: no `container.querySelector`, no reaching into nodes, `findBy*` over
   `waitFor` + `getBy*`, no `screen.debug()` left behind.

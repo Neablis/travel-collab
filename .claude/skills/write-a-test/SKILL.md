@@ -69,8 +69,9 @@ skipped.**
 
 Do not discover these by failing `pnpm lint`: no `toHaveClass` outside
 `src/components/ui/**`; no `container.querySelector` or node traversal; no
-`waitForTimeout` (`playwright/no-wait-for-timeout`; exempt only with a
-`-- <reason>` on the disable comment); `findBy*` over
+`waitForTimeout` on any object (`no-restricted-properties`, plus
+`playwright/no-wait-for-timeout` when the receiver is named like a page; exempt
+only with a `-- <reason>` on a disable comment naming the rules that fire); `findBy*` over
 `waitFor` + `getBy*`; no `screen.debug()` left in. And **never copy a
 `KI-2026-09-02-b` disable comment into new code** — those are grandfathered
 violations, not examples.

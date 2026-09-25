@@ -260,6 +260,8 @@ describe("GET /api/playbooks/profile/:userId", () => {
       // somebody who HAS shared" below.
       displayName: "A traveler",
       playbooksShared: 0,
+      // The deprecated alias (`server/playbookWireAliases.ts`) — goes with it.
+      daysShared: 0,
       adds: 0,
       reviewsReceived: 0,
       averageRating: null,
@@ -353,6 +355,33 @@ describe("GET /api/playbooks/profile/:userId", () => {
     const seen = await profile(SEQUENCE);
     expect(seen.days.map((d) => d.dayCount)).toEqual([3]);
     expect(seen.author.playbooksShared).toBe(1);
+  });
+});
+
+// Version skew across the KI-2026-09-19-c / KI-2026-09-25-a renames. A tab
+// still on the previous bundle parses these bodies with schemas that REQUIRE
+// `daysShared` and `sharedDayCount`; without them every one of these reads
+// fails until reload. So for one release each route sends the old key beside
+// the new one, same value. Delete this block with `playbookWireAliases.ts`.
+describe("deprecated wire aliases (remove after the next deploy)", () => {
+  it("sends the old key beside the new one, with the same value, on all three reads", async () => {
+    currentUserId = TAKER;
+
+    const onBoard = (await board()).body.authors.find((a) => a.userId === POPULAR) as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(onBoard.playbooksShared).toBe(2);
+    expect(onBoard.daysShared).toBe(onBoard.playbooksShared);
+
+    const author = (await profile(POPULAR)).author as unknown as Record<string, unknown>;
+    expect(author.playbooksShared).toBe(2);
+    expect(author.daysShared).toBe(author.playbooksShared);
+
+    const res = await DISCOVER(new Request(`http://test/api/playbooks?city=${CITY}`));
+    const feed = (await res.json()) as Record<string, unknown>;
+    expect(feed.sharedPlaybookCount).toBeGreaterThan(0);
+    expect(feed.sharedDayCount).toBe(feed.sharedPlaybookCount);
   });
 });
 

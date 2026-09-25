@@ -3,7 +3,9 @@
 // stub, and its success by a manual walkthrough on a Vercel preview — never by
 // a test that dials out. This module is the unit and integration lanes' half of
 // enforcing that: any request to a host that is not this machine fails, loudly,
-// naming where it was going.
+// naming where it was going. The one exception is at the socket layer: the host
+// `DATABASE_URL` names, which is the lane's own Postgres even when that is
+// `db` or `host.docker.internal` rather than `localhost`.
 //
 // **Why it has to be enforced rather than remembered.** The integration lane
 // loads `.env.local`, which on a developer machine carries real LocationIQ,
@@ -52,12 +54,48 @@ const GUARDED = Symbol.for("travel-collab.networkGuard");
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
 
 /**
- * Any subdomain of `localhost` is loopback (RFC 6761 §6.3), and both Chromium
- * and Node's resolver answer it that way. Matched on the dot, so
- * `localhost.example.com` and `notlocalhost` stay third parties.
+ * True for a name or address that is this machine. Any subdomain of
+ * `localhost` is loopback (RFC 6761 §6.3), and both Chromium and Node's
+ * resolver answer it that way; it is matched on the dot, so
+ * `localhost.example.com` and `notlocalhost` stay third parties. All of
+ * 127.0.0.0/8 is loopback, not only `127.0.0.1`: Debian-family hosts map their
+ * own hostname to `127.0.1.1`.
  */
 function isLocalHostname(hostname: string): boolean {
-  return LOCAL_HOSTNAMES.has(hostname) || hostname.endsWith(".localhost");
+  return (
+    LOCAL_HOSTNAMES.has(hostname) ||
+    hostname.endsWith(".localhost") ||
+    (net.isIPv4(hostname) && hostname.startsWith("127."))
+  );
+}
+
+/**
+ * The host `DATABASE_URL` names, or undefined when it is unset or unparseable.
+ * Read per call, not at install, because the integration lane's
+ * `with-test-db.mjs` and `vi.stubEnv` both set it after this module loads.
+ */
+function databaseHost(): string | undefined {
+  const url = process.env.DATABASE_URL;
+  if (!url) return undefined;
+  try {
+    return new URL(url).hostname || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * True when a socket may connect to `host`: this machine, or the database the
+ * lane was told to use. That database is often not `localhost` — `db:5432` or
+ * `postgres` in a container, `host.docker.internal` on Docker Desktop — and it
+ * is the lane's own infrastructure, not a third party. The fetch guard does not
+ * use this: nothing talks HTTP to Postgres.
+ */
+export function isAllowedSocketHost(host: string): boolean {
+  if (isLocalHostname(host)) return true;
+  const database = databaseHost();
+  // `URL` keeps an IPv6 literal bracketed; a connect call is given it bare.
+  return database !== undefined && (database === host || database === `[${host}]`);
 }
 
 /** The origin a relative URL resolves against: jsdom's `location`, else localhost. */
@@ -85,7 +123,7 @@ export function blockedRequestMessage(url: string): string {
 
 /**
  * True when `url` (absolute, or relative to the current page) names this
- * machine: `localhost` or any `*.localhost`, `127.0.0.1`, `0.0.0.0` or `::1`.
+ * machine: `localhost` or any `*.localhost`, 127.0.0.0/8, `0.0.0.0` or `::1`.
  * Anything unparseable is treated as local so the underlying `fetch` reports
  * its own error for it.
  */
@@ -152,10 +190,10 @@ export function connectTarget(args: readonly unknown[]): { host: string; port?: 
 
 /**
  * Patches `net.Socket.prototype.connect` so a connection to anything other
- * than this machine is destroyed with {@link blockedRequestMessage} before it
- * is attempted — no DNS lookup, no packet. Local hosts and Unix sockets
- * (Postgres, the app under test) connect as normal.
- * Idempotent.
+ * than this machine or the database is destroyed with
+ * {@link blockedRequestMessage} before it is attempted — no DNS lookup, no
+ * packet. Local hosts, Unix sockets, and whatever host `DATABASE_URL` names
+ * (see {@link isAllowedSocketHost}) connect as normal. Idempotent.
  */
 export function installSocketGuard(): void {
   const proto = net.Socket.prototype as net.Socket & { [GUARDED]?: boolean };
@@ -163,7 +201,7 @@ export function installSocketGuard(): void {
   const original = proto.connect;
   proto.connect = function guardedConnect(this: net.Socket, ...args: ConnectArgs) {
     const target = connectTarget(args);
-    if (target && !isLocalHostname(target.host)) {
+    if (target && !isAllowedSocketHost(target.host)) {
       const where = target.port === undefined ? target.host : `${target.host}:${target.port}`;
       const error = new Error(blockedRequestMessage(where));
       // Also said out loud, because the socket error is not always what a

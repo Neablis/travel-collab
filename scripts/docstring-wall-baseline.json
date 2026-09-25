@@ -342,7 +342,6 @@
   "apps/web/src/server/commands.ts::executeTripCommandBatch",
   "apps/web/src/server/conflictContext.ts::serverConflictContext",
   "apps/web/src/server/entitlements/accountPlan.ts::accountPlanView",
-  "apps/web/src/server/entitlements/admin.ts::adminOverview",
   "apps/web/src/server/entitlements/admin.ts::trailingWindowStart",
   "apps/web/src/server/eventStore.ts::appendToStream",
   "apps/web/src/server/eventStore.ts::readAll",

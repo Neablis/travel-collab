@@ -587,8 +587,9 @@ expectRejectedBy(
 // `e2e/**` it was a second copy of one rule with a second exemption spelling,
 // and was deleted (KI-2026-09-05-w item 4). This fixture is what keeps the rule
 // from being switched off silently in its place. A wait with genuinely no event
-// to hang off is exempted in writing, at the sleep:
-// `// eslint-disable-next-line playwright/no-wait-for-timeout -- <reason>`.
+// to hang off is exempted in writing, at the sleep, naming the rules that fire:
+// `// eslint-disable-next-line playwright/no-wait-for-timeout, no-restricted-properties -- <reason>`
+// on `page.waitForTimeout`, just `no-restricted-properties` on `bob.waitForTimeout`.
 expectRejectedBy(
   lintFixture(
     "sleep_wall_fixture",
@@ -599,6 +600,24 @@ expectRejectedBy(
   ),
   "playwright/no-wait-for-timeout",
   "sleep wall: waitForTimeout in an e2e spec correctly rejected",
+);
+
+// ...and on a page NOT named like one. The plugin rule above only matches a
+// receiver called `page`/`frame`/`…Page`/`…Frame`, and the multi-user specs
+// call theirs `bob`, `finder`, `reader`, `visitor` — so `bob.waitForTimeout`
+// linted clean once `check-sleep-wall.mjs` was gone (PR #234 review). The
+// `no-restricted-properties` block in eslint.config.mjs closes that; this is
+// what stops it being replaced away by a later block setting the same rule.
+expectRejectedBy(
+  lintFixture(
+    "sleep_wall_named_page_fixture",
+    'import { test, expect } from "@playwright/test";\n\n' +
+      'test("fixture", async ({ browser }) => {\n  const bob = await browser.newPage();\n' +
+      '  await bob.waitForTimeout(1);\n  await expect(bob).toHaveTitle("x");\n});\n',
+    { dir: "e2e", ext: "ts" },
+  ),
+  "no-restricted-properties",
+  "sleep wall: waitForTimeout on a page not named `page` correctly rejected",
 );
 
 // THE FETCH WALL (KI-2026-09-05-q): UI code reaches the app's API through the
