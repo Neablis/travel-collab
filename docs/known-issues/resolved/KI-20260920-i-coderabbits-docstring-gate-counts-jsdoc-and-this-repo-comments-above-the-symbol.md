@@ -1,4 +1,4 @@
-### KI-2026-09-20-i — CodeRabbit's docstring pre-merge check counts JSDoc, and much of this repo explains itself in `//` above the symbol instead
+### KI-2026-09-20-i — CodeRabbit's docstring pre-merge check counts JSDoc, and much of this repo explains itself in `//` above the symbol instead — RESOLVED
 
 - **Severity:** process friction, not a defect. It fails a pre-merge check as a
   ⚠️ warning; nothing is broken and nothing is blocked.
@@ -79,3 +79,4 @@
   the guideline says why in this entry's own words — converting them *"for a
   number rather than for a reader"* would make those files internally
   inconsistent. `//` above the symbol is not deprecated; it is given a place.
+- **Closed 2026-09-25 (overnight sweep, validation):** the complaint was that the check was a meaningless red row, pending a decision, and that no longer holds. The decision exists and is implemented, all verified first-hand. `.coderabbit.yaml:75-77` names `reviews.pre_merge_checks.docstrings` explicitly (`mode: warning`, `threshold: 80`). `docs/guidelines/commenting.md` is the rule the check scores against. `scripts/check-docstring-wall.mjs` runs in `pnpm lint` (`package.json:22`), and running it now prints `docstring wall OK (656 files, 1260 exported functions/classes, 65.5% documented, 435 grandfathered)`. What is left is the backlog of undocumented symbols, and **KI-2026-09-22-a** carries it; this entry said at 2026-09-23 that its own complaint closes here. Landed with the 2026-09-23 JSDoc work (`d9c3b8c`, #203).
