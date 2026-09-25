@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
+import type { ZodIssue } from "zod";
 import {
   SavedDayAuthorKind,
   SavedDayVisibility,
@@ -178,6 +179,21 @@ export function captureDays(
 }
 
 /**
+ * What a refused `SavedDaySequence` answers with. A travel leg on a stop that is
+ * not transit (M24) is a rule the caller broke and can fix in one stop, so it
+ * is named, with the stop's index, in the contract's own words. Every other
+ * refusal keeps the bare sentence it always had; its detail is in the log.
+ */
+function sequenceRefusal(issues: readonly ZodIssue[], sentence: string): string {
+  const legs = issues.filter(
+    (issue) =>
+      issue.code === "custom" && issue.path.length === 2 && (issue.path[1] === "mode" || issue.path[1] === "endLocation"),
+  );
+  if (legs.length === 0) return `${sentence}.`;
+  return `${sentence}: ${legs.map((issue) => `${issue.message} (stop ${issue.path[0]})`).join("; ")}.`;
+}
+
+/**
  * Validate a sequence and insert it as a new `saved_days` row — every write of
  * a new Playbook by a person goes through here, whether its stops came from a
  * trip or from the request body.
@@ -233,7 +249,10 @@ export async function storeSavedDay(input: {
       ...input.context,
       issues: validated.error.issues,
     });
-    return { ok: false, error: { code: "invalid", message: "This day cannot be saved." } };
+    return {
+      ok: false,
+      error: { code: "invalid", message: sequenceRefusal(validated.error.issues, "This day cannot be saved") },
+    };
   }
   const row = newSavedDayRow({
     ownerId: input.ownerId,
@@ -721,7 +740,7 @@ export async function updatePlaybookContent(
         savedDayId,
         issues: validated.error.issues,
       });
-      return { ok: false, reason: "invalid", message: "These days cannot be saved." };
+      return { ok: false, reason: "invalid", message: sequenceRefusal(validated.error.issues, "These days cannot be saved") };
     }
     Object.assign(set, sequenceColumns(validated.data, edit.days.dayCount));
   }

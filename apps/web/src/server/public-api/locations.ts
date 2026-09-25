@@ -1,4 +1,4 @@
-import type { GeocodeOutcome, Location } from "@tc/contracts";
+import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, type GeocodeOutcome, type Location } from "@tc/contracts";
 import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult } from "@/server/geocoding";
 import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 
@@ -49,6 +49,43 @@ export const GEOCODE_OUTCOME_DOC =
  */
 export const GEOCODE_OUTCOME_END_DOC =
   "Present when the body carried an `endLocation`. The same values as Geocode-Outcome, for that place.";
+
+/**
+ * Resolve the places a stop write carries — `location` and a transit stop's
+ * `endLocation` — and answer each in its own header. Shared by `POST` and
+ * `PATCH /activities` so the two cannot resolve them differently.
+ *
+ * Only a place the caller actually sent is resolved: absent leaves the stop
+ * alone and `null` clears it, and neither is a place to look up, so neither
+ * spends a geocode or sets a header. The two lookups are independent, so they
+ * run concurrently.
+ *
+ * The caller refuses whatever the body alone can refuse first — a header is set
+ * here because a lookup was paid for, and one that was never needed should not
+ * have been.
+ */
+export async function resolveStopPlaces<T extends { location?: Location | null; endLocation?: Location | null }>(
+  stop: T,
+  ctx: { userId: string; region: BoundingBox | null },
+  responseHeaders: Headers,
+  deps: ResolveDeps = defaultResolveDeps,
+): Promise<T> {
+  const resolve = async (place: Location | null | undefined, header: string) => {
+    if (place == null) return place;
+    const resolved = await resolveStopLocation(place, ctx, deps);
+    responseHeaders.set(header, resolved.outcome);
+    return resolved.location;
+  };
+  const [location, endLocation] = await Promise.all([
+    resolve(stop.location, GEOCODE_OUTCOME_HEADER),
+    resolve(stop.endLocation, GEOCODE_OUTCOME_END_HEADER),
+  ]);
+  return {
+    ...stop,
+    ...(location != null ? { location } : {}),
+    ...(endLocation != null ? { endLocation } : {}),
+  };
+}
 
 export async function resolveStopLocation(
   input: Location,

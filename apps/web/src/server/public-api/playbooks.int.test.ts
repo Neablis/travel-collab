@@ -486,6 +486,18 @@ describe("POST /v1/playbooks written inline", () => {
     }
     expect(await db.select().from(savedDays).where(eq(savedDays.ownerId, owner))).toEqual([]);
   });
+
+  it("refuses a travel leg on a non-transit stop, naming the rule", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const res = await keep(secret, {
+      name: "Unwritable",
+      days: [{ stops: [inlineStop("Walk", { endLocation: { name: "Castle" } })] }],
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toContain("endLocation is only allowed on a transit stop");
+    expect(await db.select().from(savedDays).where(eq(savedDays.ownerId, owner))).toEqual([]);
+  });
 });
 
 describe("PATCH /v1/playbooks/{playbookId}", () => {
@@ -567,6 +579,21 @@ describe("PATCH /v1/playbooks/{playbookId}", () => {
       .from(savedDays)
       .where(eq(savedDays.id, playbook.savedDayId));
     expect(row!.countries).toEqual(["IT"]);
+  });
+
+  // M24. `SavedDaySequence` refuses a travel leg on a non-transit stop; the
+  // caller is told which rule it broke, not only that the days were refused.
+  it("refuses days holding a travel leg on a non-transit stop, naming the rule", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const playbook = await kyotoPlaybook(secret);
+
+    const res = await patch(secret, playbook.savedDayId, {
+      days: [{ stops: [inlineStop("Walk", { mode: "walk" })] }],
+      expectedVersion: 1,
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toContain("mode is only allowed on a transit stop");
   });
 
   it("requires expectedVersion for content, and at least one field", async () => {
