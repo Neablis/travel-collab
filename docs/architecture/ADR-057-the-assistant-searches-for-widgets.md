@@ -95,3 +95,19 @@ model they existed.
 3. **The ranking is a guess at what people type**, measured against titles and a handful of
    requests. The `ai.ask` records (the `ai-usage` skill) would show real `search_widgets`
    queries and whether the first match is the one inserted.
+
+## Amendment — 2026-09-26, the same day (ADR-058)
+
+A live page turn on #251's preview read every day of a fourteen-day trip, passed
+`tag: ["meal"]` to every widget, and had each one refused while telling the user it had added
+them (`KI-2026-09-26-r`). The search this ADR added contributed: `filterValues.tag` was the
+tag vocabulary as a JSON array, which read as "pass a list". Three changes to the decisions above:
+
+- **Decision 4's spellings gain a fourth.** A single-valued filter (`day`, `tags`, `city`,
+  `kind`) given a one-element list is that value; a longer list is refused at the call, in words.
+  `filterValues` now says "ONE of …" as a sentence.
+- **The page turn's inserts are judged per node**, not as one batch. One refused node no longer
+  costs the rest, and every insert that did not land is named to the user and on `ai.ask`.
+- **The page turn's instruction and tool set are per intent** (`compose` or `question`), and a
+  compose turn no longer holds `read_day`, `find_free_time` or `search_playbooks`. The
+  measurements and the table are ADR-058's.

@@ -32,6 +32,8 @@ finishReason,
 usage {inputTokens, outputTokens, totalTokens},
 usageByStep: [{inputTokens, outputTokens, totalTokens}],
 droppedCalls: [{type, code, refs, message}],  // no-op drops already filtered out
+droppedInserts: [{name, reason}],  // a page turn's inserts that did not land (KI-2026-09-26-r)
+pivots: [{from, to, reason, step}],  // switch_intent on a page; an escalation on the board (ADR-058)
 latencyMs
 ```
 
@@ -47,6 +49,11 @@ of propose → review → approve:
 event, tripId, userId, proposalId | null, commandCount,
 outcome: "applied" | "refused", code: string | null, latencyMs
 ```
+
+**Since ADR-058 a page turn is classified too** (`compose` or `question`), so
+`classification` is set on page turns, and an `outcome: "abort"` with a non-null
+`cause` (`TimeoutError`, "…deadline…") is the SERVER ending a turn at its
+240s deadline, not a user leaving (KI-2026-09-26-s).
 
 `classification` is null for a viewer's turn (no write half to withhold) and
 for a turn where `handleAskRequest` didn't call the classifier at all.

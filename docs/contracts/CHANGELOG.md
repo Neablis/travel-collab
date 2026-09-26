@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-26 — `DroppedInsert` and `pageInserts.dropped`: a page turn says what it did not land (ADR-058)
+
+- **Added:** `DroppedInsert` (`{ name, reason }`) and `dropped?: DroppedInsert[]` on
+  `AskStreamMetadata`'s `pageInserts` branch.
+- Why: a page turn's inserts are judged per node now, not all-or-nothing, so a turn can land
+  some nodes and not others. The ones it did not land must reach the user, because the model's
+  own reply may claim them (`KI-2026-09-26-r`).
+- **Wire, not schema:** the same envelope may now arrive on a `message-metadata` stream part
+  as well as on `finish`. That covers a turn stopped at its deadline (`KI-2026-09-26-s`).
+  `askEventFromFrame` reads both.
+- Consumers updated: `apps/web` (`handleAskRequest`/`pageTools` produce it; `apiClient`
+  carries it on the `page-inserts` event; `PageScreen` writes it into the chat).
+- **Breaking?** No. Additive and optional. A client from before this ignores the key and the
+  `message-metadata` part, as it ignores every unknown part.
+
 ## 2026-09-26 — `NotebookPreview` and `PageListEntry`: the notebook list says what each notebook says (M30)
 
 - **Added:** `NotebookPreview` (`firstLine: string | null`, `widgetCount`) and
