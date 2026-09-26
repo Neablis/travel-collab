@@ -324,11 +324,18 @@ export function RiverBlock({
         {readOnly ? (
           <span className="sr-only">{description}</span>
         ) : (
+          // **On a phone the block's tap target is never under 44px** (SPEC
+          // §13.1), though the block is drawn to scale: `buttonVariants`' phone
+          // floor is kept (no `min-h-0` below `md`), so a block shorter than
+          // 44px reaches down into the time below it. Measured on the river's
+          // first phone build: an hour's block was a 40px target (44px an hour
+          // less the 4px between blocks). The reach is under any later block
+          // (a later `li` paints above), so it only ever takes empty time.
           <Button
             variant="ghost"
             onClick={onEdit}
             aria-label={`Edit ${description}`}
-            className="absolute inset-0 h-auto min-h-0 min-w-0 rounded-md p-0 hover:bg-transparent focus-visible:outline-offset-0"
+            className="absolute inset-0 h-auto min-w-0 rounded-md p-0 hover:bg-transparent focus-visible:outline-offset-0 md:min-h-0"
           />
         )}
         {/* Content paints above the button (later in the DOM, positioned) and

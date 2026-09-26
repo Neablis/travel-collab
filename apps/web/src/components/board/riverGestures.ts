@@ -63,17 +63,23 @@ export const RIVER_TOUCH_SLOP_PX = 8;
  * **Scrolling the page while a touch gesture is held near its edge.** A phone
  * shows a few hours of the river at a time, and once a hold has taken the touch
  * the finger cannot scroll it, so a block carried to the edge of the screen has
- * to scroll the page itself. This returns px for one frame: negative in the top
- * fifth, positive in the bottom fifth, faster the deeper the finger is, and 0
- * in between. Fractions of the screen, not fixed px, because the sticky header
- * above and the rack and tab bar below take a similar share of any phone.
+ * to scroll the page itself. This returns px for one frame: negative near the
+ * top of the part of the screen the river can be seen in, positive near its
+ * bottom, faster the deeper the finger is, full speed over the chrome itself,
+ * and 0 in between.
+ *
+ * `top` and `bottom` are that part's edges, not the viewport's: on a phone the
+ * sticky trip header covers the top third of the screen and the rack and tab
+ * bar the bottom sixth, and a band measured from the viewport's edges would sit
+ * entirely under them, where the finger is over no river at all.
  */
-export function edgeScrollDelta(clientY: number, viewportHeight: number): number {
-  const band = viewportHeight / 5;
+export function edgeScrollDelta(clientY: number, top: number, bottom: number): number {
   const MAX_PX_PER_FRAME = 12;
-  if (clientY < band) return -Math.ceil(((band - clientY) / band) * MAX_PX_PER_FRAME);
-  const fromBottom = viewportHeight - clientY;
-  if (fromBottom < band) return Math.ceil(((band - fromBottom) / band) * MAX_PX_PER_FRAME);
+  const band = Math.min(56, Math.max(1, (bottom - top) / 6));
+  const intoTop = top + band - clientY;
+  if (intoTop > 0) return -Math.ceil(Math.min(1, intoTop / band) * MAX_PX_PER_FRAME);
+  const intoBottom = clientY - (bottom - band);
+  if (intoBottom > 0) return Math.ceil(Math.min(1, intoBottom / band) * MAX_PX_PER_FRAME);
   return 0;
 }
 

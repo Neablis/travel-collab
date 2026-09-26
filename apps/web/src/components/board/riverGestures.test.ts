@@ -96,15 +96,25 @@ describe("drop a stop on the river", () => {
 });
 
 describe("a held touch near the edge of the screen", () => {
-  it("scrolls up in the top fifth and down in the bottom fifth, faster the deeper, and not in between", () => {
-    const height = 800; // a fifth is 160px
-    expect(edgeScrollDelta(400, height)).toBe(0);
-    expect(edgeScrollDelta(161, height)).toBe(0);
-    expect(edgeScrollDelta(639, height)).toBe(0);
-    expect(edgeScrollDelta(120, height)).toBeLessThan(0);
-    expect(edgeScrollDelta(680, height)).toBeGreaterThan(0);
-    expect(edgeScrollDelta(10, height)).toBeLessThan(edgeScrollDelta(120, height));
-    expect(edgeScrollDelta(790, height)).toBeGreaterThan(edgeScrollDelta(680, height));
+  // A phone's river shows between a 300px header and a rack and tab bar that
+  // start at 700px, so the bands are 56px inside those edges.
+  const scroll = (y: number) => edgeScrollDelta(y, 300, 700);
+
+  it("scrolls near the edges of the part of the screen the river shows in, faster the deeper, and not in between", () => {
+    expect(scroll(500)).toBe(0);
+    expect(scroll(360)).toBe(0);
+    expect(scroll(640)).toBe(0);
+    expect(scroll(340)).toBeLessThan(0);
+    expect(scroll(660)).toBeGreaterThan(0);
+    expect(scroll(310)).toBeLessThan(scroll(340));
+    expect(scroll(690)).toBeGreaterThan(scroll(660));
+  });
+
+  it("scrolls at full speed with the finger over the header or the rack", () => {
+    expect(scroll(100)).toBe(scroll(300));
+    expect(scroll(100)).toBeLessThan(0);
+    expect(scroll(800)).toBe(scroll(700));
+    expect(scroll(800)).toBeGreaterThan(0);
   });
 });
 

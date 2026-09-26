@@ -73,6 +73,18 @@ export type RiverGestures = {
  */
 const LIFT_GHOST_EVENT = "tc-river-lift-ghost";
 
+/**
+ * The part of the screen a river can be seen in: below the sticky header
+ * stack and above the rack and the phone's tab bar. Each of those publishes its
+ * measured height as a px custom property (`TripHeader`'s
+ * `--sticky-stack-height`, `TripBoardScreen`'s `--rack-height`, `PhoneTabBar`'s
+ * `--phone-tab-bar-height`), inherited here; one that is absent reads as 0.
+ */
+function visibleBand(element: HTMLElement | null): { top: number; bottom: number } {
+  const px = (name: string) => (element ? parseFloat(getComputedStyle(element).getPropertyValue(name)) || 0 : 0);
+  return { top: px("--sticky-stack-height"), bottom: window.innerHeight - px("--rack-height") - px("--phone-tab-bar-height") };
+}
+
 /** The river whose time is under a point, if the topmost thing there is one. */
 function riverAt(x: number, y: number): HTMLElement | null {
   // Topmost only, on purpose: over the rack, the tab bar or the sticky header
@@ -322,7 +334,8 @@ export function DayRiver({
     let frame = 0;
     const tick = () => {
       frame = requestAnimationFrame(tick);
-      const delta = last === null ? 0 : edgeScrollDelta(last.clientY, window.innerHeight);
+      const band = visibleBand(riverRef.current);
+      const delta = last === null ? 0 : edgeScrollDelta(last.clientY, band.top, band.bottom);
       if (delta === 0 || last === null) return;
       window.scrollBy(0, delta);
       onMove(last);
