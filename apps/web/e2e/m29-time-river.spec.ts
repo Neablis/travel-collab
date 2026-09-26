@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { createMappedTrip, openHistory } from "./helpers";
+import { createMappedTrip, fingerOn, openHistory, riverPoint } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M29 part 3 — the river's gestures (SPEC §36.9b), in a real browser because
@@ -140,4 +140,43 @@ test("dragging a block to another day lands it at the time under the pointer, an
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(block(day2, /^Edit Day 2 walk, 4 pm – 5 pm,/)).toBeVisible();
   await expect(block(day1, /^Edit Day 2 walk,/)).toHaveCount(0);
+});
+
+// **A touch tablet gets the touch gestures too** (M29 phone): they follow the
+// pointer, not the screen width, so a 1180px iPad-shaped screen with every day
+// side by side carries a held block from one day's river to another's — the
+// one move a phone, showing one day at a time, leaves to the editor's Day
+// field. `isMobile` + `hasTouch`, as m18b's tablet, is what makes Chromium
+// report a coarse pointer and route touch input.
+test("on a touch tablet, a held block is carried onto another day's river", async ({ browser }) => {
+  const tablet = await browser.newContext({
+    viewport: { width: 1180, height: 820 },
+    isMobile: true,
+    hasTouch: true,
+    storageState: ".auth/alice.json",
+  });
+  const page = await tablet.newPage();
+  await riverTrip(page, "RiverTabletCarry");
+  expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+  const day1 = page.getByTestId("day-column").nth(0);
+  const day2 = page.getByTestId("day-column").nth(1);
+  const walk = day2.getByTestId(/activity-card-/).filter({ has: block(page, /^Edit Day 2 walk,/) });
+  const finger = await fingerOn(page);
+
+  // Held by its middle (4:30), so it lands half an hour above the finger. The
+  // page is centred on 3:30 so both points are clear of the header and the
+  // rack (`scrollIntoViewIfNeeded` can leave 4:30 under the rack).
+  const from = await riverPoint(page, river(page, 1), 16.5, { axisStart: AXIS_START, centre: 15.5, x: 120 });
+  const to = await riverPoint(page, river(page, 0), 14.5, { axisStart: AXIS_START, centre: 15.5, x: 120 });
+  await finger.down(from.x, from.y);
+  await expect(walk).toHaveAttribute("data-lifted", "true");
+  await finger.move(to.x, to.y, 20);
+  await expect(river(page, 0).getByTestId("river-ghost")).toHaveText("2 pm – 3 pm");
+  // One outline, on the river under the finger, not also on the one it left.
+  await expect(river(page, 1).getByTestId("river-ghost")).toHaveCount(0);
+  await finger.up();
+
+  await expect(block(day1, /^Edit Day 2 walk, 2 pm – 3 pm,/)).toBeVisible();
+  await expect(block(day2, /^Edit Day 2 walk,/)).toHaveCount(0);
+  await tablet.close();
 });
