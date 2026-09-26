@@ -97,7 +97,13 @@ test("dragging a block's bottom edge changes when it ends", async ({ page }) => 
   await expect(block(day1, /^Edit Day 1 breakfast, 8 am – 10:30 am,/)).toBeVisible();
   await page.mouse.up();
 
-  await expect(page.getByTestId("toast")).toContainText("Now ends at 10:30 am");
+  const toast = page.getByTestId("toast");
+  await expect(toast).toContainText("Now ends at 10:30 am");
+  // The toast says what happened without covering the rack, which the editable
+  // Plan always pins across the bottom of the screen (CodeRabbit, PR #245).
+  const toastBox = (await toast.boundingBox())!;
+  const rackBox = (await page.getByTestId("unscheduled-rack").boundingBox())!;
+  expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(rackBox.y);
   await page.reload();
   await expect(block(page.getByTestId("day-column").nth(0), /^Edit Day 1 breakfast, 8 am – 10:30 am,/)).toBeVisible();
 });
