@@ -96,10 +96,8 @@ export const WIDGET_SEARCH_MAX_LIMIT = 12;
  *
  * **Repeat presets are left out**: "A sentence for each…" inserts an authored
  * repeat, which `insert_widget` does not make (`insertRepeat` is a second
- * door, and the assistant writes sentences with `insert_text`). A widget the
- * assistant may not insert (`composable: false`) is left out for the same
- * reason `primitiveCatalog` leaves it out: a row it is shown and then refused
- * for is worse than no row.
+ * door, and the assistant writes sentences with `insert_text`). A row it is
+ * shown and then refused for is worse than no row.
  */
 export function widgetIndex(): readonly WidgetIndexEntry[] {
   // Built once: the registry and the preset table are module constants, and a

@@ -19,7 +19,7 @@
 // reject. /ask rejects: a doc that fails here never reaches the client.
 import { PageDoc, migratePageDoc, newPageDoc } from "@tc/contracts";
 import type { AskStreamMetadata, DroppedInsert, PageNode } from "@tc/contracts";
-import type { PageInserts } from "@/server/assistant/deps";
+import { widgetNameOf, type PageInserts } from "@/server/assistant/deps";
 import { findWidgetError } from "@tc/pages";
 
 // `insertWidgetParamsRule` lived here — the page prompt's sentence about which
@@ -72,11 +72,7 @@ export function validateInsertsPerNode(nodes: readonly PageNode[]): {
   for (const node of nodes) {
     const checked = validatePageInserts([node]);
     if ("error" in checked) {
-      const attrs = (node as { attrs?: { name?: unknown } }).attrs;
-      dropped.push({
-        name: node.type === "macro" && typeof attrs?.name === "string" ? attrs.name : "text",
-        reason: checked.error,
-      });
+      dropped.push({ name: widgetNameOf(node) ?? "text", reason: checked.error });
     } else {
       kept.push(...checked.content);
     }
@@ -84,6 +80,13 @@ export function validateInsertsPerNode(nodes: readonly PageNode[]): {
   if (kept.length === 0) return { doc: null, dropped };
   // Re-assembled through the same check, so the document that leaves is one
   // the batch validator would also pass — the nodes are each valid already.
+  //
+  // **The one way this can still drop everything**, and it is rare by
+  // construction: every node passed on its own, so a failure here is a rule
+  // over the WHOLE document (none today) or a node that validates alone and
+  // not beside its neighbours. It is not swallowed: the whole batch is dropped
+  // under the name "page" with the check's own reason, so the user and the
+  // `ai.ask` record both see it rather than a silent nothing.
   const doc = validatePageInserts(kept);
   return "error" in doc ? { doc: null, dropped: [...dropped, { name: "page", reason: doc.error }] } : { doc, dropped };
 }

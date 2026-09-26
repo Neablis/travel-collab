@@ -81,9 +81,9 @@ export type AskIntent = AskIntentRecord["intent"];
 /**
  * **What the classifier is actually asked for, since P5** (spec §5).
  *
- * `compose` is absent by construction: a page turn is decided by the surface
- * and never reaches this module at all, so asking a model to produce the value
- * would be asking it to guess something the server already knows.
+ * These are the BOARD's classes. `compose` is absent because it is not a board
+ * intent; the page surface has its own variant (`ClassifierSurface`,
+ * `PAGE_INTENT_INSTRUCTION`), which chooses between `compose` and `question`.
  *
  * `intent` is derived from this (`intentOf` below) rather than asked for
  * separately — one verdict, two axes. The effect axis is what gates tools; the

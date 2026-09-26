@@ -19,10 +19,10 @@ import type { LanguageModel } from "ai";
  *   * `plan`     — "plan me a 6 day trip": multi-day generation.
  *   * `compose`  — a page turn, decided by **the surface**.
  *
- * A page turn is `compose` **by construction and is not classified at all**,
- * which is today's behaviour and stays it. Its tool set comes from a scope the
- * server verified (`resolveSurface`), not from what the sentence sounds like,
- * so a classification round-trip would be spend with nothing to buy.
+ * A page turn used to be `compose` by construction and never classified. Since
+ * ADR-058 the page surface is classified too, between the two intents it allows
+ * — `compose` and `question` — by the page variant of the classifier, and can
+ * `switch_intent` between them mid-turn. `compose` is the page's default.
  */
 export type TaskClass = "question" | "edit" | "plan" | "compose";
 

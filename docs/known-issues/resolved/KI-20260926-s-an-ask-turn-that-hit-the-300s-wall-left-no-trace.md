@@ -32,7 +32,12 @@
     now reads like `finish`.
   - The `ai.ask` record is written with `outcome: "abort"` and the deadline as its `cause`, and
     at error level as `ai.ask.failed`.
-  - Both deadlines count from request entry, so admission and the classifier are inside them.
+  - Both deadlines count from request entry, so admission and the classifier are inside them. A
+    hard deadline already past when the run is set up aborts at once, and its listener checks
+    `aborted` first, so it is recorded even when it fired during an await (#252's review, N4).
+  - The client reads the `abort` part as a `stopped` event. A stopped turn with inserts says
+    "Stopped partway — N blocks were added"; one with nothing says it took too long, rather
+    than ending on an empty answer.
 - **Seen to fail:** each test below was run against a deliberate source break, then restored.
   - `messageMetadata`'s abort branch disabled: *"TypeError: Cannot read properties of undefined
     (reading 'pageInserts')"*.
@@ -42,6 +47,12 @@
   - The client's `message-metadata` read removed: *"expected [] to deeply equal
     [ { type: 'page-inserts', …(2) } ]"*.
   - The route's `maxDuration` changed to 800: *"expected 800 to be 300"*.
+  - The deadline listener without its `aborted` check: *"expected [] to have a length of 1 but
+    got +0"*. The recorder's single-writer latch removed: *"expected [ … ] to have a length of 1
+    but got 2"*.
+  - The client's `abort` → `stopped` read removed: *"expected [] to deeply equal [ { type:
+    'stopped' } ]"*. The empty-stop line disabled: *"expected 'Make a food notebook' to contain
+    'took too long and was stopped'"*.
 - **Check subset:** `pnpm --filter web typecheck`; unit `src/server/ai src/lib`; `test:int`
   `ask/route` ("page authoring").
 - **Cross-reference:** `KI-2026-09-26-r`, ADR-058.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMPOSABLE_MACRO_NAMES, getMacro } from "./registry";
+import { MACRO_NAMES, getMacro } from "./registry";
 import { insertWidget } from "./insert";
 import { WIDGET_SEARCH_MAX_LIMIT, searchWidgets, widgetDetail, widgetIndex } from "./widgetSearch";
 
@@ -82,8 +82,8 @@ describe("findability", () => {
   // query finds is one the assistant can no longer insert, so every one is
   // looked for by the title a person sees on it.
   it("finds every widget the assistant may insert by its own title", () => {
-    expect(COMPOSABLE_MACRO_NAMES.length).toBeGreaterThan(20);
-    for (const name of COMPOSABLE_MACRO_NAMES) {
+    expect(MACRO_NAMES.length).toBeGreaterThan(20);
+    for (const name of MACRO_NAMES) {
       const title = getMacro(name)!.title;
       const top = searchWidgets(title).matches.slice(0, 3).map((m) => m.insert.name);
       expect(top, `"${title}" (${name})`).toContain(name);

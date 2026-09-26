@@ -1101,6 +1101,8 @@ describe("a page turn's inserts on the wire", () => {
     expect(events.filter((e) => e.type === "page-inserts")).toEqual([
       { type: "page-inserts", content: { ...INSERTS.content, v: CURRENT_PAGE_DOC_VERSION }, dropped },
     ]);
+    // The abort part itself is the server saying it stopped the turn.
+    expect(events.filter((e) => e.type === "stopped")).toEqual([{ type: "stopped" }]);
   });
 
   // The server's own refusal reason — a macro whose params its registry schema

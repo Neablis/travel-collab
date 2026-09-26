@@ -54,6 +54,15 @@ const READING_REFUSAL = "I drafted that, but this page is open for reading — t
 const NO_EDITOR_REFUSAL = "I drafted that, but the page was not ready to take it — ask again to put it in.";
 
 /**
+ * What a turn that was cut short says about what it DID put in (S1 of #252's
+ * review): the page changed, so the chat has to say by how much, or the edit
+ * reads as a mystery and asking again inserts it twice.
+ */
+function stoppedPartway(blocks: number): string {
+  return `Stopped partway — ${blocks} block${blocks === 1 ? " was" : "s were"} added to the page.`;
+}
+
+/**
  * The line the SERVER's account of a turn adds under the model's own
  * (KI-2026-09-26-r): what it asked for and did not land. On 2026-09-26 a turn
  * whose every widget was refused told the reader "I've added…", and nothing on
@@ -622,6 +631,10 @@ export function PageScreen({
   // write commands to collect and nothing to approve. That is why the rail's
   // two proposal callbacks are optional and omitted here rather than passed as
   // no-ops that would imply a review step exists.
+  // The turns the server cut short — an error or its deadline — keyed by the
+  // turn's own `patchAnswer`, which is minted once per turn. Their inserts
+  // still arrive, AFTER the stop, and the reader is told what landed.
+  const stoppedTurns = useRef(new WeakSet<object>());
   const ask = useAskThread({
     tripId,
     scope: { kind: "page", pageId },
@@ -645,6 +658,10 @@ export function PageScreen({
       // stream's FINAL chunk, and `runAsk` sets `idle` immediately afterwards
       // on a successful request, so the error status would be overwritten in
       // the same turn. Held here and merged into the rail's error slot instead.
+      if (event.type === "error" || event.type === "stopped") {
+        stoppedTurns.current.add(patchAnswer);
+        return;
+      }
       if (event.type === "page-error") {
         setTurnRefusal(event.message);
         return;
@@ -714,6 +731,9 @@ export function PageScreen({
       const insert = liveEditor.chain();
       if (liveEditor.isFocused) insert.focus();
       insert.insertContent(event.content.content as never).run();
+      if (stoppedTurns.current.has(patchAnswer)) {
+        patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${stoppedPartway(event.content.content.length)}` }));
+      }
     },
   });
   const [assistantOpen, setAssistantOpen] = useState(false);

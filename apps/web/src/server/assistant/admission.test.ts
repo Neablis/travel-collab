@@ -612,10 +612,18 @@ describe("what a turn is for, and which slot answers it", () => {
   it("decides the unclassified cases structurally", () => {
     expect(taskClassFor(true, null)).toBe("compose");
     expect(taskClassFor(false, null)).toBe("question");
-    // A page turn is compose even if something did classify it: the surface's
-    // answer is the verified one, and the sentence's is not.
+    // A board verdict on a page is not one of the page's intents: the page's
+    // default answers it.
     expect(taskClassFor(true, CLASSIFIED_AS_WRITE)).toBe("compose");
     expect(taskClassFor(false, CLASSIFIED_AS_WRITE)).toBe("edit");
+  });
+
+  // #252's review, N3: a page turn never STARTS in an intent its grant cannot
+  // reach — it would hold none of that intent's tools.
+  it("starts a page turn in the first reachable intent when the verdict is not reachable", () => {
+    const composeVerdict = { ...CLASSIFIED_AS_WRITE, taskClass: "compose" as const };
+    expect(taskClassFor(true, composeVerdict, ["question"])).toBe("question");
+    expect(taskClassFor(true, composeVerdict, ["compose", "question"])).toBe("compose");
   });
 });
 

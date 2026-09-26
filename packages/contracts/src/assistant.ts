@@ -180,6 +180,10 @@ export const AssistantProposal = z
   });
 export type AssistantProposal = z.infer<typeof AssistantProposal>;
 
+/** One insert a page turn did not land: the widget's name (`text` for prose) and why. */
+export const DroppedInsert = z.object({ name: z.string().min(1), reason: z.string().min(1) });
+export type DroppedInsert = z.infer<typeof DroppedInsert>;
+
 /**
  * What the stream's final chunk carries, and the only four shapes it may take.
  *
@@ -211,10 +215,6 @@ export type AssistantProposal = z.infer<typeof AssistantProposal>;
  * A reader that cannot parse a chunk drops it, exactly as it drops an unknown
  * stream part; an unreadable envelope must never break a conversation.
  */
-/** One insert a page turn did not land: the widget's name (`text` for prose) and why. */
-export const DroppedInsert = z.object({ name: z.string().min(1), reason: z.string().min(1) });
-export type DroppedInsert = z.infer<typeof DroppedInsert>;
-
 const AskStreamShape = z.union([
   z.object({ proposal: AssistantProposal }),
   /**

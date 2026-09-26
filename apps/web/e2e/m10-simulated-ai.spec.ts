@@ -386,17 +386,20 @@ test("asked for a notebook about meals, the assistant fills the page with meal-f
     ),
     page.getByRole("button", { name: "Done editing" }).click(),
   ]);
-  type Node = { type: string; attrs?: { params?: { tag?: string } }; content?: Node[] };
   const saved = (await page.request.get(`/api/trips/${tripId}/pages/${notebook.id}`).then((r) => r.json())) as {
-    page: { content: Node };
+    page: { content: DocNode };
   };
-  // Walked, not read off the top level: a widget that renders inside a
-  // sentence is wrapped in a paragraph by the editor.
-  const tagged: string[] = [];
-  const walk = (node: Node) => {
-    if (node.type === "macro" && node.attrs?.params?.tag !== undefined) tagged.push(node.attrs.params.tag);
-    node.content?.forEach(walk);
-  };
-  walk(saved.page.content);
-  expect(tagged).toEqual(["meal", "meal", "meal"]);
+  expect(tagsOfWidgets(saved.page.content)).toEqual(["meal", "meal", "meal"]);
 });
+
+type DocNode = { type: string; attrs?: { params?: { tag?: string } }; content?: DocNode[] };
+
+/**
+ * Every widget's `tag` param, in document order, at any depth — a widget that
+ * renders inside a sentence is wrapped in a paragraph by the editor. Outside
+ * the test so the walk's branching is not a conditional in it.
+ */
+function tagsOfWidgets(node: DocNode): string[] {
+  const own = node.type === "macro" && node.attrs?.params?.tag !== undefined ? [node.attrs.params.tag] : [];
+  return [...own, ...(node.content ?? []).flatMap(tagsOfWidgets)];
+}

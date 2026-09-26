@@ -92,6 +92,7 @@ import {
   renderPrompt,
   rule,
   UNTRUSTED_DATA_RULE,
+  untrustedAll,
   type PromptBlock,
 } from "@/server/assistant/prompt";
 import { aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
@@ -476,8 +477,8 @@ export async function handleAskRequest(
       // dropped. It is now structural: `billableRoundTrips` counts the ledger's
       // `cost.classifier`, which exists if and only if a classification
       // round-trip was actually made — a bare "yes" short-circuits it and a
-      // page turn is never classified, so neither has a line and neither adds
-      // one.
+      // viewer's turn is never classified, so neither has a line and neither
+      // adds one. A page turn is classified (ADR-058) and pays for it.
       //
       // **Settled against the SAME reservation admission made**, not a fresh
       // `aiStepQuotas()` call: `grant.stepReservation` carries the exact
@@ -504,9 +505,13 @@ export async function handleAskRequest(
   // are measured from `startedAt`, so admission's own time counts.
   let wrapUpStep: number | null = null;
   const deadline = new AbortController();
+  const untilHard = deadlines.hardMs - (Date.now() - startedAt);
+  // Already past it — admission alone can take that long on a bad day — is an
+  // abort NOW, not a timer: the run must not start a step it has no time for.
+  if (untilHard <= 0) deadline.abort(new AskDeadlineError(deadlines.hardMs));
   const hardDeadline: ReturnType<typeof setTimeout> = setTimeout(
     () => deadline.abort(new AskDeadlineError(deadlines.hardMs)),
-    Math.max(0, deadlines.hardMs - (Date.now() - startedAt)),
+    Math.max(0, untilHard),
   );
   // A timer must never be what keeps a process alive; every end path clears it anyway.
   hardDeadline.unref?.();
@@ -709,7 +714,13 @@ export async function handleAskRequest(
     // **The deadline's abort is recorded WITH its cause**, which is the whole
     // difference between it and a user leaving: this one is the server ending
     // the turn, and it must show up wherever failures are counted.
-    deadline.signal.addEventListener("abort", () => recorder.abandon("abort", deadline.signal.reason), { once: true });
+    //
+    // Mirrors the request signal's check above (#252's review, N4): this runs
+    // after an await, and a deadline that fired during it would otherwise never
+    // be heard by a listener added afterwards.
+    const noteDeadline = () => recorder.abandon("abort", deadline.signal.reason);
+    if (deadline.signal.aborted) noteDeadline();
+    else deadline.signal.addEventListener("abort", noteDeadline, { once: true });
 
     const modelMessages = await convertToModelMessages(validated.data, { tools });
     const result = await agent.stream({
@@ -1415,7 +1426,10 @@ export function tripShapeOf(detail: TripDetail): TripShape {
   return {
     days: detail.days.length,
     startDate: detail.startDate,
-    cities: [...cities],
+    // Fenced exactly as `read_trip` fences them: a city is whatever a person
+    // typed into a stop, and this lands in the SYSTEM instruction. Tags and
+    // kinds are closed enums and need no fence.
+    cities: untrustedAll([...cities]),
     tags: [...new Set(stops.flatMap((stop) => stop.tags))].sort(),
     kinds: [...new Set(stops.map((stop) => stop.kind))].sort(),
   };
@@ -1472,9 +1486,11 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): P
     // anybody with the trip's link can set, used to be interpolated into a
     // sentence in the SYSTEM instruction. It is a labelled JSON value on its
     // own line now, which no string a person can type can escape.
+    // The fence rule BEFORE the data it governs (#252's review, S3): the trip
+    // shape carries city names, which are user-authored and arrive wrapped.
+    rule(UNTRUSTED_DATA_RULE),
     data("Page title", page.title),
     ...(page.shape === undefined ? [] : [data("Trip shape", page.shape)]),
-    rule(UNTRUSTED_DATA_RULE),
     ...rest.map(rule),
     ...(intent === "compose" ? [data("Widget shapes", WIDGET_SHAPE_WORDS)] : []),
     rule(`Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`),

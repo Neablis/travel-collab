@@ -1061,7 +1061,13 @@ export type AskEvent =
     }
   /** A page turn whose nodes failed validation, with the server's own reason. */
   | { type: "page-error"; message: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /**
+   * The SERVER stopped the turn before it finished — its deadline
+   * (KI-2026-09-26-s). Not an error: what the turn produced before it still
+   * arrives, on a `message-metadata` chunk after this one.
+   */
+  | { type: "stopped" };
 
 /** Set on the ApiError when the failure arrived inside an already-open stream. */
 export const ASK_STREAM_ERROR_CODE = "ask-stream-error";
@@ -1127,6 +1133,7 @@ export function askEventFromFrame(frame: string): AskEvent | null {
       input: part.input,
     };
   }
+  if (part.type === "abort") return { type: "stopped" };
   if (part.type === "error") {
     return {
       type: "error",

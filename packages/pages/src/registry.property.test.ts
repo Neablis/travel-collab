@@ -148,9 +148,9 @@ const NON_FILTER_VALUES: Record<string, fc.Arbitrary<string | string[]>> = Objec
   ]),
 );
 
-// The link widgets' params (M30, ADR-056). Not in `primitiveCatalog()` — the
-// assistant may not compose a link — so the pool above never sees them, and
-// without these every link case would parse to `{}` and answer `unbound`.
+// The link widgets' params (M30, ADR-056). Their target and address are not
+// choice params, so the pool above never sees a value for them, and without
+// these every link case would parse to `{}` and answer `unbound`.
 // Deliberately includes addresses the schema must refuse, and a day and a
 // notebook the trip and the list do not have.
 const LINK_VALUES = {

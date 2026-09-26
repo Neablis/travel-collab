@@ -13,6 +13,9 @@ import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assis
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 
+/** What a turn the server stopped at its deadline says when it produced nothing (KI-2026-09-26-s). */
+const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
+
 // One conversation with the assistant, and everything a rail needs to render
 // it: the thread, whether a turn is in flight, the error, the simulated badge,
 // how many questions are left, and the draft to put back after a rollback.
@@ -283,6 +286,13 @@ export function useAskThread({
     // to know whether ANY text arrived, and `askAssistant` only returns the
     // text when it succeeds.
     let streamed = "";
+    // **A turn that changed something is never rolled back** (KI-2026-09-26-r).
+    // A page turn can deliver its inserts on a turn that then fails or is
+    // stopped; the page has changed, so removing the question and answer —
+    // and whatever the page wrote under it — would leave an edit nothing in
+    // the chat accounts for, and asking again would insert it twice.
+    let delivered = false;
+    let stopped = false;
     const result = await askAssistant(
       tripId,
       posted,
@@ -316,6 +326,10 @@ export function useAskThread({
           // which the prose sniff could not do, because the sentence it matched
           // is the LAST one.
           setSimulated(event.simulated);
+        } else if (event.type === "page-inserts") {
+          delivered = true;
+        } else if (event.type === "stopped") {
+          stopped = true;
         }
         // Everything else belongs to whoever mounted this. The board attaches a
         // `proposal` to the answer; a page inserts `page-inserts` into its
@@ -335,7 +349,13 @@ export function useAskThread({
     abort.current = null;
 
     if (result.ok) {
-      patchAnswer((turn) => ({ ...turn, pending: false }));
+      // A turn the server stopped at its deadline with nothing to show says
+      // so, rather than ending on an empty answer that reads as a hang.
+      patchAnswer((turn) => ({
+        ...turn,
+        pending: false,
+        text: stopped && streamed === "" && !delivered ? `${turn.text}${STOPPED_EMPTY}` : turn.text,
+      }));
       setStatus("idle");
       return;
     }
@@ -349,7 +369,7 @@ export function useAskThread({
     // questions, and let the inline error carry the reason. A turn that got
     // PART of an answer out keeps it: the words are on screen already, and
     // deleting them under the user is the worse lie.
-    if (streamed !== "") {
+    if (streamed !== "" || delivered) {
       patchAnswer((turn) => ({ ...turn, pending: false }));
     } else {
       setThread((current) => current.filter((t) => t.id !== answerId && t.id !== userTurn.id));

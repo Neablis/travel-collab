@@ -166,6 +166,29 @@ describe("insert_widget, for a link", () => {
     ]);
   });
 
+  // #252's review, N1: the guard compares the canonical address, so the
+  // canonical address is what is stored — never the raw string it approved.
+  it("stores the address the guard checked, not the raw string the model wrote", async () => {
+    const { call, getInserts } = buildPageTools("link https://good.example/path please");
+    const result = await call("insert_widget", { name: "link.external", params: { href: "https://good.example/path)" } });
+    expect(result).toMatchObject({ ok: true });
+    expect(getInserts().nodes).toEqual([
+      { type: "macro", attrs: { name: "link.external", params: { href: "https://good.example/path" } } },
+    ]);
+  });
+
+  // #252's review, N2: a day by id is refused, as a target by id is — the
+  // model could only have read the id, possibly off another trip.
+  it("refuses a day filter written as an id", async () => {
+    const { call, getInserts } = buildPageTools();
+    const result = await call("insert_widget", {
+      name: "cost",
+      params: { day: { kind: "dayId", dayId: "0b8e7d5b-1680-4ec4-8f76-0828188bd527" } },
+    });
+    expect(result).toEqual({ ok: false, refused: expect.stringContaining("never by an id") });
+    expect(getInserts().nodes).toEqual([]);
+  });
+
   it("names a notebook by the number this turn listed, and stores its id", async () => {
     const { call, notebooks, getInserts } = buildPageTools();
     // Not listed yet: a number the model was never shown resolves to nothing.
@@ -336,10 +359,23 @@ describe("the 2026-09-26 notebook turn, replayed", () => {
     expect(outcome.pageInserts.dropped?.map((entry) => entry.name)).toEqual(["stop.rows", "nope.nope"]);
   });
 
-  it("forgets a refusal the model corrected on a later call", async () => {
+  // Review S2 on #252: a DIFFERENT call of the same widget is the model
+  // dropping part of what it asked for, not correcting it — "sight" is gone,
+  // and the user has to hear that.
+  it("keeps a refusal when a different call of the same widget lands", async () => {
     const { call, getInserts } = buildPageTools();
-    await call("insert_widget", { name: "cost", params: { tag: ["meal", "lodging"] } });
-    await call("insert_widget", { name: "cost", params: { tag: "meal" } });
+    await call("insert_widget", { name: "stop.rows", params: { tag: ["meal", "outdoors"] } });
+    await call("insert_widget", { name: "stop.rows", params: { tag: "meal" } });
+    expect(getInserts().refused.map((refusal) => refusal.name)).toEqual(["stop.rows"]);
+  });
+
+  // The one real correction: the SAME call, refused only because the turn had
+  // not listed the notebook yet, lands once `get_widget` has listed it.
+  it("forgets a refusal when the same call later lands", async () => {
+    const { call, notebooks, getInserts } = buildPageTools();
+    await call("insert_widget", { name: "link.internal", params: { to: { notebook: 2 } } });
+    await notebooks.list();
+    expect(await call("insert_widget", { name: "link.internal", params: { to: { notebook: 2 } } })).toMatchObject({ ok: true });
     expect(getInserts().refused).toEqual([]);
   });
 

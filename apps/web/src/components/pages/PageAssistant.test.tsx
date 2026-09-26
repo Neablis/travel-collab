@@ -446,6 +446,50 @@ describe("the assistant on a notebook page", () => {
     expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
   });
 
+  // **A turn that changed the page is never rolled back** (review S1 on #252).
+  // The server sends the error chunk BEFORE the inserts it delivers on it, and
+  // a tool-only turn has no text — so the rollback used to remove the question
+  // and the answer after the page had already changed.
+  it("keeps a failed turn whose inserts landed, and says how much went in", async () => {
+    askAssistantMock.mockImplementation(async (_t: string, _m: AskWireMessage[], _s: AskScope, onEvent: (e: AskEvent) => void) => {
+      onEvent({ type: "error", message: "The assistant hit a problem on our side, and it has been logged." });
+      onEvent({ type: "page-inserts", content: DOC, dropped: [] });
+      return { ok: false as const, error: { status: 200, message: "The assistant hit a problem on our side, and it has been logged." } };
+    });
+    await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Make a food notebook{Enter}");
+
+    expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+    const log = screen.getByRole("log", { name: "Conversation" });
+    await waitFor(() => expect(log.textContent).toContain("Make a food notebook"));
+    expect(log.textContent).toContain("Stopped partway — 1 block was added to the page.");
+  });
+
+  // The deadline (KI-2026-09-26-s): the server stops the turn, then delivers
+  // what it had drafted. The answer says it was cut short.
+  it("says a turn the server stopped at its deadline added what it had drafted", async () => {
+    askAssistantMock.mockImplementation(
+      turnEmitting({ type: "stopped" }, { type: "page-inserts", content: DOC, dropped: [] }),
+    );
+    await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Make a food notebook{Enter}");
+
+    expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("Stopped partway — 1 block was added"),
+    );
+  });
+
+  it("says a turn the server stopped with nothing to show took too long, rather than ending blank", async () => {
+    askAssistantMock.mockImplementation(turnEmitting({ type: "stopped" }));
+    await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Make a food notebook{Enter}");
+
+    await waitFor(() =>
+      expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("took too long and was stopped"),
+    );
+  });
+
   // A refusal is about the question just asked. Left standing it would sit
   // under the next answer as if it were that one's.
   it("clears the last refusal when the next question is asked", async () => {

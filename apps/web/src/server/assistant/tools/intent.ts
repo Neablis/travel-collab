@@ -11,14 +11,18 @@
 // It is the page's version of the board's `request_change_tools` (M9), which
 // is the same move — question to edit — and stays the board's pivot.
 import { z } from "zod";
-import { TASK_CLASSES } from "@/server/assistant/taskClass";
+import type { TaskClass } from "@/server/assistant/taskClass";
+import { SURFACE_INTENTS } from "@/server/assistant/intents";
 import { defineTool } from "@/server/assistant/defineTool";
 
 export const SWITCH_INTENT_TOOL_NAME = "switch_intent";
 
 const SwitchIntentInput = z.object({
+  // The PAGE's intents, derived from the surface table (#252's review, N5):
+  // the tool is offered only on a page, so a board class in its schema is a
+  // value the model could only ever be refused for.
   to: z
-    .enum(TASK_CLASSES as unknown as [string, ...string[]])
+    .enum(SURFACE_INTENTS.page.allowed as unknown as [TaskClass, ...TaskClass[]])
     .describe("compose: build or add to this notebook page. question: answer about the trip in the chat."),
   reason: z.string().min(1).max(300).describe("Why the turn's current intent was the wrong reading, in one sentence."),
 });
@@ -53,7 +57,7 @@ export const switchIntentTool = defineTool({
   minimumRole: "editor",
   // The model's own words and our notes coming back to it; nothing to fence.
   run: (input, deps) => {
-    const result = deps.intent.request(input.to as (typeof TASK_CLASSES)[number], input.reason);
+    const result = deps.intent.request(input.to, input.reason);
     return result.ok
       ? { switched: true as const, note: `From your next step this turn is ${input.to}, with that intent's tools and rules.` }
       : { switched: false as const, refused: result.refused };

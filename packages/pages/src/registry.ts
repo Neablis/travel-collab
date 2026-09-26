@@ -149,19 +149,12 @@ function fallbackShape(def: AnyMacroDef): readonly Seg[] {
  * preset list is"* — and the model works in the combination space.
  */
 export function primitiveCatalog(): CatalogueEntry[] {
-  // Only what the assistant may insert: a widget it cannot insert would be a
-  // catalogue entry it is told about and then refused for (ADR-056).
-  return DEFS.filter((d) => d.composable !== false).map(catalogueEntry);
+  // Every widget: the assistant may insert all of them since ADR-057 guarded
+  // the two link widgets in `insert_widget`. `composable: false`, which once
+  // kept them out (ADR-056), and `COMPOSABLE_MACRO_NAMES`, which had become
+  // `MACRO_NAMES` exactly, were removed in #252's review (N6).
+  return DEFS.map(catalogueEntry);
 }
-
-/**
- * The widget names the assistant may insert — `MACRO_NAMES` less any that
- * declares `composable: false`. `insert_widget` closes its name enum over THIS
- * list, so such a widget cannot be composed even by a model told its name.
- * None declares it today: the two link widgets did (ADR-056) until ADR-057 gave
- * the assistant a guarded way to insert each.
- */
-export const COMPOSABLE_MACRO_NAMES: readonly string[] = DEFS.filter((d) => d.composable !== false).map((d) => d.name);
 
 /** One widget as the assistant's catalogue lists it. */
 export interface CatalogueEntry {

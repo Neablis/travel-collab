@@ -83,14 +83,16 @@ asked beside a notebook got the same turn as a notebook asked for.
 
 4. **The page instruction carries the trip's shape, never its stops** (`tripShapeOf`). The
    shape is the day count, the start date, the cities, and the tags and kinds in use, as a
-   `data` block, because city names are user-authored. That is all a filter is chosen from, so
+   `data` block after the untrusted-data rule, with each city fenced as `read_trip` fences
+   it, because city names are user-authored. That is all a filter is chosen from, so
    a compose turn needs no read to pick `tag: "meal"`, and a question turn starts knowing where
    it is.
 
 5. **`switch_intent({to, reason})` pivots a page turn.**
    - It is offered only when the turn has more than one reachable intent.
    - An intent is reachable when the turn's grant already holds what that intent needs
-     (`INTENT_REQUIRES`: `compose` needs `pages: propose`). A pivot chooses among sets that
+     (`INTENT_REQUIRES`: `compose` needs `pages: propose`). A turn also STARTS only in a
+     reachable intent, and `switch_intent`'s schema lists only the page's two. A pivot chooses among sets that
      admission built and checked against `minimumRoleFor`, and it never widens them.
    - A turn may pivot at most twice (`MAX_PIVOTS`).
    - The pivot takes effect on the next step. `prepareStep` swaps in that intent's active
@@ -113,11 +115,15 @@ asked beside a notebook got the same turn as a notebook asked for.
    - At call time, `insert_widget` unwraps a one-element list for a single-valued filter. It
      refuses a longer list in words the model can act on.
    - It keeps one copy of a widget inserted twice with the same effective params.
-   - It records each refusal on the turn's buffer.
+   - It records each refusal on the turn's buffer. Only a later landing of the same call
+     clears one; a different call of the same widget is a drop the user is told about.
+   - A `day` given as an id is refused like a target given as an id, and a link's address is
+     stored as the canonical form the guard checked.
    - At the end, each node is validated alone. Valid nodes land, and the rest are named in
      `pageInserts.dropped` (a contract addition) and in `ai.ask.droppedInserts`.
    - The client writes each dropped insert into the chat under the model's own reply, because
-     the model may claim it added them.
+     the model may claim it added them. A turn that delivered inserts is never rolled back, even
+     when it then fails or is stopped; its answer says how many blocks went in.
 
 ## Consequences
 

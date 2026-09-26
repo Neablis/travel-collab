@@ -50,8 +50,13 @@
     `city`, `kind`) and refuses a longer one with "takes ONE value, not a list".
   - It keeps one copy of a widget inserted twice with the same effective params, telling the
     model why.
-  - It notes every refusal on the turn's `PageBuffer`. A later landed widget of the same name
-    clears the refusal.
+  - It notes every refusal on the turn's `PageBuffer`. Only a later landing of the SAME call
+    (same name, same params as written) clears it — a link retried once `get_widget` has listed
+    its notebook. A different call of the same widget does not: `stop.rows {tag: ["meal",
+    "sight"]}` refused and `stop.rows {tag: "meal"}` landed is "sight" dropped, and the user is
+    told (#252's review, S2).
+  - A turn that delivered inserts is never rolled back by the client, even when it then fails
+    or is stopped; its answer says "Stopped partway — N blocks were added" (#252's review, S1).
   - The final check runs per node (`validateInsertsPerNode`). Valid nodes land. Refusals and
     drops ride `pageInserts.dropped` (contract), and the client writes them into the chat as
     "Not added to the page — …".
@@ -64,7 +69,13 @@
   - Dedupe disabled: *"expected false to be true"*.
   - Batch validation restored in `pageOutcomeOf`: *"expected inserts, got {"composeError":
     "Nothing was added to the page. Refused: stop.rows, page — …"}"*.
-  - Refusal-clearing disabled: *"expected [ { name: 'cost', …(1) } ] to deeply equal []"*.
+  - Clearing by widget NAME (the first version's rule) restored: *"expected [] to deeply equal
+    [ 'stop.rows' ]"*. `landed` made a no-op: *"expected [ { name: 'link.internal', …(1) } ] to
+    deeply equal []"*.
+  - The client's rollback of a text-less failed turn restored: *"Unable to find an accessible
+    element with the role "log" and name "Conversation""*. The "Stopped partway" line
+    disabled: *"expected 'Make a food notebook' to contain 'Stopped partway — 1 block was
+    added…'"*.
   - `droppedInserts` not recorded: the route test *"expected [] to deeply equal [ 'stop.rows' ]"*.
   - The client notice disabled: *"Unable to find an element with the text: /Not added to the
     page — A line for every stop: tag takes ONE value/"*.

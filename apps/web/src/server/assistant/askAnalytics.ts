@@ -781,8 +781,9 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
    *
    * `classifier` is non-null if and only if a classification round-trip was
    * actually MADE. A bare affirmation ("Yes go ahead") short-circuits the
-   * classifier and spends nothing, and a page turn is not classified at all;
-   * neither has a round-trip to bill, and neither gets an entry. That is what
+   * classifier and spends nothing, and a viewer's turn is not classified at
+   * all; neither has a round-trip to bill, and neither gets an entry. (A page
+   * turn IS classified since ADR-058, and is billed for it like the board.) That is what
    * makes `billableRoundTrips` structural instead of the hand-added `+ 1` this
    * replaces — a term a later edit could drop, which would under-meter every
    * classified turn by exactly one.

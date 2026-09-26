@@ -54,3 +54,12 @@ describe("the intent latch", () => {
     });
   });
 });
+
+describe("switch_intent's schema", () => {
+  // #252's review, N5: only the page's own intents are spellable.
+  it("offers exactly the page's intents, and no board class", () => {
+    expect(switchIntentTool.input.safeParse({ to: "question", reason: "r" }).success).toBe(true);
+    expect(switchIntentTool.input.safeParse({ to: "edit", reason: "r" }).success).toBe(false);
+    expect(switchIntentTool.input.safeParse({ to: "plan", reason: "r" }).success).toBe(false);
+  });
+});

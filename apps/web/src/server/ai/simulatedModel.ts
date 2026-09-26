@@ -905,10 +905,9 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   if (isAskIntentCall(system)) return classifyStep(options);
   const scope = parseAskScope(system);
   const results = toolResultsOf(options);
-  // A page turn is a different job, not a variant of the answer: it composes
-  // instead of speaking, and `handleAskRequest` never classifies one, so the
-  // branches below would read its opening step as a question and reply with
-  // `read_trip`.
+  // A page turn is a different job, not a variant of the answer: `pageTurn`
+  // composes, or — when no insert tool was handed over, the page's `question`
+  // intent (ADR-058) — reads and answers.
   if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
   if (results.length === 0) {
     return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };

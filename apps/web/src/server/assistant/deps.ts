@@ -119,11 +119,21 @@ export interface PageBuffer {
    */
   holds(node: PageNode): boolean;
   /**
-   * Note an `insert_widget` call that was refused. A later call that lands a
-   * widget of the same name clears it: the model corrected itself, which is
-   * what returning the refusal to it was for.
+   * Note an `insert_widget` call that was refused. `call` is the call's own
+   * identity (`nodeKey` of its name and params as the model wrote them).
    */
-  refuse(refusal: RefusedInsert): void;
+  refuse(refusal: RefusedInsert, call: string): void;
+  /**
+   * The call `call` landed, so a refusal of THAT call no longer stands — a
+   * link naming a notebook this turn had not listed yet, retried after
+   * `get_widget` listed it.
+   *
+   * **Only the same call clears, never the same widget name** (#252's review,
+   * S2). `stop.rows {tag: ["meal", "sight"]}` refused and `stop.rows {tag:
+   * "meal"}` landed is the model dropping "sight", not correcting it, and the
+   * user still has to be told.
+   */
+  landed(call: string): void;
 }
 
 /**
@@ -138,8 +148,8 @@ export function nodeKey(node: unknown): string {
   );
 }
 
-/** A macro node's widget name, or null for prose. */
-function widgetNameOf(node: PageNode): string | null {
+/** A macro node's widget name, or null for prose. Also how `validateInsertsPerNode` names a dropped node. */
+export function widgetNameOf(node: PageNode): string | null {
   if (node.type !== "macro") return null;
   const name = (node as { attrs?: { name?: unknown } }).attrs?.name;
   return typeof name === "string" ? name : null;
@@ -161,20 +171,20 @@ export function newProposalBuffer(): ProposalBuffer {
 export function newPageBuffer(): PageBuffer {
   const nodes: PageNode[] = [];
   const widgets = new Set<string>();
-  let refused: RefusedInsert[] = [];
+  let refused: { refusal: RefusedInsert; call: string }[] = [];
   return {
     insert: (inserted) => {
       for (const node of inserted) {
         nodes.push(node);
-        const name = widgetNameOf(node);
-        if (name === null) continue;
-        widgets.add(nodeKey(node));
-        refused = refused.filter((refusal) => refusal.name !== name);
+        if (widgetNameOf(node) !== null) widgets.add(nodeKey(node));
       }
     },
-    inserted: () => ({ nodes: [...nodes], refused: [...refused] }),
+    inserted: () => ({ nodes: [...nodes], refused: refused.map((entry) => entry.refusal) }),
     holds: (node) => widgets.has(nodeKey(node)),
-    refuse: (refusal) => void refused.push(refusal),
+    refuse: (refusal, call) => void refused.push({ refusal, call }),
+    landed: (call) => {
+      refused = refused.filter((entry) => entry.call !== call);
+    },
   };
 }
 

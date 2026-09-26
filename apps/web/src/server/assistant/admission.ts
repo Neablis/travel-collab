@@ -272,6 +272,21 @@ export interface AiGrant {
   /** What the instruction may honestly claim about this turn (grants.ts). */
   posture: AskToolPosture;
   /**
+   * **The intents this turn may pivot between, each with what it holds**
+   * (ADR-058) — null on a turn that cannot `switch_intent` (every board turn,
+   * which pivots through `escalation` below instead, and a page turn with only
+   * one reachable intent).
+   *
+   * Resolved here for the reason `escalation` is: every set in it is
+   * `toolsFor` over THIS turn's grant, narrowed by a class, and every one is
+   * inside the `minimumRoleFor` check below — so a pivot can only ever choose
+   * among sets this pipeline already admitted.
+   */
+  intents: {
+    reachable: readonly TaskClass[];
+    byIntent: Partial<Record<TaskClass, { tools: readonly AnyAssistantTool[]; tier: ModelTier; model: LanguageModel }>>;
+  } | null;
+  /**
    * **What a successful escalation unlocks** — null on every turn that cannot
    * escalate (M9 design §1b).
    *
@@ -287,21 +302,6 @@ export interface AiGrant {
    * posture the escalation tool is offered in — which is a tag on the tool
    * (`postures`) rather than a condition restated here.
    */
-  /**
-   * **The intents this turn may pivot between, each with what it holds**
-   * (ADR-058) — null on a turn that cannot `switch_intent` (every board turn,
-   * which pivots through `escalation` above instead, and a page turn with only
-   * one reachable intent).
-   *
-   * Resolved here for the reason `escalation` is: every set in it is
-   * `toolsFor` over THIS turn's grant, narrowed by a class, and every one is
-   * inside the `minimumRoleFor` check below — so a pivot can only ever choose
-   * among sets this pipeline already admitted.
-   */
-  intents: {
-    reachable: readonly TaskClass[];
-    byIntent: Partial<Record<TaskClass, { tools: readonly AnyAssistantTool[]; tier: ModelTier; model: LanguageModel }>>;
-  } | null;
   escalation: {
     /** The set the next step holds once the model escalates. */
     tools: readonly AnyAssistantTool[];
@@ -356,7 +356,8 @@ export interface AiGrant {
   /**
    * The classifier's whole record, which the per-ask analytics record carries
    * so a misclassification is diagnosable after the fact. Null when the turn
-   * was not classified at all (a viewer, or a page turn).
+   * was not classified at all — a viewer's. A page turn IS classified since
+   * ADR-058, between `compose` and `question`.
    */
   classification: AskIntentRecord | null;
   /**
@@ -364,10 +365,10 @@ export interface AiGrant {
    *
    * Never null, which is the change P5 made: `question | write | null` became a
    * total answer, because every turn has a purpose even when no model was asked
-   * what it was. A page turn is `compose` **by construction** — its tool set
-   * comes from a scope the server verified, so classifying it would be spend
-   * with nothing to buy — and an unclassified non-page turn is a viewer's,
-   * which has no write half to withhold and is therefore a `question`.
+   * what it was. A page turn is `compose` or `question`, as its own
+   * classifier read it (ADR-058), and never outside the intents its grant can
+   * reach; an unclassified non-page turn is a viewer's, which has no write
+   * half to withhold and is therefore a `question`.
    *
    * `classification` beside it still says whether a model was asked, and what
    * it answered.
@@ -949,10 +950,10 @@ const admitQuota: AdmissionStage = {
 // one answering, and "did the classifier save more than it cost" is
 // unanswerable if its spend is folded into the turn's — the same argument
 // `AskIntentRecord.model` makes for the log record.
-//   * **A page turn is not classified at all.** Its tool set is decided by a
-//     scope the server verified, not by what the sentence sounds like, so
-//     there is no write half to withhold and the call would be spend with
-//     nothing to buy.
+//   * **A page turn is classified too, by the PAGE classifier** (ADR-058):
+//     `compose` or `question`. It never narrows the page's effect — both
+//     intents live inside the page grant — only which intent's tools and
+//     instruction the turn starts with.
 const classifyTask: AdmissionStage = {
   name: "classifyTask",
   run: async (draft) => {
@@ -991,8 +992,8 @@ const classifyTask: AdmissionStage = {
  *   * the ROLE comes from the guard's members, through the AccessPolicy seam;
  *   * the PLAN has no source yet — `permitsPropose` permits everybody, which
  *     is exactly today's behaviour. M20 owns it (spec §7c);
- *   * the CLASSIFIER is `askIntent`'s answer, and a page turn is not
- *     classified at all (`classification` is null), so it caps nothing.
+ *   * the CLASSIFIER is `askIntent`'s answer. On a page it caps nothing: the
+ *     page verdict chooses a profile, never an effect (ADR-058).
  *
  * **`offeredToolNamesFor` and the three name manifests are gone** (F-F02,
  * ADR-043 decision 2). A page-authoring turn still gets the page insert tools
@@ -1038,7 +1039,10 @@ const grantTools: AdmissionStage = {
     // cap-an-upper-bound shape as `caps` above and as the surface grant — three
     // places, one idea. Nothing here knows a model id: `tier` names a slot and
     // `selected.models` is where the far side of the port already put one.
-    const taskClass = taskClassFor(page !== null, classification);
+    // A page's reachable intents first, so the starting intent can never be one
+    // the grant cannot hold (#252's review, N3).
+    const pageReachable = page === null ? undefined : reachableIntents(scope.kind, grants);
+    const taskClass = taskClassFor(page !== null, classification, pageReachable);
     // **`certainty` is the second input to the tier, and it only ever raises
     // it** (M9 design §1a). A page turn has no classification and is `sure` by
     // construction: `compose` is decided from a scope the server verified,
@@ -1126,7 +1130,7 @@ const grantTools: AdmissionStage = {
     const offerable = toolsFor(grants, undefined, posture);
     // The page's intents, each resolved to the set it would hold. The pivot
     // tool is in a set only when there is somewhere to pivot TO.
-    const reachable = page === null ? [taskClass] : reachableIntents(scope.kind, grants);
+    const reachable = pageReachable ?? [taskClass];
     const canPivot = page !== null && reachable.length > 1;
     const setFor = (intent: TaskClass) =>
       toolsFor(grants, intent, posture).filter((tool) => canPivot || tool.name !== SWITCH_INTENT_TOOL_NAME);
@@ -1235,22 +1239,27 @@ const grantTools: AdmissionStage = {
  * Total by construction, and the two fallbacks are decisions rather than
  * defaults:
  *
- *   * a **page turn is `compose`**, decided structurally. Its tool set comes
- *     from a scope `resolveSurface` verified server-side, not from what the
- *     sentence sounds like, so paying for a classification would be spend with
- *     nothing to buy — which is exactly why `classifyTask` does not make the
- *     call for a page turn and never has;
+ *   * a **page turn is `compose` or `question`**, as the page classifier read
+ *     it (ADR-058), with `compose` — the page's default — for anything else.
+ *     **And never outside `reachable`** (#252's review, N3): a verdict the
+ *     turn's grant cannot hold starts it in the first intent it CAN, rather
+ *     than in an intent whose tools it was never handed;
  *   * an **unclassified non-page turn is a `question`**. That is a viewer's
  *     turn: `canWrite` gated the call because there was no write half to
  *     withhold, and a turn that holds only read tools is a question whatever it
  *     sounds like.
  *
- * Exported for the test that pins both, because neither is derivable from the
- * classifier's own record — which is null in both cases.
+ * Exported for the test that pins them.
  */
-export function taskClassFor(isPageTurn: boolean, classification: AskIntentRecord | null): TaskClass {
-  if (isPageTurn) return classification?.taskClass === "question" ? "question" : "compose";
-  return classification?.taskClass ?? "question";
+export function taskClassFor(
+  isPageTurn: boolean,
+  classification: AskIntentRecord | null,
+  reachable?: readonly TaskClass[],
+): TaskClass {
+  if (!isPageTurn) return classification?.taskClass ?? "question";
+  const wanted: TaskClass = classification?.taskClass === "question" ? "question" : "compose";
+  if (reachable === undefined || reachable.length === 0 || reachable.includes(wanted)) return wanted;
+  return reachable[0]!;
 }
 
 /**

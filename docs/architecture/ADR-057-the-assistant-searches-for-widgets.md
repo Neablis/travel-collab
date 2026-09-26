@@ -111,3 +111,6 @@ tag vocabulary as a JSON array, which read as "pass a list". Three changes to th
 - **The page turn's instruction and tool set are per intent** (`compose` or `question`), and a
   compose turn no longer holds `read_day`, `find_free_time` or `search_playbooks`. The
   measurements and the table are ADR-058's.
+- **Decision 7's leftover field is gone.** `MacroDef.composable` and `COMPOSABLE_MACRO_NAMES`
+  (which had become `MACRO_NAMES` exactly) were removed; `insert_widget`'s enum is
+  `MACRO_NAMES`.
