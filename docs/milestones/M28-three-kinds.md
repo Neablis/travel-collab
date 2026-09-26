@@ -96,9 +96,9 @@ as their replacement.
 
 - **Rewriting stored data.** No event is rewritten and no row is migrated; the
   translation on read is the migration (ADR-054).
-- **A "settled" or "confirmed" marker.** `booked` is gone, not moved: nothing replaces
-  it as a tag or a field. If the difference turns out to matter, that is a new
-  decision.
+- **A "settled" or "confirmed" marker.** Booked *is* `planned`, the default state
+  (Mitchell, 2026-09-26): a stop that is not `pending` needs nothing, so no tag or
+  field is added to say so.
 - **The design export's vocabulary.** `.design-sync/handoff` still speaks five kinds;
   the fixture's drift test reads it through `readActivityKind` rather than editing it.
 
@@ -143,7 +143,5 @@ translation on read is the migration (ADR-054).
 **Left open, not gating.**
 - **The Pending badge shares the Meal tag's amber.** Mitchell has a design
   handoff queued that addresses Pending and Travel, and it decides this.
-- **`booked` has no replacement.** If "settled" turns out to matter, that is a
-  new decision, not a revival of the kind (ADR-054, Rejected).
 
 **M14 is current again**, by this gate closing.
