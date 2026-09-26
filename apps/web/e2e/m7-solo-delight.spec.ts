@@ -34,7 +34,7 @@ const [SEEDED_PAGE] = DEFAULT_TEMPLATES as [(typeof DEFAULT_TEMPLATES)[number]];
 // it clicks one, presses End and then Enter, which makes a paragraph of its own
 // to type into. Clicking a paragraph would land in a block that holds a widget
 // and select it instead of placing a caret.
-const PROSE_HEADING = "What it costs";
+const PROSE_HEADING = "Day by day";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -139,13 +139,12 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // both are read: a heading alone would pass on a page whose widgets all
   // failed to resolve.
   await expect(page.getByRole("heading", { name: "What needs you" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "The trip, day by day" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "What it costs" })).toBeVisible();
-  // The trip's own name, resolved by a widget rather than typed. This walk's
-  // trip came from "Create empty", so it has no dates and no days and the rest
-  // of the page is its empty states — which is the state this page has to be
-  // good in, and the countdown below is the line that makes it useful.
-  await expect(page.getByText(tripName, { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Still to book" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Day by day" })).toBeVisible();
+  // This walk's trip came from "Create empty", so it has no dates and no days
+  // and the page is its empty states — which is the state it has to be good
+  // in (SPEC §36.10b). The trip's name is no longer on it: the header above
+  // already shows it, and the rewrite dropped the repeat.
   // `open` (SPEC §25's `w-open`) on a trip with nothing waiting: the empty
   // state is the good one here, and it is a sentence rather than a blank.
   await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
@@ -216,14 +215,15 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await expect(page.getByRole("heading", { name: SEEDED_PAGE.title, level: 1 })).toBeVisible();
   // The page a BRAND-NEW trip opens on — no dates, no days, no stops — which is
   // the state Mitchell asked to be made good. Every line of it resolves to
-  // something a person can read and act on rather than to a blank or a shrug:
-  // the trip's name, how far off it is, how long it is, and what is waiting.
-  await expect(page.getByText(tripName, { exact: true }).first()).toBeVisible();
+  // something a person can read and act on rather than to a blank or a shrug
+  // (SPEC §36.10b: *"an empty line that says what fills it reads well"*): how
+  // far off it is, what the page will show once there are days, and what is
+  // waiting.
   await expect(page.getByText("no dates set yet")).toBeVisible();
-  await expect(page.getByText("0 days")).toBeVisible();
+  await expect(page.getByText("add a day to see this")).toBeVisible();
   await expect(page.getByText("no days yet")).toBeVisible();
   await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
-  await expect(page.getByText("no budget set")).toBeVisible();
+  await expect(page.getByText("nothing left to book")).toBeVisible();
   // Non-vacuous from the other side: the placeholders it used to carry are
   // gone, not merely unasserted.
   await expect(page.getByText(/what's this trip about/i)).toHaveCount(0);

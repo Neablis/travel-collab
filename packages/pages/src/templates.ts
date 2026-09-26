@@ -37,11 +37,19 @@ import type {
 // This used to be the blunter "seeded templates plant no widgets", on the
 // grounds that a brand-new trip has no dates, no cities and no stops, so a
 // widget-bearing page opens as five grey "no dates set" chips — the honest
-// empty state and a poor first page. That reasoning is intact and still
-// excludes almost everything. What it never actually said was "no widgets": it
-// said "nothing that looks broken before there is a plan". `open` (SPEC §25)
-// renders "nothing is waiting on you" on a new trip, which is a true and
-// pleasant sentence, so it is seeded and the rest are not.
+// empty state and a poor first page. What it never actually said was "no
+// widgets": it said "nothing that looks broken before there is a plan".
+//
+// **What "reads well" means, since SPEC §36.10b (2026-09-26):** *an empty line
+// that says what fills it reads well.* "add a day to see this", "no dates set
+// yet" and "nothing is waiting on you" all qualify — each tells a new trip's
+// reader what the line becomes — and the page's own prose is written so they
+// read as a promise ("Everything below … fills in as it grows"). What still
+// does not qualify: `unbound` (a chip asking for a binding the seeded page
+// never made), a blank chip, and anything that cannot say a word until a third
+// party answers (`day.weather`). `templates.test.ts` renders every seeded
+// widget against a brand-new trip, before and after its globals land, to hold
+// exactly that line.
 //
 // **Until 2026-09-12 two templates were seeded and neither carried a widget.**
 // Now exactly one is — the Overview (§25, and Mitchell: *"Only 1 notebook per
@@ -136,17 +144,13 @@ export interface TemplateSeed {
  *
  * 1. **`kind: "overview"` in its context** is what marks it. Not its title,
  *    which a reader may rename, and not its position, which sorting decides.
- * 2. **Its blocks are ordinary registry widgets** — `open` is in the picker
+ * 2. **Its blocks are ordinary registry widgets** — every one is in the picker
  *    like everything else, and could be inserted into any other page. §25 is
  *    explicit that there is no bespoke Overview layout.
- * 3. **It is prose AND a widget**, which is the exception to this file's own
- *    "seeded templates plant no widgets" rule, and the exception is narrow:
- *    that rule exists because a widget-bearing page on a brand-new trip opens
- *    as a row of grey "no dates set" chips. `open` does not do that — on a trip
- *    with nothing waiting it renders its own empty text, "nothing is waiting on
- *    you", which is a true and pleasant sentence for a new trip rather than a
- *    broken-looking one. A widget that reads well empty may be seeded; one that
- *    does not, still may not.
+ * 3. **It is headings, a few joining lines, and widgets that read well
+ *    empty** — the header's rule. On a trip created a minute ago every widget
+ *    here says in words what will fill it, so the page reads as a list of what
+ *    it is about to become rather than a row of grey chips.
  *
  * §25's *"The consequence to accept"* applies and is not worked around: because
  * this is a real page, its content is user-editable, and someone can empty it.
@@ -162,77 +166,78 @@ const overviewPage: TemplateSeed = {
   description: "Comes with the trip.",
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId, kind: "overview" }),
+  // **Rewritten 2026-09-26 from SPEC §36.10b, as inspiration rather than a
+  // copy** (Mitchell: *"better but not great … use it for inspiration not just
+  // copy"*). What was kept from the design: one column, a line of prose only
+  // where it tells you something the heading does not, registry widgets only,
+  // and no trip name, dates, counts or money totals — `TripHeader` already
+  // shows every one of those above this page (its title, `TripMetaPill` and
+  // `BudgetChip`), and saying them twice is rule 4's duplication.
+  //
+  // **Order is short-and-actionable first, the long reference last.** The old
+  // page put `day.detail` in the middle, so on a two-week trip everything under
+  // it sat fourteen cards down. What needs a decision comes first, then the
+  // practical and the money glances, then the day-by-day read.
+  //
+  // What the design had and this does not, and why, is in the commit message
+  // that made this change rather than here — this comment describes the page,
+  // not its drafts. The short version: weather is left for a person to choose
+  // (it sends the trip's places to third parties, KI-2026-09-24-o, and cannot
+  // say anything until the forecast lands); `city.detail` repeats what the strip
+  // and the day cards already say; the stats line and money sentence are the
+  // header's; there is no "booked" line since M28 (ADR-054).
+  //
+  // Every widget below says something readable on a trip created a minute ago
+  // — "no dates set yet", "add a day to see this", "nothing is waiting on you" —
+  // and `templates.test.ts` renders each one against that trip to hold it.
   content: newPageDoc([
     // ---- The hook -------------------------------------------------------
-    // What the trip IS, and how soon. Mitchell, 2026-09-13: *"Think through
-    // what someone looking at a brand new upcoming trip would want to see and
-    // make it front and center."* This is that sentence — the name they just
-    // typed, and the one fact about it that is about to change every day.
+    // The one fact about a trip that changes every day and that the header
+    // does not show. A label rather than a sentence around it, because the
+    // countdown's values do not share a verb: "in 34 days", "day 6 of 14",
+    // "ended yesterday", "no dates set yet" all read after "Countdown:" and no
+    // single "Your trip starts …" survives all four. The second sentence is
+    // what makes a new trip's empty lines read as a promise instead of a
+    // fault, and it stays true when the trip is full.
     para(
-      widget("attribute", { field: "trip.name" }),
-      text(" — "),
+      text("Countdown: "),
       widget("attribute", { field: "trip.countdown" }),
+      text(". Everything below reads from the plan and fills in as it grows."),
     ),
-    // ---- The shape, in four self-describing values -----------------------
-    // No labels, deliberately: every value here says what it is in its own
-    // words, full OR empty — "Fri 3 Apr – Thu 17 Apr", "14 days", "47 stops",
-    // "Tokyo, Kyoto" when there is a plan; "no dates set", "0 days", "0 stops",
-    // "no cities yet" when there is not. A label would be redundant on the
-    // first reading and would make the second one a sentence with a hole in it.
-    //
-    // `count` twice, pointed at two different entities, is ADR-039 decision 1
-    // working exactly as intended: one primitive, two selections, no second
-    // widget to maintain.
-    para(
-      widget("dates"),
-      text(" · "),
-      widget("count", { of: "day" }),
-      text(" · "),
-      widget("count"),
-      text(" · "),
-      widget("city"),
-    ),
+    // The route at a glance, in city colours — where the old page spent a
+    // heading and a table (`city.detail`) saying the same thing in rows.
+    block("trip.strip"),
     // ---- What to do next -------------------------------------------------
     // First, because it is the reason to open the page rather than a tab.
     heading("What needs you"),
     block("open"),
-    // ---- The route -------------------------------------------------------
-    // Where the trip GOES, which is the most evocative thing a notebook can
-    // say about one and the thing no other section covers: the stats line
-    // names the cities and this says how long is spent in each.
-    heading("Where it goes"),
-    block("city.detail"),
-    // ---- The trip itself -------------------------------------------------
-    // The body of the page. This is the read the deleted Timeline lens used to
-    // give, as a widget anyone can insert into any page (SPEC §24: *"its
-    // read-only day list became a widget inside the Overview document"*).
-    heading("The trip, day by day"),
-    block("day.detail"),
     // ---- What is still loose ----------------------------------------------
-    // One line per `pending` stop, with its time and what it cost: the part of
-    // the plan that still needs somebody to act. It was "What's booked" until
-    // M28 retired `booked` (ADR-054); `pending` is now the kind that carries
-    // intent, so the section follows it.
+    // The `still-to-book` preset — `needsBooking`, the rule Calendar's "N to
+    // book" and the Home hero share — rather than a hand-written
+    // `kind: "pending"`, so this list cannot disagree with them if the rule
+    // grows. The line says how a stop gets here, which on a new trip is the
+    // only thing worth saying about an empty list.
     heading("Still to book"),
-    block("stop.rows", { kind: "pending" }),
+    para(text("Anything marked Pending waits here until it's settled.")),
+    block("stop.rows", { only: "needsBooking" }),
+    // ---- Before you go ---------------------------------------------------
+    // What a traveller checks in the week before leaving. "Clocks:" is a label
+    // for the same reason "Countdown:" is: `day.fromHome`'s empty reasons
+    // ("set a home airport in Account to see this") are not a clause.
+    heading("Before you go"),
+    para(text("Clocks: "), widget("day.fromHome"), text(".")),
+    block("country.facts"),
     // ---- Money -----------------------------------------------------------
-    // **Labels here and nowhere else above, and the difference is not style.**
-    // "$1,240.00" does not say whether it is spent, budgeted or left, so these
-    // two are the only values on the page that are ambiguous alone — and a
-    // label is also what keeps the line readable when they are empty ("Spent so
-    // far — no costs yet" rather than a bare grey chip).
-    heading("What it costs"),
-    para(
-      text("Spent so far — "),
-      widget("cost"),
-      text(" · budget left — "),
-      widget("attribute", { field: "trip.budgetRemaining" }),
-    ),
-    // The breakdown under the summary. `cost.rows` says "nothing priced yet"
-    // when empty rather than repeating the `cost` above it word for word —
-    // which is what it used to do, and two identical grey chips one under the
-    // other read as a rendering fault.
-    block("cost.rows"),
+    // The header already has spent and left, so this is the one money view it
+    // does not: which days cost what, against an even pace for the budget.
+    heading("Spend by day"),
+    block("cost.chart"),
+    // ---- The trip itself -------------------------------------------------
+    // Last because it is the longest, not because it matters least: this is
+    // the read the deleted Timeline lens used to give (SPEC §24), and every
+    // card carries its date, city, stops, hours and cost.
+    heading("Day by day"),
+    block("day.detail"),
   ]),
 };
 

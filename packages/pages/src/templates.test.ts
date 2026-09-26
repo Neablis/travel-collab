@@ -93,7 +93,9 @@ describe("templates", () => {
    */
   it("every widget in every template is one insertWidget would accept", () => {
     const failures: string[] = [];
-    for (const t of TEMPLATE_LIBRARY) {
+    // The seeded Overview too: it is built the same way, and a stripped param
+    // there is worse than in the gallery — every new trip gets it.
+    for (const t of [...DEFAULT_TEMPLATES, ...TEMPLATE_LIBRARY]) {
       for (const node of widgetsIn(t.content)) {
         const name = node.attrs?.name ?? "(unnamed)";
         const result = insertWidget(name, node.attrs?.params);
@@ -176,61 +178,64 @@ describe("templates", () => {
   it("seeds only widgets that say something readable on a brand-new empty trip", () => {
     // dayCount 0 is the whole point: a trip whose wizard has just closed.
     const bare = tripDetailFactory.build({ startDate: null }, { transient: { dayCount: 0 } });
-    const ctx: WidgetContext = {
-      trip: bare,
-      page: { tripId: bare.tripId },
-      user: null,
-      // No globals and no today either — the two things that arrive after the
-      // first paint. A widget that only reads well once its projection has
-      // landed is a widget that reads badly on arrival.
-      globals: null,
-      today: null,
-    };
+    // **Two moments, because the page is read at both.** First paint: no
+    // globals and no today — a widget that only reads well once its projection
+    // has landed reads badly on arrival. Then, a beat later, the globals for an
+    // empty trip and the reader's date. The second moment arrived with the
+    // SPEC §36.10b rewrite (2026-09-26), which seeds widgets that read the
+    // globals (`day.fromHome`, `country.facts`, `cost.chart`): one that is quiet
+    // while they load and asks for a binding once they arrive would pass the
+    // first moment alone.
+    const page = { tripId: bare.tripId };
+    const moments: [string, WidgetContext][] = [
+      ["first paint", { trip: bare, page, user: null, globals: null, today: null }],
+      [
+        "globals landed",
+        { trip: bare, page, user: null, globals: { days: [], cities: [], tags: [], homeTimeZone: null }, today: "2026-09-26" },
+      ],
+    ];
 
-    for (const t of DEFAULT_TEMPLATES) {
-      for (const node of widgetsIn(t.content)) {
-        const name = String(node.attrs?.name ?? "(unnamed)");
-        const macro = getMacro(name);
-        expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
+    for (const [moment, ctx] of moments) {
+      for (const t of DEFAULT_TEMPLATES) {
+        for (const node of widgetsIn(t.content)) {
+          const name = String(node.attrs?.name ?? "(unnamed)");
+          const macro = getMacro(name);
+          expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
 
-        const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
-        // `unbound` is the state this test exists to refuse: it renders as a
-        // chip asking for a binding the seeded page never made, and there are
-        // six widgets on this page — six of those is not a first impression.
-        expect(
-          outcome.status,
-          `${t.key} seeds ${name}, which asks to be bound before it will say anything`,
-        ).not.toBe("unbound");
-        expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve`).toContain(outcome.status);
-        if (outcome.status === "empty") {
-          // Something a person can read, from the resolver's own reason or the
-          // widget's blanket one. A blank chip in a sentence reads as a
-          // rendering fault, which is worse than any wording.
-          const said = outcome.because ?? macro!.emptyText;
-          expect(said, `${t.key} seeds ${name}, which renders an empty chip with no words in it`).toBeTruthy();
+          const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
+          // `unbound` is the state this test exists to refuse: it renders as a
+          // chip asking for a binding the seeded page never made.
+          expect(
+            outcome.status,
+            `${t.key} seeds ${name}, which asks to be bound before it will say anything (${moment})`,
+          ).not.toBe("unbound");
+          // Nor `unavailable` — a widget waiting on a third party (the
+          // weather), which on a new trip says nothing at all.
+          expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve (${moment})`).toContain(outcome.status);
+          if (outcome.status === "empty") {
+            // SPEC §36.10b: *"an empty line that says what fills it reads
+            // well"* — so there must BE a line, from the resolver's own reason
+            // or the widget's blanket one. A blank chip reads as a rendering
+            // fault, which is worse than any wording.
+            const said = outcome.because ?? macro!.emptyText;
+            expect(said, `${t.key} seeds ${name}, which renders an empty chip with no words in it (${moment})`).toBeTruthy();
+          }
         }
       }
     }
 
     // Non-vacuous, and it pins the composition: the Overview is built out of
-    // widgets and this is which ones. A change here is a deliberate change to
-    // the page every trip opens on.
+    // widgets and this is which ones, in reading order. A change here is a
+    // deliberate change to the page every new trip opens on.
     expect(DEFAULT_TEMPLATES.flatMap((t) => widgetsIn(t.content).map((n) => n.attrs?.name))).toEqual([
-      // The hook, then the shape.
-      "attribute", // trip.name
-      "attribute", // trip.countdown
-      "dates",
-      "count", // days
-      "count", // stops
-      "city",
-      // Then the document, in reading order.
-      "open",
-      "city.detail",
-      "day.detail",
-      "stop.rows", // booked only
-      "cost",
-      "attribute", // trip.budgetRemaining
-      "cost.rows",
+      "attribute", // trip.countdown — the hook
+      "trip.strip",
+      "open", // What needs you
+      "stop.rows", // Still to book (needsBooking)
+      "day.fromHome", // Before you go
+      "country.facts",
+      "cost.chart", // Spend by day
+      "day.detail", // Day by day
     ]);
     // And the gallery still builds itself — the other half of the old line,
     // which is unchanged and still worth holding.
