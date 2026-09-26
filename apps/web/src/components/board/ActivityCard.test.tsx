@@ -88,6 +88,19 @@ describe("ActivityCard kind badge", () => {
     expect(within(screen.getByTestId(`kind-badge-${ACTIVITY_ID}`)).getByText(label)).toBeTruthy();
   });
 
+  // SPEC §36.9 / ADR-055: a kind's detail, when the stop has one, IS the
+  // badge. A stop with none keeps the kind's own word, above.
+  const detailCases: [string, Partial<ActivityView>, string][] = [
+    ["a pending stop to book", { kind: "pending", pendingReason: "book" }, "To book"],
+    ["a pending maybe", { kind: "pending", pendingReason: "maybe" }, "Maybe"],
+    ["a transit stop with a mode", { kind: "transit", mode: "train" }, "Train"],
+  ];
+
+  it.each(detailCases)("labels %s by its detail", (_, overrides, label) => {
+    renderCard(overrides);
+    expect(within(screen.getByTestId(`kind-badge-${ACTIVITY_ID}`)).getByText(label)).toBeTruthy();
+  });
+
   // Not an oversight: the handoff's map falls through to an empty string for
   // `planned`, and `planned` is the contract's zero value — a "Planned" badge
   // would sit on most seeded stops and signal nothing.

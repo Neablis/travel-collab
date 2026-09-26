@@ -7,12 +7,18 @@ export function SegmentedControl<T extends string>({
   onValueChange,
   options,
   variant = "pill",
+  fullWidth = false,
   "aria-label": ariaLabel,
 }: {
   value: T;
   onValueChange: (value: T) => void;
   options: readonly { value: T; label: string }[];
   variant?: "pill" | "subtle";
+  /**
+   * Fill the row, every option the same width — a form's own choice (the stop
+   * editor's Kind, SPEC §36.9) rather than a toggle sitting in a toolbar.
+   */
+  fullWidth?: boolean;
   "aria-label": string;
 }) {
   return (
@@ -20,7 +26,7 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex",
+        fullWidth ? "grid auto-cols-fr grid-flow-col" : "inline-flex",
         variant === "pill" ? "gap-0.5 rounded-md bg-moss p-0.5" : "gap-3",
       )}
     >
