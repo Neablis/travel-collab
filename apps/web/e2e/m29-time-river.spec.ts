@@ -110,10 +110,12 @@ test("dragging a block to another day lands it at the time under the pointer, an
 
   // Held by its middle, so the block's top is half its height above the
   // pointer: aim the pointer at 2 pm plus that, and the top lands at 2 pm.
+  // Both are measured after `pointAt` has scrolled day 1 into view: a box
+  // read before that scroll is stale by however far the page moved.
   await walk.scrollIntoViewIfNeeded();
+  const to = await pointAt(river(page, 0), 14);
   const box = (await walk.boundingBox())!;
   const held = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  const to = await pointAt(river(page, 0), 14);
   await page.mouse.move(held.x, held.y);
   await page.mouse.down();
   // The drag-intent nudge `dragCardTo` documents, before Chromium fires dragstart.
