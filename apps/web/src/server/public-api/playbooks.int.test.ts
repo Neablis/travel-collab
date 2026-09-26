@@ -539,6 +539,19 @@ describe("POST /v1/playbooks written inline", () => {
     expect((await res.json()).error.message).toContain("endLocation is only allowed on a transit stop");
     expect(await db.select().from(savedDays).where(eq(savedDays.ownerId, owner))).toEqual([]);
   });
+
+  // ADR-055: every kind-detail field is named the same way, not only the leg's.
+  it("refuses a pending reason on a non-pending stop, naming the rule", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const res = await keep(secret, {
+      name: "Unwritable",
+      days: [{ stops: [inlineStop("Dinner", { kind: "planned", pendingReason: "book" })] }],
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.message).toContain("pendingReason is only allowed on a pending stop");
+    expect(await db.select().from(savedDays).where(eq(savedDays.ownerId, owner))).toEqual([]);
+  });
 });
 
 describe("PATCH /v1/playbooks/{playbookId}", () => {

@@ -27,6 +27,12 @@ Format:
   reason left on a non-pending stop as `pending-reason-off-pending`; the leg's
   `travel-leg-off-transit` is unchanged. The saved-day refusal text now ends
   `(kind "transit")` like the command one.
+- **Added:** `clearDetailFieldsForKind(patch)` — an `UpdateActivity` patch that states a
+  new `kind` gets `null` for every kind-detail field that kind cannot carry and the patch
+  did not name. Used by the caller edges only, never the decider: the assistant's
+  pre-parse adapter (`writeTools.ts`) and `PATCH /v1/trips/{tripId}/activities/{activityId}`.
+  Without it, `{ kind: "planned" }` on any stop created as *To book* was refused
+  `pending-reason-off-pending` (and, since M24, the same for a leg off transit).
 - Why: Mitchell, 2026-09-26 — *"Add pending reason. It should be nearly identical as how
   travel has a type, and easily extendible."* SPEC §36.9's *To book* / *Maybe*.
 - Consumers updated: `@tc/domain` (decide, evolve, diff, equality, hydrate, detail);

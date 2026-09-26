@@ -310,6 +310,36 @@ export function kindDetailFieldsOffKind(
   );
 }
 
+/**
+ * **An update that states a new `kind`, with the explicit clear the decider asks
+ * for.** Every kind-detail field that the new kind may not carry, and that the
+ * patch does not mention, is set to `null`. A field the patch DOES mention is
+ * left alone, so a stated contradiction (`kind: "planned", pendingReason:
+ * "book"`) still reaches the contract's refusal. A patch with no `kind` is
+ * returned unchanged: it is not moving the stop anywhere.
+ *
+ * **For the caller edges that speak for a person or a model, not for the
+ * decider.** The decider refuses a stray detail rather than clearing it
+ * (ADR-055, "Rejected"), because a field the caller never mentioned vanishing is
+ * the silent-drop class KI-2026-09-05-o is about. An edge that turns "make this
+ * planned" into a command is the caller, and saying `pendingReason: null` there
+ * is the caller saying it. Without this, every stop the editor created (they all
+ * start on `book`) could not be marked planned by the assistant or by
+ * `PATCH /v1/…/activities/:id` unless the client knew to send the clear.
+ *
+ * Takes the UNPARSED fields: the assistant's intents are raw, and a clear added
+ * after the parse would be too late for the dry run that decides the proposal.
+ */
+export function clearDetailFieldsForKind<T extends Record<string, unknown>>(patch: T): T {
+  const kind = patch["kind"];
+  if (typeof kind !== "string") return patch;
+  const cleared = (Object.keys(KIND_DETAIL_FIELDS) as KindDetailField[]).filter(
+    (field) => KIND_DETAIL_FIELDS[field] !== kind && patch[field] === undefined,
+  );
+  if (cleared.length === 0) return patch;
+  return { ...patch, ...Object.fromEntries(cleared.map((field) => [field, null])) };
+}
+
 // ---- Commands ----
 
 export const AddActivity = z.object({

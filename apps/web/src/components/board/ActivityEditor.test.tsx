@@ -248,6 +248,18 @@ describe("ActivityEditor pending reason", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "planned", pendingReason: null }));
   });
+
+  // Only what is SAVED is cleared off-kind; the choice itself survives a trip
+  // through another kind, so a mis-click on Planned does not lose it.
+  it("keeps the reason chosen in this session when the kind goes to planned and back", () => {
+    const onSave = renderEditor(existingStop({ kind: "pending", pendingReason: "book" }), "edit");
+    fireEvent.click(screen.getByRole("radio", { name: "Maybe" }));
+    pickKind("planned");
+    pickKind("pending");
+    expect(screen.getByRole("radio", { name: "Maybe" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "pending", pendingReason: "maybe" }));
+  });
 });
 
 describe("ActivityEditor tag picker", () => {
