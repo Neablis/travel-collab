@@ -247,15 +247,10 @@ gate: `docs/milestones/M14-rich-layer.md`.
 **M28 — Three kinds — was current from 2026-09-25 to 2026-09-26.**
 **2026-09-25, PLACED BY MITCHELL** after M24's gate closed: *"Planned =
 Default, Pending = Combo Idea / Hold, Transit = Travel. The rest feel too small
-to be worth complicating ui."* Built the same day (#238, #239); decision record
-ADR-054; scope and gate: `docs/milestones/M28-three-kinds.md`. M14 is next.
+to be worth complicating ui."* Built the same day (#238, #239); ADR-054;
+`docs/milestones/M28-three-kinds.md`.
 
-**M14 — Rich layer — was current for a few hours on 2026-09-25, BY M24'S GATE
-CLOSING** at **11 of 11**. M14's code merged on
-2026-09-24, built ahead of M24 on Mitchell's call; its gate is 17 of 22 and the
-open boxes need a person. Scope and gate: `docs/milestones/M14-rich-layer.md`.
-
-*(The paragraphs below are earlier placements, kept for their reasoning.)*
+**M14 was current for a few hours on 2026-09-25**, until M28 was placed ahead.
 
 **M24 — A leg knows where it goes and by what — was current from 2026-09-23**
 to 2026-09-25.
