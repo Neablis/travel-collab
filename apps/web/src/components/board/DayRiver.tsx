@@ -7,6 +7,7 @@ import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
+import { RACK_LIFT_OVER_EVENT } from "@/lib/touchLift";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { toClockRange, toMinutes } from "@/lib/time";
 import { RiverBlock } from "./RiverBlock";
@@ -62,6 +63,8 @@ export type RiverGestures = {
    * the same `resolveDrop`.
    */
   onDropAt: (activityId: string, dayId: string, window: TimeWindow) => void;
+  /** A block lifted by touch was let go over the unscheduled rack: park it, as a mouse drop there does. */
+  onUnschedule: (activityId: string) => void;
 };
 
 /**
@@ -85,13 +88,26 @@ function visibleBand(element: HTMLElement | null): { top: number; bottom: number
   return { top: px("--sticky-stack-height"), bottom: window.innerHeight - px("--rack-height") - px("--phone-tab-bar-height") };
 }
 
-/** The river whose time is under a point, if the topmost thing there is one. */
-function riverAt(x: number, y: number): HTMLElement | null {
-  // Topmost only, on purpose: over the rack, the tab bar or the sticky header
-  // a finger is not over the river they cover, and a release there drops
-  // nothing. jsdom has no `elementFromPoint`.
+/**
+ * Where a finger carrying a block would let it go: the day river or the rack
+ * under it, if the topmost thing there is one of them.
+ */
+type LiftTarget = { kind: "river"; element: HTMLElement; dayId: string; window: MinuteWindow } | { kind: "rack"; element: HTMLElement };
+
+/**
+ * What is under a point, for a touch lift. Topmost only, on purpose: over the
+ * tab bar or the sticky header a finger is not over the river they cover, and
+ * a release there drops nothing. The rack is a place to land, as it is for a
+ * mouse. jsdom has no `elementFromPoint`.
+ */
+function landingAt(x: number, y: number): { river: HTMLElement; dayId: string } | { rack: HTMLElement } | null {
   if (typeof document.elementFromPoint !== "function") return null;
-  return document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-river-day]") ?? null;
+  const hit = document.elementFromPoint(x, y);
+  const rack = hit?.closest<HTMLElement>("[data-rack-drop]");
+  if (rack) return { rack };
+  const river = hit?.closest<HTMLElement>("[data-river-day]");
+  const dayId = river?.dataset.riverDay;
+  return river && dayId ? { river, dayId } : null;
 }
 
 /** The outline a gesture draws: a sketch, or where a dragged stop would land. */
@@ -531,9 +547,10 @@ export function DayRiver({
    * lifts, then carry it. The outline is drawn on whichever river is under the
    * finger (one on a phone, any day's on a touch tablet), at the time its top
    * would land, and letting go there is the same `place` a mouse drop is.
-   * Letting go anywhere that is not a river (the rack, the tab bar, the
-   * header) puts it back. On a phone, a different DAY is the editor's Day
-   * field, as it was for the card list: one day is on screen at a time.
+   * Letting go over the unscheduled rack parks it, as a mouse drop there does
+   * (the rack lights up while the finger is over it); letting go anywhere else
+   * (the tab bar, the header) puts it back. On a phone, a different DAY is the
+   * editor's Day field: one day is on screen at a time.
    */
   function startLift(activityId: string, e: ReactPointerEvent<HTMLElement>) {
     lastPointer.current = e.pointerType;
@@ -544,16 +561,22 @@ export function DayRiver({
     const { clientX: x0, clientY: y0 } = e;
     holdThen(e, () => {
       setLifted(activityId);
-      let target: { river: HTMLElement; dayId: string; window: MinuteWindow } | null = null;
-      const show = (river: HTMLElement, drawn: MinuteWindow | null) =>
-        river.dispatchEvent(new CustomEvent<MinuteWindow | null>(LIFT_GHOST_EVENT, { detail: drawn }));
+      let target: LiftTarget | null = null;
+      // Tells a river what outline to draw, or the rack whether to light up.
+      const show = (at: LiftTarget, on: boolean) =>
+        at.kind === "river"
+          ? at.element.dispatchEvent(new CustomEvent<MinuteWindow | null>(LIFT_GHOST_EVENT, { detail: on ? at.window : null }))
+          : at.element.dispatchEvent(new CustomEvent<boolean>(RACK_LIFT_OVER_EVENT, { detail: on }));
       const over = (x: number, y: number) => {
-        const river = riverAt(x, y);
-        const dayId = river?.dataset.riverDay;
-        const next =
-          river && dayId ? { river, dayId, window: dropWindow(axis, y - river.getBoundingClientRect().top, grab, minutes) } : null;
-        if (target !== null && target.river !== next?.river) show(target.river, null);
-        if (next !== null) show(next.river, next.window);
+        const at = landingAt(x, y);
+        const next: LiftTarget | null =
+          at === null
+            ? null
+            : "rack" in at
+              ? { kind: "rack", element: at.rack }
+              : { kind: "river", element: at.river, dayId: at.dayId, window: dropWindow(axis, y - at.river.getBoundingClientRect().top, grab, minutes) };
+        if (target !== null && target.element !== next?.element) show(target, false);
+        if (next !== null) show(next, true);
         target = next;
       };
       over(x0, y0);
@@ -562,10 +585,12 @@ export function DayRiver({
         (commit) => {
           touchHeld.current = false;
           setLifted(null);
-          const landed = target;
+          const landed: LiftTarget | null = target;
           if (landed === null) return;
-          show(landed.river, null);
-          if (commit) live.onDropAt(activityId, landed.dayId, toTimeWindow(landed.window));
+          show(landed, false);
+          if (!commit) return;
+          if (landed.kind === "rack") live.onUnschedule(activityId);
+          else live.onDropAt(activityId, landed.dayId, toTimeWindow(landed.window));
         },
         { scroll: true },
       );
@@ -576,7 +601,7 @@ export function DayRiver({
     <div
       ref={riverRef}
       data-testid="day-river"
-      // What a touch lift looks for under the finger (`riverAt`): an editable
+      // What a touch lift looks for under the finger (`landingAt`): an editable
       // river, and which day it is. A read-only river is no place to land.
       data-river-day={live ? dayId : undefined}
       // `touch-manipulation`: pans both ways (a tablet's row scrolls sideways

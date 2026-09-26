@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { activityFactory, locationFactory } from "@tc/factories";
 import { DayRiver, type RiverGestures } from "./DayRiver";
+import { RACK_LIFT_OVER_EVENT } from "@/lib/touchLift";
 import { RIVER_TOUCH_HOLD_MS } from "./riverGestures";
 import { riverAxis } from "./riverLayout";
 
@@ -148,7 +149,7 @@ describe("the order a river is read in", () => {
 describe("gestures on empty time", () => {
   const morning = activityFactory.build({ title: "Museum", timeWindow: { start: "09:00", end: "10:00" } });
   const evening = activityFactory.build({ title: "Dinner", timeWindow: { start: "17:00", end: "18:00" } });
-  const gestures = () => ({ onCreateAt: vi.fn(), onResize: vi.fn(), canPlace: () => true, onDropAt: vi.fn() }) satisfies RiverGestures;
+  const gestures = () => ({ onCreateAt: vi.fn(), onResize: vi.fn(), canPlace: () => true, onDropAt: vi.fn(), onUnschedule: vi.fn() }) satisfies RiverGestures;
   const hour = (h: number) => (h - 9) * 44;
 
   it("double-click on empty time opens an hour at the quarter hour under the pointer — and not on a block", () => {
@@ -357,6 +358,33 @@ describe("gestures on empty time", () => {
       fireEvent.pointerUp(window, finger);
       fireEvent.click(block(morning.activityId).getByRole("button", { name: /^Edit Museum/ }));
       expect(onEdit).toHaveBeenCalledExactlyOnceWith(morning.activityId);
+    });
+
+    it("a held block let go over the unscheduled rack is parked, and the rack is told while the finger is over it", () => {
+      const g = gestures();
+      renderRiver([morning, evening], false, g);
+      const river = screen.getByTestId("day-river");
+      const rack = document.createElement("section");
+      rack.setAttribute("data-rack-drop", "");
+      document.body.append(rack);
+      const told: boolean[] = [];
+      rack.addEventListener(RACK_LIFT_OVER_EVENT, (e) => told.push((e as CustomEvent<boolean>).detail));
+      let under: Element = river;
+      document.elementFromPoint = () => under;
+
+      fireEvent.pointerDown(screen.getByTestId(`activity-card-${morning.activityId}`), { ...finger, clientY: hour(9.5) });
+      hold();
+      under = rack;
+      fireEvent.pointerMove(window, { ...finger, buttons: 1, clientY: 700 });
+      expect(told).toEqual([true]);
+      // Off the river, so the river draws no outline for it.
+      expect(screen.queryByTestId("river-ghost")).toBeNull();
+      fireEvent.pointerUp(window, finger);
+
+      expect(g.onUnschedule).toHaveBeenCalledExactlyOnceWith(morning.activityId);
+      expect(g.onDropAt).not.toHaveBeenCalled();
+      expect(told).toEqual([true, false]);
+      rack.remove();
     });
 
     it("the grip resizes when dragged and opens the stop when tapped, with no hold for either", () => {

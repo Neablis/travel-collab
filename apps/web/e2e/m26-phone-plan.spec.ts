@@ -260,6 +260,27 @@ test.describe("M29 — the river on a phone", () => {
     await context.close();
   });
 
+  // The rack is fixed above the tab bar and is still a place to land: a mouse
+  // drop on it unschedules, and so does a finger letting go on it.
+  test("a held block let go on the rack is parked there", async ({ browser }) => {
+    const { context, page, river } = await phone(browser, "PhoneRiverPark");
+    const finger = await fingerOn(page);
+    const walk = page.getByTestId(/^activity-card-/).filter({ has: block(page, /^Edit Day 1 walk,/) });
+    const rack = page.getByTestId("unscheduled-rack");
+    await expect(rack.getByRole("button", { name: /^Unscheduled 0\b/ })).toBeVisible();
+
+    const from = await pointAt(page, river, 16.5);
+    await finger.down(from.x, from.y);
+    await expect(walk).toHaveAttribute("data-lifted", "true");
+    const box = (await rack.boundingBox())!;
+    await finger.move(box.x + box.width / 2, box.y + box.height / 2, 12);
+    await finger.up();
+
+    await expect(rack.getByRole("button", { name: /^Unscheduled 1\b/ })).toBeVisible();
+    await expect(block(river, /^Edit Day 1 walk,/)).toHaveCount(0);
+    await context.close();
+  });
+
   test("the grip is a 44px target, and dragging it changes when a stop ends", async ({ browser }) => {
     const { context, page, river } = await phone(browser, "PhoneRiverResize");
     const finger = await fingerOn(page);

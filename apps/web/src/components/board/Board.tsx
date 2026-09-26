@@ -629,6 +629,7 @@ export function Board({
             const outcome = resolveDrop(latest.current.trip, { activityId }, { dayId: toDayId, riverWindow });
             if (outcome?.kind === "place") latest.current.callbacks.onPlace(outcome);
           },
+          onUnschedule: (activityId) => latest.current.callbacks.onUnschedule(activityId),
         };
 
   return (
