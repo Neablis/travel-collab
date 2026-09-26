@@ -9,7 +9,7 @@ import { filterInputs, filterParams, withoutWithheld } from "../../filters";
 import { costOfStops, narrow, type Narrowed, type SelectedStop } from "../../select";
 import { dayLabel, formatMoney, formatShortDate } from "../../format";
 import { collapseKind } from "../../kinds";
-import { KIND_LABEL, enumLabel } from "../../enumLabels";
+import { KIND_LABEL, TAG_LABEL } from "../../enumLabels";
 import { SPEND_SERIES, SPEND_SERIES_LABEL, seriesOf } from "./spendSeries";
 
 // `cost.breakdown` — "Spend by kind" and "Spend by tag", a pie of what the
@@ -52,20 +52,47 @@ import { SPEND_SERIES, SPEND_SERIES_LABEL, seriesOf } from "./spendSeries";
 // Unlike the bars it has no day axis, so an unscheduled stop is simply in it.
 const COST_BREAKDOWN_FILTERS = ["day", "dates", "city", "tag", "kind"] as const satisfies readonly FilterDimension[];
 
+/**
+ * The two ways to split, each with the one word the widget says for it — the
+ * "Split by" option, the key's column heading, and the title's "Spend by …".
+ * Keyed by `SpendBreakdownBy`, so a third split fails to compile until it has
+ * its word; everything below (the param's enum, the choice's options, which
+ * filter each withholds) is derived from this rather than listed again.
+ *
+ * The words for the SLICES are never here: they are the contract's own label
+ * maps (`KIND_LABEL`, `SPEND_SERIES_LABEL` over `TAG_LABEL`), read per key, so
+ * a kind or tag added to the contract reaches the pie, its key and its title
+ * with no edit to this file (Mitchell, 2026-09-26: *"Use what the typescript
+ * define … and should change if we add more in future"*).
+ */
+const SPLITS: { readonly [B in SpendBreakdownBy]: { noun: string; withholds: FilterDimension } } = {
+  kind: { noun: "Kind", withholds: "kind" },
+  tag: { noun: "Tag", withholds: "tag" },
+};
+const BY = Object.keys(SPLITS) as [SpendBreakdownBy, ...SpendBreakdownBy[]];
+const DEFAULT_BY: SpendBreakdownBy = "kind";
+
 const CostBreakdownParams = filterParams(COST_BREAKDOWN_FILTERS, {
   // Absent is "kind": the pie every stored `cost.breakdown` without it draws.
-  by: z.enum(["kind", "tag"]).optional(),
+  by: z.enum(BY).optional(),
 });
 type CostBreakdownParams = z.infer<typeof CostBreakdownParams>;
 
 const BREAKDOWN_SELECTION: WidgetSelection = {
   entity: "stop",
   filters: COST_BREAKDOWN_FILTERS,
-  withheld: { param: "by", default: "kind", values: { kind: ["kind"], tag: ["tag"] } },
+  withheld: {
+    param: "by",
+    default: DEFAULT_BY,
+    values: Object.fromEntries(BY.map((by) => [by, [SPLITS[by].withholds]])),
+  },
 };
 
 const COST_BREAKDOWN_INPUTS: readonly WidgetInput[] = [
-  { name: "by", type: "choice", label: "Split by", default: "kind", options: [{ value: "kind", label: "Kind" }, { value: "tag", label: "Tag" }] },
+  {
+    name: "by", type: "choice", label: "Split by", default: DEFAULT_BY,
+    options: BY.map((by) => ({ value: by, label: SPLITS[by].noun })),
+  },
   ...filterInputs(COST_BREAKDOWN_FILTERS),
 ];
 
@@ -106,9 +133,11 @@ function slicesOf<K extends string>(
  */
 function titleOf(by: SpendBreakdownBy, selection: Narrowed): string {
   const { filters } = selection;
-  const parts = [by === "kind" ? "Spend by kind" : "Spend by tag"];
-  if (filters.tag !== undefined) parts.push(enumLabel(filters.tag));
-  if (filters.kind !== undefined) parts.push(enumLabel(filters.kind));
+  const parts = [`Spend by ${SPLITS[by].noun.toLowerCase()}`];
+  // The contract's label maps, keyed by the enums: a value added there has
+  // its word here the day it compiles.
+  if (filters.tag !== undefined) parts.push(TAG_LABEL[filters.tag]);
+  if (filters.kind !== undefined) parts.push(KIND_LABEL[filters.kind]);
   if (filters.city !== undefined) parts.push(filters.city);
   if (filters.day !== undefined && selection.days.length === 1) parts.push(dayLabel(selection.days[0]!));
   if (filters.dates !== undefined) {
@@ -132,7 +161,7 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
   preview: "a pie of what the trip costs, by kind or by tag",
   resolve: ({ trip, globals }: WidgetContext, params, item): MacroResult<SpendBreakdownPayload> => {
     if (!trip) return needsTrip();
-    const by: SpendBreakdownBy = params.by ?? "kind";
+    const by: SpendBreakdownBy = params.by ?? DEFAULT_BY;
     const selection = narrow(trip, globals, withoutWithheld(BREAKDOWN_SELECTION, params), item);
     if (selection.status !== "ok") return selection;
     const { stops } = selection.value;
@@ -151,6 +180,7 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
     const common = {
       kind: "spend-breakdown" as const,
       title,
+      keyHeading: SPLITS[by].noun,
       total: totalText,
       notCharted: others === null ? null : `Not charted: ${others} in other currencies.`,
     };

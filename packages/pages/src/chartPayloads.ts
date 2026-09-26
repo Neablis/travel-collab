@@ -100,6 +100,8 @@ interface SpendBreakdownCommon {
    * the key's table, so a screen reader hears the narrowing too.
    */
   title: string;
+  /** The key's first column heading: what a slice is — "Kind", "Tag". */
+  keyHeading: string;
   /** Everything charted, in the trip's currency. */
   total: string;
   /** One sentence a screen reader gets in place of the picture. */

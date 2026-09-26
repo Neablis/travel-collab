@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
-import { renderMacro, type SpendBreakdownPayload, type SpendByDayPayload } from "@tc/pages";
-import type { ActivityKind, ActivityTag, Money, TripDetail } from "@tc/contracts";
+import { KIND_LABEL, TAG_LABEL, renderMacro, type SpendBreakdownPayload, type SpendByDayPayload } from "@tc/pages";
+import { ActivityKind, ActivityTag, type Money, type TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { SpendBreakdownBlock, breakdownChartConfig } from "./SpendBreakdownBlock";
 import { spendChartConfig } from "./SpendByDayBlock";
@@ -21,8 +21,9 @@ beforeAll(async () => {
 function payloadOf(
   price: (trip: TripDetail, id: (day: number, slot: number) => string) => void,
   params: Record<string, unknown> = {},
+  stops = 4,
 ): SpendBreakdownPayload {
-  const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 2 } });
+  const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: Math.ceil(stops / 2) } });
   trip.currency = "USD";
   price(trip, (day, slot) => trip.days[day]!.activityIds[slot]!);
   const outcome = renderMacro({ trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null }, "cost.breakdown", params);
@@ -105,5 +106,42 @@ describe("SpendBreakdownBlock", () => {
     const barColors = spendChartConfig(bars);
     expect(tags.slices).toHaveLength(5);
     for (const slice of tags.slices) expect(tagColors[slice.key]!.color, slice.key).toBe(barColors[slice.key]!.color);
+  });
+
+  it("gives every kind and every tag the contract defines a slice, its label from the map, a colour and a title", () => {
+    // Mitchell, 2026-09-26: *"Use what the typescript define … and should
+    // change if we add more in future"*. Swept over the enums themselves, so a
+    // sixth tag or a fourth kind is checked the day it exists: one priced stop
+    // per value, so every slice has money and a colour to draw it in.
+    const everyValue = (params: Record<string, unknown>) =>
+      payloadOf((trip) => {
+        const ids = trip.days.flatMap((day) => day.activityIds);
+        ActivityKind.options.forEach((kind, i) => set(trip, ids[i]!, { amountMinor: 100, currency: "USD" }, kind));
+        ActivityTag.options.forEach((tag, i) =>
+          set(trip, ids[ActivityKind.options.length + i]!, { amountMinor: 100, currency: "USD" }, "planned", [tag]),
+        );
+      }, params, ActivityKind.options.length + ActivityTag.options.length);
+
+    const byKind = everyValue({});
+    expect(byKind.slices.map((s) => [s.key, s.label])).toEqual(ActivityKind.options.map((k) => [k, KIND_LABEL[k]]));
+    const byTag = everyValue({ by: "tag" });
+    expect(byTag.slices.map((s) => s.key)).toEqual([...ActivityTag.options, "untagged"]);
+    for (const tag of ActivityTag.options) expect(byTag.slices.find((s) => s.key === tag)!.label).toBe(TAG_LABEL[tag]);
+
+    for (const payload of [byKind, byTag]) {
+      const config = breakdownChartConfig(payload);
+      for (const slice of payload.slices) {
+        expect(slice.amountMinor, `${slice.key} has money`).toBeGreaterThan(0);
+        expect(config[slice.key]?.color, `${slice.key} has a colour`).toMatch(/^--color-/);
+        expect(config[slice.key]?.label).toBe(slice.label);
+      }
+    }
+    // The title names a narrowing in the same words.
+    for (const kind of ActivityKind.options) {
+      expect(everyValue({ by: "tag", kind }).title).toBe(`Spend by tag · ${KIND_LABEL[kind]}`);
+    }
+    for (const tag of ActivityTag.options) {
+      expect(everyValue({ tag }).title).toBe(`Spend by kind · ${TAG_LABEL[tag]}`);
+    }
   });
 });

@@ -70,7 +70,7 @@ export function SpendBreakdownBlock({ payload }: { payload: SpendBreakdownPayloa
         </span>
         <span role="table" aria-label={payload.title} className="table min-w-0 flex-1 border-collapse text-sm text-ink">
           <span role="row" className="sr-only">
-            <span role="columnheader">{payload.by === "kind" ? "Kind" : "Tag"}</span>
+            <span role="columnheader">{payload.keyHeading}</span>
             <span role="columnheader">Amount</span>
             <span role="columnheader">Share</span>
           </span>

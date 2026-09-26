@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLateFocus } from "./useLateFocus";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, presetParams } from "@tc/pages";
+import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, presetParams, withoutWithheld } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
@@ -459,7 +459,7 @@ export function WidgetBindControls({
   params,
   detail,
   globals,
-  onChange,
+  onChange: commitRaw,
   layout,
   idPrefix,
   // Read with `params`, so switching "Split by" swaps the withheld control.
@@ -477,6 +477,12 @@ export function WidgetBindControls({
   title?: string;
 }) {
   const title = titleOverride ?? getMacro(name)?.title ?? name;
+  // **Every commit drops the filters the NEW params withhold** (Mitchell,
+  // 2026-09-26, on #246): switching "Split by" to Tag deletes a stored tag
+  // filter rather than keeping it hidden. In the same params object, so the
+  // caller writes it as ONE edit and one undo puts both back. The resolver
+  // still ignores a withheld param on read, for documents stored before this.
+  const onChange = (next: Record<string, unknown>) => commitRaw(withoutWithheld(getMacro(name)?.selection, next));
   // A stacked select is otherwise named by its visible `FormField` label alone
   // ("Tags"), which is unique only while the panel holds one widget.
   const namedByTitle = layout === "inline" || titleOverride !== undefined;

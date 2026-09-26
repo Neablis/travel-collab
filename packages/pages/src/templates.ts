@@ -334,6 +334,12 @@ const money: TemplateSeed = {
     heading("Spend by day"),
     // Against an even pace for the budget, when there is one.
     block("cost.chart"),
+    // The same money split two ways (Mitchell, 2026-09-26, on #246): the two
+    // presets, "Spend by kind" and "Spend by tag". On an empty trip each reads
+    // "no costs yet", like the chart above it.
+    heading("Where it goes"),
+    block("cost.breakdown", { by: "kind" }),
+    block("cost.breakdown", { by: "tag" }),
     heading("Costs, broken down"),
     block("cost.rows"),
     heading("Notes"),

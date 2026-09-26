@@ -180,11 +180,12 @@ export function withheldFilters(
 }
 
 /**
- * `params` without the filters it withholds. **This is how a stored page that
- * disagrees with itself still reads**: `{by: "tag", tag: "meal"}` — a tag
- * filter on a pie split by tag, left behind by switching `by` or written by
- * hand — resolves as unfiltered by tag, never as one slice and never as an
- * error. The value stays in the document, so switching back finds it.
+ * `params` without the filters it withholds. Two callers: the settings panel
+ * commits through it, so switching `by` deletes the now-withheld filter from
+ * the document; and the resolver reads through it, which is **how a stored
+ * page that disagrees with itself still reads**: `{by: "tag", tag: "meal"}` —
+ * stored before the panel pruned, or written by hand — resolves as unfiltered
+ * by tag, never as one slice and never as an error.
  */
 export function withoutWithheld<P extends Readonly<Record<string, unknown>>>(
   selection: WidgetSelection | undefined,

@@ -332,3 +332,28 @@ describe("WidgetSettings for a sentence for each…", () => {
     await waitFor(() => expect(editor.state.doc.child(0).type.name).toBe("paragraph"));
   });
 });
+
+// Mitchell, 2026-09-26, on #246: switching a spend breakdown's "Split by"
+// clears the filter the new split withholds — deleted from the document, not
+// kept hidden — as the same single edit as the switch.
+describe("WidgetSettings for a spend breakdown", () => {
+  it("clears the tag filter when it is split by tag, in one undoable edit", async () => {
+    const stored = { by: "kind", tag: "meal", city: "Tokyo" };
+    let editor: Editor | undefined;
+    render(
+      <Harness
+        onEditor={(e) => (editor = e)}
+        value={newPageDoc([{ type: "paragraph", content: [{ type: "macro", attrs: { name: "cost.breakdown", params: stored } }] }])}
+      />,
+    );
+    await waitFor(() => expect(editor).toBeDefined());
+    editor!.view.dispatch(editor!.state.tr.setSelection(NodeSelection.create(editor!.state.doc, 1)));
+    const panel = within(await screen.findByTestId("widget-settings"));
+
+    await userEvent.selectOptions(panel.getByRole("combobox", { name: "Split by" }), "tag");
+    await waitFor(() => expect(paramsInDocument(editor!)).toEqual([{ by: "tag", city: "Tokyo" }]));
+
+    editor!.commands.undo();
+    expect(paramsInDocument(editor!)).toEqual([stored]);
+  });
+});
