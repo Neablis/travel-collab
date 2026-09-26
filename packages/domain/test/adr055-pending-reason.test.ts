@@ -56,7 +56,9 @@ describe("a pending reason is legal only while its stop is pending", () => {
     expect(d).toMatchObject({ ok: false, rejection: { code: "pending-reason-off-pending" } });
   });
 
-  it("accepts the same move when the command clears the reason, and never clears it for the caller", () => {
+  // The decider never clears a reason on the caller's behalf — the refusal two
+  // tests up is that half; this is the other: stated explicitly, the move lands.
+  it("accepts the same move when the command clears the reason itself", () => {
     const next = apply(dinner(), update({ kind: "planned", pendingReason: null }));
     expect(next.activities[ACT]).toMatchObject({ kind: "planned", pendingReason: null });
   });
