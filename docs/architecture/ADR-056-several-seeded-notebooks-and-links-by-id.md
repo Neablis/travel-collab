@@ -62,7 +62,9 @@ which the templates, their tests and three e2e walks all pinned.
    `insert_widget`'s name enum is `COMPOSABLE_MACRO_NAMES` and the catalogue its prompt
    carries is filtered the same way. A link is an address somebody chose, and the text
    the assistant reads — a stop's notes, a page — is where one it should not plant
-   would come from.
+   would come from. **Amended 2026-09-26 by ADR-057:** both are offered now, each guarded
+   at `insert_widget` — an external address only if the user typed it in the message
+   being answered, an internal target only by a number this turn listed, never by id.
 7. **An external link is its own `Rendered` kind, `{link, href, text}`.** ADR-037 3a
    closes `Seg` so a widget has nowhere to put an address; that stays true. The href is
    checked by the params schema (`WebAddress`: http/https via `new URL`), so a stored

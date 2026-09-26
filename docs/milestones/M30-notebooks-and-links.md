@@ -45,11 +45,19 @@ His answers when asked: seed several notebooks into every new trip (reversing
 5. **The notebook list says what each notebook says** (`PageListEntry.preview`), shown
    in the Notebook index and on link cards.
 
+6. **The assistant finds widgets rather than carrying them** (ADR-057, added 2026-09-26 on
+   Mitchell's *"make sure the AI assistant can still create and make changes in a notebook …
+   we might need a tool to search the widgets"*). The trip strip and the countdown left the
+   seeded notebooks but not the product: a page turn's prompt no longer carries the catalogue
+   (15,804 → 2,684 characters), `search_widgets` and `get_widget` answer instead, and both
+   link widgets are insertable behind `insert_widget`'s guards.
+
 ## Out of scope
 
 - A website preview for external links (a server fetch on the reader's behalf).
 - Playbooks as a link target (their routes need a signed-in reader).
-- The assistant composing links (`composable: false`, ADR-056 decision 6).
+- ~~The assistant composing links (`composable: false`, ADR-056 decision 6).~~ Reversed
+  2026-09-26 by **ADR-057**, below.
 - Re-seeding existing trips, or adding cards for notebooks made after seeding.
 - The public API: `GET /v1/…/pages` keeps returning `PageSummary`.
 
@@ -69,7 +77,9 @@ His answers when asked: seed several notebooks into every new trip (reversing
 - [x] **Read-only visitors get no link they cannot follow** (demo, invite look), and no
       card navigates while its page is edited — `LinkCardBlock.test.tsx`,
       `useExternalInputs.test.tsx`.
-- [x] **The assistant cannot insert a link** — `pageTools.test.ts`, `registry.test.ts`.
+- [x] ~~**The assistant cannot insert a link**~~ — superseded by ADR-057: **the assistant
+      inserts a link only through its guards** — a website address the user typed in this
+      message, a notebook by a number this turn listed, never an id — `pageTools.test.ts`.
 - [x] Contract entry in `docs/contracts/CHANGELOG.md`; ADR-056 written.
 - [ ] **[walk]** On the preview: a new trip's four notebooks; the Overview reading as an
       itinerary on the Japan demo; insert an internal link to Money and follow it; insert
