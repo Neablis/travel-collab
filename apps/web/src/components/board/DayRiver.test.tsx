@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
-import { activityFactory } from "@tc/factories";
+import { activityFactory, locationFactory } from "@tc/factories";
 import { DayRiver, type RiverGestures } from "./DayRiver";
 import { riverAxis } from "./riverLayout";
 
@@ -76,14 +76,51 @@ describe("a river block says how locked in its stop is", () => {
 });
 
 describe("what a block has room to say", () => {
-  it("shows tags only once the block is tall enough to hold them", () => {
-    // 30 minutes is 20px of axis (drawn at the 24px minimum); two hours is 86.
+  it("lets a stop too short to draw its tags still focus one", () => {
+    // 30 minutes is 20px of axis, drawn at the 24px minimum — well under the
+    // 70px SPEC §36.9b draws tags from. Every lodging stop in the demo is this
+    // short, and this chip was the only way to focus `lodging` on a desktop.
     const short = activityFactory.build({ title: "Check in", tags: ["lodging"], timeWindow: { start: "09:00", end: "09:30" } });
     const long = activityFactory.build({ title: "Dinner", tags: ["meal"], timeWindow: { start: "19:00", end: "21:00" } });
     renderRiver([short, long]);
 
-    expect(block(short.activityId).queryByRole("button", { name: /lodging/ })).toBeNull();
+    expect(block(short.activityId).getByRole("button", { name: "Dim everything that is not lodging" })).toBeTruthy();
     expect(block(long.activityId).getByRole("button", { name: "Dim everything that is not meal" })).toBeTruthy();
+  });
+
+  it("names the place, the cost and the tags, which the drawn block may not show", () => {
+    // Narrow (it overlaps) and compact (30 minutes): the picture has room for
+    // the title alone, so the name is the only place the rest can be heard.
+    const lunch = activityFactory.build({
+      title: "Ramen",
+      timeWindow: { start: "12:00", end: "12:30" },
+      location: locationFactory.build({ name: "Ichiran, Shibuya", city: "Tokyo", countryCode: "JP" }),
+      cost: { amountMinor: 1850, currency: "EUR" },
+      tags: ["meal", "ticketed"],
+    });
+    const walk = activityFactory.build({ title: "Walk", timeWindow: { start: "12:00", end: "13:00" } });
+    renderRiver([lunch, walk]);
+
+    expect(
+      screen.getByRole("button", { name: "Edit Ramen, 12 pm – 12:30 pm, Planned, Ichiran, Tokyo, Japan, €18.50, tagged Meal and Ticketed" }),
+    ).toBeTruthy();
+  });
+});
+
+describe("the order a river is read in", () => {
+  it("is the order of the clock, not of the day's list", () => {
+    // Listed evening first, as a drop at a new time can leave them; two stops
+    // at 09:00 as well, so the tie is broken by lane (the longer takes the left).
+    const dinner = activityFactory.build({ title: "Dinner", timeWindow: { start: "19:00", end: "20:00" } });
+    const coffee = activityFactory.build({ title: "Coffee", timeWindow: { start: "09:00", end: "09:30" } });
+    const museum = activityFactory.build({ title: "Museum", timeWindow: { start: "09:00", end: "11:00" } });
+    const lunch = activityFactory.build({ title: "Lunch", timeWindow: { start: "12:00", end: "13:00" } });
+    renderRiver([dinner, coffee, lunch, museum]);
+
+    const titles = within(screen.getByRole("list", { name: "Day 1 timeline" }))
+      .getAllByRole("button", { name: /^Edit / })
+      .map((button) => button.getAttribute("aria-label")?.split(",")[0]);
+    expect(titles).toEqual(["Edit Museum", "Edit Coffee", "Edit Lunch", "Edit Dinner"]);
   });
 });
 

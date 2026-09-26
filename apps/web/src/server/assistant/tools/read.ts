@@ -202,15 +202,17 @@ export interface StopReadout {
   /**
    * A transit stop's leg (M24): by what, and where it arrives — `location` is
    * where it leaves. Narrowed like `location`. The model needs both to say what
-   * a travel stop IS, and to know that moving one off `transit` must clear them.
+   * a travel stop IS. Moving one off `transit` clears them: the write edge
+   * adds the `null`s (`clearDetailFieldsForKind`), and the tool description
+   * says so.
    */
   mode: ActivityMode | null;
   endLocation: PlaceReadout | null;
   /**
    * Why a pending stop is pending (ADR-055): `book` still has to be booked,
    * `maybe` may not happen at all. The model needs it to answer "what still
-   * needs booking?" without calling a maybe a to-do, and to know that moving a
-   * stop off `pending` must clear it.
+   * needs booking?" without calling a maybe a to-do. Moving a stop off
+   * `pending` clears it, the same way.
    */
   pendingReason: PendingReason | null;
 }

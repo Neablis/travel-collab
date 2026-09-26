@@ -1,6 +1,7 @@
 "use client";
 import { cn } from "../../lib/cn";
 import { PHONE_TOUCH } from "./button";
+import { useRovingRadio } from "./use-roving-radio";
 
 export function SegmentedControl<T extends string>({
   value,
@@ -21,6 +22,13 @@ export function SegmentedControl<T extends string>({
   fullWidth?: boolean;
   "aria-label": string;
 }) {
+  // A radiogroup owes the keyboard what a native one gives: one tab stop, and
+  // arrows that move the choice (the stop editor's Kind lost it, PR 242 review).
+  const radioProps = useRovingRadio(
+    options.map((o) => o.value),
+    value,
+    onValueChange,
+  );
   return (
     <div
       role="radiogroup"
@@ -30,9 +38,10 @@ export function SegmentedControl<T extends string>({
         variant === "pill" ? "gap-0.5 rounded-md bg-moss p-0.5" : "gap-3",
       )}
     >
-      {options.map((o) => (
+      {options.map((o, i) => (
         <button
           key={o.value}
+          {...radioProps(i)}
           type="button"
           role="radio"
           aria-checked={value === o.value}

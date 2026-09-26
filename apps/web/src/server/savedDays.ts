@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { ZodIssue } from "zod";
 import {
+  KIND_DETAIL_FIELDS,
   SavedDayAuthorKind,
   SavedDayVisibility,
   SavedDaySequence,
@@ -188,18 +189,23 @@ export function captureDays(
 }
 
 /**
- * What a refused `SavedDaySequence` answers with. A travel leg on a stop that is
- * not transit (M24) is a rule the caller broke and can fix in one stop, so it
- * is named, with the stop's index, in the contract's own words. Every other
- * refusal keeps the bare sentence it always had; its detail is in the log.
+ * What a refused `SavedDaySequence` answers with. A kind-detail field on a stop
+ * of another kind (M24's travel leg, ADR-055's pending reason) is a rule the
+ * caller broke and can fix in one stop, so it is named, with the stop's index,
+ * in the contract's own words. Asked through `KIND_DETAIL_FIELDS`, so a new
+ * detail field is named here without an edit. Every other refusal keeps the
+ * bare sentence it always had; its detail is in the log.
  */
 function sequenceRefusal(issues: readonly ZodIssue[], sentence: string): string {
-  const legs = issues.filter(
+  const named = issues.filter(
     (issue) =>
-      issue.code === "custom" && issue.path.length === 2 && (issue.path[1] === "mode" || issue.path[1] === "endLocation"),
+      issue.code === "custom" &&
+      issue.path.length === 2 &&
+      typeof issue.path[1] === "string" &&
+      Object.hasOwn(KIND_DETAIL_FIELDS, issue.path[1]),
   );
-  if (legs.length === 0) return `${sentence}.`;
-  return `${sentence}: ${legs.map((issue) => `${issue.message} (stop ${issue.path[0]})`).join("; ")}.`;
+  if (named.length === 0) return `${sentence}.`;
+  return `${sentence}: ${named.map((issue) => `${issue.message} (stop ${issue.path[0]})`).join("; ")}.`;
 }
 
 /**

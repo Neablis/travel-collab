@@ -142,6 +142,20 @@ export function DayRiver({
     () => new Map(layoutRiver(axis, timed.map(({ activity, window }) => ({ id: activity.activityId, window }))).map((p) => [p.id, p])),
     [axis, timed],
   );
+  // **Drawn by time, so read by time.** `activityIds` is the day's list order,
+  // which a drop at a new time does not have to follow; rendered in it, Tab
+  // and a screen reader would walk the day out of the order it is drawn in.
+  // Start first, then lane, so two stops that start together read left to
+  // right.
+  const ordered = useMemo(
+    () =>
+      [...timed].sort(
+        (a, b) =>
+          toMinutes(a.window.start) - toMinutes(b.window.start) ||
+          (placements.get(a.activity.activityId)?.lane ?? 0) - (placements.get(b.activity.activityId)?.lane ?? 0),
+      ),
+    [timed, placements],
+  );
 
   /** A pointer's y, from the river's top edge. */
   const yOf = useCallback((clientY: number) => clientY - (riverRef.current?.getBoundingClientRect().top ?? 0), []);
@@ -294,7 +308,7 @@ export function DayRiver({
       {/* 38px in: the 32px gutter and the 6px between it and the rule, the
           design's own numbers. A list, because a day's stops are one. */}
       <ul ref={listRef} aria-label={`${title} timeline`} className="absolute inset-y-0 right-0 left-9.5 m-0 list-none p-0">
-        {timed.map(({ activity, window }) => {
+        {ordered.map(({ activity, window }) => {
           const placement = placements.get(activity.activityId);
           if (placement === undefined) return null;
           const id = activity.activityId;

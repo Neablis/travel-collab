@@ -166,6 +166,7 @@ export function ActivityEditor({
   // A stop being CREATED says "To book" until told otherwise — the handoff's
   // own default (`addWhy || 'book'`), and the same bet the `pending` default
   // above makes. A stop being edited keeps what it has, including no reason.
+  // Kept across a kind switch like the leg above; only the save clears it.
   const [pendingReason, setPendingReason] = useState<PendingReason | null>(
     initial?.pendingReason ?? (mode === "create" ? "book" : null),
   );

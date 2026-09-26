@@ -26,6 +26,7 @@
 import { randomUUID } from "node:crypto";
 import {
   BatchableCommand,
+  clearDetailFieldsForKind,
   KIND_DETAIL_FIELDS,
   type AssistantProposal,
   type KindDetailField,
@@ -229,6 +230,13 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
  * it: a model intent's `args` and an approved command's raw body.
  */
 function withDetailKind(type: unknown, fields: Record<string, unknown>): Record<string, unknown> {
+  // The other direction, for an edit (ADR-055, "Callers"): an `UpdateActivity`
+  // that moves a stop to a new kind clears whatever detail that kind cannot
+  // carry, unless it said otherwise. The decider refuses a stray detail rather
+  // than dropping it, and "mark it planned" is the model asking for the drop —
+  // without this every stop the editor created (they start on `book`) was
+  // refused `pending-reason-off-pending` and landed in `skipped`.
+  if (type === "UpdateActivity") return clearDetailFieldsForKind(fields);
   if (type !== "AddActivity" || fields.kind !== undefined) return fields;
   const kinds = new Set(
     (Object.keys(KIND_DETAIL_FIELDS) as KindDetailField[])
