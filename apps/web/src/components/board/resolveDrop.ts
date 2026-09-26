@@ -126,23 +126,30 @@ export function placeCommands(tripId: string, { activityId, toDayId, position, t
 /**
  * A drop at a time on a day's river, as the smallest change that gets there.
  *
- * Arriving from another day, the stop is inserted before the first stop on
- * that day that starts later — the list order is what the phone's card list
- * and every non-river surface read, so it should agree with the clock.
+ * The stop goes before the first stop on that day that starts later — the list
+ * order is what the phone's card list and every non-river surface read, so it
+ * should agree with the clock. That holds on the stop's own day too: re-timed
+ * past a later stop, it has to move past it in the list as well, or the phone
+ * reads the day out of order. The move is sent only when the index changes (a
+ * MoveActivity that changes nothing still costs an undo step), and a drop at
+ * the stop's own time moves nothing at all.
  */
 function placeOnRiver(trip: TripDetail, activityId: string, toDayId: string, window: TimeWindow): DropOutcome | null {
   const current = trip.activities[activityId]?.timeWindow ?? null;
   const sameTime = current !== null && current.start === window.start && current.end === window.end;
+  const sameDay = containerOf(trip, activityId) === toDayId;
+  if (sameDay && sameTime) return null;
   const timeWindow = sameTime ? null : window;
 
-  if (containerOf(trip, activityId) === toDayId) {
-    return timeWindow === null ? null : { kind: "place", activityId, toDayId, position: null, timeWindow };
-  }
-
-  const others = listFor(trip, toDayId).filter((id) => id !== activityId);
+  const list = listFor(trip, toDayId);
+  const others = list.filter((id) => id !== activityId);
   const later = others.findIndex((id) => {
     const start = trip.activities[id]?.timeWindow?.start;
     return start !== undefined && start > window.start;
   });
-  return { kind: "place", activityId, toDayId, position: later === -1 ? others.length : later, timeWindow };
+  const byClock = later === -1 ? others.length : later;
+  // `position` is an index into the list with the stop already taken out
+  // (ActivityMoved removes, then inserts), which on its own day is `others`.
+  const position = sameDay && list.indexOf(activityId) === byClock ? null : byClock;
+  return { kind: "place", activityId, toDayId, position, timeWindow };
 }

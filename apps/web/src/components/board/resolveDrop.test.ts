@@ -201,12 +201,24 @@ describe("resolveDrop on a river", () => {
     });
   });
 
-  it("only re-times a stop dropped on its own day", () => {
-    expect(resolveDrop(river, { activityId: A1 }, at("16:00", "17:00"))).toEqual({
+  it("only re-times a stop dropped on its own day when it keeps its place among the day's stops", () => {
+    expect(resolveDrop(river, { activityId: A1 }, at("11:00", "12:00"))).toEqual({
       kind: "place",
       activityId: A1,
       toDayId: DAY_1,
       position: null,
+      timeWindow: { start: "11:00", end: "12:00" },
+    });
+  });
+
+  it("moves a stop re-timed past a later stop on its own day past it in the list too", () => {
+    // a1 09:00 to 16:00 goes after a2 (14:00): the phone's card list reads the
+    // day's list, and it should read the day in clock order.
+    expect(resolveDrop(river, { activityId: A1 }, at("16:00", "17:00"))).toEqual({
+      kind: "place",
+      activityId: A1,
+      toDayId: DAY_1,
+      position: 1,
       timeWindow: { start: "16:00", end: "17:00" },
     });
   });
@@ -223,10 +235,10 @@ describe("resolveDrop on a river", () => {
     ]);
   });
 
-  it("carries a new time on the same day out as the time alone", () => {
-    const outcome = resolveDrop(river, { activityId: A1 }, at("16:00", "17:00"));
+  it("carries a new time on the same day out as the time alone when the order holds", () => {
+    const outcome = resolveDrop(river, { activityId: A1 }, at("11:00", "12:00"));
     expect(outcome?.kind === "place" && placeCommands("t", outcome)).toEqual([
-      { type: "UpdateActivity", tripId: "t", activityId: A1, timeWindow: { start: "16:00", end: "17:00" } },
+      { type: "UpdateActivity", tripId: "t", activityId: A1, timeWindow: { start: "11:00", end: "12:00" } },
     ]);
   });
 
