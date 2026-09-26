@@ -14,6 +14,479 @@
   "playbooks": [],
   "notebooks": [
     {
+      "key": "before-you-go",
+      "title": "Before you go",
+      "description": "The week before you leave — clocks, weather, what's different there, documents and packing.",
+      "seedIntoNewTrips": true,
+      "content": {
+        "v": 5,
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What to check in the week before you leave: the clocks, the weather, what is different about where you are going, and what to pack."
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Clocks"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Time difference: "
+              },
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "day.fromHome",
+                  "params": {}
+                }
+              },
+              {
+                "type": "text",
+                "text": "."
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Weather"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "day.weather",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Know before you go"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "country.facts",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Documents"
+              }
+            ]
+          },
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Passport — check the expiry against the return date, not the outbound one."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Visa or entry authorisation, and the printout if the border wants paper."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Travel insurance policy number, somewhere reachable without signal."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Driving licence and the international permit, if anybody is driving."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Packing"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Write the list once and it is yours for every trip after this one."
+              }
+            ]
+          },
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Whatever the weather above actually says, not what the average does."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Chargers, and one adapter per person who will not share."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "The medication that is hard to buy where you are going."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "bookings-and-confirmations",
+      "title": "Bookings",
+      "description": "What still needs booking, where you sleep, how you get between places, and what needs you.",
+      "seedIntoNewTrips": true,
+      "content": {
+        "v": 5,
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What is still to book, and what is settled — where you sleep and how you get between places."
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Still to book"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Anything marked Pending waits here until it is settled."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "only": "needsBooking"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Where you sleep"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Every stop tagged Lodging, in order. A gap between two is a night nobody has booked."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "tag": "lodging"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Getting between places"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "stop.rows",
+                  "params": {
+                    "kind": "transit"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "What needs you"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "open",
+                  "params": {}
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "money",
+      "title": "Money",
+      "description": "What the trip costs, day by day, against the budget.",
+      "seedIntoNewTrips": true,
+      "content": {
+        "v": 5,
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "What the trip costs, day by day, against the budget."
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Spend by day"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.chart",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Costs, broken down"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.rows",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Notes"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Who is paying for what, what is already deposited, and what you would cut first."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "key": "trip-overview",
       "title": "Trip Overview",
       "description": "The whole trip in one place — the why, the shape, the money.",
@@ -646,432 +1119,6 @@
                     "tag": "meal"
                   }
                 }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "key": "bookings-and-confirmations",
-      "title": "Bookings",
-      "description": "What still needs booking, where you sleep, and how you get between places.",
-      "seedIntoNewTrips": false,
-      "content": {
-        "v": 5,
-        "type": "doc",
-        "content": [
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 1
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Still to book"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "Pending: "
-              },
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "count",
-                  "params": {
-                    "kind": "pending"
-                  }
-                }
-              },
-              {
-                "type": "text",
-                "text": " of "
-              },
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "count",
-                  "params": {}
-                }
-              },
-              {
-                "type": "text",
-                "text": " stops."
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "stop.rows",
-                  "params": {
-                    "kind": "pending"
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Where we sleep"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "Every stop tagged lodging, in order. A gap between two rooms is a night nobody has booked."
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "stop.rows",
-                  "params": {
-                    "tag": "lodging"
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Getting between places"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "stop.rows",
-                  "params": {
-                    "kind": "transit"
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "What it all costs"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "cost",
-                  "params": {}
-                }
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "key": "before-you-go",
-      "title": "Before you go",
-      "description": "The list that stops a trip starting badly — packing, documents, the first day.",
-      "seedIntoNewTrips": false,
-      "content": {
-        "v": 5,
-        "type": "doc",
-        "content": [
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 1
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Leaving"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "Flying from "
-              },
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "attribute",
-                  "params": {
-                    "field": "account.homeAirport"
-                  }
-                }
-              },
-              {
-                "type": "text",
-                "text": " on "
-              },
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "dates",
-                  "params": {}
-                }
-              },
-              {
-                "type": "text",
-                "text": "."
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Documents"
-              }
-            ]
-          },
-          {
-            "type": "bulletList",
-            "content": [
-              {
-                "type": "listItem",
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Passport — check the expiry against the return date, not the outbound one."
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "type": "listItem",
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Visa or entry authorisation, and the printout if the border wants paper."
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "type": "listItem",
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Travel insurance policy number, somewhere reachable without signal."
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "type": "listItem",
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Driving licence and the international permit, if anybody is driving."
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Packing"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "Write the list once and it is yours for every trip after this one."
-              }
-            ]
-          },
-          {
-            "type": "bulletList",
-            "content": [
-              {
-                "type": "listItem",
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Whatever the weather actually does, not what the average says."
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "type": "listItem",
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "Chargers and one adapter per person who will not share."
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "type": "listItem",
-                "content": [
-                  {
-                    "type": "paragraph",
-                    "content": [
-                      {
-                        "type": "text",
-                        "text": "The medication that is hard to buy where you are going."
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "The first day"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "Arriving tired is the single most common way a good plan comes apart. What day one holds:"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "day.detail",
-                  "params": {
-                    "day": {
-                      "kind": "index",
-                      "index": 0
-                    }
-                  }
-                }
-              }
-            ]
-          },
-          {
-            "type": "heading",
-            "attrs": {
-              "level": 2
-            },
-            "content": [
-              {
-                "type": "text",
-                "text": "Money"
-              }
-            ]
-          },
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "Budget left before you spend anything: "
-              },
-              {
-                "type": "macro",
-                "attrs": {
-                  "name": "attribute",
-                  "params": {
-                    "field": "trip.budgetRemaining"
-                  }
-                }
-              },
-              {
-                "type": "text",
-                "text": "."
               }
             ]
           }

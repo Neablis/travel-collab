@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-26 — `NotebookPreview` and `PageListEntry`: the notebook list says what each notebook says (M30)
+
+- **Added:** `NotebookPreview` (`firstLine: string | null`, `widgetCount`) and
+  `PageListEntry = PageSummary + preview?: NotebookPreview`. The app's own
+  `GET /api/trips/:id/pages` answers `PageListEntry` rows (`listPageEntries`); the preview
+  is computed from the stored document by `@tc/pages`' `notebookPreviewOf`.
+- **Unchanged on purpose:** `PageSummary`, and so `GET /v1/trips/:id/pages` — that route
+  validates items but returns them as handed, so a field on `PageSummary` would have
+  leaked into the public API unasked.
+- Why: a link card and the Notebook index describe a notebook in its own words without
+  the list carrying documents (ADR-056, `docs/milestones/M30-notebooks-and-links.md`).
+- Consumers updated: `apps/web` (`pagesClient.fetchPages` parses `PageListEntry`; the
+  notebooks slot in `useExternalInputs`; `NotebookScreen`'s rows; `LinkTargetPicker`; the
+  MSW pages handler adds the preview as the route does).
+- **Breaking?** No. Additive, and `preview` is optional so a client reads a list from a
+  server deployed before it. No migration; no page-document version change (the link
+  widgets and `day.detail`'s `view` are new params in `@tc/pages`, not AST changes).
+
 ## 2026-09-25 — three activity kinds: `planned`, `pending`, `transit` (M28)
 
 - **Changed:** `ActivityKind` is `planned | pending | transit` (was

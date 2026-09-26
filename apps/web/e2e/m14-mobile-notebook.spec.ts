@@ -328,9 +328,12 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     // message rather than a loss, which is still a control that always says no.
     await page.goto(`/trips/${tripId}/pages`);
     const mine = page.getByRole("region", { name: "Your notebooks" });
-    await expect(mine.getByRole("listitem")).toHaveCount(1);
+    // Four since M30, and the other three delete like any notebook — which is
+    // what makes the Overview's missing button a claim about the Overview.
+    await expect(mine.getByRole("listitem")).toHaveCount(4);
+    await expect(mine.getByRole("button", { name: /^Delete / })).toHaveCount(3);
     // Named per row, so this is the Overview's own button rather than any.
-    await expect(mine.getByRole("button", { name: /^Delete / })).toHaveCount(0);
+    await expect(mine.getByRole("listitem").filter({ hasText: /^Overview/ }).getByRole("button", { name: /^Delete / })).toHaveCount(0);
 
     // **And the day bar is gone from the phone's Overview**: *"in mobile, hide
     // the day bar here, leave on desktop"*. Asserted as absent from the TREE,
@@ -462,11 +465,11 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     await sheet.getByRole("button", { name: /Trip strip/ }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
-    // Two: this walk's and the seeded Overview's own (SPEC §36.10b,
-    // 2026-09-26). Both draw the whole trip, so both must fit a phone.
+    // One: this walk's. The seeded Overview carried its own from §36.10b until
+    // M30 made it the itinerary, which has none.
     const strips = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
-    await expect(strips).toHaveCount(2);
-    for (const strip of [strips.nth(0), strips.nth(1)]) {
+    await expect(strips).toHaveCount(1);
+    for (const strip of [strips.nth(0)]) {
       await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
       await expect.poll(() => stripOverhang(strip), { message: "strip overflow on a phone" }).toBeLessThanOrEqual(0);
       // And it still reads: `TripStripBlock`'s header says a four-day stay

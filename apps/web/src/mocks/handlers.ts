@@ -1,4 +1,5 @@
 import { HttpResponse, http } from "msw";
+import { notebookPreviewOf } from "@tc/pages";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
@@ -297,7 +298,8 @@ export function makePagesHandlers(
     // collaborator case instead.
     http.get("/api/trips/:tripId/pages", ({ params }) =>
       HttpResponse.json({
-        pages: pages.filter((p) => p.tripId === params.tripId),
+        // With what each says, as the real route adds it (ADR-056).
+        pages: pages.filter((p) => p.tripId === params.tripId).map((p) => ({ ...p, preview: notebookPreviewOf(p.content) })),
         viewerId: options?.viewerId ?? "dev-alice",
       }),
     ),

@@ -90,6 +90,19 @@ describe("insert_widget", () => {
     expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "cost.day" }).success).toBe(false);
   });
 
+  // ADR-056: a link is an address somebody chose, and the assistant reads text
+  // anybody with the trip's link can write. Both link widgets are registered
+  // and still refused here, and neither is in the catalogue the prompt carries.
+  // Seen red with `page.ts` back on `MACRO_NAMES`.
+  it("refuses both link widgets at the schema, and leaves them out of the catalogue", () => {
+    const { tools } = buildPageTools();
+    const schema = asZodSchema(tools.insert_widget!.inputSchema);
+    expect(schema.safeParse({ name: "link.external", params: { href: "https://example.com" } }).success).toBe(false);
+    expect(schema.safeParse({ name: "link.internal" }).success).toBe(false);
+    expect(primitiveCatalog().map((entry) => entry.name)).not.toEqual(expect.arrayContaining(["link.external"]));
+    expect(primitiveCatalog().map((entry) => entry.name)).not.toEqual(expect.arrayContaining(["link.internal"]));
+  });
+
   it("rejects a widget name not in the registry, at the schema", () => {
     const { tools } = buildPageTools();
     expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "nope.nope" }).success).toBe(false);

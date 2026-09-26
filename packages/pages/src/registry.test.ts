@@ -31,7 +31,7 @@ describe("registry", () => {
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
-      "open", "stop.rows", "trip.strip",
+      "link.external", "link.internal", "open", "stop.rows", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -106,6 +106,10 @@ describe("registry", () => {
     city: "Tokyo",
     kind: "pending",
     dates: { from: "2026-08-01", through: "2026-08-03" },
+    // The link inputs (M30, ADR-056): a stored `LinkTarget`, an address, a label.
+    target: { kind: "view", view: "Map" },
+    url: "https://example.com/tickets",
+    text: "Tickets",
   };
 
   it("every declared input names a key its own macro's params schema accepts", () => {
@@ -247,7 +251,12 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // "Weather" answers `unavailable` and never reaches `render` — the floor
   // refusing, as above. The day is before `today` below, so this is the
   // labelled-typical row.
+  const LINKED_NOTEBOOK = "0f0f0f0f-0000-4000-8000-000000000001";
   const external = {
+    notebooks: {
+      state: "ready" as const,
+      value: { pages: [{ id: LINKED_NOTEBOOK, title: "Money", firstLine: "What it costs.", widgetCount: 2 }], openable: true },
+    },
     weather: {
       state: "ready" as const,
       value: {
@@ -283,6 +292,14 @@ describe("every widget renders (ADR-037 decision 2)", () => {
         ...Object.fromEntries(
           entry.inputs.flatMap((i) => (i.type === "field" && !i.multiple ? [[i.name, fieldChoices(i.of)[0]!.path]] : [])),
         ),
+        // A link lands asking where it goes (ADR-056); the settings panel's
+        // combobox and address box are what answer it, so the sweep answers
+        // the way they would — the notebook `external` lists, and an address.
+        ...Object.fromEntries(
+          entry.inputs.flatMap((i): [string, unknown][] =>
+            i.type === "target" ? [[i.name, { kind: "notebook", pageId: LINKED_NOTEBOOK }]] : i.type === "url" ? [[i.name, "https://example.com/tickets"]] : [],
+          ),
+        ),
       },
     );
 
@@ -292,7 +309,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
       const outcome = presetOutcome(entry);
       if (outcome.status !== "ok") continue;
       seen.push(entry.name);
-      expect(["inline", "block", "rows"], `${entry.name} rendered an unknown kind`).toContain(outcome.rendered.kind);
+      expect(["inline", "block", "rows", "link"], `${entry.name} rendered an unknown kind`).toContain(outcome.rendered.kind);
     }
     // The witness, and it is EVERY preset rather than a floor plucked from the
     // air: a row a person can click that cannot render against a trip with a
@@ -318,9 +335,20 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // `Seg` union has no member that can carry an element, an attribute or a
     // URL, and this asserts the widgets stay inside it.
     let inspected = 0;
+    let links = 0;
     for (const entry of presetCatalog()) {
       const outcome = presetOutcome(entry);
       if (outcome.status !== "ok" || outcome.rendered.kind === "block") continue;
+      // **The one URL a widget renders, and it is not a segment** (ADR-056):
+      // `link.external`'s address is its own `Rendered` kind, so `Seg` stays
+      // closed. It is asserted here rather than skipped: only that widget may
+      // produce it, and only with an address its schema accepted.
+      if (outcome.rendered.kind === "link") {
+        links++;
+        expect(entry.widget).toBe("link.external");
+        expect(outcome.rendered.href).toMatch(/^https?:\/\//);
+        continue;
+      }
       const segs =
         outcome.rendered.kind === "inline"
           ? outcome.rendered.segs
@@ -333,6 +361,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     // the main sweep's floor exists for. CodeRabbit caught that both
     // conditional sweeps here were missing their own (#134).
     expect(inspected, "no segment was inspected").toBeGreaterThan(0);
+    expect(links, "the link widget never rendered its link").toBe(1);
   });
 
   it("gives every block payload a `kind`, which is what BlockView dispatches on", () => {
@@ -396,7 +425,9 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // containment it always meant: every primitive is registered, and a
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
-    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual(["country.facts", "open", "trip.strip"]);
+    expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
+      "country.facts", "link.external", "link.internal", "open", "trip.strip",
+    ]);
   });
 
   it("declares only dimensions its entity permits", () => {

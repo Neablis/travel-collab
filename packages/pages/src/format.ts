@@ -25,6 +25,17 @@ export function formatDate(iso: string | null): string {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
+/**
+ * A day as an itinerary heads it — "Monday, October 12" — or `null` for no
+ * date. No year: the trip's dates are in the header above every page, and an
+ * itinerary that printed "2026" fourteen times would be reading like a ledger.
+ */
+export function formatLongDate(iso: string | null): string | null {
+  const ms = iso === null ? null : isoToUtcMs(iso);
+  if (ms === null) return null;
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(ms));
+}
+
 /** `formatDate` without the year ("Jun 1"), for a cell too narrow to repeat it; `null` for no date. */
 export function formatShortDate(iso: string | null): string | null {
   const ms = iso === null ? null : isoToUtcMs(iso);
