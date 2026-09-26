@@ -267,13 +267,7 @@ export function makeTripHandlers(
     http.get("/api/trips/:tripId/globals", () =>
       HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
     ),
-    // ADR-052's weather route, ahead of the route itself (T24). Parsed through
-    // the contract so the mock cannot drift from it. Nothing requests this until
-    // a page holds a widget declaring `needs: ["weather"]`; a suite that wants
-    // the failed slot overrides it with a non-2xx.
-    http.get("/api/trips/:tripId/weather", () =>
-      HttpResponse.json(TripWeatherResponse.parse({ weather: { points: [] } })),
-    ),
+    makeWeatherHandler(),
     http.get("/api/geocode", ({ request }) => {
       const q = new URL(request.url).searchParams.get("q")?.trim();
       return HttpResponse.json({ results: q ? (options?.geocode ?? []) : [] });
@@ -518,6 +512,22 @@ export function makeSavedNotebookHandlers(
       return HttpResponse.json({ page }, { status: 201 });
     }),
   ];
+}
+
+/**
+ * `GET /api/trips/:tripId/weather` (ADR-052), answering zero points — what the
+ * route says for a trip with no located stop.
+ *
+ * Shared for the reason `makeAccountPlanHandler` below is: since the seeded
+ * Overview carries `day.weather`, any suite that renders a seeded page asks
+ * for this, and `PageScreen.test.tsx` was logging it as unhandled on every
+ * run. Parsed through the contract so the mock cannot drift from it; a suite
+ * that wants the failed slot overrides it with a non-2xx.
+ */
+export function makeWeatherHandler() {
+  return http.get("/api/trips/:tripId/weather", () =>
+    HttpResponse.json(TripWeatherResponse.parse({ weather: { points: [] } })),
+  );
 }
 
 /**

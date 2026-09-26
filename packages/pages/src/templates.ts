@@ -46,10 +46,20 @@ import type {
 // reader what the line becomes — and the page's own prose is written so they
 // read as a promise ("Everything below … fills in as it grows"). What still
 // does not qualify: `unbound` (a chip asking for a binding the seeded page
-// never made), a blank chip, and anything that cannot say a word until a third
-// party answers (`day.weather`). `templates.test.ts` renders every seeded
-// widget against a brand-new trip, before and after its globals land, to hold
-// exactly that line.
+// never made), a blank chip, and a widget still waiting on a third party
+// AFTER the page has loaded.
+//
+// **Waiting is allowed at first paint, and only then.** A widget that declares
+// an outside input (`needs`, ADR-052 — today only `day.weather`) reads
+// "loading weather" while its fetch is in flight; that is a loading line, the
+// same beat every other widget spends waiting for its globals. Once the fetch
+// has answered it must say something the trip explains — on a new trip with
+// dated days and no stops, "add a place to a stop to see this". What would
+// disqualify it is `unavailable` outliving the load.
+//
+// `templates.test.ts` renders every seeded widget against two new trips — no
+// dates at all, and dated days with no stops (what the wizard makes) — each at
+// first paint and after everything has loaded, to hold exactly that line.
 //
 // **Until 2026-09-12 two templates were seeded and neither carried a widget.**
 // Now exactly one is — the Overview (§25, and Mitchell: *"Only 1 notebook per
@@ -230,7 +240,9 @@ const overviewPage: TemplateSeed = {
     // which Mitchell accepted for the Overview on 2026-09-26 (*"It's ok to
     // send a users data to weather"*); KI-2026-09-24-o is the disclosure,
     // not the flow. On a trip with no days it says "add a day to see this"
-    // before it ever asks the source, so it passes the empty-trip rule above.
+    // outright; on dated days with no stops it reads "loading weather" for
+    // the one request, then "add a place to a stop to see this" — the
+    // first-paint allowance in the header's rule, and nothing past it.
     block("day.weather"),
     block("country.facts"),
     // ---- Money -----------------------------------------------------------
