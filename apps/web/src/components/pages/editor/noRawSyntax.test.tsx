@@ -27,13 +27,14 @@ import { ReadOnlyPageDoc } from "./ReadOnlyPageDoc";
 // covered too: `MacroView` used to print `unknown macro: <name>` /
 // `bad params: <name>` for those, which is the stored name on the screen.
 
-// A chart's code is lazy (`SpendByDayBlock`); until it arrives only its
+// A chart's code is lazy (`SpendByDayBlock`, `SpendBreakdownBlock`); until it arrives only its
 // placeholder is on the page, and a sweep that ends there scans the placeholder,
 // not the chart. Loaded up front so waiting for the drawn chart is waiting on
 // React rather than on a cold transform of Recharts — the same reason, and the
 // same measured failure, as `MacroView.test.tsx`'s nesting sweep.
 beforeAll(async () => {
   await import("../blocks/SpendByDayChart");
+  await import("../blocks/SpendBreakdownChart");
 });
 /** Every lazily-drawn chart on the page has been drawn. */
 const chartsDrawn = () => expect(screen.queryAllByRole("img", { busy: true })).toEqual([]);
