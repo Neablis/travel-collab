@@ -17,7 +17,8 @@ import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/lib/formatMoney";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { kindBadge } from "./activityKind";
-import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint, tagFocusOpacity } from "@/lib/activityTags";
+import { tagFocusOpacity } from "@/lib/activityTags";
+import { StopTagChips } from "./StopTagChips";
 import { displayPlace } from "@/lib/place";
 
 export function ActivityCard({
@@ -234,77 +235,7 @@ export function ActivityCard({
               {badge.label}
             </Badge>
           )}
-          {activity.tags.length > 0 && (
-            <span data-testid={`tag-chips-${activity.activityId}`} className="flex flex-wrap gap-1.5">
-              {activity.tags.map((tag) => {
-                const chipClass = cn(
-                  "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold",
-                  TAG_CHIP_CLASS[tag],
-                );
-                if (!onToggleTag) {
-                  return (
-                    <span key={tag} data-testid={`tag-chip-${tag}`} className={chipClass}>
-                      {TAG_LABEL[tag]}
-                    </span>
-                  );
-                }
-                const isFocused = focusedTag === tag;
-                return (
-                  // eslint-disable-next-line no-restricted-syntax -- a tag chip is not a Button-variant action: every buttonVariants() variant hard-codes a hover background (`hover:bg-moss`, `hover:bg-brand-hover`) plus `disabled:opacity-50`, and a chip's whole job is to keep its own tag colour — the hover class would repaint it moss and twMerge cannot drop a `hover:` class the chip does not itself set. Same escape hatch, and same reasoning, as MapRail's day rows.
-                  <button
-                    key={tag}
-                    type="button"
-                    data-testid={`tag-chip-${tag}`}
-                    // `aria-pressed` rather than a role of its own: this is a
-                    // toggle whose off state is "no tag focused", which is
-                    // exactly what a toggle button announces. The accessible
-                    // name is the hint, not the bare label — "Meal" alone tells
-                    // a screen-reader user the chip exists and nothing about
-                    // what pressing it does, and the hint is the sentence the
-                    // handoff already wrote for the same purpose on hover.
-                    aria-pressed={isFocused}
-                    aria-label={tagFocusHint(tag, isFocused)}
-                    title={tagFocusHint(tag, isFocused)}
-                    onClick={(event) => {
-                      // The card is a drag source and, in the timeline's
-                      // sibling surfaces, sits inside larger click targets;
-                      // without this a chip click also starts whatever the
-                      // surface below it does.
-                      event.stopPropagation();
-                      onToggleTag(tag);
-                    }}
-                    // **A 44px target, a 20px chip** — SPEC §13.1 on a phone,
-                    // KI-2026-09-24-m. The button is the hit area and the inner
-                    // span is the chip, so the card keeps its density: `-my-3`
-                    // hands back exactly the 24px `min-h-11` adds, and the row
-                    // lays out as if the button were still chip-sized. It grows
-                    // vertically only — sideways it would reach into the next
-                    // chip. `md:` releases it on the same line `PHONE_TOUCH`
-                    // does (not reused: its `min-w-11` is the sideways growth).
-                    className="group inline-flex min-h-11 -my-3 cursor-pointer items-center md:my-0 md:min-h-0"
-                  >
-                    {/* `relative` so that when the chips wrap, a visible chip
-                        paints — and so hit-tests — above the next row's
-                        invisible reach, which overlaps it by 6px: a tap on
-                        the chip you can see always goes to that chip. */}
-                    <span
-                      className={cn(
-                        chipClass,
-                        "relative group-hover:opacity-80",
-                        // The focused chip's ring, M18b scope. `ring-inset` for
-                        // the same reason the calendar cell's is: a chip sits
-                        // inside rows that clip, and an outset ring on the first
-                        // one loses its left edge.
-                        isFocused && "ring-2 ring-brand ring-inset",
-                      )}
-                    >
-                      {TAG_LABEL[tag]}
-                    </span>
-                  </button>
-                );
-              })}
-            </span>
-          )}
+          <StopTagChips activityId={activity.activityId} tags={activity.tags} focusedTag={focusedTag} onToggleTag={onToggleTag} />
         </span>
         {/* Task 4.1 (M10 Phase 4): the board's per-stop cost — mono, formatMoney
             (KI-2), honest "No cost yet" for the null/undefined case. */}

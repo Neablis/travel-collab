@@ -82,14 +82,28 @@ Part 1:
 
 Part 2:
 
-- [ ] **[walk]** Plan draws every day on one shared axis at 44 px an hour: a 09:00 stop
-      on Day 1 and on Day 5 sit at the same height.
-- [ ] **[walk]** Each block style is distinguishable at a glance — planned, To book,
-      Maybe (hatched, not faded), transit (dotted, with mode and duration).
-- [ ] **[walk]** Two overlapping stops sit in half-width lanes marked OVERLAP; an untimed
-      stop is visible; *+ Add a stop* sits below the axis.
-- [ ] The layout (axis extent, lanes, thresholds) is a pure function with unit tests seen
-      to fail.
+- [x] **[walk]** Plan draws every day on one shared axis at 44 px an hour: a 09:00 stop on
+      Day 1 and on Day 5 sit at the same height. *Agent's walk, 2026-09-26, production
+      build, `/demo?view=Plan` at 1440px: the top edge of all 14 rivers measured at the
+      same y (168px), and each column ticks 6am–11pm; a column with an "Any time" shelf
+      still starts its river level with its neighbours (subgrid rows). Unit:
+      `board.test.tsx` "draws every day on the trip's one shared axis", seen to fail
+      with the axis taken from Day 1 only (`Unable to find … 10pm`).*
+- [x] **[walk]** Each block style is distinguishable at a glance — planned, To book,
+      Maybe (hatched, not faded), transit (dotted, with mode and duration). *Agent's walk,
+      same build, a trip carrying every kind: planned (1.5px city-colour edge), TO BOOK
+      (dashed amber), MAYBE (hairline hatch, full-ink title), PENDING, and "Train ·
+      Shinkansen … 2 h 15 m" (info tint, dotted). `DayRiver.test.tsx` names each kind,
+      seen to fail with the To book tag and the transit title removed.*
+- [x] **[walk]** Two overlapping stops sit in half-width lanes marked OVERLAP; an untimed
+      stop is visible; *+ Add a stop* sits below the axis. *Agent's walk: the demo's Nezu
+      Museum / Lunch at Kagari pair in half lanes, both OVERLAP; a three-way overlap in
+      thirds; an untimed stop on the column's "Any time" shelf; + Add a stop under every
+      axis. The phone keeps the stop-card list, as the design's phone Plan draws it.*
+- [x] The layout (axis extent, lanes, thresholds) is a pure function with unit tests seen
+      to fail. *`apps/web/src/components/board/riverLayout.ts` + `riverLayout.test.ts`;
+      seen red under `pnpm redfirst` for the 24px minimum, the bottom clamp, the empty-trip
+      fallback, lanes capped at two, lane reuse and the 40px threshold.*
 
 Part 3:
 

@@ -14,6 +14,17 @@ import { expect, test } from "./fixtures/test";
 // Day 1 is the worked example throughout: four Tokyo stops, of which "Dinner at
 // Gonpachi" and "Nightcap at Bar Trench" carry `meal`, "Check in at Trunk
 // Hotel" carries `lodging` and "Land at Haneda" carries no tag at all.
+//
+// **Chips are clicked on tall stops only** (M29 part 2). Plan draws each stop
+// to scale, and a block shows its tags from 70px — about an hour and a half
+// (SPEC §36.9b). The Trunk Hotel check-in is 30 minutes, so its `lodging` chip
+// is not drawn at rest — it comes up on hover, which the walk of its own below
+// covers. The second tag these walks click is therefore Day 2's two-hour
+// "teamLab Planets" (`ticketed`), and the hotel stays in them only as a stop
+// that dims. For the
+// same reason the `meal` chip is clicked on Day 2's two-hour "Yakitori at
+// Torishiki" rather than Day 1's 90-minute Gonpachi dinner (64px, one tier
+// short of its tags).
 test.describe("tag focus", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -61,17 +72,18 @@ test.describe("tag focus", () => {
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
     await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
-    const gonpachi = card(page, "Dinner at Gonpachi");
+    const yakitori = card(page, "Yakitori at Torishiki");
     const haneda = card(page, "Land at Haneda");
     const hotel = card(page, "Check in at Trunk Hotel");
-    await expect(gonpachi).toBeVisible();
+    const teamlab = card(page, "teamLab Planets");
+    await expect(yakitori).toBeVisible();
 
     // Nothing is focused yet: no line beside the tabs, every stop full strength.
     await expect(page.getByTestId("tag-focus-line")).toHaveCount(0);
     await expectOpacity(haneda, 1);
 
     // --- Click the chip -------------------------------------------------
-    const mealChip = gonpachi.getByTestId("tag-chip-meal");
+    const mealChip = yakitori.getByTestId("tag-chip-meal");
     await expect(mealChip).toHaveAttribute("title", "Dim everything that is not meal");
     await mealChip.click();
 
@@ -89,17 +101,17 @@ test.describe("tag focus", () => {
 
     // Dim, never hide: the untagged and wrong-tagged stops go faint and stay
     // on the page, in place, with all their content.
-    await expect(gonpachi).not.toHaveAttribute("data-off-tag", "true");
+    await expect(yakitori).not.toHaveAttribute("data-off-tag", "true");
     await expect(haneda).toHaveAttribute("data-off-tag", "true");
-    await expectOpacity(gonpachi, 1);
+    await expectOpacity(yakitori, 1);
     await expectOpacity(haneda, 0.32);
     await expectOpacity(hotel, 0.32);
     await expect(haneda).toBeVisible();
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
 
-    // Only one tag is ever focused — the lodging chip on the hotel card is not
+    // Only one tag is ever focused — the ticketed chip on teamLab is not
     // pressed, and it is still clickable on a dimmed card.
-    await expect(hotel.getByTestId("tag-chip-lodging")).toHaveAttribute("aria-pressed", "false");
+    await expect(teamlab.getByTestId("tag-chip-ticketed")).toHaveAttribute("aria-pressed", "false");
 
     // --- The Calendar counts rather than dimming stops -------------------
     await page.getByRole("tab", { name: "Calendar" }).click();
@@ -129,7 +141,7 @@ test.describe("tag focus", () => {
     await expect(page).toHaveURL(/view=Plan/);
     await expect(page.getByTestId("tag-focus-line")).toBeVisible();
     await expect(haneda).toBeVisible();
-    await expectOpacity(gonpachi, 1);
+    await expectOpacity(yakitori, 1);
     await expectOpacity(haneda, 0.32);
 
     // --- Clear ----------------------------------------------------------
@@ -140,27 +152,74 @@ test.describe("tag focus", () => {
 
   test("clicking the same chip again clears, and a different chip replaces", async ({ page }) => {
     await page.goto("/demo?view=Plan");
-    const gonpachi = card(page, "Dinner at Gonpachi");
-    const hotel = card(page, "Check in at Trunk Hotel");
-    await expect(gonpachi).toBeVisible();
+    const yakitori = card(page, "Yakitori at Torishiki");
+    const teamlab = card(page, "teamLab Planets");
+    await expect(yakitori).toBeVisible();
 
-    await gonpachi.getByTestId("tag-chip-meal").click();
+    await yakitori.getByTestId("tag-chip-meal").click();
     await expect(page.getByTestId("tag-focus-line")).toBeVisible();
 
     // Same chip again: cleared.
-    await gonpachi.getByTestId("tag-chip-meal").click();
+    await yakitori.getByTestId("tag-chip-meal").click();
     await expect(page.getByTestId("tag-focus-line")).toHaveCount(0);
-    await expect(gonpachi.getByTestId("tag-chip-meal")).toHaveAttribute("aria-pressed", "false");
+    await expect(yakitori.getByTestId("tag-chip-meal")).toHaveAttribute("aria-pressed", "false");
 
     // A different chip REPLACES rather than joining — single focus, one tag at
-    // a time. `meal` goes back to unpressed and the Gonpachi card, which
-    // carries no `lodging`, dims.
-    await gonpachi.getByTestId("tag-chip-meal").click();
+    // a time. `meal` goes back to unpressed and the Yakitori card, which
+    // carries no `ticketed`, dims.
+    await yakitori.getByTestId("tag-chip-meal").click();
+    await teamlab.getByTestId("tag-chip-ticketed").click();
+    await expect(teamlab.getByTestId("tag-chip-ticketed")).toHaveAttribute("aria-pressed", "true");
+    await expect(yakitori.getByTestId("tag-chip-meal")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("tag-focus-line").getByText("Ticketed")).toBeVisible();
+    await expectOpacity(yakitori, 0.32);
+  });
+
+  // A stop too short to draw its chips still offers them: they come up below
+  // the block while it is hovered (M29 part 2 review). The Trunk Hotel check-in
+  // is the case that needs it — every lodging stop in the fixture is that short,
+  // so without this `lodging` could not be focused on a desktop Plan at all.
+  test("a stop too short to draw its tags can still focus one", async ({ page }) => {
+    await page.goto("/demo?view=Plan");
+    const hotel = card(page, "Check in at Trunk Hotel");
+    const haneda = card(page, "Land at Haneda");
+    await expect(hotel).toBeVisible();
+
+    await hotel.hover();
     await hotel.getByTestId("tag-chip-lodging").click();
-    await expect(hotel.getByTestId("tag-chip-lodging")).toHaveAttribute("aria-pressed", "true");
-    await expect(gonpachi.getByTestId("tag-chip-meal")).toHaveAttribute("aria-pressed", "false");
+
     await expect(page.getByTestId("tag-focus-line").getByText("Lodging")).toBeVisible();
-    await expectOpacity(gonpachi, 0.32);
+    await expect(hotel).not.toHaveAttribute("data-off-tag", "true");
+    await expect(haneda).toHaveAttribute("data-off-tag", "true");
+  });
+
+  // ... and a touch tablet past 768px, which has no hover to bring them up
+  // with, shows them without one (CodeRabbit on #244). What is asserted is what
+  // a finger at the chip would hit, so a chip drawn but not hit-testable fails.
+  test("on a touch tablet a short stop's tags are there without a hover", async ({ browser }) => {
+    const tablet = await browser.newContext({
+      viewport: { width: 1180, height: 820 },
+      isMobile: true,
+      hasTouch: true,
+      storageState: { cookies: [], origins: [] },
+    });
+    const page = await tablet.newPage();
+    await page.goto("/demo?view=Plan");
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+    const chip = card(page, "Check in at Trunk Hotel").getByTestId("tag-chip-lodging");
+    await chip.scrollIntoViewIfNeeded();
+    await expect
+      .poll(
+        () =>
+          chip.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            return hit !== null && el.contains(hit);
+          }),
+        { message: "on touch, a short stop's tag chip is reachable at rest" },
+      )
+      .toBe(true);
+    await tablet.close();
   });
 
   // M18b's sixth exit-gate box, asserted against the running page rather than
@@ -168,9 +227,9 @@ test.describe("tag focus", () => {
   // gone (KI-47), and nothing here offers multi-select.
   test("offers no filter row, no Show everything, and no multi-select", async ({ page }) => {
     await page.goto("/demo?view=Plan");
-    const gonpachi = card(page, "Dinner at Gonpachi");
-    await expect(gonpachi).toBeVisible();
-    await gonpachi.getByTestId("tag-chip-meal").click();
+    const yakitori = card(page, "Yakitori at Torishiki");
+    await expect(yakitori).toBeVisible();
+    await yakitori.getByTestId("tag-chip-meal").click();
 
     const line = page.getByTestId("tag-focus-line");
     await expect(line).toBeVisible();

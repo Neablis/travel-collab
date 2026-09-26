@@ -129,65 +129,87 @@ describe("Board", () => {
   // The bare triangle still covers every conflict kind the board has nothing
   // richer for (geography, anchors, budget) — both subjects of this pair get
   // one, and the banner lists the conflicts either way.
-  it("marks conflict subjects with badges and shows the banner", () => {
+  //
+  // On the river (M29 part 2) the triangle is a mark inside the block, and
+  // what a screen reader hears is the block's own name saying so.
+  it("marks conflict subjects on their blocks and shows the banner", () => {
     const trip = fixture();
     renderBoard({ ...trip, conflicts: [...trip.conflicts, geographyConflict()] }, noopCallbacks());
-    expect(screen.getAllByRole("img", { name: "conflict" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^Edit .*, has conflicts$/ })).toHaveLength(2);
     expect(screen.getByText(/km apart on the same day/)).toBeTruthy();
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
   });
 
-  // M10 Phase 5: ...but a time-overlap on its own gets the compact chip
-  // instead, never a triangle *and* a chip saying the same thing about the
-  // same pair (mirrors TimelineLens.test.tsx's "does not also badge the pair").
-  it("leaves a time-overlap to the compact chip rather than also badging it", () => {
+  // M10 Phase 5: ...but a time-overlap on its own gets the overlap marking
+  // instead, never a triangle *and* a mark saying the same thing about the
+  // same pair. On the river (SPEC §36.9b) that marking is on BOTH blocks:
+  // OVERLAP in the corner, and the other stop in each one's name.
+  it("marks both halves of a time-overlap rather than also badging them", () => {
     renderBoard(fixture(), noopCallbacks());
-    expect(screen.queryAllByRole("img", { name: "conflict" })).toHaveLength(0);
-    expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
+    expect(screen.queryAllByRole("button", { name: /has conflicts/ })).toHaveLength(0);
+    expect(screen.getByRole("button", { name: /^Edit Colosseum, .*, overlaps Vatican Museums$/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Edit Vatican Museums, .*, overlaps Colosseum$/ })).toBeTruthy();
+    expect(within(screen.getByTestId(`activity-card-${A1}`)).getByText("Overlap")).toBeTruthy();
+    expect(within(screen.getByTestId(`activity-card-${A2}`)).getByText("Overlap")).toBeTruthy();
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
   });
 
-  // KI-29: the one chip a card has room for cannot name both of the latest
-  // stop's overlaps, so the dropped pair used to have no day-column surface at
-  // all. The cheapest signal — the generic triangle the card already has —
-  // stays on for exactly the overlaps no chip renders.
-  it("still signals an overlap that no chip could render, with the generic triangle", () => {
+  // KI-29: the one chip a CARD had room for could not name both of the latest
+  // stop's overlaps, so the dropped pair had no day-column surface at all and
+  // fell back to the generic triangle. The river has the room: every block
+  // names every stop it overlaps, so no pair is left to the triangle.
+  it("names every overlap a stop is in, so no pair falls back to the triangle", () => {
     renderBoard(threeWayOverlapFixture(), noopCallbacks());
 
-    // Each of the two later stops carries the one chip it has room for...
+    const name = (title: string) => screen.getByRole("button", { name: new RegExp(`^Edit ${title}, `) }).getAttribute("aria-label");
+    expect(name("Colosseum")).toMatch(/overlaps .*Vatican Museums/);
+    expect(name("Colosseum")).toMatch(/overlaps .*Trastevere walk/);
+    expect(name("Vatican Museums")).toMatch(/overlaps .*Colosseum/);
+    expect(name("Vatican Museums")).toMatch(/overlaps .*Trastevere walk/);
+    expect(name("Trastevere walk")).toMatch(/overlaps .*Colosseum/);
+    expect(name("Trastevere walk")).toMatch(/overlaps .*Vatican Museums/);
+    expect(screen.queryAllByRole("button", { name: /has conflicts/ })).toHaveLength(0);
+  });
+
+  // A phone draws no river — it keeps the stop cards, one overlap chip each —
+  // so there KI-29 still holds as it was written: the pair no chip renders
+  // keeps the generic triangle on both of its subjects.
+  it("on a phone, still signals an overlap no card chip renders, with the triangle", () => {
+    render(
+      <EditorHost>
+        <Board trip={threeWayOverlapFixture()} callbacks={noopCallbacks()} focusedDay={0} oneDay />
+      </EditorHost>,
+    );
+    expect(screen.queryByTestId("day-river")).toBeNull();
     expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
     expect(screen.getByTestId(`overlap-chip-${A3}`)).toBeTruthy();
-
-    // ...and the third pair (A2/A3), which no chip renders, is signalled on
-    // both of its subjects rather than vanishing from the columns.
     const badged = (id: string) =>
       within(screen.getByTestId(`activity-card-${id}`)).queryAllByRole("img", { name: "conflict" });
     expect(badged(A2)).toHaveLength(1);
     expect(badged(A3)).toHaveLength(1);
-    // The stop whose every overlap IS chipped keeps its clean card.
     expect(badged(A1)).toHaveLength(0);
   });
 
-  // M10 Phase 5: the day columns' compact form of the timeline's overlap
-  // warning — on the later stop only (A2 starts 10:00, A1 09:00), naming the
-  // other one, with a dismiss that goes through the same per-pair
-  // DismissConflict the banner uses.
-  it("shows the compact overlap chip on the later stop only, and dismisses the pair", () => {
+  // M10 Phase 5: the dismiss sits on the later stop only (A2 starts 10:00, A1
+  // 09:00) — the one that would move to fix it — and goes through the same
+  // per-pair DismissConflict the banner uses.
+  it("offers the overlap's dismiss on the later stop only, and dismisses the pair", () => {
     const callbacks = noopCallbacks();
     renderBoard(fixture(), callbacks);
 
-    const chip = screen.getByTestId(`overlap-chip-${A2}`);
-    expect(within(chip).getByText("Overlaps Colosseum")).toBeTruthy();
-    expect(screen.queryByTestId(`overlap-chip-${A1}`)).toBeNull();
+    const later = within(screen.getByTestId(`activity-card-${A2}`));
+    expect(within(screen.getByTestId(`activity-card-${A1}`)).queryByRole("button", { name: "Dismiss overlap warning" })).toBeNull();
 
-    fireEvent.click(within(chip).getByRole("button", { name: "Dismiss overlap warning" }));
+    fireEvent.click(later.getByRole("button", { name: "Dismiss overlap warning" }));
     expect(callbacks.onDismissConflict).toHaveBeenCalledWith(`time-overlap:${DAY}:${A1}:${A2}`);
   });
 
-  it("hides the compact overlap chip once the pair is dismissed", () => {
+  it("stops marking the pair once it is dismissed", () => {
     const trip = fixture();
     renderBoard({ ...trip, dismissedConflictIds: [trip.conflicts[0]!.id] }, noopCallbacks());
-    expect(screen.queryByTestId(`overlap-chip-${A2}`)).toBeNull();
+    expect(screen.queryAllByRole("button", { name: /overlaps/ })).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Dismiss overlap warning" })).toBeNull();
+    expect(screen.queryByText("Overlap")).toBeNull();
   });
 
   it("dismissing a conflict calls onDismissConflict; dismissedConflictIds hides it from the banner", () => {
@@ -239,10 +261,10 @@ describe("Board", () => {
   // by ActivityEditorSheet's tests in TripBoardScreen.test.tsx.
   it("Edit on a card opens the portable editor in edit mode with that activityId", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks());
-    fireEvent.click(screen.getByRole("button", { name: "Edit Colosseum" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Edit Colosseum, / }));
     expect(getEditorState()).toEqual({ mode: "edit", activityId: A1 });
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit Vatican Museums" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Edit Vatican Museums, / }));
     expect(getEditorState()).toEqual({ mode: "edit", activityId: A2 });
   });
 
@@ -258,13 +280,38 @@ describe("Board", () => {
     expect(screen.queryByLabelText("Jump to day")).toBeNull();
   });
 
-  it("a day column's drop area fills the card with a minimum height", () => {
-    renderBoard(fixture(), noopCallbacks());
-    const day = screen.getAllByTestId("day-column")[0]!;
-    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    const dropList = day.querySelector("ul");
-    expect(dropList?.className).toContain("flex-1");
-    expect(dropList?.className).toMatch(/min-h-/);
+  // SPEC §36.9b: ONE axis across the days, "so a glance across the week lines
+  // up mornings with mornings". Day 1 has an early start and Day 2 a late
+  // end; each column still draws the whole trip's hours, not only its own.
+  it("draws every day on the trip's one shared axis", () => {
+    const d2 = "44444444-4444-4444-8444-444444444444";
+    const early = { ...fixture().activities[A1]!, timeWindow: { start: "07:00", end: "08:00" } };
+    const late = { ...fixture().activities[A2]!, timeWindow: { start: "20:00", end: "22:00" } };
+    renderBoard(
+      tripDetailFixture({
+        days: [
+          { dayId: DAY, activityIds: [A1], date: null, costSubtotal: 0 },
+          { dayId: d2, activityIds: [A2], date: null, costSubtotal: 0 },
+        ],
+        activities: { [A1]: early, [A2]: late },
+      }),
+      noopCallbacks(),
+    );
+    for (const river of screen.getAllByTestId("day-river")) {
+      expect(within(river).getByText("7am")).toBeTruthy();
+      expect(within(river).getByText("10pm")).toBeTruthy();
+      expect(within(river).queryByText("6am")).toBeNull();
+    }
+  });
+
+  // An empty day is still a day to plan into: it draws the fallback axis
+  // (8:00–22:00) rather than collapsing to a header with nothing under it —
+  // which is also what keeps a whole-column drop target under the pointer.
+  it("gives a trip with nothing timed a waking day to plan into", () => {
+    renderBoard(tripDetailFixture({ days: [{ dayId: DAY, activityIds: [], date: null, costSubtotal: 0 }], activities: {} }), noopCallbacks());
+    const river = screen.getByTestId("day-river");
+    expect(within(river).getByText("8am")).toBeTruthy();
+    expect(within(river).getByText("10pm")).toBeTruthy();
   });
 
   // Handoff README §"Day columns view": 268px columns, 16px radius
@@ -293,16 +340,13 @@ describe("Board", () => {
     expect(dropList?.className).not.toContain("bg-brand-tint");
   });
 
-  // Handoff README §"Day columns view": "a dashed '+ Add' button per
-  // column" — the dashed affordance is consistent regardless of whether the
-  // day already has cards (this fixture's Day 1 has two), not collapsed to a
-  // bare "+" once populated.
-  it("a populated day column still shows the dashed + Add affordance", () => {
+  // SPEC §36.9b: "+ Add a stop sits 22 px below the axis" — on every day,
+  // whether or not it already has stops (this fixture's Day 1 has two), not
+  // collapsed to a bare "+" once populated.
+  it("a populated day column still shows + Add a stop", () => {
     renderBoard(fixture(), noopCallbacks());
     const addButton = screen.getByRole("button", { name: "Add activity to Day 1" });
-    expect(addButton.textContent).toContain("+ Add");
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(addButton.className).toContain("border-dashed");
+    expect(addButton.textContent).toBe("+ Add a stop");
   });
 
   // Handoff README §"Day columns view": compact cards (12px padding).
@@ -378,9 +422,9 @@ describe("Board", () => {
   });
 
   // The copy table lists no Board-specific empty-day string, so an empty day
-  // column's honest treatment is exactly this: the dashed "+ Add" it already
-  // renders — nothing invented.
-  it("gives an empty day column a dashed + Add affordance", () => {
+  // column's honest treatment is exactly this: the empty axis and the
+  // "+ Add a stop" under it — nothing invented.
+  it("gives an empty day column its + Add a stop", () => {
     const emptyDay = tripDetailFixture({
       days: [{ dayId: DAY, activityIds: [], date: null, costSubtotal: 0 }],
       activities: {},
@@ -388,9 +432,7 @@ describe("Board", () => {
     renderBoard(emptyDay, noopCallbacks());
     const column = screen.getAllByTestId("day-column")[0]!;
     const addButton = within(column).getByRole("button", { name: "Add activity to Day 1" });
-    expect(addButton.textContent).toContain("+ Add");
-    // eslint-disable-next-line no-restricted-syntax -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    expect(addButton.className).toContain("border-dashed");
+    expect(addButton.textContent).toBe("+ Add a stop");
   });
 
   it("gives every day of an all-empty trip its own + Add", () => {
@@ -435,9 +477,13 @@ describe("Board", () => {
   // currency (threaded Board -> Column -> ActivityCard) through formatMoney
   // (KI-2) — same convention every other money surface uses (#46: EUR
   // renders as its "€" symbol).
+  //
+  // An UNTIMED stop, which keeps its card on the "Any time" shelf: a river
+  // block shows its cost only when it is tall and has the width (RiverBlock).
   it("shows a card's cost through formatMoney, using the trip's own currency", () => {
     const trip = fixture();
     trip.currency = "EUR";
+    trip.activities[A1]!.timeWindow = null;
     trip.activities[A1]!.cost = { amountMinor: 4200, currency: "EUR" };
     renderBoard(trip, noopCallbacks());
     const card = screen.getByTestId(`activity-card-${A1}`);
@@ -445,7 +491,9 @@ describe("Board", () => {
   });
 
   it("says so honestly when a card's activity has no cost", () => {
-    renderBoard(fixture(), noopCallbacks()); // fixture()'s activities both have cost: null
+    const trip = fixture(); // fixture()'s activities both have cost: null
+    trip.activities[A1]!.timeWindow = null;
+    renderBoard(trip, noopCallbacks());
     const card = screen.getByTestId(`activity-card-${A1}`);
     expect(within(card).getByText("No cost yet")).toBeTruthy();
   });
@@ -560,8 +608,11 @@ describe("a read-only board", () => {
     // …and so is the conflict, which is the product noticing something.
     expect(screen.getByText(/overlap in time on the same day/)).toBeTruthy();
 
+    // A reader still hears each block whole — title, time and kind.
+    expect(screen.getByText("Colosseum, 9 am – 11 am, Planned, overlaps Vatican Museums")).toBeTruthy();
+
     for (const name of [
-      /^Edit Colosseum$/,
+      /^Edit Colosseum/,
       /^Remove Colosseum$/,
       /^Remove Day 1$/,
       /^Add activity to Day 1$/,
@@ -587,7 +638,7 @@ describe("a read-only board", () => {
     // The negative half: without this the block above passes just as well
     // against a board that renders no controls at all.
     renderBoard(fixture(), noopCallbacks());
-    expect(screen.getByRole("button", { name: "Edit Colosseum" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Edit Colosseum/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Remove Colosseum" })).toBeTruthy();
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /^Dismiss:/ }).length).toBeGreaterThan(0);
