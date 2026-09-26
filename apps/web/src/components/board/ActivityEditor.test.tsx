@@ -33,6 +33,7 @@ describe("ActivityEditor", () => {
       participants: [],
       mode: null,
       endLocation: null,
+      pendingReason: null,
     };
     const onSave = vi.fn();
     const props = { initial, mode: "edit" as const, days: [], onSave, onCancel: vi.fn() };
@@ -64,6 +65,7 @@ function existingStop(overrides: Partial<ActivityView> = {}): ActivityView {
     participants: [],
     mode: null,
     endLocation: null,
+    pendingReason: null,
     ...overrides,
   };
 }
@@ -73,12 +75,24 @@ function renderEditor(initial: ActivityView | null, mode: "create" | "edit", onS
   return onSave;
 }
 
+// The Kind control is a segmented radio group (SPEC §36.9), so a kind is
+// chosen by its visible name and read back from `aria-checked`.
+const KIND_NAME = { planned: "Planned", pending: "Pending", transit: "Travel" } as const;
+function pickKind(kind: keyof typeof KIND_NAME) {
+  fireEvent.click(within(screen.getByRole("radiogroup", { name: "Kind" })).getByRole("radio", { name: KIND_NAME[kind] }));
+}
+function checkedKind(): string | null {
+  const on = within(screen.getByRole("radiogroup", { name: "Kind" }))
+    .getAllByRole("radio")
+    .filter((r) => r.getAttribute("aria-checked") === "true");
+  return on.length === 1 ? on[0]!.textContent : null;
+}
+
 describe("ActivityEditor kind picker", () => {
   it("offers the three kinds", () => {
     renderEditor(null, "create");
-    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    const options = Array.from(screen.getByLabelText("Kind").querySelectorAll("option")).map((o) => o.value);
-    expect(options).toEqual(["planned", "pending", "transit"]);
+    const options = within(screen.getByRole("radiogroup", { name: "Kind" })).getAllByRole("radio").map((r) => r.textContent);
+    expect(options).toEqual(["Planned", "Pending", "Travel"]);
   });
 
   // Mitchell, 2026-08-29: a stop being CREATED defaults to "pending" ("hold"
@@ -86,12 +100,12 @@ describe("ActivityEditor kind picker", () => {
   // booking than not. Editing keeps its own kind; see the next test.
   it("defaults to pending when adding, with no prefill", () => {
     renderEditor(null, "create");
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("pending");
+    expect(checkedKind()).toBe("Pending");
   });
 
   it("defaults to the stop's own kind when editing", () => {
     renderEditor(existingStop({ kind: "transit" }), "edit");
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("transit");
+    expect(checkedKind()).toBe("Travel");
   });
 
   // A stated kind always wins over the create-mode default — the default only
@@ -99,14 +113,14 @@ describe("ActivityEditor kind picker", () => {
   // tool applies (writeTools.ts's withDefaultKind).
   it("keeps an explicitly-supplied initial kind in create mode, rather than overriding to pending", () => {
     renderEditor(existingStop({ activityId: "", kind: "planned" }), "create");
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("planned");
+    expect(checkedKind()).toBe("Planned");
   });
 
   it("sends the chosen kind on save", () => {
     const onSave = renderEditor(null, "create");
     fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Gora Kadan" } });
     // `planned`, not the create default, so the choice is what is asserted.
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "planned" } });
+    pickKind("planned");
     fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kind: "planned" }));
   });
@@ -128,7 +142,7 @@ describe("ActivityEditor travel leg", () => {
     renderEditor(existingStop(leg), "edit");
     expect(screen.getByRole("radio", { name: "Train" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByLabelText("Going to")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "pending" } });
+    pickKind("pending");
     expect(screen.queryByRole("radiogroup", { name: "Travelling by" })).toBeNull();
     expect(screen.queryByLabelText("Going to")).toBeNull();
   });
@@ -138,7 +152,7 @@ describe("ActivityEditor travel leg", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining(leg));
 
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "pending" } });
+    pickKind("pending");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "pending", mode: null, endLocation: null }));
   });
@@ -147,7 +161,7 @@ describe("ActivityEditor travel leg", () => {
   // name and each mode's name exist only for assistive tech, and are asserted.
   it("offers every mode as a named radio in a group named Travelling by, none chosen on a new transit stop", () => {
     renderEditor(null, "create");
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "transit" } });
+    pickKind("transit");
     const radios = within(screen.getByRole("radiogroup", { name: "Travelling by" })).getAllByRole("radio");
     expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["On foot", "Bus", "Train", "Flight", "Ferry", "Car", "Bike"]);
     expect(radios.filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(0);
@@ -187,6 +201,64 @@ describe("ActivityEditor travel leg", () => {
     expect(screen.getAllByRole("button", { name: "Clear" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Search Going to" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Clear Going to" })).toBeTruthy();
+  });
+});
+
+// ADR-055. Why a pending stop is pending, as the same icon-radio row a
+// transit stop's mode uses — and cleared on save off `pending`, because the
+// decider refuses a reason left on any other kind.
+describe("ActivityEditor pending reason", () => {
+  const reasonGroup = () => screen.getByRole("radiogroup", { name: "Why it is pending" });
+
+  it("offers To book and Maybe, and a new stop starts on To book", () => {
+    const onSave = renderEditor(null, "create");
+    const radios = within(reasonGroup()).getAllByRole("radio");
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["To book", "Maybe"]);
+    fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Kikunoi Roan" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "pending", pendingReason: "book" }));
+  });
+
+  it("keeps an edited stop's missing reason missing, rather than inventing one", () => {
+    const onSave = renderEditor(existingStop({ kind: "pending" }), "edit");
+    expect(within(reasonGroup()).getAllByRole("radio").filter((r) => r.getAttribute("aria-checked") === "true")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ pendingReason: null }));
+  });
+
+  it("chooses a reason on click and clears it when the chosen one is clicked again", () => {
+    const onSave = renderEditor(existingStop({ kind: "pending", pendingReason: "book" }), "edit");
+    const maybe = screen.getByRole("radio", { name: "Maybe" });
+    fireEvent.click(maybe);
+    expect(maybe.getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "To book" }).getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ pendingReason: "maybe" }));
+
+    fireEvent.click(maybe);
+    expect(maybe.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ pendingReason: null }));
+  });
+
+  it("shows only while the stop is pending, and saves no reason once it is not", () => {
+    const onSave = renderEditor(existingStop({ kind: "pending", pendingReason: "maybe" }), "edit");
+    pickKind("planned");
+    expect(screen.queryByRole("radiogroup", { name: "Why it is pending" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "planned", pendingReason: null }));
+  });
+
+  // Only what is SAVED is cleared off-kind; the choice itself survives a trip
+  // through another kind, so a mis-click on Planned does not lose it.
+  it("keeps the reason chosen in this session when the kind goes to planned and back", () => {
+    const onSave = renderEditor(existingStop({ kind: "pending", pendingReason: "book" }), "edit");
+    fireEvent.click(screen.getByRole("radio", { name: "Maybe" }));
+    pickKind("planned");
+    pickKind("pending");
+    expect(screen.getByRole("radio", { name: "Maybe" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "pending", pendingReason: "maybe" }));
   });
 });
 
@@ -255,6 +327,7 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     participants: [],
     mode: null,
     endLocation: null,
+    pendingReason: null,
     ...over,
   });
 

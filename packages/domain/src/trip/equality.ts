@@ -115,6 +115,8 @@ const FIELD_EQUAL: { [K in keyof ActivityState]: (a: ActivityState[K], b: Activi
   // field through `sameLocation` — an endLocation-only edit is an edit.
   mode: (a, b) => a === b,
   endLocation: sameLocation,
+  // ADR-055. One value or none, like `mode`.
+  pendingReason: (a, b) => a === b,
 };
 
 const ACTIVITY_FIELDS = Object.keys(FIELD_EQUAL) as (keyof ActivityState)[];

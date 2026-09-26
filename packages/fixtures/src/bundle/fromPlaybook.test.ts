@@ -32,6 +32,8 @@ const full = (title: string, dayIndex: number): SavedStop => ({
   dayIndex,
   mode: "train",
   endLocation: { name: "Inari Station", lat: 34.9669, lng: 135.7699, countryCode: "JP", city: "Kyoto" },
+  // The one field left at zero: a transit stop cannot carry a pending reason (ADR-055).
+  pendingReason: null,
 });
 
 /** The zero value of every optional field. */
@@ -47,6 +49,7 @@ const bare = (title: string, dayIndex: number): SavedStop => ({
   dayIndex,
   mode: null,
   endLocation: null,
+  pendingReason: null,
 });
 
 /** Five days: 0 full, 1 empty (interior rest day), 2 two stops, 3 one, 4 empty (trailing). */

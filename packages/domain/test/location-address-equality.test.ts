@@ -20,6 +20,7 @@ const activity = (patch: { location: Location }): ActivityState => ({
   participants: [],
   mode: null,
   endLocation: null,
+  pendingReason: null,
   ...patch,
 });
 

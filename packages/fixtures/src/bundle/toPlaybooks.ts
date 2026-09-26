@@ -56,6 +56,7 @@ export function toSavedStop(stop: BundleStop, dayIndex = 0): SavedStop {
     cost: stop.cost ?? null,
     mode: stop.mode ?? null,
     endLocation: stop.endLocation ?? null,
+    pendingReason: stop.pendingReason ?? null,
     // Which day of the sequence this stop lands on. Defaulted to 0 so the
     // one-day `stops:` form needs no argument at all — a one-day playbook is a
     // sequence of length one, not a special case.

@@ -72,6 +72,7 @@ export function addActivityCommand(
     participants,
     mode,
     endLocation,
+    pendingReason,
     ...rest
   } = value;
   const _exhaustive: NothingLeftOver = rest;
@@ -94,6 +95,7 @@ export function addActivityCommand(
     participants,
     mode: mode ?? undefined,
     endLocation: endLocation ?? undefined,
+    pendingReason: pendingReason ?? undefined,
   };
 }
 
@@ -130,6 +132,7 @@ export function updateActivityCommand(
     participants,
     mode,
     endLocation,
+    pendingReason,
     ...rest
   } = value;
   const _exhaustive: NothingLeftOver = rest;
@@ -151,5 +154,6 @@ export function updateActivityCommand(
     participants,
     mode,
     endLocation,
+    pendingReason,
   };
 }

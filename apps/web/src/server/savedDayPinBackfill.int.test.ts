@@ -33,6 +33,7 @@ function stop(name: string, dayIndex = 0): SavedStop {
     dayIndex,
     mode: null,
     endLocation: null,
+    pendingReason: null,
   };
 }
 

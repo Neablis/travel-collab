@@ -26,7 +26,10 @@
 import { randomUUID } from "node:crypto";
 import {
   BatchableCommand,
+  clearDetailFieldsForKind,
+  KIND_DETAIL_FIELDS,
   type AssistantProposal,
+  type KindDetailField,
   type ProposedChange,
   type SavedDay,
   type TripDetail,
@@ -203,7 +206,7 @@ export function withoutFabricatedCost(command: BatchableCommand): BatchableComma
  * flip an edit that never mentioned kind into one that does.
  *
  * A kindless stop that names a travel leg never reaches here — it cannot parse
- * without a kind — so its `transit` default is `withLegKind`'s, applied before.
+ * without a kind — so its `transit` default is `withDetailKind`'s, applied before.
  */
 export function withDefaultKind(command: BatchableCommand): BatchableCommand {
   if (command.type !== "AddActivity" || command.kind !== undefined) return command;
@@ -211,29 +214,43 @@ export function withDefaultKind(command: BatchableCommand): BatchableCommand {
 }
 
 /**
- * **A created stop that names a travel leg and no kind is `transit`** (M24).
- * A `mode` or `endLocation` is legal on nothing else, so the leg is the model
- * having stated what the stop is.
+ * **A created stop that names a kind's detail and no kind is that kind** (M24's
+ * travel leg, ADR-055's pending reason). A `mode` or `endLocation` is legal on
+ * nothing but `transit`, and a `pendingReason` on nothing but `pending`, so the
+ * detail is the model having stated what the stop is. Fields that name two
+ * different kinds are left alone for the contract to refuse.
  *
  * **Why this half runs on the UNPARSED fields, unlike `withDefaultKind`.** The
- * contract unions (`refuseTravelLegOffTransit`) read a missing kind as
- * `planned` and refuse the leg, so a default applied to the resolved command
+ * contract unions (`refuseKindDetailOffKind`) read a missing kind as
+ * `planned` and refuse the detail, so a default applied to the resolved command
  * never runs: `resolveBatch` has already dropped the stop into `skipped`, and
  * `parseApprovedCommands` has already refused the approval. The fixtures'
- * reason for keeping `pending` late does not apply — a leg with no kind is not a
- * command they can build at all. Takes a plain record so both doors share it:
- * a model intent's `args` and an approved command's raw body.
+ * reason for keeping `pending` late does not apply — a detail with no kind is
+ * not a command they can build at all. Takes a plain record so both doors share
+ * it: a model intent's `args` and an approved command's raw body.
  */
-function withLegKind(type: unknown, fields: Record<string, unknown>): Record<string, unknown> {
+function withDetailKind(type: unknown, fields: Record<string, unknown>): Record<string, unknown> {
+  // The other direction, for an edit (ADR-055, "Callers"): an `UpdateActivity`
+  // that moves a stop to a new kind clears whatever detail that kind cannot
+  // carry, unless it said otherwise. The decider refuses a stray detail rather
+  // than dropping it, and "mark it planned" is the model asking for the drop —
+  // without this every stop the editor created (they start on `book`) was
+  // refused `pending-reason-off-pending` and landed in `skipped`.
+  if (type === "UpdateActivity") return clearDetailFieldsForKind(fields);
   if (type !== "AddActivity" || fields.kind !== undefined) return fields;
-  if (fields.mode == null && fields.endLocation == null) return fields;
-  return { ...fields, kind: "transit" };
+  const kinds = new Set(
+    (Object.keys(KIND_DETAIL_FIELDS) as KindDetailField[])
+      .filter((field) => fields[field] != null)
+      .map((field) => KIND_DETAIL_FIELDS[field]),
+  );
+  if (kinds.size !== 1) return fields;
+  return { ...fields, kind: [...kinds][0] };
 }
 
-// `withLegKind` over one turn's intents — `buildProposal` and
+// `withDetailKind` over one turn's intents — `buildProposal` and
 // `droppedWriteCalls` must run the same dry run, so both call this.
-function legIntentsAsTransit(intents: RawToolIntent[]): RawToolIntent[] {
-  return intents.map((intent) => ({ ...intent, args: withLegKind(intent.type, intent.args) }));
+function detailIntentsWithKind(intents: RawToolIntent[]): RawToolIntent[] {
+  return intents.map((intent) => ({ ...intent, args: withDetailKind(intent.type, intent.args) }));
 }
 
 /**
@@ -405,7 +422,7 @@ export function buildProposal(
   // **Grounding first, on the intents, before the domain is consulted** — see
   // `groundCitedPlaces` for why after does not work.
   const { intents: cited, unresolved } = groundCitedPlaces(intents, opts.placeCache ?? null);
-  const { commands, errors } = resolveBatch(legIntentsAsTransit(cited), detail, {
+  const { commands, errors } = resolveBatch(detailIntentsWithKind(cited), detail, {
     tripId: opts.tripId,
     actorId: opts.actorId,
     ...(opts.mintId ? { mintId: opts.mintId } : {}),
@@ -462,7 +479,7 @@ export function droppedWriteCalls(
   // user was in fact shown and did in fact approve. This function's whole
   // contract is that it is the same dry run.
   const { intents: cited } = groundCitedPlaces(intents, opts.placeCache ?? null);
-  const { errors } = resolveBatch(legIntentsAsTransit(cited), detail, opts);
+  const { errors } = resolveBatch(detailIntentsWithKind(cited), detail, opts);
   return errors
     .filter((e) => e.code !== "no-op")
     .map((e) => ({
@@ -734,7 +751,7 @@ export async function commitProposal(
  * one that built the proposal. A round-trip through `buildProposal` already
  * carries a stated `kind`, so this is defense in depth rather than the usual
  * path — the same relationship `withoutFabricatedCost` has here. A leg's
- * `transit` default (`withLegKind`) goes on before the parse, for the reason
+ * `transit` default (`withDetailKind`) goes on before the parse, for the reason
  * given there.
  */
 export function parseApprovedCommands(
@@ -749,7 +766,7 @@ export function parseApprovedCommands(
   const commands: BatchableCommand[] = [];
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return { ok: false, error: "malformed change in this approval" };
-    const parsed = BatchableCommand.safeParse(withLegKind((raw as { type?: unknown }).type, raw as Record<string, unknown>));
+    const parsed = BatchableCommand.safeParse(withDetailKind((raw as { type?: unknown }).type, raw as Record<string, unknown>));
     if (!parsed.success) {
       return { ok: false, error: `malformed change in this approval: ${parsed.error.issues[0]?.message ?? "invalid"}` };
     }

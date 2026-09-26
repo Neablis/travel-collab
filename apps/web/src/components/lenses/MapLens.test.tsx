@@ -244,6 +244,7 @@ function detailFixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       unlocated1: {
         activityId: "unlocated1",
@@ -259,6 +260,7 @@ function detailFixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       unlocated2: {
         activityId: "unlocated2",
@@ -274,6 +276,7 @@ function detailFixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
     },
   });
@@ -308,6 +311,7 @@ function locatedActivity(
     participants: [],
     mode: null,
     endLocation: null,
+    pendingReason: null,
   };
 }
 

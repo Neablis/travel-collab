@@ -241,21 +241,59 @@ export type ActivityTag = z.infer<typeof ActivityTag>;
 export const ActivityMode = z.enum(["walk", "bus", "train", "flight", "ferry", "car", "bike"]);
 export type ActivityMode = z.infer<typeof ActivityMode>;
 
-/** The two fields that describe a journey, and so are legal only on a transit stop. */
-export type TravelLegField = "mode" | "endLocation";
+// WHY a pending stop is pending — `kind: "pending"` says THAT it is not
+// settled yet, this says what is holding it (ADR-055, Mitchell 2026-09-26:
+// *"Add pending reason. It should be nearly identical as how travel has a
+// type, and easily extendible."*). It is to `pending` exactly what
+// `ActivityMode` is to `transit`, and closed for the same reason: each value
+// gets behaviour (a badge, an icon, a block style), and a free string cannot
+// carry one.
+//
+// **Easily extendible, by the compiler.** Add a value here and every display
+// map keyed `Record<PendingReason, …>` (the card badge, the editor's icon row)
+// fails to compile until it has a label and an icon. Nothing else changes: the
+// field is nullable everywhere it is stored, so no stored row needs rewriting.
+//
+//   book  — it still has to be booked (SPEC §36.9 "Needs booking", badge "To book")
+//   maybe — it may not happen at all (SPEC §36.9 "If there's time", badge "Maybe")
+export const PendingReason = z.enum(["book", "maybe"]);
+export type PendingReason = z.infer<typeof PendingReason>;
 
 /**
- * Which travel-leg fields a stop carries while NOT being a transit stop — empty
- * when the stop is legal.
+ * **Each field that details ONE kind, and the kind it belongs to** (ADR-053's
+ * travel leg, ADR-055's pending reason). A stop of any other kind may not
+ * carry it. Keyed by field so a new detail field is one line here, and every
+ * place that asks the rule — the command unions, the decider and the saved-day
+ * write path — picks it up without being edited.
+ */
+export const KIND_DETAIL_FIELDS = {
+  mode: "transit",
+  endLocation: "transit",
+  pendingReason: "pending",
+} as const satisfies Record<string, ActivityKind>;
+export type KindDetailField = keyof typeof KIND_DETAIL_FIELDS;
+
+/** The words every refusal of the rule uses, so a contract issue and a decider rejection cannot drift. */
+export function kindDetailFieldMessage(field: KindDetailField): string {
+  const kind = KIND_DETAIL_FIELDS[field];
+  return `${field} is only allowed on a ${kind} stop (kind "${kind}")`;
+}
+
+/**
+ * Which kind-detail fields a stop carries while NOT being the kind they
+ * detail — empty when the stop is legal. A pending stop with a `mode`, or a
+ * transit stop with a `pendingReason`, is a stop asserting two answers to one
+ * question.
  *
  * **One rule, two places it is asked.** The command unions (`trip.ts`) refuse
  * a command that states the contradiction outright; `decideTripCommand` refuses
  * an `UpdateActivity` whose RESULT would hold it (a patch that sets
- * `kind: "pending"` and leaves an earlier `mode` behind), which no schema can see
- * because it depends on the stored stop. Both call this, so they cannot drift.
+ * `kind: "planned"` and leaves an earlier `pendingReason` behind), which no
+ * schema can see because it depends on the stored stop. Both call this, so
+ * they cannot drift.
  *
- * This is what makes `mode` beside `kind` safe where a second workflow field
- * was not (the `ActivityTag` note above): `mode`'s presence is a function of
+ * This is what makes a detail field beside `kind` safe where a second workflow
+ * field was not (the `ActivityTag` note above): its presence is a function of
  * `kind`, so the two can never assert competing answers
  * (docs/milestones/M24-travel-legs.md, "Two decisions").
  *
@@ -264,16 +302,42 @@ export type TravelLegField = "mode" | "endLocation";
  * and `saved_days` are jsonb read back on every request, where a refinement
  * drops or 500s a stored row (KI-20260905-l).
  */
-export function travelLegFieldsOffTransit(stop: {
-  kind: ActivityKind;
-  mode?: ActivityMode | null;
-  endLocation?: Location | null;
-}): TravelLegField[] {
-  if (stop.kind === "transit") return [];
-  const off: TravelLegField[] = [];
-  if (stop.mode != null) off.push("mode");
-  if (stop.endLocation != null) off.push("endLocation");
-  return off;
+export function kindDetailFieldsOffKind(
+  stop: { kind: ActivityKind } & { [F in KindDetailField]?: unknown },
+): KindDetailField[] {
+  return (Object.keys(KIND_DETAIL_FIELDS) as KindDetailField[]).filter(
+    (field) => stop[field] != null && KIND_DETAIL_FIELDS[field] !== stop.kind,
+  );
+}
+
+/**
+ * **An update that states a new `kind`, with the explicit clear the decider asks
+ * for.** Every kind-detail field that the new kind may not carry, and that the
+ * patch does not mention, is set to `null`. A field the patch DOES mention is
+ * left alone, so a stated contradiction (`kind: "planned", pendingReason:
+ * "book"`) still reaches the contract's refusal. A patch with no `kind` is
+ * returned unchanged: it is not moving the stop anywhere.
+ *
+ * **For the caller edges that speak for a person or a model, not for the
+ * decider.** The decider refuses a stray detail rather than clearing it
+ * (ADR-055, "Rejected"), because a field the caller never mentioned vanishing is
+ * the silent-drop class KI-2026-09-05-o is about. An edge that turns "make this
+ * planned" into a command is the caller, and saying `pendingReason: null` there
+ * is the caller saying it. Without this, every stop the editor created (they all
+ * start on `book`) could not be marked planned by the assistant or by
+ * `PATCH /v1/…/activities/:id` unless the client knew to send the clear.
+ *
+ * Takes the UNPARSED fields: the assistant's intents are raw, and a clear added
+ * after the parse would be too late for the dry run that decides the proposal.
+ */
+export function clearDetailFieldsForKind<T extends Record<string, unknown>>(patch: T): T {
+  const kind = patch["kind"];
+  if (typeof kind !== "string") return patch;
+  const cleared = (Object.keys(KIND_DETAIL_FIELDS) as KindDetailField[]).filter(
+    (field) => KIND_DETAIL_FIELDS[field] !== kind && patch[field] === undefined,
+  );
+  if (cleared.length === 0) return patch;
+  return { ...patch, ...Object.fromEntries(cleared.map((field) => [field, null])) };
 }
 
 // ---- Commands ----
@@ -315,9 +379,11 @@ export const AddActivity = z.object({
   tags: z.array(ActivityTag).optional(), // omitted = none
   cost: Money.optional(), // omitted = no cost
   // M24. Legal only with `kind: "transit"` — refused on the command unions in
-  // trip.ts and again by the decider (see `travelLegFieldsOffTransit`).
+  // trip.ts and again by the decider (see `kindDetailFieldsOffKind`).
   mode: ActivityMode.optional(),        // omitted = no mode
   endLocation: Location.optional(),     // omitted = no destination; `location` is where the leg starts
+  // ADR-055. Legal only with `kind: "pending"`, by the same rule as `mode`.
+  pendingReason: PendingReason.optional(), // omitted = no reason given
 });
 export type AddActivity = z.infer<typeof AddActivity>;
 
@@ -350,6 +416,10 @@ export const UpdateActivity = z.object({
   // a mode is refused, and the caller sends `mode: null` alongside.
   mode: ActivityMode.nullable().optional(),
   endLocation: Location.nullable().optional(),
+  // ADR-055. Omitted = unchanged, null = cleared, and — like `mode` — legal in
+  // the RESULT only while the stop is pending. Moving a stop off `pending`
+  // while it keeps a reason is refused; send `pendingReason: null` with it.
+  pendingReason: PendingReason.nullable().optional(),
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
 
@@ -480,10 +550,17 @@ export const ActivitySnapshot = z.object({
   //
   // Defaulted to null for the reason `bookedBy` is: every stored payload and
   // `trip_details.doc` predates them. Legal only on a transit stop, and not
-  // refined here — see `travelLegFieldsOffTransit` for why an event must parse
+  // refined here — see `kindDetailFieldsOffKind` for why an event must parse
   // regardless. Unlabelled (no `described()`), so no page prints them yet.
   mode: ActivityMode.nullable().default(null),
   endLocation: Location.nullable().default(null),
+  // ---- Why a pending stop is pending (ADR-055) ----
+  //
+  // `pending`'s detail, as `mode` is `transit`'s. Null is "no reason given",
+  // which is every stop written before this field and every one whose author
+  // did not say; it reads as plain "Pending". Defaulted for the reason
+  // `mode` is, and unlabelled for the same reason.
+  pendingReason: PendingReason.nullable().default(null),
 });
 export type ActivitySnapshot = z.infer<typeof ActivitySnapshot>;
 

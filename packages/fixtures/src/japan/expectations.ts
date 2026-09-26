@@ -7,7 +7,7 @@
 //
 // See docs/guidelines/fixtures-and-seed-data.md for the procedure.
 
-import type { ActivityKind, ActivityMode, ActivityTag } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, PendingReason } from "@tc/contracts";
 import type { JapanTripReport, SavedDayOwnerReport } from "./verify.ts";
 
 export type JapanTripExpectations = {
@@ -19,6 +19,7 @@ export type JapanTripExpectations = {
   tags: Record<ActivityTag, number>;
   modes: Record<ActivityMode, number>;
   withEndLocation: number;
+  pendingReasons: Record<PendingReason, number>;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -59,6 +60,9 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // mode appearing or vanishing is still a finding.
   modes: { walk: 0, bus: 0, train: 6, flight: 1, ferry: 2, car: 0, bike: 0 },
   withEndLocation: 5,
+  // ADR-055. Every pending stop says why, read off the export: its two `hold`
+  // dinners are `book`, its two `idea` stops and four backlog ideas `maybe`.
+  pendingReasons: { book: 2, maybe: 6 },
 
   // All 72, including the 21 the geocoder could not pin to the right venue
   // (KI-39) and which carry hand-authored coordinates instead. The Map and
@@ -190,6 +194,7 @@ export function diffAgainstExpectations(
   scalar("tags", report.tags, expected.tags);
   scalar("modes", report.modes, expected.modes);
   scalar("withEndLocation", report.withEndLocation, expected.withEndLocation);
+  scalar("pendingReasons", report.pendingReasons, expected.pendingReasons);
   scalar("untaggedCount", report.untaggedCount, expected.untaggedCount);
   scalar("withCoordinates", report.withCoordinates, expected.withCoordinates);
   scalar("withCost", report.withCost, expected.withCost);

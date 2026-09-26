@@ -47,6 +47,7 @@ function boardState(dayActivities: ActivitySpec[], backlogActivities: ActivitySp
           participants: [],
           mode: null,
           endLocation: a.end ?? null,
+          pendingReason: null,
         },
       ]),
     ),

@@ -36,7 +36,7 @@
 // here, extend `expectations.ts` so every value of a new enum is covered, and
 // `pnpm seed:verify` will tell you what you missed.
 
-import type { ActivityKind, ActivityMode, ActivityTag } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, PendingReason } from "@tc/contracts";
 
 /** One scheduled stop, placed on a numbered day. */
 export type JapanStop = {
@@ -111,6 +111,13 @@ export type JapanStop = {
    * two-mode leg whose far end is a city carries a `mode` alone.
    */
   endsAt?: string;
+  /**
+   * Why a `pending` stop is pending (ADR-055). Ours, but READ OFF the export
+   * rather than chosen: its `hold` rows are `book` and its `idea` rows are
+   * `maybe`, SPEC §36.9's own mapping of the two words M28 folded into
+   * `pending`. Every pending row carries one, so the trip shows both badges.
+   */
+  pendingReason?: PendingReason;
 };
 
 /** A parked idea with no day and no time window. */
@@ -153,8 +160,8 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   // Day 1 — Tokyo
   { id: "d1-s1-land-at-haneda", day: 1, title: "Land at Haneda", place: "HND Terminal 3", area: "Ōta", city: "Tokyo", start: "14:30", end: "16:00", kind: "transit", tags: [], costUsd: 310, note: null, who: "all", lat: 35.5494, lng: 139.7798, mode: "flight" },
   { id: "d1-s2-check-in-at-trunk-hotel", day: 1, title: "Check in at Trunk Hotel", place: "Trunk Hotel", area: "Shibuya", city: "Tokyo", start: "17:00", end: "17:30", kind: "planned", tags: ["lodging"], costUsd: 385, note: "Bags to the room, then straight out — nobody sleeps yet.", who: "all", lat: 35.6684, lng: 139.704 },
-  { id: "d1-s3-dinner-at-gonpachi", day: 1, title: "Dinner at Gonpachi", place: "Gonpachi Nishiazabu", area: "Nishi-Azabu", city: "Tokyo", start: "19:00", end: "20:30", kind: "pending", tags: ["meal"], costUsd: 295, note: null, who: "all", lat: 35.6564, lng: 139.7238 },
-  { id: "d1-s4-nightcap-at-bar-trench", day: 1, title: "Nightcap at Bar Trench", place: "Bar Trench", area: "Ebisu", city: "Tokyo", start: "21:00", end: "22:30", kind: "pending", tags: ["meal"], costUsd: null, note: null, who: ["Sam K", "Jonah M"], lat: 35.6467, lng: 139.7133 },
+  { id: "d1-s3-dinner-at-gonpachi", day: 1, title: "Dinner at Gonpachi", place: "Gonpachi Nishiazabu", area: "Nishi-Azabu", city: "Tokyo", start: "19:00", end: "20:30", kind: "pending", tags: ["meal"], costUsd: 295, note: null, who: "all", lat: 35.6564, lng: 139.7238, pendingReason: "book" },
+  { id: "d1-s4-nightcap-at-bar-trench", day: 1, title: "Nightcap at Bar Trench", place: "Bar Trench", area: "Ebisu", city: "Tokyo", start: "21:00", end: "22:30", kind: "pending", tags: ["meal"], costUsd: null, note: null, who: ["Sam K", "Jonah M"], lat: 35.6467, lng: 139.7133, pendingReason: "maybe" },
 
   // Day 2 — Tokyo
   { id: "d2-s1-coffee-at-onibus", day: 2, title: "Coffee at Onibus", place: "Onibus Coffee", area: "Nakameguro", city: "Tokyo", start: "07:30", end: "08:15", kind: "planned", tags: ["meal"], costUsd: 70, note: null, who: "all", lat: 35.6435, lng: 139.6987 },
@@ -196,7 +203,7 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d7-s2-lunch-at-honke-owariya", day: 7, title: "Lunch at Honke Owariya", place: "Honke Owariya", area: "Nakagyō", city: "Kyoto", start: "12:30", end: "13:30", kind: "planned", tags: ["meal"], costUsd: 20, note: null, who: "all", lat: 35.0149, lng: 135.7592 },
   { id: "d7-s3-nijo-castle", day: 7, title: "Nijō Castle", place: "Nijō Castle", area: "Nakagyō", city: "Kyoto", start: "14:30", end: "16:30", kind: "planned", tags: ["ticketed"], costUsd: 75, note: null, who: "all", lat: 35.0142, lng: 135.7481 },
   { id: "d7-s4-check-in-at-nazuna-gosho", day: 7, title: "Check in at Nazuna Gosho", place: "Nazuna Kyoto Gosho", area: "Kamigyō", city: "Kyoto", start: "17:00", end: "17:30", kind: "planned", tags: ["lodging"], costUsd: 305, note: null, who: "all", lat: 35.0246, lng: 135.7601 },
-  { id: "d7-s5-dinner-at-gion-nanba", day: 7, title: "Dinner at Gion Nanba", place: "Gion Nanba", area: "Gion", city: "Kyoto", start: "19:00", end: "21:00", kind: "pending", tags: ["meal"], costUsd: null, note: "No reservation yet. Priya wants kaiseki here.", who: "all", lat: 35.0037, lng: 135.7756 },
+  { id: "d7-s5-dinner-at-gion-nanba", day: 7, title: "Dinner at Gion Nanba", place: "Gion Nanba", area: "Gion", city: "Kyoto", start: "19:00", end: "21:00", kind: "pending", tags: ["meal"], costUsd: null, note: "No reservation yet. Priya wants kaiseki here.", who: "all", lat: 35.0037, lng: 135.7756, pendingReason: "maybe" },
 
   // Day 8 — Kyoto
   { id: "d8-s1-fushimi-inari-at-dawn", day: 8, title: "Fushimi Inari at dawn", place: "Fushimi Inari Taisha", area: "Fushimi", city: "Kyoto", start: "06:30", end: "08:00", kind: "planned", tags: ["outdoors"], costUsd: 65, note: "Go before 7 am or the gates are shoulder to shoulder.", who: "all", lat: 34.9671, lng: 135.7727 },
@@ -230,7 +237,7 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
   { id: "d12-s2-nakanoshima-museum", day: 12, title: "Nakanoshima Museum", place: "Nakanoshima Museum", area: "Kita", city: "Osaka", start: "10:00", end: "12:00", kind: "planned", tags: ["ticketed"], costUsd: 100, note: null, who: ["Priya R", "Mei T"], lat: 34.6937, lng: 135.4934 },
   { id: "d12-s3-lunch-at-kuromon-market", day: 12, title: "Lunch at Kuromon Market", place: "Kuromon Ichiba", area: "Chūō", city: "Osaka", start: "13:00", end: "14:30", kind: "planned", tags: ["meal"], costUsd: 20, note: null, who: "all", lat: 34.6656, lng: 135.5064 },
   { id: "d12-s4-shinsekai-and-tsutenkaku", day: 12, title: "Shinsekai and Tsūtenkaku", place: "Tsūtenkaku", area: "Naniwa", city: "Osaka", start: "16:00", end: "18:00", kind: "planned", tags: [], costUsd: 120, note: null, who: "all", lat: 34.6524, lng: 135.5063 },
-  { id: "d12-s5-kushikatsu-at-yaekatsu", day: 12, title: "Kushikatsu at Yaekatsu", place: "Yaekatsu", area: "Naniwa", city: "Osaka", start: "20:00", end: "22:00", kind: "pending", tags: ["meal"], costUsd: 370, note: null, who: "all", lat: 34.6529, lng: 135.5083 },
+  { id: "d12-s5-kushikatsu-at-yaekatsu", day: 12, title: "Kushikatsu at Yaekatsu", place: "Yaekatsu", area: "Naniwa", city: "Osaka", start: "20:00", end: "22:00", kind: "pending", tags: ["meal"], costUsd: 370, note: null, who: "all", lat: 34.6529, lng: 135.5083, pendingReason: "book" },
 
   // Day 13 — Naoshima
   { id: "d13-s1-train-and-ferry-to-naoshima", day: 13, title: "Train and ferry to Naoshima", place: "Uno Port", area: "Tamano", city: "Tamano", start: "07:00", end: "10:00", kind: "transit", tags: [], costUsd: 130, note: null, who: "all", lat: 34.4903, lng: 133.9491, mode: "ferry", endsAt: "d13-s5-ferry-and-train-back-to-osaka" },
@@ -248,8 +255,8 @@ export const JAPAN_STOPS: readonly JapanStop[] = [
 ];
 
 export const JAPAN_BACKLOG: readonly JapanBacklogItem[] = [
-  { id: "b1", title: "Kiyomizu-dera at golden hour", place: "Kiyomizu-dera", area: "Higashiyama", city: "Kyoto", kind: "pending", tags: [], note: "Priya added it", who: "all", lat: 34.9949, lng: 135.785 },
-  { id: "b2", title: "Kōenji vintage crawl", place: "Kōenji", area: "Suginami", city: "Tokyo", kind: "pending", tags: [], note: "Jonah added it", who: ["Jonah M"], lat: 35.7057, lng: 139.6497 },
-  { id: "b3", title: "Nishiki Market", place: "Nishiki Market", area: "Nakagyō", city: "Kyoto", kind: "pending", tags: [], note: "From a saved day", who: "all", lat: 35.005, lng: 135.765 },
-  { id: "b4", title: "Ghibli Museum, if tickets appear", place: "Ghibli Museum", area: "Mitaka", city: "Tokyo", kind: "pending", tags: ["ticketed"], note: "Mei added it", who: "all", lat: 35.696, lng: 139.5704 },
+  { id: "b1", title: "Kiyomizu-dera at golden hour", place: "Kiyomizu-dera", area: "Higashiyama", city: "Kyoto", kind: "pending", tags: [], note: "Priya added it", who: "all", lat: 34.9949, lng: 135.785, pendingReason: "maybe" },
+  { id: "b2", title: "Kōenji vintage crawl", place: "Kōenji", area: "Suginami", city: "Tokyo", kind: "pending", tags: [], note: "Jonah added it", who: ["Jonah M"], lat: 35.7057, lng: 139.6497, pendingReason: "maybe" },
+  { id: "b3", title: "Nishiki Market", place: "Nishiki Market", area: "Nakagyō", city: "Kyoto", kind: "pending", tags: [], note: "From a saved day", who: "all", lat: 35.005, lng: 135.765, pendingReason: "maybe" },
+  { id: "b4", title: "Ghibli Museum, if tickets appear", place: "Ghibli Museum", area: "Mitaka", city: "Tokyo", kind: "pending", tags: ["ticketed"], note: "Mei added it", who: "all", lat: 35.696, lng: 139.5704, pendingReason: "maybe" },
 ];

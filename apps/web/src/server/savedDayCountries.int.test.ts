@@ -31,6 +31,7 @@ function stop(title: string, start: string, location: SavedStop["location"]): Sa
     dayIndex: 0,
     mode: null,
     endLocation: null,
+    pendingReason: null,
   };
 }
 

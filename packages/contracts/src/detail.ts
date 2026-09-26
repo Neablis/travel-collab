@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict.ts";
 import { TripLineage, TripMember, TripStatus } from "./trip.ts";
-import { ActivityMode, ActivitySnapshot, StoredActivityKind, ActivityTag, Anchor, Location, TimeWindow } from "./activity.ts";
+import { ActivityMode, ActivitySnapshot, StoredActivityKind, ActivityTag, Anchor, Location, PendingReason, TimeWindow } from "./activity.ts";
 import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
@@ -47,6 +47,8 @@ export const ActivityView = z.object({
   // must still render. The decider is where the rule is enforced.
   mode: ActivityMode.nullable().default(null),
   endLocation: Location.nullable().default(null),
+  // ADR-055, on M24's terms: defaulted, and not held to "pending only" on read.
+  pendingReason: PendingReason.nullable().default(null),
 });
 export type ActivityView = z.infer<typeof ActivityView>;
 
