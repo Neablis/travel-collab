@@ -130,7 +130,7 @@ function fallbackShape(def: AnyMacroDef): readonly Seg[] {
  * Two of them, and both want the same thing: the assistant's `insert_widget`
  * tool, which names a widget and its params directly, and any test sweeping the
  * registry. Neither wants the preset list — a preset is a curated name for a
- * combination, and a model that can write `{ kind: "booked" }` does not need
+ * combination, and a model that can write `{ kind: "pending" }` does not need
  * one — so this is what `handleAskRequest` puts in front of the model.
  *
  * People browse `presetCatalog()`; code composes with this. That split is

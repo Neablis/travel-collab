@@ -153,7 +153,7 @@
             "lng": -122.393789,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Acme bread and Cowgirl Creamery are the two counters worth carrying something out of. Do not eat a proper lunch here — you want to be hungry in North Beach at 14:45, and Hog Island at noon is a 40-minute wait for the same oysters you can get at 11:00 on a weekday.",
           "cost": {
             "amountMinor": 900,
@@ -191,7 +191,7 @@
             "lng": -122.422759,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -240,7 +240,7 @@
             "lng": -122.406617,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "The Poetry Room is upstairs and the window bench is the point of the visit. Vesuvio is directly across Jack Kerouac Alley, has been pouring since 1948, and serves no food — which is why you ate first. Caffe Trieste two blocks up if you would rather have coffee than a drink.",
           "cost": {
@@ -286,7 +286,7 @@
             "lng": -122.404903,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -383,7 +383,7 @@
             "lng": -122.427132,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -472,7 +472,7 @@
             "lng": -122.393784,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "A bean-to-bar factory with a cafe bolted to the front of it; the hot chocolate flight is three small cups from three origins and is far more interesting than buying a bar. If you would rather read than eat, Adobe Books and Alley Cat Books are both within three blocks and both host readings most weeknights.",
           "cost": {
@@ -494,7 +494,7 @@
             "lng": -122.419137,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -579,7 +579,7 @@
             "lng": -122.500955,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -778,7 +778,7 @@
             "lng": -122.537998,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -802,7 +802,7 @@
             "lng": -122.462739,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -826,7 +826,7 @@
             "lng": -86.577909,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "By reservation, in a red barn surrounded by an organic kitchen garden. Dry-farmed and certified organic since decades before either became a marketing line, and they will genuinely talk you through why the vines get no irrigation and what that does to the fruit. Deliberately the middle appointment — it is the most relaxed hour of the day and you want it between the caves and the cabernet. THREE CORRECTIONS, 2026-09-06, from Frog's Leap's own reservation and experience pages. The time: the Vineyard House Tour & Tasting runs at 10:30 and 13:30, so a 14:00 arrival matches nothing — moved to 13:30. The day: it runs Thursday through Monday, so this day cannot be a Tuesday or a Wednesday. And the advice to 'ask for the garden tasting' is wrong for an afternoon stop — the family-friendly Garden Tasting is a morning slot only (Friday from 10:00, Saturday and Sunday at 10:30), so if you want the garden you have to rebuild the day around it rather than request it at 13:30. Prices corrected too: the Vineyard House Back Porch Tasting is $60 a head plus a $5 Tock booking fee, and the 120-minute Rooted in Rutherford tour and tasting is $100 — the old $40-55 range is stale.",
           "cost": {
@@ -848,7 +848,7 @@
             "lng": -122.323208,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -872,7 +872,7 @@
             "lng": -122.28175,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -967,7 +967,7 @@
             "lng": -122.867253,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -992,7 +992,7 @@
             "lng": -122.824222,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1039,7 +1039,7 @@
             "lng": -122.870926,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -1063,7 +1063,7 @@
             "lng": -122.859331,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1083,7 +1083,7 @@
             "lng": -122.870041,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1271,7 +1271,7 @@
             "lng": -121.955442,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1340,7 +1340,7 @@
             "lng": -121.901672,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1385,7 +1385,7 @@
             "lng": -121.9405,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1447,7 +1447,7 @@
             "lng": -121.929441,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1465,7 +1465,7 @@
             "area": "Carmel Village",
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1553,7 +1553,7 @@
             "lng": -121.778588,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1573,7 +1573,7 @@
             "lng": -121.783295,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1616,7 +1616,7 @@
             "lng": -121.78267,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1659,7 +1659,7 @@
             "lng": -121.771663,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],

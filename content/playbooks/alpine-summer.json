@@ -98,7 +98,7 @@
             "lng": 7.835174,
             "precision": "area"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -146,7 +146,7 @@
             "lng": 7.857393,
             "countryCode": "CH"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -237,7 +237,7 @@
             "area": "Lauterbrunnen valley",
             "countryCode": "CH"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "ticketed",
             "outdoors"
@@ -292,7 +292,7 @@
             "lng": 7.748704,
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -336,7 +336,7 @@
             "lng": 7.762049,
             "countryCode": "CH"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -378,7 +378,7 @@
             "area": "Sunnegga-Rothorn",
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -447,7 +447,7 @@
             "lng": 7.746917,
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -514,7 +514,7 @@
             "lng": 8.054448,
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -606,7 +606,7 @@
             "lng": 7.909531,
             "countryCode": "CH"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -702,7 +702,7 @@
             "lng": 6.868465,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -770,7 +770,7 @@
             "lng": 6.925459,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors",
             "ticketed"
@@ -863,7 +863,7 @@
             "lng": 6.867123,
             "countryCode": "FR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -905,7 +905,7 @@
             "lng": 7.746929,
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -929,7 +929,7 @@
             "lng": 7.729538,
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -953,7 +953,7 @@
             "lng": 7.744533,
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors",
             "ticketed"
@@ -1044,7 +1044,7 @@
             "lng": 7.747965,
             "countryCode": "CH"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1068,7 +1068,7 @@
             "lng": 7.677011,
             "countryCode": "CH"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging",
             "meal"
@@ -1107,7 +1107,7 @@
             "lng": 13.649046,
             "countryCode": "AT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1155,7 +1155,7 @@
             "lng": 13.695229,
             "countryCode": "AT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1223,7 +1223,7 @@
             "lng": 13.677928,
             "countryCode": "AT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1243,7 +1243,7 @@
             "lng": 13.639272,
             "countryCode": "AT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1321,7 +1321,7 @@
             "lng": 11.393505,
             "countryCode": "AT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1345,7 +1345,7 @@
             "lng": 11.399082,
             "countryCode": "AT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1477,7 +1477,7 @@
             "lng": 11.392765,
             "countryCode": "AT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1522,7 +1522,7 @@
             "lng": 12.813875,
             "countryCode": "AT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1544,7 +1544,7 @@
             "area": "Hohe Tauern",
             "countryCode": "AT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1626,7 +1626,7 @@
             "lng": 12.720911,
             "countryCode": "AT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],

@@ -108,7 +108,7 @@
             "lng": 28.983203,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -132,7 +132,7 @@
             "lng": 28.976909,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -180,7 +180,7 @@
             "lng": 28.977923,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -226,7 +226,7 @@
             "lng": 28.971624,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "Book the plain traditional service — the scrub with the kese mitt and the olive-oil foam wash — and refuse the oil-massage add-ons at the desk, which triple the price for a fifteen-minute rub. Late afternoon is the trick: coach groups fill both chambers between eleven and two and the marble göbektaşı is elbow-to-elbow, whereas at five you may have it. Men's and women's sections are separate and both are the original 1584 rooms, which is not true of every 'historic' hammam in the district. Bring cash for the tip; it goes to your natır directly and is not on the bill. Verified 2026-09-06: open daily 06:00-24:00, so a 16:15 slot is never a closing-time problem; the plain traditional kese-and-foam service is about 2,650 TL and self-service entry about 2,100 TL. Online booking takes a deposit and the balance is settled at the hamam.",
           "cost": {
@@ -248,7 +248,7 @@
             "lng": 28.984918,
             "countryCode": "TR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -429,7 +429,7 @@
             "lng": 29.024429,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -453,7 +453,7 @@
             "lng": 29.02378,
             "countryCode": "TR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -522,7 +522,7 @@
             "area": "Göreme",
             "countryCode": "TR"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -619,7 +619,7 @@
             "lng": 34.752488,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -643,7 +643,7 @@
             "lng": 34.805323,
             "countryCode": "TR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed",
             "outdoors"
@@ -668,7 +668,7 @@
             "lng": 34.827656,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -706,7 +706,7 @@
             "lng": 27.369694,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "The entire reason to pay for a car today: you are dropped at the Upper (Magnesia) Gate and collected at the Lower Gate, so Ephesus is walked downhill, once, instead of down and back up. Every coach from Kuşadası and the cruise berth unloads at the Lower Gate from about half nine and walks up the marble against you. Agree the price for the whole day including the run to Pamukkale before you get in, and say in advance that you are not stopping at a leather factory or a carpet cooperative — otherwise you will, and it costs an hour.",
           "cost": {
@@ -728,7 +728,7 @@
             "lng": 27.34105,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -752,7 +752,7 @@
             "lng": 27.339319,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -823,7 +823,7 @@
             "lng": 29.126363,
             "countryCode": "TR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -872,7 +872,7 @@
             "lng": 29.126363,
             "countryCode": "TR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -944,7 +944,7 @@
             "lng": 18.108114,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -993,7 +993,7 @@
             "lng": 18.115979,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1042,7 +1042,7 @@
             "lng": 18.115979,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1066,7 +1066,7 @@
             "lng": 18.10859,
             "countryCode": "HR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [],
           "notes": "Signposted by a hand-painted 'Cold Drinks' board and a doorway cut through the south wall, which is genuinely how you get in. The drinks cost roughly triple what they do a street inland and that is the deal — you are renting a ledge above the Adriatic. Cash. There are two Bužas a few hundred metres apart; the further one is quieter and has the better swim off the rocks.",
           "cost": {
@@ -1088,7 +1088,7 @@
             "lng": 18.109093,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1130,7 +1130,7 @@
             "lng": 15.582353,
             "countryCode": "HR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1174,7 +1174,7 @@
             "area": "Gornja Jezera",
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1293,7 +1293,7 @@
             "lng": 15.613645,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1371,7 +1371,7 @@
             "lng": 16.441307,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "The boat is the price of the day and everything else is loose change, so get the contract right. An eight-to-ten-metre RIB with a skipper for eight hours is the sweet spot; what turns a good quote into a bad one is the three things quietly left out — fuel, mooring fees at Palmižana, and the skipper's lunch. Ask for all three in writing before you pay a deposit, because together they add a couple of hundred euros to a nine-hundred-euro day. One weather note that decides the route: the maestral gets up around one in the afternoon in July, so ask to do the exposed southern coves first and be back in the sheltered channel by lunch.",
           "cost": {
@@ -1441,7 +1441,7 @@
             "lng": 16.3909,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1514,7 +1514,7 @@
             "lng": 16.442305,
             "countryCode": "HR"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1584,7 +1584,7 @@
             "lng": 18.76825,
             "countryCode": "ME"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1609,7 +1609,7 @@
             "lng": 18.76677,
             "countryCode": "ME"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [],
           "notes": "A skippered boat for the day out of Kotor is the difference between the Boka and the Boka's bus tours, and the price is real money — agree the route before you pay, because most operators default to Our Lady of the Rocks and back inside ninety minutes and call it a day charter. Ask specifically for the Blue Cave down at Luštica, the abandoned submarine tunnels cut into the cliffs near Rose, and the Verige strait taken slowly, which is where the bay narrows to three hundred metres and the Venetians strung a chain across it.",
           "cost": {
@@ -1655,7 +1655,7 @@
             "lng": 18.649122,
             "countryCode": "ME"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1703,7 +1703,7 @@
             "lng": 18.695252,
             "countryCode": "ME"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -1727,7 +1727,7 @@
             "lng": 18.695252,
             "countryCode": "ME"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],

@@ -132,7 +132,7 @@
             "area": "The Grotto, Zion Canyon",
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -198,7 +198,7 @@
             "lng": -112.987065,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -267,7 +267,7 @@
             "lng": -119.57755,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -412,7 +412,7 @@
             "lng": -119.599062,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -534,7 +534,7 @@
             "lng": -112.144401,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -575,7 +575,7 @@
             "lng": -112.14288,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -599,7 +599,7 @@
             "lng": -112.137622,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -623,7 +623,7 @@
             "lng": -112.137864,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -695,7 +695,7 @@
             "lng": -68.226049,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -789,7 +789,7 @@
             "lng": -68.287887,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -980,7 +980,7 @@
             "lng": -124.386165,
             "precision": "city"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1005,7 +1005,7 @@
             "lng": -124.386165,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1135,7 +1135,7 @@
             "area": "Yellowstone Lake, West Thumb",
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1202,7 +1202,7 @@
             "lng": -110.831156,
             "countryCode": "US"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal",
             "lodging"
@@ -1278,7 +1278,7 @@
             "lng": -109.551838,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1302,7 +1302,7 @@
             "lng": -109.492599,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1387,7 +1387,7 @@
             "lng": -109.551893,
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1553,7 +1553,7 @@
             "lng": -83.422046,
             "countryCode": "US"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1571,7 +1571,7 @@
             "area": "Tennessee / North Carolina state line, 5,046 ft",
             "countryCode": "US"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],

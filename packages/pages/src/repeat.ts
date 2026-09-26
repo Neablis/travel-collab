@@ -161,8 +161,8 @@ function paramsAcceptedBy(over: RepeatOver, params: Readonly<Record<string, unkn
  * and added a picker for type, can we do the same for 'A line for every....'?"*).
  * Every param the new primitive takes travels; the rest are dropped rather than
  * left to make the node invalid — "every stop in Kyoto" becomes "every city in
- * Kyoto", and "every booked stop" becomes "every city", since a city is not
- * booked. The result is what `insertWidget(REPEAT_WIDGETS[over], …)` accepts.
+ * Kyoto", and "every pending stop" becomes "every city", since a city is not
+ * pending. The result is what `insertWidget(REPEAT_WIDGETS[over], …)` accepts.
  */
 export function rescopeRows(over: RepeatOver, params: Readonly<Record<string, unknown>>): Record<string, unknown> {
   return paramsAcceptedBy(over, params);
@@ -175,7 +175,7 @@ export function rescopeRows(over: RepeatOver, params: Readonly<Record<string, un
  *
  * A filter it does not take is dropped rather than left to make the node
  * invalid — "every stop in Kyoto" becomes "every city in Kyoto", but
- * "every booked stop" becomes "every city", because a city is not booked.
+ * "every pending stop" becomes "every city", because a city is not pending.
  * Which filters travel is `rescopeRows`' rule, less the table-only `columns`.
  *
  * **A sentence naming a detail the new collection lacks becomes that

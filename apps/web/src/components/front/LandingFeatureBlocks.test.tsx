@@ -42,7 +42,7 @@ describe("LandingFeatureBlocks", () => {
 
   it("marks the booked stop and the maybe on the Together timeline", () => {
     render(<LandingFeatureBlocks />);
-    expect(screen.getByText("Booked")).toBeDefined();
+    expect(screen.getByText("Pending")).toBeDefined();
     expect(screen.getByText("Idea")).toBeDefined();
     expect(screen.getByText("Pontocho, maybe")).toBeDefined();
   });

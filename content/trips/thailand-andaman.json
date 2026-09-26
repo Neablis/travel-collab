@@ -48,7 +48,7 @@
                 "lng": 100.757719,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Round-trip airfare for two is priced here, not split across the two legs. Immigration is the slow part: an early-morning bank of arrivals can be an hour, and the e-gates only work if you registered the Thailand Digital Arrival Card online in the 72 hours before landing.",
               "cost": {
@@ -92,7 +92,7 @@
                 "lng": 100.493083,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -239,7 +239,7 @@
                 "lng": 100.491864,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "ticketed"
               ],
@@ -311,7 +311,7 @@
                 "lng": 100.492573,
                 "countryCode": "TH"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [],
               "notes": "Nobody has committed to this. It is a small roof directly opposite Wat Arun and it takes no bookings, so it is either empty at five or impossible at six-thirty. If it is full, the Amorosa roof at Arun Residence next door is the same view.",
               "cost": {
@@ -333,7 +333,7 @@
                 "lng": 100.490557,
                 "countryCode": "TH"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -408,7 +408,7 @@
                 "lng": 98.985124,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "85 minutes. Pay for the checked bag when you book, not at the desk — the airport rate is roughly triple, and hand baggage is genuinely weighed at the gate.",
               "cost": {
@@ -474,7 +474,7 @@
                 "lng": 98.839744,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -498,7 +498,7 @@
                 "lng": 98.844317,
                 "countryCode": "TH"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -571,7 +571,7 @@
                 "lng": 98.839658,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "outdoors"
               ],
@@ -618,7 +618,7 @@
                 "lng": 98.832892,
                 "countryCode": "TH"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [
                 "outdoors"
               ],
@@ -712,7 +712,7 @@
                 "lng": 98.837583,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "3,000 baht for the boat for the day, arranged at the beach hut yesterday. A private longtail costs about twice a seat on a joined tour and buys the one thing that matters: leaving Poda while the speedboat groups are still eating lunch.",
               "cost": {
@@ -734,7 +734,7 @@
                 "lng": 98.810031,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "ticketed"
               ],
@@ -896,7 +896,7 @@
                 "lng": 99.057289,
                 "precision": "city"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "High season only, one sailing a day, calling at Koh Jum on the way. In the June–September low season this boat does not run and the alternative is the minivan-and-car-ferry via Krabi town, which takes the same time and is much less pleasant. Sit on the upper deck at the stern; the cabin is freezing and has no windows worth having.",
               "cost": {
@@ -942,7 +942,7 @@
                 "lng": 99.048473,
                 "precision": "area"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -1109,7 +1109,7 @@
                 "lng": 99.09434,
                 "precision": "area"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [
                 "ticketed"
               ],
@@ -1134,7 +1134,7 @@
                 "lng": 99.057289,
                 "precision": "city"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "outdoors"
               ],
@@ -1159,7 +1159,7 @@
                 "lng": 99.068627,
                 "precision": "area"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -1214,7 +1214,7 @@
                 "lng": 99.057289,
                 "precision": "city"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Price includes hotel pickup, the national park fee and lunch — confirm all three are in it, because the park fee is the one operators leave out. Koh Rok over Koh Phi Phi: same crossing time, a fifth of the boats.",
               "cost": {
@@ -1301,7 +1301,7 @@
                 "lng": 99.057289,
                 "precision": "city"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "meal"
               ],
@@ -1429,7 +1429,7 @@
                 "lng": 98.985124,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Allow two and a half hours, not the ninety minutes the ticket claims: the first bridge is a bridge now but the second crossing at Ban Hua Hin is still a car ferry that waits to fill. Book the 09:30 for an early-afternoon flight and no earlier one for a later flight — there is nothing to do at Krabi airport.",
               "cost": {
@@ -1451,7 +1451,7 @@
                 "lng": 100.74858,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Booked into Suvarnabhumi rather than Don Mueang so the long-haul is a walk, not a 50 km taxi with bags. Six hours of connection is deliberate — a missed domestic leg on a separate ticket is a missed flight home.",
               "cost": {
@@ -1497,7 +1497,7 @@
                 "lng": 100.757719,
                 "countryCode": "TH"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Return leg of the fare priced on day one. Suvarnabhumi's gates are a genuine fifteen-minute walk from security — the boarding time on the screen is when you should already be moving.",
               "cost": {
@@ -1519,7 +1519,7 @@
             "lng": 100.562255,
             "countryCode": "TH"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1536,7 +1536,7 @@
             "lng": 99.057289,
             "precision": "city"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1552,7 +1552,7 @@
             "lng": 98.830765,
             "countryCode": "TH"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Everyone who does it as a day trip regrets it and everyone who stays a night says Maya Bay at seven in the morning is a different place. Would cost a Lanta night."
         },
         {
@@ -1565,7 +1565,7 @@
             "lng": 100.528193,
             "countryCode": "TH"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],

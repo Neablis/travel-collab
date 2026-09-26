@@ -243,7 +243,7 @@
             "lng": 151.210096,
             "countryCode": "AU"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal",
             "ticketed"
@@ -424,7 +424,7 @@
             "lng": 144.965427,
             "countryCode": "AU"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "A tiled room the size of a bathroom that fits about ten people standing, hidden in the lane you found this morning. Cash used to be the rule and the no-photos house style still is. The drinks are expensive and correct. If it is full — it is often full by six — Siglo's terrace above the Supper Club has the Parliament view and a fireplace.",
           "cost": {
             "amountMinor": 1720,
@@ -445,7 +445,7 @@
             "lng": 144.973027,
             "countryCode": "AU"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -541,7 +541,7 @@
             "lng": 145.473486,
             "countryCode": "AU"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -632,7 +632,7 @@
             "lng": 145.467382,
             "countryCode": "AU"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -656,7 +656,7 @@
             "lng": 145.461139,
             "countryCode": "AU"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -781,7 +781,7 @@
             "lng": 131.064273,
             "precision": "area"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -805,7 +805,7 @@
             "lng": 130.983565,
             "countryCode": "AU"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -829,7 +829,7 @@
             "lng": 130.978422,
             "countryCode": "AU"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -851,7 +851,7 @@
             "area": "Ayers Rock Resort",
             "countryCode": "AU"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal",
             "ticketed"
@@ -876,7 +876,7 @@
             "lng": 130.997032,
             "countryCode": "AU"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -963,7 +963,7 @@
             "lng": 168.740262,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -988,7 +988,7 @@
             "lng": 168.659462,
             "countryCode": "NZ"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1012,7 +1012,7 @@
             "lng": 168.74344,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1037,7 +1037,7 @@
             "lng": 168.734672,
             "countryCode": "NZ"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1062,7 +1062,7 @@
             "lng": 168.685428,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1086,7 +1086,7 @@
             "lng": 168.815846,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal",
             "ticketed"
@@ -1222,7 +1222,7 @@
             "lng": 167.923739,
             "countryCode": "NZ"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1290,7 +1290,7 @@
             "lng": 167.712538,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1353,7 +1353,7 @@
             "lng": 175.552526,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1421,7 +1421,7 @@
             "area": "Red Crater",
             "countryCode": "NZ"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1583,7 +1583,7 @@
             "lng": 175.680909,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1607,7 +1607,7 @@
             "lng": 175.682945,
             "countryCode": "NZ"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1702,7 +1702,7 @@
             "lng": 176.256083,
             "countryCode": "NZ"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal",
             "ticketed"

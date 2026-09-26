@@ -47,7 +47,7 @@
                 "lng": 12.327551,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Outbound leg only; the return is priced on day seven. Fly into VCE rather than Treviso — the mountain buses leave from Marco Polo and the Treviso alternative is a train, a bus and two hours more.",
               "cost": {
@@ -93,7 +93,7 @@
                 "lng": 12.135788,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Three departures a day in winter and they sell out on Saturdays, which is changeover day for the whole valley — book the seat when you book the flight. Skis and boot bags travel free in the hold but are not guaranteed a space if you turn up without a ticket.",
               "cost": {
@@ -115,7 +115,7 @@
                 "lng": 12.13806,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -139,7 +139,7 @@
                 "lng": 12.136783,
                 "countryCode": "IT"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [],
               "notes": "Six days of skis and boots for two, reserved online but not paid. Do the fitting this evening, not at 08:30 tomorrow: the shop is empty at five and forty deep at nine, and a boot fitted in a hurry ruins a whole week.",
               "cost": {
@@ -161,7 +161,7 @@
                 "lng": 12.150824,
                 "countryCode": "IT"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -211,7 +211,7 @@
                 "area": "Tofana base",
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "ticketed"
               ],
@@ -299,7 +299,7 @@
                 "lng": 12.136643,
                 "countryCode": "IT"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [],
               "notes": "Unclaimed by anyone in the party. Standing room only after six and no bookings; the point is the Alto Adige whites by the glass, not the plate of speck.",
               "cost": {
@@ -321,7 +321,7 @@
                 "lng": 12.148209,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "meal"
               ],
@@ -350,7 +350,7 @@
                 "lng": 12.13806,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Send the luggage round by taxi for about €110. Today's route ends at Armentarola on the far side of the Falzarego pass and there is no way to ski it with a suitcase — people try to solve this with buses and lose the whole afternoon.",
               "cost": {
@@ -410,7 +410,7 @@
                 "lng": 12.051793,
                 "countryCode": "IT"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -456,7 +456,7 @@
                 "lng": 11.876729,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "lodging"
               ],
@@ -480,7 +480,7 @@
                 "lng": 11.888472,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "meal"
               ],
@@ -611,7 +611,7 @@
                 "area": "Alta Badia",
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [
                 "meal"
               ],
@@ -658,7 +658,7 @@
                 "area": "Alta Badia",
                 "countryCode": "IT"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -769,7 +769,7 @@
                 "lng": 11.932094,
                 "countryCode": "IT"
               },
-              "kind": "hold",
+              "kind": "pending",
               "tags": [
                 "outdoors"
               ],
@@ -793,7 +793,7 @@
                 "lng": 11.932094,
                 "countryCode": "IT"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [],
               "notes": "Floated, not agreed. It is the hotel that St. Hubertus sits inside, so if the dinner below comes off this is the waiting room; if it does not, this is a very expensive negroni in ski socks.",
               "cost": {
@@ -815,7 +815,7 @@
                 "lng": 11.932094,
                 "countryCode": "IT"
               },
-              "kind": "idea",
+              "kind": "pending",
               "tags": [
                 "meal"
               ],
@@ -901,7 +901,7 @@
                 "lng": 12.327551,
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "One direct Corvara–Venice airport service a day in winter. The alternative is three regional buses via Brunico and five hours, so if this one is full the answer is a taxi to Cortina and the Cortina bus, not a clever route.",
               "cost": {
@@ -921,7 +921,7 @@
                 "area": "Tessera",
                 "countryCode": "IT"
               },
-              "kind": "booked",
+              "kind": "planned",
               "tags": [],
               "notes": "Two hours between the bus and the gate is the minimum that survives a snowy Falzarego pass — the bus is the leg that runs late, never the plane.",
               "cost": {
@@ -941,7 +941,7 @@
             "area": "Armentarola",
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -957,7 +957,7 @@
             "lng": 12.06657,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -971,7 +971,7 @@
             "area": "Alta Badia",
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -987,7 +987,7 @@
             "lng": 11.923341,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],

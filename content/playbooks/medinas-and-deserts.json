@@ -76,7 +76,7 @@
             "lng": -7.987323,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -100,7 +100,7 @@
             "lng": -7.986036,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -145,7 +145,7 @@
             "lng": -7.990053,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -169,7 +169,7 @@
             "lng": -7.987438,
             "countryCode": "MA"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -193,7 +193,7 @@
             "lng": -7.981938,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -217,7 +217,7 @@
             "lng": -7.988555,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -286,7 +286,7 @@
             "lng": -4.984021,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "Around 300 MAD for a half day through your riad, and in Fes it is worth it in a way it is not in Marrakech - 9,000 lanes, no grid, and the hills mean you cannot navigate by the sun. Agree up front: three hours, no shops, no cooperative, no carpet. A guide who resists that clause will resist it all morning. Ask for his licence card; the real ones carry a brass badge. Start at 07:30 and you get the mule deliveries, which is the medina actually working.",
           "cost": {
             "amountMinor": 3150,
@@ -307,7 +307,7 @@
             "lng": -4.982736,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -353,7 +353,7 @@
             "lng": -4.973565,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -398,7 +398,7 @@
             "lng": -4.977465,
             "countryCode": "MA"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -422,7 +422,7 @@
             "lng": -4.983767,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Cross the Oued Fes at Rcif and climb. This half of the old city was settled by families from Cordoba and it is residential, steeper and almost empty of visitors - no souvenir lane, no touts, just doors and children and the odd bakery oven. The Andalusian mosque's monumental gate is the landmark to climb toward. Go up until the lanes stop, then look back over the whole medina from someone's roofline.",
           "cost": {
             "amountMinor": 0,
@@ -443,7 +443,7 @@
             "lng": -4.979405,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Red petit taxi from Bab Guissa, about 30 MAD, and tell him to wait or agree a pickup - there is nothing up there. The tombs themselves are broken walls. What you came for is the moment the light goes and the adhan comes up off the medina from every minaret at once, out of sync, from below you. Bring a layer; the hill has wind the medina does not.",
           "cost": {
             "amountMinor": 315,
@@ -515,7 +515,7 @@
             "lng": -7.235004,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -537,7 +537,7 @@
             "area": "Ounila valley",
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Every driver has one and gets a cut, so treat it as a tea stop that you may or may not spend at. The test for a real cooperative rather than a shopfront: women are actually cracking nuts on the floor, and the price of culinary versus cosmetic oil is posted. 100 MAD for a small bottle of culinary is fair. Say no comfortably; a good driver will not sulk.",
           "cost": {
             "amountMinor": 1050,
@@ -580,7 +580,7 @@
             "lng": -7.129621,
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -605,7 +605,7 @@
             "lng": -6.966914,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -629,7 +629,7 @@
             "lng": -6.899434,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "ticketed"
           ],
@@ -696,7 +696,7 @@
             "lng": -4.266173,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -739,7 +739,7 @@
             "lng": -3.995596,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "A village of descendants of enslaved people brought north across the Sahara, and the Gnawa groups here play for visitors in a plain room with tea. It is short, loud, and completely unlike the hotel-lobby version. There is no ticket - leave 100 MAD per person in the box, and buy the CD if they have one, because that is the actual point of the visit.",
           "cost": {
             "amountMinor": 1050,
@@ -758,7 +758,7 @@
             "area": "Erg Chebbi",
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -780,7 +780,7 @@
             "area": "Erg Chebbi",
             "countryCode": "MA"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -804,7 +804,7 @@
             "lng": -4.01366,
             "countryCode": "MA"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -880,7 +880,7 @@
             "area": "Petra Visitor Centre",
             "countryCode": "JO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -919,7 +919,7 @@
             "area": "Petra archaeological park",
             "countryCode": "JO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "notes": "50 JD for a licensed guide from the desk at the Visitor Centre, for two to three hours, and it is the money that turns a photograph into a city - which tombs are Nabataean and which Roman, why the facades erode from the bottom, what the Bedouin who lived in them until 1985 used each cave for. Take the guide for the morning only and do the Monastery yourself. Sun reaches into the Treasury bowl around 09:00 in autumn; before that it is in blue shade, which most people think is worse and is actually better.",
           "cost": {
             "amountMinor": 7050,
@@ -999,7 +999,7 @@
             "lng": 35.445123,
             "countryCode": "JO"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1017,7 +1017,7 @@
             "area": "Petra Visitor Centre",
             "countryCode": "JO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1053,7 +1053,7 @@
             "area": "Protected area entrance",
             "countryCode": "JO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1094,7 +1094,7 @@
             "area": "Wadi Rum protected area",
             "countryCode": "JO"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1132,7 +1132,7 @@
             "lng": 35.44509,
             "countryCode": "JO"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -1217,7 +1217,7 @@
             "area": "Giza plateau",
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1254,7 +1254,7 @@
             "area": "Giza plateau",
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1293,7 +1293,7 @@
             "lng": 31.119074,
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1341,7 +1341,7 @@
             "lng": 31.261982,
             "countryCode": "EG"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Allow an hour in traffic from Giza; leave at 15:00 if it is a weekday. The tourist lanes off Al-Hussein square are a gauntlet - walk one street further into the coppersmiths and the gold souk and the tone changes completely. El Fishawy has been open since the 1770s, is deliberately touristy, and is still the right place to sit for forty minutes with a mint tea while the alley works around you.",
           "cost": {
             "amountMinor": 800,
@@ -1433,7 +1433,7 @@
             "lng": 32.621375,
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1458,7 +1458,7 @@
             "lng": 32.606595,
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1482,7 +1482,7 @@
             "lng": 32.601758,
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1506,7 +1506,7 @@
             "lng": 32.60869,
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1530,7 +1530,7 @@
             "lng": 32.592706,
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1573,7 +1573,7 @@
             "lng": 32.633209,
             "countryCode": "EG"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],

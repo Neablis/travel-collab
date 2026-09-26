@@ -73,7 +73,7 @@
             "area": "Val Gardena",
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -169,7 +169,7 @@
             "lng": 11.86478,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -252,7 +252,7 @@
             "lng": 12.136783,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -357,7 +357,7 @@
             "lng": 12.040596,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -381,7 +381,7 @@
             "lng": 12.046772,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -405,7 +405,7 @@
             "lng": 12.13564,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -457,7 +457,7 @@
             "area": "Alta Badia",
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -498,7 +498,7 @@
             "lng": 11.916507,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -560,7 +560,7 @@
             "lng": 11.932094,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -584,7 +584,7 @@
             "lng": 11.903573,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -604,7 +604,7 @@
             "lng": 11.874835,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -652,7 +652,7 @@
             "lng": 11.932094,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -757,7 +757,7 @@
             "area": "Lagazuoi–Armentarola",
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -802,7 +802,7 @@
             "lng": 11.930269,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -836,7 +836,7 @@
             "lng": 10.81667,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -921,7 +921,7 @@
             "lng": 10.82852,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -965,7 +965,7 @@
             "lng": 10.80709,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -985,7 +985,7 @@
             "lng": 10.81667,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1027,7 +1027,7 @@
             "lng": 10.389038,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1108,7 +1108,7 @@
             "lng": 10.411162,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1152,7 +1152,7 @@
             "lng": 10.360927,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1176,7 +1176,7 @@
             "lng": 10.374379,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1230,7 +1230,7 @@
             "lng": 6.973188,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1300,7 +1300,7 @@
             "area": "Mont Blanc massif",
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "outdoors"
           ],
@@ -1372,7 +1372,7 @@
             "lng": 6.86841,
             "countryCode": "FR"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "meal"
           ],
@@ -1396,7 +1396,7 @@
             "lng": 6.969927,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1441,7 +1441,7 @@
             "lng": 11.349554,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1489,7 +1489,7 @@
             "lng": 11.352572,
             "countryCode": "IT"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1579,7 +1579,7 @@
             "lng": 11.335317,
             "countryCode": "IT"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1603,7 +1603,7 @@
             "lng": 11.360624,
             "countryCode": "IT"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "meal"
           ],

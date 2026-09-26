@@ -122,7 +122,7 @@
             "lng": -0.074906,
             "countryCode": "GB"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "Two minutes off Columbia Road and almost nobody makes the detour. The mound under the bandstand is the rubble of the slum that stood here, and the estate built on top of it in 1900 was the first council housing in the country. Free, takes twenty minutes, and it is the one thing on this day that explains the rest of it."
         },
         {
@@ -184,7 +184,7 @@
             "lng": -0.07779,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -330,7 +330,7 @@
             "lng": -0.126232,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -375,7 +375,7 @@
             "lng": -0.115147,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -399,7 +399,7 @@
             "lng": -0.119395,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -453,7 +453,7 @@
             "lng": -3.1638,
             "countryCode": "GB"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -497,7 +497,7 @@
             "lng": -3.200417,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -545,7 +545,7 @@
             "lng": -3.190446,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -590,7 +590,7 @@
             "lng": -3.180687,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -657,7 +657,7 @@
             "area": "Trotternish",
             "countryCode": "GB"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -698,7 +698,7 @@
             "lng": -6.265247,
             "countryCode": "GB"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -746,7 +746,7 @@
             "lng": -6.333017,
             "countryCode": "GB"
           },
-          "kind": "idea",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -790,7 +790,7 @@
             "lng": -6.191227,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -849,7 +849,7 @@
             "lng": -2.359801,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -922,7 +922,7 @@
             "lng": -2.228967,
             "precision": "city"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -946,7 +946,7 @@
             "lng": -2.361028,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -970,7 +970,7 @@
             "lng": -2.362878,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -994,7 +994,7 @@
             "lng": -2.367938,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "lodging"
           ],
@@ -1060,7 +1060,7 @@
             "lng": -5.484393,
             "countryCode": "GB"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1080,7 +1080,7 @@
             "lng": -5.593268,
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1123,7 +1123,7 @@
             "lng": -5.650433,
             "countryCode": "GB"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1144,7 +1144,7 @@
             "lng": -5.536926,
             "precision": "venue"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "meal"
           ],
@@ -1166,7 +1166,7 @@
             "area": "West Penwith",
             "countryCode": "GB"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1233,7 +1233,7 @@
             "area": "Eryri",
             "countryCode": "GB"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "outdoors"
           ],
@@ -1342,7 +1342,7 @@
             "lng": -4.128161,
             "countryCode": "GB"
           },
-          "kind": "idea",
+          "kind": "pending",
           "notes": "IMPOSSIBLE AS ORIGINALLY WRITTEN — verified 2026-09-06: the National Slate Museum has been closed since November 2024 for a redevelopment now costed at about £25m, construction only started on site in November 2025, and the reopening has slipped from 2026 to 2027. There is nothing to walk into: no slate-splitting demonstration, no workshops, no cafe, no free entry, because there is no open museum. Amgueddfa Cymru is running the collection as 'Museum on the Move' out of partner venues across the slate World Heritage Site while the work goes on, so check where it is showing if the slate story is why you came. What is still here, still free and still open is Dolbadarn Castle — a single Welsh round tower from the 1200s on the knoll above Llyn Padarn, ten minutes on foot from the village — and the path round the lake below it, which is the better hour anyway with a day on the mountain behind you."
         },
         {
@@ -1454,7 +1454,7 @@
             "lng": -9.046591,
             "countryCode": "IE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed"
           ],
@@ -1523,7 +1523,7 @@
             "lng": -9.404653,
             "countryCode": "IE"
           },
-          "kind": "hold",
+          "kind": "pending",
           "tags": [
             "ticketed",
             "outdoors"
@@ -1548,7 +1548,7 @@
             "lng": -9.390693,
             "countryCode": "IE"
           },
-          "kind": "booked",
+          "kind": "planned",
           "tags": [
             "ticketed",
             "outdoors"
