@@ -629,8 +629,6 @@ export function Board({
             latest.current.callbacks.onRetime(activityId, timeWindow);
             setNotice(`Now ends at ${toClockLabel(timeWindow.end, clock)}`);
           },
-          // Read at drag time, not render time: the rack changes under a drag.
-          canPlace: (activityId) => !latest.current.trip.backlog.includes(activityId),
         };
 
   return (
