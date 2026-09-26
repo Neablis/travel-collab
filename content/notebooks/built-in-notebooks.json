@@ -450,8 +450,10 @@
               {
                 "type": "macro",
                 "attrs": {
-                  "name": "cost.byKind",
-                  "params": {}
+                  "name": "cost.breakdown",
+                  "params": {
+                    "by": "kind"
+                  }
                 }
               }
             ]

@@ -252,3 +252,46 @@ describe("a widget's toggle and choice inputs", () => {
     expect(bindSummary("cost.chart", { view: "burndown", headings: false }, detail, null)).toBe("everything");
   });
 });
+
+// `cost.breakdown` withholds the filter on its own slices' dimension, and which
+// one depends on its `by` — so the panel's controls follow the choice.
+describe("a spend breakdown's filters follow what it is split by", () => {
+  const globals = { cities: [], tags: [{ tag: "meal", activityCount: 1 }] } as unknown as TripGlobals;
+  const control = (label: string) => screen.queryByRole("combobox", { name: `One stop's detail: ${label}` });
+
+  function Breakdown({ initial }: { initial: Record<string, unknown> }) {
+    const [params, setParams] = useState<Record<string, unknown>>(initial);
+    return (
+      <>
+        <WidgetBindControls
+          name="cost.breakdown"
+          params={params}
+          detail={detail}
+          globals={globals}
+          onChange={setParams}
+          layout="stacked"
+          idPrefix="t"
+          title="One stop's detail"
+        />
+        <output data-testid="params">{JSON.stringify(params)}</output>
+      </>
+    );
+  }
+
+  it("offers a tag filter and no kind filter split by kind, and the reverse split by tag", async () => {
+    const user = userEvent.setup();
+    render(<Breakdown initial={{ by: "kind" }} />);
+    expect(control("tags")).not.toBeNull();
+    expect(control("kind")).toBeNull();
+
+    await user.selectOptions(control("split by")!, "tag");
+    expect(stored()).toEqual({ by: "tag" });
+    expect(control("tags")).toBeNull();
+    expect(control("kind")).not.toBeNull();
+  });
+
+  it("does not claim a withheld tag in the 'Pointed at' summary", () => {
+    expect(bindSummary("cost.breakdown", { by: "tag", tag: "meal" }, detail, globals)).toBe("everything");
+    expect(bindSummary("cost.breakdown", { by: "kind", tag: "meal" }, detail, globals)).toBe("Meal");
+  });
+});

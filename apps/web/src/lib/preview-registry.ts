@@ -95,9 +95,9 @@ export const PREVIEW_REGISTRY = {
   // rows, tagged M19 because no field classified a cost. M28 (ADR-054) gave
   // every stop a three-way kind, and on 2026-09-26 Mitchell moved it: *"Lets
   // remove it there, and implement it as a PIE chart widget for notebooks"*.
-  // It shipped as "Spend by kind" (`cost.byKind` in `@tc/pages`), a cost
-  // inheriting its stop's kind. Removed rather than retagged: nothing is left
-  // on the sheet to wire.
+  // It shipped as "Spend by kind" (`cost.breakdown` in `@tc/pages`, beside
+  // "Spend by tag"), a cost inheriting its stop's kind. Removed rather than
+  // retagged: nothing is left on the sheet to wire.
   "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
   // **M21 link 5 wired both of the account sheet's plan shells up and removed
   // them**, 2026-09-14 — `account-plan-change` and `account-plan-billing`.

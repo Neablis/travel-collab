@@ -6,6 +6,7 @@ import { ghost, text } from "./registry-types";
 import type { UnavailableReason, UnboundNeeds } from "./result";
 import { fieldAt, fieldChoices } from "./fields";
 import { VALUE_KIND_FORMATS } from "./kinds";
+import { paramKeyOf, withheldFilters } from "./filters";
 import { cost, count, dates, hours, city } from "./macros/primitives/single";
 import { attribute } from "./macros/primitives/attribute";
 import { dayDetail, cityDetail } from "./macros/primitives/block";
@@ -14,7 +15,7 @@ import { open } from "./macros/primitives/open";
 import { countryFactsWidget } from "./macros/primitives/countryFacts";
 import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
-import { costByKind } from "./macros/primitives/spendByKind";
+import { costBreakdown } from "./macros/primitives/spendBreakdown";
 import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 import { dayWeather } from "./macros/primitives/weather";
@@ -49,10 +50,10 @@ const DEFS: AnyMacroDef[] = [
   tripStripWidget,
   // "Spend by day" (M14 link 11): a primitive, `stop` + filters drawn as a chart.
   costChart,
-  // "Spend by kind" (2026-09-26): the same stops and money as a pie per kind —
-  // its own primitive, not a `view` of the bars, because its filters differ.
-  // See `spendByKind.ts`.
-  costByKind,
+  // "Spend by kind" / "Spend by tag" (2026-09-26): the same stops and money
+  // as a pie per kind or per tag — its own primitive, not a `view` of the
+  // bars, because its filters differ. See `spendBreakdown.ts`.
+  costBreakdown,
   // The field widget (M14 build step 6): `stop` + filters + a reader-chosen
   // manifest field. The first registered widget with a `field` input.
   field,
@@ -244,4 +245,18 @@ export function distinctApplies(name: string, params: Record<string, unknown>): 
   if (input?.type !== "field") return false;
   const choice = fieldAt(input.of, params[input.name]);
   return choice !== undefined && VALUE_KIND_FORMATS[choice.valueKind].distinct;
+}
+
+/**
+ * The inputs a widget offers as it is bound: its declared ones, minus any
+ * filter its params withhold (`WidgetSelection.withheld`) — "Spend by tag"
+ * offers no tag control, "Spend by kind" no kind control. The settings panel,
+ * the insert step and a preset's catalogue entry all read this, so none of
+ * them offers a control the resolver would ignore.
+ */
+export function inputsFor(name: string, params: Readonly<Record<string, unknown>>): readonly WidgetInput[] {
+  const def = getMacro(name);
+  if (!def) return [];
+  const withheld = new Set<string>(withheldFilters(def.selection, params).map(paramKeyOf));
+  return withheld.size === 0 ? def.inputs : def.inputs.filter((input) => !withheld.has(input.name));
 }

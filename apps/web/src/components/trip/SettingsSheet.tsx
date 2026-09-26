@@ -289,7 +289,7 @@ export function SettingsSheet({
             {/* The mocked breakdown by kind that sat here (`budget-breakdown`,
                 M19) is gone: Mitchell, 2026-09-26, *"Lets remove it there, and
                 implement it as a PIE chart widget for notebooks"* — it is the
-                "Spend by kind" widget (`cost.byKind`) now, on real kinds. */}
+                "Spend by kind" widget (`cost.breakdown`) now, on real kinds. */}
             <Text as="span" className="text-xs text-slate">
               {spend.unpriced} stop{spend.unpriced === 1 ? "" : "s"} with no cost yet
             </Text>

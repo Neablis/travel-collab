@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FILTER_VALUE_SCHEMAS, type FilterDimension } from "@tc/contracts";
-import type { WidgetInput, WidgetInputType } from "./registry-types";
+import type { WidgetInput, WidgetInputType, WidgetSelection } from "./registry-types";
 
 // The other two thirds of ADR-039 decision 1's sentence — `widget = entity +
 // filters + shape` — expressed as declarations a test can read.
@@ -161,4 +161,38 @@ export function filterInputs(dimensions: readonly BindableDimension[]): readonly
     (dimension) =>
       ({ name: paramKeyOf(dimension), type: INPUT_TYPE_OF[dimension], label: LABEL_OF[dimension] }) as WidgetInput,
   );
+}
+
+/**
+ * The declared filters `params` withholds (`WidgetSelection.withheld`): for
+ * `cost.breakdown{by: "tag"}`, `["tag"]`. Empty for every primitive that
+ * withholds nothing, and for a widget with no selection.
+ */
+export function withheldFilters(
+  selection: WidgetSelection | undefined,
+  params: Readonly<Record<string, unknown>>,
+): readonly FilterDimension[] {
+  const rule = selection?.withheld;
+  if (!rule) return [];
+  const raw = params[rule.param];
+  const value = typeof raw === "string" && Object.hasOwn(rule.values, raw) ? raw : rule.default;
+  return rule.values[value] ?? [];
+}
+
+/**
+ * `params` without the filters it withholds. **This is how a stored page that
+ * disagrees with itself still reads**: `{by: "tag", tag: "meal"}` — a tag
+ * filter on a pie split by tag, left behind by switching `by` or written by
+ * hand — resolves as unfiltered by tag, never as one slice and never as an
+ * error. The value stays in the document, so switching back finds it.
+ */
+export function withoutWithheld<P extends Readonly<Record<string, unknown>>>(
+  selection: WidgetSelection | undefined,
+  params: P,
+): P {
+  const withheld = withheldFilters(selection, params);
+  if (withheld.length === 0) return params;
+  const kept: Record<string, unknown> = { ...params };
+  for (const dimension of withheld) delete kept[paramKeyOf(dimension)];
+  return kept as P;
 }

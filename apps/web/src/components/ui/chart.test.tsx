@@ -8,8 +8,8 @@ import type { TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { spendChartConfig } from "../pages/blocks/SpendByDayBlock";
 import { SpendByDayChart } from "../pages/blocks/SpendByDayChart";
-import { kindChartConfig } from "../pages/blocks/SpendByKindBlock";
-import { SpendByKindChart } from "../pages/blocks/SpendByKindChart";
+import { breakdownChartConfig } from "../pages/blocks/SpendBreakdownBlock";
+import { SpendBreakdownChart } from "../pages/blocks/SpendBreakdownChart";
 
 // The M14 gate box, as a test: *"Charts go through the one adopted chart
 // component, and none carries a colour or font outside the design-system
@@ -76,27 +76,29 @@ const CHARTS: Record<string, Record<string, () => ReactElement>> = {
     bars: () => spendChart({}),
     "burn down": () => spendChart({ view: "burndown" }),
   },
-  "components/pages/blocks/SpendByKindChart.tsx": {
-    donut: () => kindChart(),
+  "components/pages/blocks/SpendBreakdownChart.tsx": {
+    "by kind": () => breakdownChart({}),
+    "by tag": () => breakdownChart({ by: "tag" }),
   },
 };
 
 // A chart that draws far fewer marks than the bars gets its own floor below.
-const PAINTED_FLOOR: Record<string, number> = { "components/pages/blocks/SpendByKindChart.tsx": 2 };
+const PAINTED_FLOOR: Record<string, number> = { "components/pages/blocks/SpendBreakdownChart.tsx": 2 };
 
-// Every kind priced, so every slice draws.
-function kindChart(): ReactElement {
+// Every kind priced, and stops tagged as `spendTrip` tags them, so each split
+// draws several slices.
+function breakdownChart(params: Record<string, unknown>): ReactElement {
   const trip = spendTrip();
   const kinds = ["planned", "pending", "transit", "planned", "pending", "transit"] as const;
   trip.days.flatMap((day) => day.activityIds).slice(0, kinds.length).forEach((id, i) => {
     trip.activities[id] = { ...trip.activities[id]!, kind: kinds[i]! };
   });
-  const outcome = renderMacro({ trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null }, "cost.byKind", {});
-  if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "spend-by-kind") {
-    throw new Error(`expected a spend-by-kind block, got ${outcome.status}`);
+  const outcome = renderMacro({ trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null }, "cost.breakdown", params);
+  if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "spend-breakdown") {
+    throw new Error(`expected a spend-breakdown block, got ${outcome.status}`);
   }
   const payload = outcome.rendered.block;
-  return <SpendByKindChart payload={payload} config={kindChartConfig(payload)} height={176} />;
+  return <SpendBreakdownChart payload={payload} config={breakdownChartConfig(payload)} height={176} />;
 }
 
 // A paint is a token, a series property that `ChartContainer` sets FROM a
@@ -194,8 +196,8 @@ describe("charts go through the one chart component, in tokens only", () => {
         // axis, ticks, labels, budget line). Half of that, so a Recharts upgrade
         // that draws a few marks differently does not flap, while a chart that
         // never drew — an empty span passes the check above — fails here.
-        // The donut has no axis or grid: measured at 3 (one sector per kind),
-        // so its floor is 2 on the same rule.
+        // The donut has no axis or grid: measured at 3 by kind and 5 by tag
+        // (one sector each), so its floor is 2 on the same rule.
         expect(painted, "the sweep saw no drawn chart").toBeGreaterThanOrEqual(PAINTED_FLOOR[path] ?? 13);
       });
     }

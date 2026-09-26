@@ -1,6 +1,6 @@
 "use client";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
+import { distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
@@ -34,8 +34,12 @@ import { FieldColumns } from "./FieldColumns";
 // Which of a widget's declared filters this app can render a control for: all
 // of them, with `day` and `dates` as one. There is no `person` input to leave
 // out any more — it was retired from `WidgetInput` (M14 decision 5).
-export function bindableInputs(name: string): readonly WidgetInput[] {
-  return collapseDays(getMacro(name)?.inputs ?? []);
+//
+// `params` because a widget's own params can withhold a filter (`inputsFor`):
+// "Spend by tag" has no tag control, "Spend by kind" no kind control. `{}` is
+// the widget with every param at its default.
+export function bindableInputs(name: string, params: Readonly<Record<string, unknown>> = {}): readonly WidgetInput[] {
+  return collapseDays(inputsFor(name, params));
 }
 
 /**
@@ -82,7 +86,7 @@ export function presetTarget(id: string): { widget: string; params: Record<strin
 export function presetBindableInputs(id: string): readonly WidgetInput[] {
   const preset = getPreset(id);
   if (!preset || preset.repeat) return [];
-  return bindableInputs(preset.widget).filter((input) => !(input.name in preset.params));
+  return bindableInputs(preset.widget, preset.params).filter((input) => !(input.name in preset.params));
 }
 
 // Reading a param back into a select value, kept beside the writer below so the
@@ -291,10 +295,12 @@ export function bindSummary(
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
-  allInputs: readonly WidgetInput[] = bindableInputs(name),
+  allInputs: readonly WidgetInput[] = bindableInputs(name, params),
 ): string | null {
   // What the widget is POINTED at: a toggle or a choice changes how it looks,
-  // not what it reads, so neither belongs in "Pointed at …".
+  // not what it reads, so neither belongs in "Pointed at …". (Nor does a
+  // filter the widget withholds — a stored tag on "Spend by tag" narrows
+  // nothing — which the default `allInputs` already leaves out.)
   const inputs = allInputs.filter((i) => i.type !== "toggle" && i.type !== "choice");
   if (inputs.length === 0) return null;
   // An unset single field is no answer at all rather than the widest one — the
@@ -352,7 +358,8 @@ export function WidgetBindControls({
   onChange,
   layout,
   idPrefix,
-  inputs = bindableInputs(name),
+  // Read with `params`, so switching "Split by" swaps the withheld control.
+  inputs = bindableInputs(name, params),
   title: titleOverride,
 }: {
   name: string;

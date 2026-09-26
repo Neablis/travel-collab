@@ -1,7 +1,8 @@
 import { Suspense, lazy } from "react";
-import type { SpendByDayPayload, SpendSeriesKey } from "@tc/pages";
+import type { SpendByDayPayload } from "@tc/pages";
 import { DataText } from "@/components/ui/data-text";
-import { ChartErrorBoundary, ChartLegend, ChartPlaceholder, type ChartConfig, type ChartToken } from "@/components/ui/chart";
+import { ChartErrorBoundary, ChartLegend, ChartPlaceholder, type ChartConfig } from "@/components/ui/chart";
+import { SPEND_SERIES_COLOR } from "./spendColors";
 
 // "Spend by day" — a bar per day, stacked by tag, with the budget per day as a
 // dashed line (M14 link 11, the first chart); or, as the widget's `view`
@@ -20,26 +21,16 @@ import { ChartErrorBoundary, ChartLegend, ChartPlaceholder, type ChartConfig, ty
 // drawn chart rather than the placeholder.
 const SpendByDayChart = lazy(() => import("./SpendByDayChart").then((m) => ({ default: m.SpendByDayChart })));
 
-// The tag chips' own families (`lib/activityTags.ts`'s `TAG_CHIP_CLASS`), as
-// solids, so a meal is the same colour on the board and in the chart. Untagged
-// is the quiet neutral: it is the remainder, not a category. `border-input`
-// rather than `border-strong` because a bar is a non-text mark and needs 3:1
-// against the surface (design-system.md's contrast table has 3.16 for it).
-const SERIES_COLOR: Record<SpendSeriesKey, ChartToken> = {
-  meal: "--color-warning",
-  lodging: "--color-info",
-  ticketed: "--color-success",
-  outdoors: "--color-slate",
-  untagged: "--color-border-input",
-};
-
 // ADR-044: fixed, so the page never moves when the chart arrives or a filter
 // changes how many days there are.
 const SPEND_CHART_HEIGHT = 224;
 
-/** Each stack's label and colour, shared by the chart and its key. */
+/**
+ * Each stack's label and colour, shared by the chart and its key. The colours
+ * are `spendColors.ts`', which "Spend by tag"'s slices read too.
+ */
 export function spendChartConfig(payload: SpendByDayPayload): ChartConfig {
-  return Object.fromEntries(payload.series.map(({ key, label }) => [key, { label, color: SERIES_COLOR[key] }]));
+  return Object.fromEntries(payload.series.map(({ key, label }) => [key, { label, color: SPEND_SERIES_COLOR[key] }]));
 }
 
 /**

@@ -1,9 +1,9 @@
 import { Pie, PieChart } from "recharts";
-import type { SpendByKindPayload } from "@tc/pages";
+import type { SpendBreakdownPayload } from "@tc/pages";
 import { ChartContainer, seriesColor, tokenColor, type ChartConfig } from "@/components/ui/chart";
 
-// The picture half of "Spend by kind": a donut, one slice per kind that carries
-// money. Loaded lazily by `SpendByKindBlock` for `SpendByDayChart`'s reason —
+// The picture half of "Spend by kind" / "Spend by tag": a donut, one slice per
+// kind or tag that carries money. Loaded lazily by `SpendBreakdownBlock` for `SpendByDayChart`'s reason —
 // Recharts stays out of a notebook that holds no chart.
 //
 // **No number and no label on the picture.** The key beside it carries every
@@ -11,24 +11,25 @@ import { ChartContainer, seriesColor, tokenColor, type ChartConfig } from "@/com
 // a thin slice, collide with its neighbour (the bars' lesson, PR 221). No
 // hover either, for the same reason: there is nothing a hover could add.
 //
-// A donut rather than a full pie: the hole is what keeps three slices reading
+// A donut rather than a full pie: the hole is what keeps a handful of slices reading
 // as parts of one ring rather than as wedges competing for the eye, and it
 // costs nothing — `innerRadius` is one prop.
 
-/** The donut, drawn at `height`, a slice per kind that carries money. */
-export function SpendByKindChart({
+/** The donut, drawn at `height`, a slice per kind or tag that carries money. */
+export function SpendBreakdownChart({
   payload,
   config,
   height,
 }: {
-  payload: SpendByKindPayload;
+  payload: SpendBreakdownPayload;
   config: ChartConfig;
   height: number;
 }) {
   // Zero slices are left off: a zero-degree sector draws a stray separator.
   // `fill` rides on each datum, which is how Recharts 3 colours a sector now
   // that `Cell` is deprecated.
-  const data = payload.slices
+  const slices: readonly { key: string; amountMinor: number }[] = payload.slices;
+  const data = slices
     .filter((slice) => slice.amountMinor > 0)
     .map((slice) => ({ key: slice.key, value: slice.amountMinor, fill: seriesColor(slice.key) }));
   const radius = height / 2 - 4;

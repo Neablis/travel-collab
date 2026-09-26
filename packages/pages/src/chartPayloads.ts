@@ -75,12 +75,16 @@ export interface SpendByDayPayload {
   notCharted: string | null;
 }
 
-/** One kind's share of "Spend by kind": a slice of the pie and a row of its key. */
-export interface SpendByKindSlice {
-  key: ActivityKind;
-  /** The board's word for the kind — "Travel", never "transit" (`KIND_LABEL`). */
+/** What "Spend by kind" / "Spend by tag" splits the money by: `cost.breakdown`'s `by`. */
+export type SpendBreakdownBy = "kind" | "tag";
+
+/** One slice of a spend breakdown: a wedge of the donut and a row of its key. */
+export interface SpendBreakdownSlice<K extends string = ActivityKind | SpendSeriesKey> {
+  /** The kind, or the tag (or "untagged") the slice is. */
+  key: K;
+  /** The board's word for it — "Travel", never "transit"; "Meal", "Untagged". */
   label: string;
-  /** Minor units, trip currency. 0 for a kind nothing priced is on. */
+  /** Minor units, trip currency. 0 for a slice nothing priced is on. */
   amountMinor: number;
   /** `amountMinor` as a reader says it; `null` when it is 0. */
   amount: string | null;
@@ -88,13 +92,14 @@ export interface SpendByKindSlice {
   share: string | null;
 }
 
-export interface SpendByKindPayload {
-  kind: "spend-by-kind";
+interface SpendBreakdownCommon {
+  kind: "spend-breakdown";
   /**
-   * Every kind, in the contract's order, zeroes included: the key lists the
-   * kinds nothing priced is on as well, and the pie draws only non-zero slices.
+   * What the widget is, and what it is narrowed to on the other dimension:
+   * "Spend by kind", "Spend by kind · Meal", "Spend by tag · Pending". It names
+   * the key's table, so a screen reader hears the narrowing too.
    */
-  slices: SpendByKindSlice[];
+  title: string;
   /** Everything charted, in the trip's currency. */
   total: string;
   /** One sentence a screen reader gets in place of the picture. */
@@ -102,3 +107,14 @@ export interface SpendByKindPayload {
   /** What the pie leaves out and says so: other currencies. `null` when nothing. */
   notCharted: string | null;
 }
+
+/**
+ * "Spend by kind" or "Spend by tag". Every slice of the dimension, in its
+ * contract order, zeroes included: the key lists the slices nothing priced is
+ * on as well, and the pie draws only non-zero ones.
+ */
+export type SpendBreakdownPayload = SpendBreakdownCommon &
+  (
+    | { by: "kind"; slices: SpendBreakdownSlice<ActivityKind>[] }
+    | { by: "tag"; slices: SpendBreakdownSlice<SpendSeriesKey>[] }
+  );
