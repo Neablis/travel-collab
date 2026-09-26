@@ -127,6 +127,15 @@ test("dragging a block to another day lands it at the time under the pointer, an
   // The drag-intent nudge `dragCardTo` documents, before Chromium fires dragstart.
   await page.mouse.move(held.x + 6, held.y + 6, { steps: 3 });
   await page.mouse.move(to.x, to.y + box.height / 2, { steps: 20 });
+  // **Re-aimed where the river is now.** The block is held at y ~782 of 900,
+  // inside pdnd's window auto-scroll band just above the rack, and this
+  // two-day page is too short to scroll it clear first. So the page scrolls a
+  // few px under the pointer as the drag sets off: 4–7px, logged over six
+  // runs on 2026-09-26, and past ~6px the landing snapped to 2:15. It failed
+  // 2 in 5 that way with `--retries 0`, always in the same place. Once the
+  // pointer is up here, out of the band, the page is still.
+  const settled = (await river(page, 0).boundingBox())!;
+  await page.mouse.move(to.x, settled.y + (14 - AXIS_START) * PX_PER_HOUR + box.height / 2, { steps: 2 });
 
   // The outline of the block's own hour, where it will land.
   await expect(river(page, 0).getByTestId("river-ghost")).toHaveText("2 pm – 3 pm");
