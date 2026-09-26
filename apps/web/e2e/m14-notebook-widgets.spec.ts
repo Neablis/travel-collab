@@ -631,13 +631,13 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   // And the widget itself STAYS. That is the difference between hidden and
   // removed, and the assertion this test claimed to make and did not.
   //
-  // **Two, because the seeded Overview opens with a `trip.name` of its own.**
-  // The page is composed entirely of widgets since 2026-09-13 and the first
-  // line of it is the trip's name, so one match is the seed and the second is
-  // this walk's insert. `toBeVisible()` tripped strict mode on the pair; a
-  // count is both legal and the stronger claim, since it falls to one if
-  // Reading removes the widget instead of only its controls.
-  await expect(page.getByText(tripName, { exact: true })).toHaveCount(2);
+  // **A count, not `toBeVisible()`.** From 2026-09-13 the seeded Overview
+  // opened with a `trip.name` of its own, so this was two; the SPEC §36.10b
+  // rewrite (2026-09-26) dropped it — the trip header already names the trip —
+  // so this walk's insert is the only match on the page. A count still names
+  // the number, and falls to zero if Reading removes the widget instead of
+  // only its controls.
+  await expect(page.getByText(tripName, { exact: true })).toHaveCount(1);
 
   await page.getByRole("button", { name: "Edit page" }).click();
   // **The seeded Overview opens with a widget in its first paragraph** (§25's
