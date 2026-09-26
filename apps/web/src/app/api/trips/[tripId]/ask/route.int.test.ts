@@ -1,4 +1,5 @@
-import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, newPageDoc } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, WidgetShape, newPageDoc } from "@tc/contracts";
+import { MACRO_NAMES, getMacro } from "@tc/pages";
 import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -670,10 +671,14 @@ describe("POST /api/trips/:id/ask", () => {
       expect(PAGE_TURN_TOOL_NAMES).not.toContain("search_places");
       expect(PAGE_TURN_TOOL_NAMES).toEqual([
         ...READ_TOOL_NAMES.filter((name) => name !== "search_places"),
+        // The widget lookup (ADR-057) — `pages` at `read`, so here and only here.
+        "search_widgets",
+        "get_widget",
         "insert_text",
         "insert_widget",
       ]);
       expect(PLANNING_TOOL_NAMES).not.toContain("insert_widget");
+      expect(PLANNING_TOOL_NAMES).not.toContain("search_widgets");
       for (const name of WRITE_ONLY_NAMES) {
         expect(PAGE_TURN_TOOL_NAMES, `a page turn must not hold ${name}`).not.toContain(name);
       }
@@ -1647,11 +1652,37 @@ describe("POST /api/trips/:id/ask", () => {
       expect(chunks.filter((chunk) => chunk.toolName === "insert_text").length).toBeGreaterThan(0);
     });
 
+    // **Search, then insert — the path ADR-057 made the only one.** With no
+    // catalogue in the prompt a model learns a widget's name and params from
+    // `search_widgets`, so this drives the real handler, the real tools and
+    // the simulated model through that chain: the user's own sentence is the
+    // query, and what streams back is the widget it named, validated.
+    it("finds a widget by the user's words and inserts it: search_widgets, then insert_widget", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId, "Money");
+      const res = await ask(tripId, {
+        messages: [userMessage("add a spend by tag chart to Money")],
+        scope: { kind: "page", pageId },
+      });
+      expect(res.status).toBe(200);
+
+      const chunks = await chunksOf(res);
+      const called = chunks.filter((chunk) => chunk.type === "tool-input-available").map((chunk) => chunk.toolName);
+      expect(called).toEqual(["search_widgets", "insert_widget"]);
+      const finish = chunks.find((chunk) => chunk.type === "finish");
+      const inserted = (finish?.messageMetadata as { pageInserts?: { content: { content: unknown[] } } }).pageInserts!.content;
+      expect(validateComposedPage(inserted as never)).not.toHaveProperty("error");
+      expect(inserted.content).toEqual([{ type: "macro", attrs: { name: "cost.breakdown", params: { by: "tag" } } }]);
+    });
+
     // The instruction is not observable from the response, so the only way to
-    // assert it is to read what the model was handed. It has to carry the macro
-    // catalog: no tool returns it, and a model that never saw the descriptions
-    // emits widgets whose params `insertWidget` then refuses.
-    it("tells the model which page it is writing and the macros it may use", async () => {
+    // assert it is to read what the model was handed. **It no longer carries
+    // the widget catalogue** (ADR-057): 12,921 of its 15,804 characters were
+    // `primitiveCatalog()` on every step of every page turn, and a model now
+    // finds a widget with `search_widgets` instead. What it must still carry is
+    // the pointer to that tool — without it a live model has no way to learn a
+    // widget's params, and every insert it guesses is refused.
+    it("tells the model which page it is writing, and to search for widgets rather than carrying them", async () => {
       const tripId = await seedTrip();
       const pageId = await seedPage(tripId, "Day Sheet");
       const { model, turnInstruction } = recordingModel();
@@ -1669,48 +1700,21 @@ describe("POST /api/trips/:id/ask", () => {
       // of our sentences (spec §4). Same fact, told to the model on its own
       // labelled line, where nothing typed into it can reach out.
       expect(instruction.split("\n")).toContain('Page title: "Day Sheet"');
-      // **Parsed, not grepped.** These were four `toContain` checks, and
-      // `toContain("filters")` in particular passed on the word appearing
-      // anywhere in ~2k characters of prose — including in the sentence that
-      // says filters are optional. It asserted nothing about the catalogue
-      // (CodeRabbit, PR 141). The catalogue is serialized into the instruction
-      // as one JSON array, so the test can read what the model reads — since
-      // P4 on its own `Macros:` line rather than after a colon in a sentence.
-      const catalog = JSON.parse(
-        instruction.split("\n").find((line) => line.startsWith("Macros: "))!.slice("Macros: ".length),
-      ) as { name: string; selection?: { entity: string; filters: string[] }; params: Record<string, string[] | null> }[];
-
-      // A real primitive from the live registry — `itinerary.day` was one of
-      // the seventeen named widgets ADR-039 retired, and naming a retired one
-      // here would have gone on passing right up until the model tried to
-      // insert it.
-      const dayDetail = catalog.find((entry) => entry.name === "day.detail");
-      expect(dayDetail).toBeDefined();
-      // And the model is told what the widget SELECTS over, not just its name:
-      // a model composing the general form can see what is legal rather than
-      // guessing from `inputs`. Asserted whole rather than by `toContain`, so a
-      // dimension quietly ADDED to what the model is offered fails here too —
-      // `person` above all, which no `day` widget may take.
-      //
-      // This pins what `day.detail` publishes. That its declaration stays
-      // within `LEGAL_FILTERS.day` is `registry.test.ts`'s sweep, and that the
-      // matrix row itself never grows a `person` is `filters.test.ts` — three
-      // separate claims, and widening one constant leaves the other two green.
-      expect(dayDetail!.selection).toEqual({
-        entity: "day",
-        filters: ["day", "city", "tag", "kind", "dates"],
-      });
-
-      // **And the params that are not filters.** Without them the catalogue
-      // described every widget as a selection, which is false for two of them —
-      // a model told "every param is a filter" cannot ask for the trip's name,
-      // so `attribute` was uninsertable by this path (Copilot, PR 141). The
-      // closed allow-list reaches the model as its exact vocabulary.
-      const attribute = catalog.find((entry) => entry.name === "attribute");
-      expect(attribute!.params.field).toEqual([
-        "trip.name", "trip.budgetRemaining", "trip.countdown", "account.name", "account.homeAirport",
-      ]);
-      expect(catalog.find((entry) => entry.name === "count")!.params.of).toEqual(["stop", "day", "city"]);
+      // **No catalogue, measured rather than looked for by its old label.** A
+      // renamed label would pass a `Macros:` check, so this looks for what the
+      // catalogue was MADE of — every widget's own description — and finds
+      // none. What a widget selects over and which params it takes are now
+      // `search_widgets`' answer, pinned in `widgetSearch.test.ts`.
+      const lines = instruction.split("\n");
+      for (const name of MACRO_NAMES) expect(instruction, name).not.toContain(getMacro(name)!.description);
+      // ...and the whole instruction stays small: 15,804 characters when it
+      // carried the catalogue. A ceiling on growth, not a snapshot.
+      expect(instruction.length).toBeLessThan(4500);
+      // The pointer, and the shapes a search narrows by, parsed off their own
+      // `data` line — the categories the model is told must be the contract's.
+      expect(instruction).toContain("call search_widgets");
+      const shapes = JSON.parse(lines.find((line) => line.startsWith("Widget shapes: "))!.slice("Widget shapes: ".length));
+      expect(Object.keys(shapes).sort()).toEqual([...WidgetShape.options].sort());
       // None of the planning rules the command endpoint sent on every page
       // request — ~1.5k characters describing tools this turn is not handed.
       expect(instruction).not.toContain("activityRef");

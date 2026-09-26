@@ -17,7 +17,9 @@
 // Four shapes, in the order `askTurn` decides them:
 //
 //   * the pre-turn intent classification (`classifyStep`),
-//   * PAGE authoring — one `insert_text`, then a sentence. It moved here from
+//   * PAGE authoring — one `insert_text`, then a sentence; or, for a request
+//     to ADD something, `search_widgets` → `insert_widget` with the top match
+//     → a sentence (ADR-057). It moved here from
 //     the command endpoint with ADR-033 Decision 4, and it is the branch with
 //     the least slack: without it no deployed environment can author a Notebook
 //     page at all.
@@ -46,6 +48,7 @@ import type {
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
+import type { WidgetMatch } from "@tc/pages";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
 
@@ -736,11 +739,60 @@ const SIMULATED_PAGE_NOTICE =
  * read it does not use would be a step charged to the actor's quota for nothing
  * (KI-67).
  */
-function pageTurn(results: readonly ToolResultLike[]): SimulatedStep {
+function pageTurn(results: readonly ToolResultLike[], question: string): SimulatedStep {
+  if (asksForAWidget(question)) {
+    const widget = widgetTurn(results, question);
+    if (widget !== null) return widget;
+  }
   if (!results.some((result) => result.toolName === "insert_text")) {
     return { content: pageCalls(), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak([SIMULATED_PAGE_ANSWER, SIMULATED_PAGE_NOTICE]);
+}
+
+// What a page request has to say for this model to look for a widget rather
+// than write a paragraph: a verb of adding. "Draft this page" and "write a
+// welcome" stay prose; "add a spend by tag chart" searches.
+const WIDGET_REQUEST = /\b(add|insert|put)\b/i;
+
+function asksForAWidget(text: string): boolean {
+  return WIDGET_REQUEST.test(text);
+}
+
+/**
+ * The widget half of a page turn (ADR-057): **search, then insert the top
+ * match, then say so** — the shape the instruction asks a real model for, and
+ * the only one that works now the catalogue is not in the prompt: the model
+ * learns a widget's name and params from `search_widgets`, and `insert_widget`
+ * is handed the match's own `insert` untouched.
+ *
+ * The query is the user's sentence as typed. That is deliberate rather than
+ * lazy: the ranking drops the words of asking ("add", "a", "to") itself, so
+ * what this proves is that a person's request, not a curated keyword, finds
+ * the widget they meant.
+ *
+ * `null` when the search found nothing, so the turn falls back to prose rather
+ * than inserting a widget nobody asked for.
+ */
+function widgetTurn(results: readonly ToolResultLike[], question: string): SimulatedStep | null {
+  const searched = results.find((result) => result.toolName === "search_widgets");
+  if (searched === undefined) {
+    return { content: [call("search_widgets", { query: question })], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const top = (searched.output as { matches?: WidgetMatch[] } | null)?.matches?.[0];
+  if (top === undefined) return null;
+  const inserted = results.find((result) => result.toolName === "insert_widget");
+  if (inserted === undefined) {
+    return { content: [call("insert_widget", top.insert)], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const output = inserted.output as { ok?: boolean; refused?: string; error?: { message?: string } } | null;
+  if (output?.ok !== true) {
+    return speak([
+      `I couldn't add ${top.title}: ${output?.refused ?? output?.error?.message ?? "the page refused it"}.`,
+      SIMULATED_PAGE_NOTICE,
+    ]);
+  }
+  return speak([`I've added ${top.title} to this page, in the editor for you to review.`, SIMULATED_PAGE_NOTICE]);
 }
 
 /**
@@ -766,7 +818,7 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // instead of speaking, and `handleAskRequest` never classifies one, so the
   // branches below would read its opening step as a question and reply with
   // `read_trip`.
-  if (scope.kind === "page") return pageTurn(results);
+  if (scope.kind === "page") return pageTurn(results, latestUserText(options));
   if (results.length === 0) {
     return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };
   }

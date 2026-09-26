@@ -3,20 +3,34 @@
 import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
-import { insertWidgetParamsRule, validateComposedPage, validatePageInserts } from "./pageTools";
-import { primitiveCatalog } from "@tc/pages";
+import { validateComposedPage, validatePageInserts } from "./pageTools";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
-import { newPageBuffer } from "@/server/assistant/deps";
-import { aiToolsFor } from "@/server/assistant/registry";
+import { tripDetailFactory } from "@tc/factories";
+import { newNotebookRefs, newPageBuffer, type NotebookListing } from "@/server/assistant/deps";
+import { aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
 import { PAGE_TOOLS } from "@/server/assistant/tools/page";
+import { typedAddressesIn } from "@/server/assistant/typedAddresses";
 
-// One turn's page tools, built the way a turn builds them: a fresh buffer and
-// the registry's page family. This was `buildPageTools()` in pageTools.ts until
-// P2, when a turn's tool set became `toolsFor(grant)` and the last caller of
-// the builder was this file.
-function buildPageTools() {
+const TRIP = tripDetailFactory.build({}, { transient: { dayCount: 3 } });
+const MONEY: NotebookListing = { id: "6a1e4b0c-2f3d-4e5a-8b9c-0d1e2f3a4b5c", title: "Money", firstLine: null };
+const OVERVIEW: NotebookListing = { id: "7b2f5c1d-3a4e-4f6b-9c0d-1e2f3a4b5c6d", title: "Overview", firstLine: null };
+
+// One turn's page tools, built the way a turn builds them: fresh collectors,
+// the registry's page family, and `said` as the user's message this turn —
+// which is where `link.external`'s addresses have to come from (ADR-057).
+function buildPageTools(said = "") {
   const pageBuffer = newPageBuffer();
-  return { tools: aiToolsFor(PAGE_TOOLS, { pageBuffer }), getInserts: () => pageBuffer.inserted() };
+  const notebooks = newNotebookRefs(async () => [OVERVIEW, MONEY], OVERVIEW.id);
+  const tools = aiToolsFor(PAGE_TOOLS, { pageBuffer, notebooks, typedAddresses: typedAddressesIn(said) });
+  const context = ambientContextFor(PAGE_TOOLS, {
+    tripId: TRIP.tripId,
+    userId: "page-author",
+    detail: TRIP,
+    scope: { kind: "page", pageId: OVERVIEW.id },
+  });
+  const call = (name: "insert_text" | "insert_widget", input: unknown) =>
+    tools[name]!.execute!(input, { toolCallId: "call-1", messages: [], context: context[name] as never });
+  return { tools, call, notebooks, getInserts: () => pageBuffer.inserted() };
 }
 
 // `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
@@ -69,15 +83,14 @@ describe("insert_text", () => {
   });
 });
 
-describe("insert_widget", () => {
-  const toolContext = { toolCallId: "call-1", messages: [], context: undefined };
 
+describe("insert_widget", () => {
   it("inserts a registry widget with no filters, which covers the whole trip", async () => {
     // The model composes with PRIMITIVES, not presets — `insert_widget` takes a
     // widget name and that widget's own params, and a preset is a curated name
     // for a combination a model can simply write out (ADR-039 decision 5).
-    const { tools, getInserts } = buildPageTools();
-    const result = await tools.insert_widget!.execute!({ name: "cost" }, toolContext);
+    const { call, getInserts } = buildPageTools();
+    const result = await call("insert_widget", { name: "cost" });
     expect(result).toEqual({ ok: true, name: "cost" });
     expect(getInserts().nodes).toEqual([{ type: "macro", attrs: { name: "cost", params: {} } }]);
   });
@@ -90,19 +103,6 @@ describe("insert_widget", () => {
     expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "cost.day" }).success).toBe(false);
   });
 
-  // ADR-056: a link is an address somebody chose, and the assistant reads text
-  // anybody with the trip's link can write. Both link widgets are registered
-  // and still refused here, and neither is in the catalogue the prompt carries.
-  // Seen red with `page.ts` back on `MACRO_NAMES`.
-  it("refuses both link widgets at the schema, and leaves them out of the catalogue", () => {
-    const { tools } = buildPageTools();
-    const schema = asZodSchema(tools.insert_widget!.inputSchema);
-    expect(schema.safeParse({ name: "link.external", params: { href: "https://example.com" } }).success).toBe(false);
-    expect(schema.safeParse({ name: "link.internal" }).success).toBe(false);
-    expect(primitiveCatalog().map((entry) => entry.name)).not.toEqual(expect.arrayContaining(["link.external"]));
-    expect(primitiveCatalog().map((entry) => entry.name)).not.toEqual(expect.arrayContaining(["link.internal"]));
-  });
-
   it("rejects a widget name not in the registry, at the schema", () => {
     const { tools } = buildPageTools();
     expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "nope.nope" }).success).toBe(false);
@@ -113,11 +113,8 @@ describe("insert_widget", () => {
   // widget's OWN schema rejects is refused here by that same schema — so the AI
   // path cannot drift from the click path, because there is only one path.
   it("refuses a hallucinated binding through the widget's own schema, and tells the model", async () => {
-    const { tools, getInserts } = buildPageTools();
-    const result = await tools.insert_widget!.execute!(
-      { name: "cost", params: { day: { kind: "nonsense" } } },
-      toolContext,
-    );
+    const { call, getInserts } = buildPageTools();
+    const result = await call("insert_widget", { name: "cost", params: { day: { kind: "nonsense" } } });
     expect(result).toMatchObject({ ok: false });
     // Refused means nothing inserted — not inserted-then-caught downstream.
     expect(getInserts().nodes).toEqual([]);
@@ -125,8 +122,78 @@ describe("insert_widget", () => {
 
   it("does not share state between two built tool sets", async () => {
     const first = buildPageTools();
-    await first.tools.insert_widget!.execute!({ name: "cost" }, toolContext);
+    await first.call("insert_widget", { name: "cost" });
     expect(buildPageTools().getInserts().nodes).toEqual([]);
+  });
+
+  // "Day 2" is how every tool and rule names a day; the document keeps the
+  // day's id, so the widget stays on its day when days are reordered — what
+  // the picker stores too.
+  it("reads a day filter as a 1-based day number and stores that day's id", async () => {
+    const { call, getInserts } = buildPageTools();
+    expect(await call("insert_widget", { name: "cost", params: { day: 2 } })).toEqual({ ok: true, name: "cost" });
+    expect(getInserts().nodes).toEqual([
+      { type: "macro", attrs: { name: "cost", params: { day: { kind: "dayId", dayId: TRIP.days[1]!.dayId } } } },
+    ]);
+    expect(await call("insert_widget", { name: "cost", params: { day: 9 } })).toMatchObject({ ok: false, refused: expect.stringContaining("3 days") });
+  });
+});
+
+// ADR-057 let both link widgets in, each behind a guard, reversing ADR-056
+// decision 6's blanket refusal. These are the guards.
+describe("insert_widget, for a link", () => {
+  // **The injection this whole guard exists for**: an address the model read
+  // somewhere — a stop's notes, a page, a Playbook day — that the asker never
+  // typed. Seen red with `typedAddresses.has` answering true.
+  it("refuses a website address the user did not type in this message, and inserts nothing", async () => {
+    const { call, getInserts } = buildPageTools("add a link to the rail pass site");
+    const result = await call("insert_widget", { name: "link.external", params: { href: "https://evil.example/login" } });
+    expect(result).toMatchObject({ ok: false, refused: expect.stringContaining("typed none") });
+    expect(getInserts().nodes).toEqual([]);
+  });
+
+  it("inserts a website address the user typed in this message", async () => {
+    const { call, getInserts } = buildPageTools("link www.jreast.co.jp/e/pass please, as JR East rail pass.");
+    const refused = await call("insert_widget", { name: "link.external", params: { href: "https://jreast.co.jp/" } });
+    expect(refused).toMatchObject({ ok: false, refused: expect.stringContaining("https://www.jreast.co.jp/e/pass") });
+    const result = await call("insert_widget", {
+      name: "link.external",
+      params: { href: "https://www.jreast.co.jp/e/pass", label: "JR East rail pass" },
+    });
+    expect(result).toEqual({ ok: true, name: "link.external" });
+    expect(getInserts().nodes).toEqual([
+      { type: "macro", attrs: { name: "link.external", params: { href: "https://www.jreast.co.jp/e/pass", label: "JR East rail pass" } } },
+    ]);
+  });
+
+  it("names a notebook by the number this turn listed, and stores its id", async () => {
+    const { call, notebooks, getInserts } = buildPageTools();
+    // Not listed yet: a number the model was never shown resolves to nothing.
+    expect(await call("insert_widget", { name: "link.internal", params: { to: { notebook: 2 } } })).toMatchObject({
+      ok: false,
+      refused: expect.stringContaining("get_widget"),
+    });
+    await notebooks.list();
+    expect(await call("insert_widget", { name: "link.internal", params: { to: { kind: "notebook", notebook: 2 } } })).toEqual({
+      ok: true,
+      name: "link.internal",
+    });
+    expect(getInserts().nodes).toEqual([
+      { type: "macro", attrs: { name: "link.internal", params: { to: { kind: "notebook", pageId: MONEY.id } } } },
+    ]);
+  });
+
+  it("refuses a target written as an id, and takes a day or a tab by name", async () => {
+    const { call, getInserts } = buildPageTools();
+    expect(
+      await call("insert_widget", { name: "link.internal", params: { to: { kind: "notebook", pageId: MONEY.id } } }),
+    ).toMatchObject({ ok: false, refused: expect.stringContaining("never by an id") });
+    await call("insert_widget", { name: "link.internal", params: { to: { day: 3 } } });
+    await call("insert_widget", { name: "link.internal", params: { to: { kind: "view", view: "Map" } } });
+    expect(getInserts().nodes.map((node) => (node as { attrs: { params: unknown } }).attrs.params)).toEqual([
+      { to: { kind: "day", day: { kind: "dayId", dayId: TRIP.days[2]!.dayId } } },
+      { to: { kind: "view", view: "Map" } },
+    ]);
   });
 });
 
@@ -201,30 +268,3 @@ describe("validateComposedPage", () => {
   });
 });
 
-describe("the insert_widget params rule", () => {
-  // KI-2026-09-05-i item 4: this sentence hand-listed `attribute`'s `field`
-  // and `count`'s `of` beside the catalogue that already derived them, and
-  // `stop.rows`' `only` joined the catalogue without joining the sentence.
-  it("names exactly the non-filter params the catalogue carries", () => {
-    const catalogue = primitiveCatalog();
-    const sentence = insertWidgetParamsRule(catalogue);
-    const named = [...sentence.matchAll(/`([^`]+)` takes ((?:`[^`]+`(?:, | and )?)+)/g)].flatMap(([, widget, params]) =>
-      [...params!.matchAll(/`([^`]+)`/g)].map(([, param]) => `${widget}.${param}`),
-    );
-    const expected = catalogue.flatMap((entry) => Object.keys(entry.params).map((param) => `${entry.name}.${param}`));
-    expect(named.sort()).toEqual(expected.sort());
-    expect(expected).toEqual(
-      expect.arrayContaining(["count.of", "attribute.field", "stop.rows.only", "field.field", "stop.rows.columns"]),
-    );
-  });
-
-  it("points a model at `fields` only when some widget has a field input", () => {
-    // The registered catalogue has two since M14 T10 — the field widget and
-    // `stop.rows`' columns — so the "only when" half strips them.
-    const catalogue = primitiveCatalog();
-    expect(insertWidgetParamsRule(catalogue)).toContain("`fields`");
-    expect(insertWidgetParamsRule(catalogue)).toContain("`multiple` takes a list of paths");
-    const withoutFields = catalogue.map(({ fields: _fields, ...entry }) => entry);
-    expect(insertWidgetParamsRule(withoutFields)).not.toContain("`fields`");
-  });
-});

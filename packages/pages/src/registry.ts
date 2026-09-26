@@ -64,8 +64,8 @@ const DEFS: AnyMacroDef[] = [
   // "Weather" (M14 link 11): a day primitive over data the trip does not hold,
   // handed in pre-fetched (ADR-052). The first registered widget with `needs`.
   dayWeather,
-  // The two link widgets (M30, ADR-056): no selection, so not primitives, and
-  // `composable: false`, so not in the assistant's vocabulary.
+  // The two link widgets (M30, ADR-056): no selection, so not primitives. In
+  // the assistant's vocabulary since ADR-057, behind its `insert_widget` guards.
   internalLink, externalLink,
 ] as unknown as AnyMacroDef[];
 
@@ -141,7 +141,8 @@ function fallbackShape(def: AnyMacroDef): readonly Seg[] {
  * tool, which names a widget and its params directly, and any test sweeping the
  * registry. Neither wants the preset list — a preset is a curated name for a
  * combination, and a model that can write `{ kind: "pending" }` does not need
- * one — so this is what `handleAskRequest` puts in front of the model.
+ * one — so this is what the assistant's widget search is built over
+ * (`widgetSearch.ts`). It rode whole in every page turn's prompt until ADR-057.
  *
  * People browse `presetCatalog()`; code composes with this. That split is
  * ADR-039 decision 5: *"the combination space is not the browsable list; the
@@ -154,10 +155,11 @@ export function primitiveCatalog(): CatalogueEntry[] {
 }
 
 /**
- * The widget names the assistant may insert — `MACRO_NAMES` less the ones that
- * declare `composable: false` (the two link widgets, ADR-056). `insert_widget`
- * closes its name enum over THIS list, so a link cannot be composed even by a
- * model that has been told the name.
+ * The widget names the assistant may insert — `MACRO_NAMES` less any that
+ * declares `composable: false`. `insert_widget` closes its name enum over THIS
+ * list, so such a widget cannot be composed even by a model told its name.
+ * None declares it today: the two link widgets did (ADR-056) until ADR-057 gave
+ * the assistant a guarded way to insert each.
  */
 export const COMPOSABLE_MACRO_NAMES: readonly string[] = DEFS.filter((d) => d.composable !== false).map((d) => d.name);
 
@@ -171,7 +173,7 @@ export interface CatalogueEntry {
    * label a person would use, so a model asked for "what each stop costs" can
    * find `stop.cost`. A `multiple` input (`stop.rows`' `columns`) takes a list
    * of these paths; its entry in `inputs` says so. **Absent, not `{}`, on a widget with no field input** —
-   * the catalogue rides in every page turn's prompt.
+   * `get_widget` hands an entry to a model, and an empty key is tokens for nothing.
    */
   fields?: Record<string, readonly { path: string; label: string }[]>;
 }

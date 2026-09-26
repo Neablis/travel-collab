@@ -25,12 +25,15 @@ import {
   AMBIENT_DEP_KEYS,
   TURN_DEP_KEYS,
   newEscalationBuffer,
+  newNotebookRefs,
   newPageBuffer,
   newPlaceCache,
   newProposalBuffer,
 } from "./deps";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { PAGE_TOOLS } from "./tools/page";
+import { WIDGET_TOOLS } from "./tools/widgets";
+import { typedAddressesIn } from "./typedAddresses";
 import { PLACE_TOOLS } from "./tools/places";
 import { ESCALATION_TOOLS } from "./tools/escalate";
 import { READ_TOOLS } from "./tools/read";
@@ -55,6 +58,8 @@ const TURN_DEPS = {
   placeSearch: { search: async () => [] },
   placeCache: newPlaceCache(),
   escalation: newEscalationBuffer(),
+  notebooks: newNotebookRefs(async () => [], null),
+  typedAddresses: typedAddressesIn(""),
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
@@ -75,6 +80,7 @@ describe("the registry", () => {
         ...PLACE_TOOLS.map((t) => t.name),
         ...PLANNING_TOOLS.map((t) => t.name),
         insertPlaybookDayTool.name,
+        ...WIDGET_TOOLS.map((t) => t.name),
         ...PAGE_TOOLS.map((t) => t.name),
         ...ESCALATION_TOOLS.map((t) => t.name),
       ].sort(),
@@ -95,9 +101,11 @@ describe("the registry", () => {
   // that `insert_widget` still enumerates it rather than a copy of it.
   it("derives insert_widget's widget names from the live macro registry, less what it may not compose", () => {
     // `COMPOSABLE_MACRO_NAMES` is the registry filtered by `composable`, not a
-    // copy: the two link widgets are the whole difference (ADR-056).
+    // copy. The two link widgets were the whole difference (ADR-056) until
+    // ADR-057 guarded them in `insert_widget` instead, so today it is none —
+    // every widget a person can insert, the assistant can too.
     expect([...(insertWidgetNameOptions() ?? [])].sort()).toEqual([...COMPOSABLE_MACRO_NAMES].sort());
-    expect(MACRO_NAMES.filter((name) => !COMPOSABLE_MACRO_NAMES.includes(name)).sort()).toEqual(["link.external", "link.internal"]);
+    expect(MACRO_NAMES.filter((name) => !COMPOSABLE_MACRO_NAMES.includes(name))).toEqual([]);
   });
 
   it("declares only real AssistantDeps keys, on every tool", () => {
