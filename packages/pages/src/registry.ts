@@ -14,6 +14,7 @@ import { open } from "./macros/primitives/open";
 import { countryFactsWidget } from "./macros/primitives/countryFacts";
 import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
+import { costByKind } from "./macros/primitives/spendByKind";
 import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 import { dayWeather } from "./macros/primitives/weather";
@@ -48,6 +49,10 @@ const DEFS: AnyMacroDef[] = [
   tripStripWidget,
   // "Spend by day" (M14 link 11): a primitive, `stop` + filters drawn as a chart.
   costChart,
+  // "Spend by kind" (2026-09-26): the same stops and money as a pie per kind —
+  // its own primitive, not a `view` of the bars, because its filters differ.
+  // See `spendByKind.ts`.
+  costByKind,
   // The field widget (M14 build step 6): `stop` + filters + a reader-chosen
   // manifest field. The first registered widget with a `field` input.
   field,

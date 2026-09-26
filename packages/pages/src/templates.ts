@@ -335,6 +335,9 @@ const fullTripBreakdown: TemplateSeed = {
     heading("What it costs"),
     block("attribute", { field: "trip.budgetRemaining" }),
     block("cost.rows"),
+    // The same money by kind. A gallery page only — never seeded, so the
+    // empty-trip rule does not apply and "no costs yet" is an honest first read.
+    block("cost.byKind"),
     heading("Notes"),
     para(text("Anything the plan cannot carry: why a day is shaped the way it is, what to do if the weather turns, what you would cut first.")),
   ]),

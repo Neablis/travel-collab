@@ -1634,6 +1634,30 @@ test("the trip strip fits its column on a 20-day trip, with no sideways scroll",
   expect((await strip.boundingBox())!.height, "strip height while reading").toBe(30);
 });
 
+test("spend by kind splits the trip's costs into planned, pending and travel", async ({ page }) => {
+  // Mitchell, 2026-09-26, on the Settings sheet's mocked M19 breakdown: *"Lets
+  // remove it there, and implement it as a PIE chart widget for notebooks"*.
+  // Picked from the rail, it lands unbound — the whole trip — and its key is
+  // the numbers as text, beside a picture named by the same numbers.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  await addStopViaApi(page, tripId, "Hotel", { cost: { amountMinor: 30000, currency: "USD" } });
+  await addStopViaApi(page, tripId, "Dinner", { cost: { amountMinor: 5000, currency: "USD" }, kind: "pending" });
+  await addStopViaApi(page, tripId, "Train", { cost: { amountMinor: 15000, currency: "USD" }, kind: "transit" });
+  await openSeededPage(page);
+
+  await insertFromList(page, /Spend by kind/, "kind");
+  const widget = page.locator('[data-macro-name="cost.byKind"]');
+  const rows = widget.getByRole("table", { name: "Spend by kind" }).getByRole("row");
+  const expected = [/Kind/, /Planned\s*\$300\.00\s*60%/, /Pending\s*\$50\.00\s*10%/, /Travel\s*\$150\.00\s*30%/, /Total\s*\$500\.00/];
+  await expect(rows).toHaveText(expected);
+  await expect(widget.getByRole("img", { name: /^Spend by kind in USD: \$500\.00/ })).toBeVisible();
+
+  await finishEditing(page);
+  await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+  await expect(rows).toHaveText(expected);
+});
+
 test("a field the reader picks prints in a sentence, and joins a stop list as a column", async ({ page }) => {
   // M14 field widget, build step 6 — Mitchell's answer 4: *"inline first: a
   // field chip inside a sentence. The repeat shape follows: a field as a

@@ -1,4 +1,4 @@
-import type { ActivityTag } from "@tc/contracts";
+import type { ActivityKind, ActivityTag } from "@tc/contracts";
 
 // What a CHART widget resolves to (M14 link 11). Kept out of `registry-types.ts`
 // so the chart payloads can grow without every block widget's branch editing
@@ -72,5 +72,33 @@ export interface SpendByDayPayload {
   /** One sentence a screen reader gets in place of the picture. */
   summary: string;
   /** What the chart leaves out and says so: other currencies, unscheduled stops. `null` when nothing. */
+  notCharted: string | null;
+}
+
+/** One kind's share of "Spend by kind": a slice of the pie and a row of its key. */
+export interface SpendByKindSlice {
+  key: ActivityKind;
+  /** The board's word for the kind — "Travel", never "transit" (`KIND_LABEL`). */
+  label: string;
+  /** Minor units, trip currency. 0 for a kind nothing priced is on. */
+  amountMinor: number;
+  /** `amountMinor` as a reader says it; `null` when it is 0. */
+  amount: string | null;
+  /** "60%" of the charted total, "<1%" for a sliver; `null` when `amount` is. */
+  share: string | null;
+}
+
+export interface SpendByKindPayload {
+  kind: "spend-by-kind";
+  /**
+   * Every kind, in the contract's order, zeroes included: the key lists the
+   * kinds nothing priced is on as well, and the pie draws only non-zero slices.
+   */
+  slices: SpendByKindSlice[];
+  /** Everything charted, in the trip's currency. */
+  total: string;
+  /** One sentence a screen reader gets in place of the picture. */
+  summary: string;
+  /** What the pie leaves out and says so: other currencies. `null` when nothing. */
   notCharted: string | null;
 }

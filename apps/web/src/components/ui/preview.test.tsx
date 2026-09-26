@@ -18,7 +18,7 @@ describe("Preview", () => {
     // reads makes the assertion tautological: a component that ignored the
     // registry and rendered the literal "unplaced" would still pass. This test
     // exists to prove the registry-to-chip data flow, so it has to control the
-    // input. (The `budget-breakdown` lookup further down is NOT this mistake —
+    // input. (The registry lookup in the container-chip test is NOT this mistake —
     // there the lookup only LOCATES the chip and the assertion is about its
     // position class.)
     //
@@ -86,7 +86,10 @@ describe("Preview", () => {
   });
   it("reserves space for the container chip instead of overlapping the host", () => {
     render(
-      <Preview id="budget-breakdown" size="container">
+      // `budget-breakdown` was this fixture until 2026-09-26, when the Settings
+      // sheet's breakdown became the "Spend by kind" notebook widget and left
+      // the registry. Any still-registered id will do: the size is the prop.
+      <Preview id="add-stop-suggestions" size="container">
         <span>$4,088.25</span>
       </Preview>,
     );
@@ -106,7 +109,7 @@ describe("Preview", () => {
     // when `budget-breakdown` was retagged M11 -> M19 (2026-08-31) — a green
     // suite broken by an edit that changed nothing this test is about.
     expect(
-      screen.getByText(new RegExp(`Preview · ${PREVIEW_REGISTRY["budget-breakdown"].milestone}`))
+      screen.getByText(new RegExp(`Preview · ${PREVIEW_REGISTRY["add-stop-suggestions"].milestone}`))
         .className,
     ).toMatch(/\btop-1\.5\b/);
   });

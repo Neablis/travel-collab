@@ -27,9 +27,10 @@ describe("registry", () => {
     // `country.facts` ("Know before you go", M14 link 11) is registered on
     // `open`'s terms: no selection, so not a primitive. `day.sun` and
     // `day.fromHome` (the same link) ARE primitives — day entity, day filters —
-    // and so is `day.weather`, which also declares `needs` (ADR-052).
+    // and so is `day.weather`, which also declares `needs` (ADR-052), and
+    // `cost.byKind` ("Spend by kind"), a stop primitive drawn as a pie.
     expect([...MACRO_NAMES].sort()).toEqual([
-      "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
+      "attribute", "city", "city.detail", "city.rows", "cost", "cost.byKind", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
       "open", "stop.rows", "trip.strip",
     ]);

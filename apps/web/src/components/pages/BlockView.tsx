@@ -8,6 +8,7 @@ import { CityDetailBlock } from "./blocks/CityDetailBlock";
 import { CountryFactsBlock } from "./blocks/CountryFactsBlock";
 import { TripStripBlock } from "./blocks/TripStripBlock";
 import { SpendByDayBlock } from "./blocks/SpendByDayBlock";
+import { SpendByKindBlock } from "./blocks/SpendByKindBlock";
 import { WeatherBlock } from "./blocks/WeatherBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
@@ -60,6 +61,8 @@ export function BlockView({ block, accents }: { block: BlockPayload; accents: Ci
       return <TripStripBlock payload={block} accents={accents} />;
     case "spend-by-day":
       return <SpendByDayBlock payload={block} />;
+    case "spend-by-kind":
+      return <SpendByKindBlock payload={block} />;
     case "weather":
       return <WeatherBlock payload={block} />;
     default: {

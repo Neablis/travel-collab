@@ -36,7 +36,8 @@
 //     that reads as a promise.
 //   * `cost-estimate-state` and `budget-breakdown` -> **M19**, minted for them
 //     the same day (`docs/milestones/M19-cost-model.md`). No existing milestone
-//     owned cost classification; M4 closed long ago.
+//     owned cost classification; M4 closed long ago. **Both are gone now** —
+//     see each one's note in the registry below.
 //   * The two wizard shells -> **"unplaced"**, deliberately. No milestone will
 //     wire them, and tagging them to one that merely sounds adjacent would move
 //     the false claim rather than remove it. `unplaced` is the honest value and
@@ -90,7 +91,13 @@ export const PREVIEW_REGISTRY = {
   // shell to a screen the design has not drawn it on is inventing the
   // placement rather than recording one. `M19-cost-model.md` names the link;
   // `DRIFT.md` §3 lists this entry and is now two shorter.
-  "budget-breakdown": { milestone: "M19", wiredUpBy: "Booked/Holds/Travel/Other categories — no field classifies a cost" },
+  // `budget-breakdown` was here — the Settings sheet's mocked spend-by-category
+  // rows, tagged M19 because no field classified a cost. M28 (ADR-054) gave
+  // every stop a three-way kind, and on 2026-09-26 Mitchell moved it: *"Lets
+  // remove it there, and implement it as a PIE chart widget for notebooks"*.
+  // It shipped as "Spend by kind" (`cost.byKind` in `@tc/pages`), a cost
+  // inheriting its stop's kind. Removed rather than retagged: nothing is left
+  // on the sheet to wire.
   "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
   // **M21 link 5 wired both of the account sheet's plan shells up and removed
   // them**, 2026-09-14 — `account-plan-change` and `account-plan-billing`.

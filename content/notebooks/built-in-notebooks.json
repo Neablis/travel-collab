@@ -445,6 +445,18 @@
             ]
           },
           {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.byKind",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
             "type": "heading",
             "attrs": {
               "level": 2

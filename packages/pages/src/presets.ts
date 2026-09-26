@@ -344,6 +344,18 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "Budget burn-down",
     keywords: ["burn down", "burndown", "budget", "left", "remaining", "pace", "chart", "area", "spend", "money"],
   },
+  // Mitchell, 2026-09-26: the Settings sheet's M19 breakdown, rebuilt as a pie
+  // in the notebook. Unfiltered: the whole trip.
+  {
+    id: "spend-by-kind",
+    widget: "cost.byKind",
+    params: {},
+    title: "Spend by kind",
+    keywords: [
+      "spend", "spending", "chart", "pie", "donut", "breakdown", "split", "share", "kind", "planned", "pending",
+      "travel", "transit", "costs", "money", "budget",
+    ],
+  },
   // ---- the clock pair -----------------------------------------------------
   // M14 link 11. Unbound, so every located day; a day binding narrows either.
   {

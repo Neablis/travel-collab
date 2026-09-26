@@ -55,8 +55,7 @@ export type ActivityDayOption = { dayId: string; label: string; existing: Slot[]
 // Illustrative only (Preview id="add-stop-suggestions", M9 — grounded place
 // search doesn't exist yet, so nothing generates real matches from what the
 // user types into "What or where"). Static shape for the design's
-// list-of-buttons layout, not real data — same illustrative-constant pattern
-// as SettingsSheet's BREAKDOWN_CATEGORIES.
+// list-of-buttons layout, not real data.
 const SUGGESTED_MATCH_SHAPE = [
   { kind: "Place", name: "Example match", detail: "Appears once M9 grounding is wired up" },
 ] as const;

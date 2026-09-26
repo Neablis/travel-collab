@@ -3,7 +3,7 @@ import type { FilterDimension, ManifestObject, TripDetail, PageContext, TripGlob
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
-import type { SpendByDayPayload } from "./chartPayloads";
+import type { SpendByDayPayload, SpendByKindPayload } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
@@ -119,6 +119,7 @@ export type BlockPayload =
   | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload
   | TripStripPayload
   | SpendByDayPayload
+  | SpendByKindPayload
   | WeatherPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
