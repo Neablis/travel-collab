@@ -12,7 +12,7 @@ import { riverAxis } from "./riverLayout";
 
 function renderRiver(stops: ActivityView[], readOnly = false, gestures?: RiverGestures) {
   const activities = Object.fromEntries(stops.map((s) => [s.activityId, s]));
-  render(
+  return render(
     <DayRiver
       title="Day 1"
       dayId="day-1"
@@ -153,7 +153,7 @@ describe("gestures on empty time", () => {
     const river = screen.getByTestId("day-river");
 
     fireEvent.pointerDown(river, { button: 0, clientY: hour(11) });
-    fireEvent.pointerMove(window, { clientY: hour(13.5) });
+    fireEvent.pointerMove(window, { buttons: 1, clientY: hour(13.5) });
     expect(screen.getByTestId("river-ghost").textContent).toBe("11 am – 1:30 pm");
 
     fireEvent.pointerUp(window, { clientY: hour(13.5) });
@@ -168,9 +168,46 @@ describe("gestures on empty time", () => {
     renderRiver([morning, evening], false, g);
 
     fireEvent.pointerDown(screen.getByTestId("day-river"), { button: 0, clientY: hour(11) });
-    fireEvent.pointerMove(window, { clientY: hour(11.25) });
+    fireEvent.pointerMove(window, { buttons: 1, clientY: hour(11.25) });
     fireEvent.pointerUp(window);
     expect(g.onCreateAt).not.toHaveBeenCalled();
+  });
+
+  // A release the river never hears — over another window, after a tab
+  // switch, or after the river is gone — ends the sketch and opens nothing.
+  // Each case ends with the pointerup a plain listener would still commit on.
+  describe("a sketch whose release goes unheard opens nothing", () => {
+    const sketchTo = (g: RiverGestures) => {
+      const view = renderRiver([morning, evening], false, g);
+      fireEvent.pointerDown(screen.getByTestId("day-river"), { button: 0, clientY: hour(11) });
+      fireEvent.pointerMove(window, { buttons: 1, clientY: hour(13) });
+      return view;
+    };
+
+    it("when the pointer comes back with no button down", () => {
+      const g = gestures();
+      sketchTo(g);
+      fireEvent.pointerMove(window, { buttons: 0, clientY: hour(14) });
+      expect(screen.queryByTestId("river-ghost")).toBeNull();
+      fireEvent.pointerUp(window);
+      expect(g.onCreateAt).not.toHaveBeenCalled();
+    });
+
+    it("when the window loses focus mid-sketch", () => {
+      const g = gestures();
+      sketchTo(g);
+      fireEvent.blur(window);
+      expect(screen.queryByTestId("river-ghost")).toBeNull();
+      fireEvent.pointerUp(window);
+      expect(g.onCreateAt).not.toHaveBeenCalled();
+    });
+
+    it("when the river unmounts mid-sketch", () => {
+      const g = gestures();
+      sketchTo(g).unmount();
+      fireEvent.pointerUp(window);
+      expect(g.onCreateAt).not.toHaveBeenCalled();
+    });
   });
 
   it("a read-only river offers none of it: no grip, and a double-click does nothing", () => {

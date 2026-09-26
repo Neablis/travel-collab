@@ -208,6 +208,46 @@ export function DayRiver({
     });
   }, [placing]);
 
+  // ---- one press, followed to its end ---------------------------------
+  // The sketch and the resize both follow a press on `window` until it ends.
+  // **It can end without a pointerup reaching us**: the button released over
+  // another window or an OS dialog, the tab switched away mid-drag, or the
+  // river unmounted (a day deleted, the view switched) while the button was
+  // down. Each of those ends the gesture WITHOUT committing it — a stop is
+  // never created or stretched by a release nobody saw. The pointerup is the
+  // only commit.
+  const endGesture = useRef<(() => void) | null>(null);
+  useEffect(() => () => endGesture.current?.(), []);
+
+  function follow(onMove: (ev: PointerEvent) => void, onEnd: (commit: boolean) => void) {
+    endGesture.current?.();
+    const move = (ev: PointerEvent) => {
+      // A move with no button down is a release we never heard.
+      if (ev.buttons === 0) finish(false);
+      else onMove(ev);
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    const escape = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") finish(false);
+    };
+    function finish(commit: boolean) {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", escape);
+      endGesture.current = null;
+      onEnd(commit);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("blur", cancel);
+    window.addEventListener("keydown", escape);
+    endGesture.current = cancel;
+  }
+
   // ---- sketch: drag across empty time ----------------------------------
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (!live || e.button !== 0 || !isEmptyTime(e.target)) return;
@@ -217,30 +257,19 @@ export function DayRiver({
     const pressClientY = e.clientY;
     let sketch: MinuteWindow | null = null;
 
-    const move = (ev: PointerEvent) => {
-      if (sketch === null && Math.abs(ev.clientY - pressClientY) < RIVER_DRAG_THRESHOLD_PX) return;
-      sketch = sketchWindow(axis, pressY, yOf(ev.clientY));
-      setGhost({ kind: "sketch", window: sketch });
-    };
-    const stop = (commit: boolean) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("keydown", escape);
-      setGhost(null);
-      if (sketch === null) return;
-      sketchEndedAt.current = performance.now();
-      if (commit && sketchCreates(sketch)) live.onCreateAt(toTimeWindow(sketch));
-    };
-    const up = () => stop(true);
-    const cancel = () => stop(false);
-    const escape = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") stop(false);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", cancel);
-    window.addEventListener("keydown", escape);
+    follow(
+      (ev) => {
+        if (sketch === null && Math.abs(ev.clientY - pressClientY) < RIVER_DRAG_THRESHOLD_PX) return;
+        sketch = sketchWindow(axis, pressY, yOf(ev.clientY));
+        setGhost({ kind: "sketch", window: sketch });
+      },
+      (commit) => {
+        setGhost(null);
+        if (sketch === null) return;
+        sketchEndedAt.current = performance.now();
+        if (commit && sketchCreates(sketch)) live.onCreateAt(toTimeWindow(sketch));
+      },
+    );
   }
 
   // ---- double-click empty time -----------------------------------------
@@ -257,28 +286,17 @@ export function DayRiver({
     if (!live) return;
     const start = toMinutes(stored.start);
     let end = toMinutes(stored.end);
-    const move = (ev: PointerEvent) => {
-      end = resizeEnd(axis, start, yOf(ev.clientY));
-      setResizing({ activityId, end });
-    };
-    const stop = (commit: boolean) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("keydown", escape);
-      setResizing(null);
-      const next = toTimeWindow({ start, end });
-      if (commit && next.end !== stored.end) live.onResize(activityId, next);
-    };
-    const up = () => stop(true);
-    const cancel = () => stop(false);
-    const escape = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") stop(false);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", cancel);
-    window.addEventListener("keydown", escape);
+    follow(
+      (ev) => {
+        end = resizeEnd(axis, start, yOf(ev.clientY));
+        setResizing({ activityId, end });
+      },
+      (commit) => {
+        setResizing(null);
+        const next = toTimeWindow({ start, end });
+        if (commit && next.end !== stored.end) live.onResize(activityId, next);
+      },
+    );
   }
 
   return (
