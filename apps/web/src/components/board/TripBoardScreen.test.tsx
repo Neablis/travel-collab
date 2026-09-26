@@ -606,7 +606,7 @@ describe("TripBoardScreen", () => {
 
     const river = await screen.findByTestId("day-river");
     fireEvent.pointerDown(river, { button: 0, clientY: riverY(11) });
-    fireEvent.pointerMove(document, { clientY: riverY(13.25) });
+    fireEvent.pointerMove(document, { buttons: 1, clientY: riverY(13.25) });
     fireEvent.pointerUp(document, { clientY: riverY(13.25) });
 
     expect(await screen.findByRole("heading", { name: "Add a stop" })).toBeTruthy();
@@ -638,7 +638,7 @@ describe("TripBoardScreen", () => {
 
     const block = await screen.findByTestId(`activity-card-${colosseumId}`);
     fireEvent.pointerDown(within(block).getByTitle("Drag to change when it ends"), { button: 0, clientY: riverY(11) });
-    fireEvent.pointerMove(document, { clientY: riverY(10.5) });
+    fireEvent.pointerMove(document, { buttons: 1, clientY: riverY(10.5) });
     fireEvent.pointerUp(document, { clientY: riverY(10.5) });
 
     await waitFor(() =>
