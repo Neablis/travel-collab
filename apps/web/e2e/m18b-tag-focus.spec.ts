@@ -193,6 +193,35 @@ test.describe("tag focus", () => {
     await expect(haneda).toHaveAttribute("data-off-tag", "true");
   });
 
+  // ... and a touch tablet past 768px, which has no hover to bring them up
+  // with, shows them without one (CodeRabbit on #244). What is asserted is what
+  // a finger at the chip would hit, so a chip drawn but not hit-testable fails.
+  test("on a touch tablet a short stop's tags are there without a hover", async ({ browser }) => {
+    const tablet = await browser.newContext({
+      viewport: { width: 1180, height: 820 },
+      isMobile: true,
+      hasTouch: true,
+      storageState: { cookies: [], origins: [] },
+    });
+    const page = await tablet.newPage();
+    await page.goto("/demo?view=Plan");
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+    const chip = card(page, "Check in at Trunk Hotel").getByTestId("tag-chip-lodging");
+    await chip.scrollIntoViewIfNeeded();
+    await expect
+      .poll(
+        () =>
+          chip.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            return hit !== null && el.contains(hit);
+          }),
+        { message: "on touch, a short stop's tag chip is reachable at rest" },
+      )
+      .toBe(true);
+    await tablet.close();
+  });
+
   // M18b's sixth exit-gate box, asserted against the running page rather than
   // against our own components: the filter row this replaced is gone and stays
   // gone (KI-47), and nothing here offers multi-select.

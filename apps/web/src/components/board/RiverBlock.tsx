@@ -340,8 +340,10 @@ export function RiverBlock({
       {revealTags && (
         // Below the block, not inside it: a 24px block has no room, and its
         // box clips. `pt-0.5` rather than a margin, so there is no gap for the
-        // pointer to fall through on its way down and lose the hover.
-        <div className="pointer-events-none absolute top-full left-0 pt-0.5 opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+        // pointer to fall through on its way down and lose the hover. Hidden at
+        // rest only under a mouse (`pointer-fine`, as the narrow-lane controls
+        // above): a touch tablet has no hover to bring it up, so it shows it.
+        <div className="absolute top-full left-0 pt-0.5 pointer-fine:pointer-events-none pointer-fine:opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
           <span className="flex rounded-md bg-surface p-1 shadow-overlay">
             <StopTagChips activityId={activity.activityId} tags={activity.tags} focusedTag={focusedTag} onToggleTag={onToggleTag} />
           </span>
