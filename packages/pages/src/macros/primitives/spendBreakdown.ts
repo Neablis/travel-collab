@@ -11,6 +11,7 @@ import { dayLabel, formatMoney, formatShortDate } from "../../format";
 import { collapseKind } from "../../kinds";
 import { KIND_LABEL, TAG_LABEL } from "../../enumLabels";
 import { SPEND_SERIES, SPEND_SERIES_LABEL, seriesOf } from "./spendSeries";
+import { apportionPercents, shareLabel } from "../../shares";
 
 // `cost.breakdown` — "Spend by kind" and "Spend by tag", a pie of what the
 // selection costs split one of two ways (`by`):
@@ -97,31 +98,29 @@ const COST_BREAKDOWN_INPUTS: readonly WidgetInput[] = [
 ];
 
 /**
- * A slice's share of the total as a reader says it: a whole percent, and
- * "<1%" rather than "0%" for money that is there but rounds away.
+ * One slice per key, zeroes included, summing the stops `belongs` files under
+ * it. The shares are apportioned across the slices together (`shares.ts`), so
+ * the key's percents add up to exactly 100% — never 99% or 101% — with "<1%"
+ * for a sliver that apportions to 0.
  */
-function shareOf(amount: number, total: number): string {
-  const percent = Math.round((amount / total) * 100);
-  return percent === 0 ? "<1%" : `${percent}%`;
-}
-
-/** One slice per key, zeroes included, summing the stops `belongs` files under it. */
 function slicesOf<K extends string>(
   keys: readonly K[],
   label: (key: K) => string,
   belongs: (stop: SelectedStop, key: K) => boolean,
   charted: readonly SelectedStop[],
-  total: number,
   currency: string,
 ): SpendBreakdownSlice<K>[] {
-  return keys.map((key) => {
-    const amountMinor = costOfStops(charted.filter((s) => belongs(s, key)));
+  const amounts = keys.map((key) => costOfStops(charted.filter((s) => belongs(s, key))));
+  // The caller returns `empty()` before a zero total reaches here.
+  const percents = apportionPercents(amounts)!;
+  return keys.map((key, i) => {
+    const amountMinor = amounts[i]!;
     return {
       key,
       label: label(key),
       amountMinor,
       amount: amountMinor === 0 ? null : formatMoney(amountMinor, currency),
-      share: amountMinor === 0 ? null : shareOf(amountMinor, total),
+      share: shareLabel(amountMinor, percents[i]!),
     };
   });
 }
@@ -189,10 +188,10 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
       slices.filter((s) => s.amount !== null).map((s) => `${s.label} ${s.amount} (${s.share})`).join(", ") + ".";
 
     if (by === "tag") {
-      const slices = slicesOf(SPEND_SERIES, (key) => SPEND_SERIES_LABEL[key], (s, key) => seriesOf(s) === key, charted, total, trip.currency);
+      const slices = slicesOf(SPEND_SERIES, (key) => SPEND_SERIES_LABEL[key], (s, key) => seriesOf(s) === key, charted, trip.currency);
       return ok({ ...common, by, slices, summary: sentence(slices) });
     }
-    const slices = slicesOf(ActivityKind.options, (key) => KIND_LABEL[key], (s, key) => s.activity.kind === key, charted, total, trip.currency);
+    const slices = slicesOf(ActivityKind.options, (key) => KIND_LABEL[key], (s, key) => s.activity.kind === key, charted, trip.currency);
     return ok({ ...common, by, slices, summary: sentence(slices) });
   },
   render: blockOf,
