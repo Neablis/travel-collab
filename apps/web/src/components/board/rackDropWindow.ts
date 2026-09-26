@@ -7,6 +7,13 @@ export type Slot = { start: string; end: string };
  * The time window a drop should give the stop it just moved, or `null` when the
  * drop must not touch times at all.
  *
+ * **Only for a drop that does not name a time** — a card position or the gaps
+ * of a column. A drop on a day's river names one, and every stop, a parked one
+ * included, lands there by the river's rule instead (`placeWindow`,
+ * `resolveDrop`'s `place` outcome; Mitchell, 2026-09-26). This is still reached
+ * from the phone's card list and from the parts of a desktop column outside
+ * the river.
+ *
  * Extracted as a pure function for the reason `resolveDrop` and
  * `rackDisclosure` already are, and stated in m10-unscheduled-rack.spec.ts's
  * own header: the drag itself is native HTML5 DnD and cannot be driven in

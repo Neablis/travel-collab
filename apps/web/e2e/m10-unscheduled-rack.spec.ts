@@ -91,47 +91,43 @@ test("undo reverses an unschedule", async ({ page }) => {
   await expect(page.getByTestId("day-column").first().getByText("Stop on day 1", { exact: false })).toBeVisible();
 });
 
-test("a stop dragged out of the rack lands with a real time, taken from what it was dropped under", async ({
+test("a stop dragged out of the rack onto a day's river lands at the time it was dropped, an hour long", async ({
   page,
 }) => {
   test.setTimeout(90_000);
-  // Mitchell, preview feedback on PR #55: "dragging a unscheduled element into
-  // the UI should set the time between the elements it was dropped between".
-  // Before the fix the drag dispatched a bare MoveActivity, so a stop dragged
-  // from the rack arrived on the day holding no time at all — while the day
-  // dropdown (assignFromRack) gave the same stop a time. One action, two
-  // outcomes, depending on how you performed it.
-  const name = e2eTripName("RackTime");
-  const tripId = await createMappedTrip(page, name, 2);
+  // Mitchell, preview feedback on PR #55, first: "dragging a unscheduled
+  // element into the UI should set the time between the elements it was
+  // dropped between" — so a stop off the rack has always landed WITH a time.
+  // Which time changed on 2026-09-26, with the river: "When dragging and
+  // dropping from anywhere, it should have same functionality of set the start
+  // time to where it's dropped, retain length it had, with a common sense
+  // default, 1h if no start/stop existed before." This used to assert the
+  // fitted 10:30–11:30 the rack's own rule gave; a drop on the river now names
+  // its time, as a river block's does. (The rack's fitted time is still what a
+  // drop that names no time gets — `rackDropWindow.test.ts`.)
+  //
+  // Each day holds 8–9 am and 4–5 pm, so the shared axis runs 8 am to 5 pm at
+  // 44px an hour and noon is 176px below the river's top.
+  const tripId = await createMappedTrip(page, e2eTripName("RackTime"), 2, {
+    activitiesPerDay: 2,
+    timeWindows: [
+      { start: "08:00", end: "09:00" },
+      { start: "16:00", end: "17:00" },
+    ],
+    title: (day, index) => `Day ${day + 1} ${index === 0 ? "breakfast" : "walk"}`,
+  });
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByTestId("day-column")).toHaveCount(2);
+  const day1 = page.getByTestId("day-column").first();
+  const day2 = page.getByTestId("day-column").nth(1);
 
-  // Park day 2's stop. Unscheduling strips the window, so what comes back out
-  // of the rack genuinely has no time of its own to fall back on.
-  await dragCardTo(page.getByTestId("day-column").nth(1).getByTestId(/activity-card-/).first(), page.getByTestId("unscheduled-rack"));
+  // Park day 2's walk. Unscheduling strips the window, so what comes back out
+  // of the rack has no length of its own and gets the default hour.
+  await dragCardTo(day2.getByTestId(/activity-card-/).filter({ hasText: "Day 2 walk" }), page.getByTestId("unscheduled-rack"));
   await expect(page.getByTestId("rack-card")).toHaveCount(1);
+  await expect(page.getByTestId("rack-card").first()).toContainText(/no time yet/i);
 
-  // Drop it on day 1, which already holds "Stop on day 1" at 09:00-10:00.
-  await dragCardTo(page.getByTestId("rack-card").first(), page.getByTestId("day-column").first());
+  await dragCardTo(page.getByTestId("rack-card").first(), day1.getByTestId("day-river"), { x: 120, y: 4 * 44 });
+
   await expect(page.getByTestId("rack-card")).toHaveCount(0);
-
-  // Shown 12-hour (lib/time's toClockRange); the window STORED is still
-  // 10:30–11:30. fitIntoDay searches forward from the end of the stop above it (10:00) and
-  // owes 30 minutes of air where a stop butts up against the window before it,
-  // so the first hour it can offer is 10:30-11:30. Asserting the exact window
-  // rather than merely "has a time": the point of the fix is that the time is
-  // derived from the drop's neighbour, and any window would pass a weaker
-  // check — including the 09:00-10:00 one that would mean it had overlapped.
-  // Scoped to the landed CARD, not to the day column (CodeRabbit, PR #71).
-  // The column holds "Stop on day 1" at 09:00-10:00 as well, so a column-wide
-  // toContainText only proves *someone* on day 1 has that window — it would
-  // still pass if fitIntoDay re-timed the wrong stop and left this one bare,
-  // which is precisely the bug this spec exists to catch.
-  const landed = page
-    .getByTestId("day-column")
-    .first()
-    .getByTestId(/activity-card-/)
-    .filter({ hasText: "Stop on day 2" });
-  await expect(landed).toBeVisible();
-  await expect(landed).toContainText("10:30 am – 11:30 am");
+  await expect(day1.getByRole("button", { name: /^Edit Day 2 walk, 12 pm – 1 pm,/ })).toBeVisible();
 });

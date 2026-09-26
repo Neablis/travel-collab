@@ -50,7 +50,19 @@ from.
 3. **Gestures.** Double-click empty time to add a stop there; drag across empty time to
    sketch one that long; drag a block's bottom edge to change when it ends; drag a block
    and the drop lands at the time under the pointer, previewed as an outline of the
-   block's own length.
+   block's own length. **The drop rule is the same for every drag source** — a block on
+   this day or another, a card off the "Any time" shelf, a stop off the Unscheduled
+   rack. *Decided by Mitchell, 2026-09-26* (this closes the question the first cut of
+   part 3 left open, where a rack stop kept the rack's fitted time and the river refused
+   it): *"When dragging and dropping from anywhere, it should have same functionality of
+   set the start time to where it's dropped, retain length it had, with a common sense
+   default, 1h if no start/stop existed before."* So the start is the quarter hour under
+   the drop (less the grab offset, for a block); a stop with a window keeps its length,
+   one without gets an hour; the whole stop is kept between the axis's top and midnight;
+   and a move to another day plus the new time is one batch, one undo. A drop that names
+   no time — a card position, a column's gaps, the phone's list — keeps the rack's fitted
+   time for an untimed parked stop (`rackDropWindow`). (A window always has both ends in
+   the contract, so "only a start" cannot occur.)
 4. **The seeded Overview, rewritten** — SPEC §36.10b as inspiration, not a copy.
 
 ## Out of scope — written down so it is not assumed
@@ -120,9 +132,14 @@ Part 3:
       grip on an 8–9 am stop dragged to 10:30 stretched the block live, toasted "Now ends
       at 10:30 am" and survived a reload; a 4–5 pm block held by its middle and dragged
       onto the other day drew a "2 pm – 3 pm" outline and landed there, and ONE undo put
-      it back on its own day at 4 pm (MoveActivity + UpdateActivity are one batch). A stop
+      it back on its own day at 4 pm (MoveActivity + UpdateActivity are one batch). ~~A stop
       off the Unscheduled rack keeps the rack's own rule (`rackDropWindow`) — the river
-      refuses it as a target.*
+      refuses it as a target.~~ **Superseded 2026-09-26 (Mitchell, see Scope 3): a stop off
+      the rack lands on the river by the same rule** — `riverGestures.placeWindow` for the
+      window, `resolveDrop`'s `place` outcome for the commands, no per-source branch.
+      `m29-time-river.spec.ts` drags a parked 9–11 am stop onto Day 2 at 1 pm and sees
+      "1 pm – 3 pm", then one undo parks it again at 9–11; `m10-unscheduled-rack.spec.ts`
+      drops an untimed parked stop at noon and sees "12 pm – 1 pm".*
 - [x] Each gesture's command is asserted at the dispatch layer, and the e2e script walks
       one of them through `pnpm --filter web test:e2e:ci-like`. *`TripBoardScreen.test.tsx`:
       a sketch sends `AddActivity` with `{11:00, 13:15}`, a resize sends `UpdateActivity`
