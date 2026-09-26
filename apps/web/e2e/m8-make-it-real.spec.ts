@@ -7,10 +7,11 @@ import { e2eTripName, escapeForRegExp } from "./tripNames";
 // confirming round-trip before firing the next one (same pattern as
 // m6-optimistic.spec.ts) is what keeps this deterministic rather than racing
 // the send queue — and it's the exact risk the "all changes saved" assertion
-// near the end is checking for.
+// near the end is checking for. `/batch` too: a drop on a day's river that
+// moves a stop AND sets its time goes out as one batch (M29).
 function waitForCommand(page: Page) {
   return page.waitForResponse(
-    (r) => /\/api\/trips\/[^/]+\/commands$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
+    (r) => /\/api\/trips\/[^/]+\/commands(\/batch)?$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
   );
 }
 

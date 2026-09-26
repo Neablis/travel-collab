@@ -496,7 +496,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   };
 
   // A drop at a time on a day's river (M29 part 3): the day AND the time, as
-  // ONE batch, so one undo puts the stop back where and when it was. The two
+  // ONE batch, so one undo puts the stop back where and when it was. The same
+  // for every drag source, a stop off the rack included — `moveActivity`'s
+  // fitted time above is only for a drop that names no time. The two
   // rack paths above are two dispatches, and two undos, on purpose (see
   // `unscheduleActivity`); this is a different gesture with one visible result
   // — the block moved to where its outline was — and half of it undone would

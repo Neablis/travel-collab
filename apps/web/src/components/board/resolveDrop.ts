@@ -56,13 +56,15 @@ export function resolveDrop(
 
   const toDayId = typeof targetData.dayId === "string" ? targetData.dayId : null;
 
-  // A day's river says WHEN as well as which day (DayRiver's drop target). Not
-  // for a stop coming off the rack: that keeps the rack's own semantics — its
-  // time if it has one, a fitted one if not (rackDropWindow) — which is also
-  // why the river refuses to be a target for one, so it falls to the column.
-  // Checked here as well, so the rule does not rest on the river alone.
+  // A day's river says WHEN as well as which day (DayRiver's drop target), and
+  // it says it the same way whatever was dragged — a block from this day or
+  // another, a card off the "Any time" shelf, a stop off the rack (Mitchell,
+  // 2026-09-26: "When dragging and dropping from anywhere, it should have same
+  // functionality"). The window was worked out by the river (`placeWindow`);
+  // there is no per-source branch here. `rackDropWindow`'s fitted time is only
+  // for a parked stop dropped somewhere that does not name a time.
   const riverWindow = TimeWindow.safeParse(targetData.riverWindow);
-  if (toDayId !== null && riverWindow.success && !trip.backlog.includes(activityId)) {
+  if (toDayId !== null && riverWindow.success) {
     return placeOnRiver(trip, activityId, toDayId, riverWindow.data);
   }
 

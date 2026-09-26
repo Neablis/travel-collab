@@ -129,12 +129,45 @@ export function stopMinutes(window: TimeWindow | null): number {
 }
 
 /**
+ * How far down the dragged thing it was picked up, in px. A river block says
+ * (RiverBlock's drag data); a card — off the rack, off the "Any time" shelf —
+ * is not drawn to scale, so it has no height on the clock to be held by and
+ * its top goes to the pointer.
+ */
+export function grabOffsetOf(source: Record<string | symbol, unknown>): number {
+  return typeof source.grabOffsetPx === "number" ? source.grabOffsetPx : 0;
+}
+
+/**
+ * **Any stop dropped on a day's river** — a block from this day or another, a
+ * card off the "Any time" shelf, a stop off the Unscheduled rack — lands by
+ * one rule. Mitchell, 2026-09-26: *"When dragging and dropping from anywhere,
+ * it should have same functionality of set the start time to where it's
+ * dropped, retain length it had, with a common sense default, 1h if no
+ * start/stop existed before."* Its start is where it was dropped
+ * (`dropWindow`) and its length is the one its stored window gives it, or an
+ * hour when it has none (`stopMinutes`). Where the drag came from decides
+ * nothing: the stop's own window is read from `activities`, which holds a
+ * parked stop as much as a scheduled one.
+ */
+export function placeWindow(
+  axis: RiverAxis,
+  pointerY: number,
+  source: Record<string | symbol, unknown>,
+  activities: Readonly<Record<string, { timeWindow: TimeWindow | null } | undefined>>,
+): MinuteWindow {
+  const id = source.activityId;
+  const own = typeof id === "string" ? (activities[id]?.timeWindow ?? null) : null;
+  return dropWindow(axis, pointerY, grabOffsetOf(source), stopMinutes(own));
+}
+
+/**
  * **Drop a stop on the river**: its start is the quarter hour where its TOP
  * edge lands — the pointer, less where on the block it was picked up
  * (`grabOffsetPx`), so a block held by its middle lands where the outline under
- * the pointer shows it and does not jump down by half its height. A card from
- * the "Any time" shelf has no block to hold, so its offset is 0 and its top
- * goes to the pointer.
+ * the pointer shows it and does not jump down by half its height. A card (the
+ * "Any time" shelf, the rack) has no block to hold, so its offset is 0 and its
+ * top goes to the pointer.
  *
  * It keeps its own length and has to fit in the day: no start above the axis,
  * no end past midnight. The design subtracts a flat 15 minutes instead of the

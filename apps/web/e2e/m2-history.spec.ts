@@ -17,9 +17,10 @@ import { e2eTripName } from "./tripNames";
 // contained only the very first command). Waiting for each mutating
 // action's own confirming response keeps at most one command in flight at
 // a time, so nothing is ever queued behind an unconfirmed one when we reload.
+// `/batch` too: a river drop that moves a stop and re-times it is one (M29).
 async function waitForCommandConfirmed(page: Page, action: () => Promise<void>): Promise<void> {
   await Promise.all([
-    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/commands$/.test(new URL(r.url()).pathname) && r.request().method() === "POST"),
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/commands(\/batch)?$/.test(new URL(r.url()).pathname) && r.request().method() === "POST"),
     action(),
   ]);
 }
@@ -56,12 +57,18 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   const rack = page.getByTestId("unscheduled-rack");
   await rack.getByRole("button", { name: /unscheduled/i }).click();
   const day1 = page.getByTestId("day-column").nth(0);
+  // Each dropped on the river at its own start, an hour (44px) below the
+  // river's top: the empty trip's 8:00 for Colosseum, then Colosseum's own
+  // 9:00 for Vatican Museums. A river drop sets the time under the pointer
+  // (M29), so aiming at each stop's own start is what keeps the pair
+  // overlapping.
+  const river1 = day1.getByTestId("day-river");
   await waitForCommandConfirmed(page, () =>
-    dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" }), day1),
+    dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" }), river1, { x: 120, y: 44 }),
   );
   await expect(day1.getByText("Colosseum")).toBeVisible();
   await waitForCommandConfirmed(page, () =>
-    dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" }), day1),
+    dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" }), river1, { x: 120, y: 44 }),
   );
   await expect(day1.getByText("Vatican Museums")).toBeVisible();
   await expect(page.getByText(/overlap in time/)).toBeVisible();
