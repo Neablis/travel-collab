@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { createMappedTrip, fingerOn, openHistory, riverPoint } from "./helpers";
+import { centreOnPoint, createMappedTrip, dragCardTo, fingerOn, openHistory, reaim, riverPoint } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M29 part 3 — the river's gestures (SPEC §36.9b), in a real browser because
@@ -118,7 +118,12 @@ test("dragging a block to another day lands it at the time under the pointer, an
   // pointer: aim the pointer at 2 pm plus that, and the top lands at 2 pm.
   // Both are measured after `pointAt` has scrolled day 1 into view: a box
   // read before that scroll is stale by however far the page moved.
+  // 2 pm is put mid-viewport first, and the pointer re-aimed on arrival: a
+  // point near a viewport edge is inside the drag's auto-scroll hitbox, which
+  // moved the page under the pointer by a load-dependent amount (this read
+  // 2:15 pm, then 3 pm, on one `test:e2e:ci-like` run).
   await walk.scrollIntoViewIfNeeded();
+  await centreOnPoint(river(page, 0), (14 - AXIS_START) * PX_PER_HOUR);
   const to = await pointAt(river(page, 0), 14);
   const box = (await walk.boundingBox())!;
   const held = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -127,15 +132,7 @@ test("dragging a block to another day lands it at the time under the pointer, an
   // The drag-intent nudge `dragCardTo` documents, before Chromium fires dragstart.
   await page.mouse.move(held.x + 6, held.y + 6, { steps: 3 });
   await page.mouse.move(to.x, to.y + box.height / 2, { steps: 20 });
-  // **Re-aimed where the river is now.** The block is held at y ~782 of 900,
-  // inside pdnd's window auto-scroll band just above the rack, and this
-  // two-day page is too short to scroll it clear first. So the page scrolls a
-  // few px under the pointer as the drag sets off: 4–7px, logged over six
-  // runs on 2026-09-26, and past ~6px the landing snapped to 2:15. It failed
-  // 2 in 5 that way with `--retries 0`, always in the same place. Once the
-  // pointer is up here, out of the band, the page is still.
-  const settled = (await river(page, 0).boundingBox())!;
-  await page.mouse.move(to.x, settled.y + (14 - AXIS_START) * PX_PER_HOUR + box.height / 2, { steps: 2 });
+  await reaim(river(page, 0), { x: 120, y: (14 - AXIS_START) * PX_PER_HOUR + box.height / 2 });
 
   // The outline of the block's own hour, where it will land.
   await expect(river(page, 0).getByTestId("river-ghost")).toHaveText("2 pm – 3 pm");
@@ -188,4 +185,37 @@ test("on a touch tablet, a held block is carried onto another day's river", asyn
   await expect(block(day1, /^Edit Day 2 walk, 2 pm – 3 pm,/)).toBeVisible();
   await expect(block(day2, /^Edit Day 2 walk,/)).toHaveCount(0);
   await tablet.close();
+});
+
+// Mitchell, 2026-09-26: "When dragging and dropping from anywhere, it should
+// have same functionality of set the start time to where it's dropped, retain
+// length it had". A stop off the Unscheduled rack used to keep the rack's own
+// rule instead — its stored time, or a fitted one — and the river refused it.
+test("dragging a stop off the rack onto a day's river lands it at that time with its own length, and one undo parks it again", async ({ page }) => {
+  await riverTrip(page, "RiverRack");
+
+  // Created with no day, so it is parked — with a time of its own, 9–11 am.
+  await page.getByRole("button", { name: "Add stop" }).click();
+  await page.getByLabel("What or where").fill("Tea house");
+  await page.getByLabel("Start", { exact: true }).fill("09:00");
+  await page.getByLabel("How long").selectOption("2 hours");
+  await page.getByRole("button", { name: "Add stop" }).last().click();
+  const rack = page.getByTestId("unscheduled-rack");
+  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  const parked = rack.getByTestId("rack-card").filter({ hasText: "Tea house" });
+  await expect(parked).toContainText("9 am – 11 am");
+
+  // 1 pm on day 2's river. A rack card is not drawn to scale, so it has no
+  // height to have been held by: its top goes to the pointer.
+  await dragCardTo(parked, river(page, 1), { x: 120, y: (13 - AXIS_START) * PX_PER_HOUR });
+
+  const day2 = page.getByTestId("day-column").nth(1);
+  await expect(block(day2, /^Edit Tea house, 1 pm – 3 pm,/)).toBeVisible();
+  await expect(parked).toHaveCount(0);
+
+  // Onto the day and to its time were one change.
+  await openHistory(page);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(parked).toContainText("9 am – 11 am");
+  await expect(block(day2, /^Edit Tea house,/)).toHaveCount(0);
 });

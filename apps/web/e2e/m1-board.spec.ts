@@ -52,9 +52,15 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
   const day1 = page.getByTestId("day-column").nth(0);
   const day2 = page.getByTestId("day-column").nth(1);
 
-  await dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" }), day1);
+  // A drop on a day's river lands at the time under the pointer, whatever was
+  // dragged (M29; Mitchell, 2026-09-26), so each is dropped at its own start —
+  // an hour (44px) down the river from its top. For Colosseum the top is the
+  // empty trip's 8:00; once it is on the day the axis is its own 9–11, so an
+  // hour down is Vatican Museums' 10:00.
+  const river1 = day1.getByTestId("day-river");
+  await dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" }), river1, { x: 120, y: 44 });
   await expect(day1.getByTestId(/activity-card-/).filter({ hasText: "Colosseum" })).toBeVisible();
-  await dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" }), day1);
+  await dragCardTo(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" }), river1, { x: 120, y: 44 });
   await expect(day1.getByTestId(/activity-card-/).filter({ hasText: "Vatican Museums" })).toBeVisible();
 
   // The conflict appears as data — the writes above all succeeded.

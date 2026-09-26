@@ -341,8 +341,9 @@ export function Column({
             at the pointer's time; this is everywhere else in the column, where
             a dropped stop keeps its time, so a timed one lands on the river at
             that time and an untimed one at the end of this shelf — which is
-            where this line sits. A stop off the rack lands here even over the
-            river, which refuses it (`RiverGestures.canPlace`). */}
+            where this line sits. (An untimed stop off the rack dropped here is
+            given a fitted time, `rackDropWindow`.) Over the river, a stop off
+            the rack lands at the river's time like any other (`placeWindow`). */}
         {isOver && <span aria-hidden className="h-0.5 rounded-full bg-brand" />}
       </div>
       <DayRiver

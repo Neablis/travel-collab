@@ -13,30 +13,19 @@ import { toClockRange, toMinutes } from "@/lib/time";
 import { RiverBlock } from "./RiverBlock";
 import {
   doubleClickWindow,
-  dropWindow,
   edgeScrollDelta,
   fromTimeWindow,
   type MinuteWindow,
+  placeWindow,
   resizeEnd,
   RIVER_DRAG_THRESHOLD_PX,
   RIVER_TOUCH_HOLD_MS,
   RIVER_TOUCH_SLOP_PX,
   sketchCreates,
   sketchWindow,
-  stopMinutes,
   toTimeWindow,
 } from "./riverGestures";
 import { layoutRiver, minuteToPx, riverTicks, tickLabel, type RiverAxis } from "./riverLayout";
-
-/**
- * What a stop's drag carries (RiverBlock, ActivityCard, the rack): its id, and
- * — from a river block only — how far down the block it was picked up, so the
- * drop lands the block's top where the outline shows it rather than jumping
- * it down by the height it was held at (`dropWindow`).
- */
-function grabOffsetOf(data: Record<string | symbol, unknown>): number {
-  return typeof data.grabOffsetPx === "number" ? data.grabOffsetPx : 0;
-}
 
 /**
  * The gestures a river offers an editor (SPEC §36.9b, M29 part 3). Withheld —
@@ -50,17 +39,11 @@ export type RiverGestures = {
   /** A block's bottom edge was dragged: the stop now ends here. */
   onResize: (activityId: string, window: TimeWindow) => void;
   /**
-   * Whether a stop being dragged may land at a time on this river. A stop off
-   * the rack may not — it keeps the rack's own semantics (`rackDropWindow`) —
-   * so for one the river is not a drop target and the drop falls to the column.
-   */
-  canPlace: (activityId: string) => boolean;
-  /**
    * A block lifted by touch (long-press, then drag — M29 phone) was let go
-   * over a day's river: this stop, to that day, at that window. A mouse drop
-   * reaches the same place through pragmatic-drag-and-drop's monitor; a touch
-   * lift is not a native drag, so it arrives here and Board routes it through
-   * the same `resolveDrop`.
+   * over a day's river: this stop, to that day, at that window. The window is
+   * `placeWindow`'s, as for every drop on a river; a touch lift is not a
+   * native drag, so it arrives here rather than through pdnd's monitor, and
+   * Board routes it through the same `resolveDrop` → `place`.
    */
   onDropAt: (activityId: string, dayId: string, window: TimeWindow) => void;
   /** A block lifted by touch was let go over the unscheduled rack: park it, as a mouse drop there does. */
@@ -255,21 +238,19 @@ export function DayRiver({
   // not — finds this one first, and its data carries the window the outline
   // shows. `getData` is re-run on every drag update, so the data at the moment
   // of release is the window drawn at that moment.
-  const latest = useRef({ axis, activities, live, dayId });
+  const latest = useRef({ axis, activities, dayId });
   useEffect(() => {
-    latest.current = { axis, activities, live, dayId };
-  }, [axis, activities, live, dayId]);
+    latest.current = { axis, activities, dayId };
+  }, [axis, activities, dayId]);
 
   const placing = live !== undefined;
   useEffect(() => {
     const element = riverRef.current;
     if (!element || !placing) return;
-    const windowFor = (clientY: number, source: Record<string | symbol, unknown>) => {
-      const { axis: currentAxis, activities: all } = latest.current;
-      const id = source.activityId;
-      const minutes = stopMinutes(typeof id === "string" ? (all[id]?.timeWindow ?? null) : null);
-      return dropWindow(currentAxis, clientY - element.getBoundingClientRect().top, grabOffsetOf(source), minutes);
-    };
+    // Every drag source lands by the same rule — a block, a shelf card, a stop
+    // off the rack (`placeWindow`).
+    const windowFor = (clientY: number, source: Record<string | symbol, unknown>) =>
+      placeWindow(latest.current.axis, clientY - element.getBoundingClientRect().top, source, latest.current.activities);
     const show = ({ self }: { self: { data: Record<string | symbol, unknown> } }) => {
       const drawn = TimeWindow.safeParse(self.data.riverWindow);
       if (!drawn.success) return;
@@ -280,10 +261,7 @@ export function DayRiver({
     };
     return dropTargetForElements({
       element,
-      canDrop: ({ source }) => {
-        const id = source.data.activityId;
-        return typeof id === "string" && latest.current.live?.canPlace(id) === true;
-      },
+      canDrop: ({ source }) => typeof source.data.activityId === "string",
       getData: ({ input, source }) => ({
         dayId: latest.current.dayId,
         riverWindow: toTimeWindow(windowFor(input.clientY, source.data)),
@@ -557,7 +535,10 @@ export function DayRiver({
     swallowClick.current = false;
     if (!live || e.pointerType !== "touch") return;
     const grab = e.clientY - e.currentTarget.getBoundingClientRect().top;
-    const minutes = stopMinutes(activities[activityId]?.timeWindow ?? null);
+    // What a native drag of this block would carry (RiverBlock), so the
+    // window is `placeWindow`'s, the one rule for every drop on a river.
+    const source = { activityId, grabOffsetPx: grab };
+    const stops = activities;
     const { clientX: x0, clientY: y0 } = e;
     holdThen(e, () => {
       setLifted(activityId);
@@ -574,7 +555,7 @@ export function DayRiver({
             ? null
             : "rack" in at
               ? { kind: "rack", element: at.rack }
-              : { kind: "river", element: at.river, dayId: at.dayId, window: dropWindow(axis, y - at.river.getBoundingClientRect().top, grab, minutes) };
+              : { kind: "river", element: at.river, dayId: at.dayId, window: placeWindow(axis, y - at.river.getBoundingClientRect().top, source, stops) };
         if (target !== null && target.element !== next?.element) show(target, false);
         if (next !== null) show(next, true);
         target = next;

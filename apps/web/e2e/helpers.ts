@@ -81,7 +81,12 @@ export async function riverPoint(
 // locally, where the window is comfortably met). Firing the mouse sequence
 // ourselves with several intermediate move steps gives Chromium's native
 // drag recognition enough events to register reliably.
-export async function dragCardTo(source: Locator, target: Locator): Promise<void> {
+//
+// `at` is where on the target to let go, in px from its top-left corner, like
+// Playwright's own `position`; the default is its centre. A day's river reads
+// the drop's height as a time (M29), so a drag meant to land at a particular
+// time says where.
+export async function dragCardTo(source: Locator, target: Locator, at?: { x: number; y: number }): Promise<void> {
   // The board refetches and re-lays-out after every command (a new day pushes
   // the "One more day?" column along, a new card grows its column), so a drag fired
   // immediately after a prior mutation can read a box that's about to move.
@@ -125,12 +130,16 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   // moves toward the target, it's already on screen. Re-read the target's
   // box after scrolling — its viewport-relative coordinates change with it.
   await target.scrollIntoViewIfNeeded();
+  // A point on a target taller than the viewport can still be off screen, or
+  // under the sticky header, after that: bring the point itself to the middle.
+  if (at !== undefined) await centreOnPoint(target, at.y);
   const targetBox = await target.boundingBox();
   if (!targetBox) throw new Error("dragCardTo: target has no bounding box");
-  const tx = targetBox.x + targetBox.width / 2;
-  const ty = targetBox.y + targetBox.height / 2;
+  const tx = targetBox.x + (at?.x ?? targetBox.width / 2);
+  const ty = targetBox.y + (at?.y ?? targetBox.height / 2);
 
   await page.mouse.move(tx, ty, { steps: 25 });
+  if (at !== undefined) await reaim(target, at);
   await page.mouse.up();
 
   // No wait here for the drop to "register": the caller asserts the moved
@@ -138,6 +147,41 @@ export async function dragCardTo(source: Locator, target: Locator): Promise<void
   // and Playwright's own auto-waiting retries that until it's true or the
   // test's timeout expires. A helper-internal poll can only guess when the
   // drop landed; the app's own rendered state is the real signal.
+}
+
+/**
+ * Scrolls the window so the point `y` px down `target` sits mid-viewport.
+ *
+ * `scrollIntoViewIfNeeded` alone can leave a point on a tall target off
+ * screen or under the sticky header, and a point near either edge is inside
+ * the drag's auto-scroll hitbox (pdnd's, up to 180px from the viewport edge;
+ * Board.tsx `autoScrollWindowForElements`), where the page keeps moving under
+ * a held pointer for as long as it stays there.
+ */
+export async function centreOnPoint(target: Locator, y: number): Promise<void> {
+  await target.evaluate((el, dy) => window.scrollBy(0, el.getBoundingClientRect().top + dy - window.innerHeight / 2), y);
+}
+
+/**
+ * Moves a held pointer back onto the point `at` on `target` until it stays
+ * there. A drag that starts or passes near a viewport edge auto-scrolls the
+ * page on its way (the rack sits along the bottom edge), by an amount that
+ * depends on how long it spent there — so a point read before the move can be
+ * a quarter hour, or an hour, off the one under the pointer when it arrives
+ * (seen on `test:e2e:ci-like`: the same drop read 2:15 pm, then 3 pm). The
+ * pointer, once on a mid-viewport point, is outside the hitbox and the page
+ * stops; each pass re-reads the target and closes the gap.
+ */
+export async function reaim(target: Locator, at: { x: number; y: number }): Promise<void> {
+  const page = target.page();
+  for (let pass = 0; pass < 5; pass++) {
+    const box = await target.boundingBox();
+    if (!box) throw new Error("reaim: target has no bounding box");
+    const before = await page.evaluate(() => window.scrollY);
+    await page.mouse.move(box.x + at.x, box.y + at.y, { steps: 3 });
+    const after = await page.evaluate(() => window.scrollY);
+    if (after === before) return;
+  }
 }
 
 /**

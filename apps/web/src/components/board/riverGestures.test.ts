@@ -4,6 +4,7 @@ import {
   dropWindow,
   edgeScrollDelta,
   fromTimeWindow,
+  placeWindow,
   resizeEnd,
   sketchCreates,
   sketchWindow,
@@ -85,6 +86,38 @@ describe("drop a stop on the river", () => {
   it("gives an untimed stop the add sheet's hour, and a timed one its own length", () => {
     expect(stopMinutes(null)).toBe(60);
     expect(stopMinutes({ start: "09:00", end: "11:30" })).toBe(150);
+  });
+
+  // Mitchell, 2026-09-26: every drag source lands by the same rule. A stop off
+  // the Unscheduled rack is looked up in the trip's activities like any other
+  // and is a card, so it carries no grab offset.
+  describe("from the Unscheduled rack", () => {
+    const parked = (timeWindow: { start: string; end: string } | null) => ({ r: { timeWindow } });
+
+    it("keeps a parked stop's own length at the time it was dropped", () => {
+      expect(placeWindow(axis, at(14), { activityId: "r" }, parked({ start: "09:00", end: "11:30" }))).toEqual({
+        start: hm(14),
+        end: hm(16, 30),
+      });
+    });
+
+    it("gives a parked stop with no time an hour", () => {
+      expect(placeWindow(axis, at(14), { activityId: "r" }, parked(null))).toEqual({ start: hm(14), end: hm(15) });
+    });
+
+    it("pulls a parked stop dropped at the end of the day back so all of it fits", () => {
+      // Three hours dropped at 22:30 can start no later than 21:00.
+      expect(placeWindow(axis, at(22.5), { activityId: "r" }, parked({ start: "09:00", end: "12:00" }))).toEqual({
+        start: hm(21),
+        end: 24 * 60,
+      });
+    });
+
+    it("holds a river block from where it was picked up, and the rack's card from its top", () => {
+      const both = { r: { timeWindow: { start: "09:00", end: "10:00" } } };
+      expect(placeWindow(axis, at(14), { activityId: "r", grabOffsetPx: 22 }, both).start).toBe(hm(13, 30));
+      expect(placeWindow(axis, at(14), { activityId: "r" }, both).start).toBe(hm(14));
+    });
   });
 
   it("keeps a stop that runs to midnight its whole length when it moves", () => {

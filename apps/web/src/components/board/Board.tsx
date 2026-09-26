@@ -619,12 +619,11 @@ export function Board({
             latest.current.callbacks.onRetime(activityId, timeWindow);
             setNotice(`Now ends at ${toClockLabel(timeWindow.end, clock)}`);
           },
-          // Read at drag time, not render time: the rack changes under a drag.
-          canPlace: (activityId) => !latest.current.trip.backlog.includes(activityId),
           // A touch lift is no native drag, so the monitor above never sees
           // it. Routed through the same `resolveDrop` with the same target
-          // data the river's drop target carries, so a finger's drop and a
-          // mouse's land a stop by the one rule.
+          // data the river's drop target carries (its window already
+          // `placeWindow`'s), so a finger's drop and a mouse's land a stop by
+          // the one rule.
           onDropAt: (activityId, toDayId, riverWindow) => {
             const outcome = resolveDrop(latest.current.trip, { activityId }, { dayId: toDayId, riverWindow });
             if (outcome?.kind === "place") latest.current.callbacks.onPlace(outcome);

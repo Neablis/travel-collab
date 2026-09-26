@@ -149,7 +149,7 @@ describe("the order a river is read in", () => {
 describe("gestures on empty time", () => {
   const morning = activityFactory.build({ title: "Museum", timeWindow: { start: "09:00", end: "10:00" } });
   const evening = activityFactory.build({ title: "Dinner", timeWindow: { start: "17:00", end: "18:00" } });
-  const gestures = () => ({ onCreateAt: vi.fn(), onResize: vi.fn(), canPlace: () => true, onDropAt: vi.fn(), onUnschedule: vi.fn() }) satisfies RiverGestures;
+  const gestures = () => ({ onCreateAt: vi.fn(), onResize: vi.fn(), onDropAt: vi.fn(), onUnschedule: vi.fn() }) satisfies RiverGestures;
   const hour = (h: number) => (h - 9) * 44;
 
   it("double-click on empty time opens an hour at the quarter hour under the pointer — and not on a block", () => {
