@@ -5,6 +5,8 @@ import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
 import type { SpendBreakdownPayload, SpendByDayPayload } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
+import type { LinkCardPayload } from "./linkTarget";
+import type { ItineraryPayload } from "./itineraryPayload";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
 // Inline payloads are display-ready strings; block payloads are structured data
@@ -120,7 +122,9 @@ export type BlockPayload =
   | TripStripPayload
   | SpendByDayPayload
   | SpendBreakdownPayload
-  | WeatherPayload;
+  | WeatherPayload
+  | LinkCardPayload
+  | ItineraryPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and
 // the resolved values that follow it. Kept apart from `BlockPayload` on purpose
@@ -263,7 +267,15 @@ export type Rendered =
   | { kind: "inline"; segs: Seg[] }
   | { kind: "block"; block: BlockPayload }
   // `headings` is `RepeatPayload.headings`, passed through.
-  | { kind: "rows"; rows: RenderedRow[]; headings?: readonly string[] };
+  | { kind: "rows"; rows: RenderedRow[]; headings?: readonly string[] }
+  // **An outbound link — the one rendered value that carries a URL, and a kind
+  // of its own so that `Seg` never does.** ADR-037 decision 3a closes `Seg` to
+  // text, chip and ghost so a widget has nowhere to put markup or an address;
+  // that stays true. `link.external` (M30, ADR-056) is the single widget whose
+  // whole value IS an address, and its `href` has passed the params schema's
+  // http/https check before `render` sees it. `MacroView` draws it as an
+  // `<a target="_blank" rel="noopener noreferrer">`, and nothing else does.
+  | { kind: "link"; href: string; text: string };
 
 // Convenience constructors, so a widget's `render` reads as data rather than as
 // object literals with a discriminator repeated seven times.
@@ -277,6 +289,8 @@ export const ghost = (valueKind: ValueKind, label: string): Seg =>
   ({ kind: "ghost", valueKind, label, text: VALUE_KIND_FORMATS[valueKind].ghost });
 export const inlineOf = (...segs: Seg[]): Rendered => ({ kind: "inline", segs });
 export const blockOf = (block: BlockPayload): Rendered => ({ kind: "block", block });
+/** An outbound link as a `Rendered` — `link.external`'s one output (ADR-056); the href is already schema-checked. */
+export const linkOf = (href: string, t: string): Rendered => ({ kind: "link", href, text: t });
 export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rendered =>
   headings === undefined ? { kind: "rows", rows } : { kind: "rows", rows, headings };
 
@@ -345,7 +359,17 @@ export type WidgetInput =
   // Stored only when it differs from `default`, so a widget left alone and one
   // switched away and back are the same `{}`.
   | { name: string; type: "toggle"; label: string; default: boolean }
-  | { name: string; type: "choice"; label: string; options: readonly { value: string; label: string }[]; default: string };
+  | { name: string; type: "choice"; label: string; options: readonly { value: string; label: string }[]; default: string }
+  // **Where an internal link goes** (M30, ADR-056): a notebook, a day or a tab
+  // of this trip, stored as a `LinkTarget` — ids, never a URL — and chosen from
+  // a search-as-you-type combobox of what exists. Unset is `unbound("target")`.
+  | { name: string; type: "target"; label: string }
+  // A web address (`link.external`), validated http/https by the params schema.
+  // Unset is `unbound("url")`: there is no "every address".
+  | { name: string; type: "url"; label: string }
+  // Free text whose absence is a real answer — the external link's optional
+  // label, which falls back to the address's host.
+  | { name: string; type: "text"; label: string; placeholder: string };
 
 /** The declared input types, derived so nothing can list them a second time. */
 export type WidgetInputType = WidgetInput["type"];
@@ -384,7 +408,7 @@ type Assert<T extends true> = T;
  * `toggle` and `choice` join them because they are not bindings at all: each
  * has a declared `default`, and absent IS that default.
  */
-type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice";
+type NeverUnbound = "tags" | "city" | "kind" | "dates" | "toggle" | "choice" | "text";
 
 export type NeedsCoversEveryBindableInput = Assert<
   Exclude<WidgetInputType, NeverUnbound> extends UnboundNeeds ? true : false
@@ -545,6 +569,12 @@ export interface MacroDef<P, T> {
   // fetches an input only when one of its widgets names it here, so absent is
   // the answer for every widget that reads only the trip.
   needs?: readonly ExternalNeed[];
+  // `false` keeps the widget out of the assistant's vocabulary
+  // (`COMPOSABLE_MACRO_NAMES`, and the catalogue its prompt carries). Only the
+  // two link widgets say so (ADR-056): a link is an address somebody chose, and
+  // the text the assistant reads — a stop's notes, a page — is exactly where an
+  // address it should not plant would come from. Absent means composable.
+  composable?: false;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // The insert sidebar's sample. **A fixed string, never a computed value**

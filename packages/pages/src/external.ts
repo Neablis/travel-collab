@@ -14,9 +14,49 @@ import { ok, unavailable, type MacroResult } from "./result";
  */
 export type Slot<T> = { state: "pending" } | { state: "failed" } | { state: "ready"; value: T };
 
-/** Every outside input a widget can declare. The next one is a member here, not an architecture. */
+/**
+ * One notebook as a link card reads it (ADR-056): enough to title and describe
+ * it, and nothing that would put the notebook's document on every page that
+ * links to it.
+ */
+export interface NotebookRef {
+  id: string;
+  title: string;
+  /** The notebook's first line of prose, or `null` when it opens on a widget or nothing. */
+  firstLine: string | null;
+  widgetCount: number;
+}
+
+/**
+ * The trip's notebooks, as the reader's own `GET /pages` answered.
+ *
+ * `openable` is whether this reader can follow a link INTO one. The demo's
+ * visitor and an invitee having a look first read the trip through a token,
+ * and the notebook route is not one they can open — the board withholds the
+ * Notebooks menu from both for that reason (`TripBoardScreen`). A card that
+ * navigated there anyway would be a link to a page the viewer cannot open, so
+ * it draws the notebook's name without the link.
+ */
+export interface NotebookIndex {
+  pages: readonly NotebookRef[];
+  openable: boolean;
+}
+
+/**
+ * Every outside input a widget can declare. The next one is a member here, not an architecture.
+ *
+ * **`notebooks` is the first that is not a third party's** (ADR-056). It is
+ * here rather than on `WidgetContext` beside `globals` because it has exactly
+ * a slot's lifecycle — asked for only when a widget on the page names it,
+ * `pending` until it lands, `failed` if it does not — and every piece of that
+ * (the loading chip, the first-paint rule in `templates.ts`, `NO_EXTERNAL` for
+ * the server) already exists for weather.
+ */
 export interface ExternalInputs {
   weather: Slot<TripWeather>;
+  // Optional, and absent reads as `pending`: every context built before this
+  // input existed — the weather tests, the assistant's — means exactly that.
+  notebooks?: Slot<NotebookIndex>;
 }
 
 /** What `MacroDef.needs` may name. */
@@ -28,7 +68,7 @@ export type ExternalNeed = keyof ExternalInputs;
  * Server-side resolvers (the assistant) pass this and never trigger a fetch, so
  * the assistant is not a second route by which a trip's locations leave.
  */
-export const NO_EXTERNAL: ExternalInputs = { weather: { state: "pending" } };
+export const NO_EXTERNAL: ExternalInputs = { weather: { state: "pending" }, notebooks: { state: "pending" } };
 
 /**
  * A slot as a result a resolver can return early on: `ok(value)` when it has
@@ -40,8 +80,8 @@ export const NO_EXTERNAL: ExternalInputs = { weather: { state: "pending" } };
 export function readSlot<K extends ExternalNeed>(
   external: ExternalInputs | undefined,
   need: K,
-): MacroResult<ExternalInputs[K] extends Slot<infer T> ? T : never> {
-  const slot = (external ?? NO_EXTERNAL)[need];
+): MacroResult<NonNullable<ExternalInputs[K]> extends Slot<infer T> ? T : never> {
+  const slot: Slot<unknown> = (external ?? NO_EXTERNAL)[need] ?? { state: "pending" };
   switch (slot.state) {
     case "ready":
       return ok(slot.value as never);

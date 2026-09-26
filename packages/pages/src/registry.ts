@@ -19,6 +19,7 @@ import { costBreakdown } from "./macros/primitives/spendBreakdown";
 import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 import { dayWeather } from "./macros/primitives/weather";
+import { internalLink, externalLink } from "./macros/primitives/link";
 
 // **Twelve primitives, and nothing else** (ADR-039 decision 1; spec §1's table).
 //
@@ -63,6 +64,9 @@ const DEFS: AnyMacroDef[] = [
   // "Weather" (M14 link 11): a day primitive over data the trip does not hold,
   // handed in pre-fetched (ADR-052). The first registered widget with `needs`.
   dayWeather,
+  // The two link widgets (M30, ADR-056): no selection, so not primitives, and
+  // `composable: false`, so not in the assistant's vocabulary.
+  internalLink, externalLink,
 ] as unknown as AnyMacroDef[];
 
 export const MACRO_REGISTRY: Record<string, AnyMacroDef> = Object.fromEntries(DEFS.map((d) => [d.name, d]));
@@ -144,8 +148,18 @@ function fallbackShape(def: AnyMacroDef): readonly Seg[] {
  * preset list is"* — and the model works in the combination space.
  */
 export function primitiveCatalog(): CatalogueEntry[] {
-  return DEFS.map(catalogueEntry);
+  // Only what the assistant may insert: a widget it cannot insert would be a
+  // catalogue entry it is told about and then refused for (ADR-056).
+  return DEFS.filter((d) => d.composable !== false).map(catalogueEntry);
 }
+
+/**
+ * The widget names the assistant may insert — `MACRO_NAMES` less the ones that
+ * declare `composable: false` (the two link widgets, ADR-056). `insert_widget`
+ * closes its name enum over THIS list, so a link cannot be composed even by a
+ * model that has been told the name.
+ */
+export const COMPOSABLE_MACRO_NAMES: readonly string[] = DEFS.filter((d) => d.composable !== false).map((d) => d.name);
 
 /** One widget as the assistant's catalogue lists it. */
 export interface CatalogueEntry {

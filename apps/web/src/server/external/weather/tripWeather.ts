@@ -63,7 +63,7 @@ function locatedInTimeOrder(detail: TripDetail, activityIds: readonly string[]):
 
 /**
  * The trip's points. A day with no located stop has none — the widget says
- * "no place on this day", which the author can fix. A day whose located stops
+ * "add a place to a stop to see this", which the author can fix. A day whose located stops
  * name no city gets one point, at its first, with no city.
  */
 export function weatherPointsOf(detail: TripDetail): PlannedPoint[] {

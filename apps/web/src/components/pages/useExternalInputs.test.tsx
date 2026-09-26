@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { ExternalNeed } from "@tc/pages";
 import { clearQueryCache } from "@/lib/queryCache";
 import { useExternalInputs } from "./useExternalInputs";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
 const TRIP = "11111111-1111-1111-1111-111111111111";
 const WEATHER = new Set<ExternalNeed>(["weather"]);
@@ -75,5 +76,45 @@ describe("useExternalInputs (ADR-052)", () => {
     rerender({ needs: WEATHER });
     await waitFor(() => expect(result.current.weather.state).toBe("ready"));
     expect(weatherCalls).toBe(1);
+  });
+});
+
+// ADR-056: the first input that is not a third party's — the trip's own
+// notebook list, for a link card.
+describe("useExternalInputs — notebooks (ADR-056)", () => {
+  const NOTEBOOKS = new Set<ExternalNeed>(["notebooks"]);
+  const listFor = (tripId: string) =>
+    http.get(`/api/trips/${tripId}/pages`, () =>
+      HttpResponse.json({
+        viewerId: "dev-alice",
+        pages: [{
+          id: "44444444-4444-4444-8444-444444444444", tripId, title: "Money", context: { tripId },
+          createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", actorId: "system",
+          preview: { firstLine: "What it costs.", widgetCount: 2 },
+        }],
+      }),
+    );
+
+  it("hands over each notebook with what it says, openable for a member", async () => {
+    server.use(listFor(TRIP));
+    const { result } = renderHook(() => useExternalInputs(TRIP, NOTEBOOKS));
+    await waitFor(() =>
+      expect(result.current.notebooks).toEqual({
+        state: "ready",
+        value: {
+          pages: [{ id: "44444444-4444-4444-8444-444444444444", title: "Money", firstLine: "What it costs.", widgetCount: 2 }],
+          openable: true,
+        },
+      }),
+    );
+  });
+
+  // The demo's visitor cannot open a notebook route, so the cards say what a
+  // notebook is without linking into it. Seen red with `openable: true` fixed.
+  it("marks the demo's notebooks as not openable", async () => {
+    server.use(listFor(DEMO_TRIP_ID));
+    const { result } = renderHook(() => useExternalInputs(DEMO_TRIP_ID, NOTEBOOKS));
+    await waitFor(() => expect(result.current.notebooks?.state).toBe("ready"));
+    expect(result.current.notebooks?.state === "ready" && result.current.notebooks.value.openable).toBe(false);
   });
 });

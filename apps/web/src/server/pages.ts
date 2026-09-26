@@ -1,8 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { SYSTEM_ACTOR_ID, migratePageDoc } from "@tc/contracts";
-import type { Page, PageDoc, PageSummary, CreatePageInput } from "@tc/contracts";
-import { findWidgetError, instantiateDefaults } from "@tc/pages";
+import type { Page, PageDoc, PageListEntry, PageSummary, CreatePageInput } from "@tc/contracts";
+import { findWidgetError, instantiateDefaults, notebookPreviewOf, type SeededPage } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
@@ -67,8 +67,18 @@ function toSummary(row: typeof pages.$inferSelect): PageSummary {
   return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
 }
 
+/** A summary and what the notebook says (ADR-056) — the app's own list, not the public API's. */
+function toEntry(row: typeof pages.$inferSelect): PageListEntry {
+  return { ...toSummary(row), preview: notebookPreviewOf(row.content) };
+}
+
 function newRow(tripId: string, input: CreatePageInput, actorId: string, now: string): typeof pages.$inferInsert {
   return { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };
+}
+
+/** A seed's row, under the id `instantiateDefaults` gave it — the id the Overview's links already name. */
+function seededRow(tripId: string, seed: SeededPage, now: string): typeof pages.$inferInsert {
+  return { ...newRow(tripId, seed, SYSTEM_ACTOR_ID, now), id: seed.id };
 }
 
 // Ordered by `createdAt`, and the ordering is load-bearing rather than tidy.
@@ -105,14 +115,14 @@ const DEMO_PAGE_EPOCH = "2026-01-01T00:00:00.000Z";
 
 /** The demo trip's prebuilt pages, folded in memory — never read, never written. */
 function demoPageRows(tripId: string): (typeof pages.$inferInsert)[] {
-  const defaults = instantiateDefaults(tripId);
+  // Derived, not random: `…e000`, `…e001`, one per default page, minted in
+  // `instantiateDefaults`' order so the demo Overview's notebook links name
+  // them (ADR-056). The `e` block keeps them in the same reserved space as
+  // DEMO_TRIP_ID's `…d000`.
+  let i = 0;
+  const defaults = instantiateDefaults(tripId, () => `00000000-0000-4000-8000-00000000e${String(i++).padStart(3, "0")}`);
   const epoch = Date.parse(DEMO_PAGE_EPOCH);
-  return defaults.map((seed, i) => ({
-    ...newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(epoch + i).toISOString()),
-    // Derived, not random: `…e000`, `…e001`, one per default page. The `e`
-    // block keeps them in the same reserved space as DEMO_TRIP_ID's `…d000`.
-    id: `00000000-0000-4000-8000-00000000e${String(i).padStart(3, "0")}`,
-  }));
+  return defaults.map((seed, n) => seededRow(tripId, seed, new Date(epoch + n).toISOString()));
 }
 
 /** The demo page with this id, or null. Lets `getPage` answer without a query. */
@@ -121,11 +131,24 @@ function demoPageById(id: string): (typeof pages.$inferInsert) | null {
 }
 
 export async function listPages(tripId: string): Promise<PageSummary[]> {
+  return (await listPageRows(tripId)).map(toSummary);
+}
+
+/**
+ * The app's own notebook list: `listPages`, each row with what the notebook
+ * says (ADR-056). A second function rather than a flag, because `listPages` is
+ * also the public API's source and its rows must stay `PageSummary`.
+ */
+export async function listPageEntries(tripId: string): Promise<PageListEntry[]> {
+  return (await listPageRows(tripId)).map(toEntry);
+}
+
+async function listPageRows(tripId: string): Promise<(typeof pages.$inferSelect)[]> {
   // BEFORE the select, so a demo request performs no database work at all and
   // cannot surface rows the old seeding behaviour left behind.
-  if (isDemoTripId(tripId)) return demoPageRows(tripId).map(toSummary);
+  if (isDemoTripId(tripId)) return demoPageRows(tripId) as (typeof pages.$inferSelect)[];
   const existing = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
-  if (existing.length > 0) return existing.map(toSummary);
+  if (existing.length > 0) return existing;
 
   // Lazy default instantiation — first visit only. The zero-rows check above
   // is an optimisation, NOT the idempotency guarantee: two concurrent first
@@ -154,15 +177,19 @@ export async function listPages(tripId: string): Promise<PageSummary[]> {
   // not ticked. The wall clock is not a reliable ordering key at this
   // granularity; the only thing that saves it here is that these rows are the
   // ones whose timestamps we choose.
-  const defaults = instantiateDefaults(tripId);
+  //
+  // **The ids are minted before the documents are built** (ADR-056): the
+  // Overview links to the other three seeds by id. Two racers mint different
+  // ids, and the loser's rows are all dropped rather than some of them — one
+  // statement, rows in the same order, so the loser blocks on the winner's
+  // first title and then conflicts on every row — which is what keeps the
+  // winner's Overview pointing at the winner's siblings.
+  const defaults = instantiateDefaults(tripId, randomUUID);
 
   const startedAt = Date.now();
-  const seeds = defaults.map((seed, i) =>
-    newRow(tripId, seed, SYSTEM_ACTOR_ID, new Date(startedAt - defaults.length + i).toISOString()),
-  );
+  const seeds = defaults.map((seed, i) => seededRow(tripId, seed, new Date(startedAt - defaults.length + i).toISOString()));
   await db.insert(pages).values(seeds).onConflictDoNothing();
-  const seeded = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
-  return seeded.map(toSummary);
+  return db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.createdAt), asc(pages.id));
 }
 
 export async function getPage(id: string): Promise<Page | null> {

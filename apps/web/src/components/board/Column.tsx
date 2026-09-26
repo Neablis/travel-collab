@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
@@ -9,7 +9,10 @@ import type { Overlap } from "@/components/lenses/overlapData";
 import { Button } from "@/components/ui/button";
 import { type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
+import { Text } from "@/components/ui/text";
 import { ActivityCard } from "./ActivityCard";
+import { DayRiver } from "./DayRiver";
+import type { RiverAxis } from "./riverLayout";
 
 // Same static-map pattern as TimelineLens.tsx's TINT_BG / DayChips.tsx's
 // CHIP_BG: Tailwind's JIT scanner can't see a template-interpolated
@@ -47,6 +50,8 @@ export function Column({
   activities,
   conflictIds,
   overlaps,
+  overlapPartners,
+  axis,
   currency,
   accent,
   onEditActivity,
@@ -80,6 +85,15 @@ export function Column({
   // (the later one) — same derivation the timeline uses, so a crossing pair
   // reads the same in both lenses.
   overlaps: ReadonlyMap<string, Overlap>;
+  /**
+   * Every stop in an undismissed overlap, with the titles of the stops it
+   * overlaps — both halves of a pair, where `overlaps` holds only the later
+   * one. The river marks both blocks OVERLAP (SPEC §36.9b); the dismiss stays
+   * on the later one, as it always has.
+   */
+  overlapPartners: ReadonlyMap<string, readonly string[]>;
+  /** The trip's one shared time axis — the same for every column. */
+  axis: RiverAxis;
   currency: string;
   // Per-day tint (Task 2's dayAccents, keyed off the same chipModel city
   // derivation Tasks 8/10 use).
@@ -123,18 +137,40 @@ export function Column({
    */
   keepFlag?: ReactNode;
 }) {
-  const ref = useRef<HTMLUListElement>(null);
-  // Whether this column itself — not one of its cards — is the innermost
-  // drop target: hovering blank space (or an empty column) rather than a
-  // specific card. ActivityCard's own top/bottom edge line covers every case
-  // where a card *is* the innermost target; this covers what's left, which
-  // is exactly where resolveDrop.ts's "dropped on a column: append" branch
-  // fires. No hover tint on the column itself any more (Task 3.3) — this is
-  // the insertion-line replacement the Phase 3 design called for instead.
+  // **The whole column is the drop target** (M29 part 2). It was the card
+  // list, which filled the column below the header; now the column is a shelf
+  // and a river, and a stop dragged over either — or over a river block, which
+  // is not a drop target of its own (RiverBlock) — means "this day".
+  const [section, setSection] = useState<HTMLElement | null>(null);
+  const sectionRef = useCallback(
+    (node: HTMLElement | null) => {
+      setSection(node);
+      columnRef?.(node);
+    },
+    [columnRef],
+  );
+  // Whether this column itself — not one of its untimed cards — is the
+  // innermost drop target. ActivityCard's own top/bottom edge line covers
+  // every case where a card *is* the innermost target; this covers what's
+  // left, which is exactly where resolveDrop.ts's "dropped on a column"
+  // branch fires. No hover tint on the column itself (Task 3.3).
   const [isOver, setIsOver] = useState(false);
 
+  // Untimed stops cannot sit on an axis, so they get the "Any time" shelf
+  // above it; everything with a window goes on the river. List order is kept
+  // on the shelf — it is the only order an untimed stop has. A phone draws no
+  // river, so its shelf is every stop (see the shelf below).
+  const shelf = useMemo(
+    () =>
+      activityIds.flatMap((id) => {
+        const activity = activities[id];
+        return activity && (fullWidth || !activity.timeWindow) ? [activity] : [];
+      }),
+    [activityIds, activities, fullWidth],
+  );
+
   useEffect(() => {
-    const el = ref.current;
+    const el = section;
     if (!el) return;
     const updateIsOver = ({ location }: { location: DragLocationHistory }) =>
       setIsOver(location.current.dropTargets[0]?.element === el);
@@ -146,11 +182,11 @@ export function Column({
       onDragLeave: () => setIsOver(false),
       onDrop: () => setIsOver(false),
     });
-  }, [dayId]);
+  }, [dayId, section]);
 
   return (
     <section
-      ref={columnRef}
+      ref={sectionRef}
       data-testid="day-column"
       // SPEC §28's city rule, and the ONLY thing this component does for it.
       // In Ledger a pale tint reads as grey on cream, so anything city-coded
@@ -160,7 +196,12 @@ export function Column({
       // the family so that layer has something to colour it with.
       data-city-accent={accent}
       className={cn(
-        "flex min-h-44 flex-col rounded-2xl p-2",
+        // `row-span-4 grid-rows-subgrid`: on the desktop row every column
+        // shares the row's four tracks (globals.css `.day-columns-row`), so
+        // shelves of different heights still start every river at the same
+        // height. On a phone the parent is not a grid, `subgrid` falls back
+        // to ordinary rows, and the column simply stacks.
+        "row-span-4 grid min-h-44 grid-rows-subgrid gap-y-2 rounded-2xl p-2",
         // **`shrink-0` only while there is a row to shrink in** (M26 link 13).
         // A phone renders ONE column and it takes the width; keeping
         // `shrink-0` there would be harmless and keeping the 268px would not,
@@ -244,50 +285,94 @@ export function Column({
           )}
         </span>
       </header>
-      <ul ref={ref} className="m-0 min-h-24 flex-1 list-none rounded-sm p-1">
-        {activityIds.map((id) => {
-          const activity = activities[id];
-          if (activity === undefined) return null;
-          return (
-            <ActivityCard
-              key={id}
-              activity={activity}
-              dayId={dayId}
-              hasConflict={conflictIds.has(id)}
-              overlap={overlaps.get(id) ?? null}
-              currency={currency}
-              onEdit={() => onEditActivity(id)}
-              onRemove={() => onRemoveActivity(id)}
-              onDismissOverlap={onDismissOverlap}
-              focusedTag={focusedTag}
-              onToggleTag={onToggleTag}
-              readOnly={readOnly}
-            />
-          );
-        })}
-        {/* The "append here" half of the insertion line: shown only while
-            the column itself, not one of its cards, is the innermost drop
-            target — blank space below the last card, or an empty column
-            entirely. Matches resolveDrop.ts's "dropped on a column: append"
-            branch, which always lands at the end of the list regardless of
-            where within the column the drop actually happened. */}
-        {isOver && <li aria-hidden className="h-0.5 rounded-full bg-brand" />}
-      </ul>
-      {/* Handoff README §"Day columns view": "a dashed '+ Add' button per
-          column" — a consistent dashed affordance regardless of whether the
-          day already has cards, rather than collapsing to a bare "+" once
-          populated (#20's original empty-only treatment). */}
-      {onAddActivity && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onAddActivity}
-          aria-label={`Add activity to ${title}`}
-          className="mt-1.5 w-full justify-center rounded-lg border border-dashed border-border-strong py-2 text-slate"
-        >
-          + Add
-        </Button>
+      {/* **The "Any time" shelf** (M29 part 2). A stop with no time cannot sit
+          on a to-scale axis, and it must not vanish either (M29's gate: "an
+          untimed stop is visible"). So it keeps the card it always had, on a
+          shelf above the river — above rather than below, because below would
+          put it under 600-odd pixels of day. The shelf is always rendered,
+          empty or not: it is the second of the four rows every column shares,
+          and a column that skipped it would shift its river up a row.
+
+          **A phone keeps the list** (`fullWidth`). The design draws the river
+          on the desktop only; its phone Plan is a list of stop cards
+          (`phoneStops`, `…Redesign.dc.html:863`), and a to-scale block on a
+          phone would put a 30-minute stop's controls in a 24px box, under
+          SPEC §13.1's 44px floor. So there, every stop is a card in this list,
+          in the day's own order, as before. */}
+      <div className="flex min-w-0 flex-col gap-1">
+        {shelf.length > 0 && (
+          <>
+            {!fullWidth && (
+              <Text variant="muted" as="span" className="px-1 font-semibold">
+                Any time
+              </Text>
+            )}
+            <ul aria-label={fullWidth ? `${title} stops` : `${title}, any time`} className="m-0 list-none p-0">
+              {shelf.map((activity) => (
+                <ActivityCard
+                  key={activity.activityId}
+                  activity={activity}
+                  dayId={dayId}
+                  hasConflict={conflictIds.has(activity.activityId)}
+                  // An untimed stop cannot overlap anything; on the phone's
+                  // list, a card carries its overlap chip as it always has.
+                  overlap={fullWidth ? (overlaps.get(activity.activityId) ?? null) : null}
+                  currency={currency}
+                  onEdit={() => onEditActivity(activity.activityId)}
+                  onRemove={() => onRemoveActivity(activity.activityId)}
+                  onDismissOverlap={onDismissOverlap}
+                  focusedTag={focusedTag}
+                  onToggleTag={onToggleTag}
+                  readOnly={readOnly}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+        {/* The "this day" half of the drop feedback: shown only while the
+            column itself, not one of its cards, is the innermost drop target.
+            A dropped stop keeps its time, so a timed one lands on the river at
+            that time and an untimed one at the end of this shelf — which is
+            where this line sits. */}
+        {isOver && <span aria-hidden className="h-0.5 rounded-full bg-brand" />}
+      </div>
+      {!fullWidth && (
+        <DayRiver
+          title={title}
+          axis={axis}
+          activityIds={activityIds}
+          activities={activities}
+          accent={accent}
+          conflictIds={conflictIds}
+          overlaps={overlaps}
+          overlapPartners={overlapPartners}
+          currency={currency}
+          onEditActivity={onEditActivity}
+          onRemoveActivity={onRemoveActivity}
+          onDismissOverlap={onDismissOverlap}
+          focusedTag={focusedTag}
+          onToggleTag={onToggleTag}
+          readOnly={readOnly}
+        />
       )}
+      {/* SPEC §36.9b: "+ Add a stop sits 22 px below the axis, brand-tinted
+          and full width" — 22px is the row gap (8px) plus this margin. A
+          wrapper even when there is no button, so a read-only column still
+          fills the fourth row it shares with its neighbours. The accessible
+          name is still "Add activity to Day N", which specs and tests across
+          the suite find it by. */}
+      <div>
+        {onAddActivity && (
+          <Button
+            variant="ghost"
+            onClick={onAddActivity}
+            aria-label={`Add activity to ${title}`}
+            className="mt-3.5 w-full justify-center rounded-lg border border-brand bg-brand-tint font-semibold text-brand-pressed hover:bg-surface hover:text-brand-pressed"
+          >
+            + Add a stop
+          </Button>
+        )}
+      </div>
     </section>
   );
 }

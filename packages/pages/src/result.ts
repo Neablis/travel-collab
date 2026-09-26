@@ -26,7 +26,7 @@ import type { Seg } from "./registry-types";
  * nothing could report it. `trip` stays: a notebook with no trip is a state
  * every resolver must answer (`needsTrip`), not a choice any control makes.
  */
-export type UnboundNeeds = "day" | "person" | "trip" | "field";
+export type UnboundNeeds = "day" | "person" | "trip" | "field" | "target" | "url";
 
 /**
  * Why a widget that reads outside data has nothing to show (ADR-052 decision 4).
@@ -104,7 +104,12 @@ export const unbound = (needs: UnboundNeeds, shape?: readonly Seg[]): MacroResul
  * and ghosts anyway: it reports the same `needs` as a field never chosen, and
  * M14 decision 4 turns a removed field's widget into plain text instead.
  */
-export const UNBOUND_GHOSTS: Record<UnboundNeeds, boolean> = { trip: true, field: true, day: false, person: false };
+export const UNBOUND_GHOSTS: Record<UnboundNeeds, boolean> = {
+  trip: true, field: true, day: false, person: false,
+  // A link with nowhere to go yet is "bind me" in the plainest sense (ADR-056):
+  // its settings hold the one control that answers it.
+  target: true, url: true,
+};
 
 // The answer every trip-reading widget gives when handed a context with no
 // trip. Named rather than inlined seven times so the reason survives: ADR-037

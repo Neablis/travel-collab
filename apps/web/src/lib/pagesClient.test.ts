@@ -31,7 +31,7 @@ describe("pagesClient", () => {
 
   it("creates a page and round-trips a full Page", async () => {
     server.use(...makePagesHandlers([]));
-    const [input] = instantiateDefaults(TRIP_ID);
+    const [input] = instantiateDefaults(TRIP_ID, () => crypto.randomUUID());
     const result = await createPage(TRIP_ID, input!);
     if (!result.ok) throw new Error("expected ok");
     expect(result.value.tripId).toBe(TRIP_ID);
@@ -148,7 +148,7 @@ describe("notebook writes invalidate the trip's cached reads", () => {
   const PAGE_ID = "9f8e7d6c-5b4a-4938-8271-615243342516";
 
   const WRITERS: Record<string, () => Promise<{ ok: boolean }>> = {
-    createPage: () => createPage(TRIP_ID, instantiateDefaults(TRIP_ID)[0]!),
+    createPage: () => createPage(TRIP_ID, instantiateDefaults(TRIP_ID, () => crypto.randomUUID())[0]!),
     updatePage: () => updatePage(TRIP_ID, PAGE_ID, { title: "Renamed" }),
     deletePage: () => deletePage(TRIP_ID, PAGE_ID),
   };

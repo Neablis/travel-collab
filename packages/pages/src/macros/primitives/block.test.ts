@@ -215,3 +215,69 @@ describe("city.detail", () => {
     expect(renderMacro(ctx, "city.detail", {}).status).toBe("empty");
   });
 });
+
+// M30: the printed itinerary. The Overview's "Day by day" is this layout, so
+// what it prints per line — time, title, place, standing — is pinned here, in
+// the one layer that owns it; `ItineraryScheduleBlock` only draws it.
+describe("day.detail {view: schedule}", () => {
+  const schedule = (params: Record<string, unknown> = {}, user: WidgetContext["user"] = null) => {
+    const fixture = selectionTrip();
+    const outcome = renderMacro({ ...contextOf(fixture), user }, "day.detail", { view: "schedule", ...params });
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "itinerary-schedule") {
+      throw new Error(`expected a schedule, got ${JSON.stringify(outcome)}`);
+    }
+    return outcome.rendered.block;
+  };
+
+  it("prints every day, dated in words, with its cities", () => {
+    const days = schedule().days;
+    expect(days.map((d) => [d.ordinal, d.date, d.cities])).toEqual([
+      [1, "Tuesday, June 1", ["Rome"]],
+      [2, "Wednesday, June 2", ["Rome", "Kyoto"]],
+      [3, null, []],
+    ]);
+  });
+
+  it("prints a day's stops in time order, untimed ones after, each with its place and standing", () => {
+    // Day 2 is stored Train (06:00) then Ryokan (untimed); swap the board order
+    // so the sort has something to do.
+    const fixture = selectionTrip();
+    fixture.trip.days[1]!.activityIds = [...fixture.trip.days[1]!.activityIds].reverse();
+    const outcome = renderMacro({ ...contextOf(fixture), user: readerOn("24h") }, "day.detail", { view: "schedule", day: { kind: "index", index: 1 } });
+    expect(outcome.status === "ok" && outcome.rendered.kind === "block" && outcome.rendered.block).toMatchObject({
+      kind: "itinerary-schedule",
+      days: [
+        {
+          ordinal: 2,
+          stops: [
+            // Travel, in the reader's 24-hour clock, the place with its city.
+            { time: "06:00", until: "14:00", title: "Train to Kyoto", place: "Roma Termini, Rome", status: "Travel" },
+            // Untimed, last; Pending reads "To book"; a name that already says
+            // the city is not given it twice.
+            { time: null, until: null, title: "Ryokan", place: "Ryokan Kyoto", status: "To book" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("says nothing about a planned stop, and nothing about a place it does not have", () => {
+    const [first] = schedule().days;
+    expect(first!.stops.map((s) => [s.title, s.place, s.status])).toEqual([
+      ["Colosseum", "Colosseum, Rome, Italy", "To book"],
+      ["Lunch", null, null],
+    ]);
+  });
+
+  it("stays a schedule for one day, and keeps a day with nothing on it", () => {
+    expect(schedule({ day: { kind: "index", index: 0 } }).days).toHaveLength(1);
+    // A tag narrows the stops and drops the days with none, as the glance does.
+    expect(schedule({ tag: "lodging" }).days.map((d) => d.ordinal)).toEqual([2]);
+  });
+
+  it("is `empty` with the widget's words on a trip with no days", () => {
+    const { trip } = selectionTrip();
+    const ctx: WidgetContext = { trip: { ...trip, days: [] }, page: { tripId: trip.tripId }, user: null, globals: null, today: null };
+    expect(renderMacro(ctx, "day.detail", { view: "schedule" })).toEqual({ status: "empty" });
+  });
+});

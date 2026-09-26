@@ -1,6 +1,8 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
+import { useLateFocus } from "./useLateFocus";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, presetParams } from "@tc/pages";
+import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, presetParams } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
@@ -8,6 +10,8 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { DaysFilter, daysSummary } from "./DaysFilter";
 import { FieldPicker } from "./FieldPicker";
 import { FieldColumns } from "./FieldColumns";
+import { LinkTargetPicker } from "./LinkTargetPicker";
+import { Input } from "@/components/ui/input";
 
 // Pointing a widget at its filters, in ONE place — because as of SPEC §19 there
 // are three surfaces that do it and they must not disagree:
@@ -212,6 +216,10 @@ export function optionsFor(
     // (KI-2026-09-05-h).
     case "dates":
     case "toggle":
+    // The link inputs (ADR-056) draw controls of their own, not a select.
+    case "target":
+    case "url":
+    case "text":
       return [];
     default: {
       // The enforcement, the same as `BlockView`'s: a new `WidgetInput` type
@@ -301,7 +309,9 @@ export function bindSummary(
   // not what it reads, so neither belongs in "Pointed at …". (Nor does a
   // filter the widget withholds — a stored tag on "Spend by tag" narrows
   // nothing — which the default `allInputs` already leaves out.)
-  const inputs = allInputs.filter((i) => i.type !== "toggle" && i.type !== "choice");
+  // The link inputs are not filters either: a link's settings say where it
+  // goes in its own control, not as "Showing …" (ADR-056).
+  const inputs = allInputs.filter((i) => !["toggle", "choice", "target", "url", "text"].includes(i.type));
   if (inputs.length === 0) return null;
   // An unset single field is no answer at all rather than the widest one — the
   // widget renders `unbound("field")` whatever else is bound — so the summary
@@ -326,6 +336,100 @@ export function bindSummary(
   // between a widget waiting to be told what to do and one already showing the
   // widest true answer.
   return bound.length === 0 ? "everything" : bound.join(" → ");
+}
+
+/** A stored link target, or `undefined` for none or one that no longer parses. */
+function storedTarget(raw: unknown): LinkTarget | undefined {
+  const parsed = LinkTarget.safeParse(raw);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * "example.com/tickets" is what people type, and it is an address — so a bare
+ * host gets `https://` in front before it is checked. Anything that already
+ * names a scheme is left alone, so `javascript:` is refused rather than
+ * repaired into something that passes.
+ */
+function withScheme(raw: string): string {
+  return raw === "" || /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
+}
+
+/** Why an address will not be stored, in words — or `null` when it will. The widget's own schema decides. */
+function addressProblem(next: string): string | null {
+  if (next === "" || WebAddress.safeParse(next).success) return null;
+  return "Use a web address starting https:// or http://";
+}
+
+/**
+ * A text box that writes on blur or Enter, never per keystroke: each write
+ * rebinds the widget in the document, and an address half-typed is not one
+ * the params schema — or the page's write check — would accept. A value the
+ * check refuses stays in the box with the reason under it and is not written.
+ */
+function CommittedText({
+  id,
+  label,
+  value,
+  placeholder,
+  autoFocus,
+  normalise,
+  validate,
+  onCommit,
+  layout,
+}: {
+  id: string;
+  label?: string;
+  value: string;
+  placeholder: string;
+  autoFocus: boolean;
+  normalise: (raw: string) => string;
+  validate: (next: string) => string | null;
+  onCommit: (next: string) => void;
+  layout: "inline" | "stacked";
+}) {
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useLateFocus(inputRef, autoFocus);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    const next = normalise(draft.trim());
+    const why = validate(next);
+    setProblem(why);
+    if (why !== null || next === value) return;
+    setDraft(next);
+    onCommit(next);
+  };
+  return (
+    <>
+      <Input
+        id={id}
+        aria-label={label}
+        aria-invalid={problem !== null}
+        aria-describedby={problem !== null ? `${id}-problem` : undefined}
+        placeholder={placeholder}
+        ref={inputRef}
+        className={layout === "inline" ? "h-7 min-h-0 py-0 text-xs" : "min-h-11"}
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setProblem(null);
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+        }}
+      />
+      {problem !== null ? (
+        <span id={`${id}-problem`} role="alert" className="mt-1 block text-xs text-danger-ink">
+          {problem}
+        </span>
+      ) : null}
+    </>
+  );
 }
 
 /**
@@ -395,7 +499,30 @@ export function WidgetBindControls({
           );
         }
         const control =
-          input.type === "field" && input.multiple ? (
+          input.type === "target" ? (
+            <LinkTargetPicker
+              id={`${idPrefix}-${input.name}`}
+              label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              value={storedTarget(params[input.name])}
+              detail={detail}
+              globals={globals}
+              onChange={(to) => onChange({ ...params, [input.name]: to })}
+              layout={layout}
+            />
+          ) : input.type === "url" || input.type === "text" ? (
+            <CommittedText
+              id={`${idPrefix}-${input.name}`}
+              label={namedByTitle ? `${title}: ${input.label.toLowerCase()}` : undefined}
+              value={typeof params[input.name] === "string" ? (params[input.name] as string) : ""}
+              placeholder={input.type === "url" ? "https://" : input.placeholder}
+              // The address box is the whole next step on a fresh link.
+              autoFocus={input.type === "url" && typeof params[input.name] !== "string"}
+              normalise={input.type === "url" ? withScheme : (raw) => raw}
+              validate={input.type === "url" ? addressProblem : () => null}
+              onCommit={(next) => onChange(withBinding(params, input, next))}
+              layout={layout}
+            />
+          ) : input.type === "field" && input.multiple ? (
             // A LIST of fields, one per column (`stop.rows`' `columns`). Each
             // picker reads `optionsFor` as the single one does, so a stale path
             // keeps its "no longer offered" row.

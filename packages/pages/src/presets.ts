@@ -247,6 +247,31 @@ export const PRESETS: readonly WidgetPreset[] = [
     preview: "every stop, day by day — or one day, if you point it at one",
   },
   {
+    // M30: the printed itinerary — the Overview's own "Day by day".
+    id: "day.schedule",
+    widget: "day.detail",
+    params: { view: "schedule" },
+    title: "The days, as an itinerary",
+    keywords: ["itinerary", "schedule", "printed", "agenda", "timetable", "day by day", "times", "plan", "travel agent"],
+    description: "Every stop, day by day, in time order — with where it is and whether it is still to book, like a printed itinerary.",
+    preview: "9:00 am  Fushimi Inari Taisha, Kyoto",
+  },
+  {
+    // M30, ADR-056. A card, so it lands on its own line.
+    id: "link.internal",
+    widget: "link.internal",
+    params: {},
+    title: "Link to a notebook or tab",
+    keywords: ["link", "notebook", "page", "go to", "open", "jump", "navigate", "tab", "plan", "calendar", "map", "day", "see also"],
+  },
+  {
+    id: "link.external",
+    widget: "link.external",
+    params: {},
+    title: "Link to a website",
+    keywords: ["link", "url", "website", "web", "href", "address", "booking", "confirmation", "external", "site"],
+  },
+  {
     id: "city.detail",
     widget: "city.detail",
     params: {},

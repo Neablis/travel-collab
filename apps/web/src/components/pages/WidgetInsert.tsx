@@ -141,6 +141,10 @@ export function WidgetInsert({
   const pendingPreset = pending === null ? null : getPreset(pending);
   const pendingTarget = pending === null ? null : presetTarget(pending);
   const pendingDef = pendingTarget === null ? null : getMacro(pendingTarget.widget);
+  const showing =
+    pending === null || pendingTarget === null
+      ? null
+      : bindSummary(pendingTarget.widget, { ...pendingTarget.params, ...params }, detail, globals, presetBindableInputs(pending));
 
   return (
     <>
@@ -206,16 +210,9 @@ export function WidgetInsert({
                 will use afterwards — so "Insert it" is not a leap of faith.
                 Unset is a real, legal outcome here (decision 6 never defaults a
                 day), so this never blocks the insert; it only says so. */}
-            <Text variant="muted">
-              Showing{" "}
-              {bindSummary(
-                pendingTarget.widget,
-                { ...pendingTarget.params, ...params },
-                detail,
-                globals,
-                presetBindableInputs(pending),
-              )}
-            </Text>
+            {/* Only for a widget with filters: a link's step says where it goes
+                in its own control, and "Showing" over nothing is no line (ADR-056). */}
+            {showing === null ? null : <Text variant="muted">Showing {showing}</Text>}
             <Button
               variant="primary"
               className="min-h-12 w-full"

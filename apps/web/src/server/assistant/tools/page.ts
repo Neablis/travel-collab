@@ -26,13 +26,16 @@
 // refused by that widget's OWN Zod schema, so the AI path cannot drift from the
 // click path because there is only one path.
 import { z } from "zod";
-import { MACRO_NAMES, insertWidget, type InsertError } from "@tc/pages";
+import { COMPOSABLE_MACRO_NAMES, insertWidget, type InsertError } from "@tc/pages";
 import { markdownToPageNodes } from "@/server/assistant/markdownToPageNodes";
 import { defineTool, type AnyAssistantTool } from "@/server/assistant/defineTool";
 
 // z.enum requires a non-empty tuple; MACRO_NAMES is a readonly string[] from
 // the registry (guaranteed non-empty — the registry always defines macros).
-const macroNameEnum = z.enum(MACRO_NAMES as [string, ...string[]]);
+// COMPOSABLE, not every name: the two link widgets are not the assistant's to
+// plant (ADR-056) — an address in a notebook is one somebody chose, and the
+// text this tool reads is where an address it should not plant would come from.
+const macroNameEnum = z.enum(COMPOSABLE_MACRO_NAMES as [string, ...string[]]);
 
 const InsertTextParams = z.object({
   markdown: z.string().min(1),

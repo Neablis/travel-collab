@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures/test";
 import { createMappedTrip, dragCardTo, createEmptyTripViaWizard } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
-test("board: days, activities, drag, conflicts as data", async ({ page }) => {
+test("board: days, activities, drag, conflicts as data", async ({ page, browser }) => {
   const tripName = e2eTripName("Lisbon");
   await page.goto("/");
 
@@ -59,6 +59,38 @@ test("board: days, activities, drag, conflicts as data", async ({ page }) => {
 
   // The conflict appears as data — the writes above all succeeded.
   await expect(page.getByText(/overlap in time/)).toBeVisible();
+
+  // **A hidden control is not a tappable one** (M29 part 2 review). The pair
+  // overlaps, so each sits in a half-width lane whose Remove only comes up
+  // under a hovering mouse. What is asserted is what a pointer at that spot
+  // would actually hit, not how the control is styled.
+  const colosseum = day1.getByTestId(/activity-card-/).filter({ hasText: "Colosseum" });
+  const removeHit = (scope: typeof page) =>
+    scope.getByRole("button", { name: "Remove Colosseum" }).evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return hit !== null && el.contains(hit);
+    });
+  await page.mouse.move(0, 0);
+  await expect.poll(() => removeHit(page), { message: "at rest, Remove is not under the pointer's reach" }).toBe(false);
+  await colosseum.hover();
+  await expect.poll(() => removeHit(page), { message: "hovered, Remove comes up and takes the click" }).toBe(true);
+
+  // A touch tablet past 768px has no hover to bring it up with, so it shows it
+  // always. `isMobile` + `hasTouch` is what makes Chromium report a coarse
+  // pointer; the first assertion says so, or the rest would prove nothing.
+  const tablet = await browser.newContext({
+    viewport: { width: 1180, height: 820 },
+    isMobile: true,
+    hasTouch: true,
+    storageState: ".auth/alice.json",
+  });
+  const tabletPage = await tablet.newPage();
+  await tabletPage.goto(page.url());
+  expect(await tabletPage.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+  await expect(tabletPage.getByRole("button", { name: "Remove Colosseum" })).toBeVisible();
+  await expect.poll(() => removeHit(tabletPage), { message: "on touch, Remove is always reachable" }).toBe(true);
+  await tablet.close();
 
   // Resolving by moving away clears it. Both stops are scheduled now, so this
   // is an ordinary card-to-card drag between day columns.

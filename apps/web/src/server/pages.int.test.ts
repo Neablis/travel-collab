@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { executeTripCommand } from "./commands";
 import { db } from "./db/client";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
-import { listPages, getPage } from "./pages";
+import { listPageEntries, listPages, getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
 
 // The seeded titles, read from the templates rather than typed here.
@@ -44,6 +44,31 @@ describe("pages repository", () => {
     expect(first).toHaveLength(DEFAULT_TEMPLATES.length);
     const second = await listPages(tripId); // idempotent — no duplicate instantiation
     expect(second).toHaveLength(DEFAULT_TEMPLATES.length);
+  });
+
+  // M30 (ADR-056): four notebooks, in order, and the Overview's cards name the
+  // other three by the ids the seeder wrote — read back from the database, so
+  // a seeder that minted one set of ids for the rows and another for the links
+  // fails here. Only the Overview refuses to go.
+  it("seeds four notebooks, links the Overview to the other three by id, and lets those three be deleted", async () => {
+    const { tripId } = await seedTrip();
+    const entries = await listPageEntries(tripId);
+    expect(entries.map((p) => p.title)).toEqual(SEEDED_TITLES);
+    const [overview, ...siblings] = entries;
+    const doc = (await getPage(overview!.id))!.content;
+    const linked = JSON.stringify(doc).match(/"pageId":"([0-9a-f-]{36})"/g)?.map((m) => m.slice(10, -1));
+    expect(linked).toEqual(siblings.map((s) => s.id));
+    // What a link card and the index print, from the stored document.
+    expect(entries.find((p) => p.title === "Money")!.preview).toEqual({
+      firstLine: "What the trip costs, day by day, against the budget.",
+      widgetCount: 2,
+    });
+    // The public list stays `PageSummary`, with no preview on it.
+    expect(Object.keys((await listPages(tripId))[0]!)).not.toContain("preview");
+    const money = siblings.find((p) => p.title === "Money")!;
+    const outcome = await executePageCommand({ type: "DeletePage", tripId, pageId: money.id }, "user-1");
+    expect(outcome.ok).toBe(true);
+    expect((await listPages(tripId)).map((p) => p.title)).toEqual(["Overview", "Before you go", "Bookings"]);
   });
 
   // §25: the Overview *"appears in the Notebook index like any other page"* and

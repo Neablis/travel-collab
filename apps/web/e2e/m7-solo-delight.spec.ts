@@ -15,11 +15,10 @@ import { e2eTripName } from "./tripNames";
 // overview are gallery templates now, and the page every trip comes with is the
 // Overview. Read from `DEFAULT_TEMPLATES` for the same reason it always was: a
 // rename should not be a failing assertion about a word.
-// The cast is a one-tuple now, and that is the point of writing it out: it was
-// `[T, T]` — left over from when two templates were seeded — which typechecked
-// against a one-element array and would have gone on typechecking if the list
-// emptied. A tuple whose length is a claim has to state the length it claims.
-const [SEEDED_PAGE] = DEFAULT_TEMPLATES as [(typeof DEFAULT_TEMPLATES)[number]];
+// **Four since M30** (Mitchell, 2026-09-26: several notebooks, each with one
+// job), and the first is still the Overview — the page this walk is about. The
+// count is asserted against the index below rather than claimed by a tuple.
+const SEEDED_PAGE = DEFAULT_TEMPLATES[0]!;
 
 // A heading INSIDE the seeded page, as opposed to the page's own title — this
 // walk clicks one to put its cursor somewhere and types prose under it.
@@ -34,7 +33,7 @@ const [SEEDED_PAGE] = DEFAULT_TEMPLATES as [(typeof DEFAULT_TEMPLATES)[number]];
 // it clicks one, presses End and then Enter, which makes a paragraph of its own
 // to type into. Clicking a paragraph would land in a block that holds a widget
 // and select it instead of placing a caret.
-const PROSE_HEADING = "What it costs";
+const PROSE_HEADING = "Day by day";
 
 // Waits for a command's confirming POST to land before returning. Needed
 // anywhere this spec navigates away from the board (Notebook is a separate
@@ -138,21 +137,23 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   // The headings are the page's structure and the widgets are its content, so
   // both are read: a heading alone would pass on a page whose widgets all
   // failed to resolve.
-  await expect(page.getByRole("heading", { name: "What needs you" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "The trip, day by day" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "What it costs" })).toBeVisible();
-  // The trip's own name, resolved by a widget rather than typed. This walk's
-  // trip came from "Create empty", so it has no dates and no days and the rest
-  // of the page is its empty states — which is the state this page has to be
-  // good in, and the countdown below is the line that makes it useful.
-  await expect(page.getByText(tripName, { exact: true }).first()).toBeVisible();
-  // `open` (SPEC §25's `w-open`) on a trip with nothing waiting: the empty
-  // state is the good one here, and it is a sentence rather than a blank.
-  await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
-  // And the countdown, which is the line SPEC §25's Overview now opens with.
-  // A trip with no dates says so in words that name the next thing to do,
-  // rather than sharing `attribute`'s blanket "nothing to show".
-  await expect(page.getByText("no dates set yet")).toBeVisible();
+  //
+  // **M30: the itinerary.** A letter, the day-by-day schedule, and the way to
+  // the other three notebooks — what needed a decision moved to Bookings.
+  await expect(page.getByRole("heading", { name: "Day by day" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Also in this trip" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "What needs you" })).toHaveCount(0);
+  // This walk's trip came from "Create empty", so it has no dates and no days
+  // and the page is its empty states — which is the state it has to be good
+  // in (SPEC §36.10b).
+  await expect(page.getByText("no dates set", { exact: true })).toBeVisible();
+  await expect(page.getByText("no days yet")).toBeVisible();
+  // The three cards, each titled by its notebook — read from the list, so a
+  // seed that linked to nothing would say "this notebook was deleted" here.
+  for (const title of ["Before you go", "Bookings", "Money"]) {
+    await expect(page.getByTestId("link-card").filter({ hasText: title })).toBeVisible();
+  }
+  await expect(page.getByText("this notebook was deleted")).toHaveCount(0);
 
   // -- the assistant opens on a page, in EITHER mode (no real AI call) --
   // It used to be an editing-only control, hidden in Reading because what it
@@ -182,19 +183,20 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
   await page.getByRole("button", { name: /hide/i }).click();
 
-  // -- and it is the ONLY page a new trip has (SPEC §25) --
-  // "Day overview" used to be walked here as the second seeded page. It is a
-  // gallery template now, so the assertion that means something is that the
-  // index carries exactly one page rather than that a second one renders.
+  // -- and a new trip has exactly four (M30) --
+  // Mitchell, 2026-09-26, reversing *"Only 1 notebook per trip is always
+  // generated"*: several notebooks, each with one job. "Day overview" is still
+  // a gallery template, and still not seeded.
   await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Notebook", exact: true }).click();
   await expectNotebookIndex(page);
   // **Counted off the LIST, not off the title.** "One link matches Overview"
   // is true of an index carrying Overview and anything else beside it, which
   // is the claim this line makes and the one it could not see (CodeRabbit, PR
-  // 170). "Your notebooks" holds one row, full stop — so a template added to
+  // 170). "Your notebooks" holds four rows, full stop — so a template added to
   // the seeded set fails here, which is the decision worth a failing test.
   const mine = page.getByRole("region", { name: "Your notebooks" });
-  await expect(mine.getByRole("listitem")).toHaveCount(1);
+  await expect(mine.getByRole("listitem")).toHaveCount(DEFAULT_TEMPLATES.length);
+  await expect(mine.getByRole("listitem")).toHaveText(DEFAULT_TEMPLATES.map((t) => new RegExp(t.title)));
   await expect(mine.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) })).toHaveCount(1);
   await expect(page.getByRole("link", { name: /Day overview/ })).toHaveCount(0);
 });
@@ -216,14 +218,19 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await expect(page.getByRole("heading", { name: SEEDED_PAGE.title, level: 1 })).toBeVisible();
   // The page a BRAND-NEW trip opens on — no dates, no days, no stops — which is
   // the state Mitchell asked to be made good. Every line of it resolves to
-  // something a person can read and act on rather than to a blank or a shrug:
-  // the trip's name, how far off it is, how long it is, and what is waiting.
-  await expect(page.getByText(tripName, { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("no dates set yet")).toBeVisible();
-  await expect(page.getByText("0 days")).toBeVisible();
+  // something a person can read and act on rather than to a blank or a shrug
+  // (SPEC §36.10b: *"an empty line that says what fills it reads well"*): how
+  // far off it is, what the page will show once there are days, and what is
+  // waiting.
+  await expect(page.getByText("no dates set", { exact: true })).toBeVisible();
+  await expect(page.getByText("no cities yet")).toBeVisible();
   await expect(page.getByText("no days yet")).toBeVisible();
+  // What needed a decision is in Bookings now (M30), and reads there as it
+  // did here: in words, never a blank.
+  await page.getByTestId("link-card").filter({ hasText: "Bookings" }).click();
+  await expect(page.getByRole("heading", { name: "Bookings", level: 1 })).toBeVisible();
   await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
-  await expect(page.getByText("no budget set")).toBeVisible();
+  await expect(page.getByText("nothing left to book")).toBeVisible();
   // Non-vacuous from the other side: the placeholders it used to carry are
   // gone, not merely unasserted.
   await expect(page.getByText(/what's this trip about/i)).toHaveCount(0);

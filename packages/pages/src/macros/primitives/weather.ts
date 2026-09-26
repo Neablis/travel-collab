@@ -196,12 +196,15 @@ const USES_TYPICAL: ReadonlySet<WeatherMode> = new Set(["typical", "past", "no-f
  * `day.weather` — one row per selected (day, city): the forecast when there is
  * one, what's typical when there isn't, and the mode said in words either way.
  *
- * The order of answers is the ADR's: a trip first, then the slot (`pending` /
- * `failed` are `unavailable`, never `empty` — the world's failure is not the
- * author's), then the reader's date (unknown is `pending`: the mode cannot be
- * chosen yet). Only after all three does trip data speak: a day with no located
- * stop has no point, which is `empty` with the fix, because that one the author
- * CAN fix.
+ * The order of answers: a trip first; then **a trip with no days**, which is
+ * `empty` with the fix before anything else is read — the one piece of trip
+ * data allowed ahead of the ADR's order, because no answer the source could
+ * give changes it; then the ADR's slot (`pending` / `failed` are
+ * `unavailable`, never `empty` — the world's failure is not the author's);
+ * then the reader's date (unknown is `pending`: the mode cannot be chosen
+ * yet). Only after those does the rest of the trip speak: a day with no
+ * located stop has no point, which is `empty` with the fix, because that one
+ * the author CAN fix.
  */
 export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   name: "day.weather", title: "Weather", shape: "block",
@@ -210,11 +213,18 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   needs: ["weather"],
   description:
     "The weather for each selected day at its stops: the forecast when the day is close, what's typical for the month when it is further out or already gone, each labelled. Filter it to a day or a city.",
-  emptyText: "no place on this day",
+  emptyText: "add a place to a stop to see this",
   // Fixed, never computed (ADR-037 decision 5) — the ADR's own wording.
   preview: "The weather for each day — the forecast when there is one, what's typical when there isn't.",
   resolve: ({ trip, globals, today, external, user }: WidgetContext, params, item): MacroResult<WeatherPayload> => {
     if (!trip) return needsTrip();
+    // A trip with no days has nothing to ask the source about, and the author
+    // can fix that — so it says so before the slot is read. The client still
+    // requests (`useExternalInputs` keys on the widget, not the trip), but the
+    // server answers zero points without an upstream call, so "loading
+    // weather" here would only be a beat of waiting for an answer already
+    // known to be empty.
+    if (trip.days.length === 0) return empty("add a day to see this");
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const slot = readSlot(external, "weather");
@@ -236,7 +246,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
         picked.push({ point, mode: weatherModeOf(point, today), index });
       }
     }
-    if (picked.length === 0) return undated ? empty("set the trip's dates to see this") : empty("no place on this day");
+    if (picked.length === 0) return undated ? empty("set the trip's dates to see this") : empty("add a place to a stop to see this");
     // Every row empty-handed is the source being down, not a quiet block.
     if (picked.every(({ mode }) => mode === "unavailable")) return unavailable("source");
     const units = unitsOf(user);

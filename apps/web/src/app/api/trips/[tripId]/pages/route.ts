@@ -2,7 +2,7 @@ import { CreatePageInput, serializePageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
-import { MAX_PAGE_BODY_BYTES, listPages } from "@/server/pages";
+import { MAX_PAGE_BODY_BYTES, listPageEntries } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
 
@@ -17,7 +17,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ tripId: 
   // labelled "Yours" (Copilot, PR #126; it was filed as KI-20260903 on the
   // assumption this needed a `users` join, and it does not — the guard already
   // resolved the reader).
-  return Response.json({ pages: await listPages(tripId), viewerId: g.userId });
+  // `listPageEntries`, not `listPages`: each row carries what the notebook says
+  // (ADR-056), which a link card and the index print. The public API stays on
+  // `listPages`, whose rows are `PageSummary` exactly.
+  return Response.json({ pages: await listPageEntries(tripId), viewerId: g.userId });
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ tripId: string }> }) {
