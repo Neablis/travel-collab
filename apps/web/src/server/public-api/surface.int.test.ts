@@ -475,6 +475,22 @@ describe("a patch changes what it names, and nothing else", () => {
     ).not.toContain(activityId);
   });
 
+  // ADR-055, "Callers" — the one field a patch changes without naming it. The
+  // decider refuses a reason left on a non-pending stop rather than dropping
+  // it, so `{ kind: "planned" }` alone was a 400 on every "To book" stop.
+  it("clears a pending stop's reason when the patch moves it to planned without naming the reason", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, activityId } = await seed(secret);
+    const pending = await PATCH_STOP(req(secret, { kind: "pending", pendingReason: "book" }, "PATCH"), P({ tripId, activityId }));
+    expect(pending.status).toBe(200);
+
+    const planned = await PATCH_STOP(req(secret, { kind: "planned" }, "PATCH"), P({ tripId, activityId }));
+    const body = await planned.json();
+    expect(planned.status, JSON.stringify(body)).toBe(200);
+    expect(body.activities[activityId]).toMatchObject({ kind: "planned", pendingReason: null });
+  });
+
   it("refuses a page patch whose context names a different trip", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner, ["notebook:read", "notebook:write"]);

@@ -13,6 +13,36 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-26 — `pendingReason` on a pending stop (ADR-055, M29 part 1)
+
+- **Added:** `PendingReason` (`book | maybe`) and `pendingReason: PendingReason | null` on
+  `ActivitySnapshot` (so `ActivityAddedV1`/`ActivityUpdatedV1`), `ActivityView`,
+  `SavedStop` and `@tc/fixtures`' `BundleStop` — `.default(null)` on every stored shape.
+  Optional on `AddActivity`, nullable-optional on `UpdateActivity`.
+- **Changed:** M24's `travelLegFieldsOffTransit` / `TravelLegField` are replaced by one
+  table-driven rule: `KIND_DETAIL_FIELDS` (`mode`, `endLocation` → `transit`;
+  `pendingReason` → `pending`), `KindDetailField`, `kindDetailFieldsOffKind` and
+  `kindDetailFieldMessage`. Asked by the same three places (the `TripCommand` /
+  `BatchableCommand` refinement, the decider, `SavedDaySequence`). The decider refuses a
+  reason left on a non-pending stop as `pending-reason-off-pending`; the leg's
+  `travel-leg-off-transit` is unchanged. The saved-day refusal text now ends
+  `(kind "transit")` like the command one.
+- **Added:** `clearDetailFieldsForKind(patch)` — an `UpdateActivity` patch that states a
+  new `kind` gets `null` for every kind-detail field that kind cannot carry and the patch
+  did not name. Used by the caller edges only, never the decider: the assistant's
+  pre-parse adapter (`writeTools.ts`) and `PATCH /v1/trips/{tripId}/activities/{activityId}`.
+  Without it, `{ kind: "planned" }` on any stop created as *To book* was refused
+  `pending-reason-off-pending` (and, since M24, the same for a leg off transit).
+- Why: Mitchell, 2026-09-26 — *"Add pending reason. It should be nearly identical as how
+  travel has a type, and easily extendible."* SPEC §36.9's *To book* / *Maybe*.
+- Consumers updated: `@tc/domain` (decide, evolve, diff, equality, hydrate, detail);
+  `@tc/factories`; `@tc/fixtures` (bundle schema, import/export, Japan fixture reasons and
+  `seed:verify` counts, saved and starter days); `apps/web` (editor, card badge, MSW
+  handlers, saved-stop copy, trip clone, saved-day insert, assistant `read_day` and the
+  kindless-add default, regenerated OpenAPI); hand-built stops in tests.
+- **Breaking?** No for stored data (every shape defaults it). For an importer of the
+  removed `travelLegFieldsOffTransit` export, yes — none outside this repo.
+
 ## 2026-09-25 — three activity kinds: `planned`, `pending`, `transit` (M28)
 
 - **Changed:** `ActivityKind` is `planned | pending | transit` (was

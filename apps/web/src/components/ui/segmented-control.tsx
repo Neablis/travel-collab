@@ -1,32 +1,47 @@
 "use client";
 import { cn } from "../../lib/cn";
 import { PHONE_TOUCH } from "./button";
+import { useRovingRadio } from "./use-roving-radio";
 
 export function SegmentedControl<T extends string>({
   value,
   onValueChange,
   options,
   variant = "pill",
+  fullWidth = false,
   "aria-label": ariaLabel,
 }: {
   value: T;
   onValueChange: (value: T) => void;
   options: readonly { value: T; label: string }[];
   variant?: "pill" | "subtle";
+  /**
+   * Fill the row, every option the same width — a form's own choice (the stop
+   * editor's Kind, SPEC §36.9) rather than a toggle sitting in a toolbar.
+   */
+  fullWidth?: boolean;
   "aria-label": string;
 }) {
+  // A radiogroup owes the keyboard what a native one gives: one tab stop, and
+  // arrows that move the choice (the stop editor's Kind lost it, PR 242 review).
+  const radioProps = useRovingRadio(
+    options.map((o) => o.value),
+    value,
+    onValueChange,
+  );
   return (
     <div
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex",
+        fullWidth ? "grid auto-cols-fr grid-flow-col" : "inline-flex",
         variant === "pill" ? "gap-0.5 rounded-md bg-moss p-0.5" : "gap-3",
       )}
     >
-      {options.map((o) => (
+      {options.map((o, i) => (
         <button
           key={o.value}
+          {...radioProps(i)}
           type="button"
           role="radio"
           aria-checked={value === o.value}

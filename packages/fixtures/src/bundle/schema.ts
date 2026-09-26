@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   ActivityMode,
+  PendingReason,
   ActivityTag,
   Anchor,
   Location,
@@ -76,6 +77,8 @@ export const BundleStop = z.object({
    */
   mode: ActivityMode.optional(),
   endLocation: Location.optional(),
+  /** Why a pending stop is pending (ADR-055). Legal only with `kind: "pending"`, enforced the same way. */
+  pendingReason: PendingReason.optional(),
 });
 export type BundleStop = z.infer<typeof BundleStop>;
 

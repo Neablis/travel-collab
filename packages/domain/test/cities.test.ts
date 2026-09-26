@@ -128,6 +128,7 @@ function savedStop(
     dayIndex,
     mode: null,
     endLocation: null,
+    pendingReason: null,
   };
 }
 

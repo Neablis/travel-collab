@@ -1,4 +1,11 @@
-import { travelLegFieldsOffTransit, type CreateTrip, type TripCommand, type TripEvent } from "@tc/contracts";
+import {
+  KIND_DETAIL_FIELDS,
+  kindDetailFieldsOffKind,
+  type ActivityKind,
+  type CreateTrip,
+  type TripCommand,
+  type TripEvent,
+} from "@tc/contracts";
 import { detectConflicts } from "./conflicts";
 import { daySpan, isCalendarDate } from "./dates";
 import { tripStatesEqual } from "./equality";
@@ -20,19 +27,31 @@ function reject(code: string, message: string): Decision {
   return { ok: false, rejection: { code, message } };
 }
 
-// M24. The command unions already refuse a command that STATES the
-// contradiction; this is the half they cannot see — an update whose result
-// would leave a `mode` or `endLocation` on a stop that is no longer transit.
-// Refused rather than silently cleared: dropping a field the caller did not
-// mention is the silent-drop class KI-2026-09-05-o is about, and the fix is one
-// explicit `mode: null` in the same command. Replay never reaches this: it is
-// the decider, not `evolveTrip`.
-function travelLegRejection(stop: Parameters<typeof travelLegFieldsOffTransit>[0]): Decision | null {
-  const off = travelLegFieldsOffTransit(stop);
+// M24, generalised by ADR-055. The command unions already refuse a command
+// that STATES the contradiction; this is the half they cannot see — an update
+// whose result would leave a `mode`/`endLocation` on a stop that is no longer
+// transit, or a `pendingReason` on one that is no longer pending. Refused
+// rather than silently cleared: dropping a field the caller did not mention is
+// the silent-drop class KI-2026-09-05-o is about, and the fix is one explicit
+// `mode: null` / `pendingReason: null` in the same command. Replay never
+// reaches this: it is the decider, not `evolveTrip`.
+//
+// One code per kind the stray field belongs to, so M24's
+// `travel-leg-off-transit` keeps meaning exactly what it meant.
+const OFF_KIND_CODE: Partial<Record<ActivityKind, string>> = {
+  transit: "travel-leg-off-transit",
+  pending: "pending-reason-off-pending",
+};
+
+function kindDetailRejection(stop: Parameters<typeof kindDetailFieldsOffKind>[0]): Decision | null {
+  const off = kindDetailFieldsOffKind(stop);
   if (off.length === 0) return null;
+  const owner = KIND_DETAIL_FIELDS[off[0]!];
+  const same = off.filter((field) => KIND_DETAIL_FIELDS[field] === owner);
+  const others = off.length > same.length ? " (and more fields that belong to another kind)" : "";
   return reject(
-    "travel-leg-off-transit",
-    `Only a transit stop can have ${off.join(" or ")} — clear ${off.length > 1 ? "them" : "it"}, or keep the stop's kind as transit.`,
+    OFF_KIND_CODE[owner] ?? "field-off-kind",
+    `Only a ${owner} stop can have ${same.join(" or ")}${others} — clear ${off.length > 1 ? "them" : "it"}, or keep the stop's kind as ${owner}.`,
   );
 }
 
@@ -232,12 +251,8 @@ function decideCommand(
       if (command.dayId !== undefined && !state.days.some((d) => d.dayId === command.dayId)) {
         return reject("day-not-found", "This day does not exist.");
       }
-      const leg = travelLegRejection({
-        kind: command.kind ?? "planned",
-        mode: command.mode,
-        endLocation: command.endLocation,
-      });
-      if (leg) return leg;
+      const offKind = kindDetailRejection({ ...command, kind: command.kind ?? "planned" });
+      if (offKind) return offKind;
       return ok([
         {
           type: "ActivityAdded",
@@ -258,6 +273,7 @@ function decideCommand(
             participants: command.participants ?? [],
             mode: command.mode ?? null,
             endLocation: command.endLocation ?? null,
+            pendingReason: command.pendingReason ?? null,
           },
         },
       ]);
@@ -271,8 +287,9 @@ function decideCommand(
       const kind = command.kind ?? current.kind;
       const mode = command.mode === undefined ? current.mode : command.mode;
       const endLocation = command.endLocation === undefined ? current.endLocation : command.endLocation;
-      const leg = travelLegRejection({ kind, mode, endLocation });
-      if (leg) return leg;
+      const pendingReason = command.pendingReason === undefined ? current.pendingReason : command.pendingReason;
+      const offKind = kindDetailRejection({ kind, mode, endLocation, pendingReason });
+      if (offKind) return offKind;
       return okUnlessNoOp(state, [
         {
           type: "ActivityUpdated",
@@ -295,6 +312,7 @@ function decideCommand(
             participants: command.participants ?? current.participants,
             mode,
             endLocation,
+            pendingReason,
           },
         },
       ]);

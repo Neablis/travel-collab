@@ -25,6 +25,7 @@ const stop = (title: string, start: string, end: string): SavedStop => ({
   dayIndex: 0,
   mode: null,
   endLocation: null,
+  pendingReason: null,
 });
 
 const stops = [stop("Fushimi Inari", "09:00", "11:00"), stop("Nishiki", "13:00", "14:30")];

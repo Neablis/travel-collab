@@ -95,6 +95,7 @@ export const activityFactory = Factory.define<ActivityView, ActivityTransient>(
     // and only a transit stop may carry one.
     mode: null,
     endLocation: null,
+    pendingReason: null,
   }),
 );
 
