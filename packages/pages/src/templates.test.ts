@@ -93,7 +93,9 @@ describe("templates", () => {
    */
   it("every widget in every template is one insertWidget would accept", () => {
     const failures: string[] = [];
-    for (const t of TEMPLATE_LIBRARY) {
+    // The seeded Overview too: it is built the same way, and a stripped param
+    // there is worse than in the gallery — every new trip gets it.
+    for (const t of [...DEFAULT_TEMPLATES, ...TEMPLATE_LIBRARY]) {
       for (const node of widgetsIn(t.content)) {
         const name = node.attrs?.name ?? "(unnamed)";
         const result = insertWidget(name, node.attrs?.params);
@@ -156,10 +158,9 @@ describe("templates", () => {
    * carry `open`, whose empty state is the sentence "nothing is waiting on
    * you".
    *
-   * So the assertion is now: a seeded page's widgets must each declare
-   * `emptyText`, which is the widget promising it has something to say when it
-   * resolves to nothing. Two of the gallery's widgets do not, and those are
-   * exactly the ones that must never be seeded.
+   * The one exception is a loading line at first paint: a widget with an
+   * outside input (`needs`) may say "loading weather" before its fetch lands,
+   * and must say something the trip explains once it has.
    */
   // **The rule this file's header states, enforced by running the widgets
   // rather than by reading their declarations.**
@@ -174,63 +175,130 @@ describe("templates", () => {
   // actually lands on a minute after pressing "New trip" — no dates, no days,
   // no stops, no budget — and renders every seeded widget against it.
   it("seeds only widgets that say something readable on a brand-new empty trip", () => {
-    // dayCount 0 is the whole point: a trip whose wizard has just closed.
+    // dayCount 0: a trip created with no dates — the wizard's "decide later".
     const bare = tripDetailFactory.build({ startDate: null }, { transient: { dayCount: 0 } });
-    const ctx: WidgetContext = {
-      trip: bare,
-      page: { tripId: bare.tripId },
-      user: null,
-      // No globals and no today either — the two things that arrive after the
-      // first paint. A widget that only reads well once its projection has
-      // landed is a widget that reads badly on arrival.
-      globals: null,
-      today: null,
+    // **And the trip the wizard makes when it IS given dates**: days, each
+    // dated, and not one stop. This is the likelier first visit, and the one
+    // where `day.weather` has something to ask about — days — and nothing to
+    // ask it with. It was missing until the #243 review, which is how a rule
+    // that said "no widget waiting on a third party" shipped next to a seeded
+    // weather block that, on this trip, did exactly that.
+    const datedBuilt = tripDetailFactory.build(
+      { startDate: "2026-10-12" },
+      { transient: { dayCount: 3, startDate: "2026-10-12" } },
+    );
+    const dated = {
+      ...datedBuilt,
+      days: datedBuilt.days.map((day, i) => ({ ...day, date: `2026-10-1${2 + i}` })),
     };
+    const datedGlobals = {
+      days: dated.days.map((day, index) => ({
+        index, date: day.date, cities: [], activityCount: 0, costSubtotal: 0, place: null, timeZone: null,
+      })),
+      cities: [],
+      tags: [],
+      homeTimeZone: null,
+    };
+    // What `GET /api/trips/:id/weather` answers for a trip with no located stop:
+    // zero points, and no upstream call behind them (`weatherPointsOf`).
+    const fetched = { weather: { state: "ready" as const, value: { points: [] } } };
 
-    for (const t of DEFAULT_TEMPLATES) {
-      for (const node of widgetsIn(t.content)) {
-        const name = String(node.attrs?.name ?? "(unnamed)");
-        const macro = getMacro(name);
-        expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
+    // **Each trip is read at two moments.** First paint: no globals, no today,
+    // and every outside input still in flight. Then, a beat later, the globals,
+    // the reader's date and the fetched weather. A widget that is quiet while
+    // they load and asks for a binding once they arrive would pass the first
+    // moment alone; one that only reads well once they land would pass the
+    // second alone.
+    type Moment = { name: string; firstPaint: boolean; ctx: WidgetContext };
+    const moments: Moment[] = [
+      {
+        name: "empty trip, first paint",
+        firstPaint: true,
+        ctx: { trip: bare, page: { tripId: bare.tripId }, user: null, globals: null, today: null },
+      },
+      {
+        name: "empty trip, after load",
+        firstPaint: false,
+        ctx: {
+          trip: bare, page: { tripId: bare.tripId }, user: null,
+          globals: { days: [], cities: [], tags: [], homeTimeZone: null }, today: "2026-09-26", external: fetched,
+        },
+      },
+      {
+        name: "dated days, no stops, first paint",
+        firstPaint: true,
+        ctx: { trip: dated, page: { tripId: dated.tripId }, user: null, globals: null, today: null },
+      },
+      {
+        name: "dated days, no stops, after load",
+        firstPaint: false,
+        ctx: {
+          trip: dated, page: { tripId: dated.tripId }, user: null,
+          globals: datedGlobals, today: "2026-09-26", external: fetched,
+        },
+      },
+    ];
 
-        const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
-        // `unbound` is the state this test exists to refuse: it renders as a
-        // chip asking for a binding the seeded page never made, and there are
-        // six widgets on this page — six of those is not a first impression.
-        expect(
-          outcome.status,
-          `${t.key} seeds ${name}, which asks to be bound before it will say anything`,
-        ).not.toBe("unbound");
-        expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve`).toContain(outcome.status);
-        if (outcome.status === "empty") {
-          // Something a person can read, from the resolver's own reason or the
-          // widget's blanket one. A blank chip in a sentence reads as a
-          // rendering fault, which is worse than any wording.
-          const said = outcome.because ?? macro!.emptyText;
-          expect(said, `${t.key} seeds ${name}, which renders an empty chip with no words in it`).toBeTruthy();
+    let loadingSeen = 0;
+    for (const { name: moment, firstPaint, ctx } of moments) {
+      for (const t of DEFAULT_TEMPLATES) {
+        for (const node of widgetsIn(t.content)) {
+          const name = String(node.attrs?.name ?? "(unnamed)");
+          const macro = getMacro(name);
+          expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
+
+          const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
+          // `unbound` is the state this test exists to refuse: it renders as a
+          // chip asking for a binding the seeded page never made.
+          expect(
+            outcome.status,
+            `${t.key} seeds ${name}, which asks to be bound before it will say anything (${moment})`,
+          ).not.toBe("unbound");
+          // **`unavailable("pending")` is a loading line, and first paint is
+          // when things load.** A widget that declares an outside input
+          // (`needs`) says "loading weather" while its fetch is in flight — the
+          // same beat every other widget spends waiting for its globals. What
+          // is refused is that line OUTLIVING the load: after it, the widget
+          // must have said something the trip explains (`ok` or `empty`).
+          if (
+            firstPaint &&
+            outcome.status === "unavailable" &&
+            outcome.reason === "pending" &&
+            (macro!.needs?.length ?? 0) > 0
+          ) {
+            loadingSeen++;
+            continue;
+          }
+          expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve (${moment})`).toContain(outcome.status);
+          if (outcome.status === "empty") {
+            // SPEC §36.10b: *"an empty line that says what fills it reads
+            // well"* — so there must BE a line, from the resolver's own reason
+            // or the widget's blanket one. A blank chip reads as a rendering
+            // fault, which is worse than any wording.
+            const said = outcome.because ?? macro!.emptyText;
+            expect(said, `${t.key} seeds ${name}, which renders an empty chip with no words in it (${moment})`).toBeTruthy();
+          }
         }
       }
     }
+    // The allowance above is used — the dated trip's weather does load — so
+    // it is not a rule nothing exercises. If this drops to zero, the moment
+    // has stopped modelling the wizard's trip.
+    expect(loadingSeen).toBeGreaterThan(0);
 
     // Non-vacuous, and it pins the composition: the Overview is built out of
-    // widgets and this is which ones. A change here is a deliberate change to
-    // the page every trip opens on.
+    // widgets and this is which ones, in reading order. A change here is a
+    // deliberate change to the page every new trip opens on.
     expect(DEFAULT_TEMPLATES.flatMap((t) => widgetsIn(t.content).map((n) => n.attrs?.name))).toEqual([
-      // The hook, then the shape.
-      "attribute", // trip.name
-      "attribute", // trip.countdown
-      "dates",
-      "count", // days
-      "count", // stops
-      "city",
-      // Then the document, in reading order.
-      "open",
-      "city.detail",
-      "day.detail",
-      "stop.rows", // booked only
-      "cost",
-      "attribute", // trip.budgetRemaining
-      "cost.rows",
+      "attribute", // trip.countdown — the hook
+      "trip.strip",
+      "open", // What needs you
+      "stop.rows", // Still to book (needsBooking)
+      "day.fromHome", // Before you go
+      "day.weather",
+      "country.facts",
+      "cost.chart", // Spend by day
+      "day.detail", // Day by day
     ]);
     // And the gallery still builds itself — the other half of the old line,
     // which is unchanged and still worth holding.

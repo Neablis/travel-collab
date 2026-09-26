@@ -71,10 +71,11 @@ async function openTripOverview(
  * chip with a solid hit area. Selecting the node is what a tap anywhere in the
  * widget does, so which element receives it does not change the claim.
  *
- * **`.first()` is the INSERTED one, and that is load-bearing rather than
- * incidental.** The seeded Overview carries a `cost` of its own under "What it
- * costs" (2026-09-13), so there are two on the page. `openTripOverview` never
- * places a caret, and `insertAtCursor` inserts at the editor's default
+ * **`.first()` is the INSERTED one, and that was load-bearing.** The seeded
+ * Overview carried a `cost` of its own under "What it costs" from 2026-09-13
+ * until the SPEC §36.10b rewrite (2026-09-26), so there were two on the page;
+ * the `.first()` stays so the walk is still right if a seeded one returns.
+ * `openTripOverview` never places a caret, and `insertAtCursor` inserts at the editor's default
  * selection — the start of the document — so this walk's widget lands ahead of
  * everything the template seeded. Picking the seeded one instead would not fail
  * loudly: it is wide and unbound, so "the bind control reads All days" would
@@ -461,14 +462,20 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     await sheet.getByRole("button", { name: /Trip strip/ }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
 
-    const strip = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
-    await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
-    await expect.poll(() => stripOverhang(strip), { message: "strip overflow on a phone" }).toBeLessThanOrEqual(0);
-    // And it still reads: `TripStripBlock`'s header says a four-day stay keeps
-    // its name at this width and a one-day stay keeps only its colour — whole
-    // words or nothing, never "Ha…". Asserted here so that sentence stays true.
-    await expect(strip.getByText("Tokyo", { exact: true }).first()).toBeVisible();
-    await expect(strip.getByText("Kyoto", { exact: true })).toBeVisible();
-    await expect(strip.getByText("Hakone", { exact: true })).toBeHidden();
+    // Two: this walk's and the seeded Overview's own (SPEC §36.10b,
+    // 2026-09-26). Both draw the whole trip, so both must fit a phone.
+    const strips = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
+    await expect(strips).toHaveCount(2);
+    for (const strip of [strips.nth(0), strips.nth(1)]) {
+      await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
+      await expect.poll(() => stripOverhang(strip), { message: "strip overflow on a phone" }).toBeLessThanOrEqual(0);
+      // And it still reads: `TripStripBlock`'s header says a four-day stay
+      // keeps its name at this width and a one-day stay keeps only its colour
+      // — whole words or nothing, never "Ha…". Asserted here so that sentence
+      // stays true.
+      await expect(strip.getByText("Tokyo", { exact: true }).first()).toBeVisible();
+      await expect(strip.getByText("Kyoto", { exact: true })).toBeVisible();
+      await expect(strip.getByText("Hakone", { exact: true })).toBeHidden();
+    }
   });
 });

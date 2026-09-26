@@ -381,15 +381,13 @@ test("insert a widget from the widget list, narrow it to a day, and reload to fi
   // before any authoring control exists — because what a traveller sees is what
   // persisted.
   //
-  // **By COUNT, because the seeded Overview carries a `cost` of its own.**
-  // Mitchell, 2026-09-13: *"Every element on there needs to be a existing
-  // widget"*, so the page now opens with ten widgets on it including a wide
-  // `cost` under "What it costs". `toBeVisible()` on `[data-macro-name="cost"]`
-  // was therefore green whether or not this walk's insert survived anything —
-  // and so was the "no costs yet" beside it, since a wide cost on a trip with
-  // no prices says exactly the same words. Two is the number that can fall to
-  // one.
-  await expect(page.locator('[data-macro-name="cost"]')).toHaveCount(2);
+  // **By COUNT, and against what the seeded Overview carries.** From
+  // 2026-09-13 it had a wide `cost` of its own under "What it costs", which
+  // made `toBeVisible()` green whether or not this walk's insert survived. The
+  // SPEC §36.10b rewrite (2026-09-26) dropped it — the trip header already
+  // shows spent and left — so this walk's is now the only one, and one is the
+  // number that can fall to zero.
+  await expect(page.locator('[data-macro-name="cost"]')).toHaveCount(1);
   await expect(page.getByText("no costs yet").first()).toBeVisible();
 });
 
@@ -486,9 +484,10 @@ test("two widgets on one page read two different days", async ({ page }) => {
   // Read in Reading, before any authoring control exists, which is the
   // stronger place to read it from: what a traveller sees is what persisted.
   // **Counts, not `toBeVisible()`, for the reason the walk above states at
-  // length: the seeded Overview carries a `cost` AND a `day.detail` of its
-  // own.** Both assertions were green on a page where neither insert survived.
-  await expect(page.locator('[data-macro-name="cost"]')).toHaveCount(2);
+  // length: the seeded Overview carries a `day.detail` of its own** (and until
+  // the §36.10b rewrite a `cost` too). Both assertions were green on a page
+  // where neither insert survived.
+  await expect(page.locator('[data-macro-name="cost"]')).toHaveCount(1);
   await expect(page.locator('[data-macro-name="day.detail"]')).toHaveCount(2);
   // And the two `day.detail`s resolve DIFFERENTLY, which is the actual claim:
   // the seeded one is wide and draws the day-by-day table, while this walk's is
@@ -632,13 +631,13 @@ test("Reading takes the whole authoring surface away, and the widget stays", asy
   // And the widget itself STAYS. That is the difference between hidden and
   // removed, and the assertion this test claimed to make and did not.
   //
-  // **Two, because the seeded Overview opens with a `trip.name` of its own.**
-  // The page is composed entirely of widgets since 2026-09-13 and the first
-  // line of it is the trip's name, so one match is the seed and the second is
-  // this walk's insert. `toBeVisible()` tripped strict mode on the pair; a
-  // count is both legal and the stronger claim, since it falls to one if
-  // Reading removes the widget instead of only its controls.
-  await expect(page.getByText(tripName, { exact: true })).toHaveCount(2);
+  // **A count, not `toBeVisible()`.** From 2026-09-13 the seeded Overview
+  // opened with a `trip.name` of its own, so this was two; the SPEC §36.10b
+  // rewrite (2026-09-26) dropped it — the trip header already names the trip —
+  // so this walk's insert is the only match on the page. A count still names
+  // the number, and falls to zero if Reading removes the widget instead of
+  // only its controls.
+  await expect(page.getByText(tripName, { exact: true })).toHaveCount(1);
 
   await page.getByRole("button", { name: "Edit page" }).click();
   // **The seeded Overview opens with a widget in its first paragraph** (§25's
@@ -1350,7 +1349,8 @@ test("a widget value fits the line it is on, in a heading and in prose", async (
   await insertDatesHere();
 
   // Scoped to the widgets this walk inserted: `.last()` on the prose one,
-  // because the seeded stats line holds a `dates` of its own further up.
+  // which is harmless now the seeded page carries no `dates` of its own and
+  // keeps this walk right if it ever does again.
   const inHeading = page.locator('.tc-page-editor h2 [data-macro-name="dates"] [data-widget-value]').first();
   const inProse = page.locator('.tc-page-editor p [data-macro-name="dates"] [data-widget-value]').last();
   await expect(inHeading).toBeVisible();
@@ -1617,21 +1617,31 @@ test("the trip strip fits its column on a 20-day trip, with no sideways scroll",
   await page.getByRole("button", { name: "Edit page" }).click();
   await insertFromList(page, /Trip strip/, "strip");
 
-  const strip = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
-  await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
-  // Editing first: the 320px rail makes this the narrowest the column gets.
-  await expect.poll(() => stripOverhang(strip), { message: "strip overflow while editing" }).toBeLessThanOrEqual(0);
-  // "More space efficient" in height too, and one height whatever the length
-  // (ADR-044): a 16px line (`h-4`), a 2px gap, a 12px bar. Exact, because every
-  // part of it is a fixed box — a label that wrapped instead of dropping out
-  // would add a line here. (Comparing editing to reading alone was tried and
-  // did not catch that: a wrap happened at both widths, so they still agreed.)
-  expect((await strip.boundingBox())!.height, "strip height while editing").toBe(30);
+  // **Two strips: this walk's, and the seeded Overview's own** (SPEC §36.10b
+  // put one under its opening line, 2026-09-26). Both draw the whole trip, so
+  // both must fit — measuring each is the same claim twice, and needs no guess
+  // about which one the insert put first.
+  const strips = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
+  await expect(strips).toHaveCount(2);
+  for (const strip of [strips.nth(0), strips.nth(1)]) {
+    await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
+    // Editing first: the 320px rail makes this the narrowest the column gets.
+    await expect.poll(() => stripOverhang(strip), { message: "strip overflow while editing" }).toBeLessThanOrEqual(0);
+    // "More space efficient" in height too, and one height whatever the length
+    // (ADR-044): a 16px line (`h-4`), a 2px gap, a 12px bar. Exact, because
+    // every part of it is a fixed box — a label that wrapped instead of
+    // dropping out would add a line here. (Comparing editing to reading alone
+    // was tried and did not catch that: a wrap happened at both widths, so
+    // they still agreed.)
+    expect((await strip.boundingBox())!.height, "strip height while editing").toBe(30);
+  }
 
   await finishEditing(page);
   await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
-  await expect.poll(() => stripOverhang(strip), { message: "strip overflow while reading" }).toBeLessThanOrEqual(0);
-  expect((await strip.boundingBox())!.height, "strip height while reading").toBe(30);
+  for (const strip of [strips.nth(0), strips.nth(1)]) {
+    await expect.poll(() => stripOverhang(strip), { message: "strip overflow while reading" }).toBeLessThanOrEqual(0);
+    expect((await strip.boundingBox())!.height, "strip height while reading").toBe(30);
+  }
 });
 
 test("a field the reader picks prints in a sentence, and joins a stop list as a column", async ({ page }) => {
@@ -1829,12 +1839,13 @@ test("the weather widget is the quiet placeholder while outside data is offline,
   });
   page.on("pageerror", (error) => errors.push(error.message));
 
-  await openOverviewOf(page, await createMappedTrip(page, e2eTripName("Weather"), 2));
-
-  // The page asks for weather only once it holds a widget that needs it.
-  const answered = page.waitForResponse((r) => /\/api\/trips\/[^/]+\/weather$/.test(new URL(r.url()).pathname));
-  await insertFromList(page, /Weather/, "weather");
-  const response = await answered;
+  const tripId = await createMappedTrip(page, e2eTripName("Weather"), 2);
+  // The seeded Overview carries the weather (M29 part 4), so there is nothing to
+  // insert. The route's own answer is read directly rather than caught in
+  // flight: the page may already have asked for it before any listener here
+  // could be attached, and what matters is what it answers.
+  await openOverviewOf(page, tripId);
+  const response = await page.request.get(`/api/trips/${tripId}/weather`);
   expect(response.status()).toBe(200);
   const { weather } = (await response.json()) as { weather: { points: { typical: unknown }[] } };
   expect(weather.points.length).toBeGreaterThan(0);
@@ -1842,7 +1853,8 @@ test("the weather widget is the quiet placeholder while outside data is offline,
 
   await expect(page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
 
-  await finishEditing(page);
+  // Nothing was edited, so there is no save to wait for — just leave Editing.
+  await page.getByRole("button", { name: "Done editing" }).click();
   await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
   await expect(page.locator('[data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
   expect(errors).toEqual([]);
@@ -1880,8 +1892,7 @@ test("the weather table heads its columns and fits the notebook column without s
     route.fulfill({ json: { weather: { points: located.map(forecastOn) } } }),
   );
   await openOverviewOf(page, tripId);
-  await insertFromList(page, /Weather/, "weather");
-
+  // The seeded Overview's own weather block (M29 part 4) — no insert needed.
   const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
   await expect(table.getByRole("columnheader")).toHaveText(["Day", "Conditions", "High", "Low", "Rain"]);
   await expect(table.getByRole("row")).toHaveCount(3);
