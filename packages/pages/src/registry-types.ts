@@ -571,9 +571,9 @@ export interface MacroDef<P, T> {
   needs?: readonly ExternalNeed[];
   // `false` keeps the widget out of the assistant's vocabulary
   // (`COMPOSABLE_MACRO_NAMES`, and the catalogue its prompt carries). Only the
-  // two link widgets say so (ADR-056): a link is an address somebody chose, and
-  // the text the assistant reads — a stop's notes, a page — is exactly where an
-  // address it should not plant would come from. Absent means composable.
+  // two link widgets said so (ADR-056) until ADR-057 guarded them in the
+  // assistant's `insert_widget` instead; no widget says so today. Absent means
+  // composable.
   composable?: false;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy

@@ -25,11 +25,13 @@
 // `tools/places.ts`.
 import { discoverDays } from "@/server/playbooks";
 import { readableSavedDay } from "@/server/savedDays";
+import { listPageEntries } from "@/server/pages";
 import { getGeocoder } from "@/server/geocoding";
 import { consumeQuota, geocodeQuota } from "@/server/quota";
 import { MIN_INTERVAL_MS } from "@/server/ai/rateLimit";
 import { PLACE_CANDIDATES_PER_QUERY } from "@/server/assistant/tools/places";
 import type {
+  NotebookDirectory,
   PlaceLookup,
   PlaceSearchPort,
   PlaybookLibrary,
@@ -73,6 +75,24 @@ export const playbookLibrary: PlaybookLibrary = {
  */
 export const savedDayLibrary: SavedDayLibrary = {
   readable: (savedDayId, readerId) => readableSavedDay(savedDayId, readerId),
+};
+
+/**
+ * `get_widget`'s list of this trip's notebooks, for a link to name one by
+ * number (ADR-057) — `listPageEntries`, the list the Notebook index and every
+ * link card already read, with each notebook's own first line.
+ *
+ * Passed through with no narrowing, like the two reads above: the turn that
+ * reaches it is a page turn the guard admitted as an editor of THIS trip, and
+ * the trip id is the turn's, never the model's.
+ */
+export const notebookDirectory: NotebookDirectory = {
+  list: async (tripId) =>
+    (await listPageEntries(tripId)).map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      firstLine: entry.preview?.firstLine ?? null,
+    })),
 };
 
 /**

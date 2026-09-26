@@ -40,6 +40,7 @@ import { NO_METER, type TurnMeter } from "./ledger";
 import { READ_TOOLS } from "./tools/read";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
+import { WIDGET_TOOLS } from "./tools/widgets";
 import { PAGE_TOOLS } from "./tools/page";
 import { PLACE_TOOLS } from "./tools/places";
 import { ESCALATION_TOOLS } from "./tools/escalate";
@@ -58,6 +59,9 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   ...PLACE_TOOLS,
   ...PLANNING_TOOLS,
   insertPlaybookDayTool,
+  // The widget lookup before the inserts it explains (ADR-057): a model reads
+  // the list in order, and `insert_widget` says to search first.
+  ...WIDGET_TOOLS,
   ...PAGE_TOOLS,
   // Last, and it is the one position in this array that is a decision rather
   // than a grouping: `request_change_tools` is the tool a turn reaches for when
