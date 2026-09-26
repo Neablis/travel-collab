@@ -229,6 +229,17 @@ export function Board({
   // `READING_LINE` for why the two axes differ.
   const scrollRef = useRef<HTMLDivElement>(null);
   const columnRefs = useRef<Array<HTMLElement | null>>([]);
+  // One stable callback per day index. Column memoises its section ref on this
+  // prop, so an inline arrow would detach and re-attach that ref — and run its
+  // setState — on every Board render.
+  const dayCount = trip.days.length;
+  const columnRefSetters = useMemo(
+    () =>
+      Array.from({ length: dayCount }, (_, index) => (node: HTMLElement | null) => {
+        columnRefs.current[index] = node;
+      }),
+    [dayCount],
+  );
 
   const onScroll = useDayScrollSpy(sync, () => {
     const box = scrollRef.current;
@@ -688,9 +699,7 @@ export function Board({
               onRemoveDay={readOnly ? undefined : () => callbacks.onRemoveDay(day.dayId)}
               isFocused={focusedDay === index}
               onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
-              columnRef={(node) => {
-                columnRefs.current[index] = node;
-              }}
+              columnRef={columnRefSetters[index]}
               onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
               onDismissOverlap={callbacks.onDismissConflict}
               focusedTag={focusedTag}

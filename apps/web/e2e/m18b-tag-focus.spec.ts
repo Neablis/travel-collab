@@ -18,9 +18,10 @@ import { expect, test } from "./fixtures/test";
 // **Chips are clicked on tall stops only** (M29 part 2). Plan draws each stop
 // to scale, and a block shows its tags from 70px — about an hour and a half
 // (SPEC §36.9b). The Trunk Hotel check-in is 30 minutes, so its `lodging` chip
-// is not drawn; every lodging stop in the fixture is that short. The second
-// tag these walks click is therefore Day 2's two-hour "teamLab Planets"
-// (`ticketed`), and the hotel stays in them only as a stop that dims. For the
+// is not drawn at rest — it comes up on hover, which the walk of its own below
+// covers. The second tag these walks click is therefore Day 2's two-hour
+// "teamLab Planets" (`ticketed`), and the hotel stays in them only as a stop
+// that dims. For the
 // same reason the `meal` chip is clicked on Day 2's two-hour "Yakitori at
 // Torishiki" rather than Day 1's 90-minute Gonpachi dinner (64px, one tier
 // short of its tags).
@@ -172,6 +173,24 @@ test.describe("tag focus", () => {
     await expect(yakitori.getByTestId("tag-chip-meal")).toHaveAttribute("aria-pressed", "false");
     await expect(page.getByTestId("tag-focus-line").getByText("Ticketed")).toBeVisible();
     await expectOpacity(yakitori, 0.32);
+  });
+
+  // A stop too short to draw its chips still offers them: they come up below
+  // the block while it is hovered (M29 part 2 review). The Trunk Hotel check-in
+  // is the case that needs it — every lodging stop in the fixture is that short,
+  // so without this `lodging` could not be focused on a desktop Plan at all.
+  test("a stop too short to draw its tags can still focus one", async ({ page }) => {
+    await page.goto("/demo?view=Plan");
+    const hotel = card(page, "Check in at Trunk Hotel");
+    const haneda = card(page, "Land at Haneda");
+    await expect(hotel).toBeVisible();
+
+    await hotel.hover();
+    await hotel.getByTestId("tag-chip-lodging").click();
+
+    await expect(page.getByTestId("tag-focus-line").getByText("Lodging")).toBeVisible();
+    await expect(hotel).not.toHaveAttribute("data-off-tag", "true");
+    await expect(haneda).toHaveAttribute("data-off-tag", "true");
   });
 
   // M18b's sixth exit-gate box, asserted against the running page rather than

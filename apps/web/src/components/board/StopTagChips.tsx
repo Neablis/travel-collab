@@ -66,14 +66,17 @@ export function StopTagChips({
             // the chip, so the card keeps its density: `-my-3` hands back
             // exactly the 24px `min-h-11` adds. `md:` releases it on the same
             // line `PHONE_TOUCH` does.
-            className="group inline-flex min-h-11 -my-3 cursor-pointer items-center md:my-0 md:min-h-0"
+            // A NAMED group: the river block is itself a `group`, and a bare
+            // `group-hover` below would fade every chip whenever the block
+            // under the pointer was hovered rather than the chip.
+            className="group/chip inline-flex min-h-11 -my-3 cursor-pointer items-center md:my-0 md:min-h-0"
           >
             {/* `relative` so that when the chips wrap, a visible chip paints —
                 and so hit-tests — above the next row's invisible reach. */}
             <span
               className={cn(
                 chipClass,
-                "relative group-hover:opacity-80",
+                "relative group-hover/chip:opacity-80",
                 // `ring-inset`: a chip sits inside rows that clip, and an outset
                 // ring on the first one loses its left edge.
                 isFocused && "ring-2 ring-brand ring-inset",

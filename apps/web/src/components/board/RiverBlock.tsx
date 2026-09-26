@@ -9,7 +9,7 @@ import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
-import { tagFocusOpacity } from "@/lib/activityTags";
+import { TAG_LABEL, tagFocusOpacity } from "@/lib/activityTags";
 import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { formatMoney } from "@/lib/formatMoney";
@@ -48,6 +48,11 @@ const TONE_CLASS: Record<Exclude<RiverTone, "planned">, string> = {
   maybe: "tc-river-hatch border border-dashed border-border-strong bg-surface",
   transit: "border-2 border-dotted border-info-ink bg-info-tint",
 };
+
+// Remove and Dismiss: a 16px mark with a 24px reach. The `after:` box is the
+// hit area, four pixels out on every side, so the title row keeps its density
+// and the target still meets WCAG 2.5.8's 24px minimum.
+const CONTROL_CLASS = "relative size-4 min-h-0 min-w-0 hover:bg-transparent after:absolute after:-inset-1";
 
 const TAG_INK: Record<RiverTone, string> = {
   planned: "text-slate",
@@ -161,10 +166,18 @@ export function RiverBlock({
   const overlapping = overlapPartners.length > 0;
   const range = toClockRange(window.start, window.end, clock);
   const where = activity.location ? displayPlace(activity.location) : null;
+  const cost = activity.cost ? formatMoney(activity.cost.amountMinor, currency) : null;
+  // Everything the drawn block says is aria-hidden (the block is one button's
+  // worth of picture), so the name carries what the card it replaced let a
+  // screen reader read: the place and the cost, which a narrow or short block
+  // does not draw at all, and the tags, which only a tall one does.
   const description = [
     activity.title,
     range,
     look.kindWord,
+    where,
+    cost,
+    activity.tags.length > 0 ? `tagged ${activity.tags.map((t) => TAG_LABEL[t]).join(" and ")}` : null,
     overlapping ? `overlaps ${overlapPartners.join(" and ")}` : null,
     hasConflict ? "has conflicts" : null,
   ]
@@ -184,6 +197,14 @@ export function RiverBlock({
   // a tall block that has the width has the room.
   const showCost = !narrow && Boolean(activity.cost);
   const showFooter = placement.tier === "tall" && (activity.tags.length > 0 || showCost);
+  // **A shorter block still lets its tags be focused.** SPEC §36.9b draws a
+  // block under 70px without them, and at rest it stays that way — but every
+  // lodging stop in the demo is a 30-minute check-in, so without this nothing
+  // on a desktop Plan could focus `lodging`. The chips come up just below the
+  // block while it is hovered or holds focus (the edit button is the first
+  // Tab stop, the chips the next), the same reveal the narrow-lane controls
+  // use.
+  const revealTags = placement.tier !== "tall" && activity.tags.length > 0 && onToggleTag !== undefined;
   const tagMark = tag && (
     <DataText
       aria-hidden
@@ -207,7 +228,9 @@ export function RiverBlock({
       ref={ref}
       data-testid={`activity-card-${activity.activityId}`}
       data-off-tag={dimOpacity !== 1 ? true : undefined}
-      className={cn("group absolute", !readOnly && "cursor-grab")}
+      // `z-10` while hovered or focused: the tag reveal below hangs out of
+      // the block, over whichever block comes next in the DOM.
+      className={cn("group absolute hover:z-10 focus-within:z-10", !readOnly && "cursor-grab")}
       // eslint-disable-next-line no-restricted-syntax -- the block's top, height and lane are computed from its time on the shared axis (riverLayout.ts), and the drag/tag-focus opacity is per-frame state; none is expressible as a token class
       style={{
         top: placement.topPx,
@@ -249,15 +272,19 @@ export function RiverBlock({
           )}
           {!narrow && tagMark}
           {/* In a narrow lane the two controls would leave the title no room at
-              all, so on a desktop they float over its end only while the block
-              is hovered or holds focus — the edit button is the first thing a
-              Tab reaches, and focusing it brings them up for the next Tab. A
-              phone has no hover and shows them always. */}
+              all, so under a mouse they float over its end only while the
+              block is hovered or holds focus — the edit button is the first
+              thing a Tab reaches, and focusing it brings them up for the next
+              Tab. Hidden means untappable too: an invisible Remove is still a
+              Remove. **`pointer-fine`, not `md`, decides "under a mouse"** —
+              Tailwind's `hover:` only exists under `(hover: hover)`, so a
+              touch tablet past 768px could never bring them up; it shows them
+              always, as a phone does. */}
           <span
             className={cn(
-              "flex shrink-0 items-center gap-1",
+              "pointer-events-auto flex shrink-0 items-center gap-1",
               narrow &&
-                "absolute top-0 right-0 rounded-sm bg-surface md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100",
+                "absolute top-0 right-0 rounded-sm bg-surface pointer-fine:pointer-events-none pointer-fine:opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100",
             )}
           >
             {!readOnly && overlap && (
@@ -267,7 +294,7 @@ export function RiverBlock({
                 aria-label="Dismiss overlap warning"
                 title={`Overlaps ${overlap.otherTitle}`}
                 onClick={() => onDismissOverlap(overlap.conflictId)}
-                className="pointer-events-auto size-4 min-h-0 min-w-0 text-warning-ink hover:bg-transparent"
+                className={cn(CONTROL_CLASS, "text-warning-ink")}
               >
                 <X className="size-3" aria-hidden />
               </Button>
@@ -278,7 +305,7 @@ export function RiverBlock({
                 size="icon"
                 aria-label={`Remove ${activity.title}`}
                 onClick={onRemove}
-                className="pointer-events-auto size-4 min-h-0 min-w-0 hover:bg-transparent"
+                className={CONTROL_CLASS}
               >
                 <X className="size-3" aria-hidden />
               </Button>
@@ -310,6 +337,16 @@ export function RiverBlock({
           </div>
         )}
       </div>
+      {revealTags && (
+        // Below the block, not inside it: a 24px block has no room, and its
+        // box clips. `pt-0.5` rather than a margin, so there is no gap for the
+        // pointer to fall through on its way down and lose the hover.
+        <div className="pointer-events-none absolute top-full left-0 pt-0.5 opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+          <span className="flex rounded-md bg-surface p-1 shadow-overlay">
+            <StopTagChips activityId={activity.activityId} tags={activity.tags} focusedTag={focusedTag} onToggleTag={onToggleTag} />
+          </span>
+        </div>
+      )}
     </li>
   );
 }
