@@ -494,18 +494,8 @@ export function Board({
   // overlap had no day-column surface at all. On the river both halves of
   // every pair are marked OVERLAP, sit side by side, and name every stop they
   // run into — so the triangle is left to the conflicts nothing else shows.
-  //
-  // A phone still draws cards (Column's shelf), one overlap chip per later
-  // stop, so there the rendered set is still the one-chip subset and KI-29's
-  // triangle still covers what it drops.
-  const conflictIds = useMemo(
-    () =>
-      badgeableConflictSubjects(
-        trip,
-        oneDay ? new Set([...overlapsByActivity.values()].map((o) => o.conflictId)) : drawnOverlapIds,
-      ),
-    [trip, oneDay, overlapsByActivity, drawnOverlapIds],
-  );
+  // A phone draws the same river (M29 phone), so the same set holds there.
+  const conflictIds = useMemo(() => badgeableConflictSubjects(trip, drawnOverlapIds), [trip, drawnOverlapIds]);
 
   // Same per-day city derivation Task 8's DayChips / Task 10's TimelineLens
   // use (chipModel → dayAccents), so a day's column tint here always agrees
@@ -631,6 +621,14 @@ export function Board({
           },
           // Read at drag time, not render time: the rack changes under a drag.
           canPlace: (activityId) => !latest.current.trip.backlog.includes(activityId),
+          // A touch lift is no native drag, so the monitor above never sees
+          // it. Routed through the same `resolveDrop` with the same target
+          // data the river's drop target carries, so a finger's drop and a
+          // mouse's land a stop by the one rule.
+          onDropAt: (activityId, toDayId, riverWindow) => {
+            const outcome = resolveDrop(latest.current.trip, { activityId }, { dayId: toDayId, riverWindow });
+            if (outcome?.kind === "place") latest.current.callbacks.onPlace(outcome);
+          },
         };
 
   return (

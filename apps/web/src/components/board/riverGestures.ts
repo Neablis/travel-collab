@@ -39,6 +39,45 @@ export const RIVER_NEW_STOP_MINUTES = durationMinutes(DEFAULT_DURATION_LABEL);
 export const RIVER_DRAG_THRESHOLD_PX = 4;
 
 /**
+ * **How long a finger must stay still before a press on the river is a
+ * gesture rather than the start of a scroll** (M29 phone). A touch river's
+ * sketch and its block moves both begin with this hold. Until it fires the
+ * press belongs to the browser, so a swipe scrolls the river as it would scroll
+ * a list. After it fires the river takes the touch, and the page stops
+ * scrolling under the finger.
+ *
+ * 450ms is just under the ~500ms long-press the platforms use for their own
+ * menus, so the river's hold lands first.
+ */
+export const RIVER_TOUCH_HOLD_MS = 450;
+
+/**
+ * How far a finger may drift during that hold and still be holding. Past it,
+ * the press was a swipe. A finger at rest wobbles a few pixels, and the
+ * browser's own touch slop (the distance before it starts a pan) is of the
+ * same order.
+ */
+export const RIVER_TOUCH_SLOP_PX = 8;
+
+/**
+ * **Scrolling the page while a touch gesture is held near its edge.** A phone
+ * shows a few hours of the river at a time, and once a hold has taken the touch
+ * the finger cannot scroll it, so a block carried to the edge of the screen has
+ * to scroll the page itself. This returns px for one frame: negative in the top
+ * fifth, positive in the bottom fifth, faster the deeper the finger is, and 0
+ * in between. Fractions of the screen, not fixed px, because the sticky header
+ * above and the rack and tab bar below take a similar share of any phone.
+ */
+export function edgeScrollDelta(clientY: number, viewportHeight: number): number {
+  const band = viewportHeight / 5;
+  const MAX_PX_PER_FRAME = 12;
+  if (clientY < band) return -Math.ceil(((band - clientY) / band) * MAX_PX_PER_FRAME);
+  const fromBottom = viewportHeight - clientY;
+  if (fromBottom < band) return Math.ceil(((band - fromBottom) / band) * MAX_PX_PER_FRAME);
+  return 0;
+}
+
+/**
  * One past the last minute a window may END on. A gesture can reach midnight
  * (`24:00`), and a stored window cannot say that — `toTimeString` clamps it to
  * 23:59 on the way out (`DAY_END_MIN`).

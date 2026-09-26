@@ -52,7 +52,14 @@ const TONE_CLASS: Record<Exclude<RiverTone, "planned">, string> = {
 // Remove and Dismiss: a 16px mark with a 24px reach. The `after:` box is the
 // hit area, four pixels out on every side, so the title row keeps its density
 // and the target still meets WCAG 2.5.8's 24px minimum.
-const CONTROL_CLASS = "relative size-4 min-h-0 min-w-0 hover:bg-transparent after:absolute after:-inset-1";
+//
+// **On a phone the reach is SPEC §13.1's 44px** (M29 phone), the way a tag
+// chip gets it: the button keeps `buttonVariants`' phone floor (`min-h-11
+// min-w-11`, released at `md`) and `-m-3.5` hands back the 28px it adds, so
+// the row still lays the mark out at 16px. The block's box stops clipping on a
+// phone for the same reason (below): a reach cut off by the block's edge is not
+// a reach.
+const CONTROL_CLASS = "relative size-4 hover:bg-transparent after:absolute after:-inset-1 max-md:-m-3.5";
 
 const TAG_INK: Record<RiverTone, string> = {
   planned: "text-slate",
@@ -124,6 +131,8 @@ export function RiverBlock({
   onToggleTag,
   readOnly = false,
   onResizeStart,
+  onTouchPress,
+  lifted = false,
 }: {
   activity: ActivityView;
   /** The stop's own window, already known non-null by the caller. */
@@ -153,7 +162,15 @@ export function RiverBlock({
    * a move with no button down, or the river unmounting. Only the river sees
    * all of those, so only it can say when the grip stops being held.
    */
-  onResizeStart?: (release: () => void) => void;
+  onResizeStart?: (release: () => void, press: { pointerType: string; clientY: number }) => void;
+  /**
+   * A finger pressed the block (M29 phone). The river decides whether it is
+   * held long enough to lift the stop (`DayRiver`'s `startLift`); a tap goes
+   * on to the edit button as a click does.
+   */
+  onTouchPress?: (event: ReactPointerEvent<HTMLLIElement>) => void;
+  /** Held up by a finger and being carried: drawn as a mouse drag draws it. */
+  lifted?: boolean;
 }) {
   const clock = useTimeFormat();
   const ref = useRef<HTMLLIElement>(null);
@@ -168,6 +185,11 @@ export function RiverBlock({
   // `follow`), and a flag waiting for a pointerup that never came refused
   // every later drag of this stop (CodeRabbit, PR #245).
   const gripHeld = useRef(false);
+  // What last pressed the block. A finger moves a stop with the river's own
+  // hold-and-carry, so a native drag it would also start (Android and iPadOS
+  // both begin one from a long-press on a draggable) is refused, and only one
+  // of the two ever runs.
+  const lastPointer = useRef<string>("mouse");
   const dimOpacity = tagFocusOpacity(activity.tags, focusedTag);
 
   useEffect(() => {
@@ -177,7 +199,7 @@ export function RiverBlock({
     if (!el || readOnly) return;
     return draggable({
       element: el,
-      canDrag: () => !gripHeld.current,
+      canDrag: () => !gripHeld.current && lastPointer.current !== "touch",
       // Where down the block it was picked up, so the river can land its top
       // where the outline shows it (riverGestures.ts `dropWindow`).
       getInitialData: ({ input, element }) => ({
@@ -191,13 +213,17 @@ export function RiverBlock({
 
   function pressGrip(e: ReactPointerEvent) {
     if (e.button !== 0 || !onResizeStart) return;
-    // Not the river's sketch, and not the edit button under the grip.
+    // Not the river's sketch, not a touch lift of the block, and not the edit
+    // button under the grip.
     e.preventDefault();
     e.stopPropagation();
     gripHeld.current = true;
-    onResizeStart(() => {
-      gripHeld.current = false;
-    });
+    onResizeStart(
+      () => {
+        gripHeld.current = false;
+      },
+      { pointerType: e.pointerType, clientY: e.clientY },
+    );
   }
 
   const look = riverLook(activity, window);
@@ -268,20 +294,26 @@ export function RiverBlock({
       data-off-tag={dimOpacity !== 1 ? true : undefined}
       // `z-10` while hovered or focused: the tag reveal below hangs out of
       // the block, over whichever block comes next in the DOM.
-      className={cn("group absolute hover:z-10 focus-within:z-10", !readOnly && "cursor-grab")}
+      data-lifted={lifted ? true : undefined}
+      className={cn("group absolute hover:z-10 focus-within:z-10", !readOnly && "cursor-grab", lifted && "z-10")}
+      onPointerDown={(e) => {
+        lastPointer.current = e.pointerType;
+        if (e.pointerType === "touch") onTouchPress?.(e);
+      }}
       // eslint-disable-next-line no-restricted-syntax -- the block's top, height and lane are computed from its time on the shared axis (riverLayout.ts), and the drag/tag-focus opacity is per-frame state; none is expressible as a token class
       style={{
         top: placement.topPx,
         height: placement.heightPx,
         left: laneLeft,
         width: laneWidth,
-        opacity: dragging ? 0.5 : dimOpacity,
+        opacity: dragging || lifted ? 0.5 : dimOpacity,
         transition: "opacity 150ms",
       }}
     >
       <div
         className={cn(
-          "relative flex h-full flex-col gap-px overflow-hidden rounded-md px-2 py-0.5 group-hover:shadow-raised",
+          // `md:` — see CONTROL_CLASS: a phone lets the controls' reach out.
+          "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 group-hover:shadow-raised md:overflow-hidden",
           overlapping
             ? cn("border-2 border-solid border-warning-ink", look.tone === "transit" ? "bg-info-tint" : "bg-surface", look.tone === "maybe" && "tc-river-hatch")
             : look.tone === "planned"
@@ -320,7 +352,10 @@ export function RiverBlock({
               always, as a phone does. */}
           <span
             className={cn(
-              "pointer-events-auto flex shrink-0 items-center gap-1",
+              // `max-md:gap-7`: two 44px reaches, each 14px past its mark,
+              // would overlap at `gap-1`, and the one on top would take a tap
+              // meant for the other (Remove taking Dismiss's).
+              "pointer-events-auto flex shrink-0 items-center gap-1 max-md:gap-7",
               narrow &&
                 "absolute top-0 right-0 rounded-sm bg-surface pointer-fine:pointer-events-none pointer-fine:opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100",
             )}
@@ -379,14 +414,22 @@ export function RiverBlock({
           design's 9px band straddling the edge with a 22×3 bar in it. Outside
           the clipped box so it can hang 4px below it. Pointer-only and hidden
           from assistive technology: the keyboard's way to change when a stop
-          ends is the editor's End time, one Enter away on the block itself. */}
+          ends is the editor's End time, one Enter away on the block itself.
+
+          **Under a finger it is a 44px square** (`pointer-coarse:`, so a touch
+          tablet gets it too, not only a phone), centred on the block and
+          reaching 10px below its edge — mostly INSIDE the block, because a tap
+          there is a tap on the block (DayRiver opens the editor for a grip
+          tap), while a reach into the next block would take that one's taps.
+          The bar stays 22×3 and sits on the edge. `touch-none` because a
+          press on the grip is always a resize, never the start of a scroll. */}
       {onResizeStart && (
         <span
           aria-hidden
           data-testid="river-resize"
           title="Drag to change when it ends"
           onPointerDown={pressGrip}
-          className="absolute inset-x-0 -bottom-1 z-10 flex h-2.5 cursor-ns-resize items-center justify-center"
+          className="absolute inset-x-0 -bottom-1 z-10 flex h-2.5 cursor-ns-resize touch-none items-center justify-center pointer-coarse:inset-x-auto pointer-coarse:-bottom-2.5 pointer-coarse:left-1/2 pointer-coarse:size-11 pointer-coarse:-translate-x-1/2 pointer-coarse:items-end pointer-coarse:pb-2"
         >
           <span className="h-0.75 w-5.5 rounded-full bg-ink opacity-30" />
         </span>

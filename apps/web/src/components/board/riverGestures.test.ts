@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   doubleClickWindow,
   dropWindow,
+  edgeScrollDelta,
   fromTimeWindow,
   resizeEnd,
   sketchCreates,
@@ -91,6 +92,19 @@ describe("drop a stop on the river", () => {
     const toMidnight = { start: "22:00", end: "23:59" };
     expect(stopMinutes(toMidnight)).toBe(120);
     expect(fromTimeWindow(toMidnight)).toEqual({ start: hm(22), end: 24 * 60 });
+  });
+});
+
+describe("a held touch near the edge of the screen", () => {
+  it("scrolls up in the top fifth and down in the bottom fifth, faster the deeper, and not in between", () => {
+    const height = 800; // a fifth is 160px
+    expect(edgeScrollDelta(400, height)).toBe(0);
+    expect(edgeScrollDelta(161, height)).toBe(0);
+    expect(edgeScrollDelta(639, height)).toBe(0);
+    expect(edgeScrollDelta(120, height)).toBeLessThan(0);
+    expect(edgeScrollDelta(680, height)).toBeGreaterThan(0);
+    expect(edgeScrollDelta(10, height)).toBeLessThan(edgeScrollDelta(120, height));
+    expect(edgeScrollDelta(790, height)).toBeGreaterThan(edgeScrollDelta(680, height));
   });
 });
 
