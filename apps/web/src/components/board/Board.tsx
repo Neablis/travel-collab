@@ -24,6 +24,7 @@ import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { ConflictBanner } from "./ConflictBanner";
 import { resolveDrop } from "./resolveDrop";
+import { riverAxis } from "./riverLayout";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
 // the loose "+ Add day" button that used to trail the row. Shaped like a day
@@ -52,7 +53,10 @@ function OneMoreDayColumn({ onAddDay, addSavedDay, fullWidth = false }: { onAddD
       data-testid="one-more-day-column"
       className={cn(
         "flex flex-col gap-2.5 rounded-2xl border border-dashed border-border-strong p-3.5",
-        fullWidth ? "w-full" : "shrink-0",
+        // `row-span-4`: the desktop row is a four-row grid now (M29 part 2),
+        // and this column stands as tall as the days beside it, as it did in
+        // the flex row.
+        fullWidth ? "w-full" : "row-span-4 shrink-0",
       )}
       // eslint-disable-next-line no-restricted-syntax -- 268px matches the day columns' width, which has no token equivalent (Column.tsx carries the same escape hatch and owns the constant)
       style={fullWidth ? undefined : { width: DAY_COLUMN_WIDTH_PX }}
@@ -415,10 +419,11 @@ export function Board({
   );
 
   // Every day's live time-overlaps, flattened to one lookup keyed by the stop
-  // the warning attaches to. A stop can be the later half of more than one
-  // crossing pair; a column card has room for exactly one chip, so the first
-  // wins (the timeline, which has the room, shows them all) — and the pair
-  // that lost keeps the generic triangle below, so it is still signalled.
+  // the warning attaches to — the later one, the stop that would move to fix
+  // it — which is where a block's dismiss sits. A stop can be the later half
+  // of more than one crossing pair and has room for one dismiss, so the first
+  // wins; the other pair is still drawn (see `overlapPartners` below) and
+  // dismissable from the banner.
   const overlapsByActivity = useMemo(() => {
     const byActivity = new Map<string, Overlap>();
     for (const day of trip.days) {
@@ -429,19 +434,55 @@ export function Board({
     return byActivity;
   }, [trip]);
 
-  // Badge-worthy conflict subjects: a `time-overlap` the chip above actually
-  // renders gets that instead of a bare triangle, but a pair the one-chip rule
-  // dropped keeps its triangle — otherwise a stop's second overlap would have
-  // no day-column surface at all (KI-29). The rule is shared with TimelineLens
-  // (overlapData) so the two lenses cannot disagree on it; only the "what this
-  // lens actually renders" input differs.
+  // Both halves of every undismissed overlap, each with the titles it
+  // overlaps. `overlapsByActivity` above is the dismissable half — the later
+  // stop, one warning each; the river marks BOTH blocks (SPEC §36.9b: "side
+  // by side in half-width lanes with a warning outline and OVERLAP"), and a
+  // screen reader hears who each one runs into.
+  const { overlapPartners, drawnOverlapIds } = useMemo(() => {
+    const partners = new Map<string, string[]>();
+    const drawn = new Set<string>();
+    const add = (id: string, title: string) => partners.set(id, [...(partners.get(id) ?? []), title]);
+    for (const day of trip.days) {
+      for (const overlap of overlapsForDay(trip, day.dayId)) {
+        const later = trip.activities[overlap.laterActivityId];
+        add(overlap.laterActivityId, overlap.otherTitle);
+        if (later) add(overlap.otherActivityId, later.title);
+        drawn.add(overlap.conflictId);
+      }
+    }
+    return { overlapPartners: partners, drawnOverlapIds: drawn };
+  }, [trip]);
+
+  // **One axis for the whole trip** (SPEC §36.9b): every column is drawn on
+  // it, so a 09:00 stop on Day 1 and on Day 5 sit at the same height. Taken
+  // over the scheduled days only — an unscheduled stop is not on any river.
+  const axis = useMemo(
+    () => riverAxis(trip.days.flatMap((day) => day.activityIds.map((id) => trip.activities[id]?.timeWindow ?? null))),
+    [trip],
+  );
+
+  // Badge-worthy conflict subjects: a `time-overlap` the board actually draws
+  // gets that instead of a bare triangle (the rule is shared through
+  // overlapData so no two surfaces disagree on it; only the "what this surface
+  // renders" input differs).
+  //
+  // **Every undismissed overlap is drawn now** (M29 part 2). KI-29's triangle
+  // existed because a card had room for ONE overlap chip, so a stop's second
+  // overlap had no day-column surface at all. On the river both halves of
+  // every pair are marked OVERLAP, sit side by side, and name every stop they
+  // run into — so the triangle is left to the conflicts nothing else shows.
+  //
+  // A phone still draws cards (Column's shelf), one overlap chip per later
+  // stop, so there the rendered set is still the one-chip subset and KI-29's
+  // triangle still covers what it drops.
   const conflictIds = useMemo(
     () =>
       badgeableConflictSubjects(
         trip,
-        new Set([...overlapsByActivity.values()].map((o) => o.conflictId)),
+        oneDay ? new Set([...overlapsByActivity.values()].map((o) => o.conflictId)) : drawnOverlapIds,
       ),
-    [trip, overlapsByActivity],
+    [trip, oneDay, overlapsByActivity, drawnOverlapIds],
   );
 
   // Same per-day city derivation Task 8's DayChips / Task 10's TimelineLens
@@ -598,9 +639,17 @@ export function Board({
           // **A column on a phone, a scrolling row on a desktop** (link 13).
           // With one full-width day there is nothing to scroll sideways, and the
           // trailing "One more day?" belongs below the day rather than beside it.
+          //
+          // **A grid on the desktop, not a flex row** (M29 part 2): each day
+          // column is a four-row subgrid of it (`.day-columns-row` in
+          // globals.css), which is what holds every river's top edge at one
+          // height when the shelves above them differ. `auto-cols-max` keeps
+          // each column at its own 268px, so the row still overflows and
+          // scrolls rather than squashing (design-system.md, "Horizontal
+          // scrollers").
           className={cn(
-            "-mx-1 flex gap-3 px-1 pt-1 pb-1",
-            oneDay ? "flex-col" : "day-columns-row overflow-x-auto",
+            "-mx-1 gap-3 px-1 pt-1 pb-1",
+            oneDay ? "flex flex-col" : "day-columns-row grid auto-cols-max grid-flow-col gap-y-2 overflow-x-auto",
           )}
         >
           {/* **One day on a phone, every day on a desktop** (M26 link 13). The
@@ -627,6 +676,8 @@ export function Board({
               activities={trip.activities}
               conflictIds={conflictIds}
               overlaps={overlapsByActivity}
+              overlapPartners={overlapPartners}
+              axis={axis}
               currency={trip.currency}
               accent={accents[index]?.tint ?? "neutral"}
               onEditActivity={openEdit}

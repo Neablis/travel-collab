@@ -508,7 +508,7 @@ describe("TripBoardScreen", () => {
     // `timeline-edit-<id>` testid until SPEC §24 deleted that lens; the day
     // card's control has a real accessible name, so this asks for it by name
     // rather than inheriting a testid.
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Colosseum tour" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Edit Colosseum tour, / }));
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "Edit activity" })).toBeTruthy();
@@ -1983,7 +1983,10 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
     const day = await screen.findByTestId("day-column");
     expect(within(day).getByText("Nezu Museum")).toBeTruthy();
     expect(within(day).getByText("Lunch at Kagari")).toBeTruthy();
-    expect(within(day).getByText(/Overlaps Nezu Museum/)).toBeTruthy();
+    // The river says it in the block itself (M29 part 2): OVERLAP on both
+    // halves, and the other stop in what a screen reader hears.
+    expect(within(day).getAllByText("Overlap")).toHaveLength(2);
+    expect(within(day).getByText(/^Lunch at Kagari, .*, overlaps Nezu Museum$/)).toBeTruthy();
 
     expect(within(day).queryByRole("button", { name: /^Add activity to/ })).toBeNull();
     expect(within(day).queryByRole("button", { name: /^Remove / })).toBeNull();

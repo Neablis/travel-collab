@@ -581,10 +581,38 @@ html[data-look="ledger"] .shadow-raised {
      `--rack-height` the padding above uses, or the bar would sit under it. */
   .day-columns-row {
     scrollbar-width: none;
+    /* **Mornings line up with mornings** (SPEC §36.9b, M29 part 2). Each day
+       column is a subgrid spanning these four rows — header, the "Any time"
+       shelf, the river, + Add a stop — so the tallest shelf on the row pushes
+       EVERY river down by the same amount, and 09:00 sits at one height
+       across the week. Without it a day with two untimed stops would start its
+       axis lower than a day with none. `auto` rows, not Tailwind's
+       `grid-rows-4` (`minmax(0, 1fr)`), which would make the header row as
+       tall as the river. */
+    grid-template-rows: repeat(4, auto);
   }
   .day-columns-row::-webkit-scrollbar {
     display: none;
   }
+  /* **The river's block edges** (RiverBlock.tsx, SPEC §36.9b). Two things no
+     utility spells without a bracket the wall refuses: the design's 1.5px
+     edge (Tailwind's `border-*` widths are whole pixels), and a Maybe's faint
+     hatch — the pattern that says "not settled" while the title stays at full
+     ink, because a Maybe is "never faded". The hatch is the same device as
+     `.tc-widget-ghost` below, a pattern rather than a gradient fill, drawn in
+     `hairline` so it reads as texture and not as colour. The colours stay
+     utilities on the element. */
+  .tc-river-edge {
+    border-width: 1.5px;
+  }
+  .tc-river-hatch {
+    background-image: repeating-linear-gradient(
+      135deg,
+      transparent 0 6px,
+      var(--color-hairline) 6px 7px
+    );
+  }
+
   .day-columns-scrollbar {
     position: sticky;
     bottom: var(--rack-height, 0px);

@@ -281,13 +281,18 @@ test("switching to Plan lands at the top of the columns, not part-way down them"
   for (const command of commandsFor("mappedTrip", tripId, {
     dayCount: 10,
     activitiesPerDay: 6,
+    // **Spread from 6 am to 11 pm, not packed into one morning** (M29 part 2).
+    // Plan is a to-scale time river now, so a column is as tall as the trip's
+    // HOURS, not its stop count: six back-to-back hours from 09:00 drew a
+    // 264px river and the whole row fit above the fold — the premise below
+    // failed, not the behaviour. Seventeen hours at 44px is ~750px of river.
     timeWindows: [
+      { start: "06:00", end: "07:00" },
       { start: "09:00", end: "10:00" },
-      { start: "10:00", end: "11:00" },
-      { start: "11:00", end: "12:00" },
       { start: "12:00", end: "13:00" },
-      { start: "13:00", end: "14:00" },
-      { start: "14:00", end: "15:00" },
+      { start: "15:00", end: "16:00" },
+      { start: "18:00", end: "19:00" },
+      { start: "22:00", end: "23:00" },
     ],
   })) {
     await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
@@ -411,13 +416,18 @@ test("the day columns' scrollbar is on screen on load, even when the columns run
   for (const command of commandsFor("mappedTrip", tripId, {
     dayCount: 14,
     activitiesPerDay: 6,
+    // **Spread from 6 am to 11 pm, not packed into one morning** (M29 part 2).
+    // Plan is a to-scale time river now, so a column is as tall as the trip's
+    // HOURS, not its stop count: six back-to-back hours from 09:00 drew a
+    // 264px river and the whole row fit above the fold — the premise below
+    // failed, not the behaviour. Seventeen hours at 44px is ~750px of river.
     timeWindows: [
+      { start: "06:00", end: "07:00" },
       { start: "09:00", end: "10:00" },
-      { start: "10:00", end: "11:00" },
-      { start: "11:00", end: "12:00" },
       { start: "12:00", end: "13:00" },
-      { start: "13:00", end: "14:00" },
-      { start: "14:00", end: "15:00" },
+      { start: "15:00", end: "16:00" },
+      { start: "18:00", end: "19:00" },
+      { start: "22:00", end: "23:00" },
     ],
   })) {
     await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
