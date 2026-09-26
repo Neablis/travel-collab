@@ -56,7 +56,7 @@ as their replacement.
 - [x] **Walked on the preview**: the kind picker, a Pending badge, the Overview's
       "Still to book", and an existing trip created before M28 opening with its old
       kinds shown as Pending/Planned.
-- [ ] A retro is appended at gate close.
+- [x] A retro is appended at gate close. *(2026-09-26, after #239 merged; below.)*
 
 ### Gate evidence, 2026-09-25
 
@@ -101,3 +101,49 @@ as their replacement.
   decision.
 - **The design export's vocabulary.** `.design-sync/handoff` still speaks five kinds;
   the fixture's drift test reads it through `readActivityKind` rather than editing it.
+
+## Retro — 2026-09-26
+
+**Placed, built and closed within a day.** Two PRs, split only because
+CodeRabbit refuses a diff over 100 files:
+- #238: the contract, every consumer, the Japan fixture and the tests;
+- #239: the 591 kind values in `content/**`, the landing and settings copy, and
+  two integration tests against the database.
+
+Both merged, 2026-09-25 and 2026-09-26. The gate is 9 of 9. No migration: the
+translation on read is the migration (ADR-054).
+
+**The Definition of Done.** #238's full run is in the evidence block above. For
+#239, CI on its final head `82ce98c` was 8 of 8 green, including
+`static-and-unit` and `integration-e2e`. That head's tree is exactly `main` at
+`f650554` (a squash), so it is a run on `main`.
+
+**What went well.**
+- **Reading the decision against the invariants before building.** *"Not
+  supported anymore"* read literally would have made every existing trip
+  unloadable. It became "never written, always read back", which was confirmed
+  once in chat and then built. That one call shaped everything else.
+- **One translation, one place.** `StoredActivityKind` sits at the four stored
+  parses, and nothing after a parse sees a retired kind. The design export's
+  drift test uses the same function instead of a copy.
+
+**What it cost.**
+- **A vacuous e2e assertion surfaced.** The multi-filter walk had been passing
+  on a "Ramen" that came from a different widget. It was rewritten to prove the
+  kind binding and seen red. It predates M28; M28 only exposed it.
+- **Main moved under the PR twice, from outside it.** `f77d4b1` ("Added
+  handoff") replaced `.design-sync/handoff/SPEC.md` and `README.md` wholesale,
+  dropping both generated indexes. That turned `static-and-unit` red on `main`
+  and on #239, one index at a time. #239 carries both fixes
+  (`spec-section-index.mjs --write`, `route-artboard-index.mjs --write`). **Any
+  handoff that replaces those files must rerun both scripts.**
+- **Squash merges, again.** Both parts were squash-merged rather than
+  merge-committed, so part 2 needed a normal merge from `main` to recover.
+
+**Left open, not gating.**
+- **The Pending badge shares the Meal tag's amber.** Mitchell has a design
+  handoff queued that addresses Pending and Travel, and it decides this.
+- **`booked` has no replacement.** If "settled" turns out to matter, that is a
+  new decision, not a revival of the kind (ADR-054, Rejected).
+
+**M14 is current again**, by this gate closing.

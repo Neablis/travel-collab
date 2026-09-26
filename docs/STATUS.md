@@ -30,17 +30,17 @@ general setup.
 
 ## Where the work is right now
 
-**M28 — THREE KINDS — IS THE CURRENT MILESTONE AS OF 2026-09-25**, placed by
-Mitchell the same day and built at once: a stop's kind is `planned`,
-`pending` or `transit`, and the retired `idea`/`hold`/`booked` are read back as
-their replacement (ADR-054). Part 1 merged as #238; part 2 (content files and
-copy) is #239. Scope and gate: `docs/milestones/M28-three-kinds.md`. Order:
-`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 → M14 → M19`.
+**M14 — RICH LAYER — IS THE CURRENT MILESTONE AS OF 2026-09-26**, by **M28's
+gate closing at 9 of 9**. Order:
+`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 → M19`.
+M14's code is already merged (built ahead of M24 on 2026-09-24). Its gate is
+at 17 of 22, and the five open boxes need a person, not code (next section).
 
-**M14 — RICH LAYER — is next**, and was current for the hours between M24's
-gate closing (11 of 11) and M28's placement. M14's code is already merged
-(built ahead of M24 on 2026-09-24). Its gate is at 17 of 22, and the five open
-boxes need a person, not code (next section).
+**M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
+`planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
+read back as their replacement (ADR-054). Its retro is at the end of
+`docs/milestones/M28-three-kinds.md`. Open, not gating: the Pending badge's
+amber matches the Meal tag's, which Mitchell's queued design handoff decides.
 M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
 `docs/milestones/M24-travel-legs.md`, and what it left open is
 `KI-2026-09-25-q` (surfaces that read a stop's city directly, first a shared

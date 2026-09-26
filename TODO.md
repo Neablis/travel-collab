@@ -290,9 +290,9 @@ reorder and the one place a reorder updates.
       kind). It was already scheduled once, on 2026-08-29, as *"one overnight
       batch"* and did not happen; M13's gate now carries a box for it so it is
       enforced rather than remembered.)*
-- [ ] **M28 Three kinds** ← **current milestone** (placed and built 2026-09-25 by Mitchell) — a stop's kind is `planned`, `pending` or `transit`; `idea`/`hold`/`booked` are retired and read back as their replacement (ADR-054). #238 merged, #239 open.
+- [x] **M28 Three kinds** — gate closed 2026-09-26 (9 of 9; #238, #239) — a stop's kind is `planned`, `pending` or `transit`; `idea`/`hold`/`booked` are retired and read back as their replacement (ADR-054).
       → `docs/milestones/M28-three-kinds.md`
-- [ ] **M14 Rich layer** — next (was current from 2026-09-25, by M24's gate closing, until M28 was placed) — the macro vocabulary deferred out of M8 returns here.
+- [ ] **M14 Rich layer** ← **current milestone** (from 2026-09-26, by M28's gate closing; first current 2026-09-25, by M24's) — the macro vocabulary deferred out of M8 returns here.
       → `docs/milestones/M14-rich-layer.md`
       *(**Code merged 2026-09-24, built ahead of M24** on Mitchell's call, as
       #222, #223, #226 and #221. The gate is 17 of 22. The five open boxes
