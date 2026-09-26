@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "./button";
+import { useRovingRadio } from "./use-roving-radio";
 
 /** One choice in an `IconRadioGroup`: the value, the name a screen reader hears and the tooltip shows, and its icon. */
 export type IconRadioOption<T extends string> = { value: T; label: string; Icon: LucideIcon };
@@ -21,8 +21,9 @@ export type IconRadioOption<T extends string> = { value: T; label: string; Icon:
  *   says it in words. The group carries its own name for the same reason.
  * - **Clicking the chosen option again clears it back to `null`.** A native
  *   radio group has no way back to "nothing chosen"; this is that way.
- * - **One tab stop, arrows move the choice** (roving `tabIndex`), matching
- *   ReportDialog's `ReasonGroup`.
+ * - **One tab stop, arrows move the choice** (roving `tabIndex`,
+ *   `useRovingRadio` — shared with `SegmentedControl`), matching ReportDialog's
+ *   `ReasonGroup`.
  *
  * Not `SegmentedControl`: that always has a value and shows words; this may be
  * empty and shows icons.
@@ -38,14 +39,11 @@ export function IconRadioGroup<T extends string>({
   options: readonly IconRadioOption<T>[];
   "aria-label": string;
 }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const chosen = options.findIndex((o) => o.value === value);
-  const focusIndex = Math.max(0, chosen);
-  const moveTo = (next: number) => {
-    const i = (next + options.length) % options.length;
-    onValueChange(options[i]!.value);
-    refs.current[i]?.focus();
-  };
+  const radioProps = useRovingRadio(
+    options.map((o) => o.value),
+    value,
+    onValueChange,
+  );
   return (
     <div role="radiogroup" aria-label={ariaLabel} className="flex flex-wrap gap-1.5">
       {options.map(({ value: option, label, Icon }, i) => {
@@ -53,26 +51,14 @@ export function IconRadioGroup<T extends string>({
         return (
           <Button
             key={option}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
+            {...radioProps(i)}
             variant={on ? "primary" : "secondary"}
             size="icon"
             role="radio"
             aria-checked={on}
             aria-label={label}
             title={label}
-            tabIndex={i === focusIndex ? 0 : -1}
             onClick={() => onValueChange(on ? null : option)}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-                e.preventDefault();
-                moveTo(i + 1);
-              } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-                e.preventDefault();
-                moveTo(i - 1);
-              }
-            }}
           >
             <Icon className="size-4" aria-hidden />
           </Button>
