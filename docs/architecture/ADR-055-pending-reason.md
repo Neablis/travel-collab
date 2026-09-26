@@ -91,6 +91,8 @@ same gap for a leg moved off transit; the helper closes both.
 
 - `travelLegFieldsOffTransit` and `TravelLegField` are gone from `@tc/contracts`, replaced
   by `KIND_DETAIL_FIELDS`, `KindDetailField`, `kindDetailFieldsOffKind` and
-  `kindDetailFieldMessage`. The refusal text is unchanged for the leg fields.
+  `kindDetailFieldMessage`. The command refusal text is unchanged for the leg fields;
+  the saved-day refusal, which used to stop at "transit stop", now ends
+  `(kind "transit")` like the command one, because both are the same message.
 - The OpenAPI document gains the field on every stop shape; v1 writes take it as they take
   `mode`.
