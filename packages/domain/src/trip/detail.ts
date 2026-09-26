@@ -49,6 +49,7 @@ export function tripDetailFromState(
           participants: a.participants,
           mode: a.mode,
           endLocation: a.endLocation,
+          pendingReason: a.pendingReason,
         },
       ]),
     ),

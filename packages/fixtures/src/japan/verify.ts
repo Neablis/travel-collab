@@ -14,8 +14,13 @@
 // A command the domain would reject shows up here as a rejection, which is the
 // same thing `db:seed` would hit at runtime, found earlier.
 
-import type { ActivityKind, ActivityMode, ActivityTag, TripEvent } from "@tc/contracts";
-import { ActivityKind as ActivityKindEnum, ActivityMode as ActivityModeEnum, ActivityTag as ActivityTagEnum } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, PendingReason, TripEvent } from "@tc/contracts";
+import {
+  ActivityKind as ActivityKindEnum,
+  ActivityMode as ActivityModeEnum,
+  ActivityTag as ActivityTagEnum,
+  PendingReason as PendingReasonEnum,
+} from "@tc/contracts";
 import {
   citiesOfStops,
   decideCreateTrip,
@@ -53,6 +58,8 @@ export type JapanTripReport = {
   modes: Record<ActivityMode, number>;
   /** M24: transit stops that name where their leg ends. */
   withEndLocation: number;
+  /** ADR-055: every PendingReason, zeros included, over the pending stops. */
+  pendingReasons: Record<PendingReason, number>;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -197,6 +204,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   const tags = Object.fromEntries(ActivityTagEnum.options.map((t) => [t, 0])) as Record<ActivityTag, number>;
   const modes = Object.fromEntries(ActivityModeEnum.options.map((m) => [m, 0])) as Record<ActivityMode, number>;
   let withEndLocation = 0;
+  const pendingReasons = Object.fromEntries(PendingReasonEnum.options.map((r) => [r, 0])) as Record<PendingReason, number>;
 
   let untaggedCount = 0;
   let withCoordinates = 0;
@@ -217,6 +225,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     for (const tag of activity.tags) tags[tag] += 1;
     if (activity.mode !== null) modes[activity.mode] += 1;
     if (activity.endLocation !== null) withEndLocation += 1;
+    if (activity.pendingReason !== null) pendingReasons[activity.pendingReason] += 1;
     // BOTH components, matching what actually decides whether a stop can be
     // drawn: mapRailData.ts's `locatedStops` requires lat AND lng, and a day
     // with any unlocated stop renders "N stops have no place yet". Counting lat
@@ -395,6 +404,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     tags,
     modes,
     withEndLocation,
+    pendingReasons,
     untaggedCount,
     withCoordinates,
     withCost,
@@ -446,6 +456,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("kinds", histogram(report.kinds));
   row("tags", `${histogram(report.tags)} / untagged ${report.untaggedCount}`);
   row("travel modes", `${histogram(report.modes)} / with a destination ${report.withEndLocation}`);
+  row("pending reasons", histogram(report.pendingReasons));
   row("with coordinates", `${report.withCoordinates}/${report.activityCount}`);
   row("with a cost", `${report.withCost}/${report.activityCount}`);
   row("cities", report.cities.join(", "));

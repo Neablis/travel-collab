@@ -254,6 +254,7 @@ describe("resolvePlaybook", () => {
       dayIndex: 0,
       mode: null,
       endLocation: null,
+      pendingReason: null,
     });
     expect(toSavedStop({ title: "Bare" }).kind).toBe("planned");
   });

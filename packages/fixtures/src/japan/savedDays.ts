@@ -142,6 +142,7 @@ function stop(
     dayIndex: 0,
     mode: null,
     endLocation: null,
+    pendingReason: null,
     ...extras,
   };
 }

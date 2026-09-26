@@ -75,6 +75,7 @@ function fixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -90,6 +91,7 @@ function fixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
     },
   });
@@ -181,19 +183,20 @@ describe("ActivityEditorSheet", () => {
   it("preselects Pending for a new stop, and saves it untouched", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
 
-    expect((screen.getByLabelText("Kind") as HTMLSelectElement).value).toBe("pending");
+    expect(screen.getByRole("radio", { name: "Pending" }).getAttribute("aria-checked")).toBe("true");
 
     await userEvent.type(screen.getByLabelText("What or where"), "Gora Kadan");
     await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
 
-    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", kind: "pending" }));
+    // …and says why (ADR-055): a new pending stop starts as "To book".
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", kind: "pending", pendingReason: "book" }));
   });
 
   it("carries the chosen kind and tags into AddActivity", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
 
     await userEvent.type(screen.getByLabelText("What or where"), "Kaiseki dinner");
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "planned" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Planned" }));
     await userEvent.click(screen.getByRole("button", { name: "Meal", pressed: false }));
     await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
 
@@ -218,7 +221,7 @@ describe("ActivityEditorSheet", () => {
     // This wait puts the test in the same state the user is always in.
     await screen.findByDisplayValue("Existing stop");
 
-    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "pending" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Pending" }));
     await userEvent.click(screen.getByRole("button", { name: "Lodging", pressed: false }));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 

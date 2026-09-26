@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { ActivityMode, StoredActivityKind, ActivityTag, Anchor, Location, TimeWindow, travelLegFieldsOffTransit } from "./activity.ts";
+import {
+  ActivityMode,
+  ActivityTag,
+  Anchor,
+  kindDetailFieldMessage,
+  kindDetailFieldsOffKind,
+  Location,
+  PendingReason,
+  StoredActivityKind,
+  TimeWindow,
+} from "./activity.ts";
 import { Money } from "./money.ts";
 
 // Saved parts (M11 link 6, ADR-029) — "select parts of my trip and save them
@@ -118,6 +128,9 @@ export const SavedStop = z.object({
   // becomes one again through `AddActivity`, which checks it.
   mode: ActivityMode.nullable().default(null),
   endLocation: Location.nullable().default(null),
+  // ADR-055, on the same terms as the leg above: defaulted because every saved
+  // row predates it, and refined only on the write path below.
+  pendingReason: PendingReason.nullable().default(null),
 });
 export type SavedStop = z.infer<typeof SavedStop>;
 
@@ -142,13 +155,14 @@ export type SavedStop = z.infer<typeof SavedStop>;
 export const SavedDaySequence = z
   .array(SavedStop)
   .superRefine((stops, ctx) => {
-    // M24's travel-leg rule, here for the same reason as the order rule below:
+    // The kind-detail rule (M24's travel leg, ADR-055's pending reason), here
+    // for the same reason as the order rule below:
     // a write that breaks it is refused before it becomes bytes, and a stored
     // row is never dropped for it. A stop that broke it could never be applied
     // — `AddActivity` refuses it — so a Playbook holding one is a dead end.
     for (const [i, stop] of stops.entries()) {
-      for (const field of travelLegFieldsOffTransit(stop)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i, field], message: `${field} is only allowed on a transit stop` });
+      for (const field of kindDetailFieldsOffKind(stop)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [i, field], message: kindDetailFieldMessage(field) });
       }
     }
     for (let i = 1; i < stops.length; i += 1) {

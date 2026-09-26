@@ -124,6 +124,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           participants: a.participants,
           mode: a.mode,
           endLocation: a.endLocation,
+          pendingReason: a.pendingReason,
         },
       });
     }
@@ -151,6 +152,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
           participants: a.participants,
           mode: a.mode,
           endLocation: a.endLocation,
+          pendingReason: a.pendingReason,
         },
       });
     }

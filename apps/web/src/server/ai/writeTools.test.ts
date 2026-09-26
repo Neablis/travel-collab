@@ -311,6 +311,24 @@ describe("buildProposal", () => {
     expect("kind" in command).toBe(false);
   });
 
+  // ADR-055, "Callers". Every stop the editor creates starts on `book`, and the
+  // decider refuses a reason left on a non-pending stop rather than clearing
+  // it — so "mark it planned" has to carry the clear, and the model is not told
+  // to send one. Without the edge filling it in, this lands in `skipped`.
+  it("marks a pending stop with a reason planned, clearing the reason it did not mention", () => {
+    const pendingDetail: TripDetail = {
+      ...detail,
+      activities: {
+        ...detail.activities,
+        [COLOSSEUM_ID]: { ...detail.activities[COLOSSEUM_ID]!, kind: "pending", pendingReason: "book" },
+      },
+    };
+    const intents: RawToolIntent[] = [{ type: "UpdateActivity", args: { activityRef: "Colosseum tour", kind: "planned" } }];
+    expect(droppedWriteCalls(intents, pendingDetail, { tripId: TRIP_ID, actorId: ACTOR })).toEqual([]);
+    const proposal = buildProposal(intents, pendingDetail, { tripId: TRIP_ID, actorId: ACTOR, mintId: mints(), proposalId: "p1" });
+    expect(proposal!.commands[0]).toMatchObject({ type: "UpdateActivity", kind: "planned", pendingReason: null });
+  });
+
   it("for ANY set of costless stops, no command in the proposal carries a cost", () => {
     const w = witness("proposal costs");
     fc.assert(

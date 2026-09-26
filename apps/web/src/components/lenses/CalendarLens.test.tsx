@@ -87,6 +87,7 @@ function detailFixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       [forum]: {
         activityId: forum,
@@ -102,6 +103,7 @@ function detailFixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       [flight]: {
         activityId: flight,
@@ -117,6 +119,7 @@ function detailFixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
     },
   });
@@ -199,7 +202,7 @@ describe("CalendarLens", () => {
         activities: Object.fromEntries(
           ids.map((id, i) => [
             id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome", city: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null},
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: { name: "Rome", city: "Rome" }, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
           ]),
         ),
       }),
@@ -233,6 +236,7 @@ describe("CalendarLens", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
         [forum]: {
           activityId: forum,
@@ -248,6 +252,7 @@ describe("CalendarLens", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
       },
     });
@@ -276,6 +281,7 @@ describe("CalendarLens", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
       },
     });
@@ -461,6 +467,7 @@ describe("CalendarLens", () => {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       });
 
       return tripDetailFixture({

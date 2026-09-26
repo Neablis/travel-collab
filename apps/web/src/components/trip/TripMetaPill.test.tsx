@@ -32,6 +32,7 @@ function fixture(): TripDetail {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       [a2]: {
         activityId: a2,
@@ -47,6 +48,7 @@ function fixture(): TripDetail {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
     },
     members: [

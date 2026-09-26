@@ -17,6 +17,7 @@ function stop(over: Partial<SavedStop> = {}): SavedStop {
     dayIndex: 0,
     mode: null,
     endLocation: null,
+    pendingReason: null,
     ...over,
   };
 }

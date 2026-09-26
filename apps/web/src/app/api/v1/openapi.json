@@ -884,6 +884,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -1432,6 +1441,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -2036,6 +2054,15 @@
                                   "additionalProperties": false,
                                   "nullable": true,
                                   "default": null
+                                },
+                                "pendingReason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "book",
+                                    "maybe"
+                                  ],
+                                  "nullable": true,
+                                  "default": null
                                 }
                               },
                               "required": [
@@ -2589,6 +2616,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -3246,6 +3282,13 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "pendingReason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "book",
+                                    "maybe"
+                                  ]
                                 }
                               },
                               "required": [
@@ -3660,6 +3703,13 @@
                                           "name"
                                         ],
                                         "additionalProperties": false
+                                      },
+                                      "pendingReason": {
+                                        "type": "string",
+                                        "enum": [
+                                          "book",
+                                          "maybe"
+                                        ]
                                       }
                                     },
                                     "required": [
@@ -4164,6 +4214,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -4711,6 +4770,15 @@
                                 "additionalProperties": false,
                                 "nullable": true,
                                 "default": null
+                              },
+                              "pendingReason": {
+                                "type": "string",
+                                "enum": [
+                                  "book",
+                                  "maybe"
+                                ],
+                                "nullable": true,
+                                "default": null
                               }
                             },
                             "required": [
@@ -5174,6 +5242,15 @@
                                   "name"
                                 ],
                                 "additionalProperties": false,
+                                "nullable": true,
+                                "default": null
+                              },
+                              "pendingReason": {
+                                "type": "string",
+                                "enum": [
+                                  "book",
+                                  "maybe"
+                                ],
                                 "nullable": true,
                                 "default": null
                               }
@@ -5925,6 +6002,13 @@
                                   "name"
                                 ],
                                 "additionalProperties": false
+                              },
+                              "pendingReason": {
+                                "type": "string",
+                                "enum": [
+                                  "book",
+                                  "maybe"
+                                ]
                               }
                             },
                             "required": [
@@ -6339,6 +6423,13 @@
                                         "name"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "pendingReason": {
+                                      "type": "string",
+                                      "enum": [
+                                        "book",
+                                        "maybe"
+                                      ]
                                     }
                                   },
                                   "required": [
@@ -6811,6 +6902,15 @@
                                   "name"
                                 ],
                                 "additionalProperties": false,
+                                "nullable": true,
+                                "default": null
+                              },
+                              "pendingReason": {
+                                "type": "string",
+                                "enum": [
+                                  "book",
+                                  "maybe"
+                                ],
                                 "nullable": true,
                                 "default": null
                               }
@@ -7454,6 +7554,15 @@
                                   "additionalProperties": false,
                                   "nullable": true,
                                   "default": null
+                                },
+                                "pendingReason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "book",
+                                    "maybe"
+                                  ],
+                                  "nullable": true,
+                                  "default": null
                                 }
                               },
                               "required": [
@@ -8070,6 +8179,15 @@
                                     "additionalProperties": false,
                                     "nullable": true,
                                     "default": null
+                                  },
+                                  "pendingReason": {
+                                    "type": "string",
+                                    "enum": [
+                                      "book",
+                                      "maybe"
+                                    ],
+                                    "nullable": true,
+                                    "default": null
                                   }
                                 },
                                 "required": [
@@ -8542,6 +8660,15 @@
                                   "name"
                                 ],
                                 "additionalProperties": false,
+                                "nullable": true,
+                                "default": null
+                              },
+                              "pendingReason": {
+                                "type": "string",
+                                "enum": [
+                                  "book",
+                                  "maybe"
+                                ],
                                 "nullable": true,
                                 "default": null
                               }
@@ -9116,6 +9243,14 @@
                       "name"
                     ],
                     "additionalProperties": false,
+                    "nullable": true
+                  },
+                  "pendingReason": {
+                    "type": "string",
+                    "enum": [
+                      "book",
+                      "maybe"
+                    ],
                     "nullable": true
                   },
                   "dayId": {
@@ -9703,6 +9838,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -10399,6 +10543,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -10940,6 +11093,13 @@
                       "name"
                     ],
                     "additionalProperties": false
+                  },
+                  "pendingReason": {
+                    "type": "string",
+                    "enum": [
+                      "book",
+                      "maybe"
+                    ]
                   }
                 },
                 "required": [
@@ -11520,6 +11680,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -12218,6 +12387,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -12914,6 +13092,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -13602,6 +13789,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -14253,6 +14449,13 @@
                                           "name"
                                         ],
                                         "additionalProperties": false
+                                      },
+                                      "pendingReason": {
+                                        "type": "string",
+                                        "enum": [
+                                          "book",
+                                          "maybe"
+                                        ]
                                       }
                                     },
                                     "required": [
@@ -14663,6 +14866,13 @@
                                     "name"
                                   ],
                                   "additionalProperties": false
+                                },
+                                "pendingReason": {
+                                  "type": "string",
+                                  "enum": [
+                                    "book",
+                                    "maybe"
+                                  ]
                                 }
                               },
                               "required": [
@@ -15673,6 +15883,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -16359,6 +16578,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -17068,6 +17296,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -17943,6 +18180,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -21532,6 +21778,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -22218,6 +22473,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -22955,6 +23219,15 @@
                             "additionalProperties": false,
                             "nullable": true,
                             "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
+                            "nullable": true,
+                            "default": null
                           }
                         },
                         "required": [
@@ -23639,6 +23912,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -24546,6 +24828,13 @@
                                         "name"
                                       ],
                                       "additionalProperties": false
+                                    },
+                                    "pendingReason": {
+                                      "type": "string",
+                                      "enum": [
+                                        "book",
+                                        "maybe"
+                                      ]
                                     }
                                   },
                                   "required": [
@@ -24956,6 +25245,13 @@
                                   "name"
                                 ],
                                 "additionalProperties": false
+                              },
+                              "pendingReason": {
+                                "type": "string",
+                                "enum": [
+                                  "book",
+                                  "maybe"
+                                ]
                               }
                             },
                             "required": [
@@ -25541,6 +25837,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }
@@ -26375,6 +26680,15 @@
                               "name"
                             ],
                             "additionalProperties": false,
+                            "nullable": true,
+                            "default": null
+                          },
+                          "pendingReason": {
+                            "type": "string",
+                            "enum": [
+                              "book",
+                              "maybe"
+                            ],
                             "nullable": true,
                             "default": null
                           }

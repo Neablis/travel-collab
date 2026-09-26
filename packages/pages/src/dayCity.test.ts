@@ -23,6 +23,7 @@ function stop(
     participants: [],
     mode: endLocation ? "train" : null,
     endLocation,
+    pendingReason: null,
   };
 }
 
