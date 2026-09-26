@@ -29,7 +29,8 @@ His answers when asked: seed several notebooks into every new trip (reversing
    - **Before you go** — time difference, weather, know before you go, documents and
      packing lists.
    - **Bookings** — still to book, where you sleep, getting between places, what needs you.
-   - **Money** — spend by day, costs broken down, a notes prompt.
+   - **Money** — spend by day, where it goes (spend by kind and spend by tag, added
+     2026-09-26 on #246), costs broken down, a notes prompt.
    Existing trips are untouched: seeding runs only on a trip with zero pages.
 2. **The printed itinerary**: `day.detail {view: "schedule"}` — every stop in time order,
    time in the data face, place, and *To book* / *Travel* when it is news

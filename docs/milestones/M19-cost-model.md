@@ -244,8 +244,14 @@ fourth category, *Other*, has no kind behind it and is gone.
   declares it, so the resolver ignores it, the settings panel hides it, and a
   stored `{by: "tag", tag: "meal"}` reads as unfiltered by tag. The title
   says what the other dimension narrows it to ("Spend by tag · Pending").
-  "Spend by kind" is in the insert rail and in the "Full trip breakdown"
-  gallery template; "Spend by tag" is in the rail. (Named `cost.byKind` while
+  Switching "Split by" in the settings panel deletes the now-withheld filter
+  from the document, in the same edit. Every slice, label and title word
+  comes from the contract's enums and label maps (`ActivityKind`,
+  `ActivityTag`, `KIND_LABEL`, `TAG_LABEL`), and the colour maps are typed
+  exhaustively, so a new kind or tag reaches the pie with no edit to the
+  widget. Both presets are in the insert rail and in the seeded **Money**
+  notebook (M30), under "Where it goes"; "Spend by kind" is also in the
+  "Full trip breakdown" gallery template. (Named `cost.byKind` while
   #246 was open; renamed before anything stored it.)
 
 **What this does NOT take from M19:** a stop with two costs of different kinds
