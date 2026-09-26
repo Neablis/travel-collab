@@ -153,6 +153,10 @@ async function openSeededPage(page: Page): Promise<void> {
   await page.getByRole("link", { name: /Overview/ }).first().click();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
+  // **Its three notebook cards have landed** (M30) before anything is clicked:
+  // they read the notebook list, and a walk that clicks while a later answer
+  // is still arriving is clicking a page that may yet move.
+  await expect(page.getByTestId("link-card")).toHaveCount(3);
   // **The seeded Overview opens with a widget in its first paragraph** (§25's
   // `open`), so entering Editing can leave that widget selected — and while a
   // widget is selected the right column shows its settings rather than the
@@ -875,10 +879,9 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // stronger reading anyway: four filters survived a round trip, and what
   // proves it is the widget resolving to the one stop that matches all four.
   //
-  // Two, because the seeded Overview carries a `stop.rows` of its own under
-  // "Still to book" — the fourth locator on this branch to meet a widget the
-  // page now supplies. `toBeVisible()` tripped strict mode on the pair.
-  await expect(page.locator('[data-macro-name="stop.rows"]')).toHaveCount(2);
+  // One: this walk's. The seeded Overview's own "Still to book" moved to the
+  // Bookings notebook in M30.
+  await expect(page.locator('[data-macro-name="stop.rows"]')).toHaveCount(1);
   // The claim itself — and narrower than this used to say. The walk's widget
   // resolves to NOTHING: its day is Day 2, and both stops are unscheduled.
   // Until M28 this asserted `getByText("Ramen")` was visible and read that as
@@ -886,10 +889,8 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // widget lists parked stops); the seeded list said "nothing booked yet".
   // What the reload provably kept is the KIND binding: "nothing left to book"
   // is the empty sentence of a `kind: "pending"` filter only (`stop.rows`'
-  // NOTHING_MATCHED), and the seeded "Still to book" is not empty here — it
-  // lists Ramen and Kinkaku-ji — so exactly one widget can be saying it.
+  // NOTHING_MATCHED), and it is the only `stop.rows` on the page.
   await expect(page.getByText("nothing left to book", { exact: true })).toHaveCount(1);
-  await expect(page.locator('[data-macro-name="stop.rows"]').filter({ hasText: "Kinkaku-ji" })).toHaveCount(1);
 });
 
 // **The stated cost of storing a date range, pinned so it cannot become a
@@ -1617,13 +1618,11 @@ test("the trip strip fits its column on a 20-day trip, with no sideways scroll",
   await page.getByRole("button", { name: "Edit page" }).click();
   await insertFromList(page, /Trip strip/, "strip");
 
-  // **Two strips: this walk's, and the seeded Overview's own** (SPEC §36.10b
-  // put one under its opening line, 2026-09-26). Both draw the whole trip, so
-  // both must fit — measuring each is the same claim twice, and needs no guess
-  // about which one the insert put first.
+  // **One strip: this walk's.** The seeded Overview carried its own from SPEC
+  // §36.10b until M30 made it the itinerary, which has none.
   const strips = page.locator('[role="img"]:has([data-testid="trip-strip-day"])');
-  await expect(strips).toHaveCount(2);
-  for (const strip of [strips.nth(0), strips.nth(1)]) {
+  await expect(strips).toHaveCount(1);
+  for (const strip of [strips.nth(0)]) {
     await expect(strip.getByTestId("trip-strip-day")).toHaveCount(20);
     // Editing first: the 320px rail makes this the narrowest the column gets.
     await expect.poll(() => stripOverhang(strip), { message: "strip overflow while editing" }).toBeLessThanOrEqual(0);
@@ -1638,7 +1637,7 @@ test("the trip strip fits its column on a 20-day trip, with no sideways scroll",
 
   await finishEditing(page);
   await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
-  for (const strip of [strips.nth(0), strips.nth(1)]) {
+  for (const strip of [strips.nth(0)]) {
     await expect.poll(() => stripOverhang(strip), { message: "strip overflow while reading" }).toBeLessThanOrEqual(0);
     expect((await strip.boundingBox())!.height, "strip height while reading").toBe(30);
   }
@@ -1812,11 +1811,12 @@ test("a co-traveller moves a stop and shifts the days, and the open notebook fol
   }
 });
 
-// Opens a seeded trip's Overview in Editing, with the insert rail on screen.
-async function openOverviewOf(page: Page, tripId: string): Promise<void> {
+// Opens a seeded trip's "Before you go" in Editing — the notebook that carries
+// the weather since M30 moved it off the Overview.
+async function openBeforeYouGoOf(page: Page, tripId: string): Promise<void> {
   await page.goto(`/trips/${tripId}/pages`);
-  await page.getByRole("link", { name: /Overview/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  await page.getByRole("link", { name: /^Before you go/ }).click();
+  await expect(page.getByRole("heading", { name: "Before you go", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
 }
 
@@ -1840,11 +1840,11 @@ test("the weather widget is the quiet placeholder while outside data is offline,
   page.on("pageerror", (error) => errors.push(error.message));
 
   const tripId = await createMappedTrip(page, e2eTripName("Weather"), 2);
-  // The seeded Overview carries the weather (M29 part 4), so there is nothing to
-  // insert. The route's own answer is read directly rather than caught in
+  // The seeded "Before you go" carries the weather (M30), so there is nothing
+  // to insert. The route's own answer is read directly rather than caught in
   // flight: the page may already have asked for it before any listener here
   // could be attached, and what matters is what it answers.
-  await openOverviewOf(page, tripId);
+  await openBeforeYouGoOf(page, tripId);
   const response = await page.request.get(`/api/trips/${tripId}/weather`);
   expect(response.status()).toBe(200);
   const { weather } = (await response.json()) as { weather: { points: { typical: unknown }[] } };
@@ -1891,8 +1891,8 @@ test("the weather table heads its columns and fits the notebook column without s
   await page.route("**/api/trips/*/weather", (route) =>
     route.fulfill({ json: { weather: { points: located.map(forecastOn) } } }),
   );
-  await openOverviewOf(page, tripId);
-  // The seeded Overview's own weather block (M29 part 4) — no insert needed.
+  await openBeforeYouGoOf(page, tripId);
+  // The seeded "Before you go"'s own weather block (M30) — no insert needed.
   const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
   await expect(table.getByRole("columnheader")).toHaveText(["Day", "Conditions", "High", "Low", "Rain"]);
   await expect(table.getByRole("row")).toHaveCount(3);

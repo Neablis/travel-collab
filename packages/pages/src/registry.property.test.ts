@@ -14,6 +14,7 @@ import type { z } from "zod";
 import { ActivityKind, ActivityTag, FILTER_VALUE_SCHEMAS, FilterDimension, type TripDetail, type TripWeatherPoint } from "@tc/contracts";
 import type { ExternalInputs } from "./external";
 import { MACRO_REGISTRY, primitiveCatalog } from "./registry";
+import { LINK_VIEWS } from "./linkTarget";
 import type { AnyMacroDef } from "./registry-types";
 import { weatherProbe } from "./test-support/weatherProbe";
 import { witness } from "./test-support/witness";
@@ -147,8 +148,23 @@ const NON_FILTER_VALUES: Record<string, fc.Arbitrary<string | string[]>> = Objec
   ]),
 );
 
+// The link widgets' params (M30, ADR-056). Not in `primitiveCatalog()` — the
+// assistant may not compose a link — so the pool above never sees them, and
+// without these every link case would parse to `{}` and answer `unbound`.
+// Deliberately includes addresses the schema must refuse, and a day and a
+// notebook the trip and the list do not have.
+const LINK_VALUES = {
+  to: fc.oneof(
+    fc.record({ kind: fc.constant("notebook" as const), pageId: fc.constantFrom(uuid(900), uuid(901)) }),
+    fc.record({ kind: fc.constant("view" as const), view: fc.constantFrom(...LINK_VIEWS) }),
+    fc.record({ kind: fc.constant("day" as const), day: FILTER_VALUES.day }),
+  ),
+  href: fc.constantFrom("https://example.com/tickets", "http://x.test", "javascript:alert(1)", "not a url"),
+  label: fc.constantFrom("", "Tickets", "  "),
+};
+
 const paramsArb = fc.oneof(
-  { weight: 8, arbitrary: fc.record({ ...FILTER_VALUES, ...NON_FILTER_VALUES }, { requiredKeys: [] }) },
+  { weight: 8, arbitrary: fc.record({ ...FILTER_VALUES, ...NON_FILTER_VALUES, ...LINK_VALUES }, { requiredKeys: [] }) },
   { weight: 1, arbitrary: fc.constantFrom(null, undefined) },
 );
 
@@ -166,6 +182,13 @@ const externalArb: fc.Arbitrary<ExternalInputs | undefined> = fc.oneof(
     { weather: { state: "pending" } },
     { weather: { state: "failed" } },
     { weather: { state: "ready", value: { points: [] } } },
+    // The notebook list (ADR-056): failed, and ready with one of the two ids
+    // `LINK_VALUES` names — so one link finds its notebook and the other's is gone.
+    { weather: { state: "pending" }, notebooks: { state: "failed" } },
+    {
+      weather: { state: "pending" },
+      notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: null, widgetCount: 2 }], openable: false } },
+    },
   ),
   fc
     .record({
@@ -196,6 +219,7 @@ const DATED_TRIP = {
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
 } as unknown as TripDetail;
 const READY_WEATHER: ExternalInputs = {
+  notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: "What it costs.", widgetCount: 1 }], openable: true } },
   weather: {
     state: "ready",
     value: {
@@ -269,7 +293,14 @@ describe("macro registry — every resolver is pure and total", () => {
         // known reader's date AND params that narrow to a dated day, and was
         // measured at 1–4 of ~180 cases a run (2026-09-24) — a check that
         // flaps. The example makes `ok` certain; the random cases still sweep.
-        { numRuns: 200, examples: def.needs?.length ? [[DATED_TRIP, { tripId: TRIP }, {}, READY_WEATHER, "2026-10-05"]] : [] },
+        {
+          numRuns: 200,
+          // `to` is stripped by every widget but the internal link, which it
+          // points at the notebook `READY_WEATHER`'s list carries.
+          examples: def.needs?.length
+            ? [[DATED_TRIP, { tripId: TRIP }, { to: { kind: "notebook", pageId: uuid(900) } }, READY_WEATHER, "2026-10-05"]]
+            : [],
+        },
       );
       // Floors measured 2026-07-28; every macro accepts at least the `{}` params
       // case, so all of them clear 50 comfortably. The weather probe measured

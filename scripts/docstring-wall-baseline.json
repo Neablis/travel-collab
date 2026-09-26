@@ -425,7 +425,6 @@
   "packages/pages/src/result.ts::needsTrip",
   "packages/pages/src/result.ts::ok",
   "packages/pages/src/result.ts::unbound",
-  "packages/pages/src/templates.ts::instantiateDefaults",
   "packages/pages/src/test-support/selectionTrip.ts::selectionTrip",
   "packages/pages/src/test-support/witness.ts::witness"
 ]

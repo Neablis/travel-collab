@@ -21,6 +21,10 @@ export * from "./enumLabels";
 export * from "./kinds";
 export * from "./fields";
 export * from "./savedTemplate";
+// M30 (ADR-056): link targets, the notebook preview line, the printed itinerary.
+export * from "./linkTarget";
+export * from "./itineraryPayload";
+export { WebAddress, hostOf } from "./macros/primitives/link";
 // The one reader of an instant in a named zone; the server's weather cuts its
 // local days with it too, rather than a second `Intl` walk (review finding 6).
 export { clockIn } from "./clock";
@@ -30,4 +34,4 @@ export { clockIn } from "./clock";
 export { readerClock, toClockLabel, toClockRange } from "./clockLabel";
 // The one ordinal suffix table: the chart's axis here, and the Calendar cell's
 // "14th" in `apps/web` (`ordinalDayOfMonth`), which delegates to it.
-export { ordinal } from "./format";
+export { ordinal, formatShortDate } from "./format";

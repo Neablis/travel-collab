@@ -1,4 +1,4 @@
-import { CreatePageInput, Page, PageSummary, type UpdatePageInput } from "@tc/contracts";
+import { CreatePageInput, Page, PageListEntry, type UpdatePageInput } from "@tc/contracts";
 import { apiUrl, networkError, refusal, type ApiResult } from "@/lib/apiClient";
 import { beginWrite, endWrite } from "@/lib/queryCache";
 import { fitsKeepalive } from "@/lib/keepalive";
@@ -57,7 +57,7 @@ import { inviteLookHeaders } from "@/lib/inviteLook";
  * the caller renders as author-neutral rather than guessing.
  */
 export interface NotebookList {
-  pages: PageSummary[];
+  pages: PageListEntry[];
   viewerId: string | null;
 }
 
@@ -69,7 +69,7 @@ export async function fetchPages(tripId: string): Promise<ApiResult<NotebookList
     return {
       ok: true,
       value: {
-        pages: data.pages.map((p) => PageSummary.parse(p)),
+        pages: data.pages.map((p) => PageListEntry.parse(p)),
         viewerId: typeof data.viewerId === "string" ? data.viewerId : null,
       },
     };

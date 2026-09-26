@@ -9,6 +9,8 @@ import { CountryFactsBlock } from "./blocks/CountryFactsBlock";
 import { TripStripBlock } from "./blocks/TripStripBlock";
 import { SpendByDayBlock } from "./blocks/SpendByDayBlock";
 import { WeatherBlock } from "./blocks/WeatherBlock";
+import { LinkCardBlock } from "./blocks/LinkCardBlock";
+import { ItineraryScheduleBlock } from "./blocks/ItineraryScheduleBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
 // decision 1's "no switch case" is satisfied by a file that plainly contains a
@@ -44,7 +46,21 @@ import { WeatherBlock } from "./blocks/WeatherBlock";
 // renderer answers what it looks like (ADR-037 decision 1). A colour in
 // `packages/pages` would be a resolver deciding presentation; a city NAME in
 // the payload and a family derived here is the split the ADR asks for.
-export function BlockView({ block, accents }: { block: BlockPayload; accents: CityAccents }) {
+//
+// `tripId` and `interactive` are for the one block that navigates — the link
+// card (ADR-056) builds its href from the trip, and does not navigate while
+// the page is being edited.
+export function BlockView({
+  block,
+  accents,
+  tripId,
+  interactive = true,
+}: {
+  block: BlockPayload;
+  accents: CityAccents;
+  tripId: string;
+  interactive?: boolean;
+}) {
   switch (block.kind) {
     case "itinerary-day":
       return <ItineraryDayBlock payload={block} />;
@@ -62,6 +78,10 @@ export function BlockView({ block, accents }: { block: BlockPayload; accents: Ci
       return <SpendByDayBlock payload={block} />;
     case "weather":
       return <WeatherBlock payload={block} />;
+    case "link-card":
+      return <LinkCardBlock payload={block} tripId={tripId} interactive={interactive} />;
+    case "itinerary-schedule":
+      return <ItineraryScheduleBlock payload={block} accents={accents} />;
     default: {
       // Not dead code and not defensive: this line is the enforcement. If
       // `block` is ever not `never` here, the assignment fails to compile and

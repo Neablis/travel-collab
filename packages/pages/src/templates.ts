@@ -50,29 +50,48 @@ import type {
 // AFTER the page has loaded.
 //
 // **Waiting is allowed at first paint, and only then.** A widget that declares
-// an outside input (`needs`, ADR-052 — today only `day.weather`) reads
-// "loading weather" while its fetch is in flight; that is a loading line, the
-// same beat every other widget spends waiting for its globals. Once the fetch
-// has answered it must say something the trip explains — on a new trip with
-// dated days and no stops, "add a place to a stop to see this". What would
-// disqualify it is `unavailable` outliving the load.
+// an outside input (`needs`, ADR-052 — `day.weather`, and since M30 the
+// notebook list `link.internal` reads) reads "loading weather" while its fetch
+// is in flight; that is a loading line, the same beat every other widget
+// spends waiting for its globals. Once the fetch has answered it must say
+// something the trip explains — on a new trip with dated days and no stops,
+// "add a place to a stop to see this". What would disqualify it is
+// `unavailable` outliving the load.
 //
 // `templates.test.ts` renders every seeded widget against two new trips — no
 // dates at all, and dated days with no stops (what the wizard makes) — each at
 // first paint and after everything has loaded, to hold exactly that line.
 //
-// **Until 2026-09-12 two templates were seeded and neither carried a widget.**
-// Now exactly one is — the Overview (§25, and Mitchell: *"Only 1 notebook per
-// trip is always generated"*) — and Trip Overview and Day overview are gallery
-// templates. Nothing migrates: `listPages` seeds only into a trip with zero
-// pages, so every existing trip keeps both, under their own names, as ordinary
-// deletable pages.
+// --- Four notebooks come with a trip, since M30 ---
+// **Reversed 2026-09-26.** On 2026-09-12 Mitchell set *"Only 1 notebook per
+// trip is always generated, this is undeletable notebook that needs to be
+// created on every new trip"*, and for two weeks the Overview was the one page
+// and had to carry everything — which is what he then read back as *"a massive
+// dump of information … Maybe the issue is trying to make the overview do
+// everything, and instead we have several notebooks, with different
+// purposes."* Asked, he chose: **seed several notebooks into every new trip.**
+// So a new trip gets four, each with one job:
+//
+//   - **Overview** — the itinerary: a short letter, then every day as a timed
+//     schedule, then links to the other three. Undeletable (SPEC §25).
+//   - **Before you go** — clocks, weather, what is different about where you
+//     are going, documents and packing.
+//   - **Bookings** — what is still to book, where you sleep, how you move, and
+//     what needs you.
+//   - **Money** — what it costs, day by day, against the budget.
+//
+// Only the Overview is undeletable: its `kind: "overview"` is what
+// `deletePage` refuses on, and the other three carry no `kind`. Nothing
+// migrates: `listPages` seeds only into a trip with zero pages, so every
+// existing trip keeps exactly the notebooks it has. `docs/milestones/M30-notebooks-and-links.md`
+// and ADR-056 carry the decision.
 //
 // --- Two lists, and the split is the point ---
 // `DEFAULT_TEMPLATES` is what a new trip is SEEDED with; `TEMPLATE_LIBRARY` is
-// what the gallery OFFERS. The first is a subset of the second, and it stays
-// small deliberately: a library that plants every entry in every trip stops
-// being a library at about four entries, and `pages_system_seed_unique` makes
+// what the gallery OFFERS. Apart from the Overview, the first is a subset of
+// the second — so a notebook somebody deleted can be started again from the
+// gallery — and it stays small deliberately: a library that plants every entry
+// in every trip stops being a library, and `pages_system_seed_unique` makes
 // each seeded title a permanent fixture of that trip's index.
 
 const heading = (text: string, level: 1 | 2 | 3 = 2): PageHeadingNode => ({
@@ -113,6 +132,16 @@ const bullets = (...items: string[]): PageNode => ({
   content: items.map((item) => ({ type: "listItem" as const, content: [para(text(item))] })),
 });
 
+/** A link card to a sibling notebook, by the id it was seeded with (ADR-056). */
+const notebookLink = (pageId: string): PageParagraphNode => block("link.internal", { to: { kind: "notebook", pageId } });
+
+/**
+ * The ids a seeded notebook's siblings were given, keyed by template key — how
+ * the Overview's links can name notebooks that do not exist until the seeder
+ * writes them.
+ */
+export type SiblingIds = Readonly<Record<string, string>>;
+
 export interface TemplateSeed {
   key: string;
   title: string;
@@ -135,7 +164,16 @@ export interface TemplateSeed {
    */
   seedIntoNewTrips: boolean;
   buildContext(tripId: string): PageContext;
+  /**
+   * The document. For a template that links to its seeded siblings (only the
+   * Overview) this is the document with PLACEHOLDER ids — valid, so every test
+   * that parses or inserts `content` still can, and honest if it is ever read:
+   * a placeholder id names no notebook, so its card says the notebook was
+   * deleted. `instantiateDefaults` builds the real one with `buildContent`.
+   */
   content: PageDoc;
+  /** The document built against the ids the seeder minted for the other seeds. */
+  buildContent?(siblings: SiblingIds): PageDoc;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,119 +181,163 @@ export interface TemplateSeed {
 // ---------------------------------------------------------------------------
 
 /**
- * **The Overview page — SPEC §25.** The one page every trip comes with, and the
- * one it cannot delete.
- *
- * > Not a dashboard, and not a second rendering of the trip. Every trip is
- * > created with one notebook page it cannot delete, and the Overview tab
- * > renders that page.
- *
- * Three things make it what it is, and all three are visible right here:
- *
- * 1. **`kind: "overview"` in its context** is what marks it. Not its title,
- *    which a reader may rename, and not its position, which sorting decides.
- * 2. **Its blocks are ordinary registry widgets** — every one is in the picker
- *    like everything else, and could be inserted into any other page. §25 is
- *    explicit that there is no bespoke Overview layout.
- * 3. **It is headings, a few joining lines, and widgets that read well
- *    empty** — the header's rule. On a trip created a minute ago every widget
- *    here says in words what will fill it, so the page reads as a list of what
- *    it is about to become rather than a row of grey chips.
- *
- * §25's *"The consequence to accept"* applies and is not worked around: because
- * this is a real page, its content is user-editable, and someone can empty it.
- * Guaranteeing a block would have to be a property of the page (undeletable
- * blocks), not of the tab.
+ * The ids `content` carries where a seeded Overview carries its siblings' real
+ * ones. In the `…f` block, beside the demo's `…e` page ids (`server/pages.ts`),
+ * so none can collide with a minted page.
  */
+const PLACEHOLDER_IDS: SiblingIds = {
+  "before-you-go": "00000000-0000-4000-8000-00000000f001",
+  "bookings-and-confirmations": "00000000-0000-4000-8000-00000000f002",
+  money: "00000000-0000-4000-8000-00000000f003",
+};
+
+/**
+ * **The Overview — the itinerary** (SPEC §25, rewritten for M30). The page every
+ * trip comes with, the one it cannot delete, and the page the Overview tab
+ * renders.
+ *
+ * Mitchell, 2026-09-26: *"I wanted it to read more like a Professional travel
+ * itinerary"*, and, choosing between shapes, **"Letter + full daily schedule"**:
+ * a short opening written the way a travel agent's itinerary opens, then each
+ * day as a timed schedule — times, place, booking status — like a printed
+ * itinerary, and last the way to the rest of the trip's notebooks.
+ *
+ * What left, and where it went: *What needs you* and *Still to book* to
+ * **Bookings**; the clocks, the weather and the country facts to **Before you
+ * go**; the spend chart to **Money**. The trip strip and the countdown are not
+ * seeded anywhere — both are in the picker, and the header already says when
+ * the trip is.
+ *
+ * Every widget still reads on an empty trip: the dates line says "no dates
+ * set", the schedule "no days yet", and each notebook card is "loading
+ * notebooks" for one beat and then the notebook's own first line.
+ */
+function overviewContent(ids: SiblingIds): PageDoc {
+  return newPageDoc([
+    // ---- The letter ------------------------------------------------------
+    // Two sentences, as an agent's covering note has: what this document is,
+    // and why it can be trusted. The second is also what makes a new trip's
+    // empty schedule read as a promise rather than a fault.
+    para(
+      text(
+        "Here is your itinerary, day by day: where you will be, at what time, and anything still to book, in the order you will live it. It reads straight from the plan, so when a stop moves, this moves with it.",
+      ),
+    ),
+    // The facts a printed itinerary heads its first page with, as labels
+    // rather than a sentence around them: "Dates: no dates set" reads on an
+    // empty trip, where "You travel no dates set" would not.
+    para(text("Dates: "), widget("dates"), text(" · Route: "), widget("city")),
+    // ---- The schedule ----------------------------------------------------
+    heading("Day by day"),
+    block("day.detail", { view: "schedule" }),
+    // ---- The rest of the trip ---------------------------------------------
+    heading("Also in this trip"),
+    para(text("Three more notebooks came with the trip, each with one job.")),
+    notebookLink(ids["before-you-go"]!),
+    notebookLink(ids["bookings-and-confirmations"]!),
+    notebookLink(ids.money!),
+  ]);
+}
+
 const overviewPage: TemplateSeed = {
   key: "overview",
   title: "Overview",
-  // §25's index line: *"titled 'Overview / Comes with the trip'"*. The title is
-  // the first half; this is the second, and it is where the gallery and the
-  // index already put a template's second line.
+  // §25's index line: *"titled 'Overview / Comes with the trip'"*.
   description: "Comes with the trip.",
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId, kind: "overview" }),
-  // **Rewritten 2026-09-26 from SPEC §36.10b, as inspiration rather than a
-  // copy** (Mitchell: *"better but not great … use it for inspiration not just
-  // copy"*). What was kept from the design: one column, a line of prose only
-  // where it tells you something the heading does not, registry widgets only,
-  // and no trip name, dates, counts or money totals — `TripHeader` already
-  // shows every one of those above this page (its title, `TripMetaPill` and
-  // `BudgetChip`), and saying them twice is rule 4's duplication.
-  //
-  // **Order is short-and-actionable first, the long reference last.** The old
-  // page put `day.detail` in the middle, so on a two-week trip everything under
-  // it sat fourteen cards down. What needs a decision comes first, then the
-  // practical and the money glances, then the day-by-day read.
-  //
-  // What the design had and this does not, and why, is in the commit message
-  // that made this change rather than here — this comment describes the page,
-  // not its drafts. The short version: `city.detail` repeats what the strip
-  // and the day cards already say; the stats line and money sentence are the
-  // header's; there is no "booked" line since M28 (ADR-054).
-  //
-  // Every widget below says something readable on a trip created a minute ago
-  // — "no dates set yet", "add a day to see this", "nothing is waiting on you" —
-  // and `templates.test.ts` renders each one against that trip to hold it.
+  content: overviewContent(PLACEHOLDER_IDS),
+  buildContent: overviewContent,
+};
+
+/**
+ * **Before you go** — seeded since M30. The week before leaving: what time it
+ * will be, what the weather is doing, what is different about where you are
+ * going, and the two lists nobody should write from memory.
+ *
+ * `day.weather` sends rounded stop locations to the weather providers, which
+ * Mitchell accepted on 2026-09-26 (*"It's ok to send a users data to
+ * weather"*); KI-2026-09-24-o is the disclosure, not the flow.
+ */
+const beforeYouGo: TemplateSeed = {
+  key: "before-you-go",
+  title: "Before you go",
+  description: "The week before you leave — clocks, weather, what's different there, documents and packing.",
+  seedIntoNewTrips: true,
+  buildContext: (tripId) => ({ tripId }),
   content: newPageDoc([
-    // ---- The hook -------------------------------------------------------
-    // The one fact about a trip that changes every day and that the header
-    // does not show. A label rather than a sentence around it, because the
-    // countdown's values do not share a verb: "in 34 days", "day 6 of 14",
-    // "ended yesterday", "no dates set yet" all read after "Countdown:" and no
-    // single "Your trip starts …" survives all four. The second sentence is
-    // what makes a new trip's empty lines read as a promise instead of a
-    // fault, and it stays true when the trip is full.
-    para(
-      text("Countdown: "),
-      widget("attribute", { field: "trip.countdown" }),
-      text(". Everything below reads from the plan and fills in as it grows."),
+    para(text("What to check in the week before you leave: the clocks, the weather, what is different about where you are going, and what to pack.")),
+    heading("Clocks"),
+    // A label, as the Overview's facts are: `day.fromHome`'s empty reasons
+    // ("set a home airport in Account to see this") are not a clause.
+    para(text("Time difference: "), widget("day.fromHome"), text(".")),
+    heading("Weather"),
+    block("day.weather"),
+    heading("Know before you go"),
+    block("country.facts"),
+    heading("Documents"),
+    bullets(
+      "Passport — check the expiry against the return date, not the outbound one.",
+      "Visa or entry authorisation, and the printout if the border wants paper.",
+      "Travel insurance policy number, somewhere reachable without signal.",
+      "Driving licence and the international permit, if anybody is driving.",
     ),
-    // The route at a glance, in city colours — where the old page spent a
-    // heading and a table (`city.detail`) saying the same thing in rows.
-    block("trip.strip"),
-    // ---- What to do next -------------------------------------------------
-    // First, because it is the reason to open the page rather than a tab.
+    heading("Packing"),
+    para(text("Write the list once and it is yours for every trip after this one.")),
+    bullets(
+      "Whatever the weather above actually says, not what the average does.",
+      "Chargers, and one adapter per person who will not share.",
+      "The medication that is hard to buy where you are going.",
+    ),
+  ]),
+};
+
+/**
+ * **Bookings** — seeded since M30. What is loose and what is settled: the list
+ * Calendar counts as "N to book", then the nights and the journeys, then
+ * whatever else the plan is waiting on.
+ */
+const bookings: TemplateSeed = {
+  // The key it had as a gallery template, so the content bundle and anything
+  // that named it keep meaning this page.
+  key: "bookings-and-confirmations",
+  title: "Bookings",
+  description: "What still needs booking, where you sleep, how you get between places, and what needs you.",
+  seedIntoNewTrips: true,
+  buildContext: (tripId) => ({ tripId }),
+  content: newPageDoc([
+    para(text("What is still to book, and what is settled — where you sleep and how you get between places.")),
+    heading("Still to book"),
+    // The `still-to-book` preset — the rule Calendar's "N to book" and the Home
+    // hero share — so this list cannot disagree with them.
+    para(text("Anything marked Pending waits here until it is settled.")),
+    block("stop.rows", { only: "needsBooking" }),
+    heading("Where you sleep"),
+    para(text("Every stop tagged Lodging, in order. A gap between two is a night nobody has booked.")),
+    block("stop.rows", { tag: "lodging" }),
+    heading("Getting between places"),
+    block("stop.rows", { kind: "transit" }),
     heading("What needs you"),
     block("open"),
-    // ---- What is still loose ----------------------------------------------
-    // The `still-to-book` preset — `needsBooking`, the rule Calendar's "N to
-    // book" and the Home hero share — rather than a hand-written
-    // `kind: "pending"`, so this list cannot disagree with them if the rule
-    // grows. The line says how a stop gets here, which on a new trip is the
-    // only thing worth saying about an empty list.
-    heading("Still to book"),
-    para(text("Anything marked Pending waits here until it's settled.")),
-    block("stop.rows", { only: "needsBooking" }),
-    // ---- Before you go ---------------------------------------------------
-    // What a traveller checks in the week before leaving. "Clocks:" is a label
-    // for the same reason "Countdown:" is: `day.fromHome`'s empty reasons
-    // ("set a home airport in Account to see this") are not a clause.
-    heading("Before you go"),
-    para(text("Clocks: "), widget("day.fromHome"), text(".")),
-    // Unbound means every day, so this is the whole trip's weather — the
-    // forecast where a day is close, what's typical where it is not, each
-    // labelled. It sends rounded stop locations to the weather providers,
-    // which Mitchell accepted for the Overview on 2026-09-26 (*"It's ok to
-    // send a users data to weather"*); KI-2026-09-24-o is the disclosure,
-    // not the flow. On a trip with no days it says "add a day to see this"
-    // outright; on dated days with no stops it reads "loading weather" for
-    // the one request, then "add a place to a stop to see this" — the
-    // first-paint allowance in the header's rule, and nothing past it.
-    block("day.weather"),
-    block("country.facts"),
-    // ---- Money -----------------------------------------------------------
-    // The header already has spent and left, so this is the one money view it
-    // does not: which days cost what, against an even pace for the budget.
+  ]),
+};
+
+/** **Money** — seeded since M30. Where the header's two numbers come from. */
+const money: TemplateSeed = {
+  key: "money",
+  title: "Money",
+  description: "What the trip costs, day by day, against the budget.",
+  seedIntoNewTrips: true,
+  buildContext: (tripId) => ({ tripId }),
+  content: newPageDoc([
+    para(text("What the trip costs, day by day, against the budget.")),
     heading("Spend by day"),
+    // Against an even pace for the budget, when there is one.
     block("cost.chart"),
-    // ---- The trip itself -------------------------------------------------
-    // Last because it is the longest, not because it matters least: this is
-    // the read the deleted Timeline lens used to give (SPEC §24), and every
-    // card carries its date, city, stops, hours and cost.
-    heading("Day by day"),
-    block("day.detail"),
+    heading("Costs, broken down"),
+    block("cost.rows"),
+    heading("Notes"),
+    para(text("Who is paying for what, what is already deposited, and what you would cut first.")),
   ]),
 };
 
@@ -266,7 +348,9 @@ const tripOverview: TemplateSeed = {
   // **No longer seeded** — Mitchell, 2026-09-12: *"Only 1 notebook per trip is
   // always generated, this is undeletable notebook that needs to be created on
   // every new trip."* That one is `overviewPage` above. This stays in the
-  // gallery, unchanged, as a template somebody can choose.
+  // gallery, unchanged, as a template somebody can choose — and stayed there
+  // when M30 went back to seeding several (the header): the four seeded now
+  // each have a job, and this one's job is the Overview's.
   //
   // Nothing migrates. `listPages` seeds only into a trip with zero pages, so
   // every trip that already has a Trip Overview keeps it, under its own name,
@@ -294,9 +378,8 @@ const dayOverview: TemplateSeed = {
   // that already has a "Day Sheet" keeps it under its own name.
   title: "Day overview",
   description: "One day, close up. Times, reservations, notes for the group.",
-  // No longer seeded, for the same reason Trip Overview is not: SPEC §25 and
-  // Mitchell, 2026-09-12 — **one** notebook comes with a trip, and it is the
-  // Overview. This is a gallery template now.
+  // No longer seeded, since 2026-09-12 (SPEC §25). M30 seeds four again, and
+  // not this one: the Overview's schedule is every day, close up, already.
   seedIntoNewTrips: false,
   buildContext: (tripId) => ({ tripId }),
   // Prose, for the same reason as Trip Overview above. The widget-bearing
@@ -389,61 +472,10 @@ const dinnerTracker: TemplateSeed = {
   ]),
 };
 
-const bookingsAndConfirmations: TemplateSeed = {
-  key: "bookings-and-confirmations",
-  title: "Bookings",
-  description: "What still needs booking, where you sleep, and how you get between places.",
-  seedIntoNewTrips: false,
-  buildContext: (tripId) => ({ tripId }),
-  content: newPageDoc([
-    heading("Still to book", 1),
-    para(text("Pending: "), widget("count", { kind: "pending" }), text(" of "), widget("count"), text(" stops.")),
-    block("stop.rows", { kind: "pending" }),
-    heading("Where we sleep"),
-    para(text("Every stop tagged lodging, in order. A gap between two rooms is a night nobody has booked.")),
-    block("stop.rows", { tag: "lodging" }),
-    heading("Getting between places"),
-    block("stop.rows", { kind: "transit" }),
-    heading("What it all costs"),
-    block("cost"),
-  ]),
-};
-
-const beforeYouGo: TemplateSeed = {
-  key: "before-you-go",
-  title: "Before you go",
-  description: "The list that stops a trip starting badly — packing, documents, the first day.",
-  seedIntoNewTrips: false,
-  buildContext: (tripId) => ({ tripId }),
-  content: newPageDoc([
-    heading("Leaving", 1),
-    para(text("Flying from "), widget("attribute", { field: "account.homeAirport" }), text(" on "), widget("dates"), text(".")),
-    heading("Documents"),
-    bullets(
-      "Passport — check the expiry against the return date, not the outbound one.",
-      "Visa or entry authorisation, and the printout if the border wants paper.",
-      "Travel insurance policy number, somewhere reachable without signal.",
-      "Driving licence and the international permit, if anybody is driving.",
-    ),
-    heading("Packing"),
-    para(text("Write the list once and it is yours for every trip after this one.")),
-    bullets(
-      "Whatever the weather actually does, not what the average says.",
-      "Chargers and one adapter per person who will not share.",
-      "The medication that is hard to buy where you are going.",
-    ),
-    heading("The first day"),
-    para(text("Arriving tired is the single most common way a good plan comes apart. What day one holds:")),
-    block("day.detail", { day: { kind: "index", index: 0 } }),
-    heading("Money"),
-    para(text("Budget left before you spend anything: "), widget("attribute", { field: "trip.budgetRemaining" }), text(".")),
-  ]),
-};
-
 /**
  * Everything the "Start from a template" gallery offers, in the order it offers
- * it: the two seeded ones first — a returning reader recognises them from their
- * own trips — then the rest.
+ * it: the three seeded ones first — a returning reader recognises them from
+ * their own trips, and it is how a deleted one comes back — then the rest.
  */
 export const TEMPLATE_LIBRARY: TemplateSeed[] = [
   // `overviewPage` is deliberately NOT here. The gallery is "Start from a
@@ -451,13 +483,14 @@ export const TEMPLATE_LIBRARY: TemplateSeed[] = [
   // template anybody wants — there can only be one page marked
   // `kind: "overview"`, and offering a button that makes another would be
   // offering a broken outcome (rule 2: no purposeless UI).
+  beforeYouGo,
+  bookings,
+  money,
   tripOverview,
   dayOverview,
   dayInDetail,
   fullTripBreakdown,
   dinnerTracker,
-  bookingsAndConfirmations,
-  beforeYouGo,
 ];
 
 /**
@@ -472,7 +505,7 @@ export const DEFAULT_TEMPLATES: TemplateSeed[] = [
   ...TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips),
 ];
 
-/** The one seeded page, for the callers that need to name it rather than list it. */
+/** The Overview's seed, for the callers that need to name it rather than list it. */
 export const OVERVIEW_TEMPLATE = overviewPage;
 
 /**
@@ -491,8 +524,27 @@ export function isOverviewPage(context: PageContext): boolean {
   return context.kind === OVERVIEW_KIND;
 }
 
-export function instantiateDefaults(tripId: string): CreatePageInput[] {
-  return DEFAULT_TEMPLATES.map((t) => ({ title: t.title, context: t.buildContext(tripId), content: t.content }));
+/** A seeded page: what `CreatePageInput` carries, and the id the seeder gave it. */
+export type SeededPage = CreatePageInput & { id: string };
+
+/**
+ * The pages a new trip is seeded with, each with its id.
+ *
+ * **The ids are minted HERE, before any content is built**, because the
+ * Overview links to its siblings by id (ADR-056) and those ids have to exist
+ * before the Overview's document can say them. `mintId` is the caller's — this
+ * package has no randomness (Invariant 4) — so the server passes `randomUUID`
+ * and the demo passes its fixed ids, and one call to this is the whole seed.
+ */
+export function instantiateDefaults(tripId: string, mintId: () => string): SeededPage[] {
+  const ids: Record<string, string> = {};
+  for (const t of DEFAULT_TEMPLATES) ids[t.key] = mintId();
+  return DEFAULT_TEMPLATES.map((t) => ({
+    id: ids[t.key]!,
+    title: t.title,
+    context: t.buildContext(tripId),
+    content: t.buildContent ? t.buildContent(ids) : t.content,
+  }));
 }
 
 /** One template, by key — what the gallery's "Use this" button instantiates. */
