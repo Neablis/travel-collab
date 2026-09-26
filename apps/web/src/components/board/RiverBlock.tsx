@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { AlertTriangle, X } from "lucide-react";
 import type { ActivityTag, ActivityView, TimeWindow } from "@tc/contracts";
@@ -105,9 +105,8 @@ function riverLook(stop: Pick<ActivityView, "kind" | "mode" | "pendingReason" | 
  *
  * It is a drag source exactly as the card is, and deliberately NOT a drop
  * target: "insert above/below this card" means nothing on a to-scale axis,
- * where position is the stop's time. A drop over a block falls through to the
- * day column, which moves the stop to that day and keeps its time (Part 3
- * makes the drop land at the pointer's time instead).
+ * where position is the stop's time. A drop over a block falls through to its
+ * day's river, which lands the stop at the time under the pointer (DayRiver).
  */
 export function RiverBlock({
   activity,
@@ -124,6 +123,7 @@ export function RiverBlock({
   focusedTag = null,
   onToggleTag,
   readOnly = false,
+  onResizeStart,
 }: {
   activity: ActivityView;
   /** The stop's own window, already known non-null by the caller. */
@@ -143,10 +143,31 @@ export function RiverBlock({
   focusedTag?: ActivityTag | null;
   onToggleTag?: (tag: ActivityTag) => void;
   readOnly?: boolean;
+  /**
+   * Pressed on the block's bottom-edge grip (M29 part 3): the river takes the
+   * pointer from here and the stop's end follows it. Absent, there is no grip
+   * — a read-only river's blocks have none.
+   *
+   * `release` hands the block's drag back: the river calls it when the resize
+   * ends, however it ends — a pointerup, but also Escape, a lost window focus,
+   * a move with no button down, or the river unmounting. Only the river sees
+   * all of those, so only it can say when the grip stops being held.
+   */
+  onResizeStart?: (release: () => void) => void;
 }) {
   const clock = useTimeFormat();
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
+  // True from a press on the grip until the resize it started ends. The grip
+  // sits inside the block, and the block is a native HTML5 draggable, so
+  // moving the pointer after pressing the grip would ALSO start a drag of the
+  // whole stop; `canDrag` refuses it for as long as this holds.
+  //
+  // Cleared by the river's `release`, not by a pointerup of our own: the
+  // resize also ends on Escape, blur and a buttonless move (DayRiver's
+  // `follow`), and a flag waiting for a pointerup that never came refused
+  // every later drag of this stop (CodeRabbit, PR #245).
+  const gripHeld = useRef(false);
   const dimOpacity = tagFocusOpacity(activity.tags, focusedTag);
 
   useEffect(() => {
@@ -156,11 +177,28 @@ export function RiverBlock({
     if (!el || readOnly) return;
     return draggable({
       element: el,
-      getInitialData: () => ({ activityId: activity.activityId }),
+      canDrag: () => !gripHeld.current,
+      // Where down the block it was picked up, so the river can land its top
+      // where the outline shows it (riverGestures.ts `dropWindow`).
+      getInitialData: ({ input, element }) => ({
+        activityId: activity.activityId,
+        grabOffsetPx: input.clientY - element.getBoundingClientRect().top,
+      }),
       onDragStart: () => setDragging(true),
       onDrop: () => setDragging(false),
     });
   }, [activity.activityId, readOnly]);
+
+  function pressGrip(e: ReactPointerEvent) {
+    if (e.button !== 0 || !onResizeStart) return;
+    // Not the river's sketch, and not the edit button under the grip.
+    e.preventDefault();
+    e.stopPropagation();
+    gripHeld.current = true;
+    onResizeStart(() => {
+      gripHeld.current = false;
+    });
+  }
 
   const look = riverLook(activity, window);
   const overlapping = overlapPartners.length > 0;
@@ -337,6 +375,22 @@ export function RiverBlock({
           </div>
         )}
       </div>
+      {/* The bottom-edge grip (SPEC §36.9b: "a faint grip marks it"), the
+          design's 9px band straddling the edge with a 22×3 bar in it. Outside
+          the clipped box so it can hang 4px below it. Pointer-only and hidden
+          from assistive technology: the keyboard's way to change when a stop
+          ends is the editor's End time, one Enter away on the block itself. */}
+      {onResizeStart && (
+        <span
+          aria-hidden
+          data-testid="river-resize"
+          title="Drag to change when it ends"
+          onPointerDown={pressGrip}
+          className="absolute inset-x-0 -bottom-1 z-10 flex h-2.5 cursor-ns-resize items-center justify-center"
+        >
+          <span className="h-0.75 w-5.5 rounded-full bg-ink opacity-30" />
+        </span>
+      )}
       {revealTags && (
         // Below the block, not inside it: a 24px block has no room, and its
         // box clips. `pt-0.5` rather than a margin, so there is no gap for the

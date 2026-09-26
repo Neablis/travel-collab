@@ -46,6 +46,14 @@ describe("ActivityEditor", () => {
 
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ anchors }));
   });
+
+  it("reads a length drawn to midnight, stored ending 23:59, as the two hours it is", () => {
+    const initial = { ...existingStop({ timeWindow: { start: "22:00", end: "23:59" } }), kind: "pending" as const };
+    render(<ActivityEditor initial={initial} mode="create" days={[]} onSave={vi.fn()} onCancel={vi.fn()} />);
+
+    const howLong = screen.getByLabelText("How long") as HTMLSelectElement;
+    expect(howLong.selectedOptions[0]?.textContent).toBe("2 hours");
+  });
 });
 
 const EXISTING = "22222222-2222-4222-8222-222222222222";

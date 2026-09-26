@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import type { TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
@@ -26,6 +27,7 @@ import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorShee
 import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDropWindow } from "./rackDropWindow";
+import { type PlaceOutcome, placeCommands } from "./resolveDrop";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { shortPlace } from "@/lib/place";
@@ -93,7 +95,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, applyOutcome, preview, pending, readOnly, remoteRevision, confirmedSeq } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, remoteRevision, confirmedSeq } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -491,6 +493,24 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const timeWindow = rackDropWindow(activeTrip, activityId, toDayId, position);
     void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position });
     if (timeWindow !== null) void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow });
+  };
+
+  // A drop at a time on a day's river (M29 part 3): the day AND the time, as
+  // ONE batch, so one undo puts the stop back where and when it was. The two
+  // rack paths above are two dispatches, and two undos, on purpose (see
+  // `unscheduleActivity`); this is a different gesture with one visible result
+  // — the block moved to where its outline was — and half of it undone would
+  // leave a stop at a time nobody chose, on a day nobody dropped it on.
+  // `resolveDrop` has already left out whichever half changes nothing.
+  const placeActivity = (outcome: PlaceOutcome) => {
+    const commands = placeCommands(tripId, outcome);
+    if (commands.length > 0) void dispatchBatch(commands);
+  };
+
+  // A block's bottom edge dragged (M29 part 3). Only the window: every other
+  // field is omitted, which `UpdateActivity` reads as "unchanged".
+  const retimeActivity = (activityId: string, timeWindow: TimeWindow) => {
+    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow });
   };
 
   // The mirror image of assignFromRack, and two commands for the same reason:
@@ -1045,6 +1065,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       onSelectDay: (index: number | null) => setFocusedDay(index, "columns"),
                       onMove: moveActivity,
                       onUnschedule: unscheduleActivity,
+                      onPlace: placeActivity,
+                      onRetime: retimeActivity,
                       onDragStart: () => onRackEvent({ type: "dragStart" }),
                       onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                       onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),

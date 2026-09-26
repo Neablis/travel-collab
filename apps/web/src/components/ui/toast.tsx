@@ -79,7 +79,10 @@ export function Toast({
       // one to the same header.
       data-testid="toast"
       className={cn(
-        "fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-hairline bg-surface px-4 py-2.5 shadow-overlay",
+        // `toast-dock` is the bottom offset: 16px above whatever else owns the
+        // bottom of the screen — the unscheduled rack and the phone tab bar —
+        // rather than above the viewport's edge (globals.css).
+        "toast-dock fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-hairline bg-surface px-4 py-2.5 shadow-overlay",
         className,
       )}
     >

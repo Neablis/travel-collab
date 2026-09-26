@@ -618,6 +618,20 @@ html[data-look="ledger"] .shadow-raised {
     bottom: var(--rack-height, 0px);
   }
 
+  /* The toast (ui/toast.tsx) sits 16px above the fixed things that own the
+     bottom edge, not 16px above the viewport — the same measured variables the
+     scrollbar above and the rack below read. At a bare `bottom: 1rem` it
+     covered the "Unscheduled" bar on the trip board, and on a phone the tab
+     bar too (CodeRabbit, PR #245). The rack sits ON the tab bar (its own
+     `bottom` is `--phone-tab-bar-height`), so its top edge is the sum of the
+     two. Both fall back to 0px: off the trip board nothing publishes
+     `--rack-height`, and at >=768px there is no tab bar. The variables are
+     inherited, so a toast rendered anywhere inside `.trip-board-content`
+     clears the rack; one rendered outside it clears only the tab bar. */
+  .toast-dock {
+    bottom: calc(1rem + var(--rack-height, 0px) + var(--phone-tab-bar-height, 0px));
+  }
+
   /* The day-sync scroll targets — a day column's header, a calendar cell —
      clear the sticky header stack (KI-2026-09-13-a). `scrollIntoView` aligns
      with the scrollport's top edge, `y = 0`, which is under AppHeader +

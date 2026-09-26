@@ -11,7 +11,7 @@ import { type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
 import { Text } from "@/components/ui/text";
 import { ActivityCard } from "./ActivityCard";
-import { DayRiver } from "./DayRiver";
+import { DayRiver, type RiverGestures } from "./DayRiver";
 import type { RiverAxis } from "./riverLayout";
 
 // Same static-map pattern as TimelineLens.tsx's TINT_BG / DayChips.tsx's
@@ -67,6 +67,7 @@ export function Column({
   readOnly = false,
   fullWidth = false,
   keepFlag,
+  gestures,
 }: {
   title: string;
   /**
@@ -136,11 +137,18 @@ export function Column({
    * finished thing rather than a form you lack permission for."
    */
   keepFlag?: ReactNode;
+  /**
+   * The river's gestures for this day (M29 part 3) — double-click, sketch,
+   * resize and drop-at-a-time. Withheld on a read-only board, like
+   * `onAddActivity`, and then the river offers none.
+   */
+  gestures?: RiverGestures;
 }) {
   // **The whole column is the drop target** (M29 part 2). It was the card
   // list, which filled the column below the header; now the column is a shelf
   // and a river, and a stop dragged over either — or over a river block, which
-  // is not a drop target of its own (RiverBlock) — means "this day".
+  // is not a drop target of its own (RiverBlock) — means "this day". Part 3
+  // nests the river's own target inside it, which adds "at this time".
   const [section, setSection] = useState<HTMLElement | null>(null);
   const sectionRef = useCallback(
     (node: HTMLElement | null) => {
@@ -331,14 +339,18 @@ export function Column({
         )}
         {/* The "this day" half of the drop feedback: shown only while the
             column itself, not one of its cards, is the innermost drop target.
-            A dropped stop keeps its time, so a timed one lands on the river at
+            Over the river, the river is (M29 part 3) and draws its own outline
+            at the pointer's time; this is everywhere else in the column, where
+            a dropped stop keeps its time, so a timed one lands on the river at
             that time and an untimed one at the end of this shelf — which is
-            where this line sits. */}
+            where this line sits. A stop off the rack lands here even over the
+            river, which refuses it (`RiverGestures.canPlace`). */}
         {isOver && <span aria-hidden className="h-0.5 rounded-full bg-brand" />}
       </div>
       {!fullWidth && (
         <DayRiver
           title={title}
+          dayId={dayId}
           axis={axis}
           activityIds={activityIds}
           activities={activities}
@@ -353,6 +365,7 @@ export function Column({
           focusedTag={focusedTag}
           onToggleTag={onToggleTag}
           readOnly={readOnly}
+          gestures={gestures}
         />
       )}
       {/* SPEC §36.9b: "+ Add a stop sits 22 px below the axis, brand-tinted
@@ -367,6 +380,8 @@ export function Column({
             variant="ghost"
             onClick={onAddActivity}
             aria-label={`Add activity to ${title}`}
+            // The design's own hint for the river's two faster ways in.
+            title="Or double-click the timeline, or drag across empty time"
             className="mt-3.5 w-full justify-center rounded-lg border border-brand bg-brand-tint font-semibold text-brand-pressed hover:bg-surface hover:text-brand-pressed"
           >
             + Add a stop

@@ -107,12 +107,30 @@ Part 2:
 
 Part 3:
 
-- [ ] **[walk]** Double-click empty time opens the add sheet at that time; dragging
-      across empty time opens it with that start and length.
-- [ ] **[walk]** Dragging a block's bottom edge changes its end; dragging a block drops
-      it at the pointer's time, with an outline preview of its own length.
-- [ ] Each gesture's command is asserted at the dispatch layer, and the e2e script walks
-      one of them through `pnpm --filter web test:e2e:ci-like`.
+- [x] **[walk]** Double-click empty time opens the add sheet at that time; dragging
+      across empty time opens it with that start and length. *Agent's walk, 2026-09-26,
+      production build (`test:e2e:ci-like`), Chromium at 1280×900, driven by
+      `e2e/m29-time-river.spec.ts`: a double-click at 12:05 opened "Add a stop" with Start
+      12:00 and the saved stop read "12 pm – 1 pm"; a drag from 1 pm drew a brand-edged
+      ghost reading "1 pm – 3:30 pm" and opened the sheet at 13:00 with How long "2 h 30 m"
+      (a drawn length none of the five options holds is offered as drawn, not rounded).
+      Snap is the design's `SNAP = 15`; under 30 minutes a sketch opens nothing.*
+- [x] **[walk]** Dragging a block's bottom edge changes its end; dragging a block drops
+      it at the pointer's time, with an outline preview of its own length. *Same walk: the
+      grip on an 8–9 am stop dragged to 10:30 stretched the block live, toasted "Now ends
+      at 10:30 am" and survived a reload; a 4–5 pm block held by its middle and dragged
+      onto the other day drew a "2 pm – 3 pm" outline and landed there, and ONE undo put
+      it back on its own day at 4 pm (MoveActivity + UpdateActivity are one batch). A stop
+      off the Unscheduled rack keeps the rack's own rule (`rackDropWindow`) — the river
+      refuses it as a target.*
+- [x] Each gesture's command is asserted at the dispatch layer, and the e2e script walks
+      one of them through `pnpm --filter web test:e2e:ci-like`. *`TripBoardScreen.test.tsx`:
+      a sketch sends `AddActivity` with `{11:00, 13:15}`, a resize sends `UpdateActivity`
+      with the new window; `DayRiver.test.tsx`: a double-click's window; `resolveDrop.test.ts`:
+      a drop's `place` outcome and `placeCommands`' one batch. All four gestures walk in
+      `m29-time-river.spec.ts` (12/12 with m1, m2, m10-rack on ci-like; the part-2 board
+      set, 33/33). Every new test seen red — the e2e spec with the board's gestures
+      withheld failed all four for its reason (no sheet, no ghost ×2, no grip).*
 
 Part 4:
 

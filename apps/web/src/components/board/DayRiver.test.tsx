@@ -1,20 +1,36 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { activityFactory, locationFactory } from "@tc/factories";
-import { DayRiver } from "./DayRiver";
+import { DayRiver, type RiverGestures } from "./DayRiver";
 import { riverAxis } from "./riverLayout";
+
+// The real adapter, wrapped so a test can ask a block the question the browser
+// asks it at dragstart: may this stop be picked up now? jsdom has no native
+// drag to fire, and `canDrag` is exactly what a held grip gates.
+const canDragOf = vi.hoisted(() => new Map<Element, () => boolean>());
+vi.mock("@atlaskit/pragmatic-drag-and-drop/element/adapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@atlaskit/pragmatic-drag-and-drop/element/adapter")>();
+  return {
+    ...actual,
+    draggable: (args: Parameters<typeof actual.draggable>[0]) => {
+      canDragOf.set(args.element, () => args.canDrag?.({ element: args.element, dragHandle: null, input: {} as never }) ?? true);
+      return actual.draggable(args);
+    },
+  };
+});
 
 // M29 part 2 — how each kind of stop is drawn on the river (SPEC §36.9b). The
 // styling itself is the colour wall's to own; what is asserted here is what a
 // person can tell apart without it: the word in the block's corner, and the
 // kind in the name a screen reader hears. The geometry is `riverLayout.test.ts`.
 
-function renderRiver(stops: ActivityView[], readOnly = false) {
+function renderRiver(stops: ActivityView[], readOnly = false, gestures?: RiverGestures) {
   const activities = Object.fromEntries(stops.map((s) => [s.activityId, s]));
-  render(
+  return render(
     <DayRiver
       title="Day 1"
+      dayId="day-1"
       axis={riverAxis(stops.map((s) => s.timeWindow))}
       activityIds={stops.map((s) => s.activityId)}
       activities={activities}
@@ -29,6 +45,7 @@ function renderRiver(stops: ActivityView[], readOnly = false) {
       focusedTag={null}
       onToggleTag={vi.fn()}
       readOnly={readOnly}
+      gestures={gestures}
     />,
   );
 }
@@ -119,5 +136,129 @@ describe("the order a river is read in", () => {
       .getAllByRole("button", { name: /^Edit / })
       .map((button) => button.getAttribute("aria-label")?.split(",")[0]);
     expect(titles).toEqual(["Edit Museum", "Edit Coffee", "Edit Lunch", "Edit Dinner"]);
+  });
+});
+
+// M29 part 3 — the gestures on empty time. The arithmetic (snap, clamps) is
+// riverGestures.test.ts; what is asserted here is that the right pointer on the
+// right element reaches it, and that nothing else does. jsdom lays nothing out,
+// so the river's top edge is at 0 and a pointer's clientY IS its y on the
+// axis — 44px an hour from the axis's first hour, here 9:00.
+describe("gestures on empty time", () => {
+  const morning = activityFactory.build({ title: "Museum", timeWindow: { start: "09:00", end: "10:00" } });
+  const evening = activityFactory.build({ title: "Dinner", timeWindow: { start: "17:00", end: "18:00" } });
+  const gestures = () => ({ onCreateAt: vi.fn(), onResize: vi.fn(), canPlace: () => true }) satisfies RiverGestures;
+  const hour = (h: number) => (h - 9) * 44;
+
+  it("double-click on empty time opens an hour at the quarter hour under the pointer — and not on a block", () => {
+    const g = gestures();
+    renderRiver([morning, evening], false, g);
+
+    fireEvent.doubleClick(screen.getByTestId(`activity-card-${morning.activityId}`), { clientY: hour(9.5) });
+    expect(g.onCreateAt).not.toHaveBeenCalled();
+
+    // 10:20 is nearer 10:15 than 10:30.
+    fireEvent.doubleClick(screen.getByTestId("day-river"), { clientY: hour(10 + 20 / 60) });
+    expect(g.onCreateAt).toHaveBeenCalledExactlyOnceWith({ start: "10:15", end: "11:15" });
+  });
+
+  it("a sketch draws its window while the pointer moves, opens the add sheet with it on release, and is no double-click", () => {
+    const g = gestures();
+    renderRiver([morning, evening], false, g);
+    const river = screen.getByTestId("day-river");
+
+    fireEvent.pointerDown(river, { button: 0, clientY: hour(11) });
+    fireEvent.pointerMove(window, { buttons: 1, clientY: hour(13.5) });
+    expect(screen.getByTestId("river-ghost").textContent).toBe("11 am – 1:30 pm");
+
+    fireEvent.pointerUp(window, { clientY: hour(13.5) });
+    // The release is a click; a click just after another is a double-click.
+    fireEvent.doubleClick(river, { clientY: hour(13.5) });
+    expect(g.onCreateAt).toHaveBeenCalledExactlyOnceWith({ start: "11:00", end: "13:30" });
+    expect(screen.queryByTestId("river-ghost")).toBeNull();
+  });
+
+  it("a sketch under half an hour opens nothing", () => {
+    const g = gestures();
+    renderRiver([morning, evening], false, g);
+
+    fireEvent.pointerDown(screen.getByTestId("day-river"), { button: 0, clientY: hour(11) });
+    fireEvent.pointerMove(window, { buttons: 1, clientY: hour(11.25) });
+    fireEvent.pointerUp(window);
+    expect(g.onCreateAt).not.toHaveBeenCalled();
+  });
+
+  // A release the river never hears — over another window, after a tab
+  // switch, or after the river is gone — ends the sketch and opens nothing.
+  // Each case ends with the pointerup a plain listener would still commit on.
+  describe("a sketch whose release goes unheard opens nothing", () => {
+    const sketchTo = (g: RiverGestures) => {
+      const view = renderRiver([morning, evening], false, g);
+      fireEvent.pointerDown(screen.getByTestId("day-river"), { button: 0, clientY: hour(11) });
+      fireEvent.pointerMove(window, { buttons: 1, clientY: hour(13) });
+      return view;
+    };
+
+    it("when the pointer comes back with no button down", () => {
+      const g = gestures();
+      sketchTo(g);
+      fireEvent.pointerMove(window, { buttons: 0, clientY: hour(14) });
+      expect(screen.queryByTestId("river-ghost")).toBeNull();
+      fireEvent.pointerUp(window);
+      expect(g.onCreateAt).not.toHaveBeenCalled();
+    });
+
+    it("when the window loses focus mid-sketch", () => {
+      const g = gestures();
+      sketchTo(g);
+      fireEvent.blur(window);
+      expect(screen.queryByTestId("river-ghost")).toBeNull();
+      fireEvent.pointerUp(window);
+      expect(g.onCreateAt).not.toHaveBeenCalled();
+    });
+
+    it("when the river unmounts mid-sketch", () => {
+      const g = gestures();
+      sketchTo(g).unmount();
+      fireEvent.pointerUp(window);
+      expect(g.onCreateAt).not.toHaveBeenCalled();
+    });
+  });
+
+  // A block cannot be dragged while its grip is held, or pulling the grip
+  // would carry the whole stop off. Every way the resize ends has to hand the
+  // drag back — not only a pointerup — or the stop can never be moved again.
+  describe("a resize that ends without a pointerup gives the block its drag back", () => {
+    const canDrag = (id: string) => canDragOf.get(screen.getByTestId(`activity-card-${id}`))!();
+    const resizeTo = (g: RiverGestures) => {
+      renderRiver([morning, evening], false, g);
+      fireEvent.pointerDown(block(morning.activityId).getByTitle("Drag to change when it ends"), { button: 0, clientY: hour(10) });
+      fireEvent.pointerMove(window, { buttons: 1, clientY: hour(11) });
+      expect(canDrag(morning.activityId)).toBe(false);
+    };
+
+    it("when Escape cancels it", () => {
+      const g = gestures();
+      resizeTo(g);
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(g.onResize).not.toHaveBeenCalled();
+      expect(canDrag(morning.activityId)).toBe(true);
+    });
+
+    it("when the pointer comes back with no button down", () => {
+      const g = gestures();
+      resizeTo(g);
+      fireEvent.pointerMove(window, { buttons: 0, clientY: hour(11) });
+      expect(canDrag(morning.activityId)).toBe(true);
+    });
+  });
+
+  it("a read-only river offers none of it: no grip, and a double-click does nothing", () => {
+    const g = gestures();
+    renderRiver([morning], true, g);
+
+    fireEvent.doubleClick(screen.getByTestId("day-river"), { clientY: hour(9.5) });
+    expect(g.onCreateAt).not.toHaveBeenCalled();
+    expect(screen.queryByTitle("Drag to change when it ends")).toBeNull();
   });
 });
