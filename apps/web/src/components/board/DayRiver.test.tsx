@@ -5,6 +5,21 @@ import { activityFactory, locationFactory } from "@tc/factories";
 import { DayRiver, type RiverGestures } from "./DayRiver";
 import { riverAxis } from "./riverLayout";
 
+// The real adapter, wrapped so a test can ask a block the question the browser
+// asks it at dragstart: may this stop be picked up now? jsdom has no native
+// drag to fire, and `canDrag` is exactly what a held grip gates.
+const canDragOf = vi.hoisted(() => new Map<Element, () => boolean>());
+vi.mock("@atlaskit/pragmatic-drag-and-drop/element/adapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@atlaskit/pragmatic-drag-and-drop/element/adapter")>();
+  return {
+    ...actual,
+    draggable: (args: Parameters<typeof actual.draggable>[0]) => {
+      canDragOf.set(args.element, () => args.canDrag?.({ element: args.element, dragHandle: null, input: {} as never }) ?? true);
+      return actual.draggable(args);
+    },
+  };
+});
+
 // M29 part 2 — how each kind of stop is drawn on the river (SPEC §36.9b). The
 // styling itself is the colour wall's to own; what is asserted here is what a
 // person can tell apart without it: the word in the block's corner, and the
@@ -207,6 +222,34 @@ describe("gestures on empty time", () => {
       sketchTo(g).unmount();
       fireEvent.pointerUp(window);
       expect(g.onCreateAt).not.toHaveBeenCalled();
+    });
+  });
+
+  // A block cannot be dragged while its grip is held, or pulling the grip
+  // would carry the whole stop off. Every way the resize ends has to hand the
+  // drag back — not only a pointerup — or the stop can never be moved again.
+  describe("a resize that ends without a pointerup gives the block its drag back", () => {
+    const canDrag = (id: string) => canDragOf.get(screen.getByTestId(`activity-card-${id}`))!();
+    const resizeTo = (g: RiverGestures) => {
+      renderRiver([morning, evening], false, g);
+      fireEvent.pointerDown(block(morning.activityId).getByTitle("Drag to change when it ends"), { button: 0, clientY: hour(10) });
+      fireEvent.pointerMove(window, { buttons: 1, clientY: hour(11) });
+      expect(canDrag(morning.activityId)).toBe(false);
+    };
+
+    it("when Escape cancels it", () => {
+      const g = gestures();
+      resizeTo(g);
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(g.onResize).not.toHaveBeenCalled();
+      expect(canDrag(morning.activityId)).toBe(true);
+    });
+
+    it("when the pointer comes back with no button down", () => {
+      const g = gestures();
+      resizeTo(g);
+      fireEvent.pointerMove(window, { buttons: 0, clientY: hour(11) });
+      expect(canDrag(morning.activityId)).toBe(true);
     });
   });
 

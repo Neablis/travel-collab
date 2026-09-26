@@ -147,16 +147,26 @@ export function RiverBlock({
    * Pressed on the block's bottom-edge grip (M29 part 3): the river takes the
    * pointer from here and the stop's end follows it. Absent, there is no grip
    * — a read-only river's blocks have none.
+   *
+   * `release` hands the block's drag back: the river calls it when the resize
+   * ends, however it ends — a pointerup, but also Escape, a lost window focus,
+   * a move with no button down, or the river unmounting. Only the river sees
+   * all of those, so only it can say when the grip stops being held.
    */
-  onResizeStart?: () => void;
+  onResizeStart?: (release: () => void) => void;
 }) {
   const clock = useTimeFormat();
   const ref = useRef<HTMLLIElement>(null);
   const [dragging, setDragging] = useState(false);
-  // True from a press on the grip until that pointer lets go. The grip sits
-  // inside the block, and the block is a native HTML5 draggable, so moving
-  // the pointer after pressing the grip would ALSO start a drag of the whole
-  // stop; `canDrag` refuses it for as long as this holds.
+  // True from a press on the grip until the resize it started ends. The grip
+  // sits inside the block, and the block is a native HTML5 draggable, so
+  // moving the pointer after pressing the grip would ALSO start a drag of the
+  // whole stop; `canDrag` refuses it for as long as this holds.
+  //
+  // Cleared by the river's `release`, not by a pointerup of our own: the
+  // resize also ends on Escape, blur and a buttonless move (DayRiver's
+  // `follow`), and a flag waiting for a pointerup that never came refused
+  // every later drag of this stop (CodeRabbit, PR #245).
   const gripHeld = useRef(false);
   const dimOpacity = tagFocusOpacity(activity.tags, focusedTag);
 
@@ -185,14 +195,9 @@ export function RiverBlock({
     e.preventDefault();
     e.stopPropagation();
     gripHeld.current = true;
-    const release = () => {
+    onResizeStart(() => {
       gripHeld.current = false;
-      document.removeEventListener("pointerup", release);
-      document.removeEventListener("pointercancel", release);
-    };
-    document.addEventListener("pointerup", release);
-    document.addEventListener("pointercancel", release);
-    onResizeStart();
+    });
   }
 
   const look = riverLook(activity, window);

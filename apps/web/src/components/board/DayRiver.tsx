@@ -282,8 +282,13 @@ export function DayRiver({
   }
 
   // ---- resize: drag a block's bottom edge ------------------------------
-  function startResize(activityId: string, stored: TimeWindow) {
-    if (!live) return;
+  // `release` is the block's: it lets the block be dragged again, and it is
+  // called on every way the resize ends, committed or not.
+  function startResize(activityId: string, stored: TimeWindow, release: () => void) {
+    if (!live) {
+      release();
+      return;
+    }
     const start = toMinutes(stored.start);
     let end = toMinutes(stored.end);
     follow(
@@ -292,6 +297,7 @@ export function DayRiver({
         setResizing({ activityId, end });
       },
       (commit) => {
+        release();
         setResizing(null);
         const next = toTimeWindow({ start, end });
         if (commit && next.end !== stored.end) live.onResize(activityId, next);
@@ -349,7 +355,7 @@ export function DayRiver({
               readOnly={readOnly}
               // The stop's STORED window, not the one being previewed: a
               // resize always runs from where the stop really starts and ends.
-              onResizeStart={live && activity.timeWindow ? () => startResize(id, activity.timeWindow!) : undefined}
+              onResizeStart={live && activity.timeWindow ? (release) => startResize(id, activity.timeWindow!, release) : undefined}
             />
           );
         })}
