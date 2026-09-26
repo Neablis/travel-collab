@@ -18,7 +18,7 @@ presets, under the same ids.
 4. **Three shapes**: `single` (inline, sits inside a sentence), `block` (a table/card/chart on
    its own line), `repeat` (a line per item). Every widget node is an inline atom, even blocks.
 
-## The catalogue (31 presets)
+## The catalogue (32 presets)
 
 | Preset | Primitive + params | Shape | Reads as |
 |---|---|---|---|
@@ -44,7 +44,8 @@ presets, under the same ids.
 | Trip strip | `trip.strip` | block | one band, a cell per day in its city colour, city named over each stay |
 | Spend by day | `cost.chart` | block | Recharts bars per day against the budget |
 | Budget burn-down | `cost.chart {view: burndown}` | block | same chart as remaining-after-each-day |
-| Spend by kind | `cost.byKind` | block | a donut per kind (Planned / Pending / Travel) and a key of amount + share + total; *no costs yet* |
+| Spend by kind | `cost.breakdown {by: kind}` | block | a donut per kind (Planned / Pending / Travel) and a key of amount + share + total; filters day, dates, city, tag; *no costs yet* |
+| Spend by tag | `cost.breakdown {by: tag}` | block | the same donut per tag (Meal / Lodging / Ticketed / Outdoors / Untagged — a stop counts under its first tag, as Spend by day stacks it); filters day, dates, city, kind; *no costs yet* |
 | Sunrise and sunset | `day.sun` | repeat | per day: sunrise · sunset · golden hour |
 | Time difference from home | `day.fromHome` | single | `Tokyo is 16h ahead of home` |
 | Weather | `day.weather` | block | a fixed-height row per (day, city): mode in words, temps, rain; one credit + as-of footer; quiet when down |

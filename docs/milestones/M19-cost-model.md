@@ -109,8 +109,8 @@ them.
 1. ~~**A cost knows what kind of thing it is.**~~ **Shipped outside M19,
    2026-09-26 — see the note at the end.** A cost inherits its stop's
    `ActivityKind` (Planned / Pending / Travel, M28's three), and the breakdown
-   is the notebook widget "Spend by kind" (`cost.byKind`), not the Settings
-   sheet's `budget-breakdown` shell, which is deleted.
+   is the notebook widget "Spend by kind" (`cost.breakdown`, beside "Spend by
+   tag"), not the Settings sheet's `budget-breakdown` shell, which is deleted.
 2. **A cost knows whether it is settled.** Confirmed vs estimate, so a trip
    total can say what is committed and what is still a guess. Unblocks
    `cost-estimate-state`.
@@ -226,11 +226,27 @@ fourth category, *Other*, has no kind behind it and is gone.
 - **Removed:** the mocked rows in `SettingsSheet.tsx` and the
   `budget-breakdown` entry in `preview-registry.ts`. The sheet's real total,
   meter, over-budget banner and unpriced count are unchanged.
-- **Added:** the "Spend by kind" preset over a new `@tc/pages` primitive,
-  `cost.byKind` (`macros/primitives/spendByKind.ts`) — a donut and a key of
-  each kind's amount and share, filterable by day, dates, city and tag, in the
-  trip's currency only (other currencies are named, `cost.chart`'s rule). It
-  is in the insert rail and in the "Full trip breakdown" gallery template.
+- **Added:** one `@tc/pages` primitive, `cost.breakdown`
+  (`macros/primitives/spendBreakdown.ts`) — a donut and a key of each slice's
+  amount and share, in the trip's currency only (other currencies are named,
+  `cost.chart`'s rule) — with a `by` param and a preset per value:
+  - **"Spend by kind"** (`by: "kind"`): Planned / Pending / Travel,
+    filterable by day, dates, city and tag.
+  - **"Spend by tag"** (`by: "tag"`, Mitchell the same day: *"Can #246
+    introduce the pie chart for spend by kind and spend by tags?"*): Meal /
+    Lodging / Ticketed / Outdoors / Untagged, filterable by day, dates, city
+    and kind. A stop with several tags counts under its first, the rule
+    "Spend by day" stacks by — one shared helper (`spendSeries.ts`), and the
+    same colours (`spendColors.ts`).
+
+  The filter on the slices' own dimension is **withheld** — a pie split by
+  kind and narrowed to one kind is one slice. `WidgetSelection.withheld`
+  declares it, so the resolver ignores it, the settings panel hides it, and a
+  stored `{by: "tag", tag: "meal"}` reads as unfiltered by tag. The title
+  says what the other dimension narrows it to ("Spend by tag · Pending").
+  "Spend by kind" is in the insert rail and in the "Full trip breakdown"
+  gallery template; "Spend by tag" is in the rail. (Named `cost.byKind` while
+  #246 was open; renamed before anything stored it.)
 
 **What this does NOT take from M19:** a stop with two costs of different kinds
 (the argument against inheriting) still has no model, and neither does
