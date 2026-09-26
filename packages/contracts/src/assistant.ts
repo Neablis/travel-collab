@@ -211,6 +211,10 @@ export type AssistantProposal = z.infer<typeof AssistantProposal>;
  * A reader that cannot parse a chunk drops it, exactly as it drops an unknown
  * stream part; an unreadable envelope must never break a conversation.
  */
+/** One insert a page turn did not land: the widget's name (`text` for prose) and why. */
+export const DroppedInsert = z.object({ name: z.string().min(1), reason: z.string().min(1) });
+export type DroppedInsert = z.infer<typeof DroppedInsert>;
+
 const AskStreamShape = z.union([
   z.object({ proposal: AssistantProposal }),
   /**
@@ -230,7 +234,19 @@ const AskStreamShape = z.union([
    * is not a whole page any more — a turn adds to the document the reader is
    * looking at, which is what lets a second turn mean something.
    */
-  z.object({ pageInserts: z.object({ content: PageDoc }) }),
+  z.object({
+    pageInserts: z.object({
+      content: PageDoc,
+      /**
+       * What the turn asked for and did NOT get: a widget call refused and
+       * never corrected, or a node the final check dropped. The rest of
+       * `content` still lands — one bad widget no longer costs the batch
+       * (KI-2026-09-26-r) — and the client says each of these out loud, because
+       * the model's own sentence may claim it added them.
+       */
+      dropped: z.array(DroppedInsert).optional(),
+    }),
+  }),
   /**
    * A page turn whose assembled nodes failed validation, with the server's own
    * reason. The endpoint this replaced answered a bad doc with a 422; a stream

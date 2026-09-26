@@ -37,7 +37,7 @@ import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/assistant/context";
-import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
+import { askIntentVerdictText, isAskIntentCall, isPageIntentCall } from "@/server/ai/askIntent";
 import type {
   DayReadout,
   FreeTimeReadout,
@@ -686,6 +686,18 @@ function simulatedTaskClass(text: string): "question" | "edit" | "plan" {
   return asksToWrite(text) ? "edit" : "question";
 }
 
+/**
+ * The page classifier's stand-in (ADR-058): a question is a sentence that asks
+ * something and asks for nothing to be made. "how much am I spending on food?"
+ * is a question; "make a notebook about meals" and "add a cost chart" compose.
+ * Anything it cannot place composes — the page surface's default.
+ */
+const PAGE_COMPOSE_VERBS = /\b(add|insert|put|make|build|create|write|draft|notebook|section)\b/i;
+
+function simulatedPageIntent(text: string): "compose" | "question" {
+  return text.trim().endsWith("?") && !PAGE_COMPOSE_VERBS.test(text) ? "question" : "compose";
+}
+
 function classifyStep(options: CallOptionsLike): SimulatedStep {
   // The STRUCTURED verdict, via askIntent.ts's own writer — not the bare word
   // this used to emit. `classifyAskIntent` asks for a typed field, and the SDK
@@ -700,7 +712,11 @@ function classifyStep(options: CallOptionsLike): SimulatedStep {
   // stand-in that reported `unsure` would route every simulated write turn to a
   // stronger tier for a doubt nothing actually has, and would make the
   // integration suite's tier assertions measure a fiction.
-  const verdict = askIntentVerdictText(simulatedTaskClass(latestUserText(options)), "sure");
+  const text = latestUserText(options);
+  const verdict = askIntentVerdictText(
+    isPageIntentCall(systemTextOf(options)) ? simulatedPageIntent(text) : simulatedTaskClass(text),
+    "sure",
+  );
   return {
     content: [{ type: "text", text: verdict }],
     finishReason: { unified: "stop", raw: undefined },
@@ -739,7 +755,17 @@ const SIMULATED_PAGE_NOTICE =
  * read it does not use would be a step charged to the actor's quota for nothing
  * (KI-67).
  */
-function pageTurn(results: readonly ToolResultLike[], question: string): SimulatedStep {
+function pageTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  // **A page question** (ADR-058): no insert tool was handed over, so this is
+  // answered like any other question — read, then speak.
+  if (!(options.tools ?? []).some((tool) => tool?.name === "insert_text")) {
+    if (results.length === 0) {
+      return { content: askQuestions({ kind: "trip" }), finishReason: { unified: "tool-calls", raw: undefined } };
+    }
+    return speak(askAnswer({ kind: "trip" }, results));
+  }
+  const topic = notebookTopic(question);
+  if (topic !== null) return notebookTurn(results, topic);
   if (asksForAWidget(question)) {
     const widget = widgetTurn(results, question);
     if (widget !== null) return widget;
@@ -748,6 +774,71 @@ function pageTurn(results: readonly ToolResultLike[], question: string): Simulat
     return { content: pageCalls(), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak([SIMULATED_PAGE_ANSWER, SIMULATED_PAGE_NOTICE]);
+}
+
+// **A notebook about a topic** (ADR-058) — "make a notebook about meals". The
+// topic is a TAG, because that is what a notebook's widgets filter by: the
+// page is built once and reads the trip live, so nothing here reads a day.
+const TOPIC_TAGS: readonly [RegExp, string][] = [
+  [/\b(meals?|food|eat|eating|restaurants?|dining|dinners?|lunch(es)?)\b/i, "meal"],
+  [/\b(lodging|hotels?|stays?|accommodation)\b/i, "lodging"],
+  [/\b(tickets?|ticketed|bookings?)\b/i, "ticketed"],
+  [/\b(outdoors?|hikes?|hiking|nature)\b/i, "outdoors"],
+];
+
+const NOTEBOOK_REQUEST = /\b(notebook|page|section)\b.*\babout\b|\babout\b.*\bnotebook\b/i;
+
+function notebookTopic(text: string): string | null {
+  if (!NOTEBOOK_REQUEST.test(text)) return null;
+  return TOPIC_TAGS.find(([pattern]) => pattern.test(text))?.[1] ?? null;
+}
+
+/**
+ * What a topic notebook searches for: the topic's spend and its stops. Not the
+ * topic word itself — "meals" matches no widget, because widgets are named for
+ * what they SHOW, and the topic is the filter, not the widget.
+ */
+const NOTEBOOK_QUERY = "what it costs and every stop";
+
+/** How many tag-filtered widgets a simulated notebook carries. */
+const NOTEBOOK_WIDGETS = 3;
+
+/**
+ * **Search, then insert tag-filtered widgets, then say so** — the shape the
+ * compose instruction asks for, and the one the 2026-09-26 turn did not take:
+ * one search for widgets that take a tag, a heading that says what the section
+ * is FOR (never what it holds), and the top matches each filtered to the
+ * topic's tag. No `read_trip`, no `read_day`.
+ */
+function notebookTurn(results: readonly ToolResultLike[], tag: string): SimulatedStep {
+  const searched = results.find((result) => result.toolName === "search_widgets");
+  if (searched === undefined) {
+    return {
+      content: [call("search_widgets", { query: NOTEBOOK_QUERY, acceptsFilter: "tag" })],
+      finishReason: { unified: "tool-calls", raw: undefined },
+    };
+  }
+  if (!results.some((result) => result.toolName === "insert_widget")) {
+    const seen = new Set<string>();
+    const matches = ((searched.output as { matches?: WidgetMatch[] } | null)?.matches ?? [])
+      .filter((match) => {
+        // One of each widget, none that withholds the tag, and not the bare
+        // `field` primitive, which names one field only `get_widget` can choose.
+        if (match.withheld !== undefined || match.insert.name === "field" || seen.has(match.insert.name)) return false;
+        seen.add(match.insert.name);
+        return match.selects?.filters.includes("tag") === true;
+      })
+      .slice(0, NOTEBOOK_WIDGETS);
+    return {
+      content: [
+        call("insert_text", { markdown: `## ${tag[0]!.toUpperCase()}${tag.slice(1)}\n\nEverything on this trip tagged ${tag}, read live.` }),
+        ...matches.map((match) => call("insert_widget", { name: match.insert.name, params: { ...match.insert.params, tag } })),
+      ],
+      finishReason: { unified: "tool-calls", raw: undefined },
+    };
+  }
+  const added = results.filter((result) => result.toolName === "insert_widget" && (result.output as { ok?: boolean } | null)?.ok === true).length;
+  return speak([`I've started a ${tag} notebook with ${added} live widget${added === 1 ? "" : "s"}, in the editor for you to review.`, SIMULATED_PAGE_NOTICE]);
 }
 
 // What a page request has to say for this model to look for a widget rather
@@ -818,7 +909,7 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // instead of speaking, and `handleAskRequest` never classifies one, so the
   // branches below would read its opening step as a question and reply with
   // `read_trip`.
-  if (scope.kind === "page") return pageTurn(results, latestUserText(options));
+  if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
   if (results.length === 0) {
     return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };
   }

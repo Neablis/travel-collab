@@ -44,6 +44,7 @@ import { WIDGET_TOOLS } from "./tools/widgets";
 import { PAGE_TOOLS } from "./tools/page";
 import { PLACE_TOOLS } from "./tools/places";
 import { ESCALATION_TOOLS } from "./tools/escalate";
+import { INTENT_TOOLS } from "./tools/intent";
 
 /**
  * Every definition this build has. Derived families are spread, so a
@@ -63,6 +64,8 @@ export const ASSISTANT_TOOLS: readonly AnyAssistantTool[] = [
   // the list in order, and `insert_widget` says to search first.
   ...WIDGET_TOOLS,
   ...PAGE_TOOLS,
+  // The page turn's pivot (ADR-058), after the tools it switches between.
+  ...INTENT_TOOLS,
   // Last, and it is the one position in this array that is a decision rather
   // than a grouping: `request_change_tools` is the tool a turn reaches for when
   // the others were not enough, and a model reads the list in order. It is also

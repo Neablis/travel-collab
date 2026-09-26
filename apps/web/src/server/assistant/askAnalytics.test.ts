@@ -156,6 +156,8 @@ describe("the per-ask record", () => {
         usage: { inputTokens: null, outputTokens: null, totalTokens: null },
         usageByStep: [],
         droppedCalls: [],
+        droppedInserts: [],
+        pivots: [],
         latencyMs: 1,
       });
       const [message, payload] = spy.mock.calls[0]!;
@@ -206,6 +208,8 @@ describe("the per-ask record", () => {
         usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
         usageByStep: [{ inputTokens: 100, outputTokens: 50, totalTokens: 150 }],
         droppedCalls: [],
+        droppedInserts: [],
+        pivots: [],
         latencyMs: 1,
       });
       const [, payload] = spy.mock.calls[0]!;
@@ -254,6 +258,8 @@ describe("the per-ask record", () => {
           usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
           usageByStep: [{ inputTokens: 100, outputTokens: 50, totalTokens: 150 }],
           droppedCalls: [],
+          droppedInserts: [],
+          pivots: [],
           latencyMs: 1,
         }),
       ).not.toThrow();
@@ -642,6 +648,8 @@ function recordWith(overrides: Partial<AskAnalyticsRecord>): AskAnalyticsRecord 
     usage: { inputTokens: null, outputTokens: null, totalTokens: null },
     usageByStep: [],
     droppedCalls: [],
+    droppedInserts: [],
+    pivots: [],
     latencyMs: 1,
     ...overrides,
   };

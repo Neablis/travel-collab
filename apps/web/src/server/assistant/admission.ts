@@ -48,6 +48,8 @@ import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server
 import type { AnyAssistantTool, ToolEffect } from "./defineTool";
 import { PERMITS_EVERYTHING, type EntitlementCeilings, type ResolvedEntitlements } from "./entitlements";
 import { capTier, tierFor, type ModelTier, type TaskClass, type TierModels } from "./taskClass";
+import { reachableIntents } from "./intents";
+import { SWITCH_INTENT_TOOL_NAME } from "./tools/intent";
 import {
   grantFor,
   minimumRoleFor,
@@ -285,6 +287,21 @@ export interface AiGrant {
    * posture the escalation tool is offered in — which is a tag on the tool
    * (`postures`) rather than a condition restated here.
    */
+  /**
+   * **The intents this turn may pivot between, each with what it holds**
+   * (ADR-058) — null on a turn that cannot `switch_intent` (every board turn,
+   * which pivots through `escalation` above instead, and a page turn with only
+   * one reachable intent).
+   *
+   * Resolved here for the reason `escalation` is: every set in it is
+   * `toolsFor` over THIS turn's grant, narrowed by a class, and every one is
+   * inside the `minimumRoleFor` check below — so a pivot can only ever choose
+   * among sets this pipeline already admitted.
+   */
+  intents: {
+    reachable: readonly TaskClass[];
+    byIntent: Partial<Record<TaskClass, { tools: readonly AnyAssistantTool[]; tier: ModelTier; model: LanguageModel }>>;
+  } | null;
   escalation: {
     /** The set the next step holds once the model escalates. */
     tools: readonly AnyAssistantTool[];
@@ -436,6 +453,8 @@ export interface AdmissionPorts {
     question: string,
     context: readonly { role: "user" | "assistant"; text: string }[],
     signal?: AbortSignal,
+    /** Which intents to choose between — the board's three or a page's two (ADR-058). */
+    surface?: "board" | "page",
   ): Promise<AskIntentRecord>;
   /** Where the one `ai.grant` record goes. */
   audit(record: AiGrantRecord): void;
@@ -941,11 +960,21 @@ const classifyTask: AdmissionStage = {
     const { page } = required(draft.surface, "resolveSurface");
     const { messages, question } = required(draft.parsed, "parseRequest");
     const { classifierModel } = required(draft.selected, "selectModel");
+    // **A page turn is classified too, since ADR-058** — between the two
+    // intents its surface allows. It used to be `compose` by construction, and
+    // on 2026-09-26 that is how a question asked beside a notebook and a
+    // notebook asked for got the same turn: insert tools, day reads, and a
+    // prompt telling it to read before writing.
     draft.classified = {
-      classification:
-        canWrite && page === null
-          ? await draft.input.ports.classify(classifierModel, question, recentContext(messages), draft.input.request.signal)
-          : null,
+      classification: canWrite
+        ? await draft.input.ports.classify(
+            classifierModel,
+            question,
+            recentContext(messages),
+            draft.input.request.signal,
+            page === null ? "board" : "page",
+          )
+        : null,
     };
     return null;
   },
@@ -994,7 +1023,13 @@ const grantTools: AdmissionStage = {
       surface: scope.kind,
       role: canWrite ? ("propose" as const) : ("read" as const),
       plan: permitsPropose({ userId }),
-      classifier: classification?.intent === "question" ? ("read" as const) : ("propose" as const),
+      // **A page classifier picks a PROFILE, never an effect** (ADR-058). The
+      // page surface's intents both live inside what the page grant already
+      // holds, and a page `question` narrowing the effect to `read` would make
+      // a pivot back to `compose` an escalation. So the page's verdict narrows
+      // by class below, and the effect cap stays what it always was here.
+      classifier:
+        page === null && classification?.intent === "question" ? ("read" as const) : ("propose" as const),
     };
     const grants = grantFor(caps);
 
@@ -1074,7 +1109,13 @@ const grantTools: AdmissionStage = {
       (classification.failedOpen ||
         classification.source === "affirmation" ||
         classification.certainty === "unsure");
-    const narrowBy = resolvedUpward ? undefined : taskClass;
+    // **A page turn always narrows, even on an unsure or failed-open verdict**
+    // (ADR-058). The rule above — only a determined class narrows — exists
+    // because the board's recovery used to be the user rephrasing. A page turn
+    // can `switch_intent` to any intent it did not start in, so starting in
+    // the surface's default and paying one step to leave it is the recovery,
+    // and handing it every intent's tools at once is the 2026-09-26 turn again.
+    const narrowBy = page !== null || !resolvedUpward ? taskClass : undefined;
 
     // Both sets, because "did the class filter take anything away" is the
     // question the instruction needs answered, and it is a MEASUREMENT — the
@@ -1083,8 +1124,25 @@ const grantTools: AdmissionStage = {
     // a tool's `taskClasses` changes.
     const posture = postureFor(caps);
     const offerable = toolsFor(grants, undefined, posture);
-    const tools = narrowBy === undefined ? offerable : toolsFor(grants, narrowBy, posture);
-    const classWithheld = tools.length < offerable.length;
+    // The page's intents, each resolved to the set it would hold. The pivot
+    // tool is in a set only when there is somewhere to pivot TO.
+    const reachable = page === null ? [taskClass] : reachableIntents(scope.kind, grants);
+    const canPivot = page !== null && reachable.length > 1;
+    const setFor = (intent: TaskClass) =>
+      toolsFor(grants, intent, posture).filter((tool) => canPivot || tool.name !== SWITCH_INTENT_TOOL_NAME);
+    const tools = narrowBy === undefined ? offerable : setFor(narrowBy);
+    const classWithheld = page === null && tools.length < offerable.length;
+    const intents = canPivot
+      ? {
+          reachable,
+          byIntent: Object.fromEntries(
+            reachable.map((intent) => {
+              const intentTier = capTier(tierFor(intent), selected.entitlements.ceilings.maxTier);
+              return [intent, { tools: setFor(intent), tier: intentTier, model: selected.models[intentTier] }];
+            }),
+          ),
+        }
+      : null;
 
     // **What escalating buys, resolved before the turn starts** (design §1b).
     //
@@ -1128,7 +1186,11 @@ const grantTools: AdmissionStage = {
     // exactly why it is computed rather than argued: the next person to add a
     // branch to `caps`, or a tool with `minimumRole: "owner"`, is who this
     // catches.
-    const needed = minimumRoleFor([...tools, ...(escalation?.tools ?? [])]);
+    const needed = minimumRoleFor([
+      ...tools,
+      ...(escalation?.tools ?? []),
+      ...Object.values(intents?.byIntent ?? {}).flatMap((entry) => entry.tools),
+    ]);
     if (!hasAtLeast(userId, detail.members, needed)) {
       return refuse(
         "grantTools",
@@ -1148,6 +1210,7 @@ const grantTools: AdmissionStage = {
       tools,
       posture,
       escalation,
+      intents,
       classWithheld,
       model,
       classifierModel: selected.classifierModel,
@@ -1186,7 +1249,7 @@ const grantTools: AdmissionStage = {
  * classifier's own record — which is null in both cases.
  */
 export function taskClassFor(isPageTurn: boolean, classification: AskIntentRecord | null): TaskClass {
-  if (isPageTurn) return "compose";
+  if (isPageTurn) return classification?.taskClass === "question" ? "question" : "compose";
   return classification?.taskClass ?? "question";
 }
 

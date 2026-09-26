@@ -74,6 +74,8 @@ const ASK_RECORD: AskAnalyticsRecord = {
   usage: { inputTokens: 8355, outputTokens: 412, totalTokens: 8767 },
   usageByStep: [],
   droppedCalls: [],
+  droppedInserts: [],
+  pivots: [],
   latencyMs: 4210,
 };
 

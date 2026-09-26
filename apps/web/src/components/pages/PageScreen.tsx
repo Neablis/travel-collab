@@ -40,6 +40,8 @@ import { useAskThread } from "@/components/assistant/useAskThread";
 import { useEditSession } from "./useEditSession";
 import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } from "./pageDraft";
 import type { ApiError } from "@/lib/apiClient";
+import type { DroppedInsert } from "@tc/contracts";
+import { getMacro } from "@tc/pages";
 
 type Status = "loading" | "ready" | "error";
 
@@ -47,6 +49,21 @@ type Status = "loading" | "ready" | "error";
 // read rather than edited. It names the control that would let it through,
 // because "I can't do that here" without one is a dead end.
 const READING_REFUSAL = "I drafted that, but this page is open for reading — turn on Edit page and ask again to put it in.";
+
+// The same refusal for the moment there is no editor to insert into at all.
+const NO_EDITOR_REFUSAL = "I drafted that, but the page was not ready to take it — ask again to put it in.";
+
+/**
+ * The line the SERVER's account of a turn adds under the model's own
+ * (KI-2026-09-26-r): what it asked for and did not land. On 2026-09-26 a turn
+ * whose every widget was refused told the reader "I've added…", and nothing on
+ * screen said otherwise. The name is the widget's own title where the registry
+ * knows it, and the reason is the refusal's own words.
+ */
+function droppedNotice(dropped: readonly DroppedInsert[]): string {
+  const lines = dropped.map((entry) => `${getMacro(entry.name)?.title ?? entry.name}: ${entry.reason}`);
+  return `Not added to the page — ${lines.join("; ")}`;
+}
 
 // Why this screen is the place ADR-038 decision 4 lives: it owns the write.
 // The loss the ADR is about is not a bad migration, it is this component
@@ -633,6 +650,11 @@ export function PageScreen({
         return;
       }
       if (event.type !== "page-inserts") return;
+      // Said before anything else is decided, so it reaches the reader in
+      // Reading and in Editing alike: the model may have claimed these.
+      if (event.dropped.length > 0) {
+        patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${droppedNotice(event.dropped)}` }));
+      }
       // **Reading never receives writes, and this is the guard that says so
       // rather than the abort timing.** A guard that depends on a stream
       // shutting down in time is a guard with a window in it — the last frame
@@ -683,7 +705,12 @@ export function PageScreen({
       // `liveEditor`, not `editor`: the state variable of that name is this
       // closure's stale copy, which is the whole reason `editorRef` exists.
       const liveEditor = editorRef.current;
-      if (!liveEditor) return;
+      // No editor to insert into is a refusal like Reading's, and says so for
+      // the same reason: silence after "I added…" reads as done (KI-2026-09-26-r).
+      if (!liveEditor) {
+        patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${NO_EDITOR_REFUSAL}` }));
+        return;
+      }
       const insert = liveEditor.chain();
       if (liveEditor.isFocused) insert.focus();
       insert.insertContent(event.content.content as never).run();

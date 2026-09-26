@@ -949,3 +949,22 @@ describe("simulatedModel — a write turn proposes on every phrasing it classifi
     expect(await secondStepCalls("which day has the most free time?")).toEqual([]);
   });
 });
+
+// ADR-058: the page surface is classified too, and the switched-off
+// deployment has to give the same two answers a live classifier is asked for.
+describe("simulatedModel — the page classification call", () => {
+  it("classifies a notebook request as compose and a question as a question, through the real classifier", async () => {
+    const compose = await classifyAskIntent(simulatedModel(), "make a notebook about meals", [], undefined, undefined, "page");
+    expect(compose).toMatchObject({ taskClass: "compose", failedOpen: false });
+
+    const question = await classifyAskIntent(
+      simulatedModel(),
+      "how much am I spending on food?",
+      [],
+      undefined,
+      undefined,
+      "page",
+    );
+    expect(question).toMatchObject({ taskClass: "question", failedOpen: false });
+  });
+});

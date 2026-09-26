@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { ZodTypeAny } from "zod";
 
-import { validateComposedPage, validatePageInserts } from "./pageTools";
+import { pageInsertsMetadata, validateComposedPage, validatePageInserts } from "./pageTools";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { newNotebookRefs, newPageBuffer, type NotebookListing } from "@/server/assistant/deps";
@@ -30,7 +30,7 @@ function buildPageTools(said = "") {
   });
   const call = (name: "insert_text" | "insert_widget", input: unknown) =>
     tools[name]!.execute!(input, { toolCallId: "call-1", messages: [], context: context[name] as never });
-  return { tools, call, notebooks, getInserts: () => pageBuffer.inserted() };
+  return { tools, call, notebooks, getInserts: () => pageBuffer.inserted(), buffer: pageBuffer };
 }
 
 // `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
@@ -268,3 +268,83 @@ describe("validateComposedPage", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// KI-2026-09-26-r: "it said it made a bunch of changes, but nothing changed"
+// ---------------------------------------------------------------------------
+
+// The 20:16 turn's widget calls as its `ai.ask` record logged them (preview
+// dpl_9Cf1gFds98pM7tCW9ECTnv7cGRGR, 2026-09-26): each widget first with
+// `tag: ["meal"]`, then the same widgets again with `tag: "meal"`.
+const LOGGED_WIDGETS = [
+  { name: "cost", params: {} },
+  { name: "count", params: { of: "stop" } },
+  { name: "stop.rows", params: { columns: ["stop.location", "stop.notes", "stop.cost"], only: "needsBooking" } },
+  { name: "cost.chart", params: {} },
+  { name: "day.detail", params: { view: "schedule" } },
+];
+
+describe("the 2026-09-26 notebook turn, replayed", () => {
+  it("lands every widget the turn asked for, whether it wrote tag as a list of one or a string, and each once", async () => {
+    const { call, getInserts } = buildPageTools();
+    await call("insert_text", { markdown: "# Food on this trip" });
+    const asList = [];
+    for (const widget of LOGGED_WIDGETS) {
+      asList.push(await call("insert_widget", { name: widget.name, params: { ...widget.params, tag: ["meal"] } }));
+    }
+    const asString = [];
+    for (const widget of LOGGED_WIDGETS) {
+      asString.push(await call("insert_widget", { name: widget.name, params: { ...widget.params, tag: "meal" } }));
+    }
+
+    // The list of one is that one value, and the model is told it landed
+    // because it did.
+    expect(asList.map((result) => (result as { ok: boolean }).ok)).toEqual(LOGGED_WIDGETS.map(() => true));
+    // The retry is the same widgets with the same effective params: kept once,
+    // and the model is told why nothing more was added.
+    expect(asString.every((result) => typeof (result as { duplicate?: unknown }).duplicate === "string")).toBe(true);
+
+    const outcome = pageInsertsMetadata(getInserts());
+    if (!("pageInserts" in outcome)) throw new Error(`expected inserts, got ${JSON.stringify(outcome)}`);
+    const widgets = outcome.pageInserts.content.content.filter((node) => node.type === "macro");
+    expect(widgets.map((node) => (node as { attrs: { name: string } }).attrs.name)).toEqual(
+      LOGGED_WIDGETS.map((widget) => widget.name),
+    );
+    for (const node of widgets) expect((node as { attrs: { params: { tag?: unknown } } }).attrs.params.tag).toBe("meal");
+    expect(outcome.pageInserts.dropped).toBeUndefined();
+  });
+
+  it("refuses a list of several tags at call time, in words the model can act on", async () => {
+    const { call } = buildPageTools();
+    const result = await call("insert_widget", { name: "cost", params: { tag: ["meal", "lodging"] } });
+    expect(result).toEqual({ ok: false, refused: expect.stringContaining("ONE value") });
+  });
+
+  it("keeps the valid nodes when one fails, and names every insert that did not land", async () => {
+    const { call, getInserts, buffer } = buildPageTools();
+    await call("insert_text", { markdown: "## Food" });
+    await call("insert_widget", { name: "cost", params: { tag: "meal" } });
+    // Refused at call time and never corrected.
+    await call("insert_widget", { name: "stop.rows", params: { tag: ["meal", "lodging"] } });
+    // A node that reached the buffer without the tool's own check — what the
+    // final per-node pass exists for.
+    buffer.insert([{ type: "macro", attrs: { name: "nope.nope", params: {} } } as never]);
+
+    const outcome = pageInsertsMetadata(getInserts());
+    if (!("pageInserts" in outcome)) throw new Error(`expected inserts, got ${JSON.stringify(outcome)}`);
+    expect(outcome.pageInserts.content.content.map((node) => node.type)).toEqual(["heading", "macro"]);
+    expect(outcome.pageInserts.dropped?.map((entry) => entry.name)).toEqual(["stop.rows", "nope.nope"]);
+  });
+
+  it("forgets a refusal the model corrected on a later call", async () => {
+    const { call, getInserts } = buildPageTools();
+    await call("insert_widget", { name: "cost", params: { tag: ["meal", "lodging"] } });
+    await call("insert_widget", { name: "cost", params: { tag: "meal" } });
+    expect(getInserts().refused).toEqual([]);
+  });
+
+  it("ends on a refusal naming what was dropped when nothing survives", () => {
+    const outcome = pageInsertsMetadata({ nodes: [], refused: [{ name: "cost", reason: "tag takes ONE value" }] });
+    expect(outcome).toEqual({ composeError: expect.stringContaining("cost") });
+  });
+});

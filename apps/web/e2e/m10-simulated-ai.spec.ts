@@ -342,3 +342,61 @@ test("asked to add a spend by tag chart to Money, the assistant finds it and put
   await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
   await expect(tagPies).toHaveCount(2);
 });
+
+// ADR-058 / KI-2026-09-26-r: "make a notebook about meals" is a COMPOSE turn,
+// and a compose turn builds the notebook from widgets filtered to the tag —
+// it reads no day and bakes no current fact into prose. On 2026-09-26 a live
+// turn read all fourteen days for this, inserted widgets with `tag: ["meal"]`
+// that were each refused, and the page did not change. This is the walk on the
+// path every deployment runs: the widgets reach the page, survive the save and
+// read back tag-filtered.
+test("asked for a notebook about meals, the assistant fills the page with meal-filtered widgets", async ({ page }) => {
+  const tripName = e2eTripName("AI Meals Notebook");
+  await page.goto("/");
+  const tripId = await createMappedTrip(page, tripName, 2);
+  const listed = (await page.request.get(`/api/trips/${tripId}/pages`).then((r) => r.json())) as {
+    pages: { id: string; title: string }[];
+  };
+  const notebook = listed.pages.find((entry) => entry.title !== "Money")!;
+  await page.goto(`/trips/${tripId}/pages/${notebook.id}`);
+  await expect(page.getByRole("heading", { name: notebook.title, level: 1 })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await page.locator(".tc-page-editor p").last().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+
+  await openAssistantRail(page);
+  await page.getByPlaceholder("Ask AI to add to this page…").fill("make a notebook about meals");
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
+    page.keyboard.press("Enter"),
+  ]);
+  expect(response.status()).toBe(200);
+
+  // Emitted by simulatedModel.ts's notebook branch once `insert_widget`
+  // answered ok for each widget it inserted.
+  await expect(page.getByRole("log", { name: "Conversation" })).toContainText("I've started a meal notebook with 3 live widgets");
+  // The section heading says what the page is FOR, never what it holds.
+  await expect(page.locator(".tc-page-editor").getByRole("heading", { name: "Meal" })).toBeVisible();
+
+  await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH" && r.ok(),
+    ),
+    page.getByRole("button", { name: "Done editing" }).click(),
+  ]);
+  type Node = { type: string; attrs?: { params?: { tag?: string } }; content?: Node[] };
+  const saved = (await page.request.get(`/api/trips/${tripId}/pages/${notebook.id}`).then((r) => r.json())) as {
+    page: { content: Node };
+  };
+  // Walked, not read off the top level: a widget that renders inside a
+  // sentence is wrapped in a paragraph by the editor.
+  const tagged: string[] = [];
+  const walk = (node: Node) => {
+    if (node.type === "macro" && node.attrs?.params?.tag !== undefined) tagged.push(node.attrs.params.tag);
+    node.content?.forEach(walk);
+  };
+  walk(saved.page.content);
+  expect(tagged).toEqual(["meal", "meal", "meal"]);
+});

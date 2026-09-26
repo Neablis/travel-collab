@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { LanguageModel } from "ai";
 import {
   ASK_INTENT_INSTRUCTION,
+  PAGE_INTENT_INSTRUCTION,
   askIntentVerdictText,
   classifyAskIntent,
   isAskIntentCall,
@@ -384,5 +385,38 @@ describe("certainty", () => {
   it("replaced the old tie-break line rather than adding to it", () => {
     expect(ASK_INTENT_INSTRUCTION).not.toContain('If you are unsure, use "plan"');
     expect(ASK_INTENT_INSTRUCTION).toContain("unsure");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR-058: the page surface's classifier
+// ---------------------------------------------------------------------------
+
+describe("the page classifier", () => {
+  it("asks the page's question, and reads a compose or question verdict", async () => {
+    const compose = modelSaying(askIntentVerdictText("compose"));
+    const result = await classifyAskIntent(compose.model, "make a notebook about meals", [], undefined, undefined, "page");
+    expect(result).toMatchObject({ taskClass: "compose", intent: "write", failedOpen: false });
+    const system = compose.seen[0]!.prompt?.find((message) => message.role === "system")?.content;
+    expect(system).toBe(PAGE_INTENT_INSTRUCTION);
+
+    const question = modelSaying(askIntentVerdictText("question"));
+    expect(
+      await classifyAskIntent(question.model, "how much am I spending on food?", [], undefined, undefined, "page"),
+    ).toMatchObject({ taskClass: "question", intent: "question" });
+  });
+
+  // The page's intents are its own: a board verdict is not one of them, and
+  // the SDK's schema check turns it into the fail-open branch.
+  it("fails open to compose, the page's default, never to the board's plan", async () => {
+    const result = await classifyAskIntent(
+      modelSaying(askIntentVerdictText("plan")).model,
+      "hmm",
+      [],
+      undefined,
+      undefined,
+      "page",
+    );
+    expect(result).toMatchObject({ taskClass: "compose", failedOpen: true, certainty: "unsure" });
   });
 });

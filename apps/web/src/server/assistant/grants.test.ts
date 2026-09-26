@@ -71,7 +71,9 @@ describe("the three tool sets a turn can be offered", () => {
   // narrowing: the `itinerary` domain is capped at `read` here, so no planning
   // write tool is reachable, and no other surface names `pages` at all.
   it("is the read tools, the widget lookup and the two page tools on a page surface", () => {
-    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([...READ_TOOLS, ...WIDGET_TOOLS, ...PAGE_TOOLS]);
+    // `switch_intent` last (ADR-058): the page turn's pivot, offered wherever
+    // `pages` is — admission drops it again when there is nowhere to pivot.
+    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([...READ_TOOLS, ...WIDGET_TOOLS, ...PAGE_TOOLS, "switch_intent"]);
   });
 
   it("keeps the page and planning halves disjoint in both directions", () => {

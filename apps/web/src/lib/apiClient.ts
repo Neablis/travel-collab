@@ -53,7 +53,7 @@ import {
   CreateReportResponse,
   type AdminReportQueueItem,
 } from "@/lib/reports";
-import type { ContentReport, ReportStatus } from "@tc/contracts";
+import type { ContentReport, DroppedInsert, ReportStatus } from "@tc/contracts";
 
 export type ApiError = { status: number; message: string; code?: string };
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
@@ -1049,7 +1049,16 @@ export type AskEvent =
    * is not a whole page any more — a turn adds to the document the reader is
    * looking at, which is what lets a second turn mean something.
    */
-  | { type: "page-inserts"; content: PageDoc }
+  | {
+      type: "page-inserts";
+      content: PageDoc;
+      /**
+       * What the turn asked for and did NOT land (KI-2026-09-26-r) — said to
+       * the reader beside the answer, because the model's own sentence may
+       * claim it added them.
+       */
+      dropped: DroppedInsert[];
+    }
   /** A page turn whose nodes failed validation, with the server's own reason. */
   | { type: "page-error"; message: string }
   | { type: "error"; message: string };
@@ -1144,11 +1153,18 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   // reader — this frame carries no outcome — and the stream is a superset the
   // server may grow, so an envelope a newer deployment sends must be ignored
   // rather than allowed to break the conversation.
-  if (part.type === "finish") {
+  //
+  // **`message-metadata` too, since KI-2026-09-26-s.** A turn the server stops
+  // at its deadline (or that fails mid-run) has no `finish` part; what a page
+  // turn had inserted by then arrives on a `message-metadata` chunk instead,
+  // and is exactly as much the turn's outcome.
+  if (part.type === "finish" || part.type === "message-metadata") {
     const metadata = AskStreamMetadata.safeParse(part.messageMetadata);
     if (!metadata.success) return null;
     if ("proposal" in metadata.data) return { type: "proposal", proposal: metadata.data.proposal };
-    if ("pageInserts" in metadata.data) return pageInsertsEvent(metadata.data.pageInserts.content);
+    if ("pageInserts" in metadata.data) {
+      return pageInsertsEvent(metadata.data.pageInserts.content, metadata.data.pageInserts.dropped ?? []);
+    }
     if ("composeError" in metadata.data) return { type: "page-error", message: metadata.data.composeError };
     return null;
   }
@@ -1170,9 +1186,9 @@ export function askEventFromFrame(frame: string): AskEvent | null {
  * This is the one step the schema cannot do for us: `PageDoc` says the document
  * is well-formed, and migration says it is well-formed *for this build*.
  */
-function pageInsertsEvent(content: PageDoc): AskEvent | null {
+function pageInsertsEvent(content: PageDoc, dropped: DroppedInsert[]): AskEvent | null {
   try {
-    return { type: "page-inserts", content: migratePageDoc(content) };
+    return { type: "page-inserts", content: migratePageDoc(content), dropped };
   } catch {
     // A document from a FUTURE version. Refusing is what `migratePageDoc` is
     // saying, and dropping the payload is the same answer this reader gives

@@ -96,7 +96,7 @@ beforeEach(() => {
   Range.prototype.getClientRects = () => ({ length: 0, item: () => null }) as unknown as DOMRectList;
   Range.prototype.getBoundingClientRect = () => new DOMRect();
   askAssistantMock.mockReset();
-  askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC }));
+  askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC, dropped: [] }));
 });
 
 const server = setupServer(
@@ -213,6 +213,7 @@ describe("the assistant on a notebook page", () => {
       turnEmitting({
         type: "page-inserts",
         content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "And a power adapter" }] }]),
+        dropped: [],
       }),
     );
     await userEvent.type(await readyForAnotherTurn(), "One more thing{Enter}");
@@ -272,6 +273,7 @@ describe("the assistant on a notebook page", () => {
       turnEmitting({
         type: "page-inserts",
         content: newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "And a power adapter" }] }]),
+        dropped: [],
       }),
     );
     // No click: `userEvent.keyboard` types wherever focus actually is.
@@ -307,7 +309,7 @@ describe("the assistant on a notebook page", () => {
     askAssistantMock.mockImplementation(
       turnEmitting(
         { type: "text", delta: "Packed you a list." },
-        { type: "page-inserts", content: DOC },
+        { type: "page-inserts", content: DOC, dropped: [] },
       ),
     );
     await openRail();
@@ -372,7 +374,7 @@ describe("the assistant on a notebook page", () => {
     // The answer arrives after the user left Editing. A stream's last frame can
     // already be in flight when a turn is cancelled, so cancellation alone
     // could never close this window.
-    emitter()!({ type: "page-inserts", content: DOC });
+    emitter()!({ type: "page-inserts", content: DOC, dropped: [] });
 
     expect(await screen.findByText(/turn on Edit page/i)).toBeTruthy();
     expect(screen.queryByText("Bring a raincoat")).toBeNull();
@@ -394,7 +396,7 @@ describe("the assistant on a notebook page", () => {
     // Hung up on the SERVER, not merely ignored on the client.
     expect(signal()!.aborted).toBe(true);
 
-    emitter()!({ type: "page-inserts", content: DOC });
+    emitter()!({ type: "page-inserts", content: DOC, dropped: [] });
     expect(screen.queryByText("Bring a raincoat")).toBeNull();
     expect(onUpdate).not.toHaveBeenCalled();
   });
@@ -421,6 +423,29 @@ describe("the assistant on a notebook page", () => {
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
+  // **KI-2026-09-26-r.** The model can say "I added it" about a widget the
+  // server refused; the reader has to be told otherwise by the server's own
+  // account, in the chat, beside that sentence — and the rest still lands.
+  it("says in the chat which inserts did not land, and still inserts the rest", async () => {
+    askAssistantMock.mockImplementation(
+      turnEmitting(
+        { type: "text", delta: "I've added the food total and every food stop." },
+        {
+          type: "page-inserts",
+          content: DOC,
+          dropped: [{ name: "stop.rows", reason: "tag takes ONE value, not a list." }],
+        },
+      ),
+    );
+    await openRail();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Make a food notebook{Enter}");
+
+    // The rail renders an answer twice (the bubble and its live region), so
+    // this counts rather than expecting one.
+    expect((await screen.findAllByText(/Not added to the page — A line for every stop: tag takes ONE value/)).length).toBeGreaterThan(0);
+    expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+  });
+
   // A refusal is about the question just asked. Left standing it would sit
   // under the next answer as if it were that one's.
   it("clears the last refusal when the next question is asked", async () => {
@@ -432,7 +457,7 @@ describe("the assistant on a notebook page", () => {
     await userEvent.type(composer, "Add today's cost{Enter}");
     expect(await screen.findByText(/params failed validation/)).toBeTruthy();
 
-    askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC }));
+    askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC, dropped: [] }));
     await userEvent.type(composer, "Something else{Enter}");
     await waitFor(() => expect(screen.queryByText(/params failed validation/)).toBeNull());
   });

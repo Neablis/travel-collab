@@ -47,6 +47,7 @@ import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
 import { defineTool } from "@/server/assistant/defineTool";
 import type { PlaybookLibrary } from "@/server/assistant/deps";
+import type { TaskClass } from "@/server/assistant/taskClass";
 import { plain, untrusted, untrustedAll, untrustedOrNull } from "@/server/assistant/prompt";
 
 // The times this boundary accepts and emits: 00:00-23:59, PLUS "24:00".
@@ -736,6 +737,17 @@ function fencedDayResult(result: DayReadout | ReadToolProblem | DayBatchReadout)
 }
 
 /**
+ * **The intents that read below the trip's shape** (ADR-058): every one except
+ * `compose`. A notebook is built from widgets whose filters select the data
+ * when the page is READ, so what a stop says today is no input to what the page
+ * should hold — on 2026-09-26 a compose turn read all fourteen days, baked
+ * "four meals still pending" into prose that was stale the next edit, and ran
+ * out the clock. `read_trip` stays on every intent: which tags, kinds and
+ * cities exist is the shape a filter is chosen from.
+ */
+const STOP_LEVEL_CLASSES = ["question", "edit", "plan"] as const satisfies readonly TaskClass[];
+
+/**
  * The four definitions, wired to the four functions above.
  *
  * `needs` is the whole of what each may reach, and the three answers differ:
@@ -770,6 +782,7 @@ export const readDayTool = defineTool({
   output: z.union([DayReadoutSchema, ReadToolProblemSchema, DayBatchReadoutSchema]),
   needs: ["trip", "scope"] as const,
   minimumRole: "viewer",
+  taskClasses: STOP_LEVEL_CLASSES,
   taint: fencedDayResult,
   run: (input, deps) => {
     const days =
@@ -804,6 +817,7 @@ export const findFreeTimeTool = defineTool({
   output: z.union([FreeTimeReadoutSchema, ReadToolProblemSchema]),
   needs: ["trip", "scope"] as const,
   minimumRole: "viewer",
+  taskClasses: STOP_LEVEL_CLASSES,
   run: (input, deps) => findFreeTime(deps.trip, deps.scope, input),
 });
 
@@ -830,6 +844,7 @@ export const searchPlaybooksTool = defineTool({
   // import, so "what can this tool touch?" did not mention Postgres.
   needs: ["actor", "playbooks"] as const,
   minimumRole: "viewer",
+  taskClasses: STOP_LEVEL_CLASSES,
   run: (input, deps) => searchPlaybooks(deps.playbooks, deps.actor.userId, input),
 });
 

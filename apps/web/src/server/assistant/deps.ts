@@ -21,6 +21,7 @@ import type { RawToolIntent } from "@/server/assistant/batchResolver";
 import type { AskScope } from "@/server/assistant/context";
 import type { BoundingBox } from "@/server/geocoding/geocoder";
 import type { TypedAddresses } from "@/server/assistant/typedAddresses";
+import type { IntentLatch } from "@/server/assistant/intents";
 
 /**
  * Who is asking, and about which trip.
@@ -62,6 +63,20 @@ export interface CollectedInsert {
  */
 export interface PageInserts {
   nodes: PageNode[];
+  /**
+   * The widget calls this turn REFUSED and never replaced with one that
+   * landed, in call order. The route tells the user about each
+   * (KI-2026-09-26-r): a model that was told "no" can still write "I added
+   * it", and the only thing that can contradict it is a line the server
+   * writes itself.
+   */
+  refused: RefusedInsert[];
+}
+
+/** One `insert_widget` call that did not land, and the sentence it was refused with. */
+export interface RefusedInsert {
+  name: string;
+  reason: string;
 }
 
 /**
@@ -96,6 +111,38 @@ export interface ProposalBuffer {
 export interface PageBuffer {
   insert(nodes: readonly PageNode[]): void;
   inserted(): PageInserts;
+  /**
+   * Whether this turn already inserted this exact widget: same name, same
+   * effective params. A model that retries a whole batch otherwise inserts
+   * every widget twice (KI-2026-09-26-r). Keyed on the VALIDATED node, so two
+   * spellings of one binding (`tag: ["meal"]` and `tag: "meal"`) are one widget.
+   */
+  holds(node: PageNode): boolean;
+  /**
+   * Note an `insert_widget` call that was refused. A later call that lands a
+   * widget of the same name clears it: the model corrected itself, which is
+   * what returning the refusal to it was for.
+   */
+  refuse(refusal: RefusedInsert): void;
+}
+
+/**
+ * A node's identity for de-duplication: its JSON with object keys sorted, so
+ * `{ of, tag }` and `{ tag, of }` are the same widget.
+ */
+export function nodeKey(node: unknown): string {
+  return JSON.stringify(node, (_key, value: unknown) =>
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  );
+}
+
+/** A macro node's widget name, or null for prose. */
+function widgetNameOf(node: PageNode): string | null {
+  if (node.type !== "macro") return null;
+  const name = (node as { attrs?: { name?: unknown } }).attrs?.name;
+  return typeof name === "string" ? name : null;
 }
 
 /** One turn's proposal collector. Never shared between turns. */
@@ -113,9 +160,21 @@ export function newProposalBuffer(): ProposalBuffer {
 /** One turn's page collector. Never shared between turns. */
 export function newPageBuffer(): PageBuffer {
   const nodes: PageNode[] = [];
+  const widgets = new Set<string>();
+  let refused: RefusedInsert[] = [];
   return {
-    insert: (inserted) => void nodes.push(...inserted),
-    inserted: () => ({ nodes: [...nodes] }),
+    insert: (inserted) => {
+      for (const node of inserted) {
+        nodes.push(node);
+        const name = widgetNameOf(node);
+        if (name === null) continue;
+        widgets.add(nodeKey(node));
+        refused = refused.filter((refusal) => refusal.name !== name);
+      }
+    },
+    inserted: () => ({ nodes: [...nodes], refused: [...refused] }),
+    holds: (node) => widgets.has(nodeKey(node)),
+    refuse: (refusal) => void refused.push(refusal),
   };
 }
 
@@ -419,6 +478,8 @@ export interface AssistantDeps {
   notebooks: NotebookRefs;
   /** The web addresses the asker typed this turn — the only ones a link may carry. */
   typedAddresses: TypedAddresses;
+  /** The turn's intent, and the latch `switch_intent` moves it through (ADR-058). */
+  intent: IntentLatch;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -461,6 +522,7 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   escalation: true,
   notebooks: true,
   typedAddresses: true,
+  intent: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

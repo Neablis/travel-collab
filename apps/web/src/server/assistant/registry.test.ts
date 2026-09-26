@@ -36,6 +36,8 @@ import { WIDGET_TOOLS } from "./tools/widgets";
 import { typedAddressesIn } from "./typedAddresses";
 import { PLACE_TOOLS } from "./tools/places";
 import { ESCALATION_TOOLS } from "./tools/escalate";
+import { INTENT_TOOLS } from "./tools/intent";
+import { newIntentLatch } from "./intents";
 import { READ_TOOLS } from "./tools/read";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 
@@ -60,6 +62,7 @@ const TURN_DEPS = {
   escalation: newEscalationBuffer(),
   notebooks: newNotebookRefs(async () => [], null),
   typedAddresses: typedAddressesIn(""),
+  intent: newIntentLatch("compose", ["compose"], () => 0),
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
@@ -82,6 +85,7 @@ describe("the registry", () => {
         insertPlaybookDayTool.name,
         ...WIDGET_TOOLS.map((t) => t.name),
         ...PAGE_TOOLS.map((t) => t.name),
+        ...INTENT_TOOLS.map((t) => t.name),
         ...ESCALATION_TOOLS.map((t) => t.name),
       ].sort(),
     );
