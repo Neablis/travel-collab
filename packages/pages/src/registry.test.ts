@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FilterDimension as FilterDimensionType, TripDetail } from "@tc/contracts";
 import { FilterDimension } from "@tc/contracts";
-import { distinctApplies, getMacro, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
+import { distinctApplies, getMacro, inputsFor, renderMacro, MACRO_NAMES, PRIMITIVE_NAMES, primitiveCatalog } from "./registry";
 import { presetCatalog } from "./presets";
 import { LEGAL_FILTERS } from "./filters";
 import { fieldChoices } from "./fields";
@@ -27,9 +27,11 @@ describe("registry", () => {
     // `country.facts` ("Know before you go", M14 link 11) is registered on
     // `open`'s terms: no selection, so not a primitive. `day.sun` and
     // `day.fromHome` (the same link) ARE primitives — day entity, day filters —
-    // and so is `day.weather`, which also declares `needs` (ADR-052).
+    // and so is `day.weather`, which also declares `needs` (ADR-052), and
+    // `cost.breakdown` ("Spend by kind" / "Spend by tag"), a stop primitive
+    // drawn as a pie.
     expect([...MACRO_NAMES].sort()).toEqual([
-      "attribute", "city", "city.detail", "city.rows", "cost", "cost.chart", "cost.rows",
+      "attribute", "city", "city.detail", "city.rows", "cost", "cost.breakdown", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
       "link.external", "link.internal", "open", "stop.rows", "trip.strip",
     ]);
@@ -516,6 +518,36 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
       const filterControls = def.inputs.filter((i) => !NOT_A_DIMENSION.has(i.type)).map((i) => i.name);
       expect(filterControls, `${name}'s controls`).toEqual([...def.selection!.filters]);
     }
+  });
+
+  it("withholds only dimensions it declares, under a param it offers as a choice", () => {
+    // `WidgetSelection.withheld` (cost.breakdown's `by`) names filters a param
+    // value turns off. A withheld dimension the primitive never declared, or a
+    // param value no control can pick, is a rule nothing can reach.
+    let checked = 0;
+    for (const name of PRIMITIVE_NAMES) {
+      const { filters, withheld } = getMacro(name)!.selection!;
+      if (!withheld) continue;
+      const control = getMacro(name)!.inputs.find((i) => i.name === withheld.param);
+      expect(control?.type, `${name}'s ${withheld.param}`).toBe("choice");
+      if (control?.type !== "choice") continue;
+      expect(Object.keys(withheld.values).sort()).toEqual(control.options.map((o) => o.value).sort());
+      expect(control.default).toBe(withheld.default);
+      for (const dims of Object.values(withheld.values)) for (const d of dims) expect(filters).toContain(d);
+      checked += 1;
+    }
+    expect(checked, "no primitive withholds anything").toBeGreaterThan(0);
+  });
+
+  it("offers no control for a filter the widget's own params withhold", () => {
+    const names = (params: Record<string, unknown>) => inputsFor("cost.breakdown", params).map((i) => i.name);
+    // Absent `by` is kind: no kind control, a tag control.
+    expect(names({})).toEqual(["by", "day", "dates", "city", "tag"]);
+    expect(names({ by: "tag" })).toEqual(["by", "day", "dates", "city", "kind"]);
+    // The insert step reads the same rule through the preset.
+    const presetNames = (id: string) => presetCatalog().find((p) => p.name === id)!.inputs.map((i) => i.name);
+    expect(presetNames("spend-by-kind")).toEqual(["day", "dates", "city", "tag"]);
+    expect(presetNames("spend-by-tag")).toEqual(["day", "dates", "city", "kind"]);
   });
 
   it("names each primitive's non-filter params and their vocabularies", () => {

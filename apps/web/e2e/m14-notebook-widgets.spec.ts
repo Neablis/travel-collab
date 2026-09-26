@@ -1010,6 +1010,7 @@ async function addStopViaApi(
     location?: { name: string; city: string };
     cost?: { amountMinor: number; currency: string };
     kind?: string;
+    tags?: string[];
   } = {},
 ): Promise<void> {
   const response = await page.request.post(`/api/trips/${tripId}/commands`, {
@@ -1641,6 +1642,58 @@ test("the trip strip fits its column on a 20-day trip, with no sideways scroll",
     await expect.poll(() => stripOverhang(strip), { message: "strip overflow while reading" }).toBeLessThanOrEqual(0);
     expect((await strip.boundingBox())!.height, "strip height while reading").toBe(30);
   }
+});
+
+test("spend by kind and spend by tag split the trip's costs, and a filter on the other dimension narrows them", async ({ page }) => {
+  // Mitchell, 2026-09-26, on the Settings sheet's mocked M19 breakdown: *"Lets
+  // remove it there, and implement it as a PIE chart widget for notebooks"* —
+  // then *"Can #246 introduce the pie chart for spend by kind and spend by
+  // tags?"*. One primitive (`cost.breakdown`), two presets. Picked from the
+  // rail, each lands unbound — the whole trip — and its key is the numbers as
+  // text, beside a picture named by the same numbers.
+  await tripWithTwoDays(page);
+  const tripId = new URL(page.url()).pathname.split("/")[2]!;
+  await addStopViaApi(page, tripId, "Hotel", { cost: { amountMinor: 30000, currency: "USD" }, tags: ["lodging"] });
+  await addStopViaApi(page, tripId, "Dinner", { cost: { amountMinor: 5000, currency: "USD" }, kind: "pending", tags: ["meal"] });
+  await addStopViaApi(page, tripId, "Train", { cost: { amountMinor: 15000, currency: "USD" }, kind: "transit" });
+  await openSeededPage(page);
+
+  await insertFromList(page, /Spend by kind/, "kind");
+  // Told apart by what their keys are named, not by position: the rail inserts
+  // under the page's first heading, so the second one lands above the first.
+  const breakdown = (name: RegExp) =>
+    page.locator('[data-macro-name="cost.breakdown"]').filter({ has: page.getByRole("table", { name }) });
+  const byKind = breakdown(/^Spend by kind/);
+  const kindRows = byKind.getByRole("table", { name: "Spend by kind" }).getByRole("row");
+  const kindExpected = [/Kind/, /Planned\s*\$300\.00\s*60%/, /Pending\s*\$50\.00\s*10%/, /Travel\s*\$150\.00\s*30%/, /Total\s*\$500\.00/];
+  await expect(kindRows).toHaveText(kindExpected);
+  await expect(byKind.getByRole("img", { name: /^Spend by kind in USD: \$500\.00/ })).toBeVisible();
+  // Split by kind, it offers a tag filter and no kind filter.
+  await expect(settingsPanel(page).getByRole("combobox", { name: "Tags" })).toBeVisible();
+  await expect(settingsPanel(page).getByRole("combobox", { name: "Kind" })).toHaveCount(0);
+
+  // "Spend by tag", narrowed to pending stops: the title says so, and only the
+  // pending dinner is left in its key.
+  await insertFromList(page, /Spend by tag/, "tag");
+  const byTag = breakdown(/^Spend by tag/);
+  await expect(byTag.getByRole("table", { name: "Spend by tag" }).getByRole("row")).toHaveText([
+    /Tag/, /Meal\s*\$50\.00\s*10%/, /Lodging\s*\$300\.00\s*60%/, /Ticketed\s*nothing priced/, /Outdoors\s*nothing priced/,
+    /Untagged\s*\$150\.00\s*30%/, /Total\s*\$500\.00/,
+  ]);
+  await expect(settingsPanel(page).getByRole("combobox", { name: "Tags" })).toHaveCount(0);
+  await settingsPanel(page).getByRole("combobox", { name: "Kind" }).selectOption("pending");
+  const tagRows = byTag.getByRole("table", { name: "Spend by tag · Pending" }).getByRole("row");
+  const tagExpected = [
+    /Tag/, /Meal\s*\$50\.00\s*100%/, /Lodging\s*nothing priced/, /Ticketed\s*nothing priced/, /Outdoors\s*nothing priced/,
+    /Untagged\s*nothing priced/, /Total\s*\$50\.00/,
+  ];
+  await expect(tagRows).toHaveText(tagExpected);
+  await expect(byTag.getByText("Spend by tag · Pending", { exact: true })).toBeVisible();
+
+  await finishEditing(page);
+  await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+  await expect(kindRows).toHaveText(kindExpected);
+  await expect(tagRows).toHaveText(tagExpected);
 });
 
 test("a field the reader picks prints in a sentence, and joins a stop list as a column", async ({ page }) => {

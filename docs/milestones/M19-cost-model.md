@@ -106,9 +106,11 @@ different kinds is the argument against.
 Five links. The first two are contract-and-migration work; the rest stand on
 them.
 
-1. **A cost knows what kind of thing it is.** Booked / Holds / Travel / Other,
-   or inheritance from `ActivityKind` — decided, not assumed. Unblocks
-   `budget-breakdown`.
+1. ~~**A cost knows what kind of thing it is.**~~ **Shipped outside M19,
+   2026-09-26 — see the note at the end.** A cost inherits its stop's
+   `ActivityKind` (Planned / Pending / Travel, M28's three), and the breakdown
+   is the notebook widget "Spend by kind" (`cost.breakdown`, beside "Spend by
+   tag"), not the Settings sheet's `budget-breakdown` shell, which is deleted.
 2. **A cost knows whether it is settled.** Confirmed vs estimate, so a trip
    total can say what is committed and what is still a guess. Unblocks
    `cost-estimate-state`.
@@ -158,7 +160,9 @@ carry its own), which is a design question nobody has answered yet.
 **Two boxes are already known**, because they are why it exists:
 
 - [ ] `cost-estimate-state` and `budget-breakdown` are wired up or deleted — no
-      M19-tagged entry remains in `preview-registry.ts`.
+      M19-tagged entry remains in `preview-registry.ts`. *(Both are deleted as
+      of 2026-09-26 and no M19 entry remains; left unticked because closing a
+      gate is Mitchell's call.)*
 - [ ] `budgetPerPerson` either divides by a real person count or no longer
       claims to, and a test fails if that stops being true.
 
@@ -180,7 +184,8 @@ underneath.
 From M26's design-parity survey (`docs/milestones/M26-design-parity.md`). Two
 corrections to what this milestone believes it inherits.
 
-**`budget-breakdown` is still shelled and still M19's.** It renders at
+*(Superseded 2026-09-26 — see "the breakdown shipped as a notebook widget"
+below.)* **`budget-breakdown` is still shelled and still M19's.** It renders at
 `SettingsSheet.tsx:342` and waits on a cost's **kind** — Booked / Holds /
 Travel / Other — which no field classifies. The build deliberately keeps the
 honest total, the meter and the over-budget banner **outside** the shell, so
@@ -204,3 +209,53 @@ kickoff whether link 1 takes it or whether it stays unplaced**, rather than
 letting a third milestone rediscover it. `routeLegs()` splits on
 `kind === "transit"` as a coarser proxy that exists today; using it would state
 something the data does not, and M26 declines to.
+
+## 2026-09-26 — the breakdown shipped as a notebook widget
+
+Mitchell, looking at the Settings sheet's `budget-breakdown` shell: *"Dont we
+have everything to implement that now? Also Maybe that isnt the correct place
+for it. Lets remove it there, and implement it as a PIE chart widget for
+notebooks"*.
+
+We did have everything. M28 (ADR-054) gave every stop one of three kinds —
+`planned`, `pending`, `transit` — and link 1's open question ("does a cost
+inherit its category from `ActivityKind` or carry its own") is answered
+**inherit**, which is what `activity.ts` already argued for. The shell's
+fourth category, *Other*, has no kind behind it and is gone.
+
+- **Removed:** the mocked rows in `SettingsSheet.tsx` and the
+  `budget-breakdown` entry in `preview-registry.ts`. The sheet's real total,
+  meter, over-budget banner and unpriced count are unchanged.
+- **Added:** one `@tc/pages` primitive, `cost.breakdown`
+  (`macros/primitives/spendBreakdown.ts`) — a donut and a key of each slice's
+  amount and share, in the trip's currency only (other currencies are named,
+  `cost.chart`'s rule) — with a `by` param and a preset per value:
+  - **"Spend by kind"** (`by: "kind"`): Planned / Pending / Travel,
+    filterable by day, dates, city and tag.
+  - **"Spend by tag"** (`by: "tag"`, Mitchell the same day: *"Can #246
+    introduce the pie chart for spend by kind and spend by tags?"*): Meal /
+    Lodging / Ticketed / Outdoors / Untagged, filterable by day, dates, city
+    and kind. A stop with several tags counts under its first, the rule
+    "Spend by day" stacks by — one shared helper (`spendSeries.ts`), and the
+    same colours (`spendColors.ts`).
+
+  The filter on the slices' own dimension is **withheld** — a pie split by
+  kind and narrowed to one kind is one slice. `WidgetSelection.withheld`
+  declares it, so the resolver ignores it, the settings panel hides it, and a
+  stored `{by: "tag", tag: "meal"}` reads as unfiltered by tag. The title
+  says what the other dimension narrows it to ("Spend by tag · Pending").
+  Switching "Split by" in the settings panel deletes the now-withheld filter
+  from the document, in the same edit. Every slice, label and title word
+  comes from the contract's enums and label maps (`ActivityKind`,
+  `ActivityTag`, `KIND_LABEL`, `TAG_LABEL`), and the colour maps are typed
+  exhaustively, so a new kind or tag reaches the pie with no edit to the
+  widget. Both presets are in the insert rail and in the seeded **Money**
+  notebook (M30), under "Where it goes"; "Spend by kind" is also in the
+  "Full trip breakdown" gallery template. (Named `cost.byKind` while
+  #246 was open; renamed before anything stored it.)
+
+**What this does NOT take from M19:** a stop with two costs of different kinds
+(the argument against inheriting) still has no model, and neither does
+settled-vs-estimate (link 2). If `pending` later splits by *why* it is pending
+(ADR-055's `pendingReason`: to book vs maybe), the widget's slices are the
+place that split would show — not built here.

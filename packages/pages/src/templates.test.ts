@@ -339,7 +339,7 @@ describe("templates", () => {
       Overview: ["dates", "city", "day.detail", "link.internal", "link.internal", "link.internal"],
       "Before you go": ["day.fromHome", "day.weather", "country.facts"],
       Bookings: ["stop.rows", "stop.rows", "stop.rows", "open"],
-      Money: ["cost.chart", "cost.rows"],
+      Money: ["cost.chart", "cost.breakdown", "cost.breakdown", "cost.rows"],
     });
     // The Overview's schedule is the printed itinerary, not the glance.
     expect(widgetsIn(DEFAULT_TEMPLATES[0]!.content).find((node) => node.attrs?.name === "day.detail")?.attrs?.params).toEqual({

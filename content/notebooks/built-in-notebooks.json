@@ -446,6 +446,46 @@
             "content": [
               {
                 "type": "text",
+                "text": "Where it goes"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.breakdown",
+                  "params": {
+                    "by": "kind"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.breakdown",
+                  "params": {
+                    "by": "tag"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
                 "text": "Costs, broken down"
               }
             ]
@@ -913,6 +953,20 @@
                 "attrs": {
                   "name": "cost.rows",
                   "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.breakdown",
+                  "params": {
+                    "by": "kind"
+                  }
                 }
               }
             ]

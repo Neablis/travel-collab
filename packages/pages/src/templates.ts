@@ -334,6 +334,12 @@ const money: TemplateSeed = {
     heading("Spend by day"),
     // Against an even pace for the budget, when there is one.
     block("cost.chart"),
+    // The same money split two ways (Mitchell, 2026-09-26, on #246): the two
+    // presets, "Spend by kind" and "Spend by tag". On an empty trip each reads
+    // "no costs yet", like the chart above it.
+    heading("Where it goes"),
+    block("cost.breakdown", { by: "kind" }),
+    block("cost.breakdown", { by: "tag" }),
     heading("Costs, broken down"),
     block("cost.rows"),
     heading("Notes"),
@@ -441,6 +447,9 @@ const fullTripBreakdown: TemplateSeed = {
     heading("What it costs"),
     block("attribute", { field: "trip.budgetRemaining" }),
     block("cost.rows"),
+    // The same money by kind. A gallery page only — never seeded, so the
+    // empty-trip rule does not apply and "no costs yet" is an honest first read.
+    block("cost.breakdown", { by: "kind" }),
     heading("Notes"),
     para(text("Anything the plan cannot carry: why a day is shaped the way it is, what to do if the weather turns, what you would cut first.")),
   ]),

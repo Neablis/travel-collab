@@ -1,6 +1,5 @@
 import { z } from "zod";
-import type { FilterDimension } from "@tc/contracts";
-import { ActivityTag } from "@tc/contracts";
+import type { ActivityTag, FilterDimension } from "@tc/contracts";
 import type { MacroDef, WidgetContext, WidgetInput } from "../../registry-types";
 import { blockOf } from "../../registry-types";
 import type { SpendBurnDown, SpendByDayBar, SpendByDayPayload, SpendSeriesKey } from "../../chartPayloads";
@@ -9,7 +8,7 @@ import { filterInputs, filterParams } from "../../filters";
 import { costOfStops, narrow, type SelectedStop } from "../../select";
 import { dayLabel, formatDate, formatMoney, ordinal } from "../../format";
 import { collapseKind } from "../../kinds";
-import { TAG_LABEL } from "../../enumLabels";
+import { SPEND_SERIES, SPEND_SERIES_LABEL, seriesOf } from "./spendSeries";
 
 // `cost.chart` — "Spend by day", the first chart (M14 link 11; widget
 // brainstorm §6 item 5). One bar per selected day for what its stops cost,
@@ -45,26 +44,19 @@ const COST_CHART_INPUTS: readonly WidgetInput[] = [
   },
 ];
 
-// The stack order, bottom up: the contract's own tag order, then untagged.
-const SERIES: readonly SpendSeriesKey[] = [...ActivityTag.options, "untagged"];
-const SERIES_LABEL: Record<SpendSeriesKey, string> = { ...TAG_LABEL, untagged: "Untagged" };
+// The stack order, bottom up, and each stack's word: `spendSeries.ts`, shared
+// with "Spend by tag" so the pie and these bars file every stop alike.
+const SERIES = SPEND_SERIES;
+const SERIES_LABEL = SPEND_SERIES_LABEL;
 
 /**
- * Which ONE stack a stop's cost goes on.
- *
- * A stop can carry several tags, and the stacks of a bar must add up to the
- * day's cost — so a stop is counted once, under one tag, never once per tag.
- * The first in the contract's order, unless the widget is filtered to a tag:
- * then every stop on the chart carries that one, and stacking a "just the
- * outdoors" chart under "Meal" would contradict the filter the reader set.
+ * Which ONE stack a stop's cost goes on: `seriesOf`'s first-tag rule — unless
+ * the widget is filtered to a tag: then every stop on the chart carries that
+ * one, and stacking a "just the outdoors" chart under "Meal" would contradict
+ * the filter the reader set.
  */
 function stackOf(stop: SelectedStop, filteredTo: ActivityTag | undefined): SpendSeriesKey {
-  if (filteredTo) return filteredTo;
-  // `?? []`: the contract defaults `tags` on parse, and a trip that reached
-  // here without that parse (`registry.property.test.ts` builds its own) must
-  // still chart as untagged rather than throw.
-  const tags: readonly ActivityTag[] = stop.activity.tags ?? [];
-  return ActivityTag.options.find((tag) => tags.includes(tag)) ?? "untagged";
+  return filteredTo ?? seriesOf(stop);
 }
 
 const zeroes = (): Record<SpendSeriesKey, number> =>

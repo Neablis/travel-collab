@@ -10,7 +10,6 @@ import { FormField } from "@/components/ui/form-field";
 import { DataText } from "@/components/ui/data-text";
 import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
-import { Preview } from "@/components/ui/preview";
 import { Popover } from "@/components/ui/popover";
 import { TravelersPanel } from "@/components/trip/TravelersPanel";
 import { ShareButton } from "@/components/trip/ShareButton";
@@ -20,17 +19,6 @@ import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { formatMoney } from "@/lib/formatMoney";
 import type { TripSpend } from "@/lib/cost";
-
-// The four category rows in the "unbacked" budget breakdown are illustrative
-// only (Preview id="budget-breakdown", M11 — no field on TripDetail
-// classifies a cost into a category yet). Weights are just a plausible
-// split of spend.total for the mock, not read from any real data.
-const BREAKDOWN_CATEGORIES = [
-  { label: "Planned", weight: 0.45 },
-  { label: "Pending", weight: 0.2 },
-  { label: "Travel", weight: 0.25 },
-  { label: "Other", weight: 0.1 },
-] as const;
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -298,39 +286,10 @@ export function SettingsSheet({
               </Banner>
             )}
 
-            {/* Unbacked mock breakdown (M11 — no field classifies a cost into
-                a category yet): the whole block is Preview-disabled, the
-                honest total/meter/banner/unpriced count above and below stay
-                real and outside it. */}
-            <Preview id="budget-breakdown" size="container">
-              <div className="flex flex-col gap-2.5">
-                {BREAKDOWN_CATEGORIES.map((row) => {
-                  const amount = Math.round(spend.total * row.weight);
-                  const pct = spend.total > 0 ? Math.min(100, (amount / spend.total) * 100) : 0;
-                  return (
-                    <div key={row.label} className="flex items-center gap-2.5">
-                      <Text
-                        as="span"
-                        // eslint-disable-next-line no-restricted-syntax -- the redesign's 150px breakdown-label column has no token equivalent, matching BudgetChip's computed-geometry pattern
-                        style={{ flex: "0 0 150px" }}
-                        className="text-xs text-ink"
-                      >
-                        {row.label}
-                      </Text>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-moss">
-                        <div
-                          className="h-full rounded-full bg-brand"
-                          // eslint-disable-next-line no-restricted-syntax -- fill width is a spend/budget percentage, not expressible as a token (BudgetChip's own pattern)
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                      <DataText size="sm">{formatMoney(amount, currency)}</DataText>
-                    </div>
-                  );
-                })}
-              </div>
-            </Preview>
-
+            {/* The mocked breakdown by kind that sat here (`budget-breakdown`,
+                M19) is gone: Mitchell, 2026-09-26, *"Lets remove it there, and
+                implement it as a PIE chart widget for notebooks"* — it is the
+                "Spend by kind" widget (`cost.breakdown`) now, on real kinds. */}
             <Text as="span" className="text-xs text-slate">
               {spend.unpriced} stop{spend.unpriced === 1 ? "" : "s"} with no cost yet
             </Text>

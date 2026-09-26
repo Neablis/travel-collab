@@ -1,7 +1,7 @@
 import type { WidgetShape } from "@tc/contracts";
 import { WIDGET_NAME_MIGRATION } from "@tc/contracts";
 import type { WidgetInput } from "./registry-types";
-import { getMacro } from "./registry";
+import { getMacro, inputsFor } from "./registry";
 import { insertWidget, type InsertResult } from "./insert";
 import { REPEAT_WIDGETS, insertRepeat, type RepeatInsertResult } from "./repeat";
 
@@ -369,6 +369,34 @@ export const PRESETS: readonly WidgetPreset[] = [
     title: "Budget burn-down",
     keywords: ["burn down", "burndown", "budget", "left", "remaining", "pace", "chart", "area", "spend", "money"],
   },
+  // Mitchell, 2026-09-26: the Settings sheet's M19 breakdown, rebuilt as a pie
+  // in the notebook, then split two ways — one primitive, `cost.breakdown`,
+  // and a preset per `by`. Otherwise unfiltered: the whole trip.
+  {
+    id: "spend-by-kind",
+    widget: "cost.breakdown",
+    params: { by: "kind" },
+    title: "Spend by kind",
+    keywords: [
+      "spend", "spending", "chart", "pie", "donut", "breakdown", "split", "share", "kind", "planned", "pending",
+      "travel", "transit", "costs", "money", "budget",
+    ],
+    description: "A pie of what the trip costs per kind — Planned, Pending, Travel — with each kind's amount and share. Filter it to a day, dates, a city or a tag.",
+    // Fixed, never computed (ADR-037 decision 5): no amount.
+    preview: "a pie of what planned, pending and travel stops cost",
+  },
+  {
+    id: "spend-by-tag",
+    widget: "cost.breakdown",
+    params: { by: "tag" },
+    title: "Spend by tag",
+    keywords: [
+      "spend", "spending", "chart", "pie", "donut", "breakdown", "split", "share", "tag", "tags", "meal", "meals",
+      "lodging", "ticketed", "outdoors", "untagged", "costs", "money", "budget",
+    ],
+    description: "A pie of what the trip costs per tag — Meal, Lodging, Ticketed, Outdoors, Untagged; a stop with several tags counts under its first — with each tag's amount and share. Filter it to a day, dates, a city or a kind.",
+    preview: "a pie of what meals, lodging, tickets and the outdoors cost",
+  },
   // ---- the clock pair -----------------------------------------------------
   // M14 link 11. Unbound, so every located day; a day binding narrows either.
   {
@@ -576,7 +604,8 @@ for (const [retired, step] of Object.entries(WIDGET_NAME_MIGRATION)) {
  */
 export function presetInputs(preset: WidgetPreset): readonly WidgetInput[] {
   if (preset.repeat) return [];
-  return (getMacro(preset.widget)?.inputs ?? []).filter((input) => !(input.name in preset.params));
+  // `inputsFor`, not the declared list: "Spend by tag" offers no tag control.
+  return inputsFor(preset.widget, preset.params).filter((input) => !(input.name in preset.params));
 }
 
 export function presetCatalog(): WidgetCatalogEntry[] {

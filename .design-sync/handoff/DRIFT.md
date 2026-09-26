@@ -155,7 +155,10 @@ rather than re-pointed*, because the features are real now.
 **Blocked on a missing contract field:**
 - `rack-provenance` → **M13** (who parked a stop, which day it came from)
 - `add-stop-who` → **M13** (per-stop attribution — the same absence from the other side)
-- `cost-estimate-state`, `budget-breakdown` → **M19** (minted 2026-08-31 for exactly these)
+- `cost-estimate-state`, `budget-breakdown` → **M19** (minted 2026-08-31 for exactly these).
+  **Both gone since**: `cost-estimate-state` with SPEC §24's timeline, and `budget-breakdown`
+  on 2026-09-26, rebuilt as the notebook widget "Spend by kind" (`cost.breakdown`) on M28's kinds, beside
+  "Spend by tag" on the same primitive.
 - `map-legend-modes` → **`unplaced`** (transport mode per leg; in TODO.md's candidate ideas)
 - `wizard-destination-chips` → **`unplaced`** (no destination field on `TripSummary`/`TripDetail`)
 

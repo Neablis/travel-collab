@@ -1,4 +1,4 @@
-import type { ActivityTag } from "@tc/contracts";
+import type { ActivityKind, ActivityTag } from "@tc/contracts";
 
 // What a CHART widget resolves to (M14 link 11). Kept out of `registry-types.ts`
 // so the chart payloads can grow without every block widget's branch editing
@@ -74,3 +74,49 @@ export interface SpendByDayPayload {
   /** What the chart leaves out and says so: other currencies, unscheduled stops. `null` when nothing. */
   notCharted: string | null;
 }
+
+/** What "Spend by kind" / "Spend by tag" splits the money by: `cost.breakdown`'s `by`. */
+export type SpendBreakdownBy = "kind" | "tag";
+
+/** One slice of a spend breakdown: a wedge of the donut and a row of its key. */
+export interface SpendBreakdownSlice<K extends string = ActivityKind | SpendSeriesKey> {
+  /** The kind, or the tag (or "untagged") the slice is. */
+  key: K;
+  /** The board's word for it — "Travel", never "transit"; "Meal", "Untagged". */
+  label: string;
+  /** Minor units, trip currency. 0 for a slice nothing priced is on. */
+  amountMinor: number;
+  /** `amountMinor` as a reader says it; `null` when it is 0. */
+  amount: string | null;
+  /** "60%" of the charted total, "<1%" for a sliver; `null` when `amount` is. */
+  share: string | null;
+}
+
+interface SpendBreakdownCommon {
+  kind: "spend-breakdown";
+  /**
+   * What the widget is, and what it is narrowed to on the other dimension:
+   * "Spend by kind", "Spend by kind · Meal", "Spend by tag · Pending". It names
+   * the key's table, so a screen reader hears the narrowing too.
+   */
+  title: string;
+  /** The key's first column heading: what a slice is — "Kind", "Tag". */
+  keyHeading: string;
+  /** Everything charted, in the trip's currency. */
+  total: string;
+  /** One sentence a screen reader gets in place of the picture. */
+  summary: string;
+  /** What the pie leaves out and says so: other currencies. `null` when nothing. */
+  notCharted: string | null;
+}
+
+/**
+ * "Spend by kind" or "Spend by tag". Every slice of the dimension, in its
+ * contract order, zeroes included: the key lists the slices nothing priced is
+ * on as well, and the pie draws only non-zero ones.
+ */
+export type SpendBreakdownPayload = SpendBreakdownCommon &
+  (
+    | { by: "kind"; slices: SpendBreakdownSlice<ActivityKind>[] }
+    | { by: "tag"; slices: SpendBreakdownSlice<SpendSeriesKey>[] }
+  );

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLateFocus } from "./useLateFocus";
 import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, presetParams } from "@tc/pages";
+import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, presetParams, withoutWithheld } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { CheckboxField } from "@/components/ui/checkbox";
 import { FormField } from "@/components/ui/form-field";
@@ -38,8 +38,12 @@ import { Input } from "@/components/ui/input";
 // Which of a widget's declared filters this app can render a control for: all
 // of them, with `day` and `dates` as one. There is no `person` input to leave
 // out any more — it was retired from `WidgetInput` (M14 decision 5).
-export function bindableInputs(name: string): readonly WidgetInput[] {
-  return collapseDays(getMacro(name)?.inputs ?? []);
+//
+// `params` because a widget's own params can withhold a filter (`inputsFor`):
+// "Spend by tag" has no tag control, "Spend by kind" no kind control. `{}` is
+// the widget with every param at its default.
+export function bindableInputs(name: string, params: Readonly<Record<string, unknown>> = {}): readonly WidgetInput[] {
+  return collapseDays(inputsFor(name, params));
 }
 
 /**
@@ -86,7 +90,7 @@ export function presetTarget(id: string): { widget: string; params: Record<strin
 export function presetBindableInputs(id: string): readonly WidgetInput[] {
   const preset = getPreset(id);
   if (!preset || preset.repeat) return [];
-  return bindableInputs(preset.widget).filter((input) => !(input.name in preset.params));
+  return bindableInputs(preset.widget, preset.params).filter((input) => !(input.name in preset.params));
 }
 
 // Reading a param back into a select value, kept beside the writer below so the
@@ -299,10 +303,12 @@ export function bindSummary(
   params: Record<string, unknown>,
   detail: TripDetail,
   globals: TripGlobals | null,
-  allInputs: readonly WidgetInput[] = bindableInputs(name),
+  allInputs: readonly WidgetInput[] = bindableInputs(name, params),
 ): string | null {
   // What the widget is POINTED at: a toggle or a choice changes how it looks,
-  // not what it reads, so neither belongs in "Pointed at …".
+  // not what it reads, so neither belongs in "Pointed at …". (Nor does a
+  // filter the widget withholds — a stored tag on "Spend by tag" narrows
+  // nothing — which the default `allInputs` already leaves out.)
   // The link inputs are not filters either: a link's settings say where it
   // goes in its own control, not as "Showing …" (ADR-056).
   const inputs = allInputs.filter((i) => !["toggle", "choice", "target", "url", "text"].includes(i.type));
@@ -453,10 +459,11 @@ export function WidgetBindControls({
   params,
   detail,
   globals,
-  onChange,
+  onChange: commitRaw,
   layout,
   idPrefix,
-  inputs = bindableInputs(name),
+  // Read with `params`, so switching "Split by" swaps the withheld control.
+  inputs = bindableInputs(name, params),
   title: titleOverride,
 }: {
   name: string;
@@ -470,6 +477,12 @@ export function WidgetBindControls({
   title?: string;
 }) {
   const title = titleOverride ?? getMacro(name)?.title ?? name;
+  // **Every commit drops the filters the NEW params withhold** (Mitchell,
+  // 2026-09-26, on #246): switching "Split by" to Tag deletes a stored tag
+  // filter rather than keeping it hidden. In the same params object, so the
+  // caller writes it as ONE edit and one undo puts both back. The resolver
+  // still ignores a withheld param on read, for documents stored before this.
+  const onChange = (next: Record<string, unknown>) => commitRaw(withoutWithheld(getMacro(name)?.selection, next));
   // A stacked select is otherwise named by its visible `FormField` label alone
   // ("Tags"), which is unique only while the panel holds one widget.
   const namedByTitle = layout === "inline" || titleOverride !== undefined;

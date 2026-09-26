@@ -3,7 +3,7 @@ import type { FilterDimension, ManifestObject, TripDetail, PageContext, TripGlob
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
-import type { SpendByDayPayload } from "./chartPayloads";
+import type { SpendBreakdownPayload, SpendByDayPayload } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
 import type { LinkCardPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
@@ -121,6 +121,7 @@ export type BlockPayload =
   | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload
   | TripStripPayload
   | SpendByDayPayload
+  | SpendBreakdownPayload
   | WeatherPayload
   | LinkCardPayload
   | ItineraryPayload;
@@ -528,6 +529,23 @@ export interface WidgetSelection {
    * "every member" when absent. Must be a subset of `LEGAL_FILTERS[entity]`.
    */
   filters: readonly FilterDimension[];
+  /**
+   * Declared filters that stop applying under one value of a non-filter param
+   * — `cost.breakdown`, whose `by` splits the money by kind or by tag, and
+   * whose filter on the SAME dimension as its slices would leave one slice.
+   * `filters` stays the ceiling (every dimension the primitive can ever take);
+   * this names, per value of `param`, the ones that value withholds. Absent
+   * `param` reads as `default`.
+   *
+   * A declaration rather than a rule inside one resolver, so the resolver
+   * (`withoutWithheld`), the settings panel (which hides the control) and the
+   * assistant's catalogue all read the same fact.
+   */
+  withheld?: {
+    param: string;
+    default: string;
+    values: Readonly<Record<string, readonly FilterDimension[]>>;
+  };
 }
 
 export interface MacroDef<P, T> {

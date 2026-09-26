@@ -526,6 +526,7 @@ pendingReason: null,
     // registry, `lazy` resolves it in a tick, so the wait is for React, not
     // for the machine.
     await import("./blocks/SpendByDayChart");
+    await import("./blocks/SpendBreakdownChart");
     const errors: string[] = [];
     const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
       errors.push(args.map(String).join(" "));
