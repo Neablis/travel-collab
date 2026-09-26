@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CreatePageInput, PageDoc } from "@tc/contracts";
 import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY, getTemplate, instantiateDefaults } from "./templates";
+import { notebookPreviewOf } from "./linkTarget";
 import { insertWidget } from "./insert";
 import { getMacro, renderMacro } from "./registry";
 import { tripDetailFactory } from "@tc/factories";
@@ -20,29 +21,28 @@ function walk(node: unknown, out: { type?: string; attrs?: { name?: string; para
 const widgetsIn = (doc: unknown) => walk(doc).filter((n) => n.type === "macro");
 
 describe("templates", () => {
-  // SPEC §25, and Mitchell 2026-09-12: *"Only 1 notebook per trip is always
-  // generated, this is undeletable notebook that needs to be created on every
-  // new trip."* It was two — Trip Overview and Day overview — and both are
-  // gallery templates now.
-  it("seeds exactly one notebook into a new trip, and it is the Overview", () => {
-    expect(DEFAULT_TEMPLATES.map((t) => t.key)).toEqual(["overview"]);
-    expect(DEFAULT_TEMPLATES[0]!.buildContext("t").kind).toBe("overview");
+  // **Four, since M30** — Mitchell, 2026-09-26, reversing his 2026-09-12 *"Only
+  // 1 notebook per trip is always generated"*: *"Maybe the issue is trying to
+  // make the overview do everything, and instead we have several notebooks,
+  // with different purposes."* Only the first is marked, and so only it is
+  // undeletable (`deletePage` refuses on the marker, not on the title).
+  it("seeds four notebooks into a new trip, and only the Overview is marked", () => {
+    expect(DEFAULT_TEMPLATES.map((t) => t.title)).toEqual(["Overview", "Before you go", "Bookings", "Money"]);
+    expect(DEFAULT_TEMPLATES.map((t) => t.buildContext("t").kind)).toEqual(["overview", undefined, undefined, undefined]);
   });
 
-  // **The seeded page is no longer IN the gallery, and that inverts this test.**
-  // It used to assert containment — the seeded set is a prefix of the library —
-  // because every seeded template was also offerable. The Overview is not: there
-  // can be exactly one page marked `kind: "overview"` per trip, so a gallery
-  // button that made a second would offer a broken outcome (rule 2). What is
-  // left to assert is the disjointness, which is the same property stated from
-  // the other side: adding a gallery template still cannot change what a new
-  // trip gets.
-  it("the seeded page is not in the gallery, and the gallery is not seeded", () => {
+  // **The Overview is not IN the gallery; every other seeded notebook is.**
+  // There can be exactly one page marked `kind: "overview"` per trip, so a
+  // gallery button that made a second would offer a broken outcome (rule 2).
+  // The other three are offered, which is how a notebook somebody deleted comes
+  // back — and they lead the gallery, where a returning reader recognises them.
+  it("offers every seeded notebook but the Overview in the gallery, first", () => {
     const libraryKeys = TEMPLATE_LIBRARY.map((t) => t.key);
-    const seededKeys = DEFAULT_TEMPLATES.map((t) => t.key);
-    for (const key of seededKeys) expect(libraryKeys).not.toContain(key);
-    for (const t of TEMPLATE_LIBRARY) expect(t.seedIntoNewTrips).toBe(false);
-    expect(libraryKeys.length).toBeGreaterThan(seededKeys.length);
+    const [overview, ...rest] = DEFAULT_TEMPLATES.map((t) => t.key);
+    expect(libraryKeys).not.toContain(overview);
+    expect(libraryKeys.slice(0, rest.length)).toEqual(rest);
+    for (const t of TEMPLATE_LIBRARY) expect(t.seedIntoNewTrips).toBe(rest.includes(t.key));
+    expect(libraryKeys.length).toBeGreaterThan(rest.length);
   });
 
   it("every template has a unique key, a title and a gallery description", () => {
@@ -55,14 +55,36 @@ describe("templates", () => {
     }
   });
 
-  it("instantiateDefaults produces valid CreatePageInputs bound to the trip", () => {
+  it("instantiateDefaults produces valid CreatePageInputs bound to the trip, with the ids it was handed", () => {
     const tripId = crypto.randomUUID();
-    const inputs = instantiateDefaults(tripId);
+    const minted: string[] = [];
+    const inputs = instantiateDefaults(tripId, () => {
+      const id = crypto.randomUUID();
+      minted.push(id);
+      return id;
+    });
     expect(inputs).toHaveLength(DEFAULT_TEMPLATES.length);
+    expect(inputs.map((i) => i.id)).toEqual(minted);
     for (const input of inputs) expect(CreatePageInput.safeParse(input).success).toBe(true);
     // A page is trip-bound and carries no scope (SPEC §18) — `kind` is not a
     // scope, it is which page this is (§25), and only the Overview has one.
-    for (const input of inputs) expect(input.context).toEqual({ tripId, kind: "overview" });
+    expect(inputs.map((i) => i.context)).toEqual([{ tripId, kind: "overview" }, { tripId }, { tripId }, { tripId }]);
+  });
+
+  // ADR-056: the Overview names its siblings by the ids the SEEDER minted —
+  // not the placeholders `content` carries, and not titles, which a reader may
+  // change. Seen red with `instantiateDefaults` passing `t.content` instead of
+  // `buildContent(ids)`: the links then named `…f001`–`…f003`.
+  it("links the seeded Overview to the other three seeded notebooks, by their minted ids", () => {
+    let n = 0;
+    const inputs = instantiateDefaults(crypto.randomUUID(), () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`);
+    const [overview, ...siblings] = inputs;
+    const targets = widgetsIn(overview!.content)
+      .filter((node) => node.attrs?.name === "link.internal")
+      .map((node) => (node.attrs?.params as { to: { pageId: string } }).to.pageId);
+    expect(targets).toEqual(siblings.map((s) => s.id));
+    // The siblings do not link anywhere; only the Overview is built per trip.
+    for (const s of siblings) expect(widgetsIn(s.content).some((node) => node.attrs?.name === "link.internal")).toBe(false);
   });
 
   // Every template — not only the seeded pair — has to survive the write path,
@@ -93,7 +115,9 @@ describe("templates", () => {
    */
   it("every widget in every template is one insertWidget would accept", () => {
     const failures: string[] = [];
-    for (const t of TEMPLATE_LIBRARY) {
+    // The seeded Overview too: it is built the same way, and a stripped param
+    // there is worse than in the gallery — every new trip gets it.
+    for (const t of [...DEFAULT_TEMPLATES, ...TEMPLATE_LIBRARY]) {
       for (const node of widgetsIn(t.content)) {
         const name = node.attrs?.name ?? "(unnamed)";
         const result = insertWidget(name, node.attrs?.params);
@@ -156,10 +180,9 @@ describe("templates", () => {
    * carry `open`, whose empty state is the sentence "nothing is waiting on
    * you".
    *
-   * So the assertion is now: a seeded page's widgets must each declare
-   * `emptyText`, which is the widget promising it has something to say when it
-   * resolves to nothing. Two of the gallery's widgets do not, and those are
-   * exactly the ones that must never be seeded.
+   * The one exception is a loading line at first paint: a widget with an
+   * outside input (`needs`) may say "loading weather" before its fetch lands,
+   * and must say something the trip explains once it has.
    */
   // **The rule this file's header states, enforced by running the widgets
   // rather than by reading their declarations.**
@@ -174,64 +197,154 @@ describe("templates", () => {
   // actually lands on a minute after pressing "New trip" — no dates, no days,
   // no stops, no budget — and renders every seeded widget against it.
   it("seeds only widgets that say something readable on a brand-new empty trip", () => {
-    // dayCount 0 is the whole point: a trip whose wizard has just closed.
+    // dayCount 0: a trip created with no dates — the wizard's "decide later".
     const bare = tripDetailFactory.build({ startDate: null }, { transient: { dayCount: 0 } });
-    const ctx: WidgetContext = {
-      trip: bare,
-      page: { tripId: bare.tripId },
-      user: null,
-      // No globals and no today either — the two things that arrive after the
-      // first paint. A widget that only reads well once its projection has
-      // landed is a widget that reads badly on arrival.
-      globals: null,
-      today: null,
+    // **And the trip the wizard makes when it IS given dates**: days, each
+    // dated, and not one stop. This is the likelier first visit, and the one
+    // where `day.weather` has something to ask about — days — and nothing to
+    // ask it with. It was missing until the #243 review, which is how a rule
+    // that said "no widget waiting on a third party" shipped next to a seeded
+    // weather block that, on this trip, did exactly that.
+    const datedBuilt = tripDetailFactory.build(
+      { startDate: "2026-10-12" },
+      { transient: { dayCount: 3, startDate: "2026-10-12" } },
+    );
+    const dated = {
+      ...datedBuilt,
+      days: datedBuilt.days.map((day, i) => ({ ...day, date: `2026-10-1${2 + i}` })),
     };
+    const datedGlobals = {
+      days: dated.days.map((day, index) => ({
+        index, date: day.date, cities: [], activityCount: 0, costSubtotal: 0, place: null, timeZone: null,
+      })),
+      cities: [],
+      tags: [],
+      homeTimeZone: null,
+    };
+    // What `GET /api/trips/:id/weather` answers for a trip with no located stop:
+    // zero points, and no upstream call behind them (`weatherPointsOf`).
+    // And what `GET /pages` answers once the seeder has run: the four seeded
+    // notebooks, each described by its own first line (ADR-056). Seeded through
+    // `instantiateDefaults` itself, so the Overview's links carry the ids the
+    // list carries — a placeholder id would pass as "this notebook was
+    // deleted", which is `empty` with words and would hide a broken seed.
+    let n = 0;
+    const seeded = instantiateDefaults(bare.tripId, () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`);
+    const notebooks = {
+      state: "ready" as const,
+      value: { pages: seeded.map((p) => ({ id: p.id, title: p.title, ...notebookPreviewOf(p.content) })), openable: true },
+    };
+    const fetched = { weather: { state: "ready" as const, value: { points: [] } }, notebooks };
 
-    for (const t of DEFAULT_TEMPLATES) {
-      for (const node of widgetsIn(t.content)) {
-        const name = String(node.attrs?.name ?? "(unnamed)");
-        const macro = getMacro(name);
-        expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
+    // **Each trip is read at two moments.** First paint: no globals, no today,
+    // and every outside input still in flight. Then, a beat later, the globals,
+    // the reader's date and the fetched weather. A widget that is quiet while
+    // they load and asks for a binding once they arrive would pass the first
+    // moment alone; one that only reads well once they land would pass the
+    // second alone.
+    type Moment = { name: string; firstPaint: boolean; ctx: WidgetContext };
+    const moments: Moment[] = [
+      {
+        name: "empty trip, first paint",
+        firstPaint: true,
+        ctx: { trip: bare, page: { tripId: bare.tripId }, user: null, globals: null, today: null },
+      },
+      {
+        name: "empty trip, after load",
+        firstPaint: false,
+        ctx: {
+          trip: bare, page: { tripId: bare.tripId }, user: null,
+          globals: { days: [], cities: [], tags: [], homeTimeZone: null }, today: "2026-09-26", external: fetched,
+        },
+      },
+      {
+        name: "dated days, no stops, first paint",
+        firstPaint: true,
+        ctx: { trip: dated, page: { tripId: dated.tripId }, user: null, globals: null, today: null },
+      },
+      {
+        name: "dated days, no stops, after load",
+        firstPaint: false,
+        ctx: {
+          trip: dated, page: { tripId: dated.tripId }, user: null,
+          globals: datedGlobals, today: "2026-09-26", external: fetched,
+        },
+      },
+    ];
 
-        const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
-        // `unbound` is the state this test exists to refuse: it renders as a
-        // chip asking for a binding the seeded page never made, and there are
-        // six widgets on this page — six of those is not a first impression.
-        expect(
-          outcome.status,
-          `${t.key} seeds ${name}, which asks to be bound before it will say anything`,
-        ).not.toBe("unbound");
-        expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve`).toContain(outcome.status);
-        if (outcome.status === "empty") {
-          // Something a person can read, from the resolver's own reason or the
-          // widget's blanket one. A blank chip in a sentence reads as a
-          // rendering fault, which is worse than any wording.
-          const said = outcome.because ?? macro!.emptyText;
-          expect(said, `${t.key} seeds ${name}, which renders an empty chip with no words in it`).toBeTruthy();
+    let loadingSeen = 0;
+    let linksFound = 0;
+    for (const { name: moment, firstPaint, ctx } of moments) {
+      for (const t of seeded.map((p) => ({ key: p.title, content: p.content }))) {
+        for (const node of widgetsIn(t.content)) {
+          const name = String(node.attrs?.name ?? "(unnamed)");
+          const macro = getMacro(name);
+          expect(macro, `${t.key} seeds an unregistered widget: ${name}`).toBeDefined();
+
+          const outcome = renderMacro(ctx, name, node.attrs?.params ?? {});
+          // `unbound` is the state this test exists to refuse: it renders as a
+          // chip asking for a binding the seeded page never made.
+          expect(
+            outcome.status,
+            `${t.key} seeds ${name}, which asks to be bound before it will say anything (${moment})`,
+          ).not.toBe("unbound");
+          // **`unavailable("pending")` is a loading line, and first paint is
+          // when things load.** A widget that declares an outside input
+          // (`needs`) says "loading weather" while its fetch is in flight — the
+          // same beat every other widget spends waiting for its globals. What
+          // is refused is that line OUTLIVING the load: after it, the widget
+          // must have said something the trip explains (`ok` or `empty`).
+          if (
+            firstPaint &&
+            outcome.status === "unavailable" &&
+            outcome.reason === "pending" &&
+            (macro!.needs?.length ?? 0) > 0
+          ) {
+            loadingSeen++;
+            continue;
+          }
+          expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve (${moment})`).toContain(outcome.status);
+          // A seeded link must FIND its notebook once the list has landed: a
+          // "this notebook was deleted" on a trip created a minute ago is a
+          // broken seed, however well it is worded.
+          if (name === "link.internal" && !firstPaint) {
+            expect(outcome.status, `${t.key} links to a notebook the seed did not make (${moment})`).toBe("ok");
+            linksFound++;
+          }
+          if (outcome.status === "empty") {
+            // SPEC §36.10b: *"an empty line that says what fills it reads
+            // well"* — so there must BE a line, from the resolver's own reason
+            // or the widget's blanket one. A blank chip reads as a rendering
+            // fault, which is worse than any wording.
+            const said = outcome.because ?? macro!.emptyText;
+            expect(said, `${t.key} seeds ${name}, which renders an empty chip with no words in it (${moment})`).toBeTruthy();
+          }
         }
       }
     }
+    // The allowance above is used — the dated trip's weather does load — so
+    // it is not a rule nothing exercises. If this drops to zero, the moment
+    // has stopped modelling the wizard's trip.
+    expect(loadingSeen).toBeGreaterThan(0);
+    // Three links, after load, on each of the two trips.
+    expect(linksFound).toBe(6);
 
-    // Non-vacuous, and it pins the composition: the Overview is built out of
-    // widgets and this is which ones. A change here is a deliberate change to
-    // the page every trip opens on.
-    expect(DEFAULT_TEMPLATES.flatMap((t) => widgetsIn(t.content).map((n) => n.attrs?.name))).toEqual([
-      // The hook, then the shape.
-      "attribute", // trip.name
-      "attribute", // trip.countdown
-      "dates",
-      "count", // days
-      "count", // stops
-      "city",
-      // Then the document, in reading order.
-      "open",
-      "city.detail",
-      "day.detail",
-      "stop.rows", // booked only
-      "cost",
-      "attribute", // trip.budgetRemaining
-      "cost.rows",
-    ]);
+    // Non-vacuous, and it pins the composition: each seeded notebook is built
+    // out of widgets and this is which ones, in reading order. A change here is
+    // a deliberate change to what every new trip comes with (M30).
+    expect(
+      Object.fromEntries(DEFAULT_TEMPLATES.map((t) => [t.title, widgetsIn(t.content).map((node) => node.attrs?.name)])),
+    ).toEqual({
+      // The letter's facts, the printed schedule, the three notebook cards.
+      Overview: ["dates", "city", "day.detail", "link.internal", "link.internal", "link.internal"],
+      "Before you go": ["day.fromHome", "day.weather", "country.facts"],
+      Bookings: ["stop.rows", "stop.rows", "stop.rows", "open"],
+      Money: ["cost.chart", "cost.rows"],
+    });
+    // The Overview's schedule is the printed itinerary, not the glance.
+    expect(widgetsIn(DEFAULT_TEMPLATES[0]!.content).find((node) => node.attrs?.name === "day.detail")?.attrs?.params).toEqual({
+      view: "schedule",
+    });
     // And the gallery still builds itself — the other half of the old line,
     // which is unchanged and still worth holding.
     for (const t of TEMPLATE_LIBRARY) {

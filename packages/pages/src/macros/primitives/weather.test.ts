@@ -182,7 +182,19 @@ describe("day.weather", () => {
 
   it("is `empty` with the fix when a day has no place — trip data, not the source", () => {
     const t = setup(["2026-11-10"], []);
-    expect(renderMacro(ctxOf(t, "2026-11-10"), "day.weather", {})).toEqual({ status: "empty", because: "no place on this day" });
+    expect(renderMacro(ctxOf(t, "2026-11-10"), "day.weather", {})).toEqual({ status: "empty", because: "add a place to a stop to see this" });
+  });
+
+  // Ahead of the slot and the date: a trip with no days says what fixes it
+  // even while the weather is still loading, and even with no `today` —
+  // which is what a trip created without dates reads at first paint.
+  it("asks for a day before the slot or the date when the trip has none", () => {
+    const t = setup([], []);
+    for (const slot of ["pending", "failed", "ready"] as const) {
+      expect(renderMacro(ctxOf(t, null, slot), "day.weather", {})).toEqual({
+        status: "empty", because: "add a day to see this",
+      });
+    }
   });
 
   it("asks for dates when no selected day has one", () => {

@@ -7,7 +7,7 @@ import { PageScreen } from "./PageScreen";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
-import { makePagesHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
+import { makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { everyWidget, everyWidgetPage, rawSyntaxLeaks } from "@/test-support/rawSyntax";
 import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
@@ -46,6 +46,8 @@ const server = setupServer(
   ),
   // And the same again for the plan the assistant rail reads.
   makeAccountPlanHandler(),
+  // And the weather the seeded Overview asks for (ADR-052).
+  makeWeatherHandler(),
   // Same reasoning as the account default above: every notebook page now asks
   // for the trip's addressable collections (ADR-037 open question 4).
   http.get("/api/trips/:tripId/globals", () =>

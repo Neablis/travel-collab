@@ -1,5 +1,7 @@
 import { z } from "zod";
-import type { FilterDimension, TimeFormat, TripDetail } from "@tc/contracts";
+import type { ActivityView, FilterDimension, TimeFormat, TripDetail } from "@tc/contracts";
+import type { ItineraryPayload, ItineraryScheduleDay, ItineraryStop } from "../../itineraryPayload";
+import { needsBooking } from "../../needsBooking";
 import type {
   CityDetailPayload,
   ItineraryDayPayload,
@@ -11,8 +13,8 @@ import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { cityDayOrdinals, narrow, stopsInCity, type SelectedStop } from "../../select";
-import { formatDate, formatMoney } from "../../format";
-import { readerClock, toClockRange } from "../../clockLabel";
+import { formatDate, formatLongDate, formatMoney } from "../../format";
+import { readerClock, toClockLabel, toClockRange } from "../../clockLabel";
 
 // The `block` primitives (ADR-039 decision 1): a shape that **details** its
 // selection — one member renders one card, many render one card per member
@@ -91,8 +93,69 @@ function dayCard(
 }
 
 const DAY_DETAIL_FILTERS = ["day", "city", "tag", "kind", "dates"] as const satisfies readonly FilterDimension[];
-const DayDetailParams = filterParams(DAY_DETAIL_FILTERS);
+const DayDetailParams = filterParams(DAY_DETAIL_FILTERS, {
+  // **"schedule" is the printed itinerary** (M30): every stop in time order,
+  // where it is and whether it still needs booking, under a dated header per
+  // day. Absent is the glance the widget has always drawn, so every stored
+  // `day.detail` reads as it did.
+  view: z.enum(["glance", "schedule"]).optional(),
+});
 type DayDetailParams = z.infer<typeof DayDetailParams>;
+
+/**
+ * One stop as a line of the printed schedule.
+ *
+ * `place` is the location's name with its city after it when the name does not
+ * already say it ("Fushimi Inari Taisha, Kyoto"), and the city alone for a stop
+ * placed only as far as a city. That is how an itinerary writes an address:
+ * enough to find it, not the street.
+ */
+function scheduleStop(activity: ActivityView, format: TimeFormat): ItineraryStop {
+  const window = activity.timeWindow;
+  const name = activity.location?.name?.trim() || null;
+  const city = activity.location?.city?.trim() || null;
+  const place = name && city && !name.includes(city) ? `${name}, ${city}` : (name ?? city);
+  return {
+    time: window ? toClockLabel(window.start, format) : null,
+    until: window ? toClockLabel(window.end, format) : null,
+    title: activity.title,
+    place,
+    status: needsBooking(activity) ? "To book" : activity.kind === "transit" ? "Travel" : null,
+  };
+}
+
+/**
+ * The day's stops in the order a person lives them: timed ones by start, then
+ * the untimed ones in the order the board keeps them.
+ *
+ * `stopsInTimeOrder` in `@tc/domain` is the same rule, and this package may not
+ * import it (it depends on contracts only). Five lines of sort are cheaper than
+ * a new package edge; `block.test.ts` pins the order so the two cannot quietly
+ * disagree about what "in time order" means.
+ */
+function inTimeOrder(stops: readonly SelectedStop[]): SelectedStop[] {
+  const timed = stops.filter(({ activity }) => activity.timeWindow);
+  const untimed = stops.filter(({ activity }) => !activity.timeWindow);
+  timed.sort((a, b) => (a.activity.timeWindow!.start < b.activity.timeWindow!.start ? -1 : a.activity.timeWindow!.start > b.activity.timeWindow!.start ? 1 : 0));
+  return [...timed, ...untimed];
+}
+
+function scheduleDay(
+  trip: TripDetail,
+  globals: WidgetContext["globals"],
+  index: number,
+  stops: readonly SelectedStop[],
+  format: TimeFormat,
+): ItineraryScheduleDay {
+  const day = trip.days[index]!;
+  return {
+    dayId: day.dayId,
+    ordinal: index + 1,
+    date: formatLongDate(day.date),
+    cities: globals?.days[index]?.cities ?? [],
+    stops: inTimeOrder(stops).map(({ activity }) => scheduleStop(activity, format)),
+  };
+}
 
 /**
  * `day.detail` — a day's stops, or every day's.
@@ -116,12 +179,22 @@ type DayDetailParams = z.infer<typeof DayDetailParams>;
  * A single day that ends up with no stops is `empty()`, which is the answer
  * `itinerary.day` already gives for a day with nothing on it.
  */
-export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | ItineraryTripPayload> = {
+export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | ItineraryTripPayload | ItineraryPayload> = {
   name: "day.detail", title: "The days in detail", shape: "block",
-  params: DayDetailParams, inputs: filterInputs(DAY_DETAIL_FILTERS),
+  params: DayDetailParams,
+  inputs: [
+    ...filterInputs(DAY_DETAIL_FILTERS),
+    {
+      name: "view", type: "choice", label: "Layout", default: "glance",
+      options: [
+        { value: "glance", label: "At a glance" },
+        { value: "schedule", label: "Printed itinerary" },
+      ],
+    },
+  ],
   selection: { entity: "day", filters: DAY_DETAIL_FILTERS },
   description:
-    "The stops on a selection of days. Unfiltered it is every day at a glance; filter it to a day for that day's card, or to a kind or tag for only the stops that match.",
+    "The stops on a selection of days. Unfiltered it is every day at a glance; filter it to a day for that day's card, or to a kind or tag for only the stops that match. Its \"schedule\" layout prints every stop in time order with its place and whether it is still to book, like a printed itinerary.",
   // "no days yet", not "No days to show". This is the first thing a brand-new
   // trip's Overview says under "The trip, day by day", and "to show" is a shrug
   // about the widget where "yet" is a fact about the trip — one of them tells
@@ -133,7 +206,7 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
     { trip, globals, user }: WidgetContext,
     params,
     item,
-  ): MacroResult<ItineraryDayPayload | ItineraryTripPayload> => {
+  ): MacroResult<ItineraryDayPayload | ItineraryTripPayload | ItineraryPayload> => {
     if (!trip) return needsTrip();
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
@@ -149,6 +222,16 @@ export const dayDetail: MacroDef<DayDetailParams, ItineraryDayPayload | Itinerar
 
     const kept = contentNarrowed ? days.filter((index) => byDay.has(index)) : days;
     if (kept.length === 0) return empty();
+    // The printed itinerary is one shape at every arity: a one-day schedule is
+    // still a schedule, headed by its day, and an empty day in it says
+    // "Nothing planned yet" as the glance's table does rather than vanishing.
+    if (params.view === "schedule") {
+      const format = readerClock(user);
+      return ok({
+        kind: "itinerary-schedule",
+        days: kept.map((index) => scheduleDay(trip, globals, index, byDay.get(index) ?? [], format)),
+      });
+    }
     const cards = kept.map((index) => dayCard(trip, globals, index, byDay.get(index) ?? [], readerClock(user)));
     if (cards.length === 1) {
       const only = cards[0]!;

@@ -16,7 +16,7 @@
 // P2's filter is a filter over complete data rather than one with holes.
 import { describe, expect, it } from "vitest";
 import { BatchableCommand } from "@tc/contracts";
-import { MACRO_NAMES } from "@tc/pages";
+import { COMPOSABLE_MACRO_NAMES, MACRO_NAMES } from "@tc/pages";
 import { ASSISTANT_TOOLS, aiToolsFor } from "./registry";
 import { newTurnMeter } from "./ledger";
 import { defineTool } from "./defineTool";
@@ -93,8 +93,11 @@ describe("the registry", () => {
   // The page half of the same rule (@tc/pages macro registry). The tools are
   // two, but the vocabulary they can insert is the registry's, so the check is
   // that `insert_widget` still enumerates it rather than a copy of it.
-  it("derives insert_widget's widget names from the live macro registry", () => {
-    expect([...(insertWidgetNameOptions() ?? [])].sort()).toEqual([...MACRO_NAMES].sort());
+  it("derives insert_widget's widget names from the live macro registry, less what it may not compose", () => {
+    // `COMPOSABLE_MACRO_NAMES` is the registry filtered by `composable`, not a
+    // copy: the two link widgets are the whole difference (ADR-056).
+    expect([...(insertWidgetNameOptions() ?? [])].sort()).toEqual([...COMPOSABLE_MACRO_NAMES].sort());
+    expect(MACRO_NAMES.filter((name) => !COMPOSABLE_MACRO_NAMES.includes(name)).sort()).toEqual(["link.external", "link.internal"]);
   });
 
   it("declares only real AssistantDeps keys, on every tool", () => {

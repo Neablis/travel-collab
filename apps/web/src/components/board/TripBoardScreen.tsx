@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
@@ -201,6 +202,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     defaultedPhoneDay.current = true;
     setFocusedDay(0);
   }, [isPhone, focusedDay, activeTrip, setFocusedDay]);
+
+  /**
+   * **A link card to a day** (M30, ADR-056) arrives as `?view=Plan&day=<dayId>`:
+   * the day is focused once the trip is here, and Plan's own day-sync scrolls
+   * to it. By id, so a link made before days were reordered still lands on its
+   * day. Once per value, so clearing the focus afterwards is not undone.
+   */
+  const linkedDay = useSearchParams().get("day");
+  const appliedDayLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (linkedDay === null || activeTrip === null || appliedDayLink.current === linkedDay) return;
+    appliedDayLink.current = linkedDay;
+    const index = activeTrip.days.findIndex((day) => day.dayId === linkedDay);
+    if (index !== -1) setFocusedDay(index);
+  }, [linkedDay, activeTrip, setFocusedDay]);
 
   // The demo board (`/demo`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not

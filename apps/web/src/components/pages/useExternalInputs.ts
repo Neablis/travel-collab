@@ -1,12 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { TripWeather } from "@tc/contracts";
-import type { ExternalInputs, ExternalNeed, Slot } from "@tc/pages";
+import type { ExternalInputs, ExternalNeed, NotebookIndex, Slot } from "@tc/pages";
 import { fetchTripWeather } from "@/lib/apiClient";
+import { fetchPages } from "@/lib/pagesClient";
+import { isDemoTripId } from "@/lib/demoTrip";
+import { isInviteLook } from "@/lib/inviteLook";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
 const PENDING: Slot<TripWeather> = { state: "pending" };
+const NOTEBOOKS_PENDING: Slot<NotebookIndex> = { state: "pending" };
 
 /**
  * The client half of ADR-052's slot: fetches what the page's widgets declare
@@ -44,5 +48,45 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
     };
   }, [tripId, wantsWeather]);
 
-  return useMemo(() => ({ weather }), [weather]);
+  // **The trip's notebooks, for a link card (ADR-056).** The same read, under
+  // the same key, as the Overview tab and the Notebook index make — so a page
+  // holding a link usually costs no request at all — and asked for only when a
+  // widget on the page names it, like the weather.
+  const wantsNotebooks = needs.has("notebooks");
+  const [notebookList, setNotebookList] = useState<{ tripId: string; slot: Slot<NotebookIndex> } | null>(null);
+  const notebooks = notebookList?.tripId === tripId ? notebookList.slot : NOTEBOOKS_PENDING;
+
+  useEffect(() => {
+    if (!wantsNotebooks) return;
+    let live = true;
+    void cachedRead(tripKeys.pages(tripId), () => fetchPages(tripId), { dedupeMs: DEDUPE.DOCUMENT }).then((r) => {
+      if (!live) return;
+      setNotebookList({
+        tripId,
+        slot: r.ok
+          ? {
+              state: "ready",
+              value: {
+                pages: r.value.pages.map((p) => ({
+                  id: p.id,
+                  title: p.title,
+                  firstLine: p.preview?.firstLine ?? null,
+                  widgetCount: p.preview?.widgetCount ?? 0,
+                })),
+                // The demo's visitor and an invitee having a look read this
+                // trip through a token the notebook route does not take, and
+                // the board withholds the Notebooks menu from both — so a card
+                // names the notebook without a way into it.
+                openable: !isDemoTripId(tripId) && !isInviteLook(tripId),
+              },
+            }
+          : { state: "failed" },
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, [tripId, wantsNotebooks]);
+
+  return useMemo(() => ({ weather, notebooks }), [weather, notebooks]);
 }

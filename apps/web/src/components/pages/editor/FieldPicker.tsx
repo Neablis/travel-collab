@@ -1,5 +1,6 @@
 "use client";
 import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useLateFocus } from "./useLateFocus";
 import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
 
@@ -22,12 +23,18 @@ export interface FieldOption {
   label: string;
   /** The heading it lists under. A stale stored path has none. */
   group?: string;
+  /**
+   * A second line under the label — what the option IS, in the trip's own
+   * words. The link target picker's "simple previews" (ADR-056): a notebook's
+   * first line, a day's cities. Searched too.
+   */
+  detail?: string;
 }
 
 // Every word must match the label or the group, the rule the widget picker's
 // own search follows (`presets.ts` keywords), so "day date" finds the day's date.
 function matches(option: FieldOption, query: string): boolean {
-  const haystack = `${option.label} ${option.group ?? ""}`.toLowerCase();
+  const haystack = `${option.label} ${option.group ?? ""} ${option.detail ?? ""}`.toLowerCase();
   return query
     .toLowerCase()
     .split(/\s+/)
@@ -87,6 +94,9 @@ export function FieldPicker({
   value,
   onChange,
   layout,
+  placeholder = "Search fields",
+  noMatch = "No field matches",
+  autoFocus = false,
 }: {
   id: string;
   /** The accessible name, when no visible label names the box. */
@@ -95,6 +105,11 @@ export function FieldPicker({
   value: string;
   onChange: (next: string) => void;
   layout: "inline" | "stacked";
+  /** What the box says when empty, and what the list says when nothing matches. */
+  placeholder?: string;
+  noMatch?: string;
+  /** Focus (and so open) on mount — a control that is the whole next step. */
+  autoFocus?: boolean;
 }) {
   const listId = useId();
   // `null` while closed. Open, it is what the person has typed so far.
@@ -126,6 +141,9 @@ export function FieldPicker({
   // under the finger as the person typed would be worse than one that stays
   // where it first appeared.
   const boxRef = useRef<HTMLDivElement>(null);
+  // The box itself, for `useLateFocus` (see there for why not `autoFocus`).
+  const inputRef = useRef<HTMLInputElement>(null);
+  useLateFocus(inputRef, autoFocus);
   const [placement, setPlacement] = useState<ReturnType<typeof listPlacement>>({ side: "below", maxHeight: LIST_MAX_PX });
   useLayoutEffect(() => {
     if (!open || !boxRef.current) return;
@@ -145,7 +163,8 @@ export function FieldPicker({
         aria-autocomplete="list"
         aria-activedescendant={open && shown.length > 0 ? optionId(active) : undefined}
         autoComplete="off"
-        placeholder="Search fields"
+        placeholder={placeholder}
+        ref={inputRef}
         className={layout === "inline" ? "h-7 min-h-0 py-0 text-xs" : "min-h-11"}
         value={open ? query : current}
         onFocus={() => setQuery("")}
@@ -186,7 +205,7 @@ export function FieldPicker({
           style={{ maxHeight: placement.maxHeight }}
           data-side={placement.side}
         >
-          {shown.length === 0 ? <p className="px-3 py-2 text-slate">No field matches</p> : null}
+          {shown.length === 0 ? <p className="px-3 py-2 text-slate">{noMatch}</p> : null}
           {groups.map((group, g) => (
             <div key={group.name} role="group" aria-labelledby={group.name ? `${listId}-g${g}` : undefined}>
               {group.name ? (
@@ -212,6 +231,7 @@ export function FieldPicker({
                   onClick={() => pick(option)}
                 >
                   {option.label}
+                  {option.detail ? <span className="block truncate text-xs font-normal text-slate">{option.detail}</span> : null}
                 </div>
               ))}
             </div>

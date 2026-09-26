@@ -147,6 +147,14 @@ leaves the building for a page that does not show weather. It goes through `cach
 old it is, and reopening refreshes. `OverviewLens` follows the same rule when it mounts a
 read-only notebook.
 
+> **Since 2026-09-26 (PR #243) that rule fires by default.** The seeded Overview carries
+> `day.weather`, so every Overview view requests it: every new trip's, the Japan demo an
+> anonymous visitor lands on, and an invitee's look before accepting. The rule itself is
+> unchanged — a notebook without a weather widget still sends nothing — but "only when a page
+> shows weather" now describes the default page. Mitchell accepted this on 2026-09-26:
+> *"It's ok to send a users data to weather"*. A trip with no located stop still sends no
+> point (the route answers zero points with no upstream call).
+
 **Loading.** The slot starts `pending`; the widget answers `unavailable("pending")` (decision
 4) and its block reserves its full fixed height, so the answer landing does not reflow the
 page (ADR-044). A non-2xx or network error sets `failed`.
@@ -293,7 +301,12 @@ older as-of, which is what makes serving it honest.
   type error.
 - **One migration**, for `external_data_cache`, and one new required env var in production.
 - **The first feature that sends anything about a trip to a third party.** Bounded to a 2-dp
-  point and an ops contact, only when a page shows weather. The privacy page needs a line.
+  point and an ops contact, only when a page shows weather — **which, since 2026-09-26, the
+  seeded Overview does, so it is the default on every Overview view** (accepted by Mitchell
+  that day; see *When* above). The privacy page needs a line (KI-2026-09-24-o), and the
+  `weather-daily` quota now meets ordinary traffic rather than opt-in use: 200 per user and
+  5,000 global a day, charged on cache misses only, with demo and invite visitors in one
+  shared bucket each — the first ceiling a busy demo would reach.
 - **The next external widget costs a port, an adapter and a `Slot` member**, not another
   architecture: currency or holidays would reuse the table, `roundForExport` (if they need a
   place), `unavailable`, the credit footer and the as-of line.

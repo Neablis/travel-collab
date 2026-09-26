@@ -305,6 +305,33 @@ export const PageSummary = Page.pick({ id: true, tripId: true, title: true, cont
 export type PageSummary = z.infer<typeof PageSummary>;
 
 /**
+ * What a notebook SAYS, without its document (M30, ADR-056): the first line of
+ * prose in it, and how many widgets it holds. Computed by the server from the
+ * stored document (`@tc/pages`' `notebookPreviewOf`), so a link card and the
+ * Notebook index can describe a notebook in its own words while the list stays
+ * bounded — `content` is still the one field a list never carries.
+ */
+export const NotebookPreview = z.object({
+  firstLine: z.string().nullable(),
+  widgetCount: z.number().int().nonnegative(),
+});
+export type NotebookPreview = z.infer<typeof NotebookPreview>;
+
+/**
+ * One row of the app's own notebook list (`GET /api/trips/:id/pages`): a
+ * `PageSummary` and its preview.
+ *
+ * **A separate type, not a field on `PageSummary`**, because `PageSummary` is
+ * also the public API's item (`GET /v1/trips/:id/pages`), whose route
+ * validates items but returns them as handed — a field added there would leak
+ * into the public surface unasked (AGENTS.md: features do not owe the API an
+ * endpoint). **`preview` is optional** so a list from a server deployed before
+ * it still parses in a client deployed after, for the minutes a deploy takes.
+ */
+export const PageListEntry = PageSummary.extend({ preview: NotebookPreview.optional() });
+export type PageListEntry = z.infer<typeof PageListEntry>;
+
+/**
  * The longest page title a WRITE accepts (KI-2026-09-05-f item 1, F-A02) — the
  * same 200 an activity title has. Only `CreatePageInput` and `UpdatePageInput`
  * carry it: `Page`, the commands and the events do not, because they are also

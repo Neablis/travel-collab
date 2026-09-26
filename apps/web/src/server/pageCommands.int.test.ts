@@ -210,9 +210,13 @@ describe("executePageCommand", () => {
     );
     expect(result.ok).toBe(true);
 
-    // Genesis and edit, in that order, in one batch.
+    // Every seeded row gets its genesis (M30 seeds four notebooks, ADR-056),
+    // then the edit — in that order, in one batch.
     const types = (await readStream(db, tripId)).map((e) => e.type);
-    expect(types.filter((t) => t.startsWith("Page"))).toEqual(["PageCreated", "PageEdited"]);
+    expect(types.filter((t) => t.startsWith("Page"))).toEqual([
+      ...seeded.map(() => "PageCreated"),
+      "PageEdited",
+    ]);
   });
 
   // The backfilled genesis must keep the ROW's owner, not the editor's — SPEC
@@ -286,7 +290,8 @@ describe("executePageCommand", () => {
   // without re-serialising wraps it once more on every run.
   it("GOLDEN: the pages table rebuilds from the log", async () => {
     const tripId = await seedTrip();
-    const overview = (await listPages(tripId)).find((p) => p.context.kind === "overview")!; // a row, no event
+    const seeded = await listPages(tripId); // rows, no events — four since M30 (ADR-056)
+    const overview = seeded.find((p) => p.context.kind === "overview")!;
     const legacyId = randomUUID();
     await db.insert(pages).values({
       id: legacyId,
@@ -322,8 +327,10 @@ describe("executePageCommand", () => {
       db.select().from(pages).where(inArray(pages.tripId, tripIds)).orderBy(asc(pages.id));
     const live = await rowsOfThisTest();
     const liveOrder = (await listPages(tripId)).map((p) => p.title);
-    expect(live).toHaveLength(4);
-    expect(liveOrder).toEqual(["Old notes", overview.title, "Packing list"]);
+    // This trip: "Old notes" + its seeded notebooks + "Packing list" ("Scratch"
+    // was deleted); the untouched trip: its seeded notebooks.
+    expect(live).toHaveLength(2 * seeded.length + 2);
+    expect(liveOrder).toEqual(["Old notes", ...seeded.map((p) => p.title), "Packing list"]);
     // The backfill did not restamp the row it described. The comparison below
     // cannot see this — live and rebuilt would move together — so it is its own.
     const legacy = live.find((r) => r.id === legacyId)!;

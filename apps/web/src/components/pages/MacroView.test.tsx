@@ -409,10 +409,15 @@ describe("every widget is legal where widgets actually go", () => {
   // the bound case.
   // A preset's own filters, plus a day for anything that still asks for one, so
   // block widgets reach `ok` instead of a deleted-day chip.
+  const LINKED_NOTEBOOK = "0f0f0f0f-0000-4000-8000-000000000001";
   function boundParams(entry: { widget: string; params: Readonly<Record<string, unknown>> }): Record<string, unknown> {
     const params: Record<string, unknown> = { ...entry.params };
     for (const input of getMacro(entry.widget)?.inputs ?? []) {
       if (input.type === "day") params[input.name] = { kind: "index", index: 0 };
+      // A link lands asking where it goes (ADR-056); bind it the way its
+      // settings would — the notebook `richExternal` lists, and an address.
+      if (input.type === "target") params[input.name] = { kind: "notebook", pageId: LINKED_NOTEBOOK };
+      if (input.type === "url") params[input.name] = "https://example.com/tickets";
       // A field the preset leaves to the reader: the picker's first entry.
       if (input.type === "field" && !input.multiple && !(input.name in params)) {
         params[input.name] = fieldChoices(input.of)[0]!.path;
@@ -473,6 +478,10 @@ pendingReason: null,
   // "Weather" answers `unavailable` and skips the nesting walk. Both sources
   // are up, so whichever mode the day lands in has something to render.
   const richExternal: ExternalInputs = {
+    notebooks: {
+      state: "ready",
+      value: { pages: [{ id: LINKED_NOTEBOOK, title: "Money", firstLine: "What it costs.", widgetCount: 2 }], openable: true },
+    },
     weather: {
       state: "ready",
       value: {
@@ -547,5 +556,23 @@ pendingReason: null,
     }
     const nesting = errors.filter((e) => /cannot be a descendant of|cannot contain a nested/i.test(e));
     expect(nesting, `block-level markup inside <p>:\n${nesting.join("\n")}`).toEqual([]);
+  });
+});
+
+// ADR-056: the one rendered value that carries an address. A new tab, and
+// neither a handle on this window nor the notebook's URL for the site.
+// Seen red with the `rel` attribute removed from `MacroView`'s link case.
+describe("link.external", () => {
+  it("renders an inline link that opens in a new tab, without an opener or a referrer", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="link.external" params={{ href: "https://www.jreast.co.jp/e/", label: "JR East" }} />);
+    const link = screen.getByRole("link", { name: "JR East" });
+    expect(link.getAttribute("href")).toBe("https://www.jreast.co.jp/e/");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it("never renders a stored address that is not http or https as a link", () => {
+    render(<MacroView detail={baseDetail} context={ctx} name="link.external" params={{ href: "javascript:alert(1)" }} />);
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TEMPLATE_LIBRARY, isOverviewPage, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
-import type { PageContext, PageDoc, PageSummary, SavedNotebookSummary, TripDetail } from "@tc/contracts";
+import type { PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail } from "@tc/contracts";
 import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { deleteSavedNotebook, fetchSavedNotebooks, instantiateSavedNotebook } from "@/lib/savedNotebooksClient";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
@@ -117,7 +117,7 @@ const PROPOSE_ON_THE_PLAN =
 // between two notebooks without opening both.
 export function NotebookScreen({ tripId }: { tripId: string }) {
   const router = useRouter();
-  const [pages, setPages] = useState<PageSummary[] | null>(null);
+  const [pages, setPages] = useState<PageListEntry[] | null>(null);
   // The trip itself, for the title block's meta line (SPEC §23: *"the Notebook
   // index gained a title block — 'Notebook' at title scale with the trip name
   // as its meta line… That is where the trip name lives now"*).
@@ -490,6 +490,16 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                       {page.title}
                     </Text>
                   </span>
+                  {/* What the notebook says, in its own first line (M30,
+                      ADR-056) — with four notebooks per trip, a title alone no
+                      longer says which one you want. Absent for a notebook that
+                      opens on a widget or on nothing, and for a list from a
+                      server that predates the preview. */}
+                  {page.preview?.firstLine ? (
+                    <Text as="span" variant="secondary" className="mt-0.5 block truncate">
+                      {page.preview.firstLine}
+                    </Text>
+                  ) : null}
                   {/* Provenance and freshness, SPEC §7. The absolute timestamp
                       it replaces answered a question nobody asks of a notebook
                       ("at what second?") and buried the one they do ("is this

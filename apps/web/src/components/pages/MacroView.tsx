@@ -7,6 +7,7 @@ import { useToday } from "@/lib/today";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
+import { LinkCardPending } from "./blocks/LinkCardBlock";
 
 // Renders one widget instance. **It no longer knows any widget's name.**
 //
@@ -120,7 +121,7 @@ function Segs({ segs, accents, plain = false }: { segs: readonly Seg[]; accents:
 
 // What an `unavailable` chip calls the input it is waiting on. A `Record` so a
 // second outside input is a type error here until it has a word.
-const EXTERNAL_NOUN: Record<ExternalNeed, string> = { weather: "weather" };
+const EXTERNAL_NOUN: Record<ExternalNeed, string> = { weather: "weather", notebooks: "notebooks" };
 
 /**
  * Renders a macro widget for the supplied trip and page context.
@@ -212,6 +213,12 @@ export function MacroView({ detail, context, user = null, globals = null, extern
       // `add-stop-who` / M19 link 3 lands.
       case "person":
         return <EmptyChip tone="muted" label="needs a person field" />;
+      // A link with nowhere to go yet (ADR-056) — in Reading, since Editing
+      // draws the ghost above. Its settings hold the one control that answers it.
+      case "target":
+        return <EmptyChip tone="muted" label="choose where it goes" />;
+      case "url":
+        return <EmptyChip tone="muted" label="add a web address" />;
       default: {
         const exhaustive: never = outcome.needs;
         return exhaustive;
@@ -231,6 +238,10 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // nothing for the author to set. No error tone and no retry either; the page
   // asks again when it is next opened.
   if (outcome.status === "unavailable") {
+    // A card waiting on the notebook list holds a card's box while it waits
+    // (ADR-044, ADR-056) — by what the widget reads and how it is shaped, not
+    // by its name, which this component does not know.
+    if (outcome.reason === "pending" && def?.needs?.includes("notebooks") && def.shape === "block") return <LinkCardPending />;
     const noun = EXTERNAL_NOUN[def?.needs?.[0] ?? "weather"];
     return (
       <EmptyChip
@@ -245,7 +256,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
     case "inline":
       return <Segs segs={rendered.segs} accents={accents} />;
     case "block":
-      return <BlockView block={rendered.block} accents={accents} />;
+      return <BlockView block={rendered.block} accents={accents} tripId={context.tripId} interactive={!editing} />;
     // A repeat's rows.
     //
     // **`span`, not `div`, and that is not a style preference.** A widget node
@@ -407,6 +418,22 @@ export function MacroView({ detail, context, user = null, globals = null, extern
         </span>
       );
     }
+    // **The one place a widget becomes an anchor with an address** (ADR-056).
+    // The href passed `WebAddress` (http/https only) before `render` saw it;
+    // a new tab, and `noopener noreferrer` so the site gets neither a handle on
+    // this window nor the notebook's URL. Brand ink and an underline: it is a
+    // link and says so, rather than a chip (design-system: brand marks links).
+    case "link":
+      return (
+        <a
+          href={rendered.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-brand underline decoration-1 underline-offset-2 hover:text-brand-hover"
+        >
+          {rendered.text}
+        </a>
+      );
     default: {
       // The same enforcement `BlockView` carries, for the same measured reason:
       // `strict` does NOT imply `noImplicitReturns` and this repo sets only
