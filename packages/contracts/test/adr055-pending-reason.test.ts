@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ActivityUpdatedV1, BatchableCommand, SavedDaySequence, TripCommand } from "../src";
+import { ActivityUpdatedV1, BatchableCommand, clearDetailFieldsForKind, SavedDaySequence, TripCommand } from "../src";
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 const A1 = "7d9a1f8e-0000-4000-8000-0000000000a1";
@@ -27,6 +27,19 @@ describe("a pending reason is legal only on a pending stop", () => {
     expect(issues(TripCommand.safeParse(upd({ kind: "planned", pendingReason: "book" })))).toHaveLength(1);
     expect(TripCommand.safeParse(upd({ kind: "planned", pendingReason: null })).success).toBe(true);
     expect(TripCommand.safeParse(upd({ pendingReason: "maybe" })).success).toBe(true);
+  });
+
+  // The caller edges' half (ADR-055, "Callers"). The edges' own tests prove
+  // the clear lands; this pins the two things it must NOT do, because either
+  // would be a silent drop: overwrite a detail the patch named, or touch a
+  // patch that is not changing the kind.
+  it("clearDetailFieldsForKind clears only what a new kind cannot carry and the patch did not name", () => {
+    expect(clearDetailFieldsForKind({ kind: "planned" })).toEqual({ kind: "planned", mode: null, endLocation: null, pendingReason: null });
+    expect(clearDetailFieldsForKind({ kind: "transit", mode: "train" })).toEqual({ kind: "transit", mode: "train", pendingReason: null });
+    const contradiction = { kind: "planned", pendingReason: "book" };
+    expect(clearDetailFieldsForKind(contradiction)).toMatchObject({ pendingReason: "book" });
+    expect(issues(TripCommand.safeParse(upd(clearDetailFieldsForKind(contradiction))))).toHaveLength(1);
+    expect(clearDetailFieldsForKind({ title: "Renamed" })).toEqual({ title: "Renamed" });
   });
 
   it("is a closed vocabulary", () => {

@@ -52,6 +52,21 @@ Nothing stored could answer it. Mitchell, 2026-09-26:
 8. **The Japan fixture** reads its reasons off the design export: its `hold` rows are
    `book`, its `idea` rows `maybe` (SPEC §36.9's own mapping) — 2 and 6.
 
+## Callers
+
+The decider never clears a field on a caller's behalf; a **caller edge** may, because
+there the caller is the one speaking. Where a person or a model says "make this
+planned" and the edge builds the command, the edge states the clear:
+`clearDetailFieldsForKind` (`@tc/contracts`, next to `KIND_DETAIL_FIELDS`) sets every
+detail field the new kind cannot carry, and the patch did not name, to `null`. Two
+edges use it — the assistant's pre-parse adapter (`writeTools.ts`, beside
+`withDetailKind`) and `PATCH /v1/trips/{tripId}/activities/{activityId}`. A field the
+patch *did* name is left for the contract to refuse. The web editor does not need it:
+it always sends the whole form, and clears off-kind details itself on save (rule 5).
+Found in review of #242: every stop the editor creates starts on `book`, so without
+this the assistant and the public API could not mark one planned at all. M24 had the
+same gap for a leg moved off transit; the helper closes both.
+
 ## Not changed, on purpose
 
 - **`needsBooking` stays `kind === "pending"`** (ADR-054 rule 4). A *Maybe* stop is still

@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, TripDetail, UpdateActivity } from "@tc/contracts";
+import {
+  clearDetailFieldsForKind,
+  GEOCODE_OUTCOME_END_HEADER,
+  GEOCODE_OUTCOME_HEADER,
+  TripDetail,
+  UpdateActivity,
+} from "@tc/contracts";
 import { tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, refuseUnparseable, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
 import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopPlaces } from "@/server/public-api/locations";
@@ -45,7 +51,12 @@ export const { PATCH, DELETE } = route({
       const activityId = params["activityId"]!;
       const commands: CommandInput[] = [];
       if (Object.keys(fields).length > 0) {
-        commands.push({ ...fields, type: "UpdateActivity", tripId, activityId } as CommandInput);
+        // A patch that changes `kind` clears the details the new kind cannot
+        // carry (a `pendingReason` off pending, a leg off transit) unless it
+        // names them — the decider refuses a stray one rather than dropping it,
+        // so `{ kind: "planned" }` alone was a 400 on every stop created as
+        // "To book" (ADR-055, "Callers").
+        commands.push({ ...clearDetailFieldsForKind(fields), type: "UpdateActivity", tripId, activityId } as CommandInput);
       }
       if (dayId !== undefined || position !== undefined) {
         // **An omitted `dayId` is not the backlog.** `MoveActivity` names both
