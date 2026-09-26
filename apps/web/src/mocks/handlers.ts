@@ -98,6 +98,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         participants: command.participants ?? [],
         mode: command.mode ?? null,
         endLocation: command.endLocation ?? null,
+        pendingReason: command.pendingReason ?? null,
       };
       if (command.dayId !== undefined) {
         next.days.find((d) => d.dayId === command.dayId)?.activityIds.push(command.activityId);
@@ -132,6 +133,7 @@ function applyMock(detail: TripDetail, command: TripCommand): TripDetail {
         if (command.participants !== undefined) activity.participants = command.participants;
         if (command.mode !== undefined) activity.mode = command.mode;
         if (command.endLocation !== undefined) activity.endLocation = command.endLocation;
+        if (command.pendingReason !== undefined) activity.pendingReason = command.pendingReason;
       }
       rerollup(next);
       break;

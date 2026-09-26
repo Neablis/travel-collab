@@ -41,7 +41,7 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, ActivityMode, LocationPrecision, Money, TimeWindow, type Location, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityMode, LocationPrecision, Money, PendingReason, TimeWindow, type Location, type TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
@@ -202,10 +202,19 @@ export interface StopReadout {
   /**
    * A transit stop's leg (M24): by what, and where it arrives — `location` is
    * where it leaves. Narrowed like `location`. The model needs both to say what
-   * a travel stop IS, and to know that moving one off `transit` must clear them.
+   * a travel stop IS. Moving one off `transit` clears them: the write edge
+   * adds the `null`s (`clearDetailFieldsForKind`), and the tool description
+   * says so.
    */
   mode: ActivityMode | null;
   endLocation: PlaceReadout | null;
+  /**
+   * Why a pending stop is pending (ADR-055): `book` still has to be booked,
+   * `maybe` may not happen at all. The model needs it to answer "what still
+   * needs booking?" without calling a maybe a to-do. Moving a stop off
+   * `pending` clears it, the same way.
+   */
+  pendingReason: PendingReason | null;
 }
 
 type PlaceReadout = {
@@ -282,6 +291,8 @@ export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.
       // neither key, and the simulated model re-parses results it is handed.
       mode: ActivityMode.nullable().default(null),
       endLocation: PlaceReadoutSchema.nullable().default(null),
+      // Defaulted for the same reason, for a result produced before ADR-055.
+      pendingReason: PendingReason.nullable().default(null),
     }),
   ),
   conflicts: z.array(ConflictSummarySchema),
@@ -331,6 +342,7 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
           cost: activity.cost,
           mode: activity.mode,
           endLocation: placeReadout(activity.endLocation),
+          pendingReason: activity.pendingReason,
         },
       ];
     }),

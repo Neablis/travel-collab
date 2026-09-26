@@ -89,7 +89,7 @@ export function ActivityCard({
   // Null for `planned` — see activityKind.ts. Both this and the tag chips
   // below render for a reader too: they describe the plan, and `readOnly`
   // withholds the controls that change it, not the plan itself.
-  const badge = kindBadge(activity.kind);
+  const badge = kindBadge(activity);
   // SPEC §11: a stop that does not carry the focused tag renders faint. It is
   // still rendered, still draggable and still editable — dimming is the whole
   // behaviour, and hiding it would rebuild the filter row this replaced.

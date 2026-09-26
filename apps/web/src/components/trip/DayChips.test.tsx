@@ -39,6 +39,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
       },
     });
@@ -71,6 +72,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
         [osakaActivity]: {
           activityId: osakaActivity,
@@ -86,6 +88,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
       },
     });
@@ -127,6 +130,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
         [noLocationActivity]: {
           activityId: noLocationActivity,
@@ -142,6 +146,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
       },
     });
@@ -181,6 +186,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
         [kyotoActivity]: {
           activityId: kyotoActivity,
@@ -196,6 +202,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
       },
     });
@@ -232,6 +239,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
         [tokyoActivity]: {
           activityId: tokyoActivity,
@@ -247,6 +255,7 @@ describe("chipModel", () => {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         },
       },
     });
@@ -400,6 +409,7 @@ describe("cityFor", () => {
     participants: [],
     mode: null,
     endLocation: null,
+    pendingReason: null,
   });
   const oneStopDay = { dayId: day1, activityIds: [tokyoActivity], date: "2027-06-01", costSubtotal: 0 };
   const twoStopDay = {

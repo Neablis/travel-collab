@@ -24,6 +24,7 @@ function stop(name: string, location: Partial<Location> = {}): SavedStop {
     dayIndex: 0,
     mode: null,
     endLocation: null,
+    pendingReason: null,
   };
 }
 

@@ -233,9 +233,10 @@ refused rather than one of them silently winning.
 **A travel leg has two places.** A stop with `"kind": "transit"` may also carry
 a `mode` (`walk`, `bus`, `train`, `flight`, `ferry`, `car` or `bike`) and an
 `endLocation` — where the leg arrives; `location` stays where it leaves from.
-Either field on any other kind is refused with a `400`, and so is a `PATCH` that
-changes the kind away from `transit` while the stop still has one: send
-`"mode": null, "endLocation": null` in the same request. An `endLocation` is
+Either field on any other kind is refused with a `400`. A `PATCH` that changes
+the kind away from `transit` clears both unless it names them: `{ "kind":
+"planned" }` alone lands and leaves `mode` and `endLocation` null, while
+`{ "kind": "planned", "mode": "train" }` is still a `400`. An `endLocation` is
 resolved exactly like `location`, and answered in its own header,
 **`Geocode-Outcome-End`**, with the same values — sent only when the body had
 an `endLocation`, so `Geocode-Outcome` always means the outcome for
@@ -252,6 +253,14 @@ an `endLocation`, so `Geocode-Outcome` always means the outcome for
 ```
 
 That write answers `Geocode-Outcome: provided` and `Geocode-Outcome-End: name`.
+
+**A pending stop can say why.** A stop with `"kind": "pending"` may carry a
+`pendingReason`: `book` (it still has to be booked) or `maybe` (it may not
+happen at all). On any other kind it is refused with a `400`, and a `PATCH`
+that moves a stop off `pending` clears it unless the body names it — the same
+rule as a travel leg (ADR-055, "Callers").
+Omitted means no reason given, which is what every stop written before the
+field existed reads as.
 
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
 (optionally `&countryCode=JP`) returns up to five candidates. Each is a complete

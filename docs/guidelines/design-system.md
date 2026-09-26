@@ -261,6 +261,7 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `Tabs` | Radix tabs; kept for cases without the fireEvent-safety requirement below |
 | `TabStrip` | Non-Radix `role="tab"` button group, moss-pill skin of `Tabs`. Use for the trip lens switcher (Task P1) and anywhere tests must drive selection with `fireEvent.click` — Radix `TabsTrigger` is pointer-only and silently no-ops under `fireEvent` (comment #11 / Track-B1) |
 | `SegmentedControl` | Non-Radix `role="radiogroup"`/`role="radio"` button group, same moss-pill skin. Use for two/three-way toggles (e.g. Calendar↔Timeline) where Radix `RadioGroup` would have the same `fireEvent` gap |
+| `IconRadioGroup` | Icon-only `role="radiogroup"` row that may be left empty: each option named by `aria-label` + `title`, roving `tabIndex` with arrow keys, clicking the chosen option again clears it to `null`. The shape of a stop's kind detail — `TravelModePicker` and `PendingReasonPicker` are thin wrappers (ADR-055). `SegmentedControl` takes `fullWidth` for a form row of equal-width options |
 | `Banner` | Conflict banner (warning), info notices |
 | `Panel` | History panel chrome |
 | `PageContainer` | Centers + constrains page width; `width="content"` (default, 1120px) / `"measure"` (640px) / `"full"` (board/map); optionally `as="main"` |

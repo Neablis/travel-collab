@@ -36,7 +36,7 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
   SetTripName: "Rename the trip.",
   SetTripDates: "Set the trip's date range; the server reconciles day count to match it.",
   AddActivity: `Add a new activity; place it on a day via dayRef ("day N") or leave it in the backlog. ${MONEY_UNITS_NOTE}`,
-  UpdateActivity: `Update fields on an existing activity (activityRef — its title or id). Omitted fields are unchanged. ${MONEY_UNITS_NOTE}`,
+  UpdateActivity: `Update fields on an existing activity (activityRef — its title or id). Omitted fields are unchanged, except that a new kind clears the details only another kind may carry (pendingReason off pending; mode and endLocation off transit). ${MONEY_UNITS_NOTE}`,
   MoveActivity:
     'Move an activity (activityRef) to a different day (dayRef: "day N", a dayId, or null/backlog) and position.',
   RemoveActivity: "Remove an activity from the trip (activityRef — its title or id).",

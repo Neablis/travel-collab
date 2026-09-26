@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type TimeWindow, type TripMember } from "@tc/contracts";
+import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow, type TripMember } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Banner } from "@/components/ui/banner";
 import { Preview } from "@/components/ui/preview";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { toClockRange, toMinutes, toTimeString } from "@/lib/time";
@@ -25,6 +26,7 @@ import { KIND_LABEL, KIND_OPTIONS } from "./activityKind";
 import { TAG_LABEL, TAG_ORDER, toggleTag } from "@/lib/activityTags";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
+import { PendingReasonPicker } from "./PendingReasonPicker";
 import { TravelModePicker } from "./TravelModePicker";
 
 export type ActivityFormValue = {
@@ -45,11 +47,21 @@ export type ActivityFormValue = {
   // save otherwise, because the decider refuses a leg on any other kind.
   mode: ActivityMode | null;
   endLocation: Location | null;
+  // ADR-055. Only ever non-null while `kind` is "pending", for the same reason.
+  pendingReason: PendingReason | null;
 };
 
 // One option per trip day for the "Day" NativeSelect, plus that day's
 // already-scheduled windows (excluding whatever activity is being edited) —
 // the availability Banner below feeds these straight into fitIntoDay.
+// One line under the Kind control saying what the chosen kind means — the
+// handoff's `kindHelp`. Exhaustive, so a fourth kind needs a sentence.
+const KIND_HELP: Record<ActivityKind, string> = {
+  planned: "You intend to do it",
+  pending: "Not locked in yet",
+  transit: "Moving between the stops either side",
+};
+
 export type ActivityDayOption = { dayId: string; label: string; existing: Slot[] };
 
 // Illustrative only (Preview id="add-stop-suggestions", M9 — grounded place
@@ -132,6 +144,13 @@ export function ActivityEditor({
   // them; only what is SAVED is cleared (see submit).
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
   const [endLocation, setEndLocation] = useState<Location | null>(initial?.endLocation ?? null);
+  // A stop being CREATED says "To book" until told otherwise — the handoff's
+  // own default (`addWhy || 'book'`), and the same bet the `pending` default
+  // above makes. A stop being edited keeps what it has, including no reason.
+  // Kept across a kind switch like the leg above; only the save clears it.
+  const [pendingReason, setPendingReason] = useState<PendingReason | null>(
+    initial?.pendingReason ?? (mode === "create" ? "book" : null),
+  );
   const [error, setError] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(defaultDayId ?? "");
 
@@ -200,6 +219,7 @@ export function ActivityEditor({
       cost,
       mode: kind === "transit" ? travelMode : null,
       endLocation: kind === "transit" ? endLocation : null,
+      pendingReason: kind === "pending" ? pendingReason : null,
     });
   }
 
@@ -323,27 +343,32 @@ export function ActivityEditor({
         )
       ) : null}
 
-      {/* The design has no kind control — its prototype infers one from seed
-          prose, which is the parse M18 exists to disqualify. Without a picker
-          every kind surface (the card badge, the Calendar's split and its
-          `N to book`, the home hero's tile) renders on seeded trips only and
-          stays permanently empty on a trip a user creates. */}
-      <FormField id="activity-kind" label="Kind" description="What this stop is, and how firm. It shows as the badge on the card.">
-        <NativeSelect id="activity-kind" value={kind} onChange={(e) => setKind(e.target.value as ActivityKind)}>
-          {KIND_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {KIND_LABEL[option]}
-            </option>
-          ))}
-        </NativeSelect>
-      </FormField>
+      {/* SPEC §36.9: a three-way segmented Kind, then ONE second row for the
+          kind that has a detail — why a pending stop is pending, or how a
+          transit stop travels. Both rows are the same icon-radio shape
+          (Mitchell, 2026-09-26: "I prefer the icon buttons so use that for
+          both places it has a kind"). Without a picker every kind surface
+          (the card badge, the Calendar's split and its `N to book`, the home
+          hero's tile) would render on seeded trips only. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-baseline justify-between gap-2.5">
+          <Text variant="muted">Kind</Text>
+          <Text variant="muted">{KIND_HELP[kind]}</Text>
+        </div>
+        <SegmentedControl
+          aria-label="Kind"
+          fullWidth
+          value={kind}
+          onValueChange={setKind}
+          options={KIND_OPTIONS.map((option) => ({ value: option, label: KIND_LABEL[option] }))}
+        />
+        {kind === "pending" && <PendingReasonPicker value={pendingReason} onChange={setPendingReason} />}
+        {kind === "transit" && <TravelModePicker value={travelMode} onChange={setTravelMode} />}
+      </div>
 
       {kind === "transit" && (
-        <>
-          <TravelModePicker value={travelMode} onChange={setTravelMode} />
-          {/* The place above is where the leg starts; this is where it ends. */}
-          <LocationInput id="end-location-search" label="Going to" value={endLocation} onChange={setEndLocation} />
-        </>
+        // The place above is where the leg starts; this is where it ends.
+        <LocationInput id="end-location-search" label="Going to" value={endLocation} onChange={setEndLocation} />
       )}
 
       <FormField

@@ -25,6 +25,7 @@ const stop = {
   dayIndex: 0,
   mode: null,
   endLocation: null,
+  pendingReason: null,
 };
 
 const savedDay = {

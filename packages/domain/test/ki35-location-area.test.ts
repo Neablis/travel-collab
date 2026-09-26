@@ -39,6 +39,7 @@ const stateWith = (area: string | undefined): TripState => ({
       participants: [],
       mode: null,
       endLocation: null,
+      pendingReason: null,
     },
   },
   dismissedConflictIds: [],

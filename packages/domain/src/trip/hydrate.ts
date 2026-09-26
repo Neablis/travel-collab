@@ -46,6 +46,7 @@ export function hydrate(detail: TripDetail): TripState {
           // M24, and for the same unparsed-document reason.
           mode: a.mode ?? null,
           endLocation: a.endLocation ?? null,
+          pendingReason: a.pendingReason ?? null,
         },
       ]),
     ),

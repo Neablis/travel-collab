@@ -21,6 +21,7 @@ function activity(id: string, timeWindow: { start: string; end: string } | null)
     participants: [],
     mode: null,
     endLocation: null,
+    pendingReason: null,
   };
 }
 

@@ -42,6 +42,7 @@ function activity(overrides: Partial<ActivityView> = {}): ActivityView {
     participants: [],
     mode: null,
     endLocation: null,
+    pendingReason: null,
     ...overrides,
   };
 }
@@ -84,6 +85,19 @@ describe("ActivityCard kind badge", () => {
 
   it.each(cases)("renders the %s badge as %s", (kind, label) => {
     renderCard({ kind });
+    expect(within(screen.getByTestId(`kind-badge-${ACTIVITY_ID}`)).getByText(label)).toBeTruthy();
+  });
+
+  // SPEC §36.9 / ADR-055: a kind's detail, when the stop has one, IS the
+  // badge. A stop with none keeps the kind's own word, above.
+  const detailCases: [string, Partial<ActivityView>, string][] = [
+    ["a pending stop to book", { kind: "pending", pendingReason: "book" }, "To book"],
+    ["a pending maybe", { kind: "pending", pendingReason: "maybe" }, "Maybe"],
+    ["a transit stop with a mode", { kind: "transit", mode: "train" }, "Train"],
+  ];
+
+  it.each(detailCases)("labels %s by its detail", (_, overrides, label) => {
+    renderCard(overrides);
     expect(within(screen.getByTestId(`kind-badge-${ACTIVITY_ID}`)).getByText(label)).toBeTruthy();
   });
 
