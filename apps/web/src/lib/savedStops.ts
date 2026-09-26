@@ -51,6 +51,7 @@ export function stopsForDay(
         cost: activity.cost,
         mode: activity.mode,
         endLocation: activity.endLocation,
+        pendingReason: activity.pendingReason,
         // Day ZERO: `stopsForDay` answers about ONE day, so the fragment it
         // returns is a sequence of length one. `stopsForDays` below re-stamps
         // this from the day's position in the selection — the index belongs to

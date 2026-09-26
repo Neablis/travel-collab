@@ -41,7 +41,7 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, ActivityMode, LocationPrecision, Money, TimeWindow, type Location, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityMode, LocationPrecision, Money, PendingReason, TimeWindow, type Location, type TripDetail } from "@tc/contracts";
 import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
@@ -206,6 +206,13 @@ export interface StopReadout {
    */
   mode: ActivityMode | null;
   endLocation: PlaceReadout | null;
+  /**
+   * Why a pending stop is pending (ADR-055): `book` still has to be booked,
+   * `maybe` may not happen at all. The model needs it to answer "what still
+   * needs booking?" without calling a maybe a to-do, and to know that moving a
+   * stop off `pending` must clear it.
+   */
+  pendingReason: PendingReason | null;
 }
 
 type PlaceReadout = {
@@ -282,6 +289,8 @@ export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.
       // neither key, and the simulated model re-parses results it is handed.
       mode: ActivityMode.nullable().default(null),
       endLocation: PlaceReadoutSchema.nullable().default(null),
+      // Defaulted for the same reason, for a result produced before ADR-055.
+      pendingReason: PendingReason.nullable().default(null),
     }),
   ),
   conflicts: z.array(ConflictSummarySchema),
@@ -331,6 +340,7 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
           cost: activity.cost,
           mode: activity.mode,
           endLocation: placeReadout(activity.endLocation),
+          pendingReason: activity.pendingReason,
         },
       ];
     }),

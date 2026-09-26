@@ -79,6 +79,7 @@ export function ActivityEditorSheet() {
           participants: [],
           mode: null,
           endLocation: null,
+          pendingReason: null,
         }
       : null;
 

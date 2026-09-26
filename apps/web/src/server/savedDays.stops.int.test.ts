@@ -50,6 +50,7 @@ function wellFormedStop(): SavedStop {
     dayIndex: 0,
     mode: null,
     endLocation: null,
+    pendingReason: null,
   };
 }
 
@@ -175,6 +176,7 @@ describe("saveDay refuses a day it could not read back (KI-71, write half)", () 
           dayIndex: 0,
           mode: null,
           endLocation: null,
+          pendingReason: null,
         } as unknown as TripDetail["activities"][string],
       },
     };

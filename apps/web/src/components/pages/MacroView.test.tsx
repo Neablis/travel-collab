@@ -59,6 +59,7 @@ const costedDetail: TripDetail = withCostRollups({
       participants: [],
       mode: null,
       endLocation: null,
+      pendingReason: null,
     },
   },
 });
@@ -84,6 +85,7 @@ const backloggedDetail: TripDetail = withCostRollups({
       participants: [],
       mode: null,
       endLocation: null,
+      pendingReason: null,
     },
   },
   backlog: ["u1"],
@@ -443,6 +445,7 @@ describe("every widget is legal where widgets actually go", () => {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       parked: {
         activityId: "parked", title: "Ghibli Museum", timeWindow: null,
@@ -451,6 +454,7 @@ bookedBy: null,
 participants: [],
 mode: null,
 endLocation: null,
+pendingReason: null,
       },
     },
   };

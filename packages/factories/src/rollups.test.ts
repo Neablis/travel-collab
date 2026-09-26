@@ -103,4 +103,5 @@ const stop = {
   participants: [],
   mode: null,
   endLocation: null,
+  pendingReason: null,
 };

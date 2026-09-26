@@ -34,6 +34,7 @@ const saved: SavedDay = {
       dayIndex: 0,
       mode: null,
       endLocation: null,
+      pendingReason: null,
     },
     {
       title: "Dinner",
@@ -47,6 +48,7 @@ const saved: SavedDay = {
       dayIndex: 0,
       mode: null,
       endLocation: null,
+      pendingReason: null,
     },
   ],
   // M11b PR1's three new `SavedDay` fields. This fixture is a typed literal,

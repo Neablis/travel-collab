@@ -75,6 +75,7 @@ function fixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
       [UNSCHEDULED_ACTIVITY_ID]: {
         activityId: UNSCHEDULED_ACTIVITY_ID,
@@ -90,6 +91,7 @@ function fixture() {
         participants: [],
         mode: null,
         endLocation: null,
+        pendingReason: null,
       },
     },
   });

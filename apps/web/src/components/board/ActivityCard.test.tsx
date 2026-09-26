@@ -42,6 +42,7 @@ function activity(overrides: Partial<ActivityView> = {}): ActivityView {
     participants: [],
     mode: null,
     endLocation: null,
+    pendingReason: null,
     ...overrides,
   };
 }

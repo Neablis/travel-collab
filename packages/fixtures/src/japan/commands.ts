@@ -152,6 +152,7 @@ function addActivity(
     location: placeOf(row),
     kind: row.kind satisfies ActivityKind,
     ...(row.mode ? { mode: row.mode } : {}),
+    ...(row.pendingReason ? { pendingReason: row.pendingReason } : {}),
     ...(end ? { endLocation: placeOf(end) } : {}),
     ...(row.tags.length > 0 ? { tags: row.tags as ActivityTag[] } : {}),
     ...(costUsd !== null ? { cost: { amountMinor: costUsd * 100, currency: JAPAN_TRIP_CURRENCY } } : {}),

@@ -1020,6 +1020,7 @@ export function insertCommands(
         cost: stop.cost ?? undefined,
         mode: stop.mode ?? undefined,
         endLocation: stop.endLocation ?? undefined,
+        pendingReason: stop.pendingReason ?? undefined,
       }),
     ),
   ];

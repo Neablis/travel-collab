@@ -469,7 +469,7 @@ describe("POST /v1/playbooks written inline", () => {
       [0, "Dinner"],
       [2, "Leave"],
     ]);
-    expect(playbook.stops[0]).toEqual({ ...inlineStop("Arrive"), dayIndex: 0, mode: null, endLocation: null });
+    expect(playbook.stops[0]).toEqual({ ...inlineStop("Arrive"), dayIndex: 0, mode: null, endLocation: null, pendingReason: null });
 
     const read = await GET_PLAYBOOK(req(secret), P({ playbookId: playbook.savedDayId }));
     expect(await read.json()).toEqual(playbook);

@@ -7,7 +7,8 @@ import {
   AddActivity,
   MoveActivity,
   RemoveActivity,
-  travelLegFieldsOffTransit,
+  kindDetailFieldMessage,
+  kindDetailFieldsOffKind,
   UpdateActivity,
 } from "./activity.ts";
 import {
@@ -253,28 +254,25 @@ export const TripEvent = z.discriminatedUnion("type", [
 export type TripEvent = z.infer<typeof TripEvent>;
 
 /**
- * **A travel-leg field on a stop that is not travel is refused here** (M24):
- * an `AddActivity` whose kind (omitted = "planned") is not `transit` may not
- * carry a `mode` or an `endLocation`, and nor may an `UpdateActivity` that
- * sets a non-transit kind in the same breath. An update that leaves one behind
- * on a stop whose stored kind changes is the decider's to refuse, because only
- * it can see the stored stop.
+ * **A kind-detail field on a stop of another kind is refused here** (M24's
+ * travel leg, ADR-055's pending reason): an `AddActivity` whose kind (omitted
+ * = "planned") is not `transit` may not carry a `mode` or an `endLocation`,
+ * one that is not `pending` may not carry a `pendingReason`, and nor may an
+ * `UpdateActivity` that sets such a kind in the same breath. An update that
+ * leaves one behind on a stop whose stored kind changes is the decider's to
+ * refuse, because only it can see the stored stop.
  *
  * On the UNION, the pattern `Anchor` uses (activity.ts), because zod 3's
  * `discriminatedUnion` accepts only plain objects as members — a refinement on
  * `AddActivity` itself would take it out of both unions below.
  */
-function refuseTravelLegOffTransit(command: { type: string }, ctx: z.RefinementCtx): void {
+function refuseKindDetailOffKind(command: { type: string }, ctx: z.RefinementCtx): void {
   if (command.type !== "AddActivity" && command.type !== "UpdateActivity") return;
   const c = command as AddActivity | UpdateActivity;
   const kind = c.type === "AddActivity" ? (c.kind ?? "planned") : c.kind;
   if (kind === undefined) return;
-  for (const field of travelLegFieldsOffTransit({ kind, mode: c.mode, endLocation: c.endLocation })) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [field],
-      message: `${field} is only allowed on a transit stop (kind "transit")`,
-    });
+  for (const field of kindDetailFieldsOffKind({ ...c, kind })) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: kindDetailFieldMessage(field) });
   }
 }
 
@@ -298,7 +296,7 @@ const TripCommandUnion = z.discriminatedUnion("type", [
   SetTripCurrency,
   SetTripBudget,
 ]);
-export const TripCommand = TripCommandUnion.superRefine(refuseTravelLegOffTransit);
+export const TripCommand = TripCommandUnion.superRefine(refuseKindDetailOffKind);
 export type TripCommand = z.infer<typeof TripCommand>;
 
 // Commands eligible for atomic batching (M6): every TripCommand except
@@ -318,7 +316,7 @@ const BatchableCommandUnion = z.discriminatedUnion("type", [
   SetTripCurrency,
   SetTripBudget,
 ]);
-export const BatchableCommand = BatchableCommandUnion.superRefine(refuseTravelLegOffTransit);
+export const BatchableCommand = BatchableCommandUnion.superRefine(refuseKindDetailOffKind);
 export type BatchableCommand = z.infer<typeof BatchableCommand>;
 
 // Ordered least- to most-privileged; `AccessPolicy` (apps/web/src/server) is

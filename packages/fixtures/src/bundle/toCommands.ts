@@ -57,6 +57,7 @@ function addActivity(
     ...(stop.notes ? { notes: stop.notes } : {}),
     ...(stop.mode ? { mode: stop.mode } : {}),
     ...(stop.endLocation ? { endLocation: stop.endLocation } : {}),
+    ...(stop.pendingReason ? { pendingReason: stop.pendingReason } : {}),
   };
 }
 

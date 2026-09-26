@@ -253,6 +253,14 @@ an `endLocation`, so `Geocode-Outcome` always means the outcome for
 
 That write answers `Geocode-Outcome: provided` and `Geocode-Outcome-End: name`.
 
+**A pending stop can say why.** A stop with `"kind": "pending"` may carry a
+`pendingReason`: `book` (it still has to be booked) or `maybe` (it may not
+happen at all). On any other kind it is refused with a `400`, and a `PATCH`
+that moves a stop off `pending` while it has one must send
+`"pendingReason": null` in the same request — the same rule as a travel leg.
+Omitted means no reason given, which is what every stop written before the
+field existed reads as.
+
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
 (optionally `&countryCode=JP`) returns up to five candidates. Each is a complete
 `location`: send one back as-is and the write costs no second lookup. Needs
