@@ -215,6 +215,10 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   preview: "The weather for each day — the forecast when there is one, what's typical when there isn't.",
   resolve: ({ trip, globals, today, external, user }: WidgetContext, params, item): MacroResult<WeatherPayload> => {
     if (!trip) return needsTrip();
+    // A trip with no days has nothing to ask the source about, and the author
+    // can fix that — so it says so before the slot is read, rather than
+    // "loading weather" for a fetch that will never be made.
+    if (trip.days.length === 0) return empty("add a day to see this");
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const slot = readSlot(external, "weather");

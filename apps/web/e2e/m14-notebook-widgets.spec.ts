@@ -1839,12 +1839,13 @@ test("the weather widget is the quiet placeholder while outside data is offline,
   });
   page.on("pageerror", (error) => errors.push(error.message));
 
-  await openOverviewOf(page, await createMappedTrip(page, e2eTripName("Weather"), 2));
-
-  // The page asks for weather only once it holds a widget that needs it.
-  const answered = page.waitForResponse((r) => /\/api\/trips\/[^/]+\/weather$/.test(new URL(r.url()).pathname));
-  await insertFromList(page, /Weather/, "weather");
-  const response = await answered;
+  const tripId = await createMappedTrip(page, e2eTripName("Weather"), 2);
+  // The seeded Overview carries the weather (M29 part 4), so there is nothing to
+  // insert. The route's own answer is read directly rather than caught in
+  // flight: the page may already have asked for it before any listener here
+  // could be attached, and what matters is what it answers.
+  await openOverviewOf(page, tripId);
+  const response = await page.request.get(`/api/trips/${tripId}/weather`);
   expect(response.status()).toBe(200);
   const { weather } = (await response.json()) as { weather: { points: { typical: unknown }[] } };
   expect(weather.points.length).toBeGreaterThan(0);
@@ -1852,7 +1853,8 @@ test("the weather widget is the quiet placeholder while outside data is offline,
 
   await expect(page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
 
-  await finishEditing(page);
+  // Nothing was edited, so there is no save to wait for — just leave Editing.
+  await page.getByRole("button", { name: "Done editing" }).click();
   await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
   await expect(page.locator('[data-macro-name="day.weather"]').getByText("weather unavailable")).toBeVisible();
   expect(errors).toEqual([]);
@@ -1890,8 +1892,7 @@ test("the weather table heads its columns and fits the notebook column without s
     route.fulfill({ json: { weather: { points: located.map(forecastOn) } } }),
   );
   await openOverviewOf(page, tripId);
-  await insertFromList(page, /Weather/, "weather");
-
+  // The seeded Overview's own weather block (M29 part 4) — no insert needed.
   const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
   await expect(table.getByRole("columnheader")).toHaveText(["Day", "Conditions", "High", "Low", "Rain"]);
   await expect(table.getByRole("row")).toHaveCount(3);

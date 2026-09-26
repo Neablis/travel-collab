@@ -220,7 +220,9 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   // far off it is, what the page will show once there are days, and what is
   // waiting.
   await expect(page.getByText("no dates set yet")).toBeVisible();
-  await expect(page.getByText("add a day to see this")).toBeVisible();
+  // Twice: the trip strip and the weather both wait on a first day.
+  await expect(page.getByText("add a day to see this")).toHaveCount(2);
+  await expect(page.getByText("add a day to see this").first()).toBeVisible();
   await expect(page.getByText("no days yet")).toBeVisible();
   await expect(page.getByText(/nothing is waiting on you/i)).toBeVisible();
   await expect(page.getByText("nothing left to book")).toBeVisible();

@@ -233,6 +233,7 @@ describe("templates", () => {
       "open", // What needs you
       "stop.rows", // Still to book (needsBooking)
       "day.fromHome", // Before you go
+      "day.weather",
       "country.facts",
       "cost.chart", // Spend by day
       "day.detail", // Day by day

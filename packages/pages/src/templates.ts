@@ -181,9 +181,7 @@ const overviewPage: TemplateSeed = {
   //
   // What the design had and this does not, and why, is in the commit message
   // that made this change rather than here — this comment describes the page,
-  // not its drafts. The short version: weather is left for a person to choose
-  // (it sends the trip's places to third parties, KI-2026-09-24-o, and cannot
-  // say anything until the forecast lands); `city.detail` repeats what the strip
+  // not its drafts. The short version: `city.detail` repeats what the strip
   // and the day cards already say; the stats line and money sentence are the
   // header's; there is no "booked" line since M28 (ADR-054).
   //
@@ -226,6 +224,14 @@ const overviewPage: TemplateSeed = {
     // ("set a home airport in Account to see this") are not a clause.
     heading("Before you go"),
     para(text("Clocks: "), widget("day.fromHome"), text(".")),
+    // Unbound means every day, so this is the whole trip's weather — the
+    // forecast where a day is close, what's typical where it is not, each
+    // labelled. It sends rounded stop locations to the weather providers,
+    // which Mitchell accepted for the Overview on 2026-09-26 (*"It's ok to
+    // send a users data to weather"*); KI-2026-09-24-o is the disclosure,
+    // not the flow. On a trip with no days it says "add a day to see this"
+    // before it ever asks the source, so it passes the empty-trip rule above.
+    block("day.weather"),
     block("country.facts"),
     // ---- Money -----------------------------------------------------------
     // The header already has spent and left, so this is the one money view it
