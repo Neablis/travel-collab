@@ -605,6 +605,12 @@ html[data-look="ledger"] .shadow-raised {
   .tc-river-edge {
     border-width: 1.5px;
   }
+  /* **A held finger on the river is a gesture** (DayRiver, M29 phone), and on
+     iOS a long press otherwise raises the system callout (copy, look up, share)
+     at the same moment the river lifts a block. No utility spells it. */
+  .tc-no-callout {
+    -webkit-touch-callout: none;
+  }
   .tc-river-hatch {
     background-image: repeating-linear-gradient(
       135deg,

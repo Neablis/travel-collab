@@ -173,23 +173,22 @@ describe("Board", () => {
     expect(screen.queryAllByRole("button", { name: /has conflicts/ })).toHaveLength(0);
   });
 
-  // A phone draws no river — it keeps the stop cards, one overlap chip each —
-  // so there KI-29 still holds as it was written: the pair no chip renders
-  // keeps the generic triangle on both of its subjects.
-  it("on a phone, still signals an overlap no card chip renders, with the triangle", () => {
+  // A phone draws the same river (M29 phone; Mitchell, 2026-09-26: "cards
+  // should get the river"). It used to keep the stop cards, one overlap chip
+  // each, with KI-29's triangle on the pair no chip had room for; on the river
+  // every block names every stop it runs into, so the phone needs no triangle
+  // either.
+  it("on a phone, draws the day's river and names every overlap on it", () => {
     render(
       <EditorHost>
         <Board trip={threeWayOverlapFixture()} callbacks={noopCallbacks()} focusedDay={0} oneDay />
       </EditorHost>,
     );
-    expect(screen.queryByTestId("day-river")).toBeNull();
-    expect(screen.getByTestId(`overlap-chip-${A2}`)).toBeTruthy();
-    expect(screen.getByTestId(`overlap-chip-${A3}`)).toBeTruthy();
-    const badged = (id: string) =>
-      within(screen.getByTestId(`activity-card-${id}`)).queryAllByRole("img", { name: "conflict" });
-    expect(badged(A2)).toHaveLength(1);
-    expect(badged(A3)).toHaveLength(1);
-    expect(badged(A1)).toHaveLength(0);
+    expect(screen.getAllByTestId("day-river")).toHaveLength(1);
+    const name = (title: string) => screen.getByRole("button", { name: new RegExp(`^Edit ${title}, `) }).getAttribute("aria-label");
+    expect(name("Colosseum")).toMatch(/overlaps .*Vatican Museums/);
+    expect(name("Trastevere walk")).toMatch(/overlaps .*Colosseum/);
+    expect(screen.queryAllByRole("button", { name: /has conflicts/ })).toHaveLength(0);
   });
 
   // M10 Phase 5: the dismiss sits on the later stop only (A2 starts 10:00, A1

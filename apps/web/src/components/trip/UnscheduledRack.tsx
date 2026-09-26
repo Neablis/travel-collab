@@ -10,6 +10,7 @@ import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/cn";
+import { RACK_LIFT_OVER_EVENT } from "@/lib/touchLift";
 
 export type RackItem = {
   activityId: string;
@@ -78,11 +79,25 @@ export function UnscheduledRack({
     });
   }, []);
 
+  // A block lifted by a finger on the river (M29 phone) is no native drag, so
+  // pdnd above never sees it; the river tells the rack instead, when the
+  // finger is over it (DayRiver, `RACK_LIFT_OVER_EVENT`).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onLiftOver = (event: Event) => setIsOver((event as CustomEvent<boolean>).detail);
+    el.addEventListener(RACK_LIFT_OVER_EVENT, onLiftOver);
+    return () => el.removeEventListener(RACK_LIFT_OVER_EVENT, onLiftOver);
+  }, []);
+
   return (
     <section
       ref={ref}
       data-testid="unscheduled-rack"
       data-bldrop="1"
+      // What a finger carrying a river block looks for under it (DayRiver's
+      // touch lift): letting go here unschedules, as a mouse drop does.
+      data-rack-drop
       aria-label="Unscheduled"
       // The drop affordance is a tint that fades in and out under the drawer
       // (transition-colors) rather than a hard highlight — see this task's
