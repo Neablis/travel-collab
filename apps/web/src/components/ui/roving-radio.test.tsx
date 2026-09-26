@@ -8,8 +8,8 @@ import { SegmentedControl } from "./segmented-control";
 
 // Both radio rows are one tab stop whose arrows move the choice and the focus
 // together, wrapping at the ends (the ARIA radio group pattern). The Kind
-// control lost this when it became a SegmentedControl (#242 review), so the
-// behaviour is pinned once per component, through the same three questions.
+// control lost this when it became a SegmentedControl (PR 242 review), so the
+// behaviour is pinned once per component, through the same two questions.
 //
 // Focus is proven by where the NEXT key lands, never by reading
 // `document.activeElement` (the test-quality wall bans it).

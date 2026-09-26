@@ -10,7 +10,7 @@ import { useRef, type KeyboardEvent } from "react";
  *
  * Shared by `SegmentedControl` and `IconRadioGroup` so the two cannot drift —
  * the stop editor's Kind lost its keyboard when it moved from a select to a
- * `SegmentedControl` that had none (#242 review). Spread `radioProps(i)` onto
+ * `SegmentedControl` that had none (PR 242 review). Spread `radioProps(i)` onto
  * the i-th option.
  */
 export function useRovingRadio<T>(

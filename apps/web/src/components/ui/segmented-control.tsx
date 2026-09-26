@@ -23,7 +23,7 @@ export function SegmentedControl<T extends string>({
   "aria-label": string;
 }) {
   // A radiogroup owes the keyboard what a native one gives: one tab stop, and
-  // arrows that move the choice (the stop editor's Kind lost it, #242 review).
+  // arrows that move the choice (the stop editor's Kind lost it, PR 242 review).
   const radioProps = useRovingRadio(
     options.map((o) => o.value),
     value,
