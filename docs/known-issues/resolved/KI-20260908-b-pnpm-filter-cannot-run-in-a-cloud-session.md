@@ -46,6 +46,31 @@
   workaround is still what they need, and the image-level fix (install with the
   pnpm major that is on PATH, or an `.npmrc` line) is still unmade.
 
+- **2026-09-23: the repo carried the second pnpm version, and it reached
+  production.** `apps/web/package.json` declared `packageManager: pnpm@10.28.0`
+  beside the root's `pnpm@11.25.0`. It is the same 10.28 this entry's
+  `.modules.yaml` records. Vercel's project root is `apps/web`, and its build
+  log for `cbb7c7f` shows both halves of the skew in one run:
+  *"Detected ENABLE_EXPERIMENTAL_COREPACK=1 and "pnpm@11.25.0+sha512…" in
+  package.json"*, then *"Done in 7.4s using pnpm v10.28.0"*. Production
+  installed and built with pnpm 10 while CI (`pnpm/action-setup` reads the
+  root field) and every checkout ran 11. Locally the nested field was inert,
+  because pnpm 11 resolves from the workspace root, and that is why nothing
+  noticed.
+
+  **Fixed at the source:** the field is gone from `apps/web`, so the root
+  `package.json` is the only declaration and Corepack finds it walking up from
+  `apps/web`. `scripts/__tests__/toolchain-pins.test.mjs` fails `pnpm test` if
+  any workspace package declares `packageManager` again, if a workflow gives
+  `pnpm/action-setup` its own `version:`, or if a Node pin disagrees with
+  `.nvmrc`. Each rule was seen red.
+
+  **That fix did not reach `main` until 2026-09-26.** It was committed on
+  2026-09-23 after its PR (#206) had already merged, so it sat on the branch
+  with no PR while this entry was resolved on 2026-09-24 for the install-side
+  reason below. The orphan-branch cleanup on 2026-09-26 found it and brought it
+  over. Production built with pnpm 10 for those three days.
+
 - **Resolved 2026-09-24 (KI pass) — the session's own install closed it, and a probe watches it.** `.claude/hooks/session-start.sh`'s `CLAUDE_CODE_REMOTE` branch runs `pnpm install` with the pnpm on PATH before anything else, so `node_modules/.modules.yaml` is rewritten by the same major that later runs `pnpm --filter`, and `scripts/lane-probe.mjs` (probe 2) compares the two at every session start. Proof, in a cloud session on 2026-09-24: `.modules.yaml` records `"packageManager": "pnpm@11.25.0"`, `pnpm --version` prints `11.25.0`, the lane probe prints `OK  pnpm --filter  pnpm 11.x wrote node_modules`, and the bare, flag-less commands this entry said abort now run — `pnpm --filter web exec node -e "console.log('web filter ok')"` → `web filter ok`, `pnpm --filter @tc/contracts exec node -e …` → `filter ok`. **What this does not cover:** an agent worktree that never runs `SessionStart` (KI-2026-09-12-b, still open) has no `node_modules` at all — a different failure, owned by that entry; a sweep's fixers run `pnpm install` in their worktree first. No check subset applies — nothing but this file changed.
 - **Cross-reference:** `docs/guidelines/cloud-agent-sessions.md` (the natural home for the workaround once confirmed on a second session); KI-2026-09-02 (Node 26 breaking the local unit lane while CI stays green — the same shape: a toolchain skew that only bites outside CI); `.claude/skills/minimal-check-subset/`.
 - **First noted:** 2026-09-08, in a Claude Code cloud session, while running the Tier 2 subset for the shared-day → new-trip branch.
