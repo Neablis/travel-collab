@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   doubleClickWindow,
   dropWindow,
+  fromTimeWindow,
   resizeEnd,
   sketchCreates,
   sketchWindow,
@@ -83,6 +84,13 @@ describe("drop a stop on the river", () => {
   it("gives an untimed stop the add sheet's hour, and a timed one its own length", () => {
     expect(stopMinutes(null)).toBe(60);
     expect(stopMinutes({ start: "09:00", end: "11:30" })).toBe(150);
+  });
+
+  it("keeps a stop that runs to midnight its whole length when it moves", () => {
+    // Stored 22:00–23:59, which is how 22:00 to midnight is saved: two hours.
+    const toMidnight = { start: "22:00", end: "23:59" };
+    expect(stopMinutes(toMidnight)).toBe(120);
+    expect(fromTimeWindow(toMidnight)).toEqual({ start: hm(22), end: 24 * 60 });
   });
 });
 

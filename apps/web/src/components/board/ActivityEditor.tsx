@@ -12,7 +12,7 @@ import { Preview } from "@/components/ui/preview";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDuration, toClockRange, toMinutes, toTimeString } from "@/lib/time";
+import { formatDuration, toClockRange, toEndMinutes, toMinutes, toTimeString } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Slot } from "@/components/trip/fitIntoDay";
 import {
@@ -123,8 +123,10 @@ export function ActivityEditor({
   // nearest one (the design's own answer) would save a stop that is not the
   // one just drawn. So a create-mode prefill that matches no option adds one
   // more, named for its length and chosen, and the other five stay offered.
+  // The end is read with `toEndMinutes`: a sketch to midnight is stored ending
+  // 23:59, and is the 2 hours that were drawn, not 1 h 59 m.
   const drawnMinutes =
-    mode === "create" && initial?.timeWindow ? toMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start) : null;
+    mode === "create" && initial?.timeWindow ? toEndMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start) : null;
   const drawnOption =
     drawnMinutes !== null && drawnMinutes > 0 && !DURATION_OPTIONS.some((o) => o.minutes === drawnMinutes)
       ? { label: formatDuration(drawnMinutes, "").trim(), minutes: drawnMinutes }
@@ -132,7 +134,7 @@ export function ActivityEditor({
   const [durationLabel, setDurationLabel] = useState<DurationLabel | typeof DRAWN>(() => {
     if (drawnOption !== null) return DRAWN;
     if (initial?.timeWindow) {
-      const minutes = toMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start);
+      const minutes = toEndMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start);
       if (minutes > 0) return closestDurationLabel(minutes);
     }
     return DEFAULT_DURATION_LABEL;

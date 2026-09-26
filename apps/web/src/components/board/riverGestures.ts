@@ -1,5 +1,5 @@
 import type { TimeWindow } from "@tc/contracts";
-import { DAY_END_MIN, toMinutes, toTimeString } from "@/lib/time";
+import { DAY_END_MIN, toEndMinutes, toMinutes, toTimeString } from "@/lib/time";
 import { durationMinutes, DEFAULT_DURATION_LABEL } from "./activityDuration";
 import { RIVER_PX_PER_HOUR, type RiverAxis } from "./riverLayout";
 
@@ -65,9 +65,9 @@ export function toTimeWindow(window: MinuteWindow): TimeWindow {
   return { start: toTimeString(window.start), end: toTimeString(window.end) };
 }
 
-/** A stored window in minutes. */
+/** A stored window in minutes, an end of 23:59 read back as midnight. */
 export function fromTimeWindow(window: TimeWindow): MinuteWindow {
-  return { start: toMinutes(window.start), end: toMinutes(window.end) };
+  return { start: toMinutes(window.start), end: toEndMinutes(window.end) };
 }
 
 /**
@@ -120,11 +120,12 @@ export function resizeEnd(axis: RiverAxis, start: number, pointerY: number): num
 
 /**
  * How long a stop is, for placing it somewhere else: its own length, or the
- * add sheet's default hour when it has no time at all.
+ * add sheet's default hour when it has no time at all. A stop that runs to
+ * midnight (stored ending 23:59) keeps its whole last minute when it moves.
  */
 export function stopMinutes(window: TimeWindow | null): number {
   if (window === null) return RIVER_NEW_STOP_MINUTES;
-  return Math.max(RIVER_MIN_MINUTES, toMinutes(window.end) - toMinutes(window.start));
+  return Math.max(RIVER_MIN_MINUTES, toEndMinutes(window.end) - toMinutes(window.start));
 }
 
 /**
