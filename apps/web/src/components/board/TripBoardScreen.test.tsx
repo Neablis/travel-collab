@@ -592,6 +592,66 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  // M29 part 3 — the river's gestures, asserted at the command they send. The
+  // costed fixture's one day holds 09:00–11:00 and 11:30–13:00, so its axis
+  // runs 9:00–13:00; jsdom lays nothing out, so a pointer's clientY is its y
+  // down the river, 44px an hour from 9:00.
+  const riverY = (hours: number) => (hours - 9) * 44;
+
+  it("a sketch across empty time opens the add sheet with that start and that length, and adds the stop it drew", async () => {
+    const fixture = costedTripDetailFixture();
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+
+    const river = await screen.findByTestId("day-river");
+    fireEvent.pointerDown(river, { button: 0, clientY: riverY(11) });
+    fireEvent.pointerMove(document, { clientY: riverY(13.25) });
+    fireEvent.pointerUp(document, { clientY: riverY(13.25) });
+
+    expect(await screen.findByRole("heading", { name: "Add a stop" })).toBeTruthy();
+    expect((screen.getByLabelText("Start") as HTMLInputElement).value).toBe("11:00");
+    // 2 h 15 m is none of the five lengths, so it is offered as drawn.
+    const howLong = screen.getByLabelText("How long") as HTMLSelectElement;
+    expect(howLong.selectedOptions[0]?.textContent).toBe("2 h 15 m");
+
+    fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Gelato" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Add stop" }).at(-1)!);
+    await waitFor(() =>
+      expect(onCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "AddActivity",
+          dayId: fixture.days[0]!.dayId,
+          title: "Gelato",
+          timeWindow: { start: "11:00", end: "13:15" },
+        }),
+      ),
+    );
+  });
+
+  it("dragging a block's bottom edge sends the stop's new end, and says so", async () => {
+    const fixture = costedTripDetailFixture();
+    const colosseumId = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+
+    const block = await screen.findByTestId(`activity-card-${colosseumId}`);
+    fireEvent.pointerDown(within(block).getByTitle("Drag to change when it ends"), { button: 0, clientY: riverY(11) });
+    fireEvent.pointerMove(document, { clientY: riverY(10.5) });
+    fireEvent.pointerUp(document, { clientY: riverY(10.5) });
+
+    await waitFor(() =>
+      expect(onCommand).toHaveBeenCalledWith({
+        type: "UpdateActivity",
+        tripId: fixture.tripId,
+        activityId: colosseumId,
+        timeWindow: { start: "09:00", end: "10:30" },
+      }),
+    );
+    expect(screen.getByTestId("toast").textContent).toContain("Now ends at 10:30 am");
+  });
+
   // M10 redesign-feedback follow-up: the standalone board-level "Ask AI to
   // plan" box (ComposePanel) is removed — the Assistant rail's own Ask box
   // covers the same real feature now, and having both on screen at once was

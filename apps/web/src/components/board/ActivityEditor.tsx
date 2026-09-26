@@ -12,7 +12,7 @@ import { Preview } from "@/components/ui/preview";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
-import { toClockRange, toMinutes, toTimeString } from "@/lib/time";
+import { formatDuration, toClockRange, toMinutes, toTimeString } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Slot } from "@/components/trip/fitIntoDay";
 import {
@@ -64,6 +64,9 @@ const KIND_HELP: Record<ActivityKind, string> = {
 
 export type ActivityDayOption = { dayId: string; label: string; existing: Slot[] };
 
+/** The "How long" value for a length drawn on the river that is none of the five. */
+const DRAWN = "drawn";
+
 // Illustrative only (Preview id="add-stop-suggestions", M9 — grounded place
 // search doesn't exist yet, so nothing generates real matches from what the
 // user types into "What or where"). Static shape for the design's
@@ -114,13 +117,28 @@ export function ActivityEditor({
   // Edit mode only: a stop being edited already has an end time, and forcing
   // it back through the duration dropdown would lose precision (Task 7.1).
   const [end, setEnd] = useState(initial?.timeWindow?.end ?? "");
-  const [durationLabel, setDurationLabel] = useState<DurationLabel>(() => {
+  // **A length drawn on the river is kept as drawn** (M29 part 3). A stop
+  // sketched across 9:00–11:15 arrives here as a prefilled window whose 135
+  // minutes are none of the five "How long" options; rounding it to the
+  // nearest one (the design's own answer) would save a stop that is not the
+  // one just drawn. So a create-mode prefill that matches no option adds one
+  // more, named for its length and chosen, and the other five stay offered.
+  const drawnMinutes =
+    mode === "create" && initial?.timeWindow ? toMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start) : null;
+  const drawnOption =
+    drawnMinutes !== null && drawnMinutes > 0 && !DURATION_OPTIONS.some((o) => o.minutes === drawnMinutes)
+      ? { label: formatDuration(drawnMinutes, "").trim(), minutes: drawnMinutes }
+      : null;
+  const [durationLabel, setDurationLabel] = useState<DurationLabel | typeof DRAWN>(() => {
+    if (drawnOption !== null) return DRAWN;
     if (initial?.timeWindow) {
       const minutes = toMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start);
       if (minutes > 0) return closestDurationLabel(minutes);
     }
     return DEFAULT_DURATION_LABEL;
   });
+  const lengthMinutes =
+    durationLabel === DRAWN ? (drawnOption?.minutes ?? durationMinutes(DEFAULT_DURATION_LABEL)) : durationMinutes(durationLabel);
   const [location, setLocation] = useState<Location | null>(initial?.location ?? null);
   // No UI reaches anchors (D-1, see packages/domain/src/trip/conflicts.ts) — the
   // editor never lets a user set them, but still round-trips whatever value the
@@ -179,7 +197,7 @@ export function ActivityEditor({
   // mode, the explicit End time in edit mode), not some other window a
   // separate suggestion algorithm might prefer (CodeRabbit, PR #32).
   const actualEnd =
-    mode === "edit" ? end : start !== "" ? toTimeString(toMinutes(start) + durationMinutes(durationLabel)) : "";
+    mode === "edit" ? end : start !== "" ? toTimeString(toMinutes(start) + lengthMinutes) : "";
   const overlapsExisting =
     selectedDay !== undefined &&
     start !== "" &&
@@ -197,7 +215,7 @@ export function ActivityEditor({
       if (start !== "" && start >= end) return setError("End time must be after start time");
       timeWindow = start !== "" ? { start, end } : null;
     } else if (start !== "") {
-      const computedEnd = toTimeString(toMinutes(start) + durationMinutes(durationLabel));
+      const computedEnd = toTimeString(toMinutes(start) + lengthMinutes);
       timeWindow = { start, end: computedEnd };
     }
 
@@ -311,8 +329,9 @@ export function ActivityEditor({
             <NativeSelect
               id="activity-duration"
               value={durationLabel}
-              onChange={(e) => setDurationLabel(e.target.value as DurationLabel)}
+              onChange={(e) => setDurationLabel(e.target.value as DurationLabel | typeof DRAWN)}
             >
+              {drawnOption !== null && <option value={DRAWN}>{drawnOption.label}</option>}
               {DURATION_OPTIONS.map((option) => (
                 <option key={option.label} value={option.label}>
                   {option.label}

@@ -1,9 +1,19 @@
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import type { TripDetail } from "@tc/contracts";
+import { type BatchableCommand, TimeWindow, type TripDetail } from "@tc/contracts";
 
 export type DropOutcome =
   | { kind: "unschedule"; activityId: string }
-  | { kind: "move"; activityId: string; toDayId: string | null; position: number };
+  | { kind: "move"; activityId: string; toDayId: string | null; position: number }
+  /**
+   * A drop on a day's river (M29 part 3): the stop goes to that day AND that
+   * time. Either half can be absent — `position: null` when it is already on
+   * the day (a MoveActivity that changes nothing still costs an undo step),
+   * `timeWindow: null` when it already has that window — but never both, which
+   * is a no-op and resolves to `null` instead.
+   */
+  | { kind: "place"; activityId: string; toDayId: string; position: number | null; timeWindow: TimeWindow | null };
+
+export type PlaceOutcome = Extract<DropOutcome, { kind: "place" }>;
 
 function listFor(trip: TripDetail, dayId: string | null): string[] {
   return dayId === null
@@ -45,6 +55,16 @@ export function resolveDrop(
   if (targetData.rack === true) return { kind: "unschedule", activityId };
 
   const toDayId = typeof targetData.dayId === "string" ? targetData.dayId : null;
+
+  // A day's river says WHEN as well as which day (DayRiver's drop target). Not
+  // for a stop coming off the rack: that keeps the rack's own semantics — its
+  // time if it has one, a fitted one if not (rackDropWindow) — which is also
+  // why the river refuses to be a target for one, so it falls to the column.
+  // Checked here as well, so the rule does not rest on the river alone.
+  const riverWindow = TimeWindow.safeParse(targetData.riverWindow);
+  if (toDayId !== null && riverWindow.success && !trip.backlog.includes(activityId)) {
+    return placeOnRiver(trip, activityId, toDayId, riverWindow.data);
+  }
 
   if (typeof targetData.cardActivityId === "string") {
     // Dropped on a card: insert before/after it depending on the edge.
@@ -89,4 +109,40 @@ export function resolveDrop(
     toDayId,
     position: listFor(trip, toDayId).filter((id) => id !== activityId).length,
   };
+}
+
+/**
+ * A `place` outcome as the commands that carry it out, for ONE batch — so one
+ * undo puts the stop back on its day and at its time together. Move first:
+ * the window is the stop's on the day it lands on.
+ */
+export function placeCommands(tripId: string, { activityId, toDayId, position, timeWindow }: PlaceOutcome): BatchableCommand[] {
+  const commands: BatchableCommand[] = [];
+  if (position !== null) commands.push({ type: "MoveActivity", tripId, activityId, toDayId, position });
+  if (timeWindow !== null) commands.push({ type: "UpdateActivity", tripId, activityId, timeWindow });
+  return commands;
+}
+
+/**
+ * A drop at a time on a day's river, as the smallest change that gets there.
+ *
+ * Arriving from another day, the stop is inserted before the first stop on
+ * that day that starts later — the list order is what the phone's card list
+ * and every non-river surface read, so it should agree with the clock.
+ */
+function placeOnRiver(trip: TripDetail, activityId: string, toDayId: string, window: TimeWindow): DropOutcome | null {
+  const current = trip.activities[activityId]?.timeWindow ?? null;
+  const sameTime = current !== null && current.start === window.start && current.end === window.end;
+  const timeWindow = sameTime ? null : window;
+
+  if (containerOf(trip, activityId) === toDayId) {
+    return timeWindow === null ? null : { kind: "place", activityId, toDayId, position: null, timeWindow };
+  }
+
+  const others = listFor(trip, toDayId).filter((id) => id !== activityId);
+  const later = others.findIndex((id) => {
+    const start = trip.activities[id]?.timeWindow?.start;
+    return start !== undefined && start > window.start;
+  });
+  return { kind: "place", activityId, toDayId, position: later === -1 ? others.length : later, timeWindow };
 }

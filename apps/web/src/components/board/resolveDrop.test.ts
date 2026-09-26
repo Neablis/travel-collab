@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { attachClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { tripDetailFixture } from "@tc/factories";
-import { resolveDrop } from "./resolveDrop";
+import { placeCommands, resolveDrop } from "./resolveDrop";
 
 const A1 = "a1";
 const A2 = "a2";
@@ -172,6 +172,71 @@ describe("resolveDrop", () => {
     // target that also carries a stale dayId still unschedules.
     expect(resolveDrop(trip, { activityId: A1 }, { rack: true, dayId: DAY_1 })).toMatchObject({
       kind: "unschedule",
+    });
+  });
+});
+
+// M29 part 3: a drop on a day's river carries the window the outline showed
+// (DayRiver's drop target computes it from the pointer, riverGestures.ts).
+describe("resolveDrop on a river", () => {
+  const timed = (start: string, end: string) => ({ timeWindow: { start, end } });
+  // Day 1: a1 09:00–10:00, a2 14:00–15:00. Day 2: a3 11:00–12:30.
+  const river = tripDetailFixture({
+    ...trip,
+    activities: {
+      [A1]: { ...trip.activities[A1]!, ...timed("09:00", "10:00") },
+      [A2]: { ...trip.activities[A2]!, ...timed("14:00", "15:00") },
+      [A3]: { ...trip.activities[A3]!, ...timed("11:00", "12:30") },
+    },
+  });
+  const at = (start: string, end: string) => ({ dayId: DAY_1, riverWindow: { start, end } });
+
+  it("moves a stop from another day and re-times it, placed among the day's stops by the clock", () => {
+    expect(resolveDrop(river, { activityId: A3 }, at("12:00", "13:30"))).toEqual({
+      kind: "place",
+      activityId: A3,
+      toDayId: DAY_1,
+      position: 1,
+      timeWindow: { start: "12:00", end: "13:30" },
+    });
+  });
+
+  it("only re-times a stop dropped on its own day", () => {
+    expect(resolveDrop(river, { activityId: A1 }, at("16:00", "17:00"))).toEqual({
+      kind: "place",
+      activityId: A1,
+      toDayId: DAY_1,
+      position: null,
+      timeWindow: { start: "16:00", end: "17:00" },
+    });
+  });
+
+  it("is a no-op dropped back where it already is", () => {
+    expect(resolveDrop(river, { activityId: A1 }, at("09:00", "10:00"))).toBeNull();
+  });
+
+  it("carries a move to another day and a time out as one batch, the move first", () => {
+    const outcome = resolveDrop(river, { activityId: A3 }, at("12:00", "13:30"));
+    expect(outcome?.kind === "place" && placeCommands("t", outcome)).toEqual([
+      { type: "MoveActivity", tripId: "t", activityId: A3, toDayId: DAY_1, position: 1 },
+      { type: "UpdateActivity", tripId: "t", activityId: A3, timeWindow: { start: "12:00", end: "13:30" } },
+    ]);
+  });
+
+  it("carries a new time on the same day out as the time alone", () => {
+    const outcome = resolveDrop(river, { activityId: A1 }, at("16:00", "17:00"));
+    expect(outcome?.kind === "place" && placeCommands("t", outcome)).toEqual([
+      { type: "UpdateActivity", tripId: "t", activityId: A1, timeWindow: { start: "16:00", end: "17:00" } },
+    ]);
+  });
+
+  it("leaves a stop from the rack to the rack's own rule", () => {
+    const parked = tripDetailFixture({ ...river, days: [{ dayId: DAY_1, activityIds: [A1], date: null, costSubtotal: 0 }], backlog: [A2] });
+    expect(resolveDrop(parked, { activityId: A2 }, at("16:00", "17:00"))).toEqual({
+      kind: "move",
+      activityId: A2,
+      toDayId: DAY_1,
+      position: 1,
     });
   });
 });

@@ -100,6 +100,8 @@ function renderBoard(
 function noopCallbacks(): BoardCallbacks {
   return {
     onMove: vi.fn(),
+    onPlace: vi.fn(),
+    onRetime: vi.fn(),
     onUnschedule: vi.fn(),
     onDragStart: vi.fn(),
     onDragEnd: vi.fn(),

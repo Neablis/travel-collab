@@ -1,14 +1,17 @@
 "use client";
 
 import { cn } from "@/lib/cn";
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollForElements, autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import type { ActivityTag, TripDetail } from "@tc/contracts";
+import type { ActivityTag, TimeWindow, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
+import { Toast } from "@/components/ui/toast";
+import { useTimeFormat } from "@/components/account/PreferencesProvider";
+import { toClockLabel } from "@/lib/time";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { chipModel, cityFor } from "@/lib/dayChips";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
@@ -22,8 +25,9 @@ import { dayAccents } from "@/lib/dayAccent";
 import { stopsForDay } from "@/lib/savedStops";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
+import type { RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
-import { resolveDrop } from "./resolveDrop";
+import { type PlaceOutcome, resolveDrop } from "./resolveDrop";
 import { riverAxis } from "./riverLayout";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
@@ -104,6 +108,13 @@ export type BoardCallbacks = {
   onMove: (activityId: string, toDayId: string | null, position: number) => void;
   /** A drop on the unscheduled rack: off the schedule, times stripped. */
   onUnschedule: (activityId: string) => void;
+  /**
+   * A drop at a time on a day's river (M29 part 3): to that day, at that time,
+   * as ONE change — one undo puts back both (`placeCommands`).
+   */
+  onPlace: (outcome: PlaceOutcome) => void;
+  /** A block's bottom edge was dragged: the stop's new window. */
+  onRetime: (activityId: string, timeWindow: TimeWindow) => void;
   /** Raised for every drag, so the rack's disclosure reducer can auto-open. */
   onDragStart: () => void;
   /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
@@ -547,6 +558,10 @@ export function Board({
             current.onUnschedule(outcome.activityId);
             return;
           }
+          if (outcome.kind === "place") {
+            current.onPlace(outcome);
+            return;
+          }
           current.onMove(outcome.activityId, outcome.toDayId, outcome.position);
         },
       }),
@@ -583,6 +598,29 @@ export function Board({
       autoScrollWindowForElements(),
     );
   }, []);
+
+  // **The river's gestures** (M29 part 3; SPEC §36.9b). A read-only board
+  // passes none, and its rivers then offer none — the same "absent, not
+  // disabled" rule every other write affordance here follows (ADR-031).
+  //
+  // Double-click and sketch open the add sheet this column's "+ Add a stop"
+  // opens, with the window prefilled; a resize is a plain UpdateActivity of
+  // the window; a drop at a time comes back through the monitor above as a
+  // `place` outcome. "Now ends at …" is the design's own flash for a resize.
+  const clock = useTimeFormat();
+  const [notice, setNotice] = useState<string | null>(null);
+  const gesturesFor = (dayId: string): RiverGestures | undefined =>
+    readOnly
+      ? undefined
+      : {
+          onCreateAt: (timeWindow) => openCreate({ dayId, timeWindow }),
+          onResize: (activityId, timeWindow) => {
+            latest.current.callbacks.onRetime(activityId, timeWindow);
+            setNotice(`Now ends at ${toClockLabel(timeWindow.end, clock)}`);
+          },
+          // Read at drag time, not render time: the rack changes under a drag.
+          canPlace: (activityId) => !latest.current.trip.backlog.includes(activityId),
+        };
 
   return (
     // pt-3 matches the gap-3 rhythm below (ConflictBanner <-> the columns
@@ -692,6 +730,7 @@ export function Board({
                 columnRefs.current[index] = node;
               }}
               onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
+              gestures={gesturesFor(day.dayId)}
               onDismissOverlap={callbacks.onDismissConflict}
               focusedTag={focusedTag}
               onToggleTag={onToggleTag}
@@ -765,6 +804,7 @@ export function Board({
           </div>
         )}
       </div>
+      {notice !== null && <Toast message={notice} onDismiss={() => setNotice(null)} />}
     </div>
   );
 }
