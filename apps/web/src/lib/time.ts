@@ -19,11 +19,11 @@ export function toMinutes(time: string): number {
 // drift from the clamp it is derived from.
 export const DAY_END_MIN = 23 * 60 + 59;
 
-// An END time in minutes, reading "23:59" as midnight (24:00). The stored form
-// cannot say "24:00", so a stop that runs to midnight is saved ending 23:59
-// (toTimeString's clamp); taken back at face value it would lose a minute and
-// read "1 h 59 m" where "2 hours" was drawn. Only for an end: a stop that
-// STARTS at 23:59 starts at 23:59.
+// The stored form cannot say "24:00", so a stop that runs to midnight is saved
+// ending 23:59 (toTimeString's clamp); taken back at face value it would lose
+// a minute and read "1 h 59 m" where "2 hours" was drawn. Only for an end: a
+// stop that STARTS at 23:59 starts at 23:59.
+/** An END time in minutes since midnight, with "23:59" read as midnight (1440). */
 export function toEndMinutes(time: string): number {
   const minutes = toMinutes(time);
   return minutes === DAY_END_MIN ? DAY_END_MIN + 1 : minutes;
