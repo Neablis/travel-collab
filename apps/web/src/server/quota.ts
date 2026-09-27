@@ -310,6 +310,27 @@ export function weatherQuota(): QuotaPolicy[] {
 }
 
 /**
+ * Link-preview quota (spec 2026-09-27 §2.2): the four public `/api/og/**`
+ * routes, keyed by client IP because their callers have no account.
+ *
+ * Generous on purpose. A chat app's unfurler fetches the page, its meta and its
+ * image in a burst, from a handful of shared crawler IPs, and a shared link is
+ * then answered by the CDN rather than by us (`server/og/card.tsx`'s cache
+ * headers), so what reaches this counter is cache misses only. 60 a minute per
+ * IP is far above an unfurler and far below a loop walking referral codes.
+ */
+export function linkPreviewQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "link-preview-minute",
+      windowMs: 60 * 1000,
+      perUser: envCeiling("LINK_PREVIEW_RATE_LIMIT_PER_IP_MINUTE", 60),
+      global: envCeiling("LINK_PREVIEW_RATE_LIMIT_GLOBAL_MINUTE", 3000),
+    },
+  ];
+}
+
+/**
  * Charge one request against every policy, in order. Returns the first refusal.
  *
  * FAILS CLOSED. A counter-store error refuses the request rather than waving it

@@ -13,11 +13,29 @@ import { ogColors as c } from "./ogTokens.generated";
 /** The size every link-preview card is drawn at, and the one chat apps expect. */
 export const CARD_SIZE = { width: 1200, height: 630 } as const;
 
+// Cached hard at the edge (Mitchell, 2026-09-27), which is also what keeps the
+// rate limiter cheap: a CDN hit never runs the function (`og/limit.ts`).
+// `stale-while-revalidate` lets the edge answer an expired entry at once and
+// refresh it behind the response, so an unfurler never waits on a re-render.
+
 /**
- * Short, so a revoked invite goes generic on our side within minutes (spec
- * 2026-09-27 §2.2). An unfurler's own cache is outside our control.
+ * The referral card: a day at the edge. It changes only if the referrer renames
+ * themselves, and a redeemed code keeps its name by design.
  */
-export const CARD_CACHE_CONTROL = "public, max-age=300, s-maxage=300";
+export const REFERRAL_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+
+/**
+ * The invite card: an hour at the edge, and that hour is the trade-off. A
+ * revoked or accepted invite keeps its PERSONAL card at our edge until the
+ * cached entry expires — up to an hour, plus the one stale answer
+ * `stale-while-revalidate` serves while it fetches the generic card. Chat apps
+ * cache their first unfurl far longer than that regardless, so a shorter edge
+ * TTL would buy little. If it ever needs to be immediate, Vercel can purge by
+ * tag (`@vercel/functions`' `invalidateByTag` / `dangerouslyDeleteByTag`, with
+ * the invite id as a cache tag on these responses, purged from
+ * `revokeInvite`); not built.
+ */
+export const INVITE_CACHE_CONTROL = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800";
 
 // Bundled, never fetched: KI-2026-09-27-a is a production deploy that failed
 // because Google Fonts did not answer, and a card that fetched at request time
@@ -46,8 +64,8 @@ function loadFonts() {
 // The static site card's language (`scripts/generate-og-assets.mjs`): moss
 // ground, the contour grid and its river, the ◎ mark on a brand square, and
 // the display face for the headline.
-/** Draw one preview card as a 1200×630 PNG response with the preview cache header. */
-export async function renderCard(copy: CardCopy): Promise<ImageResponse> {
+/** Draw one preview card as a 1200×630 PNG response carrying `cacheControl`. */
+export async function renderCard(copy: CardCopy, cacheControl: string): Promise<ImageResponse> {
   // A trip name is the user's, and can be long; the headline steps down a size
   // rather than being cut, and clamps at three lines past that.
   const headlineSize = copy.title.length > 70 ? 52 : 64;
@@ -123,6 +141,6 @@ export async function renderCard(copy: CardCopy): Promise<ImageResponse> {
         </div>
       </div>
     ),
-    { ...CARD_SIZE, fonts: await loadFonts(), headers: { "Cache-Control": CARD_CACHE_CONTROL } },
+    { ...CARD_SIZE, fonts: await loadFonts(), headers: { "Cache-Control": cacheControl } },
   );
 }

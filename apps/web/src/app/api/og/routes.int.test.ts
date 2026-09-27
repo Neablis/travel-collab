@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { commandsFor } from "@tc/factories";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
@@ -65,7 +65,7 @@ describe("GET /api/og/invite/:token", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
-    expect(response.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800");
     expect(await pngSize(response)).toEqual({ width: 1200, height: 630 });
   });
 });
@@ -77,7 +77,7 @@ describe("GET /api/og/invite/:token/meta", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { title: string; description: string };
     expect(body.title).toBe(`Dana invited you to plan ${TRIP_NAME}`);
-    expect(body.description).toBe("Jun 1, 2027 – Jun 3, 2027 · 3 days · 3 cities · with Dana");
+    expect(body.description).toBe("Jun 1, 2027 – Jun 3, 2027 · 3 days · 3 cities");
   });
 
   it("titles a revoked invite generically, naming nobody", async () => {
@@ -93,11 +93,14 @@ describe("GET /api/og/referral/:code", () => {
   it.each([
     ["a known code", () => referralCode],
     ["an unknown code", () => `NOPE${run}`],
-  ])("draws %s as a 1200×630 PNG", async (_state, code) => {
+  ])("draws %s as a 1200×630 PNG, cached for a day at the edge", async (_state, code) => {
     const response = await referralImage(request, withCode(code()));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+    );
     expect(await pngSize(response)).toEqual({ width: 1200, height: 630 });
   });
 });
@@ -117,5 +120,37 @@ describe("GET /api/og/referral/:code/meta", () => {
     const response = await referralMeta(request, withCode(`NOPE${run}`));
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe("the per-IP rate limit on every /api/og route", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  // Only `Date` is faked, pinned mid-window: the limiter's windows are
+  // epoch-aligned minutes, and three requests straddling a boundary would land
+  // in two windows and pass for the wrong reason.
+  it.each([
+    ["invite image", (req: Request) => inviteImage(req, withToken(pendingToken))],
+    ["invite meta", (req: Request) => inviteMeta(req, withToken(pendingToken))],
+    ["referral image", (req: Request) => referralImage(req, withCode(referralCode))],
+    ["referral meta", (req: Request) => referralMeta(req, withCode(referralCode))],
+  ])("refuses the %s past the ceiling with an uncacheable 429, per IP", async (_route, call) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2031-01-01T12:00:30.000Z"));
+    vi.stubEnv("LINK_PREVIEW_RATE_LIMIT_PER_IP_MINUTE", "2");
+    const ip = `ip-${randomUUID()}`;
+    const from = (address: string) =>
+      new Request("http://test/x", { headers: { "x-forwarded-for": `${address}, 10.0.0.1` } });
+
+    expect((await call(from(ip))).status).toBe(200);
+    expect((await call(from(ip))).status).toBe(200);
+    const refused = await call(from(ip));
+
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("cache-control")).toBe("no-store");
+    expect((await call(from(`other-${ip}`))).status).toBe(200);
   });
 });
