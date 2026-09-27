@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
-import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION, SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
@@ -1893,5 +1893,48 @@ describe("PageScreen — a write left behind by an earlier test", () => {
     releaseEarlier?.();
     await vi.waitFor(() => expect(mine.length + refusedWrites.length).toBeGreaterThan(0));
     expect(mine).toEqual([]);
+  });
+});
+
+// *Undo reset* is gated like *Reset to default*: Reading only. In Editing the
+// session holds words the log has not seen yet, and the undo replaced the
+// editor's document with the version before the reset, losing them without a
+// word (review of the reset PR, 2026-09-27). Hidden rather than dismissed, so
+// an owner who opens Editing and changes nothing still has the undo after.
+describe("PageScreen — Undo reset", () => {
+  it("is not offered while Editing, and is again back in Reading", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({
+      tripId: trip.tripId,
+      title: "Money",
+      actorId: SYSTEM_ACTOR_ID,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "My own budget" }] }] },
+    });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: "owner",
+            members: [{ userId: "u1", role: "owner", name: null, email: null, image: null }],
+            invites: [],
+            collaboratorsEntitled: true,
+          },
+        }),
+      ),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Reset to default" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Reset notebook" }));
+    expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(screen.queryByRole("button", { name: "Undo reset" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();
   });
 });

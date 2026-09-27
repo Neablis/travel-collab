@@ -1143,7 +1143,12 @@ export function PageScreen({
           <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
         </div>
       </div>
-      {undoResetTo !== null ? (
+      {/* Reading only, like the Reset it undoes: in Editing the session holds
+          words the log has not seen, and the undo would replace the editor's
+          document with the version before the reset, dropping them unsaved.
+          Hidden rather than dismissed, so it is back when Editing ends; if that
+          session saved, the server refuses the undo as a stale revision. */}
+      {undoResetTo !== null && !editing ? (
         <Banner
           variant="info"
           className="mb-3"
