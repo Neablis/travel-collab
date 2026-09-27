@@ -40,6 +40,15 @@ describe("/invite/<token> metadata", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/og\/invite\/tok_123\/meta$/);
   });
 
+  it("keeps the page's plain metadata when the answer is not a LinkPreviewMeta", async () => {
+    // An extra field is refused, not carried: the card's text is public.
+    stubMeta(Response.json({ title: "Dana invited you", description: "3 days", email: "dana@example.com" }));
+
+    expect(await inviteMetadata({ params: Promise.resolve({ token: "tok_123" }) })).toEqual({
+      title: "You're invited",
+    });
+  });
+
   it("keeps the page's plain metadata when the lookup fails", async () => {
     stubMeta(new Error("connection refused"));
 

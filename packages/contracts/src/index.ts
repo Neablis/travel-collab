@@ -24,3 +24,4 @@ export * from "./identity.ts";
 export * from "./assistant.ts";
 export * from "./entitlement.ts";
 export * from "./publicApi.ts";
+export * from "./linkPreview.ts";

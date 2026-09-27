@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LinkPreviewMeta } from "@tc/contracts";
 import { deploymentOrigin } from "./deploymentOrigin";
 import { pageMetadata } from "./siteMetadata";
 
@@ -29,11 +30,11 @@ export async function linkPreviewMetadata(imagePath: string, fallback: Metadata)
     const response = await fetch(new URL(`${imagePath}/meta`, deploymentOrigin()), {
       signal: AbortSignal.timeout(META_TIMEOUT_MS),
     });
+    // A 429 from the route's limiter lands here too, and falls back.
     if (!response.ok) return fallback;
-    const body: unknown = await response.json();
-    if (typeof body !== "object" || body === null) return fallback;
-    const { title, description } = body as Record<string, unknown>;
-    if (typeof title !== "string" || typeof description !== "string") return fallback;
+    const parsed = LinkPreviewMeta.safeParse(await response.json());
+    if (!parsed.success) return fallback;
+    const { title, description } = parsed.data;
     // The card's sentence is og:title; the tab keeps the page's own <title>,
     // so the preview changes what an unfurler prints and nothing a visitor
     // sees. `absolute` only stops the template suffixing og:title's twin.
