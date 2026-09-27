@@ -13,6 +13,18 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-27 — `TripWeatherPoint.placeToday`: the weather block's "Today" is the place's date (KI-2026-09-27-c)
+
+- **Added:** `placeToday?: IsoDate` on `TripWeatherPoint` — the calendar date at the point's
+  place when the route answered, read in the zone its days were cut in.
+- Why: Mitchell, 2026-09-27: *"Location that a trip should be in in that day, not the readers
+  current location"*. The resolver chose "Today" from the reader's browser date; only the
+  server knows the place's zone (ADR-052, amended 2026-09-27).
+- Consumers updated: `apps/web` (`buildTripWeather` sets it; the weather route's integration
+  test expects it), `@tc/pages` (`day.weather` compares each point with its own `placeToday`).
+- **Breaking?** No. Additive and optional: a client reading an answer without it falls back to
+  the reader's date, as before.
+
 ## 2026-09-26 — `DroppedInsert` and `pageInserts.dropped`: a page turn says what it did not land (ADR-058)
 
 - **Added:** `DroppedInsert` (`{ name, reason }`) and `dropped?: DroppedInsert[]` on

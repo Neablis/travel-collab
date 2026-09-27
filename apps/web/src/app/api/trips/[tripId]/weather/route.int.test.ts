@@ -105,9 +105,13 @@ describe("GET /api/trips/:tripId/weather", () => {
   it("with both sources down, answers 200 with every point unavailable — and the widget is the quiet placeholder", async () => {
     const tripId = await seedTrip();
     const weather = await weatherOf(tripId);
+    // Today's date in Oslo, which is what every point says today is there —
+    // not the test runner's date (KI-2026-09-27-c).
+    const placeToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Oslo" }).format(new Date());
+    const down = { forecast: { unavailable: "source" }, typical: { unavailable: "source" }, placeToday };
     expect(weather.points).toEqual([
-      { date: isoDaysFromNow(0), city: "Oslo", forecast: { unavailable: "source" }, typical: { unavailable: "source" } },
-      { date: isoDaysFromNow(1), city: "Oslo", forecast: { unavailable: "source" }, typical: { unavailable: "source" } },
+      { date: isoDaysFromNow(0), city: "Oslo", ...down },
+      { date: isoDaysFromNow(1), city: "Oslo", ...down },
     ]);
     expect(await widgetOn(tripId, weather)).toEqual({ status: "unavailable", reason: "source" });
   });

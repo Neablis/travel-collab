@@ -3,9 +3,22 @@ import { UpstreamError, type Climate, type Fetched, type MonthlyNormals } from "
 
 // NASA POWER's Climatology API, for "typical" (ADR-052's sources table).
 //
-// **TO VERIFY — none of this has been read against the POWER docs directly;
-// this container cannot reach `power.larc.nasa.gov`.** Each item is listed in
-// ADR-052's review points as well:
+// **Verified in part, 2026-09-27** (KI-2026-09-27-b). Mitchell fetched real
+// responses for Kyoto from a laptop; a cloud session cannot reach
+// `power.larc.nasa.gov`. Settled:
+//
+// - **Which figures are a typical day.** `T2M_MAX` / `T2M_MIN` in the
+//   climatology product are each month's EXTREMES, not mean daily values: their
+//   `ANN` is the max / min of the months (Kyoto: 34.09 = July, -6.38 = January).
+//   Read as highs and lows, they printed Kyoto's August as 34°/15° against a
+//   25.7 °C mean. `T2M_MAX_AVG` / `T2M_MIN_AVG` are no better: their `ANN`
+//   (32.66) is above every month, so they are the per-year extremes averaged.
+//   `T2M_RANGE` is a mean (its `ANN` is the mean of the months), so a typical
+//   day is `T2M` ± `T2M_RANGE` / 2 (Kyoto August: 29.4° / 22.0°).
+// - **The period** comes back only as `header.range` ("…(January 2001 -
+//   December 2020)"); there is no `header.start` / `header.end`.
+//
+// Still as believed, not read against the docs:
 //
 // 1. The endpoint path `/api/temporal/climatology/point` and its query
 //    (`parameters`, `community`, `latitude`, `longitude`, `format=JSON`) —
@@ -26,7 +39,7 @@ import { UpstreamError, type Climate, type Fetched, type MonthlyNormals } from "
 // (decision 5), and to be told of uses (larc-power-project@mail.nasa.gov).
 
 const ENDPOINT = "https://power.larc.nasa.gov/api/temporal/climatology/point";
-const PARAMETERS = ["T2M_MAX", "T2M_MIN", "PRECTOTCORR"] as const;
+const PARAMETERS = ["T2M", "T2M_RANGE", "PRECTOTCORR"] as const;
 const MONTH_KEYS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"] as const;
 // Normals do not change between a trip's planning and its end; a month is
 // ADR-052 decision 2's figure.
@@ -60,12 +73,20 @@ export function parseClimatology(body: ClimatologyBody): MonthlyNormals {
   };
   const months: MonthlyNormals["months"] = [];
   MONTH_KEYS.forEach((key, i) => {
-    const highC = value("T2M_MAX", key);
-    const lowC = value("T2M_MIN", key);
+    const mean = value("T2M", key);
+    const range = value("T2M_RANGE", key);
     const rain = value("PRECTOTCORR", key);
     // A month with a hole is left out rather than printed with a guess.
-    if (highC === null || lowC === null || rain === null) return;
-    months.push({ month: i + 1, highC, lowC, precipitationMmPerDay: Math.max(0, rain) });
+    if (mean === null || range === null || rain === null) return;
+    // A typical day's high and low: the mean, plus and minus half the mean
+    // daily range. Rounded to hundredths, which is what POWER sends.
+    const half = range / 2;
+    months.push({
+      month: i + 1,
+      highC: Math.round((mean + half) * 100) / 100,
+      lowC: Math.round((mean - half) * 100) / 100,
+      precipitationMmPerDay: Math.max(0, rain),
+    });
   });
   return { months, period: periodOf(body.header) };
 }

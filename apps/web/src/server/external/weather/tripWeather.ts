@@ -10,8 +10,10 @@ import { ForecastSeries, MonthlyNormals, type Climate, type Forecast } from "./p
 // decision 3). **The points are derived here, from the trip, never sent by the
 // client**: for each dated day, for each city of that day, the first stop in
 // time order in that city with coordinates — rounded before anything else
-// sees it. The server does not choose a mode; the reader's date does, on the
-// client (`day.weather`'s resolver).
+// sees it. The server does not choose a mode (`day.weather`'s resolver does),
+// but it says what today's date is AT each point (`placeToday`): "today" is the
+// place's date, not the reader's (KI-2026-09-27-c), and the place's zone is
+// only known here.
 //
 // What this module decides instead is what is TRUE of the data: which local
 // days MET's series fully covers (so the horizon is read from the data, not
@@ -84,7 +86,10 @@ export function weatherPointsOf(detail: TripDetail): PlannedPoint[] {
   return points;
 }
 
-const keyOf = (kind: "met:forecast" | "power:normals", point: RoundedPoint) => {
+// `power:normals2`: the value changed meaning on 2026-09-27 (KI-2026-09-27-b,
+// extremes → typical days). A new key strands the old rows, which held
+// extremes for up to a month (TTL 30 days), instead of serving them.
+const keyOf = (kind: "met:forecast" | "power:normals2", point: RoundedPoint) => {
   const { lat, lng } = pointText(point);
   return `${kind}:${lat},${lng}`;
 };
@@ -185,7 +190,7 @@ export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): P
         series.set(forecastKey, got?.value ?? null);
       });
     }
-    const normalsKey = keyOf("power:normals", point);
+    const normalsKey = keyOf("power:normals2", point);
     if (!jobs.has(normalsKey)) {
       jobs.set(normalsKey, async () => {
         const got = await readThrough({
@@ -200,13 +205,16 @@ export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): P
 
   const points: TripWeatherPoint[] = planned.map(({ date, city, point, zone }) => {
     const forecastSeries = series.get(keyOf("met:forecast", point));
-    const monthly = normals.get(keyOf("power:normals", point));
+    const monthly = normals.get(keyOf("power:normals2", point));
     let forecast: TripWeatherPoint["forecast"];
     if (!inHorizon(date)) forecast = { unavailable: "not-in-horizon" };
     else if (!forecastSeries) forecast = { unavailable: "source" };
     else forecast = forecastDayOf(forecastSeries, date, zone, deps.now) ?? { unavailable: "not-in-horizon" };
     const typical = monthly ? typicalOf(monthly, date) : null;
-    return { date, city, forecast, typical: typical ?? { unavailable: "source" } };
+    // The same zone and instant `forecastDayOf` cut today's hours with, so the
+    // row called "Today" is the one whose first hour is "now".
+    const placeToday = localOf(zone, deps.now.getTime()).date;
+    return { date, city, forecast, typical: typical ?? { unavailable: "source" }, placeToday };
   });
   return { points };
 }

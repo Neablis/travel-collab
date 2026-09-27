@@ -10,9 +10,15 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SettingsCard, SettingsRow } from "@/components/ui/settings-card";
 import { useAccountPreferences } from "./PreferencesProvider";
 
+// One setting for every unit, not only distance: temperature and rain are
+// derived from it (ADR-052's 2026-09-24 amendment), and "Distance" hid that
+// from Mitchell himself (reviewed 2026-09-27). The options stay one word and
+// the units go in the row's description — "Metric (km, °C, mm)" beside
+// "Imperial (mi, °F, in)" is ~40 characters in a pill that cannot wrap, and a
+// stacked phone row's measure is ~290px at 360px wide (`SettingsRow`'s clip).
 const UNIT_OPTIONS = [
-  { value: "km" as const, label: "Kilometres" },
-  { value: "mi" as const, label: "Miles" },
+  { value: "km" as const, label: "Metric" },
+  { value: "mi" as const, label: "Imperial" },
 ];
 
 // Each label carries its own example, so the choice reads without knowing
@@ -253,15 +259,15 @@ export function ProfileSection({
 
       <SettingsCard heading="Display">
         <SettingsRow
-          label="Distance"
-          description="How walks and hops between stops are measured."
+          label="Units"
+          description="Distances, temperatures and rainfall across your trips. Metric is km, °C and mm; imperial is mi, °F and in."
         >
           {/* Account scope, not trip scope — "a trip does not have a unit, a
               person does" (SPEC §12). Saved immediately: there is one choice
               of two and nothing to blur out of. */}
           <div className="flex flex-col items-start gap-2">
             <SegmentedControl<DistanceUnit>
-              aria-label="Distance units"
+              aria-label="Units"
               value={preferences.distanceUnit}
               options={UNIT_OPTIONS}
               onValueChange={(distanceUnit) => {
@@ -294,7 +300,7 @@ export function ProfileSection({
           </div>
         </SettingsRow>
         <SettingsRow label="Time" description="How clock times are written across your trips.">
-          {/* The distance control's twin: account scope, saved at once, the
+          {/* The units control's twin: account scope, saved at once, the
               same pre-fetch guard and the same surfaced failure, for the
               reasons recorded there. Rendering only — every stored time stays
               24-hour "HH:MM" whichever is picked. */}

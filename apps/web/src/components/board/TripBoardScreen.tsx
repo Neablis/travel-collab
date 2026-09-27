@@ -203,13 +203,16 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     setFocusedDay(0);
   }, [isPhone, focusedDay, activeTrip, setFocusedDay]);
 
+  const searchParams = useSearchParams();
+  /** **A link card to a notebook** from a board with no notebook route — `/demo`, an invite's look (`linkHref`). */
+  const linkedPage = searchParams.get("page");
   /**
    * **A link card to a day** (M30, ADR-056) arrives as `?view=Plan&day=<dayId>`:
    * the day is focused once the trip is here, and Plan's own day-sync scrolls
    * to it. By id, so a link made before days were reordered still lands on its
    * day. Once per value, so clearing the focus afterwards is not undone.
    */
-  const linkedDay = useSearchParams().get("day");
+  const linkedDay = searchParams.get("day");
   const appliedDayLink = useRef<string | null>(null);
   useEffect(() => {
     if (linkedDay === null || activeTrip === null || appliedDayLink.current === linkedDay) return;
@@ -1080,6 +1083,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 )}
                 {view === "Overview" && (
                   <OverviewLens
+                    // Keyed, so following a card starts from "loading" rather
+                    // than showing the page it came from until the new one lands.
+                    key={linkedPage ?? "overview"}
+                    pageId={linkedPage}
                     detail={activeTrip}
                     tripId={tripId}
                     remoteRevision={remoteRevision}

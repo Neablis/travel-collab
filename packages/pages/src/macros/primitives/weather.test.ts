@@ -132,11 +132,11 @@ describe("day.weather", () => {
 
   it("prints the values each mode has, rounded, as data", () => {
     const [past, today, forecast] = payloadOf(ctxOf(trip(), "2026-11-10")).rows;
-    expect(forecast).toMatchObject({ high: "18°", low: "8°", rain: "2.1 mm", sky: "Light rain", now: null });
+    expect(forecast).toMatchObject({ high: "18°C", low: "8°C", rain: "2.1 mm", sky: "Light rain", now: null });
     // Today: now, and the rest of the day from the hours still to come.
-    expect(today).toMatchObject({ now: "12°", high: "15°", low: "10°", rain: "1.3 mm" });
+    expect(today).toMatchObject({ now: "12°C", high: "15°C", low: "10°C", rain: "1.3 mm" });
     // Typical: an amount per day, never a chance of rain (ADR-052 review point 5).
-    expect(past).toMatchObject({ high: "13°", low: "4°", rain: "3.5 mm a day", sky: null, now: null });
+    expect(past).toMatchObject({ high: "13°C", low: "4°C", rain: "3.5 mm a day", sky: null, now: null });
   });
 
   it("carries the oldest forecast as-of shown, the averaging period, and both credits", () => {
@@ -157,7 +157,39 @@ describe("day.weather", () => {
     expect(payload.forecastAsOf).toBeNull();
   });
 
-  it("is `unavailable(pending)` while the reader's date is unknown — the mode cannot be chosen yet", () => {
+  // KI-2026-09-27-c (Mitchell, 2026-09-27): *"Location that a trip should be
+  // in in that day, not the readers current location"*. The server says what
+  // today is at each point, and that — not `ctx.today` — picks the row.
+  it("calls the PLACE's today Today, when the place is ahead of the reader", () => {
+    // A reader in UTC at 16:03 on the 10th; Kyoto is already on the 11th.
+    const t = setup(["2026-11-10", "2026-11-11"], [
+      point("2026-11-10", { placeToday: "2026-11-11" }),
+      point("2026-11-11", { placeToday: "2026-11-11" }),
+    ]);
+    expect(payloadOf(ctxOf(t, "2026-11-10")).rows.map((r) => [r.modeText, r.now])).toEqual([
+      ["Past day · Nov avg", null],
+      ["Today", "12°C"],
+    ]);
+  });
+
+  it("calls the PLACE's today Today, when the place is behind the reader", () => {
+    // A reader in Tokyo already on the 11th; Honolulu is still on the 10th.
+    const t = setup(["2026-11-10", "2026-11-11"], [
+      point("2026-11-10", { placeToday: "2026-11-10" }),
+      point("2026-11-11", { placeToday: "2026-11-10" }),
+    ]);
+    expect(payloadOf(ctxOf(t, "2026-11-11")).rows.map((r) => [r.modeText, r.now])).toEqual([
+      ["Today", "12°C"],
+      ["Forecast", null],
+    ]);
+  });
+
+  it("does not wait for the reader's date when every point carries its place's", () => {
+    const t = setup(["2026-11-10"], [point("2026-11-10", { placeToday: "2026-11-10" })]);
+    expect(payloadOf(ctxOf(t, null)).rows.map((r) => r.modeText)).toEqual(["Today"]);
+  });
+
+  it("is `unavailable(pending)` while the reader's date is unknown and a point does not carry its place's — the mode cannot be chosen yet", () => {
     expect(renderMacro(ctxOf(trip(), null), "day.weather", {})).toEqual({ status: "unavailable", reason: "pending" });
   });
 
@@ -220,13 +252,13 @@ describe("day.weather", () => {
     it("prints °F and inches for an account in miles, whole degrees and two places", () => {
       const [past, today, forecast] = payloadOf(ctxOf(trip(), "2026-11-10", "ready", miles)).rows;
       // 17.6 °C = 63.7 °F, 8.2 °C = 46.8 °F, 2.14 mm = 0.084 in.
-      expect(forecast).toMatchObject({ high: "64°", low: "47°", rain: "0.08 in" });
-      expect(today).toMatchObject({ now: "54°", high: "59°", low: "49°", rain: "0.05 in" });
-      expect(past).toMatchObject({ high: "56°", low: "40°", rain: "0.14 in a day" });
+      expect(forecast).toMatchObject({ high: "64°F", low: "47°F", rain: "0.08 in" });
+      expect(today).toMatchObject({ now: "54°F", high: "59°F", low: "49°F", rain: "0.05 in" });
+      expect(past).toMatchObject({ high: "56°F", low: "40°F", rain: "0.14 in a day" });
     });
 
     it("prints °C and mm for an account in km, and when the account's preferences did not load", () => {
-      const metric = { high: "18°", low: "8°", rain: "2.1 mm" };
+      const metric = { high: "18°C", low: "8°C", rain: "2.1 mm" };
       expect(payloadOf(ctxOf(trip(), "2026-11-10", "ready", km)).rows[2]).toMatchObject(metric);
       expect(payloadOf(ctxOf(trip(), "2026-11-10", "ready", null)).rows[2]).toMatchObject(metric);
     });
@@ -248,8 +280,8 @@ describe("day.weather", () => {
         ["2026-11-12"],
         [point("2026-11-12", { forecast: forecastDay({ highC: -0.4, lowC: -17.9 }) })],
       );
-      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", miles)).rows[0]).toMatchObject({ high: "31°", low: "0°" });
-      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", km)).rows[0]).toMatchObject({ high: "0°", low: "-18°" });
+      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", miles)).rows[0]).toMatchObject({ high: "31°F", low: "0°F" });
+      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", km)).rows[0]).toMatchObject({ high: "0°C", low: "-18°C" });
     });
   });
 

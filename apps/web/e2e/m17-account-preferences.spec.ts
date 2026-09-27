@@ -4,7 +4,7 @@ import { openAccountPage, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M17's exit gate, walked as one flow: a signed-in person sets their name and
-// home airport, switches to Miles, watches a distance in the app change — and
+// home airport, switches to Imperial, watches a distance in the app change — and
 // finds all three still there after a reload.
 //
 // **A fresh dev user, not the shared alice session**, and `storageState:
@@ -88,8 +88,8 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await nameField.click();
   await expect(airportField).toHaveValue(HOME_AIRPORT);
 
-  await page.getByRole("radio", { name: "Miles" }).click();
-  await expect(page.getByRole("radio", { name: "Miles" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Imperial" }).click();
+  await expect(page.getByRole("radio", { name: "Imperial" })).toHaveAttribute("aria-checked", "true");
 
   // Leave the account page so the assertion below is about what the TRIP
   // shows. This was `Escape` while account settings were a modal Sheet; since
@@ -111,7 +111,7 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await openAccountPage(page);
   await expect(page.getByLabel("Your name")).toHaveValue(DISPLAY_NAME);
   await expect(page.getByLabel("Home airport")).toHaveValue(HOME_AIRPORT);
-  await expect(page.getByRole("radio", { name: "Miles" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: "Imperial" })).toHaveAttribute("aria-checked", "true");
 
   // And the chosen name is what the account menu calls this person — the
   // display-name seam (`displayNameFor`), with `displayName` at the front of
@@ -122,7 +122,7 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await expect(page.getByText(DISPLAY_NAME)).toBeVisible();
 });
 
-// The Time setting beside Distance (Mitchell, PR #221: *"All times should be
+// The Time setting beside Units (Mitchell, PR #221: *"All times should be
 // in AM/PM not military time (though maybe a good idea to have that as a
 // setting to toggle on)"*): 12-hour by default, and a board card's window
 // follows the switch to 24-hour without a reload — then keeps it across one.

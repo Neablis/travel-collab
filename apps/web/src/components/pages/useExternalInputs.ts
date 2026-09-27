@@ -4,8 +4,6 @@ import type { TripWeather } from "@tc/contracts";
 import type { ExternalInputs, ExternalNeed, NotebookIndex, Slot } from "@tc/pages";
 import { fetchTripWeather } from "@/lib/apiClient";
 import { fetchPages } from "@/lib/pagesClient";
-import { isDemoTripId } from "@/lib/demoTrip";
-import { isInviteLook } from "@/lib/inviteLook";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
@@ -73,11 +71,6 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
                   firstLine: p.preview?.firstLine ?? null,
                   widgetCount: p.preview?.widgetCount ?? 0,
                 })),
-                // The demo's visitor and an invitee having a look read this
-                // trip through a token the notebook route does not take, and
-                // the board withholds the Notebooks menu from both — so a card
-                // names the notebook without a way into it.
-                openable: !isDemoTripId(tripId) && !isInviteLook(tripId),
               },
             }
           : { state: "failed" },

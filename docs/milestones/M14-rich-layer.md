@@ -715,10 +715,17 @@ milestone opens:**
 - [x] Reading and Editing are one control; Reading shows no insert affordance and
       no repeat-rail chrome.
       *(**Re-baselined and ticked 2026-09-24** (T01, PR #221), on the audit's evidence: one aria-pressed control in `PageScreen.tsx`; `m14-notebook-widgets.spec.ts` "Reading takes the whole authoring surface away, and the widget stays" and `m14-mobile-notebook.spec.ts` "Reading is the default, and it takes the phone's authoring surface away too"; the desktop spec green ci-like 23/23 on 2026-09-24. The repeat-rail chrome half is carried by the repeater box below.)*
-- [ ] The insert Sheet offers search + *how it reads* over a flat list, each row
-      carrying its shape tag, a **real resolved preview**, and a mono line naming
+- [x] The insert Sheet offers search + *how it reads* over a flat list, each row
+      carrying its shape tag, a ~~**real resolved preview**~~ **fixed sample preview**,
+      and a mono line naming
       what it takes; then **Point it at** for widgets with inputs, and immediate
-      insert for those without. A value with no field behind it still carries the
+      insert for those without.
+      *(**Ticked 2026-09-27 on Mitchell's decision**, which settles the contradiction
+      recorded below in ADR-037's favour: *"Insert widget preview should show the fixed
+      sample, when inserted it gets the real values"*. That is what `WidgetPicker.tsx`
+      shows (`MacroDef.preview`). Two more parts of the wording are behind the build,
+      each recorded below: *Point it at* is now *Narrow it by* (ADR-039 decision 2), and
+      the `needs a field` badge has nothing it could ever show on.)* A value with no field behind it still carries the
       **`needs a field` badge** and says so on click instead of claiming an insert
       — the one rule §7's picker subsection kept when §18 replaced the rest of it.
       *(Rewritten 2026-09-03. The original box ended "…and choosing a day value on
@@ -933,8 +940,13 @@ milestone opens:**
       and the entry moves to `resolved/` with its proof line. *(Added 2026-09-18
       with the filtering work; a control that says narrowed while the widget
       renders wide is the defect, not the feature.)*
-- [ ] **The external-data ADR is accepted before any external-data code lands**,
+- [x] **The external-data ADR is accepted before any external-data code lands**,
       and it answers the widget brainstorm's §5 seven points. *(Link 11, added 2026-09-24.)*
+      *(**Ticked 2026-09-27.** ADR-052 was accepted on 2026-09-24 on Mitchell's delegation,
+      before T24's code, and reviewed and accepted by him on 2026-09-27. "Before any code
+      lands" held for the delegated acceptance; his own review came after, which the ADR's
+      status line records. The units follow-up he chose, a visible *Units* setting, is
+      tracked in ADR-052's 2026-09-27 note.)*
 - [x] **Weather renders in all four date-driven modes**, each naming its mode in
       words, with MET Norway's attribution on the block, an as-of time, and a quiet
       `unavailable` placeholder when the source is down. That state is proved with a
@@ -960,14 +972,25 @@ milestone opens:**
       averages, past, the miles switch and both credits. Step 5 had no `[external]` line.
       Not done: the met.no comparison and step 6, because egress to api.met.no and
       power.larc.nasa.gov is blocked from a cloud session. **Left open on a finding:**
-      the NASA "averages" look like monthly extremes (KI-2026-09-27-b). Also filed: "today"
-      follows the reader's clock (KI-2026-09-27-c).)* *(Added 2026-09-24: no automated test
+      the NASA "averages" were monthly extremes (KI-2026-09-27-b, fixed 2026-09-27).
+      **Re-walked the same day on #257's preview** (`dpl_GnqnxsgXcBR3Df3eosApbNsG64C6`,
+      `4bb4db0`). Kyoto November reads "November average | 14°C | 6°C | 3.2 mm a day",
+      where it read 23°/-1° before; August reads "29°C | 22°C". "Today" lands on Kyoto's
+      date with the browser on UTC and on Tokyo time alike (`placeToday`, KI-2026-09-27-c).
+      Imperial reads °F and inches. **Still open:** step 2's comparison against met.no's
+      own page, and step 6, the check that the 6-hourly `complete` fields are read. Both
+      need a machine that can reach api.met.no. Also filed and fixed: "today"
+      followed the reader's clock (KI-2026-09-27-c).)* *(Added 2026-09-24: no automated test
       may call either source, so the e2e server runs with `EXTERNAL_DATA_OFFLINE=true` and
       this walk is the only real-service check.)*
-- [ ] **The other six link-11 widgets ship and resolve against a real trip**: trip
+- [x] **The other six link-11 widgets ship and resolve against a real trip**: trip
       strip, still to book (reading `needsBooking`, not a second rule), sunrise /
       sunset, time difference from home, know before you go, spend by day. The route
       map block follows once M24's legs exist.
+      *(**Ticked 2026-09-27 on Mitchell's acceptance of the e2e as the walk**: *"Kinda,
+      good enough for now, i might do a design pass."* Each widget has an e2e test in
+      `m14-notebook-widgets.spec.ts` asserting it resolves to the trip's own values, and
+      each was seen red (#256). A design pass may follow; it is not part of this gate.)*
 - [x] **Charts go through the one adopted chart component**, and none carries a
       colour or font outside the design-system tokens. *(Ticked 2026-09-24, T21 on PR #221: `apps/web/src/components/ui/chart.test.tsx` fails on a literal colour or font in any chart file, on Recharts imported without `ChartContainer`, and on a rendered chart carrying Recharts' default `#ccc`/`#666`; each case seen red first.)*
 - [x] The full Definition of Done is green, including
