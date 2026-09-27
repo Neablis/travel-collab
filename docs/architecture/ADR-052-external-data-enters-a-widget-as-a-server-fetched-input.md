@@ -458,6 +458,9 @@ between stops are measured", and the block printed a bare `°`. Of (a) relabelli
 one setting as **Units: Metric (km, °C, mm) / Imperial (mi, °F, in)** and printing the
 scale on the block, or (b) a separate temperature setting, he chose **(a)**. The stored
 field stays `distanceUnit: "km" | "mi"`, so there is no contract change.
+**Built in 6a13676:** `ProfileSection.tsx`'s row reads **Units — Metric / Imperial**, with
+the km, °C, mm / mi, °F, in detail in its description (the full parentheticals are ~40
+characters in a pill that cannot wrap on a phone), and `weather.ts` prints `°C` / `°F`.
 
 ## Amendment — 2026-09-27: "today" is the place's date, not the reader's (KI-2026-09-27-c)
 
