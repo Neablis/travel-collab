@@ -70,37 +70,24 @@ a person, not code:
    rewords the box or overrules the ADR. The box's wording is also behind the
    code: *Point it at* is now *Narrow it by* (`WidgetPicker.tsx:197`, ADR-039
    decision 2).
-2. **ADR-052 acceptance.** Its status line still reads *Accepted on Mitchell's
-   delegation, pending his review*. The 2026-09-26 note in it accepts sending a
-   rounded location now that the default Overview shows weather, which is not a
-   review of the ADR. The external-data code is on `main`, so the box's *before
-   any code lands* clause can no longer be met as written.
+2. **ADR-052 acceptance.** Its status line still says *pending his review*; the
+   2026-09-26 note accepts one point, not the ADR. The code is on `main`, so the
+   box's *before any code lands* clause needs rewording.
 3. **The real-service weather walk**, per
    `docs/guidelines/external-data-manual-check.md`. The preview now has what it
    needs (next paragraph), so this is a walk, not a blocker.
 4. **The six link-11 widgets walked against a real trip.** All six are
-   registered and render, and each has unit tests. Since 2026-09-27 each also
-   has e2e that asserts it resolves to the trip's own values, each seen red:
-   Sunrise/sunset, Time difference from home and Know before you go (*the
-   clock pair and the country card*), plus a per-day Spend by day check in
-   `m14-notebook-widgets.spec.ts`. What the box still asks for is a person on a
-   real trip.
+   registered, with unit tests, and since 2026-09-27 e2e that asserts each
+   resolves to the trip's own values (`m14-notebook-widgets.spec.ts`). What is
+   left is a person on a real trip.
 5. **The milestone retro, appended at gate close.**
    `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro;
    the milestone's own retro is still owed.
 
-**Operator items: both done, verified 2026-09-27.** They sat here as outstanding
-for three days after they were done.
-- **Production migrations are applied through `0031`.** `migrate-production`
-  ran as #29 (2026-09-24 23:32 UTC, `5b73e96`) and #30 (2026-09-25, `cdb3582`,
-  the commit that added `0031`), and production's
-  `drizzle.__drizzle_migrations` holds 32 rows. **Don't record this in prose
-  again.** `pnpm state` prints a computed `PROD MIGRATIONS` line: applied when the
-  commit that added the newest file is an ancestor of the last successful run's
-  head. Without `gh` it prints *unverified*, and that is the answer. Ask the
-  GitHub MCP for the run; this file cannot answer it.
-- **`EXTERNAL_DATA_CONTACT` is set** in Vercel for Production, Preview and
-  Development. The name was checked; the value was not decrypted.
+**Operator items: both done** (verified 2026-09-27, three days after this file
+last called them outstanding). Production has `0000`-`0031` (runs #29/#30), and
+`EXTERNAL_DATA_CONTACT` is set for all three Vercel targets. Migration state is
+now `pnpm state`'s computed `PROD MIGRATIONS` line; don't restate it here.
 
 Branches cut from `main` before #221 still carry the part-3 version of
 `m14-notebook-widgets.spec.ts` *"a sentence inserted mid-sentence…"*. That
