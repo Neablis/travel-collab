@@ -112,6 +112,12 @@ add the seeds a trip is missing, owner only. Both are built on the model above:
   `system` page with a template's title, or the page marked `kind: "overview"`. A seed the
   reader renamed is not recognised: it offers no reset, and "add missing" seeds the
   template again beside it.
+- **The rebuild now clears the rows the log knows before replaying them**, then puts back
+  their `createdAt` (and `updatedAt`, unless the log edited them). A seed deleted and then
+  seeded again leaves two `system` pages with one title in the log. Replaying onto the
+  existing rows in place re-inserted the old one over the new one's
+  `pages_system_seed_unique` slot. Rows the log has never heard of are still left alone,
+  as the Consequences below describe.
 
 ### 3. One clock. The settled edit session is the only write
 

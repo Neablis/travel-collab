@@ -11,6 +11,9 @@ import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { executeTripCommand } from "./commands";
 import { readStream } from "./eventStore";
+import { asc, eq } from "drizzle-orm";
+import { pages } from "./db/schema";
+import { rebuildProjections } from "./projections";
 import { db } from "./db/client";
 import { listPages } from "./pages";
 import { grantMembership } from "./access/members";
@@ -72,6 +75,26 @@ describe("addMissingDefaultPages", () => {
     expect(again.ok && again.seq).toBe(null);
     expect((await listPages(tripId)).length).toBe(after.length);
     expect((await readStream(db, tripId)).length).toBe(head);
+  });
+});
+
+// A seed deleted and then seeded again leaves the log holding two `system`
+// pages with one title, at different times. The rebuild replays both, and
+// used to re-insert the old one on top of the new one's row, failing on
+// `pages_system_seed_unique` — for every trip on the instance, since the
+// rebuild reads them all. Found by the full integration run, not this file.
+describe("a projection rebuild after a seed was added back", () => {
+  it("rebuilds the trip's notebooks as they were", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const gone = (await listPages(tripId)).find((p) => p.title === A_SEED)!;
+    await executePageCommand({ type: "DeletePage", tripId, pageId: gone.id }, ownerId);
+    expect((await addMissingDefaultPages(tripId, ownerId)).ok).toBe(true);
+    const live = await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.id));
+
+    await rebuildProjections();
+
+    expect(await db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.id))).toEqual(live);
   });
 });
 
