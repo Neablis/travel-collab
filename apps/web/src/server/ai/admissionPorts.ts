@@ -118,6 +118,7 @@ export const admissionPorts: AdmissionPorts = {
   // and the pipeline derives `grant.simulated` from an INJECTED model's id
   // (a test seam) as well as from a live selection.
   isSimulated: (modelId) => modelId === SIMULATED_MODEL_ID,
-  classify: (model, question, context, signal) => classifyAskIntent(model, question, context, signal),
+  classify: (model, question, context, signal, surface) =>
+    classifyAskIntent(model, question, context, signal, undefined, surface),
   audit: logAiGrant,
 };

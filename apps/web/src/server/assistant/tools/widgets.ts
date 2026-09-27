@@ -57,8 +57,11 @@ export const WIDGET_SHAPE_WORDS: Readonly<Record<WidgetShape, string>> = {
 export const FILTER_VALUE_FORMS: Readonly<Partial<Record<FilterDimension, unknown>>> = {
   day: "a day number, 1-based: 3 is the third day",
   city: "a city name, spelled the way read_trip gives it",
-  tag: ActivityTag.options,
-  kind: ActivityKind.options,
+  // A SENTENCE naming one value, not the vocabulary as an array: an array here
+  // read to a live model as "pass a list", and every widget it inserted on
+  // 2026-09-26 carried `tag: ["meal"]` (KI-2026-09-26-r).
+  tag: `ONE of ${ActivityTag.options.join(", ")} — a single string, never a list`,
+  kind: `ONE of ${ActivityKind.options.join(", ")} — a single string, never a list`,
   dates: { from: "YYYY-MM-DD", through: "YYYY-MM-DD" },
 };
 
@@ -134,6 +137,7 @@ export const searchWidgetsTool = defineTool({
   output: SearchOutput,
   needs: [] as const,
   minimumRole: "viewer",
+  taskClasses: ["compose"] as const,
   run: (input) => {
     const { matches, total } = searchWidgets(
       input.query,
@@ -211,6 +215,7 @@ export const getWidgetTool = defineTool({
   output: DetailOutput,
   needs: ["trip", "notebooks"] as const,
   minimumRole: "viewer",
+  taskClasses: ["compose"] as const,
   run: async ({ id }, deps): Promise<Detail> => {
     const detail = widgetDetail(id);
     if (detail === null) return { error: `No widget has the id "${id}". Use an id search_widgets returned.` };

@@ -1077,8 +1077,32 @@ describe("a page turn's inserts on the wire", () => {
     expect(pages[0]).toEqual({
       type: "page-inserts",
       content: { ...INSERTS.content, v: CURRENT_PAGE_DOC_VERSION },
+      dropped: [],
     });
     expect(events.at(-1)).toBe(pages[0]);
+  });
+
+  // **KI-2026-09-26-s.** A turn the server stops at its deadline has no
+  // `finish` part: what it had drafted rides a `message-metadata` chunk, and
+  // is the turn's outcome exactly as much — with what did not land beside it.
+  it("reads a page turn's inserts off a message-metadata chunk, dropped ones included", async () => {
+    const dropped = [{ name: "stop.rows", reason: "tag takes ONE value" }];
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([
+          '{"type":"start"}',
+          '{"type":"abort"}',
+          `{"type":"message-metadata","messageMetadata":${JSON.stringify({ pageInserts: { ...INSERTS, dropped } })}}`,
+        ]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "page", pageId: UUID }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "page-inserts")).toEqual([
+      { type: "page-inserts", content: { ...INSERTS.content, v: CURRENT_PAGE_DOC_VERSION }, dropped },
+    ]);
+    // The abort part itself is the server saying it stopped the turn.
+    expect(events.filter((e) => e.type === "stopped")).toEqual([{ type: "stopped" }]);
   });
 
   // The server's own refusal reason — a macro whose params its registry schema

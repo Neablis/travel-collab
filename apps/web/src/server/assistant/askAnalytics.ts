@@ -14,8 +14,10 @@
 // what `onStepEnd` observed, and the difference is arithmetic. ADR-022's rule
 // for earning a tool is only enforceable if a tool nobody calls is visible,
 // and "the model probably didn't need it" is not evidence.
+import type { DroppedInsert } from "@tc/contracts";
 import type { AskScope } from "@/server/assistant/context";
 import type { TaskClass } from "@/server/assistant/taskClass";
+import type { AskPivot } from "@/server/assistant/intents";
 import {
   NO_METER,
   type TurnLedger,
@@ -99,15 +101,16 @@ export interface AskIntentRecord {
    * The classifier is asked for THIS and `intent` follows from it, rather than
    * the other way round: `edit` and `plan` are indistinguishable on the effect
    * axis — both propose — and a router that could not tell them apart would
-   * make the whole tier map unreachable. `compose` never appears here, because
-   * a page turn is decided by the surface and is not classified at all.
+   * make the whole tier map unreachable. `compose` appears only on a page
+   * turn: since ADR-058 the page surface is classified too, between the two
+   * intents it allows (`compose` and `question`), and fails open to `compose`.
    *
    * **Uncertainty resolves to `plan`**, the strongest tier, for the same reason
    * rule 1 in `askIntent.ts` resolves it to `write`: a `plan` answered on a
    * cheap model is a quality regression, and the cheap direction is the one
    * that hurts.
    */
-  taskClass: Exclude<TaskClass, "compose">;
+  taskClass: TaskClass;
   /**
    * **How sure the classifier was** (M9 design §1a), and the field that makes
    * its guess rate observable at all.
@@ -296,7 +299,7 @@ export interface AskAnalyticsRecord {
   answered: boolean;
   /** How the turn ended. Count error rates from THIS, not from `finishReason`. */
   outcome: AskOutcome;
-  /** Why it failed, when it did. Null otherwise — an abort is not a failure. */
+  /** Why it failed, when it did — or why the SERVER ended it (the turn deadline). Null on a completed turn and on a user leaving. */
   cause: AskFailureCause | null;
   finishReason: string;
   /** The whole run's token spend. */
@@ -309,6 +312,19 @@ export interface AskAnalyticsRecord {
   usageByStep: AskUsage[];
   /** Real drops only — see `AskDroppedCall`. Empty on a turn with no write tools, or none dropped. */
   droppedCalls: AskDroppedCall[];
+  /**
+   * A page turn's inserts that did not land: widget calls refused and never
+   * corrected, and nodes the final per-node check dropped (KI-2026-09-26-r).
+   * The same list the user is shown. Empty on every other surface.
+   */
+  droppedInserts: DroppedInsert[];
+  /**
+   * Every change of intent this turn made mid-run, in order — `switch_intent`
+   * on a page, `request_change_tools` on the board (ADR-058). A pivot out of a
+   * `sure` verdict is a classifier that was confidently wrong; this is where a
+   * reader counts them.
+   */
+  pivots: AskPivot[];
   latencyMs: number;
 }
 
@@ -439,7 +455,9 @@ function describeFailure(err: unknown): AskFailureCause {
 // which is the direction that matters.
 /** The production sink for one `ai.ask` record: a single structured `console.info` line, plus an error line carrying the cause when the turn failed. */
 export const logAskAnalytics = (record: AskAnalyticsRecord): void => {
-  if (record.outcome === "error") {
+  // An abort with a cause is the server ending the turn (the deadline), and
+  // it is exactly as worth finding at error level as a failure.
+  if (record.outcome === "error" || record.cause !== null) {
     try {
       // Only server-controlled fields plus `cause`, which `describeFailure`
       // has already bounded and stripped — small enough that this line cannot
@@ -556,6 +574,10 @@ export interface AskRecorderParams {
    * closes the gap that mattered — the calls that became events.
    */
   collectedWrites?: () => readonly AskCollectedWrite[];
+  /** A page turn's undelivered inserts, read at write time — see `AskAnalyticsRecord.droppedInserts`. */
+  droppedInserts?: () => readonly DroppedInsert[];
+  /** The turn's pivots, read at write time for the reason `escalation` is. */
+  pivots?: () => readonly AskPivot[];
   /** Injected so a test can read the record instead of the console, and so a clock is never read in a pure path. */
   sink?: AskAnalyticsSink;
   now?: () => number;
@@ -641,9 +663,17 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
     },
     abandon(outcome, cause) {
       // `describeFailure` is total, so this reads no further than the type
-      // says — and `abort` carries no cause because a user leaving is not a
-      // failure and must not read as one to anyone counting error rates.
-      write({ finishReason: outcome }, [], outcome, outcome === "error" ? describeFailure(cause) : null);
+      // says. A user leaving passes no cause, and an abort without one records
+      // null — it is not a failure and must not read as one to anyone counting
+      // error rates. An abort WITH one is the server's own: the turn deadline
+      // (`ASK_HARD_DEADLINE_MS`), which is exactly the event that used to leave
+      // no record at all (KI-2026-09-26-s).
+      write(
+        { finishReason: outcome },
+        [],
+        outcome,
+        outcome === "error" || cause !== undefined ? describeFailure(cause) : null,
+      );
     },
   };
 
@@ -740,6 +770,8 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       },
       usageByStep,
       droppedCalls: [...dropped],
+      droppedInserts: [...(params.droppedInserts?.() ?? [])],
+      pivots: [...(params.pivots?.() ?? [])],
       latencyMs: now() - startedAt,
     }, ledger);
   }
@@ -749,8 +781,9 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
    *
    * `classifier` is non-null if and only if a classification round-trip was
    * actually MADE. A bare affirmation ("Yes go ahead") short-circuits the
-   * classifier and spends nothing, and a page turn is not classified at all;
-   * neither has a round-trip to bill, and neither gets an entry. That is what
+   * classifier and spends nothing, and a viewer's turn is not classified at
+   * all; neither has a round-trip to bill, and neither gets an entry. (A page
+   * turn IS classified since ADR-058, and is billed for it like the board.) That is what
    * makes `billableRoundTrips` structural instead of the hand-added `+ 1` this
    * replaces — a term a later edit could drop, which would under-meter every
    * classified turn by exactly one.

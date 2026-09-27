@@ -18,3 +18,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   const { tripId } = await params;
   return handleAskRequest(request, tripId);
 }
+
+// **The wall a turn is measured against, said out loud** (KI-2026-09-26-s).
+// It was the platform's default until 2026-09-26, when a notebook turn ran into
+// it and nothing — no record, no draft — survived. A literal because Next.js
+// reads it statically; `ASK_MAX_DURATION_SECONDS` is the same number for code to
+// derive the turn's two deadlines from, and `askDeadline.test.ts` asserts they agree.
+export const maxDuration = 300;

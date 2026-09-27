@@ -111,10 +111,10 @@ export const SURFACES = {
   // the absence of a tool.
   //
   // **No `system` row either, and that one is moot rather than decided.** A
-  // page turn is never classified (`classifyTask` skips it, the surface decides
-  // the class), so its classifier cap is `propose` and its posture is
-  // `propose` — never `withheld`, which is the only posture the one system tool
-  // is offered in. The row is left out because a grant nothing can reach is
+  // page turn's classifier picks a profile and never an effect (ADR-058), so
+  // its classifier cap is `propose` and its posture is `propose` — never
+  // `withheld`, which is the only posture the one system tool is offered in.
+  // The page's own pivot, `switch_intent`, is in the `pages` domain. The row is left out because a grant nothing can reach is
   // noise, not because a page turn was judged unfit to escalate.
   page: [
     { domain: "itinerary", max: "read" },

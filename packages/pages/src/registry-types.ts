@@ -569,12 +569,6 @@ export interface MacroDef<P, T> {
   // fetches an input only when one of its widgets names it here, so absent is
   // the answer for every widget that reads only the trip.
   needs?: readonly ExternalNeed[];
-  // `false` keeps the widget out of the assistant's vocabulary
-  // (`COMPOSABLE_MACRO_NAMES`, and the catalogue its prompt carries). Only the
-  // two link widgets said so (ADR-056) until ADR-057 guarded them in the
-  // assistant's `insert_widget` instead; no widget says so today. Absent means
-  // composable.
-  composable?: false;
   description: string;             // human- AND machine-readable (AI + autocomplete)
   emptyText: string;               // declarative empty-state copy
   // The insert sidebar's sample. **A fixed string, never a computed value**

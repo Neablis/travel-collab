@@ -204,7 +204,9 @@ describe("the admission pipeline's ORDER", () => {
     });
 
     expect(admission.ok).toBe(true);
-    expect(calls).toEqual(["identifyActor", "loadPage", "selectModel", "admitQuota"]);
+    // `classify` last, and on a PAGE turn too since ADR-058: the page surface
+    // chooses between its two intents before the turn starts.
+    expect(calls).toEqual(["identifyActor", "loadPage", "selectModel", "admitQuota", "classify"]);
   });
 });
 
@@ -474,7 +476,7 @@ describe("the grant a turn holds", () => {
   // A page turn reads the trip and writes the page: `itinerary` capped at
   // `read`, `pages` at `propose`, and the two halves therefore disjoint.
   it("grants a page turn the page tools and no planning write tool", async () => {
-    const { ports, calls } = spyPorts();
+    const { ports } = spyPorts();
     const admission = await evaluateAiGrant({
       request: askFor({ ...TRIP_TURN, scope: { kind: "page", pageId: PAGE_ID } }),
       tripId: TRIP_ID,
@@ -487,9 +489,6 @@ describe("the grant a turn holds", () => {
     expect(names).toContain("insert_widget");
     expect(names).not.toContain("RemoveActivity");
     expect(admission.grant.page?.id).toBe(PAGE_ID);
-    // Its tool set comes from a scope the server verified, so classifying it
-    // would be spend with nothing to buy.
-    expect(calls).not.toContain("classify");
   });
 
   it("refuses a viewer's page turn without reaching a model", async () => {
@@ -532,20 +531,66 @@ describe("the grant a turn holds", () => {
 // ---------------------------------------------------------------------------
 
 describe("what a turn is for, and which slot answers it", () => {
-  // The surface decides, and it decides BEFORE the classifier is consulted —
-  // which is why a page turn is never classified and never pays for one.
-  it("calls a page turn compose without asking a model", async () => {
-    const { ports, calls, records } = spyPorts();
-    await evaluateAiGrant({
-      request: askFor({ ...TRIP_TURN, scope: { kind: "page", pageId: PAGE_ID } }),
-      tripId: TRIP_ID,
-      ports,
+  // **ADR-058: the surface picks the choices, the classifier picks among
+  // them.** A page turn used to be `compose` by construction; it is now
+  // classified between the page's two intents, and each gets its own set.
+  describe("a page turn's intent", () => {
+    const pageTurn = (verdict: "compose" | "question", certainty: "sure" | "unsure" = "sure") => {
+      const surfaces: unknown[] = [];
+      const spied = spyPorts({
+        classify: async (_model, _question, _context, _signal, surface) => {
+          surfaces.push(surface);
+          return {
+            ...CLASSIFIED_AS_WRITE,
+            taskClass: verdict,
+            intent: verdict === "question" ? ("question" as const) : ("write" as const),
+            certainty,
+          };
+        },
+      });
+      return { ...spied, surfaces };
+    };
+    const admit = (ports: AdmissionPorts) =>
+      evaluateAiGrant({ request: askFor({ ...TRIP_TURN, scope: { kind: "page", pageId: PAGE_ID } }), tripId: TRIP_ID, ports });
+
+    it("asks the PAGE classifier, and a compose verdict holds the widget tools and no day read", async () => {
+      const { ports, records, surfaces } = pageTurn("compose");
+      const admission = await admit(ports);
+
+      expect(surfaces).toEqual(["page"]);
+      expect(records[0]!.taskClass).toBe("compose");
+      expect(records[0]!.tier).toBe("mid");
+      if (!admission.ok) throw new Error("refused");
+      const names = admission.grant.tools.map((tool) => tool.name);
+      expect(names).toEqual(expect.arrayContaining(["read_trip", "search_widgets", "insert_widget", "switch_intent"]));
+      expect(names).not.toContain("read_day");
+      expect(names).not.toContain("find_free_time");
+      expect(names).not.toContain("search_playbooks");
     });
 
-    expect(records[0]!.taskClass).toBe("compose");
-    expect(records[0]!.tier).toBe("mid");
-    expect(records[0]!.model).toBe("test/model-mid");
-    expect(calls).not.toContain("classify");
+    it("gives a question verdict the day reads and no insert tool, on the cheap slot", async () => {
+      const { ports, records } = pageTurn("question");
+      const admission = await admit(ports);
+
+      expect(records[0]!.taskClass).toBe("question");
+      expect(records[0]!.tier).toBe("cheap");
+      if (!admission.ok) throw new Error("refused");
+      const names = admission.grant.tools.map((tool) => tool.name);
+      expect(names).toEqual(expect.arrayContaining(["read_trip", "read_day", "find_free_time", "switch_intent"]));
+      expect(names).not.toContain("insert_widget");
+      expect(names).not.toContain("insert_text");
+      // The page's grant is untouched by the verdict — a question narrows by
+      // CLASS, so pivoting back to compose is inside what was admitted.
+      expect(admission.grant.grants.pages).toBe("propose");
+      expect(admission.grant.intents?.reachable).toEqual(["compose", "question"]);
+    });
+
+    it("still narrows on an unsure verdict, because the turn can pivot out of it", async () => {
+      const { ports } = pageTurn("compose", "unsure");
+      const admission = await admit(ports);
+      if (!admission.ok) throw new Error("refused");
+      expect(admission.grant.tools.map((tool) => tool.name)).not.toContain("read_day");
+    });
   });
 
   // The classifier's verdict, all the way through to a model id. `plan` is the
@@ -567,10 +612,18 @@ describe("what a turn is for, and which slot answers it", () => {
   it("decides the unclassified cases structurally", () => {
     expect(taskClassFor(true, null)).toBe("compose");
     expect(taskClassFor(false, null)).toBe("question");
-    // A page turn is compose even if something did classify it: the surface's
-    // answer is the verified one, and the sentence's is not.
+    // A board verdict on a page is not one of the page's intents: the page's
+    // default answers it.
     expect(taskClassFor(true, CLASSIFIED_AS_WRITE)).toBe("compose");
     expect(taskClassFor(false, CLASSIFIED_AS_WRITE)).toBe("edit");
+  });
+
+  // #252's review, N3: a page turn never STARTS in an intent its grant cannot
+  // reach — it would hold none of that intent's tools.
+  it("starts a page turn in the first reachable intent when the verdict is not reachable", () => {
+    const composeVerdict = { ...CLASSIFIED_AS_WRITE, taskClass: "compose" as const };
+    expect(taskClassFor(true, composeVerdict, ["question"])).toBe("question");
+    expect(taskClassFor(true, composeVerdict, ["compose", "question"])).toBe("compose");
   });
 });
 

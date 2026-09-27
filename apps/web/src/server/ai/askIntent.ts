@@ -81,15 +81,25 @@ export type AskIntent = AskIntentRecord["intent"];
 /**
  * **What the classifier is actually asked for, since P5** (spec §5).
  *
- * `compose` is absent by construction: a page turn is decided by the surface
- * and never reaches this module at all, so asking a model to produce the value
- * would be asking it to guess something the server already knows.
+ * These are the BOARD's classes. `compose` is absent because it is not a board
+ * intent; the page surface has its own variant (`ClassifierSurface`,
+ * `PAGE_INTENT_INSTRUCTION`), which chooses between `compose` and `question`.
  *
  * `intent` is derived from this (`intentOf` below) rather than asked for
  * separately — one verdict, two axes. The effect axis is what gates tools; the
  * task class is what picks a tier.
  */
 export type AskTaskClass = Exclude<TaskClass, "compose">;
+
+/**
+ * Which set of intents the classifier chooses between (ADR-058). The board —
+ * the trip and day surfaces — chooses between `question`, `edit` and `plan`, as
+ * it always has. A notebook page chooses between `compose` and `question`: it
+ * used to be `compose` by construction and never classified, which is how
+ * *"how much are we spending on food?"* asked beside a notebook got a turn
+ * holding insert tools and no way to read a day.
+ */
+export type ClassifierSurface = "board" | "page";
 
 /**
  * **How sure the classifier is — the widened band** (M9 design §1a).
@@ -159,7 +169,30 @@ export const ASK_INTENT_INSTRUCTION = [
 
 /** True for the classification instruction above. Read by `simulatedModel`. */
 export function isAskIntentCall(instructions: string): boolean {
-  return instructions.includes(ASK_INTENT_MARKER);
+  return instructions.includes(ASK_INTENT_MARKER) || instructions.includes(PAGE_INTENT_MARKER);
+}
+
+// The page classifier's marker — the same trick as `ASK_INTENT_MARKER`, so the
+// simulated model can tell which of the two questions it is being asked.
+const PAGE_INTENT_MARKER = "Set intent to compose or question.";
+
+/**
+ * The page surface's classification instruction (ADR-058). Short for the same
+ * reason the board's is, and biased the same way: when in doubt, the intent
+ * the surface is for — and the turn can still `switch_intent` if it was wrong.
+ */
+export const PAGE_INTENT_INSTRUCTION = [
+  "You classify the LAST message sent to the assistant on one page of a trip's Notebook. You do not answer it.",
+  "Earlier messages are context only. A short reply like \"yes\" means whatever was just offered, so classify what it agrees to.",
+  'Use "compose" if it asks to build, add to, write or change something on the page — a notebook about a topic, a section, a widget, some text.',
+  'Use "question" if it asks something about the trip and wants the answer in the chat, not on the page.',
+  'Still pick the closest one when it is ambiguous, and set certainty to "unsure" — otherwise "sure".',
+  PAGE_INTENT_MARKER,
+].join("\n");
+
+/** True for the PAGE classification instruction specifically. Read by `simulatedModel`. */
+export function isPageIntentCall(instructions: string): boolean {
+  return instructions.includes(PAGE_INTENT_MARKER);
 }
 
 /**
@@ -192,6 +225,20 @@ const IntentVerdict = z.object({
   certainty: z.enum(["sure", "unsure"]),
 });
 
+const PAGE_INTENT_CHOICES: TaskClass[] = ["compose", "question"];
+
+const PageIntentVerdict = z.object({
+  intent: z.enum(PAGE_INTENT_CHOICES as [TaskClass, ...TaskClass[]]),
+  certainty: z.enum(["sure", "unsure"]),
+});
+
+const PAGE_INTENT_OUTPUT = Output.object({
+  schema: PageIntentVerdict,
+  name: "verdict",
+  description:
+    "Whether the last message asks to build or change something on the notebook page (compose) or asks a question about the trip to be answered in the chat (question) — and whether that reading is clear (sure) or could reasonably be the other (unsure).",
+});
+
 const INTENT_OUTPUT = Output.object({
   schema: IntentVerdict,
   name: "verdict",
@@ -208,7 +255,7 @@ const INTENT_OUTPUT = Output.object({
  * when `certainty` arrived and the simulated model needed no edit to keep
  * PARSING, which is the whole value of the rule.
  */
-export function askIntentVerdictText(taskClass: AskTaskClass, certainty: AskCertainty = "sure"): string {
+export function askIntentVerdictText(taskClass: TaskClass, certainty: AskCertainty = "sure"): string {
   return JSON.stringify({ intent: taskClass, certainty });
 }
 
@@ -221,7 +268,7 @@ export function askIntentVerdictText(taskClass: AskTaskClass, certainty: AskCert
  * verdict buys is upstream of the gate — which tier answers — and nothing
  * downstream of this function can tell the two classifiers apart.
  */
-export function intentOf(taskClass: AskTaskClass, certainty: AskCertainty = "sure"): AskIntent {
+export function intentOf(taskClass: TaskClass, certainty: AskCertainty = "sure"): AskIntent {
   // **An unsure question does not withhold** (design §1a). Rule 1's bias, said
   // on the axis it is actually about: a change request wrongly denied write
   // tools cannot act at all, and "probably a question" is not a good enough
@@ -382,6 +429,18 @@ function truncate(text: string, max: number): string {
 }
 
 /**
+ * Each surface's classifier, as data: what it is told, what it may answer, and
+ * what every uncertainty resolves to. The board's fails open to `plan` (rule 1,
+ * above). The page's fails open to `compose` — the intent the surface is FOR —
+ * rather than to the widest set: a page turn can pivot (`switch_intent`), so a
+ * wrong guess costs a step, never a dead end.
+ */
+const VARIANTS = {
+  board: { instruction: ASK_INTENT_INSTRUCTION, output: INTENT_OUTPUT, failOpen: FAIL_OPEN_TASK_CLASS as TaskClass },
+  page: { instruction: PAGE_INTENT_INSTRUCTION, output: PAGE_INTENT_OUTPUT, failOpen: "compose" as TaskClass },
+} as const;
+
+/**
  * Classify one turn. Never throws; never widens what the caller may offer.
  *
  * @param model  The classifier model `selectAiModel()` chose for this turn
@@ -401,8 +460,11 @@ export async function classifyAskIntent(
   context: readonly AskIntentContextMessage[] = [],
   signal?: AbortSignal,
   now: () => number = Date.now,
+  surface: ClassifierSurface = "board",
 ): Promise<AskIntentRecord> {
   const startedAt = now();
+  const variant = VARIANTS[surface];
+  const failOpen = variant.failOpen;
 
   // The rule runs FIRST, and skips the call entirely — it is both safer than
   // the model (it cannot answer "question" to "Yes go ahead") and cheaper
@@ -414,7 +476,7 @@ export async function classifyAskIntent(
       // this rule is deliberately not a parser. It spends nothing either way —
       // no round-trip is made — so the only cost of resolving upward here is
       // the tier the turn itself runs on.
-      taskClass: FAIL_OPEN_TASK_CLASS,
+      taskClass: failOpen,
       // **`unsure`, and it is the truest use of the field in this module.**
       // This rule's own comment says so: "Yes go ahead" can be agreeing to a
       // single stop or to a six-day itinerary, and the rule is deliberately not
@@ -423,7 +485,7 @@ export async function classifyAskIntent(
       // `grantTools` has to special-case `source: "affirmation"` beside
       // `failedOpen` to avoid narrowing on it. The flag now says it directly.
       certainty: FAIL_OPEN_CERTAINTY,
-      intent: intentOf(FAIL_OPEN_TASK_CLASS, FAIL_OPEN_CERTAINTY),
+      intent: intentOf(failOpen, FAIL_OPEN_CERTAINTY),
       source: "affirmation",
       model: null,
       verdict: "bare agreement — no model call",
@@ -453,14 +515,14 @@ export async function classifyAskIntent(
   try {
     const result = await generateText({
       model,
-      system: ASK_INTENT_INSTRUCTION,
+      system: variant.instruction,
       prompt,
       // No `tools` key at all, which is the entire point: an empty tool set is
       // not the same message as no tool set, and the ~4,200 tokens this is
       // here to avoid are the schemas. Adding context did not change that —
       // the context is prose, and prose is cheap. The output schema is tens of
       // tokens, not thousands.
-      output: INTENT_OUTPUT,
+      output: variant.output,
       maxOutputTokens: MAX_VERDICT_TOKENS,
       abortSignal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       // Names this call in Sentry's AI Agents view (ADR-032). It matters more
@@ -496,9 +558,9 @@ export async function classifyAskIntent(
     };
   } catch (err) {
     return {
-      taskClass: FAIL_OPEN_TASK_CLASS,
+      taskClass: failOpen,
       certainty: FAIL_OPEN_CERTAINTY,
-      intent: intentOf(FAIL_OPEN_TASK_CLASS, FAIL_OPEN_CERTAINTY),
+      intent: intentOf(failOpen, FAIL_OPEN_CERTAINTY),
       source: "model",
       model: modelIdOf(model),
       verdict: failureVerdict(err, emitted),
