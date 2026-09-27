@@ -574,7 +574,8 @@ test.describe("a table's column names on a phone", () => {
     });
     expect(added.ok()).toBe(true);
     // The report's columns: Place, Notes and Cost on top of the widget's own
-    // Stop, Time and Cost — six, two of them called "Cost".
+    // Stop, Time and Cost. The chosen Cost is one the line already shows, so
+    // it drops out (Mitchell, 2026-09-27: "no duplicates") — five columns.
     const created = await page.request
       .post(`/api/trips/${tripId}/pages`, {
         data: {
@@ -620,12 +621,12 @@ async function expectEveryValueNamed(page: import("@playwright/test").Page, mode
   await expect(table.getByRole("row")).toHaveCount(4);
   // Still a table to a screen reader: the heading row left the screen, not
   // the accessibility tree.
-  await expect(table.getByRole("columnheader")).toHaveText(["Stop", "Time", "Cost", "Place", "Notes", "Cost"]);
+  await expect(table.getByRole("columnheader")).toHaveText(["Stop", "Time", "Cost", "Place", "Notes"]);
 
   const measured = await tableOnAPhone(table);
   expect(measured.overflow, `${mode}: the table scrolls sideways`).toBeLessThanOrEqual(0);
-  // Three stops × Time, Cost, Place and Cost, and the one note.
-  expect(measured.cells, `${mode}: cells holding a value`).toHaveLength(13);
+  // Three stops × Time, Cost and Place, and the one note.
+  expect(measured.cells, `${mode}: cells holding a value`).toHaveLength(10);
   for (const cell of measured.cells) {
     expect(cell.label, `${mode}: a value in the ${cell.column} column`).toBe(cell.column);
     expect(cell.labelShown, `${mode}: ${cell.column} is named on screen`).toBe(true);
