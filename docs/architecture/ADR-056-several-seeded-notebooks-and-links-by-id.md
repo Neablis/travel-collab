@@ -76,6 +76,12 @@ which the templates, their tests and three e2e walks all pinned.
    invitee having a look, whom the board already withholds the Notebooks menu from. Tab
    and day links stay on the board's own path (`/demo`, the invite look), so they work
    for both. In Editing no card navigates — a click selects the widget.
+   **Amended 2026-09-27, on Mitchell's report** (*"'Also in this trip' - This section
+   doesnt work at all, i cant click them … and still be in the read-only demo"*): every
+   reader may follow every card. `NotebookIndex.openable` is gone; a board mounted off
+   `/trips` (`/demo`, the invite look) sends a notebook card to its own path as
+   `?view=Overview&page=<id>`, and the Overview tab reads that notebook read-only in the
+   Overview's place (`linkHref`, `OverviewLens`). Picking a tab leaves it.
 
 ## Consequences
 

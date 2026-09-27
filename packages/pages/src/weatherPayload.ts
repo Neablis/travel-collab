@@ -32,6 +32,7 @@ export interface WeatherRow {
   modeText: string;
   /** Today only: the first hour still to come. */
   now: string | null;
+  /** "18°C", or "64°F" for an account in miles — the scale always printed (ADR-052, reviewed 2026-09-27). */
   high: string | null;
   low: string | null;
   /**

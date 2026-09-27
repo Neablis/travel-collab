@@ -13,9 +13,8 @@ import { selectionTrip } from "../../test-support/selectionTrip";
 const MONEY = "0f0f0f0f-0000-4000-8000-000000000001";
 const GONE = "0f0f0f0f-0000-4000-8000-000000000002";
 
-const list = (openable = true): NotebookIndex => ({
+const list = (): NotebookIndex => ({
   pages: [{ id: MONEY, title: "Money", firstLine: "What the trip costs, day by day.", widgetCount: 2 }],
-  openable,
 });
 
 function ctx(notebooks?: Slot<NotebookIndex>): WidgetContext {
@@ -46,12 +45,11 @@ describe("link.internal", () => {
       eyebrow: "Notebook",
       title: "Money",
       summary: "What the trip costs, day by day.",
-      openable: true,
     });
   });
 
   it("counts widgets when a notebook opens on no words", () => {
-    const value = { pages: [{ id: MONEY, title: "Money", firstLine: null, widgetCount: 2 }], openable: true };
+    const value = { pages: [{ id: MONEY, title: "Money", firstLine: null, widgetCount: 2 }] };
     expect(card(ctx({ state: "ready", value }), { to: { kind: "notebook", pageId: MONEY } }).summary).toBe("2 widgets, no words yet");
   });
 
@@ -70,12 +68,6 @@ describe("link.internal", () => {
     expect(renderMacro(ctx({ state: "failed" }), "link.internal", to)).toEqual({ status: "unavailable", reason: "source" });
   });
 
-  // The demo's visitor and an invitee having a look cannot open a notebook
-  // route, so the card they get names it without the way in.
-  it("carries the reader's openability through to the card", () => {
-    expect(card(ctx({ state: "ready", value: list(false) }), { to: { kind: "notebook", pageId: MONEY } }).openable).toBe(false);
-  });
-
   it("previews a day from the trip — its cities and how full it is — and a removed day as removed", () => {
     const c = ctx();
     const dayId = c.trip!.days[1]!.dayId;
@@ -83,7 +75,6 @@ describe("link.internal", () => {
       eyebrow: "Day 2 · Jun 2",
       title: "Rome – Kyoto",
       summary: "2 stops",
-      openable: true,
     });
     expect(renderMacro(c, "link.internal", { to: { kind: "day", day: { kind: "dayId", dayId: GONE } } })).toMatchObject({
       status: "unbound",

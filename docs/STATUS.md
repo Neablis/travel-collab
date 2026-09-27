@@ -55,31 +55,18 @@ M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
 `KI-2026-09-25-q` (surfaces that read a stop's city directly, first a shared
 helper and then a start-vs-end decision per surface).
 
-## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 17 of 22, the rest is Mitchell's
+## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 20 of 22
 
-Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped the
-same day as four stacked PRs: #222 → #223 → #226 → #221. **The gate is not
-closed.** Re-checked against `33305d5` on 2026-09-27. Every open box still needs
-a person, not code:
+Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped as four
+stacked PRs: #222 → #223 → #226 → #221. **The gate is not closed.** On
+2026-09-27 Mitchell settled the insert Sheet box (a fixed sample preview, as
+ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. What is left:
 
-1. **The insert Sheet box.** `WidgetPicker.tsx` has search, the shape tags and
-   the *what it takes* line. The box asks each row for a *real resolved
-   preview*, and ADR-037 says a preview is a fixed sample. Mitchell either
-   rewords the box or overrules the ADR. The box's wording is also behind the
-   code: *Point it at* is now *Narrow it by* (`WidgetPicker.tsx:197`, ADR-039
-   decision 2).
-2. **ADR-052 acceptance.** Its status line still says *pending his review*; the
-   2026-09-26 note accepts one point, not the ADR. The code is on `main`, so the
-   box's *before any code lands* clause needs rewording.
-3. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
-   what); left open on KI-2026-09-27-b, NASA "averages" that look like extremes.
-4. **The six link-11 widgets walked against a real trip.** All six are
-   registered, with unit tests, and since 2026-09-27 e2e that asserts each
-   resolves to the trip's own values (`m14-notebook-widgets.spec.ts`). What is
-   left is a person on a real trip.
-5. **The milestone retro, appended at gate close.**
-   `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro;
-   the milestone's own retro is still owed.
+1. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
+   what). KI-2026-09-27-b (NASA extremes read as averages) is fixed; walk step 3
+   again.
+2. **The milestone retro, appended at gate close.**
+   `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro.
 
 **Operator items: both done** (verified 2026-09-27, three days after this file
 last called them outstanding). Production has `0000`-`0031` (runs #29/#30), and

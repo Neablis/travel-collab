@@ -9,8 +9,10 @@ import { isCalendarDate } from "./trip.ts";
 //
 // The route derives the points from the trip itself and the client sends only
 // the trip id, so nothing in here was chosen by the reader. It does NOT choose a
-// mode (forecast / today / typical): that depends on the reader's calendar day,
-// which only the client knows, and the resolver picks it from `ctx.today`.
+// mode (forecast / today / typical) — the resolver does — but it does say what
+// today's date IS at each point (`placeToday`), because "today" is the place's
+// date, not the reader's (Mitchell, 2026-09-27, KI-2026-09-27-c), and only the
+// server knows the place's zone.
 
 const IsoDate = z
   .string()
@@ -80,6 +82,15 @@ export const TripWeatherPoint = z.object({
   city: z.string().nullable(),
   forecast: z.union([ForecastDay, z.object({ unavailable: z.enum(["source", "not-in-horizon"]) })]),
   typical: z.union([TypicalMonth, z.object({ unavailable: z.literal("source") })]),
+  /**
+   * The calendar date at this point's place when the server answered — read in
+   * the zone its days were cut in, at the same instant its "now" hour was cut
+   * at. The row dated this is the block's "Today" (KI-2026-09-27-c: *"Location
+   * that a trip should be in in that day, not the readers current location"*).
+   * Optional so a client reads an answer from a server deployed before it; the
+   * resolver then falls back to the reader's date.
+   */
+  placeToday: IsoDate.optional(),
 });
 export type TripWeatherPoint = z.infer<typeof TripWeatherPoint>;
 

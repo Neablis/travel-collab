@@ -1,11 +1,11 @@
 # ADR-052: External data enters a widget as a server-fetched input, never as a fetch
 
-**Status:** **Accepted — 2026-09-24, on Mitchell's delegation** (*"go with your own best
-judgement … I'll review in the morning"*); **pending his review.** Every choice below is
-made rather than left open, each with its reason and the alternative it beat. The ones
-most worth a second look are listed at the end under *Review points for Mitchell*. M14's
-gate box *"the external-data ADR is accepted before any external-data code lands"* stays
-unticked until that review.
+**Status:** **Accepted — 2026-09-24 on Mitchell's delegation** (*"go with your own best
+judgement … I'll review in the morning"*), **and reviewed and accepted by Mitchell on
+2026-09-27.** The *Review points for Mitchell* at the end were put to him in plain words;
+he accepted them as built. On the units amendment he chose one visible setting (see its
+2026-09-27 note): *"A sounds good, i didnt realize that was happening"*. Every choice below
+is made rather than left open, each with its reason and the alternative it beat.
 **Deciders:** Mitchell (product/eng); Claude — drafted
 Related: **ADR-007** (the `Geocoder` seam this copies), **ADR-037** (a widget is a module;
 decision 5 fixed previews, decision 6 every state renders), **ADR-044** (a widget edits
@@ -48,7 +48,7 @@ quiet placeholder and ghosts are Editing-only (M14, *Decided 2026-09-24* item 2)
 | Source | Used for | Terms | State |
 |---|---|---|---|
 | MET Norway Locationforecast 2.0, `GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=…&lon=…` (`compact` until the implementation notes below) | forecast, on the day | Free incl. commercial, NLOD 2.0 / CC BY 4.0, credit *"The Norwegian Meteorological Institute"*; an identifying `User-Agent` with contact; honour `Expires` / `Last-Modified` (conditional `If-Modified-Since`); at most 4 decimals; contact them before 20 req/s | **verified** 2026-09-24 ([licence](https://api.met.no/doc/License), [terms](https://api.met.no/doc/TermsOfService)) |
-| NASA POWER Climatology API, `GET https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M_MAX,T2M_MIN,PRECTOTCORR&community=AG&latitude=…&longitude=…&format=JSON` | typical, after the trip | Keyless. NASA open data: use for any purpose, commercial included. NASA **requests** the acknowledgement *"data obtained from the NASA Langley Research Center POWER Project…"* and asks to be told of uses (larc-power-project@mail.nasa.gov). The API throttles "repetitive and rapid requests" with no published number | **partly verified**: the acknowledgement wording and the parameter names are confirmed by web search (the POWER docs pages and the `nasapower` R client). The open-data licence comes from secondary sources. **To verify, by reading the POWER docs directly:** the exact endpoint path, the averaging period (believed 2001–2020 for meteorology, 1984-onward for solar), and whether a rate figure is published. This container cannot reach `power.larc.nasa.gov` |
+| NASA POWER Climatology API, `GET https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M,T2M_RANGE,PRECTOTCORR&community=AG&latitude=…&longitude=…&format=JSON` | typical, after the trip | Keyless. NASA open data: use for any purpose, commercial included. NASA **requests** the acknowledgement *"data obtained from the NASA Langley Research Center POWER Project…"* and asks to be told of uses (larc-power-project@mail.nasa.gov). The API throttles "repetitive and rapid requests" with no published number | **partly verified**: the acknowledgement wording and the parameter names are confirmed by web search (the POWER docs pages and the `nasapower` R client). The open-data licence comes from secondary sources. **To verify, by reading the POWER docs directly:** the exact endpoint path, the averaging period (believed 2001–2020 for meteorology, 1984-onward for solar), and whether a rate figure is published. This container cannot reach `power.larc.nasa.gov` |
 
 **If NASA POWER fails verification** (commercial terms, or the endpoint does not give
 monthly normals for a point), the fallback is **Open-Meteo's paid plan** for "typical" only,
@@ -170,6 +170,10 @@ one a unit test can pin. For each point:
 | equal | **today** — now and the rest of the day | MET |
 | before | **typical**, labelled *"typical for November — not what it was"* (Mitchell, 2026-09-24) | normals |
 | `today` is `null` | `unavailable("pending")` — the mode cannot be chosen yet | — |
+
+> **Amended 2026-09-27 (KI-2026-09-27-c): `today` here is the PLACE's date, not the reader's.**
+> Each point carries `placeToday`, which the route reads in the place's zone at the instant it
+> cut today's hours; the resolver compares against that. See the amendment at the end.
 
 The horizon is **read from the data** (the last local day the series fully covers), not a
 constant, so it tracks MET's model rather than a guess. Inside the horizon, if the forecast is
@@ -354,6 +358,14 @@ older as-of, which is what makes serving it honest.
      (falling back to the years in `header.range`, then to 2001–2020);
    - AG's units for these three are °C and mm/day;
    - whether a request-rate figure is published.
+   **Answered 2026-09-27 (KI-2026-09-27-b), from real responses Mitchell fetched for
+   Kyoto:** the path, the body shape, the -999 fill value and °C for AG are as believed.
+   The period is carried **only** in `header.range` (January 2001 - December 2020); there is
+   no `start` / `end`. And one belief was wrong: **`T2M_MAX` / `T2M_MIN` are each month's
+   extremes, not a typical day** (their `ANN` is the max / min of the months). The
+   adapter now asks for `T2M,T2M_RANGE,PRECTOTCORR` and reads a typical day as `T2M` ±
+   `T2M_RANGE` / 2. The cache key moved to `power:normals2`, so the month-long cached
+   extremes are not served. Still unread: a published rate figure.
    A first real call on a preview settles all four: the route logs a warning naming the key
    when a call fails, and a body of a different shape is refused rather than mis-read.
    The walk that does it, with MET's `complete` field names from the section below, is
@@ -439,3 +451,37 @@ imperial."* The account has one unit setting, `distanceUnit: "km" | "mi"`
   locale (a notebook would print differently for two readers of the same account).
   If Mitchell wants °C with miles, the derivation becomes a setting, and this is the one
   function that reads it.
+
+**Reviewed 2026-09-27 — Mitchell keeps the derivation and makes it visible.** He had not
+realised temperature followed the *Distance* setting: the control said "How walks and hops
+between stops are measured", and the block printed a bare `°`. Of (a) relabelling the
+one setting as **Units: Metric (km, °C, mm) / Imperial (mi, °F, in)** and printing the
+scale on the block, or (b) a separate temperature setting, he chose **(a)**. The stored
+field stays `distanceUnit: "km" | "mi"`, so there is no contract change.
+
+**Built in 6a13676:** `ProfileSection.tsx`'s row reads **Units — Metric / Imperial**, with
+the km, °C, mm / mi, °F, in detail in its description (the full parentheticals are ~40
+characters in a pill that cannot wrap on a phone), and `weather.ts` prints `°C` / `°F`.
+
+## Amendment — 2026-09-27: "today" is the place's date, not the reader's (KI-2026-09-27-c)
+
+**Mitchell's decision, verbatim:** *"Location that a trip should be in in that day, not the
+readers current location"*. Decision 3 chose the mode from `ctx.today`, the reader's browser
+date, so a reader in UTC at 16:03 on the 27th saw Kyoto's 28th — already 01:03 there — as
+"Forecast" with no Now column, and a reader in Tokyo saw Honolulu's 27th as "Past day".
+
+- **The server says what today is at each point.** `TripWeatherPoint.placeToday` is the
+  calendar date in the point's zone (the one its days are cut in, from the unrounded stop) at
+  the same instant `forecastDayOf` dropped the hours already gone — so the row called "Today"
+  is the one whose first hour is "now". The route already knew the zone; the resolver did not.
+- **The resolver compares each point with its own `placeToday`**, and waits for `ctx.today`
+  only for a point that does not carry one (an answer from a server deployed before the field,
+  which is why it is optional). The mode table above is otherwise unchanged.
+- **Unchanged on purpose:** the forecast's "updated" as-of stays in the reader's zone
+  (decision 7), and every other reader of `useToday()` — the Plan's day markers, the
+  countdown — stays on the reader's date. The decision is about the weather block only.
+- **Rejected:** an instant in `WidgetContext` plus a zone per point, so the client computes the
+  place's date. It would keep "today" live in a tab left open past midnight, but "now" is
+  already the server's hour at fetch time (the as-of says how old), and it would add a clock to
+  every widget's context — the Invariant 4 decision `time.ts` defers.
+

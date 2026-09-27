@@ -5,7 +5,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { ExternalNeed } from "@tc/pages";
 import { clearQueryCache } from "@/lib/queryCache";
 import { useExternalInputs } from "./useExternalInputs";
-import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
 const TRIP = "11111111-1111-1111-1111-111111111111";
 const WEATHER = new Set<ExternalNeed>(["weather"]);
@@ -95,7 +94,7 @@ describe("useExternalInputs — notebooks (ADR-056)", () => {
       }),
     );
 
-  it("hands over each notebook with what it says, openable for a member", async () => {
+  it("hands over each notebook with what it says", async () => {
     server.use(listFor(TRIP));
     const { result } = renderHook(() => useExternalInputs(TRIP, NOTEBOOKS));
     await waitFor(() =>
@@ -103,18 +102,8 @@ describe("useExternalInputs — notebooks (ADR-056)", () => {
         state: "ready",
         value: {
           pages: [{ id: "44444444-4444-4444-8444-444444444444", title: "Money", firstLine: "What it costs.", widgetCount: 2 }],
-          openable: true,
         },
       }),
     );
-  });
-
-  // The demo's visitor cannot open a notebook route, so the cards say what a
-  // notebook is without linking into it. Seen red with `openable: true` fixed.
-  it("marks the demo's notebooks as not openable", async () => {
-    server.use(listFor(DEMO_TRIP_ID));
-    const { result } = renderHook(() => useExternalInputs(DEMO_TRIP_ID, NOTEBOOKS));
-    await waitFor(() => expect(result.current.notebooks?.state).toBe("ready"));
-    expect(result.current.notebooks?.state === "ready" && result.current.notebooks.value.openable).toBe(false);
   });
 });

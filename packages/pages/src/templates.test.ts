@@ -232,7 +232,7 @@ describe("templates", () => {
     const seeded = instantiateDefaults(bare.tripId, () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`);
     const notebooks = {
       state: "ready" as const,
-      value: { pages: seeded.map((p) => ({ id: p.id, title: p.title, ...notebookPreviewOf(p.content) })), openable: true },
+      value: { pages: seeded.map((p) => ({ id: p.id, title: p.title, ...notebookPreviewOf(p.content) })) },
     };
     const fetched = { weather: { state: "ready" as const, value: { points: [] } }, notebooks };
 

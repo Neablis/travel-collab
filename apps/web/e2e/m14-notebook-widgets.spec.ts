@@ -1953,6 +1953,119 @@ test("the weather table heads its columns and fits the notebook column without s
   expect(overflow, "the weather table scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
 });
 
+// **Every value fits its column, on one line** (2026-09-27): without headings
+// the now cell read "now -24°C", 70px in a 48px column, and wrapped out of the
+// row's fixed height (ADR-044). The rain column was suspected too, and is not:
+// "<0.01 in a day" is 109px of its 112. Widths are fixed, so the only proof is
+// the rendered font — the longest string each column can be handed, in both
+// units, headings on and off, at the desktop column and at the table's own
+// minimum (the phone, where it scrolls instead of shrinking).
+test.describe("the weather table's fixed columns", () => {
+  // A fresh account: the units are the account's, and alice is shared.
+  test.use({ storageState: undefined });
+
+  test("hold their longest values in both units, headed or not, at desktop and phone widths", async ({ page }) => {
+    await signInAsDevUser(page, `m14wx${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`);
+    const tripId = await createMappedTrip(page, e2eTripName("WeatherWidths"), 4);
+    const detail = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as {
+      trip: { days: { date: string | null; activityIds: string[] }[]; activities: Record<string, { location?: { city?: string } | null }> };
+    };
+    const days = detail.trip.days.map((day) => ({
+      date: day.date!,
+      city: day.activityIds.map((id) => detail.trip.activities[id]?.location?.city).find((c) => c !== undefined)!,
+    }));
+    const placeToday = days[0]!.date;
+    // Each figure is the longest its column prints: five characters of
+    // temperature in either scale (-24°C / -11°F, 38°C / 100°F), and the rain
+    // at its longest — "29.1 mm" / "1.15 in" forecast, "<0.01 in a day" typical.
+    const typical = (mmPerDay: number) => ({
+      source: "nasa-power", month: 6, highC: 38, lowC: -24, precipitationMmPerDay: mmPerDay,
+      period: { fromYear: 2001, throughYear: 2020 },
+    });
+    const forecast = {
+      source: "met-norway", asOf: "2027-05-31T06:00:00Z", highC: 38, lowC: -24, precipitationMm: 29.1,
+      symbol: "heavyrainshowersandthunder_day",
+      hours: [
+        { at: "2027-05-31T06:00:00Z", tempC: -24, precipitationMm: 29.1, symbol: "heavyrain" },
+        { at: "2027-05-31T07:00:00Z", tempC: 38, precipitationMm: 0, symbol: "heavyrain" },
+      ],
+    };
+    const points = days.map(({ date, city }, i) => ({
+      date, city, placeToday,
+      // Today (with a now), a forecast, then two typical days.
+      forecast: i < 2 ? forecast : { unavailable: "not-in-horizon" },
+      typical: typical(i === 2 ? 0.1 : 29.2),
+    }));
+    await page.route("**/api/trips/*/weather", (route) => route.fulfill({ json: { weather: { points } } }));
+
+    const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
+    // Every fixed-width cell, heading or value: its text on one line and inside
+    // the cell. The conditions and place cells truncate by design, so are not
+    // asked; every row keeps one height.
+    const measure = () =>
+      table.evaluate((el) => {
+        let checked = 0;
+        const misfits = [...el.querySelectorAll('[role="row"]')].flatMap((row) => {
+          const cells = [...row.querySelectorAll('[role="cell"][aria-label], [role="columnheader"]')].filter(
+            (cell) => !["Day", "Conditions"].includes(cell.textContent ?? ""),
+          );
+          checked += cells.length;
+          const tall = row.getBoundingClientRect().height > (row.hasAttribute("data-mode") ? 40 : 32);
+          return [
+            ...(tall ? [`row taller than its fixed height: ${row.textContent}`] : []),
+            ...cells
+              .filter((cell) => {
+                // One line is one line-box top across every piece of its text.
+                const tops = new Set<number>();
+                const walk = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+                for (let text = walk.nextNode(); text; text = walk.nextNode()) {
+                  const range = document.createRange();
+                  range.selectNodeContents(text);
+                  for (const rect of range.getClientRects()) tops.add(Math.round(rect.top));
+                }
+                return cell.scrollWidth > cell.clientWidth || tops.size > 1;
+              })
+              .map((cell) => `${cell.getAttribute("aria-label") ?? "heading"} "${cell.textContent}" in ${cell.clientWidth}px`),
+          ];
+        });
+        return { checked, misfits };
+      });
+    // The witness is the count: four rows of now, high, low and rain, and the
+    // four headings over them — a selector that matched nothing would pass empty.
+    const expectFits = async (state: string, headed: boolean) => {
+      await expect(table.locator('[role="cell"][aria-label="now"]', { hasText: /-(24°C|11°F)/ })).toHaveCount(1);
+      for (const width of [1280, 411]) {
+        await page.setViewportSize({ width, height: 900 });
+        expect(await measure(), `${state} at ${width}px`).toEqual({ checked: headed ? 20 : 16, misfits: [] });
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+    };
+    const headings = async (on: boolean) => {
+      await table.getByRole("row").first().click();
+      await settingsPanel(page).getByRole("checkbox", { name: "Column headings" }).setChecked(on);
+      await expect(table.getByRole("columnheader")).toHaveCount(on ? 6 : 0);
+      // Deselected, or the phone width below opens its settings as a sheet.
+      await page.getByRole("heading", { name: "Before you go", level: 1 }).click();
+      await expect(settingsPanel(page)).toHaveCount(0);
+    };
+
+    await openBeforeYouGoOf(page, tripId);
+    await expect(table.getByText("0.1 mm a day")).toBeVisible();
+    await expectFits("metric, headed", true);
+    await headings(false);
+    await expectFits("metric, heading-less", false);
+
+    const prefs = await page.request.patch("/api/account/preferences", { data: { distanceUnit: "mi" } });
+    expect(prefs.ok(), `PATCH preferences -> ${prefs.status()}`).toBe(true);
+    await page.reload();
+    await page.getByRole("button", { name: "Edit page" }).click();
+    await expect(table.getByText("<0.01 in a day")).toBeVisible();
+    await expectFits("imperial, heading-less", false);
+    await headings(true);
+    await expectFits("imperial, headed", true);
+  });
+});
+
 // Mitchell, on the PR 221 preview: *"Selecting anywhere other than the widget or
 // the widget sidebar editor should deselect the widget. Right now you need to
 // select a free spot in notebook to make it deselect."* A click in the settings
