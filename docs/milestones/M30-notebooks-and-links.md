@@ -81,9 +81,20 @@ His answers when asked: seed several notebooks into every new trip (reversing
       inserts a link only through its guards** — a website address the user typed in this
       message, a notebook by a number this turn listed, never an id — `pageTools.test.ts`.
 - [x] Contract entry in `docs/contracts/CHANGELOG.md`; ADR-056 written.
-- [ ] **[walk]** On the preview: a new trip's four notebooks; the Overview reading as an
+- [x] **[walk]** On the preview: a new trip's four notebooks; the Overview reading as an
       itinerary on the Japan demo; insert an internal link to Money and follow it; insert
       an external link and open it.
+      *(Ticked 2026-09-27. An agent walked #256's preview (`dpl_E86ZT5Ft71zj8gEysLCTE6dLLKNi`,
+      `688b9cf`, carrying main `af9a224`). A new trip lists Overview, Before you go,
+      Bookings, Money, and only the Overview has no Delete. Signed out, the demo Overview
+      shows 14 days under "Dates: Oct 7, 2026 – Oct 20, 2026 · Route: Tokyo – … – Naoshima",
+      with timed stops tagged Travel / To book. A Money link was inserted ("Notebook |
+      Money | What the trip costs…") and, after a reload, followed to Money. An external link
+      refused `javascript:alert(1)`, then stored `href="https://www.jreast.co.jp/e/pass"
+      target="_blank" rel="noopener noreferrer"`; clicking it opened a new page with
+      `window.opener === null`, and the first tab did not move. The destination itself did
+      not load, because the cloud container's egress blocks that host. Whether it reads as
+      a professional itinerary is the next box, Mitchell's.)*
 - [ ] **[walk]** Mitchell reads the Overview on the Japan demo and says whether it now
       reads like a professional itinerary.
 - [ ] A retro is appended at gate close.

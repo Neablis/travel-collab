@@ -41,9 +41,7 @@ order** (placing them is Mitchell's call). **M29 — The time river**: all four
 parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 17 of 20 (five boxes came with #251's phone part) after
 the 2026-09-27 reconciliation and the `m29-kind-control.spec.ts` walks. What is
 left is part 4's Overview read and the gate-close items. **M30 — Notebooks with one job each**: merged as #247, then #248-#253. Its
-gate is 6 of 9. `m30-notebooks-and-links.spec.ts` now covers the walk's content,
-including the Japan demo Overview (added 2026-09-27). The box still asks for it
-*on the preview*. Mitchell reading the
+gate is 7 of 9; the preview walk was done 2026-09-27 on #256's preview. Mitchell reading the
 Overview, and the retro, are what is left. Part 4 of M29 was superseded by M30's
 itinerary Overview, so its read and M30's are the same read.
 
@@ -73,9 +71,8 @@ a person, not code:
 2. **ADR-052 acceptance.** Its status line still says *pending his review*; the
    2026-09-26 note accepts one point, not the ADR. The code is on `main`, so the
    box's *before any code lands* clause needs rewording.
-3. **The real-service weather walk**, per
-   `docs/guidelines/external-data-manual-check.md`. The preview now has what it
-   needs (next paragraph), so this is a walk, not a blocker.
+3. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
+   what); left open on KI-2026-09-27-b, NASA "averages" that look like extremes.
 4. **The six link-11 widgets walked against a real trip.** All six are
    registered, with unit tests, and since 2026-09-27 e2e that asserts each
    resolves to the trip's own values (`m14-notebook-widgets.spec.ts`). What is

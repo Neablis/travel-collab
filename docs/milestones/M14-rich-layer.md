@@ -954,7 +954,14 @@ milestone opens:**
       quiet placeholder while outside data is offline"* covers Editing and
       Reading. The live-source half is the next box, which is a walk by hand.)*
 - [ ] Weather walked against the real MET Norway and NASA POWER on a preview, per
-      docs/guidelines/external-data-manual-check.md. *(Added 2026-09-24: no automated test
+      docs/guidelines/external-data-manual-check.md.
+      *(**Partly walked 2026-09-27**, on #256's preview with Kyoto stops, by an agent in a
+      cloud session. Steps 1-4 pass on the words: forecast, today with Now, month
+      averages, past, the miles switch and both credits. Step 5 had no `[external]` line.
+      Not done: the met.no comparison and step 6, because egress to api.met.no and
+      power.larc.nasa.gov is blocked from a cloud session. **Left open on a finding:**
+      the NASA "averages" look like monthly extremes (KI-2026-09-27-b). Also filed: "today"
+      follows the reader's clock (KI-2026-09-27-c).)* *(Added 2026-09-24: no automated test
       may call either source, so the e2e server runs with `EXTERNAL_DATA_OFFLINE=true` and
       this walk is the only real-service check.)*
 - [ ] **The other six link-11 widgets ship and resolve against a real trip**: trip
