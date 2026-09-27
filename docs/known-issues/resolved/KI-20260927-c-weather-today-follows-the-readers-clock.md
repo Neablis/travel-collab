@@ -40,3 +40,10 @@
 - **Check subset:** full `pnpm check` (contracts changed): typecheck, lint, all unit suites
   green; `pnpm --filter web test:int` 86 files / 1100 tests green;
   `pnpm --filter web test:e2e:ci-like e2e/m14-notebook-widgets.spec.ts -g weather` 3 passed.
+- **Follow-up (2026-09-27): the route int test's clock.** The fix left
+  `route.int.test.ts` dating its Oslo trip by UTC, so from 22:00 UTC (US afternoon/evening)
+  "with only the forecast down…" read `"Past day · Sep avg"`. #263 dated it in Oslo; that still
+  broke all 7 cases on the eve of a spring-forward (`+ n * 24h` skips the 23-hour day) and
+  could race Oslo's midnight. The test now dates day 0 as the route does
+  (`clockIn(timeZoneAt(…), now)`), adds days on the calendar, and pins `Date` to
+  2026-09-27T23:41Z — the instant it was reported failing. Product code unchanged.
