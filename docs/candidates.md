@@ -59,6 +59,15 @@ here two days later.
   `scripts/milestone.mjs`'s checklist does not have; and the KI `Area:` → node
   binding.
 
+- **More than one demo trip: a picker on the front door and `/demo/<slug>`
+  (asked 2026-09-27).** Only Japan is public; `content/trips/` holds four more
+  (Dolomites, Iceland, Northern Spain, Thailand) that nothing public shows.
+  Mitchell liked a hero trip picker but kept it off the home page for now to
+  avoid complicating it. Depends on the landing snapshot generator in
+  `docs/specs/2026-09-27-link-previews-and-real-hero-design.md` §3.2 (one
+  snapshot per trip) and on `server/demoTrip.ts` folding a bundle, not only the
+  Japan fixture.
+
 - **Stripe test mode alongside live, without a redeploy to switch.** Asked for
   2026-09-16: *"i would like to be able to use test card without needing to take
   down prod with new ENV variables."* The want is real — today the only way to
