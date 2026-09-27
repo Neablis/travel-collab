@@ -1,5 +1,7 @@
 import { eq } from "drizzle-orm";
 import { displayNameFor, firstNameOf } from "@/lib/displayName";
+import { REFERRAL_CARD_TTL_SECONDS, referralCardKey } from "../cache/keys";
+import { getCache, type CachePort } from "../cache/redis";
 import { db } from "../db/client";
 import { inviteCodes, users } from "../db/schema";
 
@@ -17,11 +19,25 @@ import { inviteCodes, users } from "../db/schema";
 // finding one by guessing is not a thing an unfurl-rate loop can do. The super
 // code is never looked up here — only `invite_codes` is read — so the card
 // cannot become an oracle for it.
+//
+// Cached in the shared Redis (ADR-059) for a day, named referrers only: an
+// unknown code writes nothing, so guessing cannot fill the free tier. Stored as
+// an object rather than a bare string, because the client JSON-decodes what it
+// reads and a name like "123" would come back as a number.
 /**
  * The first name of whoever minted referral `code`, or `null` when no such code
  * exists or its minter has no name to give.
  */
-export async function referrerFirstNameFor(code: string): Promise<string | null> {
+export async function referrerFirstNameFor(code: string, cache: CachePort = getCache()): Promise<string | null> {
+  const key = referralCardKey(code);
+  const cached = await cache.get<{ firstName: string }>(key);
+  if (typeof cached?.firstName === "string") return cached.firstName;
+  const firstName = await lookUp(code);
+  if (firstName !== null) await cache.set(key, { firstName }, REFERRAL_CARD_TTL_SECONDS);
+  return firstName;
+}
+
+async function lookUp(code: string): Promise<string | null> {
   const [row] = await db
     .select({ userId: inviteCodes.createdBy, name: users.name, displayName: users.displayName })
     .from(inviteCodes)

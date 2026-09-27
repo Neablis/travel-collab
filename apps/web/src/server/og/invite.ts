@@ -1,4 +1,6 @@
 import { firstNameOf } from "@/lib/displayName";
+import { INVITE_CARD_TTL_SECONDS, inviteCardKey } from "../cache/keys";
+import { getCache, type CachePort } from "../cache/redis";
 import { readInviteLanding } from "../inviteLanding";
 
 /** How many crew names the card prints before it says "+N". */
@@ -30,11 +32,26 @@ export type InviteCard =
 // `valid` (revoked, used, unknown, trip gone) becomes the generic card rather
 // than the landing's own refusal copy: the token is the only thing that was
 // shared, and once it is revoked it must stop saying who sent it.
+//
+// Cached in the shared Redis (ADR-059) for an hour, PERSONAL cards only: a
+// generic answer is cheap to recompute and is what a junk token gets, so
+// writing it would let anyone fill the free tier. `revokeInvite` and
+// `acceptInvite` delete the key, so a spent invite goes generic at once here
+// (the CDN's own hour is `card.tsx`'s trade-off).
 /**
  * The invite card for `token`: the inviter's first name, the trip and its crew
  * when the invite is pending, and the generic card for anything else.
  */
-export async function inviteCardFor(token: string): Promise<InviteCard> {
+export async function inviteCardFor(token: string, cache: CachePort = getCache()): Promise<InviteCard> {
+  const key = inviteCardKey(token);
+  const cached = await cache.get<InviteCard>(key);
+  if (cached?.kind === "personal") return cached;
+  const card = await lookUp(token);
+  if (card.kind === "personal") await cache.set(key, card, INVITE_CARD_TTL_SECONDS);
+  return card;
+}
+
+async function lookUp(token: string): Promise<InviteCard> {
   const { landing, crew: members = [] } = await readInviteLanding(token, null);
   if (landing.state !== "valid") return { kind: "generic" };
   // `inviterName` is `displayNameFor`'s whole answer ("Dana Reyes"), resolved
