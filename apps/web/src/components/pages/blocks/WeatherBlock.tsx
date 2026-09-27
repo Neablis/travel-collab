@@ -34,10 +34,12 @@ import { localTodayIso, useToday } from "@/lib/today";
 // the one that gives — it flexes and truncates — and every other column is a
 // fixed width shared by the heading row and every data row, so they line up.
 // The "now" column is only there when some row has a now: a column of dashes
-// was width the conditions could have had. Below `min-w-112` a row stops
-// shrinking and the table scrolls on its own, which is the phone's case (the
-// trip strip's rule, design-system.md): wrapping a row onto two lines would
-// break the fixed height above.
+// was width the conditions could have had. Without headings its value is the
+// bare temperature, as High's and Low's are: "now -12°C" was 70px in a 48px
+// column and wrapped, and the one row it is on already says "Today". Below
+// `min-w-112` a row stops shrinking and the table scrolls on its own, which is
+// the phone's case (the trip strip's rule, design-system.md): wrapping a row
+// onto two lines would break the fixed height above.
 //
 // Spans with table roles, not `<table>`: a widget node is an inline atom and
 // renders inside a paragraph (`ItineraryDayBlock` records the hydration error).
@@ -66,9 +68,11 @@ const COL = {
   place: "w-24 shrink-0",
   conditions: "min-w-0 flex-1",
   now: "w-12 shrink-0 text-right",
-  // 48px: "-12°C" and "100°F" are five mono characters, ~42px at text-sm,
-  // which the 40px this was before the scale was printed could not hold.
+  // 48px: "-12°C" and "100°F" are five mono characters, 39px at text-sm.
   temp: "w-12 shrink-0 text-right",
+  // 112px: the longest rain is "<0.01 in a day", fourteen mono characters,
+  // 109px at text-sm. Every fixed column's worst case is measured by m14's
+  // fixed-columns walk.
   rain: "w-28 shrink-0 text-right",
 } as const;
 const ROW = "flex w-full min-w-112 items-center gap-2 border-b border-hairline px-3";
@@ -94,9 +98,7 @@ function Headings({ showNow }: { showNow: boolean }) {
   );
 }
 
-function Row({ row, showNow, headed }: { row: WeatherRow; showNow: boolean; headed: boolean }) {
-  // Under a "Now" heading the value needs no word; without one, it does.
-  const now = row.now === null ? null : headed ? row.now : `now ${row.now}`;
+function Row({ row, showNow }: { row: WeatherRow; showNow: boolean }) {
   return (
     <span role="row" data-mode={row.mode} className={cn(ROW, "h-10 last:border-b-0")}>
       {/* The place and the day, one line each and never the date: a date
@@ -118,7 +120,7 @@ function Row({ row, showNow, headed }: { row: WeatherRow; showNow: boolean; head
         {row.modeText}
         {row.sky ? <span className="text-slate"> · {row.sky}</span> : null}
       </span>
-      {showNow ? <Value text={now} label="now" width={COL.now} /> : null}
+      {showNow ? <Value text={row.now} label="now" width={COL.now} /> : null}
       <Value text={row.high} label="high" width={COL.temp} />
       <Value text={row.low} label="low" width={COL.temp} />
       <Value text={row.rain} label="rain" width={COL.rain} />
@@ -136,7 +138,7 @@ export function WeatherBlock({ payload }: { payload: WeatherPayload }) {
       <span role="table" aria-label={payload.summary} className="flex flex-col overflow-x-auto">
         {payload.headings ? <Headings showNow={showNow} /> : null}
         {payload.rows.map((row) => (
-          <Row key={row.key} row={row} showNow={showNow} headed={payload.headings} />
+          <Row key={row.key} row={row} showNow={showNow} />
         ))}
       </span>
       <span

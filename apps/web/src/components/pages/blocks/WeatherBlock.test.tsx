@@ -81,7 +81,9 @@ describe("the weather block", () => {
 
   // Mitchell, on the #221 preview: *"I have no idea what the columns are
   // without a column header. But might be good to make that a toggle."*
-  it("heads its columns by default, and says 'now' in the cell when the headings are off", () => {
+  // Without them the now cell is the bare temperature, still named "now" to a
+  // screen reader: the word did not fit its 48px (m14's fixed-columns walk).
+  it("heads its columns by default, and names the 'now' cell when the headings are off", () => {
     const weather = { points: [point(TODAY), point("2026-11-13")] };
     view(trip(), weather);
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
@@ -90,7 +92,7 @@ describe("the weather block", () => {
     cleanup();
     view(trip(), weather, false, { params: { headings: false } });
     expect(screen.queryAllByRole("columnheader")).toEqual([]);
-    expect(within(dataRows()[0]!).getByRole("cell", { name: "now" }).textContent).toBe("now 12°C");
+    expect(within(dataRows()[0]!).getByRole("cell", { name: "now" }).textContent).toBe("12°C");
   });
 
   // *"We need to scroll to the right to see all the data here."* A column no
