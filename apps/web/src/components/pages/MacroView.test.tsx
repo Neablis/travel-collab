@@ -176,7 +176,27 @@ describe("MacroView", () => {
       ]);
       // Lined up with the data: a lead and a cell under every other heading.
       expect(rows).toHaveLength(1);
-      expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["9 am – 10 am", "$123.45", "Planned"]);
+      // By accessible name, not `textContent`: each cell also prints its
+      // column's name for a phone, hidden from assistive tech — see below.
+      const cells = within(rows[0]!).getAllByRole("cell");
+      expect(cells).toHaveLength(3);
+      ["9 am – 10 am", "$123.45", "Planned"].forEach((name, c) => {
+        expect(within(rows[0]!).getByRole("cell", { name })).toBe(cells[c]);
+      });
+    });
+
+    // The column's name printed inside each cell is for a phone's stacked
+    // layout (globals.css, `.tc-widget-labelled`). A screen reader already has
+    // the `columnheader`, and without `aria-hidden` the Status cell would be
+    // named "Status Planned" — the column said twice. An empty cell has
+    // nothing to name, so it carries no label to show on a line of its own.
+    it("names each cell's column for the eye only, and not an empty one", () => {
+      render(<MacroView detail={costedDetail} context={ctx} name="stop.rows" params={{ columns: ["stop.kind", "stop.notes"] }} />);
+      const [, row] = screen.getAllByRole("row");
+      const status = within(row!).getByRole("cell", { name: "Planned" });
+      expect(status.textContent).toBe("StatusPlanned");
+      const notes = within(row!).getAllByRole("cell")[3]!;
+      expect(notes.textContent).toBe("");
     });
 
     it("has no heading row when no column was chosen", () => {

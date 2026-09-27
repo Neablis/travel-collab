@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures/test";
 import { commandsFor } from "@tc/factories";
+import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
 import { createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
 
@@ -479,6 +480,149 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
       await expect(strip.getByText("Tokyo", { exact: true }).first()).toBeVisible();
       await expect(strip.getByText("Kyoto", { exact: true })).toBeVisible();
       await expect(strip.getByText("Hakone", { exact: true })).toBeHidden();
+    }
+  });
+});
+
+/**
+ * What a phone makes of a table's column headings, measured in the page.
+ *
+ * One entry per data cell that holds a value: the column heading it belongs
+ * to (by position, from the table's `columnheader`s), the name printed beside
+ * it, and whether that name is on screen, inside its cell, on the value's line
+ * and before it. Plus every word in the table whose glyphs landed on more than
+ * one line — which is what a word broken mid-way is, to the layout.
+ *
+ * Measured rather than read from the markup because the claim is visual: the
+ * names were always in the DOM, as a heading row a screen away from the values
+ * it named.
+ */
+async function tableOnAPhone(table: import("@playwright/test").Locator) {
+  return table.evaluate((root) => {
+    const within = (inner: DOMRect, outer: DOMRect) =>
+      inner.left >= outer.left - 0.5 &&
+      inner.right <= outer.right + 0.5 &&
+      inner.top >= outer.top - 0.5 &&
+      inner.bottom <= outer.bottom + 0.5;
+    const card = root.getBoundingClientRect();
+    const headings = [...root.querySelectorAll('[role="columnheader"]')].map((h) => h.textContent ?? "");
+    const cells = [...root.querySelectorAll('[role="row"]')].flatMap((row) =>
+      [...row.querySelectorAll('[role="cell"]')].flatMap((cell, c) => {
+        if ((cell.textContent ?? "") === "") return [];
+        const label = cell.querySelector('[aria-hidden="true"]');
+        const value = label?.nextElementSibling ?? null;
+        const box = cell.getBoundingClientRect();
+        const l = label?.getBoundingClientRect();
+        const v = value?.getBoundingClientRect();
+        return [
+          {
+            column: headings[c + 1],
+            label: label?.textContent ?? null,
+            labelShown: l !== undefined && l.width > 0 && l.height > 0,
+            insideCell: l !== undefined && v !== undefined && within(l, box) && within(v, box) && within(box, card),
+            // On one line with the value — the two boxes overlap vertically —
+            // and ahead of it.
+            besideValue: l !== undefined && v !== undefined && l.top < v.bottom && v.top < l.bottom && l.right <= v.left,
+          },
+        ];
+      }),
+    );
+    const brokenWords: string[] = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      for (const match of (node.textContent ?? "").matchAll(/\S+/g)) {
+        const range = document.createRange();
+        range.setStart(node, match.index);
+        range.setEnd(node, match.index + match[0].length);
+        const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+        if (lines.size > 1) brokenWords.push(match[0]);
+      }
+    }
+    return { overflow: root.scrollWidth - root.clientWidth, cells, brokenWords };
+  });
+}
+
+// Mitchell on the preview, 411px Android Chrome, pointing at a `stop.rows`
+// heading cell in Editing: *"the column headers look bad on mobile"*. The
+// phone stacks a table (globals.css) and the heading row stacked with it: six
+// names in a column, a screen above values that no longer said which column
+// they came from. Now each value carries its column's name on its own line.
+test.describe("a table's column names on a phone", () => {
+  test("every value is named by its own column, beside it, in both modes", async ({ page }) => {
+    const { tripId } = await page.request
+      .post("/api/trips", { data: { name: e2eTripName("PhoneTable") } })
+      .then((r) => r.json());
+    const commands = commandsFor("threeDayTrip", tripId);
+    for (const command of commands) {
+      await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+    }
+    // A stop with a note, so the Notes column holds prose that has to wrap at
+    // this width — beside two stops whose Notes cells are empty.
+    const setDates = commands.find((c) => c.type === "SetTripDates");
+    const dayId = setDates?.type === "SetTripDates" ? setDates.newDayIds[0] : undefined;
+    const added = await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: {
+        type: "AddActivity",
+        tripId,
+        activityId: crypto.randomUUID(),
+        dayId,
+        title: "Fushimi Inari Taisha shrine hike",
+        location: { name: "Fushimi Inari Taisha, Kyoto" },
+        notes: "Go early, before the tour buses; the upper loop is quieter",
+        cost: { amountMinor: 123456, currency: "USD" },
+        timeWindow: { start: "09:00", end: "11:30" },
+      },
+    });
+    expect(added.ok()).toBe(true);
+    // The report's columns: Place, Notes and Cost on top of the widget's own
+    // Stop, Time and Cost — six, two of them called "Cost".
+    const created = await page.request
+      .post(`/api/trips/${tripId}/pages`, {
+        data: {
+          title: "Kyoto stops",
+          context: { tripId },
+          content: newPageDoc([
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "macro",
+                  attrs: {
+                    name: "stop.rows",
+                    params: { day: { kind: "index", index: 0 }, columns: ["stop.location", "stop.notes", "stop.cost"] },
+                  },
+                },
+              ],
+            },
+          ]),
+        },
+      })
+      .then((r) => r.json());
+    await page.goto(`/trips/${tripId}/pages/${created.page.id as string}`);
+    await expect(page.getByRole("heading", { name: "Kyoto stops", level: 1 })).toBeVisible();
+
+    for (const mode of ["Reading", "Editing"] as const) {
+      if (mode === "Editing") {
+        await page.getByRole("button", { name: "Edit page" }).click();
+        await expect(page.getByRole("button", { name: "Done editing" })).toBeVisible();
+      }
+      const table = page.getByRole("table");
+      await expect(table.getByRole("row")).toHaveCount(4);
+      // Still a table to a screen reader: the heading row left the screen,
+      // not the accessibility tree.
+      await expect(table.getByRole("columnheader")).toHaveText(["Stop", "Time", "Cost", "Place", "Notes", "Cost"]);
+
+      const measured = await tableOnAPhone(table);
+      expect(measured.overflow, `${mode}: the table scrolls sideways`).toBeLessThanOrEqual(0);
+      // Three stops × Time, Cost, Place and Cost, and the one note.
+      expect(measured.cells, `${mode}: cells holding a value`).toHaveLength(13);
+      for (const cell of measured.cells) {
+        expect(cell.label, `${mode}: a value in the ${cell.column} column`).toBe(cell.column);
+        expect(cell.labelShown, `${mode}: ${cell.column} is named on screen`).toBe(true);
+        expect(cell.insideCell, `${mode}: ${cell.column} stays inside its cell and the card`).toBe(true);
+        expect(cell.besideValue, `${mode}: ${cell.column} sits on its value's line, ahead of it`).toBe(true);
+      }
+      expect(measured.brokenWords, `${mode}: words broken across lines`).toEqual([]);
     }
   });
 });
