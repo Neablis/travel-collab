@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
-import { createEmptyTripViaWizard, createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
+import { createEmptyTripViaWizard, createMappedTrip, signInAsDevUser, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
 import { E2E_SUPER_CODE } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 
@@ -1971,4 +1971,105 @@ test("a click outside the widget and its settings deselects it", async ({ page }
   await page.mouse.click(4, 400);
   await expect(settingsPanel(page)).toHaveCount(0);
   await expect(page.getByRole("searchbox", { name: "Search widgets" })).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// M14 link 11's widgets, resolved against a real trip rather than checked for
+// a heading: each printing the trip's OWN values is the box ("ship and resolve
+// against a real trip"), and a placeholder, an empty chip or the widget's fixed
+// preview is exactly what a heading check lets through.
+//
+// Nothing here reaches a third party. A day's zone comes from a bundled
+// boundary table and the home zone from a generated airport table
+// (`server/timeZones.ts`), the sun is arithmetic (`@tc/pages`' `sun.ts`), and
+// the country card is a table in `@tc/pages` — so `EXTERNAL_DATA_OFFLINE`
+// switches none of them off.
+// ---------------------------------------------------------------------------
+
+const TOKYO = { name: "Tokyo Station", city: "Tokyo", lat: 35.6812, lng: 139.7671, countryCode: "JP" };
+const KYOTO = { name: "Kyoto Station", city: "Kyoto", lat: 34.9858, lng: 135.7588, countryCode: "JP" };
+
+test.describe("the clock pair and the country card", () => {
+  // **A fresh account, not the shared alice.** "From home" is the READER's
+  // home airport, and writing one onto the account every other spec signs in
+  // as would change what their pages say (m17's reasoning, same fix).
+  test.use({ storageState: undefined });
+
+  test("sunrise and sunset, the time difference from home and know before you go resolve to the trip's own values", async ({
+    page,
+  }) => {
+    await signInAsDevUser(page, `m14clk${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`);
+    const prefs = await page.request.patch("/api/account/preferences", { data: { homeAirport: "SFO" } });
+    expect(prefs.ok(), `PATCH preferences -> ${prefs.status()}`).toBe(true);
+    // Dated, so every value below is a fixed fact: 1 June 2027, San Francisco
+    // on PDT (UTC-7) and Japan on JST (UTC+9) — sixteen hours — and the sun
+    // over both cities up before five in the morning.
+    const tripId = await createMappedTrip(page, e2eTripName("Clocks"), 2, {
+      startDate: "2027-06-01",
+      locations: [TOKYO, KYOTO],
+    });
+
+    await page.goto(`/trips/${tripId}/pages`);
+    await page.getByRole("link", { name: /^Before you go/ }).click();
+    await expect(page.getByRole("heading", { name: "Before you go", level: 1 })).toBeVisible();
+
+    // -- seeded on Before you go: the time difference and the country card --
+    await expect(page.locator('[data-macro-name="day.fromHome"]')).toHaveText(
+      "Tokyo is 16h ahead of home; Kyoto is 16h ahead of home",
+    );
+    const japan = page.locator('[data-macro-name="country.facts"]').getByRole("listitem", { name: "Japan" });
+    await expect(japan).toContainText("JP");
+    await expect(japan.getByRole("definition")).toHaveText(["A, B", "100 V · 50/60 Hz", "Left", "110 · 119", /^JPY/, /81/, /./]);
+
+    // -- inserted from the rail: the sun, one line per located day --
+    // The weather answers after the page does; clicking in before it has is
+    // clicking a page that may yet move (m30's reason).
+    await expect(page.getByText("loading weather")).toHaveCount(0);
+    await page.getByRole("button", { name: "Edit page" }).click();
+    await insertFromList(page, /Sunrise and sunset/, "sunrise");
+    const sun = page.locator('[data-macro-name="day.sun"]').getByRole("row");
+    const sunRows = [
+      /^Day 1\s*Tokyo\s*sunrise 4:\d\d am\s*sunset 6:\d\d pm\s*golden hour \d/,
+      /^Day 2\s*Kyoto\s*sunrise 4:\d\d am\s*sunset 7:\d\d pm\s*golden hour \d/,
+    ];
+    await expect(sun).toHaveText(sunRows);
+
+    await finishEditing(page);
+    await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
+    await expect(sun).toHaveText(sunRows);
+  });
+});
+
+test("spend by day puts each day's own total on its own day, and says the numbers in words", async ({ page }) => {
+  // Three dated days and a budget: $350 on day 1 across two tags, $150 on day
+  // 2 with none, and nothing on day 3 — so a total summed over the wrong day,
+  // or a day left out, reads differently from this.
+  const tripId = await createMappedTrip(page, e2eTripName("SpendByDay"), 3, {
+    startDate: "2027-06-01",
+    budget: { amountMinor: 90_000, currency: "USD" },
+  });
+  const detail = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as { trip: { days: { dayId: string }[] } };
+  const [day1, day2] = detail.trip.days.map((d) => d.dayId);
+  await addStopViaApi(page, tripId, "Hotel", { dayId: day1, cost: { amountMinor: 30_000, currency: "USD" }, tags: ["lodging"] });
+  await addStopViaApi(page, tripId, "Dinner", { dayId: day1, cost: { amountMinor: 5_000, currency: "USD" }, tags: ["meal"] });
+  await addStopViaApi(page, tripId, "Train", { dayId: day2, cost: { amountMinor: 15_000, currency: "USD" } });
+
+  await page.goto(`/trips/${tripId}/pages`);
+  await page.getByRole("link", { name: /^Money/ }).click();
+  await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
+
+  const chart = page.locator('[data-macro-name="cost.chart"]');
+  // The picture is named by its summary…
+  await expect(
+    chart.getByRole("img", { name: "Spend by day in USD: $500.00 over 2 of 3 days, against a budget of $300.00 a day." }),
+  ).toBeVisible();
+  // …and every number in it is also a row of the table beside it, per day.
+  const rows = chart.getByRole("table", { name: "Spend by day", exact: true }).getByRole("row");
+  await expect(rows).toHaveText([
+    /^Day\s*Date\s*Total\s*By tag$/,
+    /^Day 1\s*Jun 1, 2027\s*\$350\.00\s*Meal \$50\.00, Lodging \$300\.00$/,
+    /^Day 2\s*Jun 2, 2027\s*\$150\.00\s*Untagged \$150\.00$/,
+    /^Day 3\s*Jun 3, 2027\s*nothing priced\s*—$/,
+  ]);
+  await expect(chart).toContainText("Budget $300.00 a day");
 });

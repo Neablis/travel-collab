@@ -75,6 +75,47 @@ test("a new trip comes with four notebooks, and the Overview links to the other 
   await expect(page.getByRole("heading", { name: "Spend by day" })).toBeVisible();
 });
 
+// The Japan demo's Overview, which is where "reads like a professional
+// itinerary" was asked about (Mitchell, 2026-09-26) — a new trip's is empty.
+// Signed out, as the demo's visitors are. The whole walk is what a printed
+// itinerary has: its covering note, the dates and route it heads with, then
+// every day as a dated heading over timed lines, each stop's place under it
+// and its standing beside it only when that is news, and last the way to the
+// rest of the trip.
+test.describe("the Japan demo's Overview", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("reads as an itinerary: a covering note, dates and route, then each day as a timed schedule", async ({ page }) => {
+    await page.goto("/demo");
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+
+    await expect(page.getByText(/^Here is your itinerary, day by day/)).toBeVisible();
+    // Dated relative to today (ADR-030), so the dates are a shape; the route
+    // is the fixture's own, in the order the trip reaches it.
+    await expect(
+      page.getByText(/^Dates: \w{3} \d{1,2}, \d{4} – \w{3} \d{1,2}, \d{4} · Route: Tokyo – .*Kyoto – Osaka/),
+    ).toBeVisible();
+
+    const days = page.getByRole("list", { name: "Day by day" }).getByTestId("itinerary-day");
+    await expect(days).toHaveCount(14);
+    await expect(days.first()).toContainText(/^Day 1\w+day, \w+ \d{1,2}Tokyo/);
+
+    // Day 1, line by line: time and until, the stop, its standing only when
+    // it is news (the flight is Travel, the hotel says nothing, the two
+    // pending evenings are To book), and where it is.
+    await expect(page.getByRole("list", { name: "Day 1", exact: true }).getByRole("listitem")).toHaveText([
+      /^2:30 pm\s*until 4 pm\s*Land at Haneda\s*Travel\s*HND Terminal 3, Ōta, Tokyo/,
+      /^5 pm\s*until 5:30 pm\s*Check in at Trunk Hotel\s*Trunk Hotel, Shibuya, Tokyo/,
+      /^7 pm\s*until 8:30 pm\s*Dinner at Gonpachi\s*To book\s*Gonpachi Nishiazabu, Nishi-Azabu, Tokyo/,
+      /^9 pm\s*until 10:30 pm\s*Nightcap at Bar Trench\s*To book\s*Bar Trench, Ebisu, Tokyo/,
+    ]);
+
+    // Last, the three other notebooks, each by its own first line.
+    await expect(page.getByRole("heading", { name: "Also in this trip" })).toBeVisible();
+    await expect(page.getByTestId("link-card")).toHaveText([/Before you go/, /Bookings/, /Money/]);
+  });
+});
+
 test("insert an internal link to Money and follow it; insert a link to a website", async ({ page }) => {
   const tripName = e2eTripName("Evora");
   await page.goto("/");

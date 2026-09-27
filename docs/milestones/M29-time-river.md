@@ -2,7 +2,9 @@
 
 **Status:** Minted 2026-09-26 from Mitchell's asks in chat; **in flight beside M14, not
 the current milestone** (M14 stays current — its open boxes wait on a person). Built as
-four stacked PRs, plus a fifth for the phone. Decision record for part 1: **ADR-055**.
+four stacked PRs, plus a fifth for the phone, **all merged** (#242, #244, #245, #243 by
+2026-09-26; the phone's as #251). Decision record for part 1: **ADR-055**. What is left
+is part 4's Overview read and the gate-close items.
 
 ## Why this exists
 
@@ -143,18 +145,49 @@ below a short block lifts that block rather than sketching.
 
 Part 1:
 
-- [ ] **`pendingReason` is refused off `pending`** by the command unions, the decider
+- [x] **`pendingReason` is refused off `pending`** by the command unions, the decider
       (an update whose result would keep one) and the saved-day write path, each with a
       test **seen to fail** without the rule.
-- [ ] **ADR-055 accepted**, `docs/contracts/CHANGELOG.md` carries the entry, the OpenAPI
+      *(Ticked 2026-09-27. Landed in `3ebdddd` (#242). Seen to fail with `pnpm redfirst`,
+      one mutation per site, each restored and green again: filtering `pendingReason` out
+      of `refuseKindDetailOffKind` in `packages/contracts/src/trip.ts` fails four
+      `packages/contracts/test/adr055-pending-reason.test.ts` cases; the same filter in
+      `saved.ts` fails *is refused on the saved-day write path too*; passing
+      `pendingReason: null` to `kindDetailRejection` in `packages/domain/src/trip/decide.ts`
+      fails *refuses a reason patched onto a stop that is not pending* (`expected { ok:
+      true … } to match object { ok: false … }`).)*
+- [x] **ADR-055 accepted**, `docs/contracts/CHANGELOG.md` carries the entry, the OpenAPI
       document is regenerated, and every consumer moved in the same change (invariant 5).
-- [ ] **The Japan fixture exercises the field** (2 `book`, 6 `maybe`, read off the
+      *(Ticked 2026-09-27. ADR-055's status is *Accepted — 2026-09-26, Mitchell's decision,
+      in chat*; `docs/contracts/CHANGELOG.md:49`; `openapi.json` carries `pendingReason`
+      and `src/server/public-api/openapi.test.ts` — the drift check against the generated
+      document — passes 4/4 on `33305d5`; consumers moved in `3ebdddd`, listed in its
+      message.)*
+- [x] **The Japan fixture exercises the field** (2 `book`, 6 `maybe`, read off the
       export) and `pnpm seed:verify` pins the counts.
-- [ ] **[walk]** The stop editor shows a segmented Kind; choosing Pending shows the *To
+      *(Ticked 2026-09-27. `packages/fixtures/src/japan/expectations.ts:65` pins
+      `pendingReasons: { book: 2, maybe: 6 }`, counted in `verify.ts:228`; `pnpm
+      seed:verify` 108/108 on `33305d5`.)*
+- [x] **[walk]** The stop editor shows a segmented Kind; choosing Pending shows the *To
       book* / *Maybe* icon row with *To book* chosen on a new stop; choosing Transit
       shows the mode icons; hovering an icon names it; clicking the chosen icon clears it.
-- [ ] **[walk]** A card reads *To book* (amber), *Maybe* (neutral) or its mode, and no
+      *(Ticked 2026-09-27, walked in a browser as `e2e/m29-kind-control.spec.ts` › *the stop
+      editor's Kind is segmented…*, on `test:e2e:ci-like` (a production build), 2 of 2
+      green. The UI calls Transit **Travel**. "Names it" is the native `title` tooltip.
+      Seen red three ways: a new stop defaulting to no reason (`aria-checked` `"false"`),
+      `title` removed from `icon-radio-group.tsx` (`Received: ""`), and a second click
+      keeping the choice (`Received: "true"`).)*
+- [x] **[walk]** A card reads *To book* (amber), *Maybe* (neutral) or its mode, and no
       badge wraps at 390 px.
+      *(Ticked 2026-09-27, `e2e/m29-kind-control.spec.ts` › *a card's badge reads To book
+      in amber…*, 390×844, ci-like 2 of 2. The colour is compared against the resolved
+      token (`--color-warning-tint`, `--color-moss`, `--color-info-tint`), not a class
+      name. Seen red with `book: "neutral"` (`Expected: "rgb(242, 231, 204)" Received:
+      "rgb(240, 237, 228)"`). Wrap is measured as height < 2 lines. Removing
+      `whitespace-nowrap` alone did **not** turn it red, because these three labels fit
+      at 390 px anyway. The check was shown to bite with `w-min` (`To book wrapped:
+      36.375px for a 16.2px line`). So a longer future label is guarded only by the
+      measurement, not by the class.)*
 
 Part 2:
 

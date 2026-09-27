@@ -30,23 +30,26 @@ Walk it once before M14's weather gate box is ticked, and again whenever
 2. **Soon trip.** Open its notebook, enter Editing, insert **Weather**, then Done.
    - Days inside the horizon read **"Forecast · <sky>"** (and today's reads
      **"Today · …"**, with a **Now** column). Highs, lows and rain are numbers, not dashes.
-   - The footer shows **"Forecast as of <time>"** on a 12-hour clock, and the credit
-     **"Forecast: The Norwegian Meteorological Institute (MET Norway), CC BY 4.0"**
-     links to `https://api.met.no/doc/License`.
-   - Days past the horizon, if any, read **"Typical for <Month>"**.
+   - The footer is one line: **"Forecast: Norwegian Meteorological Institute, CC BY 4.0
+     (updated <time>)"**, with the time on your 12-hour/24-hour setting, and the credit
+     links to `https://api.met.no/doc/License`. *(Its wording changed on the #221 preview
+     at Mitchell's request; `WeatherBlock.tsx`'s header comment has the reason.)*
+   - Days past the horizon, if any, read **"<Month> average"**.
+   - "Today" is the **reader's** date, not the place's (KI-2026-09-27-c). Walk with the
+     browser in the trip's time zone, or the Now row lands on another day.
    - Switch your account's distance unit to miles in account settings: the block now
      reads °F and inches (ADR-052's 2026-09-24 amendment). Switch back.
    - Days 3 and later: compare one day's high and low against met.no's own page for the
      place. A high noticeably below the afternoon figure means the `complete` product's
      six-hour extremes were not read (step 6).
 
-3. **Later trip.** Every row reads **"Typical for <Month>"**. The footer says
-   **"Typical: <from>–<through> averages"** and credits
-   **"Typical: NASA Langley Research Center POWER Project"**, and no MET credit is shown.
-   Note the period it prints; step 5 asks about it.
+3. **Later trip.** Every row reads **"<Month> average"**. The footer reads
+   **"Monthly averages: NASA POWER, <from>–<through>"**, and no MET credit is shown.
+   Note the period it prints; step 5 asks about it. **Sanity-check the numbers against the
+   place's known climate**: a low far below the month's usual night temperature is the
+   KI-2026-09-27-b symptom (extremes read as averages).
 
-4. **Past trip.** Every row reads **"Typical for <Month> — not what it was"**, with the
-   NASA credit.
+4. **Past trip.** Every row reads **"Past day · <Mon> avg"**, with the NASA credit.
 
 5. **A source failing.** In the runtime logs for the requests above, find
    `GET /api/trips/<id>/weather`. A healthy walk has no `[external]` line. To see

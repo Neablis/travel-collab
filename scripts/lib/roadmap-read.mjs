@@ -268,7 +268,7 @@ export function readStatus(root, { lineCount = 3, lineMax = 96 } = {}) {
  * state this repo uses deliberately, so the wording says what disagrees and
  * leaves the judgement to a person (or to /roadmap).
  */
-export function findDrift({ milestone, todo, gate, status }) {
+export function findDrift({ milestone, todo, gate, status, inFlight = [] }) {
   const drift = [];
   const current = milestone.id;
 
@@ -290,6 +290,18 @@ export function findDrift({ milestone, todo, gate, status }) {
         `gate-close step 5  [${status.rel}:${status.line}]`,
     );
   }
+  // A milestone built beside the current one is live work too. On 2026-09-27
+  // M29 (7/15) and M30 (6/9) were both part-merged while STATUS talked only
+  // about M14, and a session asked "what's next" answered from STATUS.
+  if (status.mentions !== undefined) {
+    for (const m of inFlight) {
+      if (new RegExp(`\\b${m.id}\\b`).test(status.mentions)) continue;
+      drift.push(
+        `${m.id} is in flight (${m.ticked}/${m.ticked + m.open}) but STATUS.md's ` +
+          `"Where the work is right now" never mentions it  [${m.rel} vs ${status.rel}:${status.line}]`,
+      );
+    }
+  }
   if (gate && gate.open === 0 && gate.ticked > 0 && todo.first?.id === current) {
     drift.push(
       `every ${current} exit-gate box is ticked but TODO.md still has it unchecked ` +
@@ -299,6 +311,26 @@ export function findDrift({ milestone, todo, gate, status }) {
   return drift;
 }
 
+
+/**
+ * Milestones with some gate boxes ticked and some open that are neither the
+ * current milestone nor ticked done in TODO.md — work merged beside the
+ * current milestone, which is exactly what a STATUS written about one
+ * milestone forgets. A milestone at 0 ticked is scheduled, not in flight.
+ */
+export function inFlightMilestones(index) {
+  return index.items
+    .filter(
+      (m) =>
+        !m.isCurrent &&
+        m.ticked !== true &&
+        m.gate &&
+        !m.gate.anchorMissing &&
+        m.gate.ticked > 0 &&
+        m.gate.open > 0,
+    )
+    .map((m) => ({ id: m.id, rel: m.rel, ticked: m.gate.ticked, open: m.gate.open }));
+}
 
 // --- candidates -------------------------------------------------------------
 

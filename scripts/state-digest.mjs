@@ -20,6 +20,8 @@ import {
   readTodo,
   readStatus,
   findDrift,
+  inFlightMilestones,
+  readMilestoneIndex,
 } from "./lib/roadmap-read.mjs";
 
 // THE STATE DIGEST: "where are we", answered deterministically, printed by the
@@ -194,6 +196,73 @@ function readPullRequests(root, { skip }) {
   }
 }
 
+/**
+ * Whether production has the newest migration, computed rather than recalled.
+ *
+ * STATUS.md said "`migrate-production` has NOT run for M14" for three days
+ * after runs 29 and 30 had applied 0029-0031 (checked 2026-09-27: 32 rows in
+ * production's `drizzle.__drizzle_migrations`), and a session repeated it to
+ * Mitchell as an outstanding operator task. A sentence about production is
+ * true on the day it is written and never again, so the digest derives it:
+ * a migration is applied when the commit that ADDED its file is an ancestor of
+ * the last successful migrate-production run's head.
+ *
+ * Without `gh` it cannot know, and says so with the exact check to make —
+ * "unverified" is the honest answer, and STATUS prose is not a substitute.
+ */
+const MIGRATIONS_DIR = "apps/web/drizzle";
+const PENDING_MAX = 5;
+
+function readProductionMigrations(root, { skip }) {
+  let entries;
+  try {
+    entries = JSON.parse(readFileSync(join(root, MIGRATIONS_DIR, "meta/_journal.json"), "utf8")).entries;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+  const added = (tag) =>
+    run("git", ["log", "--diff-filter=A", "--format=%H", "-1", "--", `${MIGRATIONS_DIR}/${tag}.sql`], {
+      cwd: root,
+      timeout: GIT_TIMEOUT_MS,
+    }) || null;
+  const newest = { tag: entries[entries.length - 1].tag, sha: added(entries[entries.length - 1].tag) };
+  const base = { total: entries.length, newest };
+  if (skip) return { ...base, unverified: "--no-gh" };
+
+  const out = run(
+    "gh",
+    [
+      "run", "list", "--workflow", "migrate-production.yml", "--status", "success",
+      "--limit", "1", "--json", "headSha,createdAt",
+    ],
+    { cwd: root, timeout: GH_TIMEOUT_MS },
+  );
+  if (out === null) return { ...base, unverified: "gh unavailable" };
+  let last;
+  try {
+    last = JSON.parse(out)[0];
+  } catch {
+    return { ...base, unverified: "gh returned unparseable JSON" };
+  }
+  if (!last?.headSha) return { ...base, lastRun: null, pending: entries.slice(-PENDING_MAX).map((e) => e.tag) };
+
+  const lastRun = { sha: String(last.headSha), date: String(last.createdAt ?? "").slice(0, 10) };
+  const contains = (sha) =>
+    sha !== null &&
+    run("git", ["merge-base", "--is-ancestor", sha, lastRun.sha], { cwd: root, timeout: GIT_TIMEOUT_MS }) !== null;
+  // Walk back from the newest until one is in; migrations apply in order, so
+  // everything older than the first included one is in too.
+  const pending = [];
+  for (let i = entries.length - 1; i >= 0 && pending.length < PENDING_MAX; i -= 1) {
+    const sha = added(entries[i].tag);
+    if (sha === null) return { ...base, unverified: `no commit adds ${entries[i].tag}.sql (shallow clone?)` };
+    if (contains(sha)) break;
+    pending.unshift(entries[i].tag);
+  }
+  return { ...base, lastRun, pending };
+}
+
 // --- drift ------------------------------------------------------------------
 
 // --- rendering --------------------------------------------------------------
@@ -253,7 +322,7 @@ function render(d) {
   out.push("");
 
   if (d.drift.length === 0) {
-    out.push("DRIFT: none detected by the four mechanical checks.");
+    out.push("DRIFT: none detected by the mechanical checks.");
   } else {
     out.push(`DRIFT: ${d.drift.length} — these are mismatches, not verdicts. Run /roadmap.`);
     for (const line of d.drift) out.push(`  - ${line}`);
@@ -279,6 +348,28 @@ function render(d) {
       ? "WORKTREES: (git unavailable)"
       : `WORKTREES: ${d.git.worktrees} — run the worktree-hygiene skill to audit staleness and scope drift.`,
   );
+
+  if (d.prod) {
+    const short = (sha) => (sha ? sha.slice(0, 7) : "?");
+    const p = d.prod;
+    if (p.unverified) {
+      out.push(
+        `PROD MIGRATIONS: unverified (${p.unverified}) — newest is ${p.newest.tag}, added in ` +
+          `${short(p.newest.sha)}; it is applied iff the last successful migrate-production run's head contains that commit. STATUS prose is not evidence.`,
+      );
+    } else if (!p.lastRun) {
+      out.push(`PROD MIGRATIONS: no successful migrate-production run found — dispatch it from main.`);
+    } else if (p.pending.length === 0) {
+      out.push(
+        `PROD MIGRATIONS: all ${p.total} applied — last migrate-production run ${short(p.lastRun.sha)} ${p.lastRun.date} contains ${p.newest.tag}`,
+      );
+    } else {
+      out.push(
+        `PROD MIGRATIONS: ${p.pending.length}${p.pending.length === PENDING_MAX ? "+" : ""} NOT applied (${p.pending.join(", ")}) — ` +
+          `last run ${short(p.lastRun.sha)} ${p.lastRun.date}; dispatch migrate-production from main.`,
+      );
+    }
+  }
 
   if (d.git.mainLog) {
     out.push("ORIGIN/MAIN:");
@@ -357,7 +448,13 @@ function collect(root, options) {
   const ki = readKnownIssues(root);
   const git = readGit(root);
   const prs = readPullRequests(root, options);
-  const drift = findDrift({ milestone, todo, gate, status });
+  let inFlight = [];
+  try {
+    inFlight = inFlightMilestones(readMilestoneIndex(root));
+  } catch {
+    // Advisory: a milestone file the index cannot read must not cost the session.
+  }
+  const drift = findDrift({ milestone, todo, gate, status, inFlight });
   // `mentions` is the whole section, read only so the drift check can ask
   // whether the milestone id appears in it. It must not reach the output — in
   // --json it would be the single largest field, and printing STATUS.md back
@@ -372,6 +469,7 @@ function collect(root, options) {
     ki,
     git,
     prs,
+    prod: readProductionMigrations(root, options),
     drift,
   };
   digest.nextRead = nextRead({ drift, gate, milestone, status });
