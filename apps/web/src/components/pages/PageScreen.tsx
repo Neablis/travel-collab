@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { PAGE_CHANGED_CODE, type Page, type PageDoc, type TripDetail, type TripGlobals } from "@tc/contracts";
-import { fetchPage, updatePage } from "@/lib/pagesClient";
+import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -12,6 +12,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
+import { ResetToDefault } from "./ResetToDefault";
 import { Banner } from "@/components/ui/banner";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { PageEditor, sameDocument } from "@/components/pages/editor/PageEditor";
@@ -617,6 +618,47 @@ export function PageScreen({
     setOfferedDraft(null);
     forgetPageDraft(pageId);
   };
+
+  // **Reset to default, and its Undo** (Mitchell, 2026-09-27; owner only). Both
+  // are one more edit in the trip's log, and both answer with the page as the
+  // server now has it — so the screen adopts that page whole, as a load would:
+  // the revision the next save names, the document, and the editor's content
+  // (set directly as well as through the prop, which `restoreDraft` explains).
+  //
+  // The Undo is offered right here because it is the only place a notebook
+  // edit can be undone at all: board ⌘Z never touches prose (ADR-036
+  // decision 2), and page undo is KI-2026-09-22-c's. It names the version the
+  // reset's answer said came before it, and the revision the reset produced,
+  // so it cannot put the old words back over an edit made since.
+  const [undoResetTo, setUndoResetTo] = useState<{ toSeq: number; revision: string } | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const adoptPage = (next: Page) => {
+    baseRef.current = next.updatedAt;
+    baseDocRef.current = next.content;
+    latestDocRef.current = null;
+    setStored(inspectStoredPageDoc(next.content));
+    setPage(next);
+    editorRef.current?.commands.setContent(next.content as never, false);
+  };
+  const handleReset = (result: ResetPageResult) => {
+    adoptPage(result.page);
+    setResetError(null);
+    // A reset that changed nothing wrote nothing, and has nothing to undo.
+    setUndoResetTo(result.restoreSeq === null ? null : { toSeq: result.restoreSeq, revision: result.page.updatedAt });
+  };
+  const undoReset = ({ toSeq, revision }: { toSeq: number; revision: string }) => {
+    void restorePageVersion(tripId, pageId, { toSeq, expectedUpdatedAt: revision }).then(
+      (result) => {
+        if (!result.ok) {
+          setResetError(result.error.message);
+          return;
+        }
+        adoptPage(result.value);
+        setUndoResetTo(null);
+        setResetError(null);
+      },
+    );
+  };
   // Stable, so `PageEditor`'s effect does not re-run on every render and
   // re-publish the same editor.
   const handleEditorReady = useCallback((next: Editor | null) => setEditor(next), []);
@@ -1070,6 +1112,16 @@ export function PageScreen({
           {/* Reading only: what is kept is the STORED document, and in Editing
               the session's changes have not been committed yet (M14 link 10). */}
           {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
+          {/* Reading only, for the reason `ResetToDefault` gives; it hides
+              itself from anyone but the owner, and on a notebook a person made. */}
+          {editing ? null : (
+            <ResetToDefault
+              tripId={tripId}
+              page={page}
+              onReset={handleReset}
+              revision={() => baseRef.current ?? page.updatedAt}
+            />
+          )}
           {/* The phone's entry to the assistant, and it is now the SAME control
               this app puts on Plan, Map and the Notebook index (SPEC §23) —
               this screen's own `◎ Assistant` button was one of the three
@@ -1091,6 +1143,26 @@ export function PageScreen({
           <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
         </div>
       </div>
+      {undoResetTo !== null ? (
+        <Banner
+          variant="info"
+          className="mb-3"
+          data-testid="page-reset-undo"
+          actions={
+            <>
+              <Button variant="secondary" size="sm" onClick={() => undoReset(undoResetTo)}>
+                Undo reset
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setUndoResetTo(null)}>
+                Dismiss
+              </Button>
+            </>
+          }
+        >
+          This notebook is back to its default.
+          {resetError !== null ? <span role="alert"> {resetError}</span> : null}
+        </Banner>
+      ) : null}
       {unstorable ? (
         <div className="mb-3">
           <LockedNotice>
