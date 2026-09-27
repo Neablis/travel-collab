@@ -37,8 +37,16 @@
      - In Reading, `page-inserts` is declined, and one sentence is appended under the model's
        "I added…".
      - That is the likeliest reason. It cannot be proven from logs, because the client logs
-       nothing. ADR-058's review point 1 asks whether a composing turn should switch the page
-       to Editing.
+       nothing.
+     - **Resolved 2026-09-27** (ADR-058 decision 8, AGENTS.md invariant 7): an editor's page in
+       Reading is switched to Editing — the Edit toggle's own state — and the inserts land and
+       are saved by the edit session. A viewer stays in Reading and is told nothing went in.
+       Proven by `PageAssistant.test.tsx` ("switches a page in Reading to Editing…", "does not
+       switch a viewer's page…") and by the m10 e2e on a NEW notebook, which opens in Reading,
+       asks for a meals notebook, sees the page in Editing with the widgets, and reads them
+       back from the server after a reload. Seen red with the role read forced to "may not
+       edit": the e2e's *"Expected substring: Switched to Editing to add"* failed, and the unit
+       tests' *"Unable to find an element with the text: Bring a raincoat"*.
 - **Ruled out, with evidence:**
   - **The all-or-nothing final check did not drop this batch.** The string-tag retries plus the
     prose validate as one 12-node document (reproduced). It was still a latent defect, since

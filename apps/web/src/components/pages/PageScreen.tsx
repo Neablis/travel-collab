@@ -40,7 +40,8 @@ import { useAskThread } from "@/components/assistant/useAskThread";
 import { useEditSession } from "./useEditSession";
 import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } from "./pageDraft";
 import type { ApiError } from "@/lib/apiClient";
-import type { DroppedInsert } from "@tc/contracts";
+import type { DroppedInsert, PageNode } from "@tc/contracts";
+import type { AskEventHandler } from "@/components/assistant/useAskThread";
 import { getMacro } from "@tc/pages";
 
 type Status = "loading" | "ready" | "error";
@@ -48,10 +49,28 @@ type Status = "loading" | "ready" | "error";
 // What the assistant says when a turn wanted to write into a page that is being
 // read rather than edited. It names the control that would let it through,
 // because "I can't do that here" without one is a dead end.
-const READING_REFUSAL = "I drafted that, but this page is open for reading — turn on Edit page and ask again to put it in.";
+// Since 2026-09-27 it reaches only a reader who may NOT edit: an editor's page
+// is switched to Editing and the insert lands.
+const READING_REFUSAL = "I drafted that, but you can only read this page, so it was not put in.";
 
 // The same refusal for the moment there is no editor to insert into at all.
 const NO_EDITOR_REFUSAL = "I drafted that, but the page was not ready to take it — ask again to put it in.";
+
+/** One turn's nodes waiting to land, and how the chat should describe them. */
+interface PendingInsert {
+  nodes: PageNode[];
+  patchAnswer: Parameters<AskEventHandler>[1];
+  stopped: boolean;
+  switched: boolean;
+}
+
+/** How long a Reading turn's inserts wait for the editor to become editable before the turn says so. */
+const EDITOR_READY_TIMEOUT_MS = 5_000;
+
+/** What the chat says when the assistant turned Editing on to do its job. */
+function switchedToEditing(blocks: number): string {
+  return `Switched to Editing to add ${blocks} block${blocks === 1 ? "" : "s"}.`;
+}
 
 /**
  * What a turn that was cut short says about what it DID put in (S1 of #252's
@@ -635,6 +654,46 @@ export function PageScreen({
   // turn's own `patchAnswer`, which is minted once per turn. Their inserts
   // still arrive, AFTER the stop, and the reader is told what landed.
   const stoppedTurns = useRef(new WeakSet<object>());
+  // Inserts waiting for Editing to switch on — see the Reading branch below.
+  const pendingInserts = useRef<PendingInsert[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  // Whether this reader may edit: the role read Overview's Edit path uses.
+  const mayEdit = async (): Promise<boolean> => {
+    const access = await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
+    return access.ok && access.value.myRole !== "viewer";
+  };
+  /**
+   * Put a turn's nodes into the live editor, and say in the chat what that did.
+   *
+   * Already validated against the macro registry server-side and re-parsed
+   * against `PageDoc` on the way in, so there is nothing left to check here.
+   * It goes in through the SAME `insertContent` chain a click and a drop use —
+   * one mechanism, so the AI cannot develop placement rules of its own.
+   *
+   * **The insert does not TAKE the caret; it only keeps it (KI-2026-09-06-b).**
+   * An unconditional `focus()` here stole focus from the composer the user was
+   * still typing a follow-up into, late, because tiptap's `focus` schedules
+   * `view.focus()` in a `requestAnimationFrame`. `insertContent` lands at
+   * `state.selection`, which a ProseMirror state always has whether or not the
+   * view holds DOM focus, so placement is unchanged.
+   *
+   * `editorRef`, not `editor`: this runs from a callback that outlives its
+   * render, whose closure holds a stale editor.
+   */
+  const landInserts = ({ nodes, patchAnswer, stopped, switched }: PendingInsert) => {
+    const liveEditor = editorRef.current;
+    // No editor to insert into says so: silence after "I added…" reads as done
+    // (KI-2026-09-26-r).
+    if (!liveEditor) {
+      patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${NO_EDITOR_REFUSAL}` }));
+      return;
+    }
+    const insert = liveEditor.chain();
+    if (liveEditor.isFocused) insert.focus();
+    insert.insertContent(nodes as never).run();
+    if (switched) patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${switchedToEditing(nodes.length)}` }));
+    if (stopped) patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${stoppedPartway(nodes.length)}` }));
+  };
   const ask = useAskThread({
     tripId,
     scope: { kind: "page", pageId },
@@ -672,70 +731,51 @@ export function PageScreen({
       if (event.dropped.length > 0) {
         patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${droppedNotice(event.dropped)}` }));
       }
-      // **Reading never receives writes, and this is the guard that says so
-      // rather than the abort timing.** A guard that depends on a stream
-      // shutting down in time is a guard with a window in it — the last frame
-      // can already be in flight. This asks the question that actually matters:
-      // is this page still being edited?
-      //
-      // `editingRef`, not `editing`, because this callback outlives the render
-      // it was created in — the closure's copy is whatever Editing was when the
-      // turn started, which is exactly the wrong answer.
-      //
-      // **It says so rather than dropping the write silently.** The assistant is
-      // available in Reading now (Mitchell: *"always available in both editing
-      // and reading mode"*), so a reader can ask it to write and get an answer
-      // whose whole content is an insert this refuses. Answering nothing there
-      // reads as the assistant being broken; the note is the only thing that
-      // distinguishes "refused" from "failed".
-      if (!editingRef.current) {
-        patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${READING_REFUSAL}` }));
+      const stopped = stoppedTurns.current.has(patchAnswer);
+      if (editingRef.current) {
+        landInserts({ nodes: event.content.content, patchAnswer, stopped, switched: false });
         return;
       }
-      // Already validated against the macro registry server-side and re-parsed
-      // against `PageDoc` on the way in, so there is nothing left to check
-      // here. It goes in through the SAME `insertContent` chain a click and a
-      // drop use — one mechanism, so the AI cannot develop placement rules of
-      // its own.
+      // **In Reading, the assistant switches the page to Editing and then
+      // inserts** (Mitchell, 2026-09-27: *"assistant should also be able to
+      // switch page state so it can do its job"*; AGENTS.md invariant 7, ADR-058
+      // decision 8). This used to decline with a
+      // sentence under the answer — and a new notebook opens in Reading, so on
+      // 2026-09-26 a whole notebook turn landed nothing (KI-2026-09-26-r).
       //
-      // **The insert does not TAKE the caret; it only keeps it (KI-2026-09-06-b).**
-      // An unconditional `focus()` here stole focus from the composer the user
-      // was still typing a follow-up into — and it stole it LATE, because
-      // tiptap's `focus` command schedules `view.focus()` in a
-      // `requestAnimationFrame` (`@tiptap/core` 2.27.2, `commands/focus.ts`).
-      // The keystrokes before that frame stayed in the composer and every one
-      // after it — `Enter` included — was typed into the page instead, silently:
-      // the follow-up was never sent and its characters were appended to the
-      // document and autosaved.
-      //
-      // **Placement is unchanged, which is why this is not a product decision.**
-      // `focus()` with no position never touches the selection: it resolves to
-      // `editor.state.selection`, sees the selection is the same, and does
-      // nothing but schedule that frame. `insertContent` lands at
-      // `state.selection`, which a ProseMirror state always has whether or not
-      // the view holds DOM focus — so the node goes exactly where it went
-      // before. The guarded call is a no-op by tiptap's own early return
-      // (`view.hasFocus() && position === null`); it is written out rather than
-      // deleted so that "the editor keeps the caret when it already had it"
-      // stays a property of this code and not of a library internal.
-      //
-      // `liveEditor`, not `editor`: the state variable of that name is this
-      // closure's stale copy, which is the whole reason `editorRef` exists.
-      const liveEditor = editorRef.current;
-      // No editor to insert into is a refusal like Reading's, and says so for
-      // the same reason: silence after "I added…" reads as done (KI-2026-09-26-r).
-      if (!liveEditor) {
-        patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${NO_EDITOR_REFUSAL}` }));
-        return;
-      }
-      const insert = liveEditor.chain();
-      if (liveEditor.isFocused) insert.focus();
-      insert.insertContent(event.content.content as never).run();
-      if (stoppedTurns.current.has(patchAnswer)) {
-        patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${stoppedPartway(event.content.content.length)}` }));
-      }
+      // **Only for someone who may edit**, by the same role read Overview's
+      // Edit link switches on (`from === "overview"` above): a viewer — or a
+      // read that fails — keeps the old answer, and the page stays in Reading.
+      // The inserts are queued rather than made here, because the edit session
+      // only records changes made WHILE editing: the effect below lands them
+      // once the render that turned Editing on has reached the editor.
+      void mayEdit().then((allowed) => {
+        if (!allowed) {
+          patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${READING_REFUSAL}` }));
+          return;
+        }
+        const queued: PendingInsert = { nodes: event.content.content, patchAnswer, stopped, switched: true };
+        pendingInserts.current.push(queued);
+        setPendingCount((count) => count + 1);
+        setEditing(true);
+        // An editor that never becomes ready must not swallow the insert: the
+        // turn says so, exactly as it does when there was no editor at all.
+        setTimeout(() => {
+          const index = pendingInserts.current.indexOf(queued);
+          if (index === -1) return;
+          pendingInserts.current.splice(index, 1);
+          patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${NO_EDITOR_REFUSAL}` }));
+        }, EDITOR_READY_TIMEOUT_MS);
+      });
     },
   });
+  // The inserts a Reading turn queued, landed once Editing is on and the
+  // editor exists. Child effects run first, so by here `PageEditor` has already
+  // made the editor editable for this render.
+  useEffect(() => {
+    if (!editing || editor === null || pendingInserts.current.length === 0) return;
+    for (const queued of pendingInserts.current.splice(0)) landInserts(queued);
+  }, [editing, editor, pendingCount]);
   const [assistantOpen, setAssistantOpen] = useState(false);
   // The server's refusal for the LAST page turn, or null. Separate from
   // `ask.askError` (which is the transport's) and merged with it at the rail,

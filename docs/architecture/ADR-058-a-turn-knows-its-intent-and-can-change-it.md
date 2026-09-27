@@ -125,6 +125,25 @@ asked beside a notebook got the same turn as a notebook asked for.
      the model may claim it added them. A turn that delivered inserts is never rolled back, even
      when it then fails or is stopped; its answer says how many blocks went in.
 
+8. **The assistant takes only paths the user could take** (AGENTS.md invariant 7; Mitchell,
+   2026-09-27: *"Ai assistant should never take a path it isn't available to the user. If the
+   user has to turn on edit mode to make playbook edits, so should the ai."*). Its first
+   application is the notebook's mode:
+   - A page turn whose inserts arrive while the page is in **Reading** switches the page to
+     **Editing** — the same `editing` state the Edit toggle sets, not a side path around it —
+     then inserts once the editor is editable. The edit session records the insert like any
+     other edit and commits it the way it commits a person's (leaving Editing, leaving the page,
+     idle). The chat says "Switched to Editing to add N blocks".
+   - It switches only for a reader who could press the toggle and have it mean something: the
+     trip's access read says their role is not `viewer` — the same read Overview's Edit link
+     switches on. A viewer, or a read that fails, stays in Reading and is told nothing was put
+     in. (A viewer's page turn is already refused at admission; this is the client's own half.)
+   - An editor that never becomes editable within 5s gets the existing "not ready" notice; the
+     insert is not dropped silently.
+   - The partial delivery of an errored or stopped turn takes the same path.
+   - Nothing on the server changed: the switch is the client's, and no instruction told the
+     model about Reading mode.
+
 ## Consequences
 
 - **A page turn now pays for a classification round-trip.** It is billed like the board's
@@ -140,10 +159,8 @@ asked beside a notebook got the same turn as a notebook asked for.
 
 ## Not decided here — review points for Mitchell
 
-1. **Reading mode still refuses inserts.** A new notebook opens in Reading. Inserts that
-   arrive then are declined, with a sentence appended to the answer. The 2026-09-26 page shows
-   no save after either turn, which fits that. Should a page turn that composes put the page
-   into Editing instead?
+1. ~~**Reading mode still refuses inserts.**~~ Decided 2026-09-27 — yes, the assistant switches
+   the page to Editing (decision 8).
 2. **The board keeps `request_change_tools` instead of getting `switch_intent`.** Its three
    intents already have a pivot (question→edit). `plan`↔`edit` has none, deliberately: nothing
    in the records shows a turn that wanted it.

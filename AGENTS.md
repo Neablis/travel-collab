@@ -105,6 +105,12 @@ the callers.
    additive: (a) every event carries `actor_id`; (b) no "the user" singletons —
    a trip has a members list (of one), never an owner baked into queries;
    (c) all permission checks go through the AccessPolicy seam.
+7. **The assistant takes only paths the user could take.** It acts through
+   what the acting user could do in the UI, with the same permissions and the
+   same mode transitions. If a person must switch a page to Editing to change
+   it, the assistant switches to Editing first, visibly, through the same state
+   the toggle sets. It never writes around a mode or a permission. Mitchell,
+   2026-09-27; first application: ADR-058 decision 8.
 
 ## Architecture map and dependency rules
 

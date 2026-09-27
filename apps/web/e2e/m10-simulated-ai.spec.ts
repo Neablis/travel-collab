@@ -350,21 +350,19 @@ test("asked to add a spend by tag chart to Money, the assistant finds it and put
 // that were each refused, and the page did not change. This is the walk on the
 // path every deployment runs: the widgets reach the page, survive the save and
 // read back tag-filtered.
-test("asked for a notebook about meals, the assistant fills the page with meal-filtered widgets", async ({ page }) => {
+test("asked for a notebook about meals on a new notebook in Reading, the assistant switches to Editing and fills it", async ({ page }) => {
   const tripName = e2eTripName("AI Meals Notebook");
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
-  const listed = (await page.request.get(`/api/trips/${tripId}/pages`).then((r) => r.json())) as {
-    pages: { id: string; title: string }[];
-  };
-  const notebook = listed.pages.find((entry) => entry.title !== "Money")!;
+  // A NEW notebook, as on 2026-09-26: it opens in Reading.
+  const created = await page.request.post(`/api/trips/${tripId}/pages`, {
+    data: { title: "Food", context: { tripId }, content: { type: "doc", content: [{ type: "paragraph" }] } },
+  });
+  expect(created.ok()).toBe(true);
+  const notebook = ((await created.json()) as { page: { id: string } }).page;
   await page.goto(`/trips/${tripId}/pages/${notebook.id}`);
-  await expect(page.getByRole("heading", { name: notebook.title, level: 1 })).toBeVisible();
-
-  await page.getByRole("button", { name: "Edit page" }).click();
-  await page.locator(".tc-page-editor p").last().click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Food", level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
 
   await openAssistantRail(page);
   await page.getByPlaceholder("Ask AI to add to this page…").fill("make a notebook about meals");
@@ -374,22 +372,28 @@ test("asked for a notebook about meals, the assistant fills the page with meal-f
   ]);
   expect(response.status()).toBe(200);
 
-  // Emitted by simulatedModel.ts's notebook branch once `insert_widget`
-  // answered ok for each widget it inserted.
-  await expect(page.getByRole("log", { name: "Conversation" })).toContainText("I've started a meal notebook with 3 live widgets");
-  // The section heading says what the page is FOR, never what it holds.
+  // The assistant takes the path the user would (AGENTS.md invariant 7): it
+  // switches the page to Editing — visibly — and the widgets land there.
+  const conversation = page.getByRole("log", { name: "Conversation" });
+  await expect(conversation).toContainText("I've started a meal notebook with 3 live widgets");
+  await expect(conversation).toContainText("Switched to Editing to add");
+  await expect(page.getByRole("button", { name: "Done editing" })).toBeVisible();
   await expect(page.locator(".tc-page-editor").getByRole("heading", { name: "Meal" })).toBeVisible();
 
-  await Promise.all([
-    page.waitForResponse(
-      (r) => /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH" && r.ok(),
-    ),
-    page.getByRole("button", { name: "Done editing" }).click(),
-  ]);
-  const saved = (await page.request.get(`/api/trips/${tripId}/pages/${notebook.id}`).then((r) => r.json())) as {
-    page: { content: DocNode };
+  // No "Done editing": the edit session's own commit when the page goes
+  // (`pagehide`, ADR-036) persists it, as it would for a person. That request
+  // is left behind by the old page and races the new page's reads, so the
+  // server is asked, and polled (m6-unload-flush's precedent).
+  await page.reload();
+  const savedTags = async () => {
+    const saved = (await page.request.get(`/api/trips/${tripId}/pages/${notebook.id}`).then((r) => r.json())) as {
+      page: { content: DocNode };
+    };
+    return tagsOfWidgets(saved.page.content);
   };
-  expect(tagsOfWidgets(saved.page.content)).toEqual(["meal", "meal", "meal"]);
+  await expect.poll(savedTags).toEqual(["meal", "meal", "meal"]);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Meal" })).toBeVisible();
 });
 
 type DocNode = { type: string; attrs?: { params?: { tag?: string } }; content?: DocNode[] };

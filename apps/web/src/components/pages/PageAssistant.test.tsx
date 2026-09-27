@@ -99,6 +99,21 @@ beforeEach(() => {
   askAssistantMock.mockImplementation(turnEmitting({ type: "page-inserts", content: DOC, dropped: [] }));
 });
 
+/** The trip's access read, answering `myRole` — what decides whether the assistant may switch a page to Editing. */
+function accessAs(myRole: "owner" | "viewer") {
+  return http.get("/api/trips/:tripId/access", ({ params }) =>
+    HttpResponse.json({
+      access: {
+        tripId: params.tripId,
+        myRole,
+        members: [{ userId: "u1", role: myRole, name: null, email: null, image: null }],
+        invites: [],
+        collaboratorsEntitled: true,
+      },
+    }),
+  );
+}
+
 const server = setupServer(
   http.get("/api/account/preferences", () =>
     HttpResponse.json({ preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" } }),
@@ -108,6 +123,7 @@ const server = setupServer(
   // suite — a state no signed-in user is in, and one that hid 33 of this
   // lane's unhandled-request errors.
   makeAccountPlanHandler(),
+  accessAs("owner"),
   http.get("/api/trips/:tripId/globals", () =>
     HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
   ),
@@ -125,8 +141,10 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-async function openRail() {
-  const trip = tripDetailFixture({ days: [] });
+async function openRail({ editing = true }: { editing?: boolean } = {}) {
+  // Its own trip id each time: `cachedRead` keeps a trip's access answer, and
+  // an owner's left behind would make a viewer case pass for the wrong reason.
+  const trip = tripDetailFixture({ tripId: crypto.randomUUID(), days: [] });
   const page = pageFixture({
     tripId: trip.tripId,
     content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
@@ -138,7 +156,7 @@ async function openRail() {
   );
   render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
   await screen.findByText("Notes");
-  await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+  if (editing) await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
   await userEvent.click(screen.getByTestId("assistant-launcher"));
   return { onUpdate, page, trip };
 }
@@ -358,29 +376,55 @@ describe("the assistant on a notebook page", () => {
     return { emitter: () => emit, signal: () => signal };
   }
 
-  // **Reading never receives writes — and it is this guard that says so, not
-  // the surface being taken away.** The assistant used to be unmounted on
-  // leaving Editing, which both hung up the turn and hid the panel. Mitchell
-  // reversed the second half — *"always available in both editing and reading
-  // mode"* — so the panel is still there and the guard is now the only thing
-  // between a streaming turn and a document that is being read.
-  it("refuses a turn's insert once the page has left Editing, and says why", async () => {
+  // **The assistant takes the path the user would** (AGENTS.md invariant 7,
+  // ADR-058 decision 8). An insert that arrives while the page is being read
+  // switches it to Editing — the same state the Edit toggle sets — and lands,
+  // and the chat says so. It used to be declined, and a new notebook opens in
+  // Reading, so a whole notebook turn landed nothing (KI-2026-09-26-r).
+  it("switches a page in Reading to Editing when a turn's inserts arrive, and lands them", async () => {
+    await openRail({ editing: false });
+    expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy();
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
+
+    expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("Switched to Editing to add 1 block."),
+    );
+  });
+
+  // The same switch for a turn the user left Editing during: the answer is
+  // still what they asked for, so it lands — visibly, in Editing — rather than
+  // being thrown away.
+  it("switches back to Editing when a turn's insert arrives after the page left it", async () => {
     const { emitter } = neverSettlingTurn();
-    const { onUpdate } = await openRail();
+    await openRail();
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
     await waitFor(() => expect(emitter()).not.toBeNull());
 
     await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
-    // The answer arrives after the user left Editing. A stream's last frame can
-    // already be in flight when a turn is cancelled, so cancellation alone
-    // could never close this window.
     emitter()!({ type: "page-inserts", content: DOC, dropped: [] });
 
-    expect(await screen.findByText(/turn on Edit page/i)).toBeTruthy();
-    expect(screen.queryByText("Bring a raincoat")).toBeNull();
-    expect(onUpdate).not.toHaveBeenCalled();
+    expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy();
     // Still open. Hiding it was the old fix and is now the bug.
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // **Only when the user could press the toggle.** A viewer cannot edit, so
+  // neither can the assistant on their behalf: the page stays in Reading and
+  // the answer says why nothing went in.
+  it("does not switch a viewer's page to Editing, and says why nothing went in", async () => {
+    server.use(accessAs("viewer"));
+    const { onUpdate } = await openRail({ editing: false });
+    await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
+
+    await waitFor(() =>
+      expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("you can only read this page"),
+    );
+    expect(screen.queryByText("Bring a raincoat")).toBeNull();
+    expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy();
+    expect(onUpdate).not.toHaveBeenCalled();
   });
 
   // Closing the surface IS hanging up — that half of the PR 139 fix stands.
