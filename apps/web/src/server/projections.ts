@@ -6,16 +6,16 @@ import {
   seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
+  PageCreatedV1,
   type PageContent,
-  type PageCreatedV1,
   type PageDoc,
 } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
-import { and, desc, eq, getTableColumns, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Queryable } from "./db/client";
-import { pages, tripDetails, tripSummaries } from "./db/schema";
+import { events, pages, tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
 import { isUuid } from "./ids";
 
@@ -126,27 +126,79 @@ export async function applyPageEvents(tx: Queryable, envelopes: EventEnvelope[])
           })
           .where(eq(pages.id, event.payload.pageId));
         break;
-      case "PageDeleted":
-        await tx.delete(pages).where(eq(pages.id, event.payload.pageId));
+      case "PageDeleted": {
+        const [gone] = await tx
+          .delete(pages)
+          .where(eq(pages.id, event.payload.pageId))
+          .returning({ seedKey: pages.seedKey });
+        if (gone?.seedKey != null) await passSeedKeyOnRows(tx, event.payload.tripId, gone.seedKey, envelope.seq);
         break;
+      }
     }
   }
 }
 
 // The seed key a `PageCreated` gives its row: the one it names, or, for an
 // event from before keys, the one it implies (`seedKeyOf`) unless another row
-// of the trip already holds it. The page fold asks the same question of its
+// of the trip already holds it. A NAMED key takes the key from any other row
+// holding it (an undo bringing a deleted seed back after its heir inherited),
+// and that row waits to inherit again. The page fold does the same to its
 // state (`evolvePages`), and the migration that added the column answered it
 // for the rows that existed, oldest first — so a rebuild of an old log gives
 // the keys the backfill gave.
 async function projectedSeedKey(tx: Queryable, payload: PageCreatedV1["payload"]): Promise<string | null> {
   const { key, derived } = seedKeyOf(payload);
-  if (key === null || !derived) return key;
-  const [holder] = await tx
+  if (key === null) return null;
+  const heldElsewhere = and(eq(pages.tripId, payload.tripId), eq(pages.seedKey, key), ne(pages.id, payload.pageId));
+  if (!derived) {
+    await tx.update(pages).set({ seedKey: null }).where(heldElsewhere);
+    return key;
+  }
+  const [holder] = await tx.select({ id: pages.id }).from(pages).where(heldElsewhere);
+  return holder === undefined ? key : null;
+}
+
+/**
+ * A deleted seed's key, handed to its heir: the trip's keyless row whose
+ * `PageCreated` (its latest as of `seq`, the delete) is from before keys and
+ * implies `key`, the oldest such by that event's `seq`. `passSeedKeyOn` in
+ * `@tc/domain` does the same to the page fold, and migration 0032's backfill
+ * picks the same page among the rows it saw (`seq` first), so a rebuild keys
+ * the page the backfill keyed even when a replay met the first holder alive.
+ *
+ * A row with no `PageCreated` is never an heir. Every live page has one by the
+ * time a delete is written (`commitPageStep` backfills the trip's genesis
+ * first, naming each row's key), and the rows it skips, as unreadable, are left
+ * alone by a rebuild too. Reading geneses up to `seq` rather than the whole
+ * stream is what keeps a replay from seeing a create that comes later.
+ */
+async function passSeedKeyOnRows(tx: Queryable, tripId: string, key: string, seq: number): Promise<void> {
+  const keyless = await tx
     .select({ id: pages.id })
     .from(pages)
-    .where(and(eq(pages.tripId, payload.tripId), eq(pages.seedKey, key), ne(pages.id, payload.pageId)));
-  return holder === undefined ? key : null;
+    .where(and(eq(pages.tripId, tripId), isNull(pages.seedKey)));
+  if (keyless.length === 0) return;
+  const pageIdOf = sql<string>`${events.payload}->>'pageId'`;
+  const geneses = await tx
+    .selectDistinctOn([pageIdOf], { seq: events.seq, version: events.version, payload: events.payload })
+    .from(events)
+    .where(
+      and(
+        eq(events.streamId, tripId),
+        eq(events.type, "PageCreated"),
+        lte(events.seq, seq),
+        inArray(pageIdOf, keyless.map((row) => row.id)),
+      ),
+    )
+    .orderBy(pageIdOf, desc(events.seq));
+  const [heir] = geneses
+    .map((g) => ({ seq: g.seq, ...PageCreatedV1.parse({ type: "PageCreated", version: g.version, payload: g.payload }) }))
+    .filter((g) => {
+      const implied = seedKeyOf(g.payload);
+      return implied.derived && implied.key === key;
+    })
+    .sort((a, b) => a.seq - b.seq);
+  if (heir !== undefined) await tx.update(pages).set({ seedKey: key }).where(eq(pages.id, heir.payload.pageId));
 }
 
 /**

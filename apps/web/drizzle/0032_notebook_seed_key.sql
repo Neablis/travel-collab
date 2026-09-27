@@ -12,7 +12,12 @@ ALTER TABLE "pages" ADD COLUMN "seed_key" text;--> statement-breakpoint
 -- called now. Where two pages of a trip would get one key (a seed renamed away,
 -- then added back beside it), only the first gets it: a row the log has never
 -- seen, then the earliest-created by the log, then the oldest row. The other
--- stays an ordinary notebook.
+-- stays an ordinary notebook until the first is deleted, when it inherits.
+-- This sees only live rows, so where the first was ALREADY deleted it keys the
+-- survivor; a replay meets the first alive, and agrees only because a deleted
+-- holder's key passes to the oldest live keyless page implying it, by the
+-- `seq` this orders by (`passSeedKeyOn` in @tc/domain, `passSeedKeyOnRows` in
+-- projections.ts). Change this order and those two with it.
 -- seed-key backfill: begin
 WITH genesis AS (
   SELECT DISTINCT ON (e.stream_id, e.payload->>'pageId')

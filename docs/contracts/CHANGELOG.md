@@ -35,7 +35,7 @@ Format:
   collision on the key index is the lazy seeder racing "Add missing", answered as
   `concurrency-conflict`.
 - Consumers updated: `@tc/domain` (`PageState.seedKey`, `evolvePages` grants a derived key
-  once, `diffPageStates` writes the key on a re-create, `decidePageCommand`), `@tc/pages`
+  once and passes a deleted holder's key to the oldest page implying it, `diffPageStates` writes the key on a re-create, `decidePageCommand`), `@tc/pages`
   (`seedTemplateOf` and everything built on it read `seedKey`; `SeededPage` carries it),
   `apps/web` (`pages` projection and `seed_key` column, lazy seeding, the genesis backfill,
   "Add missing", both page PATCH routes and `defaultNotebookResponses` lose

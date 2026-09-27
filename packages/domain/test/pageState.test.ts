@@ -113,6 +113,39 @@ describe("the seed key of a page created before seed keys existed", () => {
     expect(foldPages([created(1, P1, "Money", "x")])[P1]?.seedKey).toBeNull();
   });
 
+  // Migration 0032 saw only the pages alive when it ran, so the old "Money"
+  // copy beside a renamed-then-deleted seed was the one it keyed. A replay
+  // meets the renamed seed alive first; this is where it catches up.
+  it("passes to the oldest page implying it when its holder is deleted, as the backfill keyed it", () => {
+    const P3 = "9b0d5f21-6cad-4e91-8a6c-5e4d8f1a0b92";
+    const state = foldPages([
+      legacy(1, P1, "Money"),
+      envelope(2, "PageEdited", { tripId: TRIP, pageId: P1, title: "Budget" }),
+      legacy(3, P2, "Money"),
+      legacy(4, P3, "Money"),
+      envelope(5, "PageDeleted", { tripId: TRIP, pageId: P1 }),
+    ]);
+    expect(state[P2]?.seedKey).toBe("money");
+    expect(state[P3]?.seedKey).toBeNull();
+    // A create that NAMED no key (`null`) is not a default, and never inherits.
+    const named = foldPages([
+      legacy(1, P1, "Money"),
+      envelope(2, "PageCreated", { tripId: TRIP, pageId: P2, title: "Money", context: ctx(), content: doc("x"), actorId: "system", seedKey: null }),
+      envelope(3, "PageDeleted", { tripId: TRIP, pageId: P1 }),
+    ]);
+    expect(named[P2]?.seedKey).toBeNull();
+  });
+
+  it("goes back to a deleted seed an undo brings back, and to the heir again on redo", () => {
+    const before = foldPages([legacy(1, P1, "Money"), legacy(2, P2, "Money")]);
+    const deleted = evolvePages(before, { type: "PageDeleted", version: 1, payload: { tripId: TRIP, pageId: P1 } });
+    expect(deleted[P2]?.seedKey).toBe("money");
+    const undone = diffPageStates(deleted, before, TRIP).reduce(evolvePages, deleted);
+    expect([undone[P1]?.seedKey, undone[P2]?.seedKey]).toEqual(["money", null]);
+    const redone = diffPageStates(undone, deleted, TRIP).reduce(evolvePages, undone);
+    expect([redone[P1], redone[P2]?.seedKey]).toEqual([undefined, "money"]);
+  });
+
   it("is carried by the create an undo writes, so a renamed seed comes back as that seed", () => {
     const renamed = foldPages([legacy(1, P1, "Money"), envelope(2, "PageEdited", { tripId: TRIP, pageId: P1, title: "Budget" })]);
     const [recreate] = diffPageStates({}, renamed, TRIP);

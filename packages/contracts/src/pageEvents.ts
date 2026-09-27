@@ -200,7 +200,9 @@ const LEGACY_SEED_TITLES: Readonly<Record<string, string>> = {
  *
  * Read by the page fold and by the `pages` projection. Neither grants a DERIVED
  * key another live page of the trip already holds: two old events can imply one
- * key (a seed renamed away, then added back beside it), and the first keeps it.
+ * key (a seed renamed away, then added back beside it), and the first keeps it
+ * until it is deleted, when the key passes to the next (`passSeedKeyOn` in
+ * `@tc/domain`, ADR-036).
  */
 export function seedKeyOf(payload: PageCreatedV1["payload"]): { key: string | null; derived: boolean } {
   if (payload.seedKey !== undefined) return { key: payload.seedKey, derived: false };

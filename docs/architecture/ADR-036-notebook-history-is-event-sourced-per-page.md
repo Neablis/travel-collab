@@ -149,10 +149,23 @@ and build the fix now. This supersedes the seed identity in the amendment above
   on 2026-09-27, or `kind: "overview"`), and the fold and the projection grant a key read
   that way only when no other live page of the trip holds it. Migration 0032 backfilled
   existing rows by the same rule, reading each page's latest `PageCreated` (or its row, when
-  the log has none), so a rebuild of an existing trip gives the keys the backfill gave. One
-  known divergence: where a trip had a renamed seed and the pre-fix "Add missing" copy
-  beside it, and the older of the two was later deleted, the backfill keys the survivor and
-  a rebuild would not. Nothing is lost either way.
+  the log has none), and keyed the oldest of any pages implying one key (by that event's
+  `seq`).
+- **A deleted seed's key passes to its heir**, and that is what makes a rebuild give the keys
+  the backfill gave. The backfill saw only live rows: a trip whose renamed seed had the
+  pre-fix "Add missing" copy beside it, and whose renamed seed was later deleted, got the
+  copy keyed. A replay meets the renamed seed alive first, so the copy is keyless at its
+  create; when a page holding a key is deleted, **whether its key was named or implied**, the
+  key passes to the trip's oldest live keyless page whose `PageCreated` named no key and
+  implies that one, oldest by that event's `seq` — the backfill's own order. A page whose
+  create named a key, `null` included, never inherits: `null` says it is not a default. In
+  the other direction a create that names a key takes it from a page that only implied it,
+  which waits to inherit again. The fold (`evolvePages`) and the projection
+  (`applyPageEvents`) both do this, and `defaultNotebooks.int.test.ts` pins backfill,
+  rebuild and fold to the same keys. A disagreement between the backfill and a rebuild is
+  not "nothing lost": it is Invariant 1 broken, and the page loses Reset on the first rebuild.
+  With every key named since, this only ever moves a key to a page from before keys: a seed
+  "Add missing" planted, deleted, has no heir, and comes back under its old id as before.
 
 ### 3. One clock. The settled edit session is the only write
 

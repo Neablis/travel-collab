@@ -6,6 +6,7 @@
 // No beforeEach truncation: every test mints its own trip, as the sibling
 // suites do (`pages.int.test.ts`).
 import { newPageDoc, PageDoc, SYSTEM_ACTOR_ID } from "@tc/contracts";
+import { foldPages } from "@tc/domain";
 import { DEFAULT_TEMPLATES, OVERVIEW_TEMPLATE } from "@tc/pages";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
@@ -273,5 +274,84 @@ describe("the seed-key backfill (migration 0032)", () => {
     const backfilled = await db.select().from(pages).where(inArray(pages.tripId, trips)).orderBy(asc(pages.id));
     await rebuildProjections();
     expect(await db.select().from(pages).where(inArray(pages.tripId, trips)).orderBy(asc(pages.id))).toEqual(backfilled);
+  });
+
+  // KI-2026-09-27-e's own history, one step further: the renamed seed is then
+  // deleted. The backfill sees only the copy, and keys it; a replay meets the
+  // renamed seed alive first, and must hand the copy the key at the delete.
+  it("keys the copy when the renamed seed beside it was deleted, and a rebuild and the fold key it alike", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const seeded = await listPages(tripId);
+    const money = seeded.find((p) => p.seedKey === "money")!;
+    await executePageCommand({ type: "EditPage", tripId, pageId: money.id, title: "Budget" }, ownerId);
+    await db
+      .update(events)
+      .set({ payload: sql`${events.payload} - 'seedKey'` })
+      .where(and(eq(events.streamId, tripId), eq(events.type, "PageCreated")));
+    const copyId = randomUUID();
+    const appended = await appendToStream(db, {
+      streamId: tripId,
+      expectedSeq: (await readStream(db, tripId)).length,
+      events: [
+        {
+          type: "PageCreated",
+          version: 1,
+          payload: { tripId, pageId: copyId, title: "Money", context: { tripId }, content: newPageDoc(), actorId: SYSTEM_ACTOR_ID },
+        },
+      ],
+      actorId: ownerId,
+      occurredAt: new Date().toISOString(),
+      batchId: randomUUID(),
+      origin: { kind: "user" },
+    });
+    if (!appended.ok) throw new Error("append refused");
+    await applyPageEvents(db, appended.envelopes);
+    expect((await executePageCommand({ type: "DeletePage", tripId, pageId: money.id }, ownerId)).ok).toBe(true);
+
+    await db.update(pages).set({ seedKey: null }).where(eq(pages.tripId, tripId));
+    await db.execute(sql.raw(backfill));
+    const rowsOf = () => db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.id));
+    const backfilled = await rowsOf();
+    expect(backfilled.find((p) => p.id === copyId)?.seedKey).toBe("money");
+
+    await rebuildProjections();
+    expect(await rowsOf()).toEqual(backfilled);
+    const folded = foldPages(await readStream(db, tripId));
+    expect(Object.fromEntries(Object.entries(folded).map(([id, p]) => [id, p.seedKey]))).toEqual(
+      Object.fromEntries(backfilled.map((p) => [p.id, p.seedKey])),
+    );
+  });
+
+  // The other direction: a create that NAMES a key takes it from a page that
+  // only implied it (a deleted seed brought back with its key), rather than
+  // colliding with it on `pages_seed_key_unique`.
+  it("gives a named key to its page over one that only implied it, in the rows as in the fold", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const [implied, named] = [randomUUID(), randomUUID()];
+    const create = (pageId: string, seedKey?: string) => ({
+      type: "PageCreated",
+      version: 1,
+      payload: { tripId, pageId, title: "Money", context: { tripId }, content: newPageDoc(), actorId: SYSTEM_ACTOR_ID, ...(seedKey === undefined ? {} : { seedKey }) },
+    });
+    for (const event of [create(implied), create(named, "money")]) {
+      const appended = await appendToStream(db, {
+        streamId: tripId,
+        expectedSeq: (await readStream(db, tripId)).length,
+        events: [event],
+        actorId: ownerId,
+        occurredAt: new Date().toISOString(),
+        batchId: randomUUID(),
+        origin: { kind: "user" },
+      });
+      if (!appended.ok) throw new Error("append refused");
+      await applyPageEvents(db, appended.envelopes);
+    }
+    const rows = await db.select({ id: pages.id, seedKey: pages.seedKey }).from(pages).where(inArray(pages.id, [implied, named]));
+    const expected = { [implied]: null, [named]: "money" };
+    expect(Object.fromEntries(rows.map((r) => [r.id, r.seedKey]))).toEqual(expected);
+    const folded = foldPages(await readStream(db, tripId));
+    expect({ [implied]: folded[implied]?.seedKey, [named]: folded[named]?.seedKey }).toEqual(expected);
   });
 });

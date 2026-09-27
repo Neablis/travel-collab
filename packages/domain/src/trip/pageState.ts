@@ -28,6 +28,13 @@ export type PageState = {
   actorId: string;
   /** Which default notebook this page is the trip's seed of, or `null`. No edit moves it. */
   seedKey: string | null;
+  /**
+   * The key this page's `PageCreated` IMPLIED, on a page created by an event
+   * written before keys existed (`seedKeyOf`); absent on every other page. It
+   * is what lets the page inherit that key when the page holding it is deleted
+   * (`passSeedKeyOn`). An event that names a key, `null` included, never sets it.
+   */
+  legacySeedKey?: string;
 };
 
 /** Every page of a trip, keyed by page id. */
@@ -37,12 +44,26 @@ export function evolvePages(state: PagesState, event: PageEvent): PagesState {
   switch (event.type) {
     case "PageCreated": {
       const { pageId, title, context, content, actorId } = event.payload;
-      // A key read off an old event is not granted twice: the first live page
-      // to hold it keeps it (`seedKeyOf`). The `pages` projection asks the
-      // same question of its rows, so the two agree.
       const { key, derived } = seedKeyOf(event.payload);
-      const taken = derived && key !== null && Object.entries(state).some(([id, p]) => id !== pageId && p.seedKey === key);
-      return { ...state, [pageId]: { title, context, content, actorId, seedKey: taken ? null : key } };
+      // Re-inserted rather than overwritten, so the page sits AFTER every live
+      // page: key order is genesis order (a page id is a uuid, never an
+      // integer-like key), which is the "oldest" `passSeedKeyOn` picks by.
+      const rest = withoutPage(state, pageId);
+      const held = key !== null && Object.values(rest).some((p) => p.seedKey === key);
+      const page: PageState = {
+        title,
+        context,
+        content,
+        actorId,
+        // A key read off an old event is not granted twice: the oldest live
+        // page implying it holds it. A NAMED key is the log saying which page
+        // is the seed, so it takes the key from whoever holds it (an undo
+        // bringing a deleted seed back after its heir inherited), and that
+        // page waits again. The `pages` projection does both to its rows.
+        seedKey: derived && held ? null : key,
+        ...(derived && key !== null ? { legacySeedKey: key } : {}),
+      };
+      return { ...(derived || !held || key === null ? rest : demote(rest, key)), [pageId]: page };
     }
     case "PageEdited": {
       const current = state[event.payload.pageId];
@@ -63,12 +84,44 @@ export function evolvePages(state: PagesState, event: PageEvent): PagesState {
       };
     }
     case "PageDeleted": {
-      if (state[event.payload.pageId] === undefined) return state;
-      const next = { ...state };
-      delete next[event.payload.pageId];
-      return next;
+      const gone = state[event.payload.pageId];
+      if (gone === undefined) return state;
+      return passSeedKeyOn(withoutPage(state, event.payload.pageId), gone.seedKey);
     }
   }
+}
+
+function withoutPage(state: PagesState, pageId: string): PagesState {
+  if (state[pageId] === undefined) return state;
+  const next = { ...state };
+  delete next[pageId];
+  return next;
+}
+
+function demote(state: PagesState, key: string): PagesState {
+  return Object.fromEntries(
+    Object.entries(state).map(([id, p]) => [id, p.seedKey === key ? { ...p, seedKey: null } : p]),
+  );
+}
+
+/**
+ * A deleted seed's key, handed to its heir: the OLDEST live page (by genesis,
+ * which is key order here) whose pre-key `PageCreated` implied that key and
+ * which holds none. Whichever way the deleted page held the key, named or
+ * implied, the heir is always such a legacy page; a page whose create named a
+ * key, `null` included, never inherits one.
+ *
+ * This is what makes a replay give the keys migration 0032 backfilled. The
+ * backfill saw only the live rows and keyed the oldest page implying each key;
+ * a replay meets the first holder alive, so the later page is keyless until
+ * that holder is deleted, and this is where it gets the key. `applyPageEvents`
+ * does the same to the `pages` rows (`passSeedKeyOnRows`).
+ */
+function passSeedKeyOn(state: PagesState, key: string | null): PagesState {
+  if (key === null) return state;
+  const heir = Object.keys(state).find((id) => state[id]!.seedKey === null && state[id]!.legacySeedKey === key);
+  if (heir === undefined) return state;
+  return { ...state, [heir]: { ...state[heir]!, seedKey: key } };
 }
 
 /**
