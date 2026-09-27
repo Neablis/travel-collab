@@ -498,11 +498,20 @@ describe("simulatedModel — the ask surface", () => {
     const stale = { toolName: "read_trip", value: { ...TRIP_READOUT, name: "STALE" } };
     const priorTurn = askPrompt({ kind: "trip" }, [stale]).prompt;
     const secondTurn = {
+      tools: askPrompt({ kind: "trip" }).tools,
       prompt: [...priorTurn, { role: "user", content: [{ type: "text", text: "and now?" }] }],
     };
 
     const calls = callsOf(await probe().doGenerate(secondTurn));
     expect(calls.map((c) => c.toolName)).toEqual(["read_trip", "find_free_time"]);
+  });
+
+  // ADR-058 decision 9: a viewer's turn is handed `read_trip` and `read_day`
+  // alone, and calling a tool the turn was not offered would end it.
+  it("reads without find_free_time on a turn that was not handed it", async () => {
+    const viewerTurn = { ...askPrompt({ kind: "trip" }), tools: [{ name: "read_trip" }, { name: "read_day" }] };
+    const calls = callsOf(await probe().doGenerate(viewerTurn));
+    expect(calls.map((c) => c.toolName)).toEqual(["read_trip"]);
   });
 
   it("answers turn 2 from turn 2's results, never the ones before its question", async () => {

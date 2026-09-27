@@ -109,8 +109,9 @@ the callers.
    what the acting user could do in the UI, with the same permissions and the
    same mode transitions. If a person must switch a page to Editing to change
    it, the assistant switches to Editing first, visibly, through the same state
-   the toggle sets. It never writes around a mode or a permission. Mitchell,
-   2026-09-27; first application: ADR-058 decision 8.
+   the toggle sets. It never writes around a mode or a permission; a viewer's
+   assistant holds pure reads only (every tool declares its `effect`). Mitchell,
+   2026-09-27; ADR-058 decisions 8 and 9.
 
 ## Architecture map and dependency rules
 

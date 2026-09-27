@@ -24,7 +24,7 @@ describe("the escalation tool", () => {
     expect(escalateTool.domain).toBe("system");
     // It proposes nothing and collects nothing about the trip — what it changes
     // is which tools the next step holds.
-    expect(escalateTool.effect).toBe("read");
+    expect(escalateTool.effect).toBe("steer");
     expect(escalateTool.spend).toBe("none");
     // The belt to `postures`' braces: `minimumRoleFor` is computed over the set
     // actually selected, and a tool that unlocks write tools should raise that

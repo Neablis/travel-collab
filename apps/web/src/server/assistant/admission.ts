@@ -45,7 +45,7 @@ import { hasAtLeast } from "@/server/accessPolicy";
 import type { AskScope } from "@/server/assistant/context";
 import type { AskIntentRecord } from "@/server/assistant/askAnalytics";
 import { MAX_ASK_BODY_BYTES, MAX_ASK_MESSAGES, MAX_PROMPT_CHARS } from "@/server/assistant/limits";
-import type { AnyAssistantTool, ToolEffect } from "./defineTool";
+import type { AnyAssistantTool, EffectLevel } from "./defineTool";
 import { PERMITS_EVERYTHING, type EntitlementCeilings, type ResolvedEntitlements } from "./entitlements";
 import { capTier, tierFor, type ModelTier, type TaskClass, type TierModels } from "./taskClass";
 import { reachableIntents } from "./intents";
@@ -1317,7 +1317,7 @@ export interface AiGrantRecord {
   outcome: "granted" | "refused";
   surface: SurfaceKind | null;
   /** The granted (domain, effect) pairs — the whole of what this turn may do. */
-  grants: Partial<Record<string, ToolEffect>> | null;
+  grants: Partial<Record<string, EffectLevel>> | null;
   /** The tools actually offered, in registry order. */
   tools: string[] | null;
   model: string | null;

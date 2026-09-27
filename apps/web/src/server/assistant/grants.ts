@@ -16,7 +16,7 @@
 // the page surface, and the `pages` domain being absent from the planning one.
 import type { TripRole } from "@tc/contracts";
 import { roleAtLeast } from "@/server/accessPolicy";
-import type { AnyAssistantTool, ToolDomain, ToolEffect } from "./defineTool";
+import { EFFECT_LEVEL, type AnyAssistantTool, type EffectLevel, type ToolDomain } from "./defineTool";
 import type { TaskClass } from "./taskClass";
 import { ASSISTANT_TOOLS } from "./registry";
 
@@ -34,7 +34,7 @@ export type SurfaceKind = "trip" | "day" | "page";
 /** One domain, and the most a surface will ever grant in it. */
 export interface DomainCap {
   domain: ToolDomain;
-  max: ToolEffect;
+  max: EffectLevel;
 }
 
 /**
@@ -133,9 +133,9 @@ export const SURFACES = {
  * sense is the more load-bearing reading — so this map says what it actually
  * is: the effects granted, by domain.
  */
-export type GrantedEffects = Readonly<Partial<Record<ToolDomain, ToolEffect>>>;
+export type GrantedEffects = Readonly<Partial<Record<ToolDomain, EffectLevel>>>;
 
-const EFFECT_RANK: Record<ToolEffect, number> = { read: 0, propose: 1 };
+const EFFECT_RANK: Record<EffectLevel, number> = { read: 0, propose: 1 };
 
 /**
  * The lower of two effects, `read` below `propose`.
@@ -143,7 +143,7 @@ const EFFECT_RANK: Record<ToolEffect, number> = { read: 0, propose: 1 };
  * The whole of the arithmetic below: a turn's grant is a minimum over the four
  * caps, so no one of them can ever widen what another allowed.
  */
-function minEffect(a: ToolEffect, b: ToolEffect): ToolEffect {
+function minEffect(a: EffectLevel, b: EffectLevel): EffectLevel {
   return EFFECT_RANK[a] <= EFFECT_RANK[b] ? a : b;
 }
 
@@ -160,9 +160,9 @@ function minEffect(a: ToolEffect, b: ToolEffect): ToolEffect {
  */
 export interface EffectCaps {
   surface: SurfaceKind;
-  role: ToolEffect;
-  plan: ToolEffect;
-  classifier: ToolEffect;
+  role: EffectLevel;
+  plan: EffectLevel;
+  classifier: EffectLevel;
 }
 
 /**
@@ -178,7 +178,7 @@ export interface EffectCaps {
  * If M20's answer needs IO, it is resolved BEFORE `grantFor` is called, which
  * is what keeps `grantFor` a pure minimum over four values.
  */
-export type PlanEffectPort = (actor: { userId: string }) => ToolEffect;
+export type PlanEffectPort = (actor: { userId: string }) => EffectLevel;
 
 export const permitsPropose: PlanEffectPort = () => "propose";
 
@@ -192,7 +192,7 @@ export const permitsPropose: PlanEffectPort = () => "propose";
  */
 export function grantFor(caps: EffectCaps): GrantedEffects {
   const ceiling = minEffect(caps.role, minEffect(caps.plan, caps.classifier));
-  const grant: Partial<Record<ToolDomain, ToolEffect>> = {};
+  const grant: Partial<Record<ToolDomain, EffectLevel>> = {};
   for (const { domain, max } of SURFACES[caps.surface]) grant[domain] = minEffect(max, ceiling);
   return grant;
 }
@@ -225,7 +225,15 @@ export function toolsFor(
 ): readonly AnyAssistantTool[] {
   return ASSISTANT_TOOLS.filter((definition) => {
     const granted = grant[definition.domain];
-    if (granted === undefined || EFFECT_RANK[definition.effect] > EFFECT_RANK[granted]) return false;
+    if (granted === undefined || EFFECT_RANK[EFFECT_LEVEL[definition.effect]] > EFFECT_RANK[granted]) return false;
+    // **A read-only turn holds pure reads and nothing else** (ADR-058 decision
+    // 9). Not a cap on a domain — a viewer's `places` and `system` rows are at
+    // `read` level too — but on what the tool DOES: a `steer` tool could ask
+    // for write tools, a `spend` tool spends someone's allowance, and neither
+    // is a thing a person with read access can do in the UI (AGENTS.md
+    // invariant 7). Keyed on the tag every tool must declare, so a new tool
+    // that is not a pure read cannot reach a viewer by being forgotten.
+    if (posture === "read-only" && (definition.effect !== "read" || definition.onReadOnlyTurns === false)) return false;
     // **The fourth axis (`defineTool`'s `postures`), and it does NOT follow the
     // third's "absent argument disables the filter" rule.** That rule exists
     // because a caller who has not classified the turn must not be handed a

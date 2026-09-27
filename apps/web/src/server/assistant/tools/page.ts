@@ -66,7 +66,7 @@ export const insertTextTool = defineTool({
     "ordered lists (1.) and paragraphs. Inline formatting like **bold** is not interpreted and " +
     "will appear literally, so write plain sentences.",
   domain: "pages",
-  effect: "propose",
+  effect: "write",
   spend: "none",
   input: InsertTextParams,
   output: z.object({ inserted: z.number() }),
@@ -228,7 +228,7 @@ export const insertWidgetTool = defineTool({
     "usually the right one. Each filter takes ONE value (tag: \"meal\"), never a list. A day is a 1-based day number. A link to a notebook, day or tab names its target by " +
     "the numbers get_widget gives; a link to a website takes only an address the user typed in this message.",
   domain: "pages",
-  effect: "propose",
+  effect: "write",
   spend: "none",
   input: InsertWidgetParams,
   output: z.union([

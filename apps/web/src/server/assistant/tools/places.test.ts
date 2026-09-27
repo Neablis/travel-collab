@@ -42,7 +42,7 @@ describe("search_places", () => {
   // P5 and read by nothing; this is the tool that makes it true.
   it("declares the tags the grant filter and the spend audit read", () => {
     expect(searchPlacesTool.domain).toBe("places");
-    expect(searchPlacesTool.effect).toBe("read");
+    expect(searchPlacesTool.effect).toBe("spend");
     expect(searchPlacesTool.spend).toBe("vendor");
     expect(searchPlacesTool.minimumRole).toBe("viewer");
   });

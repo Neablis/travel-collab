@@ -399,14 +399,20 @@ describe("the ai.grant record", () => {
         return { userId: VIEWER, detail: detailFor("viewer", VIEWER) };
       },
     });
-    await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
+    const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
 
     expect(records[0]!.grants).toEqual({ itinerary: "read", library: "read", places: "read", system: "read" });
+    // Escalation is impossible, not merely unoffered: nothing to escalate TO.
+    if (!admission.ok) throw new Error("refused");
+    expect(admission.grant.escalation).toBeNull();
+    expect(admission.grant.intents).toBeNull();
     // A viewer resolves to `read-only`, never `withheld`, so they are never
     // offered the escalation tool — rephrasing would recover nothing for them,
     // and neither would escalating.
     expect(records[0]!.tools).not.toContain("request_change_tools");
     expect(records[0]!.tools).not.toContain("AddActivity");
+    // ADR-058 decision 9: the minimal read set, and no way to widen it.
+    expect(records[0]!.tools).toEqual(["read_trip", "read_day"]);
     // **A viewer's unclassified turn is a `question`, not an absence.** No model
     // was asked — there was no write half to withhold — and a turn holding only
     // read tools is a question whatever it sounds like, so it routes to the

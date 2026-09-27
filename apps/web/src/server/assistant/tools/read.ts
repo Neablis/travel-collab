@@ -818,6 +818,7 @@ export const findFreeTimeTool = defineTool({
   needs: ["trip", "scope"] as const,
   minimumRole: "viewer",
   taskClasses: STOP_LEVEL_CLASSES,
+  onReadOnlyTurns: false,
   run: (input, deps) => findFreeTime(deps.trip, deps.scope, input),
 });
 
@@ -845,6 +846,7 @@ export const searchPlaybooksTool = defineTool({
   needs: ["actor", "playbooks"] as const,
   minimumRole: "viewer",
   taskClasses: STOP_LEVEL_CLASSES,
+  onReadOnlyTurns: false,
   run: (input, deps) => searchPlaybooks(deps.playbooks, deps.actor.userId, input),
 });
 

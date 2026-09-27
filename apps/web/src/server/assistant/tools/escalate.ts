@@ -63,7 +63,9 @@ const ALREADY_NOTE =
   "You have already escalated this turn and the change tools are already available. Use them now rather than calling this again.";
 
 /**
- * **`domain: "system"` and `effect: "read"`, which together say what it is.**
+ * **`domain: "system"` and `effect: "steer"`, which together say what it is.**
+ * `steer` rather than `read` since ADR-058 decision 9: it changes what the
+ * turn may do next, so it is never offered on a read-only turn.
  *
  * It is not `propose`: it proposes nothing, collects nothing, and changes
  * nothing about the trip. What it changes is which tools the NEXT step holds,
@@ -82,7 +84,7 @@ export const escalateTool = defineTool({
   description:
     "Call this when the message you are answering asks for a CHANGE to the trip but you were only given read tools. Say why, and what you intend to propose. Your next step will have the change tools. Use this instead of telling the user to ask again — they should never have to rephrase to get a change made.",
   domain: "system",
-  effect: "read",
+  effect: "steer",
   spend: "none",
   input: EscalateInput,
   output: EscalateOutput,
