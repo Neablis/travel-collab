@@ -3,6 +3,7 @@ import { isDevLoginEnabled } from "@/lib/devLogin";
 import { isGoogleSignInAvailable } from "@/lib/googleAuth";
 import { AuthScreen } from "@/components/front/AuthScreen";
 import { AUTH_COPY } from "@/components/front/authCopy";
+import { linkPreviewMetadata } from "@/lib/linkPreview";
 import { pageMetadata } from "@/lib/siteMetadata";
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 import {
@@ -14,10 +15,25 @@ import {
 // Same rendered <title> as before ("Start planning — Caesura") — the suffix
 // now comes from the layout's title template. Description reuses the
 // screen's own sub-line rather than inventing meta-only copy.
-export const metadata = pageMetadata({
+const SIGNUP_METADATA = pageMetadata({
   title: "Start planning",
   description: AUTH_COPY.signup.sub,
 });
+
+// `?code=` is the referral link (Account → "Bring someone in"), and it gets
+// its own card, "Dana invited you to Caesura" (spec 2026-09-27 §2). Without a
+// code, or when the code names nobody, the page keeps the site card.
+/** Metadata for `/signup`: the referral card when `?code=` names a referrer, the site card otherwise. */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const { code } = await searchParams;
+  const referral = normalizePendingAdmission(typeof code === "string" ? code : null);
+  if (referral === null) return SIGNUP_METADATA;
+  return linkPreviewMetadata(`/api/og/referral/${encodeURIComponent(referral)}`, SIGNUP_METADATA);
+}
 
 // M11a link 5, and the one genuinely fiddly part of this milestone: the
 // invite code has to be inside the `pending_admission` cookie *before* the

@@ -39,11 +39,16 @@ const OG_IMAGE = {
 export function pageMetadata({
   title,
   description,
+  image,
 }: {
   // A plain string composes with the layout's `%s — Caesura` template; pass
   // `{ absolute }` for a page that owns its whole <title>.
   title: string | { absolute: string };
   description: string;
+  // A card drawn for this one link (spec 2026-09-27 §2.2, `/api/og/**`). It
+  // goes FIRST, and the site card stays after it as the fallback for an
+  // unfurler that cannot fetch the first.
+  image?: { url: string; alt: string };
 }): Metadata {
   const ogTitle = typeof title === "string" ? title : title.absolute;
   return {
@@ -57,7 +62,7 @@ export function pageMetadata({
       // and share cards render both.
       title: ogTitle,
       description,
-      images: [OG_IMAGE],
+      images: image === undefined ? [OG_IMAGE] : [{ ...image, width: 1200, height: 630 }, OG_IMAGE],
     },
   };
 }
