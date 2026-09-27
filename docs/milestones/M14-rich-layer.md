@@ -715,10 +715,17 @@ milestone opens:**
 - [x] Reading and Editing are one control; Reading shows no insert affordance and
       no repeat-rail chrome.
       *(**Re-baselined and ticked 2026-09-24** (T01, PR #221), on the audit's evidence: one aria-pressed control in `PageScreen.tsx`; `m14-notebook-widgets.spec.ts` "Reading takes the whole authoring surface away, and the widget stays" and `m14-mobile-notebook.spec.ts` "Reading is the default, and it takes the phone's authoring surface away too"; the desktop spec green ci-like 23/23 on 2026-09-24. The repeat-rail chrome half is carried by the repeater box below.)*
-- [ ] The insert Sheet offers search + *how it reads* over a flat list, each row
-      carrying its shape tag, a **real resolved preview**, and a mono line naming
+- [x] The insert Sheet offers search + *how it reads* over a flat list, each row
+      carrying its shape tag, a ~~**real resolved preview**~~ **fixed sample preview**,
+      and a mono line naming
       what it takes; then **Point it at** for widgets with inputs, and immediate
-      insert for those without. A value with no field behind it still carries the
+      insert for those without.
+      *(**Ticked 2026-09-27 on Mitchell's decision**, which settles the contradiction
+      recorded below in ADR-037's favour: *"Insert widget preview should show the fixed
+      sample, when inserted it gets the real values"*. That is what `WidgetPicker.tsx`
+      shows (`MacroDef.preview`). Two more parts of the wording are behind the build,
+      each recorded below: *Point it at* is now *Narrow it by* (ADR-039 decision 2), and
+      the `needs a field` badge has nothing it could ever show on.)* A value with no field behind it still carries the
       **`needs a field` badge** and says so on click instead of claiming an insert
       — the one rule §7's picker subsection kept when §18 replaced the rest of it.
       *(Rewritten 2026-09-03. The original box ended "…and choosing a day value on
@@ -965,10 +972,14 @@ milestone opens:**
       follows the reader's clock (KI-2026-09-27-c).)* *(Added 2026-09-24: no automated test
       may call either source, so the e2e server runs with `EXTERNAL_DATA_OFFLINE=true` and
       this walk is the only real-service check.)*
-- [ ] **The other six link-11 widgets ship and resolve against a real trip**: trip
+- [x] **The other six link-11 widgets ship and resolve against a real trip**: trip
       strip, still to book (reading `needsBooking`, not a second rule), sunrise /
       sunset, time difference from home, know before you go, spend by day. The route
       map block follows once M24's legs exist.
+      *(**Ticked 2026-09-27 on Mitchell's acceptance of the e2e as the walk**: *"Kinda,
+      good enough for now, i might do a design pass."* Each widget has an e2e test in
+      `m14-notebook-widgets.spec.ts` asserting it resolves to the trip's own values, and
+      each was seen red (#256). A design pass may follow; it is not part of this gate.)*
 - [x] **Charts go through the one adopted chart component**, and none carries a
       colour or font outside the design-system tokens. *(Ticked 2026-09-24, T21 on PR #221: `apps/web/src/components/ui/chart.test.tsx` fails on a literal colour or font in any chart file, on Recharts imported without `ChartContainer`, and on a rendered chart carrying Recharts' default `#ccc`/`#666`; each case seen red first.)*
 - [x] The full Definition of Done is green, including
