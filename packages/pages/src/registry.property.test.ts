@@ -187,7 +187,7 @@ const externalArb: fc.Arbitrary<ExternalInputs | undefined> = fc.oneof(
     { weather: { state: "pending" }, notebooks: { state: "failed" } },
     {
       weather: { state: "pending" },
-      notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: null, widgetCount: 2 }], openable: false } },
+      notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: null, widgetCount: 2 }] } },
     },
   ),
   fc
@@ -219,7 +219,7 @@ const DATED_TRIP = {
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
 } as unknown as TripDetail;
 const READY_WEATHER: ExternalInputs = {
-  notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: "What it costs.", widgetCount: 1 }], openable: true } },
+  notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: "What it costs.", widgetCount: 1 }] } },
   weather: {
     state: "ready",
     value: {

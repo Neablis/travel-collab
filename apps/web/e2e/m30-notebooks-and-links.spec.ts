@@ -114,6 +114,38 @@ test.describe("the Japan demo's Overview", () => {
     await expect(page.getByRole("heading", { name: "Also in this trip" })).toBeVisible();
     await expect(page.getByTestId("link-card")).toHaveText([/Before you go/, /Bookings/, /Money/]);
   });
+
+  // Mitchell, 2026-09-27: *"'Also in this trip' - This section doesnt work at
+  // all, i cant click them."* The cards drew as plain text for a visitor, whose
+  // access is `/demo`'s and who has no notebook route to be sent to; they now
+  // open the notebook in the Overview tab, on the demo's own path.
+  test("an 'Also in this trip' card opens its notebook, still inside the read-only demo", async ({ page }) => {
+    await page.goto("/demo");
+    const money = page.getByTestId("link-card").filter({ hasText: "Money" });
+    await expect(money).toHaveAttribute("href", /^\/demo\?/);
+    await money.click();
+
+    await expect(page).toHaveURL(/\/demo\?view=Overview&page=[0-9a-f-]+$/);
+    await expect(page.getByRole("heading", { name: "Spend by day" })).toBeVisible();
+    await expect(page.getByText(/^Here is your itinerary, day by day/)).toHaveCount(0);
+    // Read-only, as the Overview is: no Edit, and nothing on the page takes typing.
+    await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
+    await expect(page.locator('[contenteditable="true"]')).toHaveCount(0);
+
+    // Back by the letterhead's "Overview", then the keyboard's way in: a card
+    // is a real link, so Tab reaches it and Enter follows it.
+    await page.getByRole("link", { name: "Overview", exact: true }).click();
+    await expect(page.getByText(/^Here is your itinerary, day by day/)).toBeVisible();
+    await page.getByTestId("link-card").filter({ hasText: "Bookings" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/demo\?view=Overview&page=[0-9a-f-]+$/);
+    await expect(page.getByRole("heading", { name: "Still to book" })).toBeVisible();
+
+    // Picking the Overview tab leaves the followed notebook, too.
+    await page.getByRole("tab", { name: "Overview" }).click();
+    await expect(page).toHaveURL(/\/demo\?view=Overview$/);
+    await expect(page.getByText(/^Here is your itinerary, day by day/)).toBeVisible();
+  });
 });
 
 test("insert an internal link to Money and follow it; insert a link to a website", async ({ page }) => {

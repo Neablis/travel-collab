@@ -112,6 +112,9 @@ export function LensRouter({ children }: { children: React.ReactNode }) {
         // says two different things, and the next reader of it (a share, a
         // copied link) gets whichever rule they apply first.
         n.delete("lens");
+        // A notebook followed from a link card (`?page=`, `OverviewLens`) is
+        // the Overview tab's; picking a tab — Overview included — leaves it.
+        n.delete("page");
         router.replace(`${pathname}?${n.toString()}`, { scroll: false });
       }, // one direction: click -> URL -> derive
     };
