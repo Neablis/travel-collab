@@ -5,6 +5,7 @@ import {
   PageDoc as PageDocSchema,
   PageEvent as PageEventSchema,
   SYSTEM_ACTOR_ID,
+  seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
   type Page,
@@ -35,7 +36,7 @@ import { appendToStream, readStream } from "./eventStore";
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { checkPageDocForWrite } from "./pages";
+import { checkPageDocForWrite, toPage } from "./pages";
 import { applyPageEvents } from "./projections";
 
 export type PageCommandResult =
@@ -162,8 +163,6 @@ async function commitPageStep(
     return { ok: false, error: { code: "demo-trip-readonly", message: "The demo trip cannot be changed." } };
   }
 
-  // What this step wrote, for naming the notebook if the projection refuses it.
-  let written: PageEvent[] = [];
   try {
     return await db.transaction(async (tx): Promise<PageCommandResult> => {
       const history = await readStream(tx, tripId);
@@ -214,7 +213,6 @@ async function commitPageStep(
         return { ok: true, tripId, page, seq: null };
       }
 
-      written = outcome.events;
       const appended = await appendToStream(tx, {
         streamId: tripId,
         // The whole stream's length, not the page aggregate's: a trip command
@@ -242,25 +240,20 @@ async function commitPageStep(
       return { ok: true, tripId, page, seq: appended.envelopes.at(-1)?.seq ?? null };
     });
   } catch (error) {
-    // **Two seeds with one title.** `pages_system_seed_unique` allows one
-    // `system` notebook per title, and a rename can ask for a second: a seed
-    // renamed away ("Money" → "Budget") is not recognised, so "Add missing"
-    // seeds "Money" again (KI-2026-09-27-e), and renaming "Budget" back then
-    // collides. That is the reader's request refused, not a server fault, so
-    // it is a 409 that says which name is taken rather than an uncaught 500.
-    if (uniqueViolation(error)?.constraint !== SEED_TITLE_INDEX) throw error;
-    const title = written.map((e) => (e.type === "PageDeleted" ? undefined : e.payload.title)).find((t) => t !== undefined);
-    const message =
-      title === undefined
-        ? "Another notebook in this trip already has that name."
-        : `A notebook called “${title}” already exists in this trip.`;
-    return { ok: false, error: { code: PAGE_TITLE_TAKEN_CODE, message } };
+    // **Two seeds with one key.** `pages_seed_key_unique` allows one notebook
+    // per default per trip, and no rename can ask for a second (titles are
+    // free since 2026-09-27; the index used to be on the title, and refused a
+    // rename onto a seed's name as `page-title-taken`). What can still reach
+    // it is `listPages`' lazy seeding, which writes straight to the table
+    // outside the stream, landing between this transaction's read and its
+    // write: "add missing" then plants a key the table has just been given.
+    // That is a race lost, which a retry resolves, not a server fault.
+    if (uniqueViolation(error)?.constraint !== SEED_KEY_INDEX) throw error;
+    return RACE_LOST;
   }
 }
 
-const SEED_TITLE_INDEX = "pages_system_seed_unique";
-/** The refusal for a write that would give two of the trip's seeded notebooks one title. */
-export const PAGE_TITLE_TAKEN_CODE = "page-title-taken";
+const SEED_KEY_INDEX = "pages_seed_key_unique";
 
 // Read from the `pages` row, the only place a page's `updatedAt` lives (the
 // fold carries no timestamps, and a lazily seeded page has no event to carry
@@ -334,17 +327,7 @@ async function readPage(
   pageId: string,
 ): Promise<Page | null> {
   const [row] = await tx.select().from(pages).where(eq(pages.id, pageId));
-  if (row === undefined) return null;
-  return {
-    id: row.id,
-    tripId: row.tripId,
-    title: row.title,
-    context: row.context,
-    content: row.content,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    actorId: row.actorId,
-  };
+  return row === undefined ? null : toPage(row);
 }
 
 /**
@@ -398,6 +381,9 @@ async function missingGenesis(
         context: row.context,
         content: content.data,
         actorId: row.actorId,
+        // Written out, `null` included, so the log says which default this
+        // row is rather than leaving a replay to work it out from the title.
+        seedKey: row.seedKey,
       },
     });
   }
@@ -422,7 +408,7 @@ async function missingGenesis(
 /** The trip's notebook rows, in the shape `@tc/pages` recognises seeds from. Includes rows the fold skipped. */
 async function seedCandidates(tx: PageStep["tx"], tripId: string): Promise<SeedCandidate[]> {
   return tx
-    .select({ id: pages.id, title: pages.title, context: pages.context, actorId: pages.actorId })
+    .select({ id: pages.id, seedKey: pages.seedKey })
     .from(pages)
     .where(eq(pages.tripId, tripId))
     .orderBy(asc(pages.createdAt), asc(pages.id));
@@ -442,8 +428,8 @@ function genesisOf(history: readonly EventEnvelope[]): SeedCandidate[] {
     if (envelope.type !== "PageCreated") continue;
     const event = PageEventSchema.parse({ type: envelope.type, version: envelope.version, payload: envelope.payload });
     if (event.type !== "PageCreated") continue;
-    const { pageId, title, context, actorId } = event.payload;
-    if (!seen.has(pageId)) seen.set(pageId, { id: pageId, title, context, actorId });
+    // The key the event names, or the one an event from before keys implies.
+    if (!seen.has(event.payload.pageId)) seen.set(event.payload.pageId, { id: event.payload.pageId, seedKey: seedKeyOf(event.payload).key });
   }
   return [...seen.values()];
 }
@@ -462,14 +448,12 @@ function uniqueViolation(error: unknown): { constraint: string | undefined } | n
 
 /**
  * Adds every default notebook the trip has no seed for, as `listPages`' lazy
- * seeding would have — owned by `system`, under the same ids scheme, so
- * `pages_system_seed_unique` still holds — and touches nothing that exists.
- * Owner only. A trip missing nothing appends nothing (`seq: null`).
+ * seeding would have — owned by `system`, under the same ids scheme, each with
+ * its template's key — and touches nothing that exists. Owner only. A trip
+ * missing nothing appends nothing (`seq: null`).
  */
 export async function addMissingDefaultPages(tripId: string, actorId: string): Promise<PageCommandResult> {
-  let result: PageCommandResult;
-  try {
-    result = await commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
+  return commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
       const candidates = await seedCandidates(tx, tripId);
       // Minted up front and SORTED, so the new notebooks come back from the
       // list in a new trip's order. They share one `createdAt` (the batch's
@@ -488,7 +472,15 @@ export async function addMissingDefaultPages(tripId: string, actorId: string): P
         // The envelope still names the person who asked.
         const decision = decidePageCommand(
           folded,
-          { type: "CreatePage", tripId, pageId: seed.id, title: seed.title, context: seed.context, content: seed.content },
+          {
+            type: "CreatePage",
+            tripId,
+            pageId: seed.id,
+            title: seed.title,
+            context: seed.context,
+            content: seed.content,
+            seedKey: seed.seedKey,
+          },
           SYSTEM_ACTOR_ID,
         );
         if (!decision.ok) return { ok: false, error: decision.rejection };
@@ -498,17 +490,7 @@ export async function addMissingDefaultPages(tripId: string, actorId: string): P
         }
       }
       return { ok: true, events, pageId: null };
-    });
-  } catch (error) {
-    if (uniqueViolation(error) === null) throw error;
-    return RACE_LOST;
-  }
-  // The one way two writers can both believe a seed is missing: `listPages`'
-  // lazy seeding writes straight to the table, outside the stream, so
-  // `expectedSeq` cannot serialise it against this. `pages_system_seed_unique`
-  // refuses the second copy (answered as a taken title by `commitPageStep`),
-  // and here that refusal is a race lost, which a retry resolves.
-  return !result.ok && result.error.code === PAGE_TITLE_TAKEN_CODE ? RACE_LOST : result;
+  });
 }
 
 const RACE_LOST: PageCommandResult = {

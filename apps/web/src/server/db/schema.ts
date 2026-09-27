@@ -357,6 +357,10 @@ export const pages = pgTable(
     // 'system' for the lazily seeded default pages below; otherwise a
     // `users.id`, on the same terms as `events.actor_id` above.
     actorId: text("actor_id").notNull(),
+    // Which default notebook this page is the trip's seed of (`Page.seedKey`),
+    // or null. Projected from `PageCreated` like every other field here, and
+    // never moved by an edit: a renamed seed is still that seed (2026-09-27).
+    seedKey: text("seed_key"),
   },
   (t) => [
     index("pages_trip").on(t.tripId),
@@ -364,11 +368,12 @@ export const pages = pgTable(
     // Two concurrent first visits both observe zero rows, so the check alone
     // is not atomic — this partial unique index is what actually makes the
     // seed idempotent (the loser's INSERT ... ON CONFLICT DO NOTHING is a
-    // no-op). Scoped to system-seeded rows so users stay free to name their
-    // own pages anything, including "Trip Overview".
-    uniqueIndex("pages_system_seed_unique")
-      .on(t.tripId, t.title)
-      .where(sql`${t.actorId} = 'system'`),
+    // no-op). One page per default per trip, by KEY: it replaced
+    // `pages_system_seed_unique` (trip, title) on 2026-09-27, so any notebook
+    // may take any title, a seed's included, and two may share one.
+    uniqueIndex("pages_seed_key_unique")
+      .on(t.tripId, t.seedKey)
+      .where(sql`${t.seedKey} is not null`),
   ],
 );
 

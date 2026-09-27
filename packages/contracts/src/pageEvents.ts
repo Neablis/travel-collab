@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PageContext, PageRevision } from "./pages.ts";
+import { PageContext, PageRevision, SYSTEM_ACTOR_ID, SeedKey } from "./pages.ts";
 import { PageDoc } from "./pageDoc.ts";
 
 /**
@@ -50,6 +50,12 @@ export const CreatePage = z.object({
   title: z.string().min(1),
   context: PageContext,
   content: PageDoc,
+  /**
+   * The default template this page is the trip's seed of. Only the `system`
+   * owner may create one (`decidePageCommand` refuses anyone else), which is
+   * how "Add missing default notebooks" writes it and a person cannot.
+   */
+  seedKey: SeedKey.optional(),
 });
 export type CreatePage = z.infer<typeof CreatePage>;
 
@@ -112,6 +118,14 @@ export const PageCreatedV1 = z.object({
      * event restoring it was written by a person.
      */
     actorId: z.string().min(1),
+    /**
+     * The default template this page is the trip's seed of, for as long as it
+     * exists: a rename does not move it (Mitchell, 2026-09-27). `null` is "not
+     * a seed". **Absent means the event was written before the field existed**,
+     * and the key is read off the event itself (`seedKeyOf`), so a replay of an
+     * old log gives the keys the migration that added the column backfilled.
+     */
+    seedKey: SeedKey.nullable().optional(),
   }),
 });
 export type PageCreatedV1 = z.infer<typeof PageCreatedV1>;
@@ -166,4 +180,33 @@ export const PAGE_EVENT_TYPES: readonly PageEvent["type"][] = Object.keys(
 /** Whether an envelope's `type` belongs to the page aggregate. */
 export function isPageEventType(type: string): type is PageEvent["type"] {
   return Object.prototype.hasOwnProperty.call(PAGE_EVENT_TYPE_SET, type);
+}
+
+// The seeded titles as they were when `seedKey` was added (2026-09-27), and
+// FROZEN: they describe events already written, not the templates. A template
+// renamed later must not change what an old `PageCreated` meant. Keys are the
+// templates' own, which never change. The Overview is read off `kind`, as every
+// other reader of it does, because a pre-M30 trip's Overview has an older title.
+const LEGACY_SEED_TITLES: Readonly<Record<string, string>> = {
+  "Before you go": "before-you-go",
+  Bookings: "bookings-and-confirmations",
+  Money: "money",
+};
+
+/**
+ * The seed key a `PageCreated` names: its own `seedKey`, or, for an event
+ * written before the field existed, the one its `system` owner and title (or
+ * `kind: "overview"`) imply. `null` for a page that is not a seed.
+ *
+ * Read by the page fold and by the `pages` projection. Neither grants a DERIVED
+ * key another live page of the trip already holds: two old events can imply one
+ * key (a seed renamed away, then added back beside it), and the first keeps it
+ * until it is deleted, when the key passes to the next (`passSeedKeyOn` in
+ * `@tc/domain`, ADR-036).
+ */
+export function seedKeyOf(payload: PageCreatedV1["payload"]): { key: string | null; derived: boolean } {
+  if (payload.seedKey !== undefined) return { key: payload.seedKey, derived: false };
+  if (payload.actorId !== SYSTEM_ACTOR_ID) return { key: null, derived: true };
+  if (payload.context.kind === "overview") return { key: "overview", derived: true };
+  return { key: LEGACY_SEED_TITLES[payload.title] ?? null, derived: true };
 }

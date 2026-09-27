@@ -193,7 +193,7 @@ here two days later.
   `apps/web/src/server/pageCommands.ts` instead, so it is no longer even
   enforced at the database. Either way it is a string inside a document, so
   nothing in the schema says a trip has exactly one, and the uniqueness that
-  matters (`pages_system_seed_unique`) is keyed off the seed rather than off
+  matters (`pages_seed_key_unique`, since 2026-09-27) is keyed off the seed rather than off
   this.
 
   A real column — `pages.kind`, or a nullable `pages.is_overview` with a partial

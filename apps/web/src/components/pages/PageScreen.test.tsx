@@ -230,18 +230,17 @@ describe("PageScreen", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Second name");
   });
 
-  // PR 258's preview walk: renaming "Bookings" onto a system notebook's name
-  // was refused with 409 `page-title-taken`, and the screen put the old title
-  // back and said nothing — no message, and the header light (the only save
-  // status this route has) still read "All changes saved".
+  // PR 258's preview walk: a refused rename put the old title back and said
+  // nothing — no message, and the header light (the only save status this
+  // route has) still read "All changes saved". The refusal it was found on
+  // (409 `page-title-taken`) is gone, as titles are free since 2026-09-27;
+  // a rename is still refused when the reader's role was taken away.
   it("says why a rename was refused, and the save light stops claiming it saved", async () => {
     const trip = tripDetailFixture();
     const page = pageFixture({ tripId: trip.tripId, title: "Bookings" });
-    const refusedMessage = "A notebook called “Money” already exists in this trip.";
+    const refusedMessage = "Not allowed to edit this trip's notebooks.";
     server.use(
-      http.patch("/api/trips/:tripId/pages/:pageId", () =>
-        HttpResponse.json({ error: refusedMessage, code: "page-title-taken" }, { status: 409 }),
-      ),
+      http.patch("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ error: refusedMessage }, { status: 403 })),
       ...makePagesHandlers([page]),
       http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
     );
@@ -1953,6 +1952,7 @@ describe("PageScreen — Undo reset", () => {
       tripId: trip.tripId,
       title: "Money",
       actorId: SYSTEM_ACTOR_ID,
+      seedKey: "money",
       content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "My own budget" }] }] },
     });
     server.use(

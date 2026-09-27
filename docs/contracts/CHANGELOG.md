@@ -13,6 +13,38 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-27 — `SeedKey`, `Page.seedKey`, `CreatePage.seedKey`, `PageCreatedV1.payload.seedKey`, `seedKeyOf`: a default notebook is known by a permanent key, not its title (KI-2026-09-27-e)
+
+- **Added:** `SeedKey` (a default template's key: `overview`, `before-you-go`,
+  `bookings-and-confirmations`, `money`); `seedKey?: SeedKey` on `Page`, and so on
+  `PageSummary` and `PageListEntry` (present only on a page that came with the trip);
+  `seedKey?: SeedKey` on the `CreatePage` command (only the `system` owner may write one,
+  `decidePageCommand` refuses anyone else as `seed-key-reserved`); `seedKey?: SeedKey | null`
+  on `PageCreatedV1`'s payload (`null` = not a seed; **absent = written before the field
+  existed**); `seedKeyOf(payload)`, which reads the key an event names, or, for an old event,
+  the one its `system` owner and seeded title (or `kind: "overview"`) imply, from a table
+  frozen at the titles seeded on 2026-09-27.
+- Why: Mitchell, 2026-09-27: *"You should be allowed to rename a default notebook, or delete
+  one."* A seed was recognised by its title, so renaming "Money" to "Budget" made it an
+  ordinary notebook: no Reset, and "Add missing" planted a second "Money". Recognition now
+  goes by the key, which no edit moves, and titles are free — two notebooks may share one.
+  The key is in the log, not only in a column, so a projection rebuild reproduces it
+  (Invariant 1); `seedKeyOf` is how an old log gives the keys migration 0032 backfilled.
+- **Gone:** the `page-title-taken` refusal (409) on a notebook rename. Nothing can produce it
+  once the title index is gone (`pages_system_seed_unique` → `pages_seed_key_unique`). A
+  collision on the key index is the lazy seeder racing "Add missing", answered as
+  `concurrency-conflict`.
+- Consumers updated: `@tc/domain` (`PageState.seedKey`, `evolvePages` grants a derived key
+  once and passes a deleted holder's key to the oldest page implying it, `diffPageStates` writes the key on a re-create, `decidePageCommand`), `@tc/pages`
+  (`seedTemplateOf` and everything built on it read `seedKey`; `SeededPage` carries it),
+  `apps/web` (`pages` projection and `seed_key` column, lazy seeding, the genesis backfill,
+  "Add missing", both page PATCH routes and `defaultNotebookResponses` lose
+  `page-title-taken`, `ResetToDefault`/`NotebookScreen` via `@tc/pages`, the MSW handlers,
+  `openapi.json` regenerated for the pages endpoints' new optional field).
+- **Breaking?** No for clients: additive and optional, and a list from a server deployed
+  before it parses. **Migration 0032** adds and backfills the column; production needs the
+  `migrate-production` dispatch after merge.
+
 ## 2026-09-27 — `ResetPageInput`, `ResetPageResult`, `RestorePageInput`: reset a seeded notebook, and undo it
 
 - **Added:** `ResetPageInput` (`expectedUpdatedAt?`), `ResetPageResult` (`page`,

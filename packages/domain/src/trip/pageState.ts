@@ -1,5 +1,5 @@
 import type { EventEnvelope, PageCommand, PageContext, PageDoc, PageEvent } from "@tc/contracts";
-import { PageEvent as PageEventSchema, isPageEventType } from "@tc/contracts";
+import { PageEvent as PageEventSchema, SYSTEM_ACTOR_ID, isPageEventType, seedKeyOf } from "@tc/contracts";
 
 /**
  * The page aggregate: notebook pages folded from the trip's own stream.
@@ -26,6 +26,15 @@ export type PageState = {
   content: PageDoc;
   /** The page's OWNER, not whoever wrote the last event. See `PageCreatedV1`. */
   actorId: string;
+  /** Which default notebook this page is the trip's seed of, or `null`. No edit moves it. */
+  seedKey: string | null;
+  /**
+   * The key this page's `PageCreated` IMPLIED, on a page created by an event
+   * written before keys existed (`seedKeyOf`); absent on every other page. It
+   * is what lets the page inherit that key when the page holding it is deleted
+   * (`passSeedKeyOn`). An event that names a key, `null` included, never sets it.
+   */
+  legacySeedKey?: string;
 };
 
 /** Every page of a trip, keyed by page id. */
@@ -35,7 +44,26 @@ export function evolvePages(state: PagesState, event: PageEvent): PagesState {
   switch (event.type) {
     case "PageCreated": {
       const { pageId, title, context, content, actorId } = event.payload;
-      return { ...state, [pageId]: { title, context, content, actorId } };
+      const { key, derived } = seedKeyOf(event.payload);
+      // Re-inserted rather than overwritten, so the page sits AFTER every live
+      // page: key order is genesis order (a page id is a uuid, never an
+      // integer-like key), which is the "oldest" `passSeedKeyOn` picks by.
+      const rest = withoutPage(state, pageId);
+      const held = key !== null && Object.values(rest).some((p) => p.seedKey === key);
+      const page: PageState = {
+        title,
+        context,
+        content,
+        actorId,
+        // A key read off an old event is not granted twice: the oldest live
+        // page implying it holds it. A NAMED key is the log saying which page
+        // is the seed, so it takes the key from whoever holds it (an undo
+        // bringing a deleted seed back after its heir inherited), and that
+        // page waits again. The `pages` projection does both to its rows.
+        seedKey: derived && held ? null : key,
+        ...(derived && key !== null ? { legacySeedKey: key } : {}),
+      };
+      return { ...(derived || !held || key === null ? rest : demote(rest, key)), [pageId]: page };
     }
     case "PageEdited": {
       const current = state[event.payload.pageId];
@@ -56,12 +84,44 @@ export function evolvePages(state: PagesState, event: PageEvent): PagesState {
       };
     }
     case "PageDeleted": {
-      if (state[event.payload.pageId] === undefined) return state;
-      const next = { ...state };
-      delete next[event.payload.pageId];
-      return next;
+      const gone = state[event.payload.pageId];
+      if (gone === undefined) return state;
+      return passSeedKeyOn(withoutPage(state, event.payload.pageId), gone.seedKey);
     }
   }
+}
+
+function withoutPage(state: PagesState, pageId: string): PagesState {
+  if (state[pageId] === undefined) return state;
+  const next = { ...state };
+  delete next[pageId];
+  return next;
+}
+
+function demote(state: PagesState, key: string): PagesState {
+  return Object.fromEntries(
+    Object.entries(state).map(([id, p]) => [id, p.seedKey === key ? { ...p, seedKey: null } : p]),
+  );
+}
+
+/**
+ * A deleted seed's key, handed to its heir: the OLDEST live page (by genesis,
+ * which is key order here) whose pre-key `PageCreated` implied that key and
+ * which holds none. Whichever way the deleted page held the key, named or
+ * implied, the heir is always such a legacy page; a page whose create named a
+ * key, `null` included, never inherits one.
+ *
+ * This is what makes a replay give the keys migration 0032 backfilled. The
+ * backfill saw only the live rows and keyed the oldest page implying each key;
+ * a replay meets the first holder alive, so the later page is keyless until
+ * that holder is deleted, and this is where it gets the key. `applyPageEvents`
+ * does the same to the `pages` rows (`passSeedKeyOnRows`).
+ */
+function passSeedKeyOn(state: PagesState, key: string | null): PagesState {
+  if (key === null) return state;
+  const heir = Object.keys(state).find((id) => state[id]!.seedKey === null && state[id]!.legacySeedKey === key);
+  if (heir === undefined) return state;
+  return { ...state, [heir]: { ...state[heir]!, seedKey: key } };
 }
 
 /**
@@ -115,6 +175,7 @@ export function pageStatesEqual(a: PageState, b: PageState): boolean {
   return (
     a.title === b.title &&
     a.actorId === b.actorId &&
+    a.seedKey === b.seedKey &&
     a.context.kind === b.context.kind &&
     a.context.tripId === b.context.tripId &&
     docsEqual(a.content, b.content)
@@ -145,7 +206,17 @@ export function diffPageStates(current: PagesState, target: PagesState, tripId: 
       created.push({
         type: "PageCreated",
         version: 1,
-        payload: { tripId, pageId, title: want.title, context: want.context, content: want.content, actorId: want.actorId },
+        // The key is written out, `null` included, so a page brought back by
+        // an undo is the seed it was, whatever its title is by then.
+        payload: {
+          tripId,
+          pageId,
+          title: want.title,
+          context: want.context,
+          content: want.content,
+          actorId: want.actorId,
+          seedKey: want.seedKey,
+        },
       });
       continue;
     }
@@ -216,6 +287,11 @@ export function decidePageCommand(
       if (state[command.pageId] !== undefined) {
         return { ok: false, rejection: { code: "page-exists", message: "That page already exists." } };
       }
+      // A seed key is what makes a notebook one of the trip's defaults, so only
+      // the seeder may write one, never a person's create.
+      if (command.seedKey !== undefined && actorId !== SYSTEM_ACTOR_ID) {
+        return { ok: false, rejection: { code: "seed-key-reserved", message: "Only a trip's default notebooks carry a seed key." } };
+      }
       return {
         ok: true,
         events: [
@@ -234,6 +310,7 @@ export function decidePageCommand(
               // here, which is what keeps SPEC §7's "Comes with your trip"
               // line telling the truth.
               actorId,
+              ...(command.seedKey === undefined ? {} : { seedKey: command.seedKey }),
             },
           },
         ],

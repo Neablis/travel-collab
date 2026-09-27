@@ -6,14 +6,17 @@
 // No beforeEach truncation: every test mints its own trip, as the sibling
 // suites do (`pages.int.test.ts`).
 import { newPageDoc, PageDoc, SYSTEM_ACTOR_ID } from "@tc/contracts";
+import { foldPages } from "@tc/domain";
 import { DEFAULT_TEMPLATES, OVERVIEW_TEMPLATE } from "@tc/pages";
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { executeTripCommand } from "./commands";
-import { readStream } from "./eventStore";
-import { asc, eq } from "drizzle-orm";
-import { pages } from "./db/schema";
-import { rebuildProjections } from "./projections";
+import { appendToStream, readStream } from "./eventStore";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { events, pages } from "./db/schema";
+import { applyPageEvents, rebuildProjections } from "./projections";
 import { db } from "./db/client";
 import { listPages } from "./pages";
 import { grantMembership } from "./access/members";
@@ -81,11 +84,35 @@ describe("addMissingDefaultPages", () => {
   });
 });
 
+// Mitchell, 2026-09-27: *"You should be allowed to rename a default notebook,
+// or delete one."* A default is known by its seed key, so a renamed one is
+// still that default: "Add missing" has nothing to add, and Reset still works.
+// Until then a seed was known by its title, and this trip got a second "Money"
+// beside "Budget" (KI-2026-09-27-e).
+describe("a renamed default notebook", () => {
+  it("is still that default: nothing is missing, and it resets to its template", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const money = (await listPages(tripId)).find((p) => p.seedKey === "money")!;
+    expect((await executePageCommand({ type: "EditPage", tripId, pageId: money.id, title: "Budget" }, ownerId)).ok).toBe(true);
+
+    const added = await addMissingDefaultPages(tripId, ownerId);
+    expect(added.ok && added.seq).toBe(null);
+    const titles = (await listPages(tripId)).map((p) => p.title);
+    expect(titles.filter((t) => t === "Money")).toEqual([]);
+    expect(titles.filter((t) => t === "Budget")).toHaveLength(1);
+
+    const reset = await resetPageToDefault(tripId, money.id, ownerId);
+    expect(reset.ok && reset.page).toMatchObject({ id: money.id, title: "Money", seedKey: "money" });
+  });
+});
+
 // A seed deleted and then seeded again leaves the log holding two `system`
 // pages with one title, at different times. The rebuild replays both, and
-// used to re-insert the old one on top of the new one's row, failing on
-// `pages_system_seed_unique` — for every trip on the instance, since the
-// rebuild reads them all. Found by the full integration run, not this file.
+// used to re-insert the old one on top of the new one's row, failing on the
+// seed index (then `pages_system_seed_unique`) — for every trip on the
+// instance, since the rebuild reads them all. Found by the full integration
+// run, not this file.
 describe("a projection rebuild after a seed was added back", () => {
   it("rebuilds the trip's notebooks as they were", async () => {
     const ownerId = owner();
@@ -186,5 +213,145 @@ describe("the default-notebook actions are the owner's", () => {
       expect(await restorePageVersion(tripId, overview.id, 1, actor)).toMatchObject({ ok: false, error: { code: "forbidden" } });
     }
     expect((await resetPageToDefault(tripId, overview.id, ownerId)).ok).toBe(true);
+  });
+});
+
+// Migration 0032 gave every seed that existed its key, and a rebuild has to
+// give the same ones, or Invariant 2's "rebuild equals stored" breaks on the
+// first trip that predates it. So: trips shaped as they were before the key
+// existed — a log whose events carry none, a renamed seed with the pre-fix
+// "Add missing" copy beside it, and a trip the log has never heard of — keys
+// wiped, the migration's own backfill statement run, then a rebuild.
+describe("the seed-key backfill (migration 0032)", () => {
+  const migration = readFileSync(fileURLToPath(new URL("../../drizzle/0032_notebook_seed_key.sql", import.meta.url)), "utf8");
+  const backfill = /-- seed-key backfill: begin\n([\s\S]*?)-- seed-key backfill: end/.exec(migration)![1]!;
+
+  it("keys the seeds that existed, the renamed one included, and a rebuild keys them alike", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const seeded = await listPages(tripId);
+    const money = seeded.find((p) => p.seedKey === "money")!;
+    // Renamed through the command, which gives every page its genesis first.
+    await executePageCommand({ type: "EditPage", tripId, pageId: money.id, title: "Budget" }, ownerId);
+    // The log as it was written before keys existed: no event names one.
+    await db
+      .update(events)
+      .set({ payload: sql`${events.payload} - 'seedKey'` })
+      .where(and(eq(events.streamId, tripId), eq(events.type, "PageCreated")));
+    // And the second "Money" the old "Add missing" planted beside "Budget".
+    const copyId = randomUUID();
+    const appended = await appendToStream(db, {
+      streamId: tripId,
+      expectedSeq: (await readStream(db, tripId)).length,
+      events: [
+        {
+          type: "PageCreated",
+          version: 1,
+          payload: { tripId, pageId: copyId, title: "Money", context: { tripId }, content: newPageDoc(), actorId: SYSTEM_ACTOR_ID },
+        },
+      ],
+      actorId: ownerId,
+      occurredAt: new Date().toISOString(),
+      batchId: randomUUID(),
+      origin: { kind: "user" },
+    });
+    if (!appended.ok) throw new Error("append refused");
+    await applyPageEvents(db, appended.envelopes);
+    // A trip nobody has commanded a notebook on: rows, no events.
+    const untouched = await tripOwnedBy(ownerId);
+    await listPages(untouched);
+
+    const trips = [tripId, untouched];
+    await db.update(pages).set({ seedKey: null }).where(inArray(pages.tripId, trips));
+    await db.execute(sql.raw(backfill));
+
+    const keysOf = async (trip: string) =>
+      Object.fromEntries((await listPages(trip)).map((p) => [p.id, p.seedKey ?? null]));
+    const expected = Object.fromEntries(seeded.map((p) => [p.id, p.seedKey!]));
+    expect(await keysOf(tripId)).toEqual({ ...expected, [copyId]: null });
+    expect(Object.values(await keysOf(untouched)).sort()).toEqual(DEFAULT_TEMPLATES.map((t) => t.key).sort());
+
+    const backfilled = await db.select().from(pages).where(inArray(pages.tripId, trips)).orderBy(asc(pages.id));
+    await rebuildProjections();
+    expect(await db.select().from(pages).where(inArray(pages.tripId, trips)).orderBy(asc(pages.id))).toEqual(backfilled);
+  });
+
+  // KI-2026-09-27-e's own history, one step further: the renamed seed is then
+  // deleted. The backfill sees only the copy, and keys it; a replay meets the
+  // renamed seed alive first, and must hand the copy the key at the delete.
+  it("keys the copy when the renamed seed beside it was deleted, and a rebuild and the fold key it alike", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const seeded = await listPages(tripId);
+    const money = seeded.find((p) => p.seedKey === "money")!;
+    await executePageCommand({ type: "EditPage", tripId, pageId: money.id, title: "Budget" }, ownerId);
+    await db
+      .update(events)
+      .set({ payload: sql`${events.payload} - 'seedKey'` })
+      .where(and(eq(events.streamId, tripId), eq(events.type, "PageCreated")));
+    const copyId = randomUUID();
+    const appended = await appendToStream(db, {
+      streamId: tripId,
+      expectedSeq: (await readStream(db, tripId)).length,
+      events: [
+        {
+          type: "PageCreated",
+          version: 1,
+          payload: { tripId, pageId: copyId, title: "Money", context: { tripId }, content: newPageDoc(), actorId: SYSTEM_ACTOR_ID },
+        },
+      ],
+      actorId: ownerId,
+      occurredAt: new Date().toISOString(),
+      batchId: randomUUID(),
+      origin: { kind: "user" },
+    });
+    if (!appended.ok) throw new Error("append refused");
+    await applyPageEvents(db, appended.envelopes);
+    expect((await executePageCommand({ type: "DeletePage", tripId, pageId: money.id }, ownerId)).ok).toBe(true);
+
+    await db.update(pages).set({ seedKey: null }).where(eq(pages.tripId, tripId));
+    await db.execute(sql.raw(backfill));
+    const rowsOf = () => db.select().from(pages).where(eq(pages.tripId, tripId)).orderBy(asc(pages.id));
+    const backfilled = await rowsOf();
+    expect(backfilled.find((p) => p.id === copyId)?.seedKey).toBe("money");
+
+    await rebuildProjections();
+    expect(await rowsOf()).toEqual(backfilled);
+    const folded = foldPages(await readStream(db, tripId));
+    expect(Object.fromEntries(Object.entries(folded).map(([id, p]) => [id, p.seedKey]))).toEqual(
+      Object.fromEntries(backfilled.map((p) => [p.id, p.seedKey])),
+    );
+  });
+
+  // The other direction: a create that NAMES a key takes it from a page that
+  // only implied it (a deleted seed brought back with its key), rather than
+  // colliding with it on `pages_seed_key_unique`.
+  it("gives a named key to its page over one that only implied it, in the rows as in the fold", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    const [implied, named] = [randomUUID(), randomUUID()];
+    const create = (pageId: string, seedKey?: string) => ({
+      type: "PageCreated",
+      version: 1,
+      payload: { tripId, pageId, title: "Money", context: { tripId }, content: newPageDoc(), actorId: SYSTEM_ACTOR_ID, ...(seedKey === undefined ? {} : { seedKey }) },
+    });
+    for (const event of [create(implied), create(named, "money")]) {
+      const appended = await appendToStream(db, {
+        streamId: tripId,
+        expectedSeq: (await readStream(db, tripId)).length,
+        events: [event],
+        actorId: ownerId,
+        occurredAt: new Date().toISOString(),
+        batchId: randomUUID(),
+        origin: { kind: "user" },
+      });
+      if (!appended.ok) throw new Error("append refused");
+      await applyPageEvents(db, appended.envelopes);
+    }
+    const rows = await db.select({ id: pages.id, seedKey: pages.seedKey }).from(pages).where(inArray(pages.id, [implied, named]));
+    const expected = { [implied]: null, [named]: "money" };
+    expect(Object.fromEntries(rows.map((r) => [r.id, r.seedKey]))).toEqual(expected);
+    const folded = foldPages(await readStream(db, tripId));
+    expect({ [implied]: folded[implied]?.seedKey, [named]: folded[named]?.seedKey }).toEqual(expected);
   });
 });

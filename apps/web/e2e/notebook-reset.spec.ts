@@ -118,12 +118,13 @@ test("the reset can be undone straight afterwards", async ({ page }) => {
   await expect(page.getByText(LETTER)).toHaveCount(0);
 });
 
-// A seed renamed away from its template's title is not recognised, so "Add
-// missing" seeds a second one; renaming the first back onto that title is then
-// refused as `page-title-taken` (409). The screen used to put the old title
-// back and say nothing, with the header light still reading "All changes
-// saved" (PR 258's preview walk).
-test("a rename onto a default notebook's title is refused, and the screen says so", async ({ page }) => {
+// Mitchell, 2026-09-27: *"You should be allowed to rename a default notebook,
+// or delete one."* A default is known by its seed key, not its title, so
+// "Money" renamed "Budget" is still the Money default: the list has nothing
+// missing to add, and Reset to default still puts it back. Until then the
+// rename made it an ordinary notebook, "Add missing" planted a second "Money"
+// beside it, and renaming "Budget" back was refused (KI-2026-09-27-e).
+test("a renamed default notebook is still that default, and resets to its template", async ({ page }) => {
   const tripName = e2eTripName("Aveiro");
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
@@ -131,36 +132,34 @@ test("a rename onto a default notebook's title is refused, and the screen says s
   await openNotebookIndex(page);
   const mine = page.getByRole("region", { name: "Your notebooks" });
 
-  // Enter commits a title (PageTitle); its PATCH is awaited, refused or not.
-  const rename = async (to: string) => {
-    await page.getByRole("heading", { level: 1 }).click();
-    await page.keyboard.press("ControlOrMeta+A");
-    await page.keyboard.type(to);
-    await Promise.all([
-      page.waitForResponse(
-        (r) => /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH",
-      ),
-      page.keyboard.press("Enter"),
-    ]);
-  };
-
   await mine.getByRole("link", { name: /^Money/ }).click();
   await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Edit page" }).click();
-  await rename("Budget");
+  // Enter commits a title (PageTitle); its PATCH is awaited.
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("Budget");
+  await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH" && r.ok(),
+    ),
+    page.keyboard.press("Enter"),
+  ]);
   await expect(page.getByRole("heading", { name: "Budget", level: 1 })).toBeVisible();
   await expect(page.getByTestId("page-rename-failure")).toHaveCount(0);
 
+  // Nothing is missing: "Budget" is the Money default.
   await page.getByRole("link", { name: "Notebook", exact: true }).click();
-  await page.getByRole("button", { name: "Add missing default notebooks" }).click();
-  await expect(mine.getByRole("link", { name: /^Money/ })).toBeVisible();
+  await expect(mine.getByRole("link", { name: /^Budget/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add missing default notebooks" })).toHaveCount(0);
+  await expect(mine.getByRole("link", { name: /^Money/ })).toHaveCount(0);
 
+  // And it keeps its way back: the template's title and all.
   await mine.getByRole("link", { name: /^Budget/ }).click();
   await expect(page.getByRole("heading", { name: "Budget", level: 1 })).toBeVisible();
-  await page.getByRole("button", { name: "Edit page" }).click();
-  await rename("Money");
-
-  await expect(page.getByTestId("page-rename-failure")).toContainText("A notebook called “Money” already exists in this trip.");
-  await expect(page.getByRole("heading", { name: "Budget", level: 1 })).toBeVisible();
-  await expect(page.getByRole("status", { name: "All changes saved" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Reset to default" }).click();
+  await page.getByRole("dialog", { name: "Reset to default?" }).getByRole("button", { name: "Reset notebook" }).click();
+  await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
 });

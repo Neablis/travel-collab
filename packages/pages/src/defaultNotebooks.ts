@@ -1,49 +1,35 @@
-import { SYSTEM_ACTOR_ID } from "@tc/contracts";
-import type { PageContext, PageDoc } from "@tc/contracts";
-import {
-  DEFAULT_TEMPLATES,
-  OVERVIEW_TEMPLATE,
-  PLACEHOLDER_IDS,
-  isOverviewPage,
-  type SeededPage,
-  type TemplateSeed,
-} from "./templates";
+import type { PageDoc } from "@tc/contracts";
+import { DEFAULT_TEMPLATES, PLACEHOLDER_IDS, type SeededPage, type TemplateSeed } from "./templates";
 
 // Resetting a trip's default notebooks, and adding the ones it is missing
 // (Mitchell, 2026-09-27). Pure, so the server that writes and the screen that
 // decides whether to offer the control ask the SAME question — a list action
 // the server would answer "nothing to add" for is a button that lies.
 //
-// **What makes a notebook "a seed of template X", and why it is this.** Nothing
-// stores the template key on a page. What the storage already treats as a
-// seed's identity is `pages_system_seed_unique`: (trip, title) among rows owned
-// by `system`. So a seed is a `system` page whose title is a default template's
-// title — except the Overview, which is identified by its `kind` marker, the
-// way every other reader of it does (a reader may rename it, and a pre-M30
-// trip's Overview predates the current title).
-//
-// The cost, stated so it is not mistaken for an oversight: a seed the reader
-// RENAMED is no longer recognised. It offers no reset, and "add missing" puts
-// the template back beside it. Storing the template key on the page would fix
-// that and is a contract change to `PageContext`; it was not needed for the
-// ask, and the index would still be keyed on the title. KI-2026-09-27-e.
+// **What makes a notebook "a seed of template X": its `seedKey`, never its
+// title** (Mitchell, 2026-09-27: *"You should be allowed to rename a default
+// notebook, or delete one."*). Every seed carries its template's key for as
+// long as it exists: the seeder writes it, the log carries it (`PageCreated`),
+// and the database holds one page per key per trip (`pages_seed_key_unique`).
+// So a renamed seed is still that seed: it keeps *Reset to default*, and "add
+// missing" does not plant a second copy beside it. Titles are free; two
+// notebooks may share one. Until 2026-09-27 a seed was a `system` page with a
+// template's title, and renaming one lost it (KI-2026-09-27-e, resolved).
 
 /** The fields a notebook needs for its seed to be recognised — a list entry or a full page both have them. */
 export interface SeedCandidate {
   id: string;
-  title: string;
-  context: PageContext;
-  actorId: string;
+  /** Absent or `null` on a notebook that did not come with the trip. */
+  seedKey?: string | null | undefined;
 }
 
 /**
- * The default template this notebook was seeded from, or `undefined` for a
- * notebook a person made (or a seed renamed away from its template's title).
+ * The default template this notebook was seeded from, by its seed key, or
+ * `undefined` for a notebook a person made. Whatever it is called now.
  */
 export function seedTemplateOf(page: SeedCandidate): TemplateSeed | undefined {
-  if (page.actorId !== SYSTEM_ACTOR_ID) return undefined;
-  if (isOverviewPage(page.context)) return OVERVIEW_TEMPLATE;
-  return DEFAULT_TEMPLATES.find((t) => t !== OVERVIEW_TEMPLATE && t.title === page.title);
+  if (page.seedKey === undefined || page.seedKey === null) return undefined;
+  return DEFAULT_TEMPLATES.find((t) => t.key === page.seedKey);
 }
 
 /** Each default template's seeded notebook on this trip, by template key — the first one listed wins. */
@@ -98,6 +84,7 @@ export function instantiateMissingDefaults(
   for (const t of missing) ids[t.key] = previous[t.key] ?? mintId();
   return missing.map((t) => ({
     id: ids[t.key]!,
+    seedKey: t.key,
     title: t.title,
     context: t.buildContext(tripId),
     content: t.buildContent ? t.buildContent(ids) : t.content,
