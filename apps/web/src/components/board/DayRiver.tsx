@@ -455,7 +455,7 @@ export function DayRiver({
             // A still finger can still be over a new time: held near the
             // screen's edge, the page scrolls the river under it (`follow`'s
             // replay). The hour is the one under the finger, re-read here, and
-            // the release adds that one (CodeRabbit, #251).
+            // the release adds that one (CodeRabbit on PR 251).
             hour = doubleClickWindow(axis, yOf(ev.clientY));
             setGhost({ kind: "sketch", window: hour });
             return;
