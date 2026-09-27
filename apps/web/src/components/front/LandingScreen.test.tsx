@@ -1,8 +1,11 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LandingScreen } from "./LandingScreen";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 // SPEC §28 gives the phone its own front door, and both trees are rendered with
 // the breakpoint choosing one (see `LandingScreen.tsx`). A real browser exposes
@@ -51,6 +54,26 @@ describe("LandingScreen", () => {
     const finished = within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "See a finished one" });
     expect(peek.getAttribute("href")).toBe("/demo");
     expect(finished.getAttribute("href")).toBe("/demo");
+  });
+
+  // SPEC §14: the front door runs on nothing. Since the hero's Timeline and
+  // Notebook panels became the product's own river and notebook blocks, "no
+  // backend" is a property of components that DO fetch elsewhere (a notebook
+  // block beside a weather request, a board beside its trip read), so it is
+  // held here rather than trusted. The hero mounts one view at a time, so each
+  // is opened, and each is asserted to have drawn something real before the
+  // spy is read — a view that failed to mount would otherwise pass for free.
+  it("calls fetch for nothing while it renders, in any hero view (SPEC §14)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(<LandingScreen />);
+    const desktop = within(screen.getByTestId("desktop-landing"));
+
+    fireEvent.click(desktop.getByRole("button", { name: "Day 7" }));
+    expect(await desktop.findByRole("list", { name: "Day 7 timeline" })).toBeDefined();
+    fireEvent.click(desktop.getByRole("button", { name: "Day 5" }));
+    expect(await desktop.findByRole("img", { name: /^Days 1–3 Tokyo/ })).toBeDefined();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("carries the Early access footnote", () => {
