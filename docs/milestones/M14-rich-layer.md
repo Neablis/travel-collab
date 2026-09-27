@@ -972,9 +972,15 @@ milestone opens:**
       averages, past, the miles switch and both credits. Step 5 had no `[external]` line.
       Not done: the met.no comparison and step 6, because egress to api.met.no and
       power.larc.nasa.gov is blocked from a cloud session. **Left open on a finding:**
-      the NASA "averages" were monthly extremes (KI-2026-09-27-b, fixed 2026-09-27; step 3
-      needs walking again on a preview carrying the fix). Also filed: "today"
-      follows the reader's clock (KI-2026-09-27-c).)* *(Added 2026-09-24: no automated test
+      the NASA "averages" were monthly extremes (KI-2026-09-27-b, fixed 2026-09-27).
+      **Re-walked the same day on #257's preview** (`dpl_GnqnxsgXcBR3Df3eosApbNsG64C6`,
+      `4bb4db0`). Kyoto November reads "November average | 14°C | 6°C | 3.2 mm a day",
+      where it read 23°/-1° before; August reads "29°C | 22°C". "Today" lands on Kyoto's
+      date with the browser on UTC and on Tokyo time alike (`placeToday`, KI-2026-09-27-c).
+      Imperial reads °F and inches. **Still open:** step 2's comparison against met.no's
+      own page, and step 6, the check that the 6-hourly `complete` fields are read. Both
+      need a machine that can reach api.met.no. Also filed and fixed: "today"
+      followed the reader's clock (KI-2026-09-27-c).)* *(Added 2026-09-24: no automated test
       may call either source, so the e2e server runs with `EXTERNAL_DATA_OFFLINE=true` and
       this walk is the only real-service check.)*
 - [x] **The other six link-11 widgets ship and resolve against a real trip**: trip
