@@ -23,6 +23,7 @@ const GUESTS = [
   { id: `dev-og-mei-${run}`, name: "Mei Tanaka" },
   { id: `dev-og-priya-${run}`, name: "Priya Shah" },
   { id: `dev-og-kenji-${run}`, name: "Kenji Mori" },
+  { id: `dev-og-lena-${run}`, name: "Lena Park" },
 ];
 
 async function seedTrip(): Promise<string> {
@@ -62,11 +63,11 @@ describe("inviteCardFor", () => {
       startDate: "2027-06-01",
       dayCount: 3,
       cityCount: 3,
-      crew: ["Dana", "Mei", "Priya"],
+      crew: ["Mei", "Priya", "Kenji"],
       crewOverflow: 1,
     });
     const printed = JSON.stringify(card);
-    for (const leak of ["Reyes", "Tanaka", "Shah", "Mori", "@", "sam"]) expect(printed).not.toContain(leak);
+    for (const leak of ["Reyes", "Tanaka", "Shah", "Mori", "Park", "@", "sam"]) expect(printed).not.toContain(leak);
   });
 
   it("gives a revoked invite the generic card", async () => {

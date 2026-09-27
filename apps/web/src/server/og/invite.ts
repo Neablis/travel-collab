@@ -35,12 +35,13 @@ export type InviteCard =
  * when the invite is pending, and the generic card for anything else.
  */
 export async function inviteCardFor(token: string): Promise<InviteCard> {
-  const { landing } = await readInviteLanding(token, null);
+  const { landing, crew: members = [] } = await readInviteLanding(token, null);
   if (landing.state !== "valid") return { kind: "generic" };
   // `inviterName` is `displayNameFor`'s whole answer ("Dana Reyes"), resolved
-  // with `email: null` so it is never an address; the crew are already first
-  // names, and `firstNameOf` is idempotent on those.
-  const crew = landing.crew.map((name) => firstNameOf(name)).filter((name) => name !== "");
+  // with `email: null` so it is never an address. The crew are first names
+  // already, and leave out the inviter, who is the headline: "Dana invited
+  // you … with Mei, Priya", not "… with Dana, Mei".
+  const crew = members.filter((m) => !m.isInviter && m.firstName !== "").map((m) => m.firstName);
   return {
     kind: "personal",
     inviterFirstName: firstNameOf(landing.inviterName),
