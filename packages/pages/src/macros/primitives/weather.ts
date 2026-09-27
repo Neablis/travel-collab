@@ -16,10 +16,13 @@ import { dayLabel, formatShortDate } from "../../format";
 //
 // **The data arrives pre-fetched** in `ctx.external.weather` (decision 3): the
 // server fetched it, rounded, cached and normalized, and this resolver stays
-// pure and synchronous. **The MODE is chosen here, from `ctx.today`**, because
-// the reader's calendar day is only knowable on the client, and a pure choice
-// is one a unit test can pin (`weather.test.ts` holds the table row by row,
-// `weather.property.test.ts` for every date).
+// pure and synchronous. **The MODE is chosen here, against the PLACE's date**
+// — each point's `placeToday`, which the server read in the place's own zone —
+// not the reader's (Mitchell, 2026-09-27, KI-2026-09-27-c: *"Location that a
+// trip should be in in that day, not the readers current location"*). Only a
+// point from a server that predates `placeToday` falls back to `ctx.today`. A
+// pure choice is one a unit test can pin (`weather.test.ts` holds the table
+// row by row, `weather.property.test.ts` for every date).
 //
 // A day primitive with `day.sun`'s filters, so "the weather on day 3" and "the
 // weather in Kyoto" are bindings, not widgets.
@@ -43,7 +46,7 @@ const MONTHS = [
 ] as const;
 
 /**
- * Decision 3's table, for one (day, city) against the reader's date.
+ * Decision 3's table, for one (day, city) against today's date at its place.
  *
  * The horizon is not a constant here: the server marks a date the forecast
  * does not fully cover `not-in-horizon`, so "beyond the last full day" is read
@@ -201,8 +204,9 @@ const USES_TYPICAL: ReadonlySet<WeatherMode> = new Set(["typical", "past", "no-f
  * data allowed ahead of the ADR's order, because no answer the source could
  * give changes it; then the ADR's slot (`pending` / `failed` are
  * `unavailable`, never `empty` — the world's failure is not the author's);
- * then the reader's date (unknown is `pending`: the mode cannot be chosen
- * yet). Only after those does the rest of the trip speak: a day with no
+ * then, only for points that do not carry their place's date (a server from
+ * before `placeToday`), the reader's date (unknown is `pending`: the mode
+ * cannot be chosen yet). Only after those does the rest of the trip speak: a day with no
  * located stop has no point, which is `empty` with the fix, because that one
  * the author CAN fix.
  */
@@ -229,7 +233,9 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
     if (selection.status !== "ok") return selection;
     const slot = readSlot(external, "weather");
     if (slot.status !== "ok") return slot;
-    if (today === null) return unavailable("pending");
+    // Each row is compared with its PLACE's date; the reader's is only the
+    // fallback for a point that does not say, and only then is it waited for.
+    if (today === null && slot.value.points.some((p) => p.placeToday === undefined)) return unavailable("pending");
 
     const city = pinnedCity(selection.value, item);
     let undated = false;
@@ -243,7 +249,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
       for (const point of slot.value.points) {
         if (point.date !== date) continue;
         if (city !== undefined && point.city !== city) continue;
-        picked.push({ point, mode: weatherModeOf(point, today), index });
+        picked.push({ point, mode: weatherModeOf(point, (point.placeToday ?? today)!), index });
       }
     }
     if (picked.length === 0) return undated ? empty("set the trip's dates to see this") : empty("add a place to a stop to see this");

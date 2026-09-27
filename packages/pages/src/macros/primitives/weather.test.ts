@@ -157,7 +157,39 @@ describe("day.weather", () => {
     expect(payload.forecastAsOf).toBeNull();
   });
 
-  it("is `unavailable(pending)` while the reader's date is unknown — the mode cannot be chosen yet", () => {
+  // KI-2026-09-27-c (Mitchell, 2026-09-27): *"Location that a trip should be
+  // in in that day, not the readers current location"*. The server says what
+  // today is at each point, and that — not `ctx.today` — picks the row.
+  it("calls the PLACE's today Today, when the place is ahead of the reader", () => {
+    // A reader in UTC at 16:03 on the 10th; Kyoto is already on the 11th.
+    const t = setup(["2026-11-10", "2026-11-11"], [
+      point("2026-11-10", { placeToday: "2026-11-11" }),
+      point("2026-11-11", { placeToday: "2026-11-11" }),
+    ]);
+    expect(payloadOf(ctxOf(t, "2026-11-10")).rows.map((r) => [r.modeText, r.now])).toEqual([
+      ["Past day · Nov avg", null],
+      ["Today", "12°"],
+    ]);
+  });
+
+  it("calls the PLACE's today Today, when the place is behind the reader", () => {
+    // A reader in Tokyo already on the 11th; Honolulu is still on the 10th.
+    const t = setup(["2026-11-10", "2026-11-11"], [
+      point("2026-11-10", { placeToday: "2026-11-10" }),
+      point("2026-11-11", { placeToday: "2026-11-10" }),
+    ]);
+    expect(payloadOf(ctxOf(t, "2026-11-11")).rows.map((r) => [r.modeText, r.now])).toEqual([
+      ["Today", "12°"],
+      ["Forecast", null],
+    ]);
+  });
+
+  it("does not wait for the reader's date when every point carries its place's", () => {
+    const t = setup(["2026-11-10"], [point("2026-11-10", { placeToday: "2026-11-10" })]);
+    expect(payloadOf(ctxOf(t, null)).rows.map((r) => r.modeText)).toEqual(["Today"]);
+  });
+
+  it("is `unavailable(pending)` while the reader's date is unknown and a point does not carry its place's — the mode cannot be chosen yet", () => {
     expect(renderMacro(ctxOf(trip(), null), "day.weather", {})).toEqual({ status: "unavailable", reason: "pending" });
   });
 
