@@ -797,6 +797,11 @@ html[data-look="ledger"] .shadow-raised {
     grid-column: 1 / -1;
     text-align: left;
   }
+  /* A column's name inside its own cell exists for the stacked phone table
+     (below); beside a heading row that is on screen it would say it twice. */
+  .tc-widget-cell-label {
+    display: none;
+  }
 
   /* **A group header is a section break, not another row.** Mitchell, on the
      preview: *"The "Day 14" on this widget should be more pronounced, its not
@@ -875,6 +880,85 @@ html[data-look="ledger"] .shadow-raised {
       padding-bottom: 0;
       font-size: var(--text-2xs);
       color: var(--color-slate);
+    }
+
+    /* **A table whose columns the reader chose stacks as labelled lines.**
+       Mitchell, on a 411px preview, pointing at a `stop.rows` heading cell:
+       *"the column headers look bad on mobile"*.
+
+       The stack above was written for tables with no heading row, where the
+       lead is the only label a value needs. A `stop.rows` with columns has
+       one, and the stack turned it into a list of six words — Stop, Time,
+       Cost, Place, Notes, then Cost again, pushed right — a screen away from
+       the values they name, which then arrived unlabelled: two "$25.00"s
+       under a row, one the stop's cost and one the chosen Cost column, and no
+       way to tell which was which.
+
+       Why labelled lines rather than the two other phone answers. The
+       framework spec says a block *"never scrolls inside itself"*
+       (`.design-sync/handoff/specs/notebook-widget-framework.md` §2.2), which
+       rules out a sideways-scrolling table with a sticky first column. And
+       dropping low-priority columns would hide exactly what this reader chose
+       to add — a chosen column is by definition not low priority. The stack
+       is already how every repeat table reads on a phone; this finishes it
+       for the one kind that has column names to carry.
+
+       So: the heading row leaves the screen but not the accessibility tree
+       (a screen reader still gets `columnheader`s, and the in-cell label is
+       `aria-hidden` so the name is not read twice); the lead becomes the
+       title of its group of lines; and each value sits on one line with its
+       column's name at the left. */
+    .tc-widget-labelled {
+      position: relative;
+    }
+    .tc-widget-labelled > .tc-widget-headings {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+    .tc-widget-labelled .tc-widget-row > [role="rowheader"]:not(:only-child) {
+      font-size: inherit;
+      font-weight: 600;
+      color: var(--color-ink);
+    }
+    /* Label column, then value column — the shape SPEC §34.5 gives a settings
+       row (*"a label column and a control column"*), so every value in a group
+       starts at one edge and a wrapped note reads as a paragraph rather than
+       as ragged right-aligned lines. Values are left-aligned here even where
+       the desktop column is right-aligned: one value per line has no column of
+       figures to line up.
+
+       The padding is not here: the cells carry `py-2` as a utility, and
+       Tailwind orders utilities after this layer, so the phone's tighter lines
+       are `max-md:` utilities on the cells in MacroView. */
+    .tc-widget-labelled .tc-widget-row > [role="cell"] {
+      display: grid;
+      grid-template-columns: minmax(0, 30%) minmax(0, 1fr);
+      column-gap: calc(var(--spacing) * 3);
+      align-items: baseline;
+      text-align: left;
+    }
+    /* A name wraps between words only, never inside one: `overflow-wrap:
+       normal` is the default, stated because the value beside it opts out. */
+    .tc-widget-labelled .tc-widget-cell-label {
+      display: block;
+      overflow-wrap: normal;
+      font-size: var(--text-2xs);
+      line-height: var(--text-2xs--line-height);
+      font-weight: 600;
+      color: var(--color-slate);
+    }
+    /* The value wraps between words; `break-word` only breaks a run with no
+       space in it at all (a pasted URL), which would otherwise push past the
+       card's edge. */
+    .tc-widget-labelled .tc-widget-cell-value {
+      overflow-wrap: break-word;
     }
   }
 

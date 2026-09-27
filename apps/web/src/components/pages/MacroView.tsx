@@ -314,10 +314,17 @@ export function MacroView({ detail, context, user = null, globals = null, extern
       // just "that number" — the `max` is what keeps a header row, which has
       // none, from deciding the table's width.
       const columns = rendered.rows.reduce((widest, row) => Math.max(widest, row.cells.length), 0);
+      const headings = rendered.headings;
       return (
         <span
           role="table"
-          className="tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface"
+          className={cn(
+            "tc-widget-table my-1 overflow-hidden rounded-md border border-hairline bg-surface",
+            // A table whose columns the reader chose is the one whose values
+            // cannot be told apart once a phone stacks them — see
+            // `.tc-widget-labelled` in globals.css.
+            headings && "tc-widget-labelled",
+          )}
           // **`min-content`, not `0`, as the lead's floor.** Mitchell, on the
           // preview: *"The Issue text is still going down side of page"* — on a
           // 1728px DESKTOP, so the phone rule was not the whole of it.
@@ -339,9 +346,9 @@ export function MacroView({ detail, context, user = null, globals = null, extern
           {/* Only a table whose columns the reader chose carries headings
               (field columns, M14 build step 6) — lead's first, aligned as the
               cells below them are. */}
-          {rendered.headings ? (
-            <span role="row" className="tc-widget-row text-xs font-semibold text-slate">
-              {rendered.headings.map((heading, c) => (
+          {headings ? (
+            <span role="row" className="tc-widget-row tc-widget-headings text-xs font-semibold text-slate">
+              {headings.map((heading, c) => (
                 <span
                   role="columnheader"
                   key={c}
@@ -383,7 +390,14 @@ export function MacroView({ detail, context, user = null, globals = null, extern
                 row.kind === "header" && "tc-widget-group",
               )}
             >
-              <span role="rowheader" className="tc-widget-cell px-3 py-2 text-left">
+              <span
+                role="rowheader"
+                className={cn(
+                  "tc-widget-cell px-3 py-2 text-left",
+                  // The title of its labelled lines on a phone, tight to them.
+                  headings && row.cells.length > 0 && "max-md:pb-1",
+                )}
+              >
                 <Segs segs={row.lead} accents={accents} plain />
               </span>
               {/* One cell per column, EMPTY ONES INCLUDED. Mitchell,
@@ -408,9 +422,47 @@ export function MacroView({ detail, context, user = null, globals = null, extern
                 <span
                   role="cell"
                   key={c}
-                  className={cn("tc-widget-cell px-3 py-2", c === columns - 1 ? "text-right" : "text-left")}
+                  className={cn(
+                    "tc-widget-cell px-3 py-2",
+                    c === columns - 1 ? "text-right" : "text-left",
+                    // Stacked on a phone, a labelled value is one short line
+                    // rather than a row of a table, so it sits tight; an empty
+                    // one takes no line at all, but stays in the tree so the
+                    // cells after it keep their column; and the row's last
+                    // line gets the room the row used to end with. Utilities,
+                    // because `py-2` is one and would outrank globals.css.
+                    headings && "max-md:py-1 max-md:text-left max-md:last:pb-2",
+                    headings && cell.length === 0 && "max-md:py-0 max-md:last:pb-0",
+                  )}
                 >
-                  <Segs segs={cell} accents={accents} plain />
+                  {/* **The column's name, printed in the cell, for a phone.**
+                      Mitchell, on a 411px preview: *"the column headers look
+                      bad on mobile"*. Stacked, the heading row was a list of
+                      words with nothing beside them, and a value under it no
+                      longer said which column it came from — two "$25.00"s
+                      when Cost is chosen as a column too. So each value
+                      carries its own label, the way a stacked table does;
+                      globals.css shows it below 768px only.
+
+                      `aria-hidden`: the columnheader row stays in the
+                      accessibility tree, so a screen reader already hears the
+                      column, and the label would make it say it twice. An
+                      empty cell carries none — there is nothing to label. */}
+                  {headings && cell.length > 0 ? (
+                    <>
+                      <span aria-hidden="true" className="tc-widget-cell-label">
+                        {headings[c + 1]}
+                      </span>
+                      {/* One box for the value, however many segments it
+                          has, so the phone's label-and-value line has
+                          exactly two things to set side by side. */}
+                      <span className="tc-widget-cell-value">
+                        <Segs segs={cell} accents={accents} plain />
+                      </span>
+                    </>
+                  ) : (
+                    <Segs segs={cell} accents={accents} plain />
+                  )}
                 </span>
               ))}
             </span>
