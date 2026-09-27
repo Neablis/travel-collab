@@ -162,82 +162,105 @@ async function commitPageStep(
     return { ok: false, error: { code: "demo-trip-readonly", message: "The demo trip cannot be changed." } };
   }
 
-  return db.transaction(async (tx): Promise<PageCommandResult> => {
-    const history = await readStream(tx, tripId);
-    const tripState = foldEnvelopes(history);
-    if (tripState === null) {
-      return { ok: false, error: { code: "trip-not-found", message: "This trip does not exist." } };
-    }
+  // What this step wrote, for naming the notebook if the projection refuses it.
+  let written: PageEvent[] = [];
+  try {
+    return await db.transaction(async (tx): Promise<PageCommandResult> => {
+      const history = await readStream(tx, tripId);
+      const tripState = foldEnvelopes(history);
+      if (tripState === null) {
+        return { ok: false, error: { code: "trip-not-found", message: "This trip does not exist." } };
+      }
 
-    const members = await effectiveMembers(tx, tripId, tripState.members);
-    if (!hasAtLeast(actorId, members, minimum)) {
-      const message = minimum === "owner" ? "Only the trip's owner can do this." : "Not allowed to edit this trip's notebooks.";
-      return { ok: false, error: { code: "forbidden", message } };
-    }
+      const members = await effectiveMembers(tx, tripId, tripState.members);
+      if (!hasAtLeast(actorId, members, minimum)) {
+        const message = minimum === "owner" ? "Only the trip's owner can do this." : "Not allowed to edit this trip's notebooks.";
+        return { ok: false, error: { code: "forbidden", message } };
+      }
 
-    // **Lazy genesis, and it is not optional.** Every page that existed before
-    // this milestone is a ROW with no `PageCreated` event — `listPages` seeds
-    // the Overview lazily on first read and has always written straight to the
-    // table. So the fold cannot see them, and without this the first edit to
-    // any existing notebook is answered `page-not-found`. An integration test
-    // caught exactly that on the seeded Overview.
-    //
-    // Backfilled here rather than by a data migration, for the reason
-    // `listPages`'s own lazy seeding gives: a migration has to find every trip,
-    // including ones created between deploying it and running it, and this
-    // cannot miss one — the genesis is written the first time a page is
-    // commanded, which is the first moment it could possibly matter.
-    //
-    // `SYSTEM_ACTOR_ID` is NOT assumed: the row's own `actorId` is carried into
-    // the payload, so SPEC §7's "Comes with your trip" / "Yours" line keeps
-    // telling the truth about a page a person created before this existed.
-    const genesis = await missingGenesis(tx, tripId, foldPages(history));
-    const pagesState = genesis.reduce((acc, event) => evolvePages(acc, event), foldPages(history));
+      // **Lazy genesis, and it is not optional.** Every page that existed before
+      // this milestone is a ROW with no `PageCreated` event — `listPages` seeds
+      // the Overview lazily on first read and has always written straight to the
+      // table. So the fold cannot see them, and without this the first edit to
+      // any existing notebook is answered `page-not-found`. An integration test
+      // caught exactly that on the seeded Overview.
+      //
+      // Backfilled here rather than by a data migration, for the reason
+      // `listPages`'s own lazy seeding gives: a migration has to find every trip,
+      // including ones created between deploying it and running it, and this
+      // cannot miss one — the genesis is written the first time a page is
+      // commanded, which is the first moment it could possibly matter.
+      //
+      // `SYSTEM_ACTOR_ID` is NOT assumed: the row's own `actorId` is carried into
+      // the payload, so SPEC §7's "Comes with your trip" / "Yours" line keeps
+      // telling the truth about a page a person created before this existed.
+      const genesis = await missingGenesis(tx, tripId, foldPages(history));
+      const pagesState = genesis.reduce((acc, event) => evolvePages(acc, event), foldPages(history));
 
-    const outcome = await step({ tx, history, pages: pagesState });
-    if (!outcome.ok) return outcome;
+      const outcome = await step({ tx, history, pages: pagesState });
+      if (!outcome.ok) return outcome;
 
-    // A no-op: an edit session that ended where it began (typed, then undone),
-    // a second commit trigger racing the first, or a default-notebook action
-    // with nothing left to do. Nothing is appended, so `headSeq` does not move
-    // and no co-traveller is woken for a change that did not happen.
-    //
-    // **The genesis is dropped with it.** Writing backfill events for a no-op
-    // would move `headSeq` and wake every co-traveller for nothing, which is
-    // the exact cost this branch exists to avoid. They cost nothing to
-    // re-derive on the next real command.
-    if (outcome.events.length === 0) {
+      // A no-op: an edit session that ended where it began (typed, then undone),
+      // a second commit trigger racing the first, or a default-notebook action
+      // with nothing left to do. Nothing is appended, so `headSeq` does not move
+      // and no co-traveller is woken for a change that did not happen.
+      //
+      // **The genesis is dropped with it.** Writing backfill events for a no-op
+      // would move `headSeq` and wake every co-traveller for nothing, which is
+      // the exact cost this branch exists to avoid. They cost nothing to
+      // re-derive on the next real command.
+      if (outcome.events.length === 0) {
+        const page = outcome.pageId === null ? null : await readPage(tx, outcome.pageId);
+        return { ok: true, tripId, page, seq: null };
+      }
+
+      written = outcome.events;
+      const appended = await appendToStream(tx, {
+        streamId: tripId,
+        // The whole stream's length, not the page aggregate's: a trip command
+        // and a notebook save take `seq` numbers from one sequence, so they
+        // must serialise however separately they fold.
+        expectedSeq: history.length,
+        // Genesis first: an edit to a backfilled page must fold after the create
+        // that introduces it, in the same batch so the two cannot be separated by
+        // a crash.
+        events: [...genesis, ...outcome.events].map(storedPageEvent),
+        actorId,
+        occurredAt: new Date().toISOString(),
+        batchId: crypto.randomUUID(),
+        origin: { kind: "user" },
+      });
+      if (!appended.ok) {
+        return {
+          ok: false,
+          error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+        };
+      }
+
+      await applyPageEvents(tx, appended.envelopes);
       const page = outcome.pageId === null ? null : await readPage(tx, outcome.pageId);
-      return { ok: true, tripId, page, seq: null };
-    }
-
-    const appended = await appendToStream(tx, {
-      streamId: tripId,
-      // The whole stream's length, not the page aggregate's: a trip command
-      // and a notebook save take `seq` numbers from one sequence, so they
-      // must serialise however separately they fold.
-      expectedSeq: history.length,
-      // Genesis first: an edit to a backfilled page must fold after the create
-      // that introduces it, in the same batch so the two cannot be separated by
-      // a crash.
-      events: [...genesis, ...outcome.events].map(storedPageEvent),
-      actorId,
-      occurredAt: new Date().toISOString(),
-      batchId: crypto.randomUUID(),
-      origin: { kind: "user" },
+      return { ok: true, tripId, page, seq: appended.envelopes.at(-1)?.seq ?? null };
     });
-    if (!appended.ok) {
-      return {
-        ok: false,
-        error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
-      };
-    }
-
-    await applyPageEvents(tx, appended.envelopes);
-    const page = outcome.pageId === null ? null : await readPage(tx, outcome.pageId);
-    return { ok: true, tripId, page, seq: appended.envelopes.at(-1)?.seq ?? null };
-  });
+  } catch (error) {
+    // **Two seeds with one title.** `pages_system_seed_unique` allows one
+    // `system` notebook per title, and a rename can ask for a second: a seed
+    // renamed away ("Money" → "Budget") is not recognised, so "Add missing"
+    // seeds "Money" again (KI-2026-09-27-e), and renaming "Budget" back then
+    // collides. That is the reader's request refused, not a server fault, so
+    // it is a 409 that says which name is taken rather than an uncaught 500.
+    if (uniqueViolation(error)?.constraint !== SEED_TITLE_INDEX) throw error;
+    const title = written.map((e) => (e.type === "PageDeleted" ? undefined : e.payload.title)).find((t) => t !== undefined);
+    const message =
+      title === undefined
+        ? "Another notebook in this trip already has that name."
+        : `A notebook called “${title}” already exists in this trip.`;
+    return { ok: false, error: { code: PAGE_TITLE_TAKEN_CODE, message } };
+  }
 }
+
+const SEED_TITLE_INDEX = "pages_system_seed_unique";
+/** The refusal for a write that would give two of the trip's seeded notebooks one title. */
+export const PAGE_TITLE_TAKEN_CODE = "page-title-taken";
 
 // Read from the `pages` row, the only place a page's `updatedAt` lives (the
 // fold carries no timestamps, and a lazily seeded page has no event to carry
@@ -425,15 +448,16 @@ function genesisOf(history: readonly EventEnvelope[]): SeedCandidate[] {
   return [...seen.values()];
 }
 
-// Postgres's unique_violation. The one way two writers can both believe a seed
-// is missing: `listPages`' lazy seeding writes straight to the table, outside
-// the stream, so `expectedSeq` cannot serialise it against this. The
-// partial index `pages_system_seed_unique` refuses the second copy, and that
-// refusal is a race lost, not a server fault.
-function isUniqueViolation(error: unknown): boolean {
-  const code = (error as { code?: unknown; cause?: { code?: unknown } } | null)?.code
-    ?? (error as { cause?: { code?: unknown } } | null)?.cause?.code;
-  return code === "23505";
+// Postgres's unique_violation, and the constraint it names. Walks the `cause` chain, as `eventStore.ts` does: drizzle wraps the driver's
+// error, and the constraint name is on the driver's.
+function uniqueViolation(error: unknown): { constraint: string | undefined } | null {
+  let cursor: unknown = error;
+  while (typeof cursor === "object" && cursor !== null) {
+    const { code, constraint, cause } = cursor as { code?: unknown; constraint?: unknown; cause?: unknown };
+    if (code === "23505") return { constraint: typeof constraint === "string" ? constraint : undefined };
+    cursor = cause;
+  }
+  return null;
 }
 
 /**
@@ -443,8 +467,9 @@ function isUniqueViolation(error: unknown): boolean {
  * Owner only. A trip missing nothing appends nothing (`seq: null`).
  */
 export async function addMissingDefaultPages(tripId: string, actorId: string): Promise<PageCommandResult> {
+  let result: PageCommandResult;
   try {
-    return await commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
+    result = await commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
       const candidates = await seedCandidates(tx, tripId);
       // Minted up front and SORTED, so the new notebooks come back from the
       // list in a new trip's order. They share one `createdAt` (the batch's
@@ -475,10 +500,21 @@ export async function addMissingDefaultPages(tripId: string, actorId: string): P
       return { ok: true, events, pageId: null };
     });
   } catch (error) {
-    if (!isUniqueViolation(error)) throw error;
-    return { ok: false, error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." } };
+    if (uniqueViolation(error) === null) throw error;
+    return RACE_LOST;
   }
+  // The one way two writers can both believe a seed is missing: `listPages`'
+  // lazy seeding writes straight to the table, outside the stream, so
+  // `expectedSeq` cannot serialise it against this. `pages_system_seed_unique`
+  // refuses the second copy (answered as a taken title by `commitPageStep`),
+  // and here that refusal is a race lost, which a retry resolves.
+  return !result.ok && result.error.code === PAGE_TITLE_TAKEN_CODE ? RACE_LOST : result;
 }
+
+const RACE_LOST: PageCommandResult = {
+  ok: false,
+  error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+};
 
 /**
  * Puts a seeded notebook back to its current template — title and document —

@@ -18,6 +18,7 @@ vi.mock("@/server/auth", () => ({
 // Imported after the mock so the routes pick up the mocked `auth`.
 const { POST: ADD_MISSING } = await import("./route");
 const { POST: RESET } = await import("../[pageId]/reset/route");
+const { PATCH } = await import("../[pageId]/route");
 
 async function sharedTrip() {
   const ownerId = `owner-${randomUUID()}`;
@@ -59,5 +60,38 @@ describe("the default-notebook routes", () => {
 
     currentUserId = ownerId;
     for (const call of calls) expect((await call()).status).toBe(200);
+  });
+});
+
+// A seed renamed away from its template's title is not recognised
+// (KI-2026-09-27-e), so "Add missing" seeds the template again beside it.
+// Renaming the first one back then collides with the second on
+// `pages_system_seed_unique`, which escaped as a 500. It is the ordinary 409,
+// saying which name is taken.
+describe("renaming a seed onto a title another seed holds", () => {
+  beforeEach(() => {
+    currentUserId = "";
+  });
+
+  it("is the ordinary 409, naming the notebook", async () => {
+    const { tripId, ownerId } = await sharedTrip();
+    currentUserId = ownerId;
+    const money = (await listPages(tripId)).find((p) => p.title === "Money")!;
+    const rename = (title: string) =>
+      PATCH(
+        new Request(`http://test/api/trips/${tripId}/pages/${money.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        }),
+        { params: Promise.resolve({ tripId, pageId: money.id }) },
+      );
+    expect((await rename("Budget")).status).toBe(200);
+    const added = await ADD_MISSING(post(`http://test/api/trips/${tripId}/pages/defaults`), { params: Promise.resolve({ tripId }) });
+    expect(added.status).toBe(200);
+
+    const res = await rename("Money");
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "A notebook called “Money” already exists in this trip." });
   });
 });

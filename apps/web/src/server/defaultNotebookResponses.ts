@@ -1,4 +1,5 @@
 import { PAGE_CHANGED_CODE } from "@tc/contracts";
+import { PAGE_TITLE_TAKEN_CODE } from "./pageCommands";
 
 // The HTTP answer for a refused default-notebook action (add missing, reset,
 // restore), shared by their three routes so the same refusal reads the same
@@ -18,6 +19,7 @@ export function defaultNotebookRefusal(error: { code: string; message: string })
         ? 404
         : error.code === "concurrency-conflict" ||
             error.code === PAGE_CHANGED_CODE ||
+            error.code === PAGE_TITLE_TAKEN_CODE ||
             error.code === "not-a-default" ||
             error.code === "page-version-not-found"
           ? 409

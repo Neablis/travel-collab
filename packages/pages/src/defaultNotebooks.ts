@@ -26,7 +26,7 @@ import {
 // RENAMED is no longer recognised. It offers no reset, and "add missing" puts
 // the template back beside it. Storing the template key on the page would fix
 // that and is a contract change to `PageContext`; it was not needed for the
-// ask, and the index would still be keyed on the title.
+// ask, and the index would still be keyed on the title. KI-2026-09-27-e.
 
 /** The fields a notebook needs for its seed to be recognised — a list entry or a full page both have them. */
 export interface SeedCandidate {
