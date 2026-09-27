@@ -43,6 +43,12 @@ const colorMath = new Set([
   // character class spelling `#[0-9a-f]{3,8}` reads to this wall exactly like
   // the hex literal it is built to reject.
   "apps/web/src/components/lenses/mapTokens.test.ts",
+  // The per-link preview cards' palette (spec 2026-09-27 §2.2). satori cannot
+  // resolve `var(--…)`, so the cards need literals. This file is GENERATED
+  // from globals.css by `apps/web/scripts/generate-og-tokens.mjs`, and
+  // `src/server/og/ogTokens.test.ts` fails when it differs from a fresh parse,
+  // so it decides no colour of its own.
+  "apps/web/src/server/og/ogTokens.generated.ts",
 ]);
 
 // Third-party codegen that ships its own brand colours and is not product UI.
