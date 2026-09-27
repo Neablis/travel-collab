@@ -93,6 +93,26 @@ it is why the naive version of page undo is not built.
 only *undo* is stream-scoped. A reader of trip history should see "Mei edited *Hakone,
 written out*" without that entry being undoable from the board.
 
+**Amended 2026-09-27 — resetting a seeded notebook is an edit, and its undo restores, never
+deletes.** Mitchell asked for a way to reset a trip's default notebooks to their seed and to
+add the seeds a trip is missing, owner only. Both are built on the model above:
+
+- **Reset to default** is one `EditPage` → `PageEdited` carrying the template's title and
+  document. The page keeps its id (the Overview's links name it, ADR-056) and the replaced
+  version stays in the log. It is not a delete and recreate.
+- **Its undo is a page-scoped restore**, `restorePageVersion(pageId, toSeq)`: fold the pages
+  to `toSeq`, and edit this one page back to its title and document there. It only ever
+  edits. A page absent at `toSeq`, or deleted since, is refused. It therefore cannot hit
+  KI-2026-09-22-c, where a revert behind a backfilled genesis deletes notebooks. A reset
+  answers the version just before it (`restoreSeq`), and the screen offers Undo from that.
+  It is owner only, like the reset. A general page undo is still that KI's to design; this
+  covers the smallest case, and it is the one a destructive action needs.
+- **Adding missing seeds** is `CreatePage` per missing template with `system` as the owner,
+  in one batch. The seed identity is the one `pages_system_seed_unique` already uses: a
+  `system` page with a template's title, or the page marked `kind: "overview"`. A seed the
+  reader renamed is not recognised: it offers no reset, and "add missing" seeds the
+  template again beside it.
+
 ### 3. One clock. The settled edit session is the only write
 
 **REWRITTEN 2026-09-03. The first draft of this decision had two clocks — autosave every
