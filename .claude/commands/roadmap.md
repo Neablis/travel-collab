@@ -142,5 +142,15 @@ it, and which of its phases are done.
 - A gate is closed only when its file says so. "The code merged" is not a
   closed gate, and `TODO.md` says exactly this: check items off when the gate
   passes, not when code merges.
+- **A doc's claim about a system outside git is a dated snapshot, not a fact.**
+  "migrate-production has NOT run", "X is not set in Vercel", "PR #N is open":
+  before you hand one to Mitchell as a to-do, check it against the system (the
+  digest's `PROD MIGRATIONS` line, the Vercel MCP's env listing by name, the
+  GitHub MCP), or label it *unverified*. On 2026-09-27 two operator items were
+  reported as outstanding three days after both were done.
+- **An unticked box is not proof of open work either.** When code for a box has
+  clearly merged (its commit is on `main`), say "merged, box unticked" rather
+  than "open", and name what evidence the tick still needs. M29 sat at 7/15
+  with three boxes already satisfied.
 - Keep it scannable. The reader wants position and next step, not a re-read of
   every milestone file.
