@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRedisCache, type RedisClient } from "./redis";
+import { createRedisCache, resolveCacheDriver, type RedisClient } from "./redis";
 
 // ADR-059's fail-open rule, on the wrapper every Redis call goes through: an
 // error or a slow answer is a miss, never a rejection and never a wait.
@@ -12,6 +12,28 @@ const failing = (make: () => Promise<never>): RedisClient => ({
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("resolveCacheDriver", () => {
+  const creds = { url: "https://example.upstash.io", token: "t" };
+  const none = { url: "", token: "" };
+
+  it.each([
+    ["auto, with credentials", "upstash", false, { requested: "", ...creds }],
+    ["auto, without credentials", "memory", false, { requested: "", ...none }],
+    ["auto, with only the URL", "memory", false, { requested: "", url: creds.url, token: "" }],
+    ["explicit memory, with credentials", "memory", false, { requested: "memory", ...creds }],
+    ["explicit off, with credentials", "off", false, { requested: "off", ...creds }],
+    ["explicit upstash, with credentials", "upstash", false, { requested: "upstash", ...creds }],
+    ["explicit upstash, missing credentials", "memory", true, { requested: "upstash", ...none }],
+    ["invalid, with credentials", "upstash", true, { requested: "redis", ...creds }],
+    ["invalid, without credentials", "memory", true, { requested: "Memory", ...none }],
+  ] as const)("%s → %s", (_case, driver, warns, input) => {
+    const resolved = resolveCacheDriver(input);
+
+    expect(resolved.driver).toBe(driver);
+    expect(resolved.warning !== null).toBe(warns);
+  });
 });
 
 describe("createRedisCache", () => {

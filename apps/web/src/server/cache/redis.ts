@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { serverConfig } from "../config";
+import { createMemoryClient } from "./memory";
 
 // **The shared Redis, as an expendable cache and nothing more** (ADR-059).
 //
@@ -13,8 +14,9 @@ import { serverConfig } from "../config";
 //     error, so a slow or broken Redis costs a request its speed-up and
 //     nothing else — never a 500, never a stall. One warning per instance.
 //   * It is a port, the ADR-007 shape: callers get `getCache()` and never the
-//     client, and with no credentials (local, CI, tests) it is a no-op, so
-//     nothing needs Redis to run.
+//     client. `CACHE_DRIVER` picks the store — Upstash, an in-process Map
+//     (`memory.ts`, the default without credentials) or nothing — so nothing
+//     needs Redis to run.
 //
 // Keys are built in `keys.ts`, which prefixes the environment: that file is
 // the whole key space on the shared instance, in one place.
@@ -82,22 +84,62 @@ export function createRedisCache(client: RedisClient, timeoutMs: number = CACHE_
   };
 }
 
-let cache: CachePort | null = null;
+/** Which store backs the cache. `off` is the no-op. */
+export type CacheDriver = "upstash" | "memory" | "off";
+
+const DRIVERS: readonly string[] = ["upstash", "memory", "off"];
 
 /**
- * The process's cache: Upstash when `KV_REST_API_URL` and `KV_REST_API_TOKEN`
- * are both set, the no-op otherwise.
+ * `CACHE_DRIVER`, resolved (ADR-059). An explicit valid value wins, except
+ * `upstash` without both credentials, which falls back to `memory`. Blank
+ * means auto: `upstash` when both credentials are set, `memory` otherwise. An
+ * unknown value is auto too. `warning` is set whenever the request was not
+ * honoured as written. Pure, for the resolution table's test.
  */
+export function resolveCacheDriver(input: {
+  requested: string;
+  url: string;
+  token: string;
+}): { driver: CacheDriver; warning: string | null } {
+  const hasCredentials = input.url !== "" && input.token !== "";
+  const auto: CacheDriver = hasCredentials ? "upstash" : "memory";
+  const requested = input.requested.trim();
+  if (requested === "") return { driver: auto, warning: null };
+  if (!DRIVERS.includes(requested)) {
+    return { driver: auto, warning: `CACHE_DRIVER="${requested}" is not upstash|memory|off; using ${auto}` };
+  }
+  if (requested === "upstash" && !hasCredentials) {
+    return { driver: "memory", warning: "CACHE_DRIVER=upstash but KV_REST_API_URL/KV_REST_API_TOKEN are not both set; using memory" };
+  }
+  return { driver: requested as CacheDriver, warning: null };
+}
+
+// **A singleton, resolved once per process.** It has to be: the memory driver
+// IS its Map, so resolving per call would hand every request an empty cache.
+// Tests are kept out of it without a reset hook, in two ways. Both Vitest
+// configs set `CACHE_DRIVER=off` (unless a run sets it deliberately), so no
+// test reaches a real or in-memory store by default. And Vitest isolates
+// modules per file, so even a file that opts in cannot leak state into
+// another. A test that wants a cache injects a port: every lookup that uses
+// one takes it as a parameter.
+let cache: CachePort | null = null;
+
+/** The process's cache, per `CACHE_DRIVER` (see `resolveCacheDriver`). */
 export function getCache(): CachePort {
   if (cache !== null) return cache;
-  const { kvRestApiUrl: url, kvRestApiToken: token } = serverConfig;
+  const { cacheDriver, kvRestApiUrl: url, kvRestApiToken: token } = serverConfig;
+  const { driver, warning } = resolveCacheDriver({ requested: cacheDriver, url, token });
+  // Once, because the singleton means this branch runs once per instance.
+  if (warning !== null) console.warn(`[cache] ${warning}`);
   cache =
-    url && token
+    driver === "upstash"
       ? createRedisCache(
           // No retries: a retry is a second command against a free-tier budget,
           // spent on a request that will already have given up at 300 ms.
           new Redis({ url, token, retry: false, signal: () => AbortSignal.timeout(CACHE_TIMEOUT_MS) }),
         )
-      : noopCache;
+      : driver === "memory"
+        ? createRedisCache(createMemoryClient())
+        : noopCache;
   return cache;
 }

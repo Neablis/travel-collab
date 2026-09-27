@@ -35,8 +35,30 @@ a boundary, rather than reversed.
 2. **One port, one module.** `apps/web/src/server/cache/redis.ts` exposes
    `CachePort { get, set(key, value, ttlSeconds), del }`, reached through `getCache()` (the
    ADR-007 shape). Callers never see the client. It uses the REST pair only
-   (`KV_REST_API_URL`, `KV_REST_API_TOKEN`), both optional in `server/config.ts`. With either
-   unset (local, CI, tests), the port is a no-op, so nothing needs Redis to run.
+   (`KV_REST_API_URL`, `KV_REST_API_TOKEN`), both optional in `server/config.ts`.
+   **Which store backs it is `CACHE_DRIVER`** (added 2026-09-27, Mitchell): `upstash`, `memory`
+   or `off`.
+   - **Blank means auto:** `upstash` when both credentials are set, `memory` otherwise.
+   - An explicit valid value wins, except `upstash` without both credentials, which falls back
+     to `memory`.
+   - An unknown value resolves as blank.
+   - Both fallbacks warn once. `resolveCacheDriver` is the table, and it is tested row by row.
+   - **`memory`** (`server/cache/memory.ts`) is a capped `Map`: 1000 keys, oldest write evicted
+     first, per-key TTL with lazy expiry. It sits behind the same fail-open wrapper. It stores
+     and decodes values the way `@upstash/redis` does, so a bare `"123"` comes back as the
+     number 123 on a laptop too, and that class of bug shows up before production does.
+   - **Under test the cache is `off`.** Both Vitest configs set `CACHE_DRIVER=off` unless a run
+     sets it, and tests that exercise a cache inject a port. The process singleton stays
+     unshared across tests without a reset hook, because Vitest isolates modules per file. It
+     has to be a singleton, since the memory driver *is* its Map.
+   - **Previews stay on `upstash` by default.** They are the only pre-production run of the real
+     client. If Upstash usage from previews ever shows up in the budget, set
+     `CACHE_DRIVER=memory` for the **Preview** environment in Vercel. That needs no code change.
+   - *Not adopted: serverless-redis-http (SRH).* It runs a local Redis behind an Upstash-shaped
+     REST endpoint, and it is the higher-fidelity local option: the real client, real Redis
+     semantics. It costs a container on every laptop and in CI, and the memory driver already
+     covers the behaviours this cache relies on (TTL, delete, decoding). Revisit if a use needs
+     Redis semantics beyond get/set/del.
 3. **It fails open, fast.** Every call is bounded at 300 ms. An error or a timeout is a miss for
    `get` and is ignored for `set` and `del`. The port never rejects and never returns a 500, and
    it logs at most once per instance. The Upstash client runs with `retry: false`, because a
