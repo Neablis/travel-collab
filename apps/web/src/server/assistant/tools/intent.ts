@@ -36,7 +36,7 @@ const SwitchIntentOutput = z.union([
  * **`domain: "pages"`, and it is the one tool in that domain that writes
  * nothing.** It is offered exactly where a page turn is — the page surface is
  * the only row that grants `pages` — and admission offers it only when the
- * turn has somewhere to pivot to. `effect: "read"`: what it changes is which of
+ * turn has somewhere to pivot to. `effect: "steer"`: what it changes is which of
  * the turn's own, already-admitted tools the next step holds, never the trip
  * or the page.
  *
@@ -49,7 +49,7 @@ export const switchIntentTool = defineTool({
   description:
     "Call this when this turn was started with the wrong intent: the user asked a QUESTION and you were given page-writing tools, or asked you to BUILD or ADD TO the page and you were given reading tools. Say why. Your next step holds the tools for the intent you name.",
   domain: "pages",
-  effect: "read",
+  effect: "steer",
   spend: "none",
   input: SwitchIntentInput,
   output: SwitchIntentOutput,

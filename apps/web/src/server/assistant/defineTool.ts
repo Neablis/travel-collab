@@ -51,12 +51,45 @@ import type { AskToolPosture } from "./grants";
 export type ToolDomain = "itinerary" | "library" | "pages" | "places" | "account" | "system";
 
 /**
- * What a tool DOES — and there is no `commit`. The turn changes nothing; that
- * stays a property of the shape rather than a rule the prompt has to hold.
- * A `propose` tool collects and the loop ends; the only thing that commits is
- * the apply endpoint, reached by a human clicking Approve.
+ * What a tool DOES — five kinds, and there is still no `commit`: the only thing
+ * that commits a trip change is the apply endpoint, reached by a human clicking
+ * Approve.
+ *
+ *   * `read`    — reads the trip or a catalogue, and nothing else. Changes
+ *     nothing and spends nothing but the turn's own step.
+ *   * `steer`   — changes nothing outside the turn, but changes what the turn
+ *     may do next (`request_change_tools`, `switch_intent`).
+ *   * `spend`   — reads, but spends a shared or metered resource on the way
+ *     (`search_places`: the actor's daily geocoding allowance and the vendor).
+ *   * `propose` — collects a change for a human to approve.
+ *   * `write`   — changes something the user sees without an approval step:
+ *     the page inserts, which land in the editor (ADR-035 decision 5).
+ *
+ * **Only `read` is ever offered on a read-only turn** (Mitchell, 2026-09-27:
+ * *"I would really not like that any tools with a mutation are even available
+ * when someone uses the ai over a trip that only has read functionality"*).
+ * `toolsFor` enforces it from this tag, so a new tool is excluded from a
+ * viewer's turn by declaring what it does — never by being left off a list.
  */
-export type ToolEffect = "read" | "propose";
+export type ToolEffect = "read" | "steer" | "spend" | "propose" | "write";
+
+/**
+ * The two LEVELS a grant caps a domain at. A tool's effect maps onto one
+ * (`EFFECT_LEVEL`): the three that change nothing a user owns are `read`
+ * level, and the two that change the trip or the page are `propose` level.
+ * The grant arithmetic (`grantFor`) is over levels; the viewer rule is over the
+ * effect itself.
+ */
+export type EffectLevel = "read" | "propose";
+
+/** Which grant level each effect needs. */
+export const EFFECT_LEVEL: Readonly<Record<ToolEffect, EffectLevel>> = {
+  read: "read",
+  steer: "read",
+  spend: "read",
+  propose: "propose",
+  write: "propose",
+};
 
 /**
  * Whether calling this tool can spend money at a vendor.
@@ -159,6 +192,20 @@ export interface ToolSpec<
    * tools in which posture" manifest is `offeredToolNamesFor` again.
    */
   postures?: readonly AskToolPosture[];
+  /**
+   * **`false` keeps a pure read off a read-only turn** (ADR-058 decision 9).
+   * Mitchell, 2026-09-27, on a viewer's assistant: *"minimize the tool call as
+   * small as possible"*. A viewer's turn is `read_trip` and `read_day`: the
+   * trip's shape and what happens on a day answer every question it takes.
+   * `find_free_time` is arithmetic over what `read_day` returns, and
+   * `search_playbooks` browses a library a viewer cannot insert from, so both
+   * say `false` here. Omitted means offered.
+   *
+   * It only ever SUBTRACTS, and only from a read-only turn: the effect rule
+   * (only `effect: "read"` on such a turn) is what keeps mutation and spend
+   * off it, and this tag cannot put anything back.
+   */
+  onReadOnlyTurns?: false;
   run: (
     input: z.infer<Input>,
     deps: Pick<AssistantDeps, Needs[number]>,

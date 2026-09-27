@@ -126,6 +126,14 @@ const planningTools = toolsFor(
 );
 const pageTurnTools = toolsFor(grantFor({ surface: "page", role: "propose", plan: "propose", classifier: "propose" }));
 const READ_TOOL_NAMES = readOnlyTools.map((t) => t.name);
+// **What a VIEWER holds** (ADR-058 decision 9): the read-only posture's own
+// set — pure reads only, and the minimal ones. Computed with the posture the
+// handler passes, which is what makes it narrower than `READ_TOOL_NAMES`.
+const VIEWER_TOOL_NAMES = toolsFor(
+  grantFor({ surface: "trip", role: "read", plan: "propose", classifier: "propose" }),
+  undefined,
+  "read-only",
+).map((t) => t.name);
 // **What an EDITOR whose turn read as a question holds**, which is the read set
 // plus the one tool that gets them out of it (M9 escalation). A viewer's set is
 // `READ_TOOL_NAMES`: they resolve to `read-only`, where rephrasing would
@@ -678,7 +686,7 @@ describe("POST /api/trips/:id/ask", () => {
       // The record is written when the run ends, which for a streamed response
       // means once the stream has been drained.
       await res.text();
-      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...VIEWER_TOOL_NAMES].sort());
     });
 
     // `requireTripAccess` answers the demo trip as a viewer with NO session, so
@@ -1456,7 +1464,7 @@ describe("POST /api/trips/:id/ask", () => {
       );
       await res.text();
       expect(records[0]!.classification).toBeNull();
-      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...VIEWER_TOOL_NAMES].sort());
     });
 
     it("offers a VIEWER no write tool at all, however the question is phrased", async () => {
@@ -1470,10 +1478,10 @@ describe("POST /api/trips/:id/ask", () => {
         (r) => records.push(r),
       );
       const chunks = await chunksOf(res);
-      expect(records[0]!.offeredTools.sort()).toEqual([...READ_TOOL_NAMES].sort());
+      expect(records[0]!.offeredTools.sort()).toEqual([...VIEWER_TOOL_NAMES].sort());
       // No proposal on the wire, and no write tool call in it either.
       expect(chunks.some((c) => c.type === "finish" && c.messageMetadata !== undefined)).toBe(false);
-      expect(records[0]!.toolCalls.every((c) => (READ_TOOL_NAMES as readonly string[]).includes(c.name))).toBe(true);
+      expect(records[0]!.toolCalls.every((c) => (VIEWER_TOOL_NAMES as readonly string[]).includes(c.name))).toBe(true);
     });
 
     // The requirement in one test: a turn that PROPOSES commits nothing.
@@ -1573,12 +1581,11 @@ describe("POST /api/trips/:id/ask", () => {
       expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
     });
 
-    // `search_playbooks` is a READ tool in the `library` domain, so it rides
-    // every surface's read cap and `minimumRoleFor` still answers `viewer` for
-    // a turn that only browses.
-    // Asserted through the offered set rather than by calling the computation,
-    // because the set is what the guard is computed from.
-    it("offers a viewer search_playbooks, because browsing the library is not a write", async () => {
+    // **A viewer's assistant is minimal** (ADR-058 decision 9; Mitchell,
+    // 2026-09-27: *"minimize the tool call as small as possible"*). Browsing the
+    // library is a read, but a viewer cannot insert from it, and a place search
+    // spends an allowance — neither is on their turn.
+    it("offers a viewer only read_trip and read_day, from a real request", async () => {
       const tripId = await seedTrip();
       await grantViewer(tripId, VIEWER_ID);
       currentUserId = VIEWER_ID;
@@ -1587,8 +1594,7 @@ describe("POST /api/trips/:id/ask", () => {
         records.push(r),
       );
       await res.text();
-      expect(records[0]!.offeredTools).toContain("search_playbooks");
-      expect(records[0]!.offeredTools).not.toContain("insert_playbook_day");
+      expect(records[0]!.offeredTools).toEqual(["read_trip", "read_day"]);
     });
 
     it("carries no proposal when the turn was only a question", async () => {

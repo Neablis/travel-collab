@@ -146,7 +146,7 @@ export const searchPlacesTool = defineTool({
   name: "search_places",
   description: `Look up real places — restaurants, museums, parks, stations, hotels — and get back numbered candidates. You MUST call this before adding or updating a stop that names a real place, and then cite the candidate you chose as \`placeRef\` on that stop instead of writing a location yourself. A stop you add without a placeRef is one nobody has checked exists. Put every place the turn needs into ONE call's \`queries\` array (up to ${MAX_PLACE_QUERIES}) — not one call per place.`,
   domain: "places",
-  effect: "read",
+  effect: "spend",
   // The first one. See the file header.
   spend: "vendor",
   input: SearchPlacesInput,

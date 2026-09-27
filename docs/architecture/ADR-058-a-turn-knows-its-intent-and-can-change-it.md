@@ -144,6 +144,45 @@ asked beside a notebook got the same turn as a notebook asked for.
    - Nothing on the server changed: the switch is the client's, and no instruction told the
      model about Reading mode.
 
+   - **A reply that arrives after the user pressed "Done editing" switches the page back to
+     Editing and lands.** Mitchell, 2026-09-27: *"just do whatever is easiest since it's very
+     unlikely"*. It is the easiest, and it stays visible, so it is kept.
+
+9. **A viewer's assistant is read-only, and minimal** (Mitchell, 2026-09-27: *"I would really
+   not like that any tools with a mutation are even available when someone uses the ai over a
+   trip that only has read functionality"*; *"minimize the tool call as small as possible"*).
+   - Every tool declares what it does (`defineTool`'s `effect`), one of five:
+
+     | Effect | Meaning | Tools |
+     |---|---|---|
+     | `read` | reads, changes and spends nothing | `read_trip`, `read_day`, `find_free_time`, `search_playbooks`, `search_widgets`, `get_widget` |
+     | `steer` | changes what the turn may do next | `request_change_tools`, `switch_intent` |
+     | `spend` | reads, but spends a metered resource | `search_places` (geocoding allowance and vendor) |
+     | `propose` | collects a change for a human to approve | the 12 trip-command tools, `insert_playbook_day` |
+     | `write` | changes what the user sees with no approval step | `insert_text`, `insert_widget` |
+
+   - The grant still caps each domain at a level (`read` or `propose`); `steer` and `spend`
+     sit at `read` level, so an editor's question turn keeps its place search and its
+     escalation, as before.
+   - **A read-only turn is offered only `effect: "read"`** — enforced in `toolsFor` from the
+     tag, so a new tool that is not a pure read cannot reach a viewer by being left off a list.
+     `registry.test.ts` requires every tool to declare one of the five, and any tool that
+     spends at a vendor to say `spend`.
+   - Of the pure reads, `find_free_time` and `search_playbooks` declare
+     `onReadOnlyTurns: false`: gap arithmetic over what `read_day` returns, and a library a
+     viewer cannot insert from. A viewer's turn is `read_trip` and `read_day`.
+   - Measured on a viewer's trip turn (14 days; characters as in decision 3):
+
+     | | Tools | Tool schemas | Instruction |
+     |---|---|---|---|
+     | before | 5: read_trip, read_day, find_free_time, search_playbooks, search_places | 4,401 | 2,030 |
+     | after | 2: read_trip, read_day | 1,538 | 1,740 |
+
+     The instruction lost its `find_free_time` and `search_places` sentences on a read-only
+     turn, which no longer holds either tool. A day-scoped viewer turn is 2,218 → 1,928.
+   - A viewer's turn can never escalate: `request_change_tools` is a `steer` tool and the
+     escalation is resolved only for the `withheld` posture, which a viewer never has.
+
 ## Consequences
 
 - **A page turn now pays for a classification round-trip.** It is billed like the board's

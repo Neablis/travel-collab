@@ -258,11 +258,19 @@ const WAKING_HOURS = { after: "08:00", before: "22:00" };
  * passed; it is the question ADR-022 was written about, so the switched-off
  * deployment should be able to answer it.
  */
-function askQuestions(scope: AskScope): ToolCall[] {
+function askQuestions(scope: AskScope, options: CallOptionsLike): ToolCall[] {
   const calls = [call("read_trip", {})];
   if (scope.kind === "day") calls.push(call("read_day", { days: scope.dayIndex + 1 }));
-  calls.push(call("find_free_time", { ...WAKING_HOURS }));
+  // Only when it was handed over: a viewer's turn holds `read_trip` and
+  // `read_day` alone (ADR-058 decision 9), and calling a tool the turn was
+  // not offered ends it with `NoSuchToolError`.
+  if (offered(options, "find_free_time")) calls.push(call("find_free_time", { ...WAKING_HOURS }));
   return calls;
+}
+
+/** Whether the harness handed this call a tool of that name. */
+function offered(options: CallOptionsLike, name: string): boolean {
+  return (options.tools ?? []).some((tool) => tool?.name === name);
 }
 
 const SIMULATED_ASK_NOTICE =
@@ -760,7 +768,7 @@ function pageTurn(results: readonly ToolResultLike[], question: string, options:
   // answered like any other question — read, then speak.
   if (!(options.tools ?? []).some((tool) => tool?.name === "insert_text")) {
     if (results.length === 0) {
-      return { content: askQuestions({ kind: "trip" }), finishReason: { unified: "tool-calls", raw: undefined } };
+      return { content: askQuestions({ kind: "trip" }, options), finishReason: { unified: "tool-calls", raw: undefined } };
     }
     return speak(askAnswer({ kind: "trip" }, results));
   }
@@ -910,7 +918,7 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // intent (ADR-058) — reads and answers.
   if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
   if (results.length === 0) {
-    return { content: askQuestions(scope), finishReason: { unified: "tool-calls", raw: undefined } };
+    return { content: askQuestions(scope, options), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   const proposed = results.some(isQueued);
   const question = latestUserText(options);

@@ -1294,7 +1294,10 @@ export function instructionBlocks(
     UNTRUSTED_DATA_RULE,
     "Call read_trip first for the trip's shape, INCLUDING which city or cities each day touches — use that to find candidate days before reading any of them in full.",
     `Call read_day for what happens on a day (it is the only place stop times live) — pass a LIST of day numbers (up to ${MAX_READ_DAYS}) when a question needs more than one, in ONE call, rather than calling it once per day.`,
-    "Call find_free_time for open time — never work gaps out yourself from read_day's times.",
+    // A read-only turn holds neither of the next two tools (ADR-058 decision
+    // 9), and an instruction naming a tool the turn was not handed is the
+    // defect the page branch was once written for.
+    ...(posture === "read-only" ? [] : ["Call find_free_time for open time — never work gaps out yourself from read_day's times."]),
     // **M9's grounding, as the one sentence that makes the tool worth having.**
     // The 2026-08-02 dogfood run produced a restaurant with no address, a
     // restaurant that may not exist and a dinner persisted in Shropshire,
@@ -1307,7 +1310,7 @@ export function instructionBlocks(
     // model that calls this once per place is the failure mode that turns one
     // cheap turn into an expensive one, and the tool's own description says the
     // same thing — twice, deliberately.
-    `Call search_places to look up a real place — a restaurant, a museum, a park, a station, a hotel. Put every place the turn needs into ONE call's \`queries\` array (up to ${MAX_PLACE_QUERIES}); do not call it once per place.`,
+    ...(posture === "read-only" ? [] : [`Call search_places to look up a real place — a restaurant, a museum, a park, a station, a hotel. Put every place the turn needs into ONE call's \`queries\` array (up to ${MAX_PLACE_QUERIES}); do not call it once per place.`]),
     ...(canWrite
       ? [
           "Read before you propose. A change that names a day or a stop you have not read is a guess.",

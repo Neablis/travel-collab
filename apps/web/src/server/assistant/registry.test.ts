@@ -120,8 +120,11 @@ describe("the registry", () => {
   it("tags every tool for the grant filter, with no holes", () => {
     for (const tool of ASSISTANT_TOOLS) {
       expect(["itinerary", "library", "pages", "places", "account", "system"], tool.name).toContain(tool.domain);
-      expect(["read", "propose"], tool.name).toContain(tool.effect);
+      expect(["read", "steer", "spend", "propose", "write"], tool.name).toContain(tool.effect);
       expect(["none", "vendor"], tool.name).toContain(tool.spend);
+      // A tool that spends at a vendor cannot call itself a pure read: the
+      // read-only turn's filter is keyed on `effect` (ADR-058 decision 9).
+      if (tool.spend === "vendor") expect(tool.effect, tool.name).toBe("spend");
       expect(["viewer", "editor", "owner"], tool.name).toContain(tool.minimumRole);
     }
   });

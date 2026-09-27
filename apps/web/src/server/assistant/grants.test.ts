@@ -428,3 +428,57 @@ describe("the escalation tool is reachable in exactly one posture", () => {
     expect(minimumRoleFor(toolsFor(grantFor(lifted), "edit", postureFor(lifted)))).toBe("editor");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ADR-058 decision 9: a viewer's assistant is read-only, and minimal
+// ---------------------------------------------------------------------------
+
+describe("a read-only turn", () => {
+  // Mitchell, 2026-09-27: *"minimize the tool call as small as possible"*.
+  it("is offered exactly read_trip and read_day on the trip and day surfaces", () => {
+    for (const surface of ["trip", "day"] as const) {
+      const caps = { surface, role: "read" as const, plan: "propose" as const, classifier: "propose" as const };
+      expect(toolsFor(grantFor(caps), undefined, postureFor(caps)).map((tool) => tool.name)).toEqual([
+        "read_trip",
+        "read_day",
+      ]);
+    }
+  });
+
+  // *"I would really not like that any tools with a mutation are even available
+  // when someone uses the ai over a trip that only has read functionality."*
+  // Over every combination a read-only turn can arrive in — every surface (the
+  // phone asks through these same three scopes), every plan and classifier cap,
+  // every class or none — rather than over the cases somebody thought of.
+  it("is never offered a tool that is not a pure read, on any surface", () => {
+    let checked = 0;
+    for (const surface of ["trip", "day", "page"] as const) {
+      for (const plan of ["read", "propose"] as const) {
+        for (const classifier of ["read", "propose"] as const) {
+          const caps = { surface, role: "read" as const, plan, classifier };
+          expect(postureFor(caps)).toBe("read-only");
+          for (const taskClass of [undefined, ...TASK_CLASSES]) {
+            for (const tool of toolsFor(grantFor(caps), taskClass, postureFor(caps))) {
+              expect(tool.effect, `${tool.name} on a read-only ${surface} turn`).toBe("read");
+              checked += 1;
+            }
+          }
+        }
+      }
+    }
+    // The loop has to have asserted something to have proved anything.
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  // No escalation of any kind: the steer tools are the only way a turn asks
+  // for more, and a read-only turn holds none of them.
+  it("can never escalate", () => {
+    const steering = ASSISTANT_TOOLS.filter((tool) => tool.effect === "steer").map((tool) => tool.name);
+    expect(steering).toEqual(expect.arrayContaining(["request_change_tools", "switch_intent"]));
+    for (const surface of ["trip", "day", "page"] as const) {
+      const caps = { surface, role: "read" as const, plan: "propose" as const, classifier: "read" as const };
+      const offered = toolsFor(grantFor(caps), undefined, postureFor(caps)).map((tool) => tool.name);
+      for (const name of steering) expect(offered, `${name} on ${surface}`).not.toContain(name);
+    }
+  });
+});
