@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Page, UpdatePageInput, serializePageDoc } from "@tc/contracts";
 import { MAX_PAGE_BODY_BYTES, getPage } from "@/server/pages";
-import { executePageCommand, PAGE_TITLE_TAKEN_CODE } from "@/server/pageCommands";
+import { executePageCommand } from "@/server/pageCommands";
 import { PublicApiError } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
 
@@ -70,7 +70,7 @@ export const { GET, PATCH, DELETE } = route({
         if (result.error.code === "page-not-found") {
           throw new PublicApiError(404, "No such page on this trip.");
         }
-        if (result.error.code === "concurrency-conflict" || result.error.code === PAGE_TITLE_TAKEN_CODE) {
+        if (result.error.code === "concurrency-conflict") {
           throw new PublicApiError(409, result.error.message, "invalid-request");
         }
         throw new PublicApiError(400, result.error.message, "invalid-request");

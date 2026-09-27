@@ -43,7 +43,7 @@ import { cn } from "@/lib/cn";
 // this component reads through that same path. The effect is identical from
 // outside — every trip has an Overview, and looking at either surface
 // materialises it — and it keeps the seeding race that `listPages` already
-// solves (`pages_system_seed_unique`, and the backdating that keeps the order
+// solves (`pages_seed_key_unique`, and the backdating that keeps the order
 // stable) in the one place that solves it. Moving the seed to trip creation
 // would have to re-solve both, and would leave every trip created before the
 // change without one.

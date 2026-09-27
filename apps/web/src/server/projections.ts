@@ -3,13 +3,15 @@ import {
   TripDetail,
   TripEvent,
   isPageEventType,
+  seedKeyOf,
   serializePageDoc,
   type EventEnvelope,
   type PageContent,
+  type PageCreatedV1,
   type PageDoc,
 } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
-import { and, desc, eq, getTableColumns, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, ne, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Queryable } from "./db/client";
@@ -100,6 +102,7 @@ export async function applyPageEvents(tx: Queryable, envelopes: EventEnvelope[])
           context: event.payload.context,
           content: storedContent(event.payload.content),
           actorId: event.payload.actorId,
+          seedKey: await projectedSeedKey(tx, event.payload),
         };
         await tx
           .insert(pages)
@@ -128,6 +131,22 @@ export async function applyPageEvents(tx: Queryable, envelopes: EventEnvelope[])
         break;
     }
   }
+}
+
+// The seed key a `PageCreated` gives its row: the one it names, or, for an
+// event from before keys, the one it implies (`seedKeyOf`) unless another row
+// of the trip already holds it. The page fold asks the same question of its
+// state (`evolvePages`), and the migration that added the column answered it
+// for the rows that existed, oldest first — so a rebuild of an old log gives
+// the keys the backfill gave.
+async function projectedSeedKey(tx: Queryable, payload: PageCreatedV1["payload"]): Promise<string | null> {
+  const { key, derived } = seedKeyOf(payload);
+  if (key === null || !derived) return key;
+  const [holder] = await tx
+    .select({ id: pages.id })
+    .from(pages)
+    .where(and(eq(pages.tripId, payload.tripId), eq(pages.seedKey, key), ne(pages.id, payload.pageId)));
+  return holder === undefined ? key : null;
 }
 
 /**
@@ -214,12 +233,13 @@ export async function getTripDetail(tripId: string): Promise<TripDetail | null> 
  * unreadable (ADR-038 decision 4), which must not be rewritten either.
  *
  * **The rows the log DOES know are cleared first, and their timestamps put
- * back after** (2026-09-27). Replaying onto them in place broke on
- * `pages_system_seed_unique` once a seed could be deleted and seeded again
- * ("Add missing default notebooks"): the old seed's genesis re-inserted its
- * `system` title while the new seed's row already held it. Replayed from
- * empty, the table passes through the same states the live writes did, which
- * the index already accepted. `createdAt` is the row's (a backfilled genesis
+ * back after** (2026-09-27). Replaying onto them in place broke on the seed
+ * index (then `pages_system_seed_unique`, on the title) once a seed could be
+ * deleted and seeded again ("Add missing default notebooks"): the old seed's
+ * genesis re-inserted its title while the new seed's row already held it.
+ * Replayed from empty, the table passes through the same states the live
+ * writes did, which the index already accepted — and which the seed key an old
+ * event implies is read against (`projectedSeedKey`). `createdAt` is the row's (a backfilled genesis
  * is not when the page was made, and it orders the list); so is `updatedAt`,
  * unless an edit in the log moved it.
  */

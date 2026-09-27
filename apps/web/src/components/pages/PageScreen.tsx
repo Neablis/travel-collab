@@ -876,9 +876,11 @@ export function PageScreen({
         // And SAY so, in the server's words. This used to revert and nothing
         // else: renaming onto another notebook's name (`page-title-taken`,
         // 409) put the old title back with no message, while the header light
-        // went on reading "All changes saved" (PR 258's preview walk). The
-        // refusal is held until the next rename or a Dismiss, and published
-        // to the light for as long as it is held.
+        // went on reading "All changes saved" (PR 258's preview walk). That
+        // refusal is gone (titles are free since 2026-09-27); a rename can
+        // still be refused, by a role taken away or a trip changed under it.
+        // The refusal is held until the next rename or a Dismiss, and
+        // published to the light for as long as it is held.
         setPage((prev) => (prev === null || previousTitle === null ? prev : { ...prev, title: previousTitle }));
         setRenameRefusal({ title, message: result.error.message, at: new Date().toISOString() });
         return;
@@ -1205,7 +1207,7 @@ export function PageScreen({
           Shaped like the library's sync-failure banner (`ReadStates.tsx`):
           `warning`, since what is on screen is still the reader's work. */}
       {/* A rename the server refused. The title is back to the saved one;
-          this says why, in the server's words (e.g. `page-title-taken`). An
+          this says why, in the server's words (e.g. `forbidden`). An
           alert, not the Banner's default status: it answers something the
           reader just did, and it is the only trace the rename leaves. */}
       {renameRefusal !== null ? (

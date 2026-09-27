@@ -52,8 +52,9 @@ export function checkPageDocForWrite(doc: PageDoc): { ok: true; doc: PageDoc } |
   return { ok: true, doc: migrated };
 }
 
-function toPage(row: typeof pages.$inferSelect): Page {
-  return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, content: row.content, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
+/** A page as the contract reads it: `seedKey` only on a seed, absent otherwise. */
+export function toPage(row: typeof pages.$inferSelect): Page {
+  return { ...toSummary(row), content: row.content };
 }
 
 // The LIST projection, and it exists because the type was lying. `listPages`
@@ -64,7 +65,16 @@ function toPage(row: typeof pages.$inferSelect): Page {
 // response unbounded, and the Notebooks menu re-reads this list on every open.
 // Projecting here makes the declared return type true (Copilot, PR #126).
 function toSummary(row: typeof pages.$inferSelect): PageSummary {
-  return { id: row.id, tripId: row.tripId, title: row.title, context: row.context, createdAt: row.createdAt, updatedAt: row.updatedAt, actorId: row.actorId };
+  return {
+    id: row.id,
+    tripId: row.tripId,
+    title: row.title,
+    context: row.context,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    actorId: row.actorId,
+    ...(row.seedKey === null ? {} : { seedKey: row.seedKey }),
+  };
 }
 
 /** A summary and what the notebook says (ADR-056) — the app's own list, not the public API's. */
@@ -76,9 +86,9 @@ function newRow(tripId: string, input: CreatePageInput, actorId: string, now: st
   return { id: randomUUID(), tripId, title: input.title, context: input.context, content: input.content, createdAt: now, updatedAt: now, actorId };
 }
 
-/** A seed's row, under the id `instantiateDefaults` gave it — the id the Overview's links already name. */
+/** A seed's row, under the id `instantiateDefaults` gave it (the id the Overview's links already name), with its key. */
 function seededRow(tripId: string, seed: SeededPage, now: string): typeof pages.$inferInsert {
-  return { ...newRow(tripId, seed, SYSTEM_ACTOR_ID, now), id: seed.id };
+  return { ...newRow(tripId, seed, SYSTEM_ACTOR_ID, now), id: seed.id, seedKey: seed.seedKey };
 }
 
 // Ordered by `createdAt`, and the ordering is load-bearing rather than tidy.
@@ -153,9 +163,9 @@ async function listPageRows(tripId: string): Promise<(typeof pages.$inferSelect)
   // Lazy default instantiation — first visit only. The zero-rows check above
   // is an optimisation, NOT the idempotency guarantee: two concurrent first
   // visits both see zero rows and both arrive here (KI-6). Atomicity comes
-  // from `pages_system_seed_unique`, the partial unique index on
-  // (trip_id, title) WHERE actor_id = 'system' — the racer that loses inserts
-  // nothing and the re-read below returns the winner's rows. Do not replace
+  // from `pages_seed_key_unique`, the partial unique index on
+  // (trip_id, seed_key) WHERE seed_key IS NOT NULL — the racer that loses
+  // inserts nothing and the re-read below returns the winner's rows. Do not replace
   // this with per-row createPage() calls; that reintroduces the race.
   // Each seed gets its own millisecond, so `ORDER BY created_at` reproduces
   // `instantiateDefaults`' order — Trip Overview, then Day Sheet, the order
@@ -182,7 +192,7 @@ async function listPageRows(tripId: string): Promise<(typeof pages.$inferSelect)
   // Overview links to the other three seeds by id. Two racers mint different
   // ids, and the loser's rows are all dropped rather than some of them — one
   // statement, rows in the same order, so the loser blocks on the winner's
-  // first title and then conflicts on every row — which is what keeps the
+  // first key and then conflicts on every row — which is what keeps the
   // winner's Overview pointing at the winner's siblings.
   const defaults = instantiateDefaults(tripId, randomUUID);
 
