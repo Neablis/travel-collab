@@ -109,12 +109,15 @@ who sent it once revoked.
 - **Fonts** are bundled as local TTF/WOFF files (Bricolage Grotesque 600, IBM Plex Sans
   400/500). They are not fetched from Google at render time: see KI-2026-09-27-a, a
   production deploy that failed on Google Fonts.
-- **Caching.** Invite and referral images:
-  `Cache-Control: public, max-age=300, s-maxage=300`. That is short, so a revoked invite
-  goes generic quickly on our side (unfurler caches are outside our control). The demo
-  card is static.
-- **Rate limit.** The same as `GET /api/invites/:token`. The referral lookup is new
-  surface, so the plan confirms a limiter covers it.
+- **Caching** (revised 2026-09-27, Mitchell). The images and meta routes are cached at the
+  CDN: `public, max-age=3600, stale-while-revalidate=604800`, with `s-maxage=86400` for
+  referrals and `s-maxage=3600` for invites. A revoked invite can keep its personal card at
+  our edge for up to an hour; unfurler caches are outside our control anyway. Behind the CDN,
+  the card data (not the PNG) is cached in the shared Redis. Only personal results are
+  written, and revoke or accept deletes the entry (ADR-059). The demo card is static.
+- **Rate limit** (revised 2026-09-27). 60 a minute per client IP on all four `/api/og`
+  routes, counted in Postgres (`linkPreviewQuota`, `server/quota.ts`) and only on CDN
+  misses.
 
 ### 2.3 Tests (per `docs/guidelines/testing.md`, each seen failing)
 
