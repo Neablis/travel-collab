@@ -29,6 +29,9 @@ const READ_TOOLS = ["read_trip", "read_day", "find_free_time", "search_playbooks
 const PLACE_TOOLS = ["search_places"];
 const COMMAND_TOOLS = BatchableCommand.innerType().options.map((option) => option.shape.type.value as string);
 const PAGE_TOOLS = ["insert_text", "insert_widget"];
+// The widget lookup (ADR-057): `pages` at `read`, so offered wherever the page
+// tools are and nowhere else, and before them in registry order.
+const WIDGET_TOOLS = ["search_widgets", "get_widget"];
 
 function namesFor(caps: EffectCaps): string[] {
   return toolsFor(grantFor(caps)).map((tool) => tool.name);
@@ -67,15 +70,15 @@ describe("the three tool sets a turn can be offered", () => {
   // Today's `READ_TOOL_NAMES + PAGE_TOOL_NAMES`, and ADR-033 Decision 4's
   // narrowing: the `itinerary` domain is capped at `read` here, so no planning
   // write tool is reachable, and no other surface names `pages` at all.
-  it("is the read tools plus the two page tools on a page surface", () => {
-    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([...READ_TOOLS, ...PAGE_TOOLS]);
+  it("is the read tools, the widget lookup and the two page tools on a page surface", () => {
+    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([...READ_TOOLS, ...WIDGET_TOOLS, ...PAGE_TOOLS]);
   });
 
   it("keeps the page and planning halves disjoint in both directions", () => {
     const page = namesFor({ ...EDITOR, surface: "page" });
     const planning = namesFor({ ...EDITOR, surface: "trip" });
     for (const name of [...COMMAND_TOOLS, "insert_playbook_day"]) expect(page).not.toContain(name);
-    for (const name of PAGE_TOOLS) expect(planning).not.toContain(name);
+    for (const name of [...WIDGET_TOOLS, ...PAGE_TOOLS]) expect(planning).not.toContain(name);
   });
 
   // A page turn still browses the library, which is the `library: read` row.

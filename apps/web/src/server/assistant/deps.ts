@@ -20,6 +20,7 @@ import type { DiscoverDay } from "@/lib/playbooks";
 import type { RawToolIntent } from "@/server/assistant/batchResolver";
 import type { AskScope } from "@/server/assistant/context";
 import type { BoundingBox } from "@/server/geocoding/geocoder";
+import type { TypedAddresses } from "@/server/assistant/typedAddresses";
 
 /**
  * Who is asking, and about which trip.
@@ -312,6 +313,73 @@ export function newEscalationBuffer(): EscalationBuffer {
 }
 
 /**
+ * One notebook of this trip as the page store lists it — the whole of what the
+ * kernel learns about a notebook it is not writing into.
+ */
+export interface NotebookListing {
+  id: string;
+  title: string;
+  /** The notebook's first line of prose, when it has one (`notebookPreviewOf`). */
+  firstLine: string | null;
+}
+
+/**
+ * How the kernel lists a trip's notebooks — a port, because the page store
+ * (`@/server/pages`) is behind the import wall like every other table.
+ */
+export interface NotebookDirectory {
+  list(tripId: string): Promise<readonly NotebookListing[]>;
+}
+
+/** One notebook as the model reads it: a number, never an id. */
+export interface NumberedNotebook {
+  notebook: number;
+  title: string;
+  firstLine: string | null;
+  /** The notebook this turn is writing into. */
+  current: boolean;
+}
+
+/**
+ * **This turn's numbered notebooks, and the reason `{ notebook: 2 }` means
+ * anything** (ADR-057) — `PlaceCache`'s rule, applied to link targets.
+ *
+ * A `link.internal` stores a page id, and a model never writes an id. It names
+ * a notebook by the number `get_widget` printed, and `insert_widget` turns the
+ * number back into the id here. **Nothing listed, nothing resolves:** a number
+ * the turn was never shown is `null`, so the model cannot guess its way to a
+ * notebook, and the list is read once per turn so a number means one notebook
+ * for the whole of it.
+ */
+export interface NotebookRefs {
+  /** List this trip's notebooks, numbered from 1. Reads the store once per turn. */
+  list(): Promise<readonly NumberedNotebook[]>;
+  /** The page id a number names, or null when this turn has not listed one under it. */
+  pageIdOf(notebook: number): string | null;
+}
+
+/** One turn's notebook numbering. Never shared between turns. */
+export function newNotebookRefs(load: () => Promise<readonly NotebookListing[]>, currentPageId: string | null): NotebookRefs {
+  let listed: readonly NotebookListing[] | null = null;
+  let loading: Promise<readonly NotebookListing[]> | null = null;
+  return {
+    list: async () => {
+      loading ??= load().then((rows) => (listed = [...rows]));
+      const rows = await loading;
+      return rows.map((row, index) => ({
+        notebook: index + 1,
+        title: row.title,
+        firstLine: row.firstLine,
+        current: row.id === currentPageId,
+      }));
+    },
+    // `?? null` for the reason `newPlaceCache` gives: the number arrives from a
+    // model and may be 0, negative or past the end.
+    pageIdOf: (notebook) => (listed === null ? null : (listed[notebook - 1]?.id ?? null)),
+  };
+}
+
+/**
  * Everything any tool may reach. `defineTool`'s `needs` indexes into this and
  * nothing else, so "what can this tool touch?" is one line of its definition
  * and the set of answers is this interface.
@@ -347,6 +415,10 @@ export interface AssistantDeps {
   placeCache: PlaceCache;
   /** Where the escalation tool records that this turn was misclassified. */
   escalation: EscalationBuffer;
+  /** This turn's numbered notebooks — how a link names one without an id. */
+  notebooks: NotebookRefs;
+  /** The web addresses the asker typed this turn — the only ones a link may carry. */
+  typedAddresses: TypedAddresses;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -387,6 +459,8 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   placeSearch: true,
   placeCache: true,
   escalation: true,
+  notebooks: true,
+  typedAddresses: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 
