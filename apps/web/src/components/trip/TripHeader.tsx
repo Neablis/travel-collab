@@ -127,8 +127,14 @@ export function TripHeader({
       // strip of scrolled content above it (Mitchell, preview comment on
       // `/demo`). Nothing is sticky above it there, so it pins to the top. The
       // same holds for an invite's look screen (M27 D12).
+      //
+      // `z-20`, not `z-10`: a hovered or lifted river block is `z-10`
+      // (RiverBlock.tsx — its tag reveal hangs out of it), and at equal z the
+      // later element paints on top, so a block scrolled under this header
+      // popped through it on hover (Mitchell, #257 preview). Below AppHeader's
+      // `z-30`; the phone tab bar's `z-20` never meets it.
       className={cn(
-        "sticky z-10 border-b border-hairline bg-surface px-6 pt-3.5",
+        "sticky z-20 border-b border-hairline bg-surface px-6 pt-3.5",
         isDemoTripId(tripId) || isInviteLook(tripId) ? "top-0" : "top-14",
       )}
     >
