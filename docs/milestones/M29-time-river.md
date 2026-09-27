@@ -103,11 +103,26 @@ Part 1:
       *(Ticked 2026-09-27. `packages/fixtures/src/japan/expectations.ts:65` pins
       `pendingReasons: { book: 2, maybe: 6 }`, counted in `verify.ts:228`; `pnpm
       seed:verify` 108/108 on `33305d5`.)*
-- [ ] **[walk]** The stop editor shows a segmented Kind; choosing Pending shows the *To
+- [x] **[walk]** The stop editor shows a segmented Kind; choosing Pending shows the *To
       book* / *Maybe* icon row with *To book* chosen on a new stop; choosing Transit
       shows the mode icons; hovering an icon names it; clicking the chosen icon clears it.
-- [ ] **[walk]** A card reads *To book* (amber), *Maybe* (neutral) or its mode, and no
+      *(Ticked 2026-09-27, walked in a browser as `e2e/m29-kind-control.spec.ts` › *the stop
+      editor's Kind is segmented…*, on `test:e2e:ci-like` (a production build), 2 of 2
+      green. The UI calls Transit **Travel**. "Names it" is the native `title` tooltip.
+      Seen red three ways: a new stop defaulting to no reason (`aria-checked` `"false"`),
+      `title` removed from `icon-radio-group.tsx` (`Received: ""`), and a second click
+      keeping the choice (`Received: "true"`).)*
+- [x] **[walk]** A card reads *To book* (amber), *Maybe* (neutral) or its mode, and no
       badge wraps at 390 px.
+      *(Ticked 2026-09-27, `e2e/m29-kind-control.spec.ts` › *a card's badge reads To book
+      in amber…*, 390×844, ci-like 2 of 2. The colour is compared against the resolved
+      token (`--color-warning-tint`, `--color-moss`, `--color-info-tint`), not a class
+      name. Seen red with `book: "neutral"` (`Expected: "rgb(242, 231, 204)" Received:
+      "rgb(240, 237, 228)"`). Wrap is measured as height < 2 lines. Removing
+      `whitespace-nowrap` alone did **not** turn it red, because these three labels fit
+      at 390 px anyway. The check was shown to bite with `w-min` (`To book wrapped:
+      36.375px for a 16.2px line`). So a longer future label is guarded only by the
+      measurement, not by the class.)*
 
 Part 2:
 

@@ -38,12 +38,12 @@ at 17 of 22, and the five open boxes need a person, not code (next section).
 
 **Two more milestones are built beside M14, not current, and not in `TODO.md`'s
 order** (placing them is Mitchell's call). **M29 — The time river**: all four
-parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 10 of 15 after
-the 2026-09-27 reconciliation. What is left is two part-1 walks (the stop editor's
-Kind control, card badges at 390 px), part 4's Overview read, and the gate-close
-items. **M30 — Notebooks with one job each**: merged as #247, then #248-#253. Its
-gate is 6 of 9. `m30-notebooks-and-links.spec.ts` covers most of the walk, but
-not the Japan demo Overview or opening the external link. Mitchell reading the
+parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 12 of 15 after
+the 2026-09-27 reconciliation and the `m29-kind-control.spec.ts` walks. What is
+left is part 4's Overview read and the gate-close items. **M30 — Notebooks with one job each**: merged as #247, then #248-#253. Its
+gate is 6 of 9. `m30-notebooks-and-links.spec.ts` now covers the walk's content,
+including the Japan demo Overview (added 2026-09-27). The box still asks for it
+*on the preview*. Mitchell reading the
 Overview, and the retro, are what is left. Part 4 of M29 was superseded by M30's
 itinerary Overview, so its read and M30's are the same read.
 
@@ -79,9 +79,12 @@ a person, not code:
    `docs/guidelines/external-data-manual-check.md`. The preview now has what it
    needs (next paragraph), so this is a walk, not a blocker.
 4. **The six link-11 widgets walked against a real trip.** All six are
-   registered and render, and each has unit tests. e2e covers Trip strip and
-   Still to book, and covers Spend by day only as a heading. Sunrise/sunset,
-   Time difference from home and Know before you go have no e2e at all.
+   registered and render, and each has unit tests. Since 2026-09-27 each also
+   has e2e that asserts it resolves to the trip's own values, each seen red:
+   Sunrise/sunset, Time difference from home and Know before you go (*the
+   clock pair and the country card*), plus a per-day Spend by day check in
+   `m14-notebook-widgets.spec.ts`. What the box still asks for is a person on a
+   real trip.
 5. **The milestone retro, appended at gate close.**
    `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro;
    the milestone's own retro is still owed.
