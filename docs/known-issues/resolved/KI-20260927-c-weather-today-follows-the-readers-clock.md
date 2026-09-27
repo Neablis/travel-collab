@@ -1,4 +1,4 @@
-### KI-2026-09-27-c — the weather block's "Today" is the reader's date, not the place's
+### KI-2026-09-27-c — the weather block's "Today" is the reader's date, not the place's — RESOLVED
 
 - **Severity:** UX, visible for readers far from the trip. A reader in San Francisco
   looking at a Kyoto trip sees Kyoto's "today" row on the wrong day, without the Now
@@ -16,3 +16,27 @@
   forecast of a place, the place's date is the usual answer. Other callers of `useToday()`
   may rightly stay on the reader's date; check each one before changing the helper.
 - **Why not fixed here:** it is a product decision, and it touches a shared helper.
+- **Decision (Mitchell, 2026-09-27, verbatim):** *"Location that a trip should be in in that
+  day, not the readers current location"*. "Today" is the date at the row's place.
+- **Where it was actually decided:** not in `WeatherBlock.tsx` — its `useToday()` only dates
+  the as-of, which stays in the reader's zone (ADR-052 decision 7). The mode was chosen in the
+  `day.weather` resolver (`packages/pages/src/macros/primitives/weather.ts`) from `ctx.today`,
+  which `MacroView`/`RepeatNodeView` fill from `useToday()`. The route already knew each
+  point's zone and never sent it.
+- **Fix:** `TripWeatherPoint.placeToday` (optional; contracts CHANGELOG 2026-09-27) is set by
+  `buildTripWeather` in the point's own zone at the instant the "now" hour was cut; the
+  resolver compares each point with it, and falls back to (and waits for) the reader's date
+  only for a point without one. `useToday()` and its other callers are untouched. ADR-052
+  amended 2026-09-27.
+- **Reproduced on main (`d0d1e68`)**, `tripWeather.test.ts` "the place's today, not the
+  reader's", route service + resolver at 2026-09-27T16:03Z: reader in UTC, Kyoto — Day 2 read
+  `"Forecast", null` where `"Today", "26°"` was expected (the KI's walk exactly); reader in
+  Tokyo, Honolulu — Day 1 read `"Past day · Sep avg"` and Day 2 `"Today", "20°"` (Honolulu's
+  midnight as "now").
+- **Seen to fail (`pnpm redfirst`):** resolver `(point.placeToday ?? today)!` → `today!` —
+  three `weather.test.ts` cases red, e.g. *"expected [ 'Forecast' ] to deeply equal [ 'Today'
+  ]"*; server `localOf(zone, …).date` → `isoDay(…)` (UTC) — the Kyoto case red, Day 2
+  `"Forecast", null`. Both restored and green.
+- **Check subset:** full `pnpm check` (contracts changed): typecheck, lint, all unit suites
+  green; `pnpm --filter web test:int` 86 files / 1100 tests green;
+  `pnpm --filter web test:e2e:ci-like e2e/m14-notebook-widgets.spec.ts -g weather` 3 passed.

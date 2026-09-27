@@ -171,6 +171,10 @@ one a unit test can pin. For each point:
 | before | **typical**, labelled *"typical for November — not what it was"* (Mitchell, 2026-09-24) | normals |
 | `today` is `null` | `unavailable("pending")` — the mode cannot be chosen yet | — |
 
+> **Amended 2026-09-27 (KI-2026-09-27-c): `today` here is the PLACE's date, not the reader's.**
+> Each point carries `placeToday`, which the route reads in the place's zone at the instant it
+> cut today's hours; the resolver compares against that. See the amendment at the end.
+
 The horizon is **read from the data** (the last local day the series fully covers), not a
 constant, so it tracks MET's model rather than a guess. Inside the horizon, if the forecast is
 `unavailable` but normals are not, the widget shows **typical, in words**: a labelled typical
@@ -454,3 +458,26 @@ between stops are measured", and the block printed a bare `°`. Of (a) relabelli
 one setting as **Units: Metric (km, °C, mm) / Imperial (mi, °F, in)** and printing the
 scale on the block, or (b) a separate temperature setting, he chose **(a)**. The stored
 field stays `distanceUnit: "km" | "mi"`, so there is no contract change.
+
+## Amendment — 2026-09-27: "today" is the place's date, not the reader's (KI-2026-09-27-c)
+
+**Mitchell's decision, verbatim:** *"Location that a trip should be in in that day, not the
+readers current location"*. Decision 3 chose the mode from `ctx.today`, the reader's browser
+date, so a reader in UTC at 16:03 on the 27th saw Kyoto's 28th — already 01:03 there — as
+"Forecast" with no Now column, and a reader in Tokyo saw Honolulu's 27th as "Past day".
+
+- **The server says what today is at each point.** `TripWeatherPoint.placeToday` is the
+  calendar date in the point's zone (the one its days are cut in, from the unrounded stop) at
+  the same instant `forecastDayOf` dropped the hours already gone — so the row called "Today"
+  is the one whose first hour is "now". The route already knew the zone; the resolver did not.
+- **The resolver compares each point with its own `placeToday`**, and waits for `ctx.today`
+  only for a point that does not carry one (an answer from a server deployed before the field,
+  which is why it is optional). The mode table above is otherwise unchanged.
+- **Unchanged on purpose:** the forecast's "updated" as-of stays in the reader's zone
+  (decision 7), and every other reader of `useToday()` — the Plan's day markers, the
+  countdown — stays on the reader's date. The decision is about the weather block only.
+- **Rejected:** an instant in `WidgetContext` plus a zone per point, so the client computes the
+  place's date. It would keep "today" live in a tab left open past midnight, but "now" is
+  already the server's hour at fetch time (the as-of says how old), and it would add a clock to
+  every widget's context — the Invariant 4 decision `time.ts` defers.
+
