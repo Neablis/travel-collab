@@ -295,7 +295,8 @@ reorder and the one place a reorder updates.
 - [ ] **M14 Rich layer** ← **current milestone** (from 2026-09-26, by M28's gate closing; first current 2026-09-25, by M24's) — the macro vocabulary deferred out of M8 returns here.
       → `docs/milestones/M14-rich-layer.md`
       *(**M29 The time river is in flight beside it** — minted 2026-09-26, not
-      current; four stacked PRs, part 1 is ADR-055's `pendingReason`.
+      current; all four parts merged 2026-09-26 (#242-#245), gate 10/15, what is left
+      is walks and gate close. **M30** is merged beside it too (#247), unplaced.
       → `docs/milestones/M29-time-river.md`)*
       *(**Code merged 2026-09-24, built ahead of M24** on Mitchell's call, as
       #222, #223, #226 and #221. The gate is 17 of 22. The five open boxes

@@ -299,3 +299,54 @@ test("--json carries the facts and not the prose it read to find them", () => {
   assert.equal(digest.status.mentions, undefined);
   assert.ok(!stdout.includes("xyzzy-body-marker"));
 });
+
+// --- production migrations -------------------------------------------------
+
+/**
+ * A fixture repo whose migrations 0000 and 0001 land in two commits, plus a
+ * fake `gh` whose last successful migrate-production run is `runAt` (0 or 1).
+ */
+function migrationFixture(runAt) {
+  const dir = makeFixture();
+  const git = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  git("init", "-q");
+  git("config", "user.email", "t@t");
+  git("config", "user.name", "t");
+  const shas = [];
+  const entries = [];
+  for (const tag of ["0000_first", "0001_second"]) {
+    entries.push({ idx: entries.length, tag });
+    mkdirSync(join(dir, "apps/web/drizzle/meta"), { recursive: true });
+    writeFileSync(join(dir, `apps/web/drizzle/${tag}.sql`), "select 1;\n");
+    writeFileSync(join(dir, "apps/web/drizzle/meta/_journal.json"), JSON.stringify({ entries }));
+    git("add", "-A");
+    git("commit", "-q", "-m", tag);
+    shas.push(git("rev-parse", "HEAD"));
+  }
+  const run = JSON.stringify([{ headSha: shas[runAt], createdAt: "2026-09-25T07:25:14Z" }]);
+  const bin = makeBin({
+    gh: `#!/bin/sh\ncase "$1" in run) echo '${run}';; *) echo '[]';; esac\n`,
+  });
+  return runDigest([dir], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+}
+
+test("PROD MIGRATIONS names the migration the last run does not contain", () => {
+  const { status, stdout } = migrationFixture(0);
+  assert.equal(status, 0);
+  assert.match(stdout, /PROD MIGRATIONS: 1 NOT applied \(0001_second\)/);
+});
+
+test("PROD MIGRATIONS says all applied when the last run contains the newest", () => {
+  // The case STATUS.md got wrong for three days (2026-09-24 → 09-27).
+  const { stdout } = migrationFixture(1);
+  assert.match(stdout, /PROD MIGRATIONS: all 2 applied — last migrate-production run \w{7} 2026-09-25 contains 0001_second/);
+});
+
+test("PROD MIGRATIONS without gh says unverified, never applied or pending", () => {
+  const { stdout } = runDigest(["--no-gh", REPO]);
+  assert.match(stdout, /PROD MIGRATIONS: unverified \(--no-gh\) — newest is \d{4}_\w+, added in \w{7}/);
+});

@@ -36,6 +36,17 @@ gate closing at 9 of 9**. Order:
 M14's code is already merged (built ahead of M24 on 2026-09-24). Its gate is
 at 17 of 22, and the five open boxes need a person, not code (next section).
 
+**Two more milestones are built beside M14, not current, and not in `TODO.md`'s
+order** (placing them is Mitchell's call). **M29 — The time river**: all four
+parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 10 of 15 after
+the 2026-09-27 reconciliation. What is left is two part-1 walks (the stop editor's
+Kind control, card badges at 390 px), part 4's Overview read, and the gate-close
+items. **M30 — Notebooks with one job each**: merged as #247, then #248-#253. Its
+gate is 6 of 9. `m30-notebooks-and-links.spec.ts` covers most of the walk, but
+not the Japan demo Overview or opening the external link. Mitchell reading the
+Overview, and the retro, are what is left. Part 4 of M29 was superseded by M30's
+itinerary Overview, so its read and M30's are the same read.
+
 **M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
 `planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
 read back as their replacement (ADR-054). Its retro is at the end of
@@ -49,30 +60,44 @@ helper and then a start-vs-end decision per surface).
 ## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 17 of 22, the rest is Mitchell's
 
 Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped the
-same day as four stacked PRs: #222 → #223 → #226 → #221. `main` is at
-`965b7ac`, and CI was green on #221's last head, `348edbe`. **The gate is not
-closed.** Every box still open needs a person, not code:
+same day as four stacked PRs: #222 → #223 → #226 → #221. **The gate is not
+closed.** Re-checked against `33305d5` on 2026-09-27. Every open box still needs
+a person, not code:
 
-1. **The insert Sheet box.** It needs a design call: should each row show a
-   *real resolved preview*, or ADR-037's fixed sample?
-2. **ADR-052 acceptance.** It was accepted on delegation ("go with your own
-   best judgement… I'll review in the morning"). The gate orders it before any
-   external-data code lands, and that code is now on `main`.
+1. **The insert Sheet box.** `WidgetPicker.tsx` has search, the shape tags and
+   the *what it takes* line. The box asks each row for a *real resolved
+   preview*, and ADR-037 says a preview is a fixed sample. Mitchell either
+   rewords the box or overrules the ADR. The box's wording is also behind the
+   code: *Point it at* is now *Narrow it by* (`WidgetPicker.tsx:197`, ADR-039
+   decision 2).
+2. **ADR-052 acceptance.** Its status line still reads *Accepted on Mitchell's
+   delegation, pending his review*. The 2026-09-26 note in it accepts sending a
+   rounded location now that the default Overview shows weather, which is not a
+   review of the ADR. The external-data code is on `main`, so the box's *before
+   any code lands* clause can no longer be met as written.
 3. **The real-service weather walk**, per
-   `docs/guidelines/external-data-manual-check.md`.
-4. **The six link-11 widgets walked against a real trip.**
+   `docs/guidelines/external-data-manual-check.md`. The preview now has what it
+   needs (next paragraph), so this is a walk, not a blocker.
+4. **The six link-11 widgets walked against a real trip.** All six are
+   registered and render, and each has unit tests. e2e covers Trip strip and
+   Still to book, and covers Spend by day only as a heading. Sunrise/sunset,
+   Time difference from home and Know before you go have no e2e at all.
 5. **The milestone retro, appended at gate close.**
    `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro;
    the milestone's own retro is still owed.
 
-**Operator items:**
-- **`migrate-production` has NOT run for M14.** Its last run was
-  2026-09-24 06:54 UTC (`0c45caf`), before #222 merged at 19:42, so
-  `0029_saved_notebooks` and `0030_external_data_cache` are not on production.
-  Until it runs, saving a notebook as a template and weather will fail there.
-  Dispatch it from `main`: `gh workflow run migrate-production.yml -f confirm=migrate`.
-- set `EXTERNAL_DATA_CONTACT` in Vercel for Production and Preview. Without it,
-  forecasts are skipped and only typical weather shows.
+**Operator items: both done, verified 2026-09-27.** They sat here as outstanding
+for three days after they were done.
+- **Production migrations are applied through `0031`.** `migrate-production`
+  ran as #29 (2026-09-24 23:32 UTC, `5b73e96`) and #30 (2026-09-25, `cdb3582`,
+  the commit that added `0031`), and production's
+  `drizzle.__drizzle_migrations` holds 32 rows. **Don't record this in prose
+  again.** `pnpm state` prints a computed `PROD MIGRATIONS` line: applied when the
+  commit that added the newest file is an ancestor of the last successful run's
+  head. Without `gh` it prints *unverified*, and that is the answer. Ask the
+  GitHub MCP for the run; this file cannot answer it.
+- **`EXTERNAL_DATA_CONTACT` is set** in Vercel for Production, Preview and
+  Development. The name was checked; the value was not decrypted.
 
 Branches cut from `main` before #221 still carry the part-3 version of
 `m14-notebook-widgets.spec.ts` *"a sentence inserted mid-sentence…"*. That
@@ -88,12 +113,14 @@ Three standing facts, kept here because each is instruction rather than history 
 nothing in CI will tell you when one is broken. The narrative each came from is in
 `docs/retros/2026-09-11-status-archive.md`.
 
-- **Merging does not apply a migration. Production is at `0020` and nothing pending.**
+- **Merging does not apply a migration.**
   `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`, is the only thing
-  that applies one, and the answer is checkable rather than remembered: 21 rows in
-  `drizzle.__drizzle_migrations` on the production branch, which is `0000`-`0020`. *(This
-  entry used to say `0018` was NOT applied; it was dispatched as run 19 on 2026-09-13 and the
-  rule outlived its example. `0019`/`0020` went out as run 20 on 2026-09-14.)* Runbook:
+  that applies one. Whether production is current is **computed, not written here**: `pnpm
+  state`'s `PROD MIGRATIONS` line, or the row count of `drizzle.__drizzle_migrations` on the
+  production branch against `apps/web/drizzle/meta/_journal.json`. *(This entry said
+  "Production is at `0020`" for two weeks after `0021`-`0031` shipped; the one before it said
+  `0018` was NOT applied after it was. A number in this file is a snapshot. The rule
+  outlived three of them.)* Runbook:
   `docs/guidelines/content-bundles.md` for what `0018` unblocks (`--prune` against a bundle
   that has stopped declaring content).
 - **The `ai-live` flag's dashboard fallthrough stays "Simulated" until release, then flips

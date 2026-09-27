@@ -2,7 +2,8 @@
 
 **Status:** Minted 2026-09-26 from Mitchell's asks in chat; **in flight beside M14, not
 the current milestone** (M14 stays current — its open boxes wait on a person). Built as
-four stacked PRs. Decision record for part 1: **ADR-055**.
+four stacked PRs, **all four merged by 2026-09-26** (#242, #244, #245, #243). Decision
+record for part 1: **ADR-055**. What is left is walks and the gate-close items.
 
 ## Why this exists
 
@@ -79,13 +80,29 @@ from.
 
 Part 1:
 
-- [ ] **`pendingReason` is refused off `pending`** by the command unions, the decider
+- [x] **`pendingReason` is refused off `pending`** by the command unions, the decider
       (an update whose result would keep one) and the saved-day write path, each with a
       test **seen to fail** without the rule.
-- [ ] **ADR-055 accepted**, `docs/contracts/CHANGELOG.md` carries the entry, the OpenAPI
+      *(Ticked 2026-09-27. Landed in `3ebdddd` (#242). Seen to fail with `pnpm redfirst`,
+      one mutation per site, each restored and green again: filtering `pendingReason` out
+      of `refuseKindDetailOffKind` in `packages/contracts/src/trip.ts` fails four
+      `packages/contracts/test/adr055-pending-reason.test.ts` cases; the same filter in
+      `saved.ts` fails *is refused on the saved-day write path too*; passing
+      `pendingReason: null` to `kindDetailRejection` in `packages/domain/src/trip/decide.ts`
+      fails *refuses a reason patched onto a stop that is not pending* (`expected { ok:
+      true … } to match object { ok: false … }`).)*
+- [x] **ADR-055 accepted**, `docs/contracts/CHANGELOG.md` carries the entry, the OpenAPI
       document is regenerated, and every consumer moved in the same change (invariant 5).
-- [ ] **The Japan fixture exercises the field** (2 `book`, 6 `maybe`, read off the
+      *(Ticked 2026-09-27. ADR-055's status is *Accepted — 2026-09-26, Mitchell's decision,
+      in chat*; `docs/contracts/CHANGELOG.md:49`; `openapi.json` carries `pendingReason`
+      and `src/server/public-api/openapi.test.ts` — the drift check against the generated
+      document — passes 4/4 on `33305d5`; consumers moved in `3ebdddd`, listed in its
+      message.)*
+- [x] **The Japan fixture exercises the field** (2 `book`, 6 `maybe`, read off the
       export) and `pnpm seed:verify` pins the counts.
+      *(Ticked 2026-09-27. `packages/fixtures/src/japan/expectations.ts:65` pins
+      `pendingReasons: { book: 2, maybe: 6 }`, counted in `verify.ts:228`; `pnpm
+      seed:verify` 108/108 on `33305d5`.)*
 - [ ] **[walk]** The stop editor shows a segmented Kind; choosing Pending shows the *To
       book* / *Maybe* icon row with *To book* chosen on a new stop; choosing Transit
       shows the mode icons; hovering an icon names it; clicking the chosen icon clears it.

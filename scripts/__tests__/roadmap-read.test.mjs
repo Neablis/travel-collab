@@ -19,6 +19,7 @@ import {
   readTodo,
   readStatus,
   findDrift,
+  inFlightMilestones,
   assertAnchors,
   AnchorError,
   milestoneId,
@@ -219,6 +220,42 @@ test("findDrift catches a fully-ticked gate whose TODO box is still open", () =>
   });
   assert.equal(drift.length, 1);
   assert.match(drift[0], /every M26 exit-gate box is ticked/);
+});
+
+test("findDrift names a half-built milestone that STATUS never mentions", () => {
+  // M29 and M30 sat at 7/15 and 6/9 on main on 2026-09-27 with every line of
+  // STATUS.md's "Where the work is" about M14, so a session reading the digest
+  // was told the only live work was M14's five human boxes.
+  const base = {
+    milestone: { id: "M14", rel: "r", line: 1 },
+    todo: { rel: "t", first: { id: "M14", line: 2 }, marker: { id: "M14", line: 3 } },
+    gate: { rel: "g", line: 4, ticked: 17, open: 5 },
+    status: { rel: "s", line: 5, mentions: "M14 is current; M30 is in flight" },
+  };
+  const drift = findDrift({
+    ...base,
+    inFlight: [
+      { id: "M29", rel: "docs/milestones/M29-x.md", ticked: 7, open: 8 },
+      { id: "M30", rel: "docs/milestones/M30-x.md", ticked: 6, open: 3 },
+    ],
+  });
+  assert.equal(drift.length, 1);
+  assert.match(drift[0], /M29 is in flight \(7\/15\).*never mentions it/);
+  assert.deepEqual(findDrift({ ...base, inFlight: [] }), []);
+});
+
+test("inFlightMilestones keeps only part-built, non-current, unticked milestones", () => {
+  const gate = (ticked, open) => ({ ticked, open, anchorMissing: false });
+  const items = [
+    { id: "M14", rel: "a", isCurrent: true, ticked: false, gate: gate(17, 5) },
+    { id: "M28", rel: "b", isCurrent: false, ticked: true, gate: gate(9, 0) },
+    { id: "M19", rel: "c", isCurrent: false, ticked: false, gate: gate(0, 2) },
+    { id: "M29", rel: "d", isCurrent: false, ticked: undefined, gate: gate(7, 8) },
+  ];
+  assert.deepEqual(
+    inFlightMilestones({ items }).map((m) => m.id),
+    ["M29"],
+  );
 });
 
 // --- the writing caller's gate ---------------------------------------------
