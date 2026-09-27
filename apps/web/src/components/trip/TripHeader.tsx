@@ -131,7 +131,7 @@ export function TripHeader({
       // `z-20`, not `z-10`: a hovered or lifted river block is `z-10`
       // (RiverBlock.tsx — its tag reveal hangs out of it), and at equal z the
       // later element paints on top, so a block scrolled under this header
-      // popped through it on hover (Mitchell, #257 preview). Below AppHeader's
+      // popped through it on hover (Mitchell, on the preview of pull request 257). Below AppHeader's
       // `z-30`; the phone tab bar's `z-20` never meets it.
       className={cn(
         "sticky z-20 border-b border-hairline bg-surface px-6 pt-3.5",
