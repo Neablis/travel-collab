@@ -1,11 +1,11 @@
 # ADR-052: External data enters a widget as a server-fetched input, never as a fetch
 
-**Status:** **Accepted — 2026-09-24, on Mitchell's delegation** (*"go with your own best
-judgement … I'll review in the morning"*); **pending his review.** Every choice below is
-made rather than left open, each with its reason and the alternative it beat. The ones
-most worth a second look are listed at the end under *Review points for Mitchell*. M14's
-gate box *"the external-data ADR is accepted before any external-data code lands"* stays
-unticked until that review.
+**Status:** **Accepted — 2026-09-24 on Mitchell's delegation** (*"go with your own best
+judgement … I'll review in the morning"*), **and reviewed and accepted by Mitchell on
+2026-09-27.** The *Review points for Mitchell* at the end were put to him in plain words;
+he accepted them as built. On the units amendment he chose one visible setting (see its
+2026-09-27 note): *"A sounds good, i didnt realize that was happening"*. Every choice below
+is made rather than left open, each with its reason and the alternative it beat.
 **Deciders:** Mitchell (product/eng); Claude — drafted
 Related: **ADR-007** (the `Geocoder` seam this copies), **ADR-037** (a widget is a module;
 decision 5 fixed previews, decision 6 every state renders), **ADR-044** (a widget edits
@@ -447,3 +447,10 @@ imperial."* The account has one unit setting, `distanceUnit: "km" | "mi"`
   locale (a notebook would print differently for two readers of the same account).
   If Mitchell wants °C with miles, the derivation becomes a setting, and this is the one
   function that reads it.
+
+**Reviewed 2026-09-27 — Mitchell keeps the derivation and makes it visible.** He had not
+realised temperature followed the *Distance* setting: the control said "How walks and hops
+between stops are measured", and the block printed a bare `°`. Of (a) relabelling the
+one setting as **Units: Metric (km, °C, mm) / Imperial (mi, °F, in)** and printing the
+scale on the block, or (b) a separate temperature setting, he chose **(a)**. The stored
+field stays `distanceUnit: "km" | "mi"`, so there is no contract change.

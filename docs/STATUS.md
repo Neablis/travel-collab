@@ -55,21 +55,17 @@ M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
 `KI-2026-09-25-q` (surfaces that read a stop's city directly, first a shared
 helper and then a start-vs-end decision per surface).
 
-## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 19 of 22
+## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 20 of 22
 
 Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped as four
 stacked PRs: #222 → #223 → #226 → #221. **The gate is not closed.** On
 2026-09-27 Mitchell settled the insert Sheet box (a fixed sample preview, as
-ADR-037 says) and accepted the six widgets on their e2e. What is left:
+ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. What is left:
 
-1. **ADR-052 acceptance.** Its status line still says *pending his review*. The
-   review points were put to him in plain words on 2026-09-27, including the
-   units amendment (°F follows the account's miles setting). The box's *before
-   any code lands* clause needs rewording, because the code is on `main`.
-2. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
+1. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
    what). KI-2026-09-27-b (NASA extremes read as averages) is fixed; walk step 3
    again.
-3. **The milestone retro, appended at gate close.**
+2. **The milestone retro, appended at gate close.**
    `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro.
 
 **Operator items: both done** (verified 2026-09-27, three days after this file

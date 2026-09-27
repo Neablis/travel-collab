@@ -940,8 +940,13 @@ milestone opens:**
       and the entry moves to `resolved/` with its proof line. *(Added 2026-09-18
       with the filtering work; a control that says narrowed while the widget
       renders wide is the defect, not the feature.)*
-- [ ] **The external-data ADR is accepted before any external-data code lands**,
+- [x] **The external-data ADR is accepted before any external-data code lands**,
       and it answers the widget brainstorm's §5 seven points. *(Link 11, added 2026-09-24.)*
+      *(**Ticked 2026-09-27.** ADR-052 was accepted on 2026-09-24 on Mitchell's delegation,
+      before T24's code, and reviewed and accepted by him on 2026-09-27. "Before any code
+      lands" held for the delegated acceptance; his own review came after, which the ADR's
+      status line records. The units follow-up he chose, a visible *Units* setting, is
+      tracked in ADR-052's 2026-09-27 note.)*
 - [x] **Weather renders in all four date-driven modes**, each naming its mode in
       words, with MET Norway's attribution on the block, an as-of time, and a quiet
       `unavailable` placeholder when the source is down. That state is proved with a
