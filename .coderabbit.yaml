@@ -77,6 +77,18 @@ reviews:
       mode: warning
       threshold: 80
 
+  # CodeRabbit's own ESLint run is OFF (2026-09-27). It ran in CodeRabbit's
+  # sandbox without this pnpm workspace's dependencies, so our flat configs'
+  # plugins (typescript-eslint, testing-library, playwright, import) could not
+  # resolve. Every review since the root `eslint.config.mjs` landed (#235,
+  # 2026-09-25) posted "Some tools did not complete … ESLint" and linted
+  # nothing. ESLint already runs in CI, with the real config and every plugin
+  # installed: `static-and-unit` → `pnpm lint`, a required check. A second,
+  # broken copy of it here added only the warning.
+  tools:
+    eslint:
+      enabled: false
+
   path_filters:
     # 94 markdown files and growing. Docs correctness here is enforced by the
     # gate/DoD process, not by a prose reviewer, and markdown review was a
