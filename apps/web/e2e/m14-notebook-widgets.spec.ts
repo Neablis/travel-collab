@@ -2067,11 +2067,9 @@ test("spend by day puts each day's own total on its own day, and says the number
   const rows = chart.getByRole("table", { name: "Spend by day", exact: true }).getByRole("row");
   await expect(rows).toHaveText([
     /^Day\s*Date\s*Total\s*By tag$/,
-    /^Day 1\s*Jun 1, 2027\s*\$350\.00\s*\S/,
+    /^Day 1\s*Jun 1, 2027\s*\$350\.00\s*Meal \$50\.00, Lodging \$300\.00$/,
     /^Day 2\s*Jun 2, 2027\s*\$150\.00\s*Untagged \$150\.00$/,
     /^Day 3\s*Jun 3, 2027\s*nothing priced\s*—$/,
   ]);
-  await expect(rows.nth(1)).toContainText("Meal $50.00");
-  await expect(rows.nth(1)).toContainText("Lodging $300.00");
   await expect(chart).toContainText("Budget $300.00 a day");
 });
