@@ -1979,7 +1979,7 @@ it — a test clock and a database, not a browser.
 
 Fifteen places where the build is right and the handoff is behind — sixteen
 since link 11 added one of its own, numbered 0 because it was found rather than
-surveyed. Link 0's
+surveyed, and seventeen since the landing hero's panels (16, 2026-09-27). Link 0's
 guideline should say that finding one of these is a **normal outcome of a parity
 pass, not an anomaly** — and that the answer is an amendment to the handoff, in
 the same PR, not a regression in the code.
@@ -2026,6 +2026,17 @@ the same PR, not a regression in the code.
 15. **§18's two-step insert sheet** — superseded by a one-step picker, because
     ADR-039 decision 2 makes an unbound filter mean *everything*, so every row
     is ready as soon as it lands. Convergent, not drift.
+16. **The landing hero's Timeline and Notebook panels** (`dc.html:1885-1999`)
+    — added 2026-09-27, after this milestone closed. The build now draws them
+    with the product's own `DayRiver` (M29) and notebook blocks (M30:
+    `TripStripBlock`, `ItineraryDayBlock`) on a committed snapshot of the
+    `/demo` trip, because the handoff's mockups predate both and showed a
+    timeline and a notebook the product no longer looks like. Deliberate:
+    `docs/specs/2026-09-27-link-previews-and-real-hero-design.md` §3. The
+    handoff's art survives only as the placeholder while the panels' code
+    loads (`LandingHeroArt.tsx`). The map panel, pills, copy and CTAs are
+    unchanged. **Send it back to design** so the hero artboards match; nothing
+    in `.design-sync/**` was edited here.
 
 **And two places the design disagrees with itself**, which only the design side
 can settle: the empty-home hero (a dashed "No trips yet" card) versus §32.1's
