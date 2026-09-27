@@ -48,7 +48,7 @@ quiet placeholder and ghosts are Editing-only (M14, *Decided 2026-09-24* item 2)
 | Source | Used for | Terms | State |
 |---|---|---|---|
 | MET Norway Locationforecast 2.0, `GET https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=…&lon=…` (`compact` until the implementation notes below) | forecast, on the day | Free incl. commercial, NLOD 2.0 / CC BY 4.0, credit *"The Norwegian Meteorological Institute"*; an identifying `User-Agent` with contact; honour `Expires` / `Last-Modified` (conditional `If-Modified-Since`); at most 4 decimals; contact them before 20 req/s | **verified** 2026-09-24 ([licence](https://api.met.no/doc/License), [terms](https://api.met.no/doc/TermsOfService)) |
-| NASA POWER Climatology API, `GET https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M_MAX,T2M_MIN,PRECTOTCORR&community=AG&latitude=…&longitude=…&format=JSON` | typical, after the trip | Keyless. NASA open data: use for any purpose, commercial included. NASA **requests** the acknowledgement *"data obtained from the NASA Langley Research Center POWER Project…"* and asks to be told of uses (larc-power-project@mail.nasa.gov). The API throttles "repetitive and rapid requests" with no published number | **partly verified**: the acknowledgement wording and the parameter names are confirmed by web search (the POWER docs pages and the `nasapower` R client). The open-data licence comes from secondary sources. **To verify, by reading the POWER docs directly:** the exact endpoint path, the averaging period (believed 2001–2020 for meteorology, 1984-onward for solar), and whether a rate figure is published. This container cannot reach `power.larc.nasa.gov` |
+| NASA POWER Climatology API, `GET https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M,T2M_RANGE,PRECTOTCORR&community=AG&latitude=…&longitude=…&format=JSON` | typical, after the trip | Keyless. NASA open data: use for any purpose, commercial included. NASA **requests** the acknowledgement *"data obtained from the NASA Langley Research Center POWER Project…"* and asks to be told of uses (larc-power-project@mail.nasa.gov). The API throttles "repetitive and rapid requests" with no published number | **partly verified**: the acknowledgement wording and the parameter names are confirmed by web search (the POWER docs pages and the `nasapower` R client). The open-data licence comes from secondary sources. **To verify, by reading the POWER docs directly:** the exact endpoint path, the averaging period (believed 2001–2020 for meteorology, 1984-onward for solar), and whether a rate figure is published. This container cannot reach `power.larc.nasa.gov` |
 
 **If NASA POWER fails verification** (commercial terms, or the endpoint does not give
 monthly normals for a point), the fallback is **Open-Meteo's paid plan** for "typical" only,
@@ -354,6 +354,14 @@ older as-of, which is what makes serving it honest.
      (falling back to the years in `header.range`, then to 2001–2020);
    - AG's units for these three are °C and mm/day;
    - whether a request-rate figure is published.
+   **Answered 2026-09-27 (KI-2026-09-27-b), from real responses Mitchell fetched for
+   Kyoto:** the path, the body shape, the -999 fill value and °C for AG are as believed.
+   The period is carried **only** in `header.range` (January 2001 - December 2020); there is
+   no `start` / `end`. And one belief was wrong: **`T2M_MAX` / `T2M_MIN` are each month's
+   extremes, not a typical day** (their `ANN` is the max / min of the months). The
+   adapter now asks for `T2M,T2M_RANGE,PRECTOTCORR` and reads a typical day as `T2M` ±
+   `T2M_RANGE` / 2. The cache key moved to `power:normals2`, so the month-long cached
+   extremes are not served. Still unread: a published rate figure.
    A first real call on a preview settles all four: the route logs a warning naming the key
    when a call fails, and a body of a different shape is refused rather than mis-read.
    The walk that does it, with MET's `complete` field names from the section below, is

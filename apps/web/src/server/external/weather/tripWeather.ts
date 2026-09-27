@@ -84,7 +84,10 @@ export function weatherPointsOf(detail: TripDetail): PlannedPoint[] {
   return points;
 }
 
-const keyOf = (kind: "met:forecast" | "power:normals", point: RoundedPoint) => {
+// `power:normals2`: the value changed meaning on 2026-09-27 (KI-2026-09-27-b,
+// extremes → typical days). A new key strands the old rows, which held
+// extremes for up to a month (TTL 30 days), instead of serving them.
+const keyOf = (kind: "met:forecast" | "power:normals2", point: RoundedPoint) => {
   const { lat, lng } = pointText(point);
   return `${kind}:${lat},${lng}`;
 };
@@ -185,7 +188,7 @@ export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): P
         series.set(forecastKey, got?.value ?? null);
       });
     }
-    const normalsKey = keyOf("power:normals", point);
+    const normalsKey = keyOf("power:normals2", point);
     if (!jobs.has(normalsKey)) {
       jobs.set(normalsKey, async () => {
         const got = await readThrough({
@@ -200,7 +203,7 @@ export async function buildTripWeather(detail: TripDetail, deps: WeatherDeps): P
 
   const points: TripWeatherPoint[] = planned.map(({ date, city, point, zone }) => {
     const forecastSeries = series.get(keyOf("met:forecast", point));
-    const monthly = normals.get(keyOf("power:normals", point));
+    const monthly = normals.get(keyOf("power:normals2", point));
     let forecast: TripWeatherPoint["forecast"];
     if (!inHorizon(date)) forecast = { unavailable: "not-in-horizon" };
     else if (!forecastSeries) forecast = { unavailable: "source" };

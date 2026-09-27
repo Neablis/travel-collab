@@ -72,7 +72,7 @@ a person, not code:
    2026-09-26 note accepts one point, not the ADR. The code is on `main`, so the
    box's *before any code lands* clause needs rewording.
 3. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
-   what); left open on KI-2026-09-27-b, NASA "averages" that look like extremes.
+   what). KI-2026-09-27-b (NASA extremes read as averages) is fixed; re-walk step 3.
 4. **The six link-11 widgets walked against a real trip.** All six are
    registered, with unit tests, and since 2026-09-27 e2e that asserts each
    resolves to the trip's own values (`m14-notebook-widgets.spec.ts`). What is

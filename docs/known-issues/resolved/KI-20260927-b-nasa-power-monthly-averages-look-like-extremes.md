@@ -1,4 +1,4 @@
-### KI-2026-09-27-b — the weather block's "<Month> average" figures are monthly extremes, not average daily highs and lows
+### KI-2026-09-27-b — the weather block's "<Month> average" figures are monthly extremes, not average daily highs and lows — RESOLVED
 
 - **Severity:** correctness, user-visible. Every day beyond the forecast horizon (most
   of a trip planned months out) shows these numbers as what to pack for.
@@ -37,3 +37,17 @@
   `fixtures/power-climatology.json`, which today "is written to that belief, not
   recorded" (the adapter's comment).
 - **Blocks:** M14's weather walk box (left open on this).
+
+- **Resolved 2026-09-27.** `nasa-power.ts` now asks for `T2M,T2M_RANGE,PRECTOTCORR` and
+  reads a typical day as `T2M` ± `T2M_RANGE` / 2. `T2M_RANGE` is a mean: its `ANN`, 8.25,
+  is the mean of the twelve months. `T2M_MAX_AVG` / `T2M_MIN_AVG` were also fetched and
+  rejected: their `ANN` of 32.66 is above every month, so they are the per-year extremes
+  averaged. Kyoto's August now reads about 29.4° / 22.0°, where it read 34° / 15°. The
+  cache key is now `power:normals2` (`tripWeather.ts`), so the extremes already cached for
+  up to 30 days are stranded instead of served.
+  - **Proof:** `adapters.test.ts` › *reads a typical day, not the month's extremes*, on a
+    fixture carrying POWER's real Kyoto `T2M` / `T2M_RANGE`. It was seen red under
+    `pnpm redfirst` (`lowC` computed as mean − range: FAIL), then green.
+  - **Checks run:** weather unit tests 22/22, `tsc` on web, and eslint on the changed files.
+  - **Not yet recorded:** the fixture's `PRECTOTCORR` values are not from a real response.
+    A precipitation check on the next preview walk closes that.

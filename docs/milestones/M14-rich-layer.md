@@ -960,7 +960,8 @@ milestone opens:**
       averages, past, the miles switch and both credits. Step 5 had no `[external]` line.
       Not done: the met.no comparison and step 6, because egress to api.met.no and
       power.larc.nasa.gov is blocked from a cloud session. **Left open on a finding:**
-      the NASA "averages" look like monthly extremes (KI-2026-09-27-b). Also filed: "today"
+      the NASA "averages" were monthly extremes (KI-2026-09-27-b, fixed 2026-09-27; step 3
+      needs walking again on a preview carrying the fix). Also filed: "today"
       follows the reader's clock (KI-2026-09-27-c).)* *(Added 2026-09-24: no automated test
       may call either source, so the e2e server runs with `EXTERNAL_DATA_OFFLINE=true` and
       this walk is the only real-service check.)*
