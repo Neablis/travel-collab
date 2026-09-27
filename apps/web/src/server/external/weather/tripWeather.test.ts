@@ -243,14 +243,14 @@ describe("the place's today, not the reader's (KI-2026-09-27-c)", () => {
   it("a reader in UTC sees Kyoto's 28th as Today, with a Now — Kyoto is already past midnight", async () => {
     expect(await rowsFor(KYOTO, ["2026-09-27", "2026-09-28", "2026-09-29"], "2026-09-27")).toEqual([
       ["Day 1", "Past day · Sep avg", null],
-      ["Day 2", "Today", "26°"],
+      ["Day 2", "Today", "26°C"],
       ["Day 3", "Forecast", null],
     ]);
   });
 
   it("a reader in Tokyo sees Honolulu's 27th as Today — Honolulu has not reached the 28th", async () => {
     expect(await rowsFor(HONOLULU, ["2026-09-27", "2026-09-28"], "2026-09-28")).toEqual([
-      ["Day 1", "Today", "26°"],
+      ["Day 1", "Today", "26°C"],
       ["Day 2", "Forecast", null],
     ]);
   });

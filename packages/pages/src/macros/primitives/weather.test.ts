@@ -168,7 +168,7 @@ describe("day.weather", () => {
     ]);
     expect(payloadOf(ctxOf(t, "2026-11-10")).rows.map((r) => [r.modeText, r.now])).toEqual([
       ["Past day · Nov avg", null],
-      ["Today", "12°"],
+      ["Today", "12°C"],
     ]);
   });
 
@@ -179,7 +179,7 @@ describe("day.weather", () => {
       point("2026-11-11", { placeToday: "2026-11-10" }),
     ]);
     expect(payloadOf(ctxOf(t, "2026-11-11")).rows.map((r) => [r.modeText, r.now])).toEqual([
-      ["Today", "12°"],
+      ["Today", "12°C"],
       ["Forecast", null],
     ]);
   });
