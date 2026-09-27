@@ -95,7 +95,7 @@ export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload> = {
     if (to === undefined) return unbound("target", [ghost("text", "where it goes")]);
     switch (to.kind) {
       case "view":
-        return ok({ kind: "link-card", to, eyebrow: "Trip tab", ...viewCard(to.view, trip, globals), openable: true });
+        return ok({ kind: "link-card", to, eyebrow: "Trip tab", ...viewCard(to.view, trip, globals) });
       case "day": {
         const index = dayIndexOf(trip, to.day);
         if (index === null) return unbound("day");
@@ -110,7 +110,6 @@ export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload> = {
           eyebrow: date === null ? dayLabel(index) : `${dayLabel(index)} · ${date}`,
           title: cities.length > 0 ? cities.join(" – ") : dayLabel(index),
           summary: day.activityIds.length === 0 ? "Nothing planned yet" : plural(day.activityIds.length, "stop"),
-          openable: true,
         });
       }
       case "notebook": {
@@ -126,7 +125,6 @@ export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload> = {
           summary:
             page.firstLine ??
             (page.widgetCount > 0 ? `${plural(page.widgetCount, "widget")}, no words yet` : "Nothing in it yet"),
-          openable: slot.value.openable,
         });
       }
     }

@@ -5,6 +5,7 @@ import type { CacheRow, CacheStore } from "../cache";
 import { pointText } from "../roundedPoint";
 import metComplete from "./fixtures/met-complete.json";
 import { parseComplete } from "./met-norway";
+import { renderMacro, type WidgetContext } from "@tc/pages";
 import { buildTripWeather, forecastDayOf, weatherPointsOf, type WeatherDeps } from "./tripWeather";
 import type { Climate, Fetched, Forecast, ForecastSeries, MonthlyNormals } from "./ports";
 
@@ -197,5 +198,60 @@ describe("buildTripWeather", () => {
     const weather = await buildTripWeather(many, d);
     expect(weather.points).toHaveLength(8);
     expect(most).toBe(4);
+  });
+});
+
+// KI-2026-09-27-c. Which row is "Today" is the date AT THE PLACE, not the
+// reader's (Mitchell, 2026-09-27: *"Location that a trip should be in in that
+// day, not the readers current location"*). Walked through the route's service
+// and the resolver together, because the defect was the seam between them: the
+// server knew the place's zone and the resolver chose from the reader's date.
+// 16:03 UTC on the 27th is 01:03 on the 28th in Kyoto and 06:03 on the 27th in
+// Honolulu.
+describe("the place's today, not the reader's (KI-2026-09-27-c)", () => {
+  const AT = new Date("2026-09-27T16:03:00Z");
+  const KYOTO = { lat: 35.0116, lng: 135.7681, city: "Kyoto" };
+  const HONOLULU = { lat: 21.3069, lng: -157.8583, city: "Honolulu" };
+  // Hourly from midnight UTC on the 27th for eleven days: the place's today
+  // and its next week are fully covered, wherever it is.
+  const hourly: ForecastSeries = {
+    updatedAt: "2026-09-27T15:40:00Z",
+    steps: Array.from({ length: 11 * 24 + 1 }, (_, h) => ({
+      at: new Date(Date.parse("2026-09-27T00:00:00Z") + h * 3_600_000).toISOString(),
+      tempC: 10 + (h % 24),
+      symbol: "rain",
+      precipitationMm: 0.5,
+      windowHours: h === 11 * 24 ? 0 : 1,
+    })),
+  };
+
+  async function rowsFor(stop: Stop, dates: string[], readerToday: string) {
+    const trip = tripOf(dates.map((date) => ({ date, stops: [stop] })));
+    const { deps: d } = deps({ now: AT, forecast: { forecast: vi.fn(async () => fresh(hourly)) } });
+    const weather = await buildTripWeather(trip, d);
+    const ctx: WidgetContext = {
+      trip, page: { tripId: trip.tripId }, user: null, globals: null, today: readerToday,
+      external: { weather: { state: "ready", value: weather } },
+    };
+    const outcome = renderMacro(ctx, "day.weather", {});
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "weather") {
+      throw new Error(`expected a weather block, got ${JSON.stringify(outcome)}`);
+    }
+    return outcome.rendered.block.rows.map((r) => [r.label, r.modeText, r.now]);
+  }
+
+  it("a reader in UTC sees Kyoto's 28th as Today, with a Now — Kyoto is already past midnight", async () => {
+    expect(await rowsFor(KYOTO, ["2026-09-27", "2026-09-28", "2026-09-29"], "2026-09-27")).toEqual([
+      ["Day 1", "Past day · Sep avg", null],
+      ["Day 2", "Today", "26°C"],
+      ["Day 3", "Forecast", null],
+    ]);
+  });
+
+  it("a reader in Tokyo sees Honolulu's 27th as Today — Honolulu has not reached the 28th", async () => {
+    expect(await rowsFor(HONOLULU, ["2026-09-27", "2026-09-28"], "2026-09-28")).toEqual([
+      ["Day 1", "Today", "26°C"],
+      ["Day 2", "Forecast", null],
+    ]);
   });
 });

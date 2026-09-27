@@ -30,16 +30,13 @@ export interface NotebookRef {
 /**
  * The trip's notebooks, as the reader's own `GET /pages` answered.
  *
- * `openable` is whether this reader can follow a link INTO one. The demo's
- * visitor and an invitee having a look first read the trip through a token,
- * and the notebook route is not one they can open — the board withholds the
- * Notebooks menu from both for that reason (`TripBoardScreen`). A card that
- * navigated there anyway would be a link to a page the viewer cannot open, so
- * it draws the notebook's name without the link.
+ * Every reader of the list can follow a link into one of them. It used to
+ * carry an `openable` flag, false for the demo's visitor and an invitee having
+ * a look, whose cards then went nowhere (reported 2026-09-27); where such a
+ * reader is sent instead is the renderer's (`linkHref`), not the resolver's.
  */
 export interface NotebookIndex {
   pages: readonly NotebookRef[];
-  openable: boolean;
 }
 
 /**

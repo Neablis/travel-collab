@@ -25,10 +25,9 @@ export type LinkTarget = z.infer<typeof LinkTarget>;
 /**
  * What an internal link card shows. Display-ready, like every block payload.
  *
- * `to` rides along for the renderer to build the href from; `openable` says
- * whether it may (`NotebookIndex.openable`). `eyebrow` is what KIND of place
- * this is — "Notebook", "Day 3", "Tab" — so a card reads as a signpost before
- * its title is read.
+ * `to` rides along for the renderer to build the href from. `eyebrow` is what
+ * KIND of place this is — "Notebook", "Day 3", "Tab" — so a card reads as a
+ * signpost before its title is read.
  */
 export interface LinkCardPayload {
   kind: "link-card";
@@ -36,7 +35,6 @@ export interface LinkCardPayload {
   eyebrow: string;
   title: string;
   summary: string;
-  openable: boolean;
 }
 
 /** A notebook's preview line, from its own words: at most this many characters. */

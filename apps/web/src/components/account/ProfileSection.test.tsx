@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
@@ -201,13 +201,22 @@ describe("ProfileSection", () => {
     expect(openTokens).toHaveBeenCalledTimes(1);
   });
 
-  it("switches distance units immediately, at account scope", async () => {
+  // ADR-052, reviewed 2026-09-27: temperature and rain follow this one
+  // setting, and Mitchell had not realised, because it said "Distance". It
+  // names every quantity it moves; the stored field is still `distanceUnit`.
+  it("switches units immediately, at account scope, naming what each one means", async () => {
     mount();
-    const miles = await screen.findByRole("radio", { name: "Miles" });
-    await userEvent.click(miles);
+    const units = await screen.findByRole("radiogroup", { name: "Units" });
+    expect(screen.getByText("Units")).toBeTruthy();
+    expect(
+      screen.getByText("Distances, temperatures and rainfall across your trips. Metric is km, °C and mm; imperial is mi, °F and in."),
+    ).toBeTruthy();
+    const imperial = within(units).getByRole("radio", { name: "Imperial" });
+    expect(within(units).getByRole("radio", { name: "Metric" }).getAttribute("aria-checked")).toBe("true");
+    await userEvent.click(imperial);
 
     await waitFor(() => expect(patches).toEqual([{ distanceUnit: "mi" }]));
-    await waitFor(() => expect(screen.getByRole("radio", { name: "Miles" }).getAttribute("aria-checked")).toBe("true"));
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Imperial" }).getAttribute("aria-checked")).toBe("true"));
   });
 
   it("switches to the 24-hour clock immediately, at account scope", async () => {
@@ -245,14 +254,14 @@ describe("ProfileSection", () => {
       const release = pendFetch();
       mount();
 
-      await userEvent.click(await screen.findByRole("radio", { name: "Miles" }));
+      await userEvent.click(await screen.findByRole("radio", { name: "Imperial" }));
       // Saving here would write the provider's DEFAULTS over a stored value
       // this screen has never seen.
       expect(updatePreferencesMock).not.toHaveBeenCalled();
 
       release();
       // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-      await waitFor(() => expect(screen.getByRole("radio", { name: "Miles" })).toBeTruthy());
+      await waitFor(() => expect(screen.getByRole("radio", { name: "Imperial" })).toBeTruthy());
     });
 
     // Asked for in review on pull request 112, as the reachable half of the

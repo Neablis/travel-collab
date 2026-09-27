@@ -19,7 +19,6 @@ const money: LinkCardPayload = {
   eyebrow: "Notebook",
   title: "Money",
   summary: "What the trip costs, day by day.",
-  openable: true,
 };
 
 describe("LinkCardBlock", () => {
@@ -28,15 +27,6 @@ describe("LinkCardBlock", () => {
     const link = screen.getByRole("link", { name: /Money/ });
     expect(link.getAttribute("href")).toBe(`/trips/${TRIP}/pages/${PAGE}`);
     expect(link.textContent).toContain("What the trip costs, day by day.");
-  });
-
-  // The demo's visitor and an invitee having a look cannot open a notebook
-  // route: they see what it is, and are not handed a link into it. Seen red by
-  // dropping the `openable` check from the link branch.
-  it("names a notebook the reader cannot open without linking to it", () => {
-    render(<LinkCardBlock payload={{ ...money, openable: false }} tripId={TRIP} />);
-    expect(screen.queryByRole("link")).toBeNull();
-    expect(screen.getByText("Money")).toBeTruthy();
   });
 
   // While the page is being edited, a click on a widget selects it for its
@@ -48,8 +38,22 @@ describe("LinkCardBlock", () => {
 });
 
 describe("linkHref", () => {
-  it("opens a notebook on its own route from anywhere", () => {
-    expect(linkHref({ kind: "notebook", pageId: PAGE }, TRIP, "/demo")).toBe(`/trips/${TRIP}/pages/${PAGE}`);
+  it("opens a notebook on its own route from the trip's", () => {
+    expect(linkHref({ kind: "notebook", pageId: PAGE }, TRIP, `/trips/${TRIP}`)).toBe(`/trips/${TRIP}/pages/${PAGE}`);
+    expect(linkHref({ kind: "notebook", pageId: PAGE }, TRIP, `/trips/${TRIP}/pages/${PAGE}`)).toBe(
+      `/trips/${TRIP}/pages/${PAGE}`,
+    );
+  });
+
+  // Mitchell, 2026-09-27, on the demo's "Also in this trip": *"i cant click
+  // them"*. The notebook route is behind sign-in, so a board mounted anywhere
+  // else opens the notebook in its own Overview tab, and the visitor stays on
+  // the path their access came with.
+  it("opens a notebook inside the demo, or an invite's look, rather than on its route", () => {
+    expect(linkHref({ kind: "notebook", pageId: PAGE }, TRIP, "/demo")).toBe(`/demo?view=Overview&page=${PAGE}`);
+    expect(linkHref({ kind: "notebook", pageId: PAGE }, TRIP, "/invite/tok/look")).toBe(
+      `/invite/tok/look?view=Overview&page=${PAGE}`,
+    );
   });
 
   // `/demo` and an invite's look mount the same board under another address,

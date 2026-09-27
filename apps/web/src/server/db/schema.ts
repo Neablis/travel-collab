@@ -1002,7 +1002,7 @@ export const rateLimitCounters = pgTable("rate_limit_counters", {
 // **One writer**: `server/external/cache.ts`. `external.soleWriter.test.ts`
 // sweeps the tree for a second.
 export const externalDataCache = pgTable("external_data_cache", {
-  // "met:forecast:59.91,10.75" | "power:normals:59.91,10.75"
+  // "met:forecast:59.91,10.75" | "power:normals2:59.91,10.75" (normals2 since KI-2026-09-27-b)
   key: text("key").primaryKey(),
   // `null` only on a row that exists to hold a back-off (`backoff_until`) for a
   // key that has never been fetched: there is nothing to serve, but the 429

@@ -15,11 +15,12 @@ import { linkHref } from "./linkHref";
 // inline atom inside a paragraph, and a `<div>` in a `<p>` is closed out by the
 // parser. `display: flex` on a span lays out the same.
 //
-// **Three reasons it is not a link**, each drawing the same card without the
-// arrow: the reader cannot open the place (`openable` — the demo's visitor and
-// an invitee having a look, who cannot open a notebook route); the page is
-// being EDITED, where a click on a widget selects it for its settings and
-// leaving the page would be the wrong answer to that click; and nothing else.
+// **One reason it is not a link**, drawing the same card without the arrow: the
+// page is being EDITED, where a click on a widget selects it for its settings
+// and leaving the page would be the wrong answer to that click. Every reader can
+// follow one — the demo's visitor and an invitee having a look included, whose
+// notebook links stay on their own path (`linkHref`). Until 2026-09-27 those two
+// got a card with no link, which Mitchell reported as "i cant click them".
 /**
  * A notebook card while the notebook list is still on its way — **the card's
  * own box, not a chip** (ADR-044: a widget's answer landing does not reflow the
@@ -42,7 +43,7 @@ export function LinkCardPending() {
   );
 }
 
-/** An internal link card — a link to its target unless the reader cannot open it or the page is being edited. */
+/** An internal link card — a link to its target unless the page is being edited. */
 export function LinkCardBlock({
   payload,
   tripId,
@@ -60,11 +61,11 @@ export function LinkCardBlock({
         <span className="text-base font-semibold text-ink">{payload.title}</span>
         <span className="truncate text-sm text-slate">{payload.summary}</span>
       </span>
-      {payload.openable && interactive ? <ArrowRight aria-hidden className="size-4 shrink-0 text-slate" /> : null}
+      {interactive ? <ArrowRight aria-hidden className="size-4 shrink-0 text-slate" /> : null}
     </>
   );
   const card = "my-1 flex items-center gap-3 rounded-md border border-hairline bg-surface px-3.5 py-3 no-underline";
-  if (!payload.openable || !interactive) {
+  if (!interactive) {
     return (
       <span className={card} data-testid="link-card">
         {body}

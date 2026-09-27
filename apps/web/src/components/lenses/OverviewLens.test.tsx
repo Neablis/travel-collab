@@ -187,6 +187,47 @@ describe("OverviewLens — Edit, once the page is known", () => {
   });
 });
 
+// Mitchell, 2026-09-27: the demo's "Also in this trip" cards went nowhere. The
+// demo has no notebook route to send them to, so a link card there arrives as
+// `?page=<id>` and this tab reads that notebook in the Overview's place.
+describe("OverviewLens — another notebook, linked from a card", () => {
+  const LINK_TRIP = "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d";
+  const MONEY_ID = "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f";
+  const pages = {
+    ok: true as const,
+    value: {
+      ...okPages.value,
+      pages: [
+        ...okPages.value.pages.map((p) => ({ ...p, tripId: LINK_TRIP })),
+        { ...okPages.value.pages[0]!, id: MONEY_ID, tripId: LINK_TRIP, title: "Money", context: { tripId: LINK_TRIP } },
+      ],
+    },
+  };
+
+  it("reads the linked notebook, under its own name, with a way back to the Overview", async () => {
+    fetchPagesMock.mockResolvedValue(pages);
+    fetchPageMock.mockImplementation((_trip: string, id: string) =>
+      Promise.resolve(okPageDoc(id === MONEY_ID ? "What it costs" : "Dear crew")),
+    );
+    render(<OverviewLens detail={tripDetailFixture()} tripId={LINK_TRIP} pageId={MONEY_ID} readOnly />);
+
+    expect(await screen.findByText("What it costs")).toBeTruthy();
+    expect(fetchPageMock).toHaveBeenCalledWith(LINK_TRIP, MONEY_ID);
+    expect(screen.queryByText("Dear crew")).toBeNull();
+    expect(screen.getByText("Money")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Overview" }).getAttribute("href")).toBe("?view=Overview");
+  });
+
+  it("says so when the linked notebook is not in the trip", async () => {
+    fetchPagesMock.mockResolvedValue(pages);
+    render(
+      <OverviewLens detail={tripDetailFixture()} tripId={LINK_TRIP} pageId="00000000-0000-4000-8000-000000000bad" readOnly />,
+    );
+
+    expect(await screen.findByText(/This notebook is not in this trip/i)).toBeTruthy();
+  });
+});
+
 // **The reported bug's last mile.** Mitchell, 2026-09-22: two devices, one
 // editing the Overview notebook, the other sat on this tab and never seeing it
 // until a refresh. Three things were wrong; the first two were server-side
