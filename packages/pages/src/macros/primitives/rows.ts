@@ -174,6 +174,9 @@ const StopRowsParams = filterParams(STOP_ROWS_FILTERS, {
   columns: z.array(z.string()).optional(),
 });
 type StopRowsParams = z.infer<typeof StopRowsParams>;
+// Field paths every line already shows: the lead is the stop's name, and cost
+// is the second built-in column. The time window publishes no field.
+const BUILT_IN_COLUMNS: ReadonlySet<string> = new Set(["stop.title", "stop.cost"]);
 const STOP_ROWS_INPUTS: readonly WidgetInput[] = [
   ...filterInputs(STOP_ROWS_FILTERS),
   { name: "columns", type: "field", label: "Columns", of: "stop", multiple: true },
@@ -258,8 +261,13 @@ export const stopRows: MacroDef<StopRowsParams, RepeatPayload> = {
       return empty(params.kind === undefined ? undefined : NOTHING_MATCHED[params.kind]);
     }
 
-    // Only what the manifest publishes; see `StopRowsParams`.
-    const columns = (params.columns ?? []).flatMap((path) => fieldAt("stop", path) ?? []);
+    // Only what the manifest publishes; see `StopRowsParams`. And no column
+    // twice: one the row already shows (the lead is the name, and cost has its
+    // own column) or one chosen twice drops out. Mitchell, 2026-09-27: *"no
+    // duplicates"*.
+    const columns = [...new Set(params.columns ?? [])]
+      .filter((path) => !BUILT_IN_COLUMNS.has(path))
+      .flatMap((path) => fieldAt("stop", path) ?? []);
     const headings = columns.length === 0 ? undefined : ["Stop", "Time", "Cost", ...columns.map((c) => c.label)];
     const kindCtx = { currency: trip.currency };
 

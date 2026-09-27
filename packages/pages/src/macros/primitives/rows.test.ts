@@ -277,6 +277,15 @@ describe("stop.rows", () => {
       expect(headingsOf(ctx, { columns: [] })).toBeUndefined();
     });
 
+    it("never shows a column twice: not one the line already has, not one chosen twice", () => {
+      // Mitchell, 2026-09-27: "no duplicates". The name is the lead and cost
+      // is built in, so choosing either adds nothing.
+      const ctx = contextOf(selectionTrip());
+      const params = { day: { kind: "index", index: 0 }, columns: ["stop.cost", "stop.kind", "stop.title", "stop.kind"] };
+      expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Status"]);
+      expect(cellsOf(ctx, "stop.rows", params).map((row) => row.length)).toEqual([3, 3]);
+    });
+
     it("drops a column the manifest does not publish rather than reading the stop by its name", () => {
       // Gap 6: `bookedBy` is a user id and unannotated. Set, so a raw read
       // would find it.
