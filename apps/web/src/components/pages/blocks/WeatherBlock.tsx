@@ -66,7 +66,9 @@ const COL = {
   place: "w-24 shrink-0",
   conditions: "min-w-0 flex-1",
   now: "w-12 shrink-0 text-right",
-  temp: "w-10 shrink-0 text-right",
+  // 48px: "-12°C" and "100°F" are five mono characters, ~42px at text-sm,
+  // which the 40px this was before the scale was printed could not hold.
+  temp: "w-12 shrink-0 text-right",
   rain: "w-28 shrink-0 text-right",
 } as const;
 const ROW = "flex w-full min-w-112 items-center gap-2 border-b border-hairline px-3";

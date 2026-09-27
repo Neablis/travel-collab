@@ -97,8 +97,12 @@ const CREDITS: Record<WeatherSource, WeatherCredit> = {
 type Units = "metric" | "imperial";
 const unitsOf = (user: UserPreferences | null): Units => (user?.distanceUnit === "mi" ? "imperial" : "metric");
 
-// `Math.round` alone prints "-0°" for -0.4, which reads as a typo.
-const degrees = (c: number, units: Units) => `${Math.round(units === "imperial" ? (c * 9) / 5 + 32 : c) || 0}°`;
+// `Math.round` alone prints "-0°" for -0.4, which reads as a typo. The scale is
+// printed, not a bare "°": the unit follows a setting labelled for distance
+// until 2026-09-27, and Mitchell could not tell which one he was reading
+// (ADR-052, reviewed 2026-09-27).
+const degrees = (c: number, units: Units) =>
+  `${Math.round(units === "imperial" ? (c * 9) / 5 + 32 : c) || 0}°${units === "imperial" ? "F" : "C"}`;
 
 // Inches to two places, since a tenth of an inch is 2.5 mm and would print most
 // days' rain as 0.0 or 0.1. A trace that rounds to nothing says so, where a
