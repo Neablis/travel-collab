@@ -39,9 +39,14 @@ vi.mock("@/server/external/weather", () => ({
 const { GET } = await import("./route");
 
 const OSLO = { name: "Oslo Opera House", lat: 59.907419, lng: 10.753285, city: "Oslo" };
-const isoDaysFromNow = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+// Oslo's calendar date, not UTC's. The block calls a day "Today" by the date
+// at the place (`placeToday`, KI-2026-09-27-c), so a trip dated by UTC's date
+// read its first day as "Past day" from 22:00 UTC, when Oslo is already on the
+// next day. Dating it where it happens keeps every assertion below clock-proof.
+const OSLO_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Oslo", year: "numeric", month: "2-digit", day: "2-digit" });
+const isoDaysFromNow = (n: number) => OSLO_DATE.format(new Date(Date.now() + n * 86_400_000));
 
-/** Two dated days, today and tomorrow (UTC), with a located stop on each. */
+/** Two dated days, today and tomorrow in Oslo, with a located stop on each. */
 async function seedTrip(): Promise<string> {
   const tripId = randomUUID();
   const days = [randomUUID(), randomUUID()];
