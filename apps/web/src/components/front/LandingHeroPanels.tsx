@@ -13,8 +13,8 @@ import { LANDING_DEMO } from "@/lib/landingDemo";
 // The hero's Timeline and Notebook panels, drawn by the product's own
 // components from a snapshot of the `/demo` trip (`lib/landingDemo.ts`) rather
 // than transcribed from the design handoff. That is a deliberate divergence from
-// `Trip Planner Redesign.dc.html:1885-1999`, recorded as item 16 of
-// docs/milestones/M26-design-parity.md's "The design is stale here" list.
+// `Trip Planner Redesign.dc.html:1885-1999`, recorded as `.design-sync/handoff/DRIFT.md`
+// D20 and item 16 of docs/milestones/M26-design-parity.md's "The design is stale here" list.
 //
 // Loaded lazily by `LandingHeroArt`, which keeps this module's imports (the
 // board's drag-and-drop, `@tc/pages`) out of `/welcome`'s first load.
@@ -26,7 +26,20 @@ import { LANDING_DEMO } from "@/lib/landingDemo";
 const { river, notebook, accents, currency } = LANDING_DEMO;
 
 const RIVER_TITLE = `Day ${river.ordinal}`;
-const RIVER_AXIS = riverAxis(river.activityIds.map((id) => river.activities[id]?.timeWindow ?? null));
+/**
+ * The whole day in the panel, rather than the board's 44px an hour clipped at
+ * 3 pm (Mitchell, on the first screenshots). The 430px hero leaves ~270px for
+ * the river between the panel's header and the footer pill, and the day's axis
+ * is 9:00–21:00, so 20px an hour draws all twelve hours in 240.
+ * The scale is the axis's own (`RiverAxis.pxPerHour`), so blocks, ticks and
+ * text are laid out at it rather than shrunk by a transform: the type stays at
+ * its board size, which is what keeps it legible.
+ */
+const HERO_PX_PER_HOUR = 20;
+const RIVER_AXIS = riverAxis(
+  river.activityIds.map((id) => river.activities[id]?.timeWindow ?? null),
+  HERO_PX_PER_HOUR,
+);
 const NO_CONFLICTS: ReadonlySet<string> = new Set();
 const NO_OVERLAPS: ReadonlyMap<string, Overlap> = new Map();
 const NO_PARTNERS: ReadonlyMap<string, readonly string[]> = new Map();
@@ -52,7 +65,7 @@ export function TimelinePanel(): React.ReactElement {
         </Text>
         <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
       </div>
-      <div className="px-3.5 pt-3">
+      <div className="px-3.5 py-3">
         <DayRiver
           title={RIVER_TITLE}
           dayId={river.dayId}
@@ -85,9 +98,20 @@ export function NotebookPanel(): React.ReactElement {
         </Text>
         <DataText className="ml-auto text-2xs tracking-wider uppercase">Notebook</DataText>
       </div>
-      <div className="flex flex-col gap-3 px-3.5 py-3.5">
-        <TripStripBlock payload={notebook.strip} accents={ACCENTS} />
-        <ItineraryDayBlock payload={notebook.day} />
+      {/* A fixed height, because the page is longer than the hero: the day
+          card runs past it on purpose, a page continuing below the fold. 280px
+          ends the panel just above the footer caption. Clipped rather than
+          scrolled — a scrolling region inside the hero would take the page's
+          wheel. */}
+      <div className="relative h-70 overflow-hidden">
+        <div className="flex flex-col gap-3 px-3.5 py-3.5">
+          <TripStripBlock payload={notebook.strip} accents={ACCENTS} />
+          <ItineraryDayBlock payload={notebook.day} />
+        </div>
+        {/* Faded into the panel's own surface so the last, partly shown row
+            reads as more to come rather than as a clipping bug —
+            `CalendarLens`' edge fade, turned to the bottom. */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-surface" />
       </div>
     </>
   );

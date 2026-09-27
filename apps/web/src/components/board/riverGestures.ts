@@ -101,8 +101,8 @@ export function snapMinute(minute: number): number {
 }
 
 /** The unsnapped minute at `y` px down the river — `minuteToPx`'s inverse. */
-export function minuteAtPx(axis: Pick<RiverAxis, "t0">, y: number): number {
-  return axis.t0 + (y / RIVER_PX_PER_HOUR) * 60;
+export function minuteAtPx(axis: Pick<RiverAxis, "t0" | "pxPerHour">, y: number): number {
+  return axis.t0 + (y / (axis.pxPerHour ?? RIVER_PX_PER_HOUR)) * 60;
 }
 
 /** Stored form: "HH:MM" both ends, midnight read as 23:59. */

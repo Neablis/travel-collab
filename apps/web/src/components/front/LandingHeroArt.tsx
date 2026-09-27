@@ -106,11 +106,10 @@ const NOTEBOOK_COMMENT = {
 };
 
 const MACRO_CHIP = "rounded-sm bg-brand-tint px-1.5 py-px text-brand-pressed";
-// Bottom-anchored above the footer pill: the real river and notebook are
-// taller than the hero, and they clip here rather than run past it. Clip, not
-// scroll: the hero is a picture of the product, and a scrolling region inside
-// it would take the page's wheel.
-const PANEL = "absolute inset-x-0 top-14.5 bottom-10 overflow-hidden rounded-xl border border-hairline bg-surface shadow-lifted";
+// Sized by its content, the static art's and the real panels' alike: the real
+// river is scaled to fit and the real notebook bounds its own height
+// (`LandingHeroPanels.tsx`), so neither needs the panel to clip for it.
+const PANEL = "absolute inset-x-0 top-14.5 overflow-hidden rounded-xl border border-hairline bg-surface shadow-lifted";
 const PANEL_HEAD = "flex items-center gap-2.5 border-b border-hairline px-3.5 py-3";
 const FOOT_LABEL = "absolute bottom-0 rounded-full bg-paper/80 px-2.5 py-1";
 const PRESENCE_PILL = "flex items-center gap-2 rounded-full border border-hairline bg-surface py-1 pr-3 pl-1.5 shadow-float";

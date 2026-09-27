@@ -113,6 +113,23 @@ describe("LandingHeroArt", () => {
     expect(river.getByText(/^Shinkansen Odawara → Kyoto, 9:30 am – 11:45 am, Train/)).toBeDefined();
   });
 
+  // The whole day fits the panel, the last stop included (Mitchell, on the
+  // first screenshots: the river clipped at 3 pm). jsdom does no layout, but
+  // the river's geometry is inline style computed from its axis, so "in view"
+  // is checkable as arithmetic: the river is no taller than the ~270px the
+  // hero leaves it, and the 7 pm dinner ends inside the river.
+  it("fits the whole of Day 7 in the panel, down to the evening's dinner", async () => {
+    render(<LandingHeroArt />);
+    fireEvent.click(pill("Day 7"));
+    const list = await screen.findByRole("list", { name: "Day 7 timeline" });
+    expect(within(list).getByText(/^Dinner at Gion Nanba, 7 pm – 9 pm, Maybe/)).toBeDefined();
+
+    const riverHeight = parseFloat(screen.getByTestId("day-river").style.height);
+    expect(riverHeight).toBeLessThanOrEqual(270);
+    const dinner = screen.getByTestId("activity-card-00000000-0000-4000-8000-000000000048");
+    expect(parseFloat(dinner.style.top) + parseFloat(dinner.style.height)).toBeLessThanOrEqual(riverHeight);
+  });
+
   it("draws the real notebook widgets for the demo trip", async () => {
     render(<LandingHeroArt />);
     fireEvent.click(pill("Day 5"));
