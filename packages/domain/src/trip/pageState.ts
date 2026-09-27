@@ -1,5 +1,5 @@
 import type { EventEnvelope, PageCommand, PageContext, PageDoc, PageEvent } from "@tc/contracts";
-import { PageEvent as PageEventSchema, isPageEventType } from "@tc/contracts";
+import { PageEvent as PageEventSchema, SYSTEM_ACTOR_ID, isPageEventType, seedKeyOf } from "@tc/contracts";
 
 /**
  * The page aggregate: notebook pages folded from the trip's own stream.
@@ -26,6 +26,8 @@ export type PageState = {
   content: PageDoc;
   /** The page's OWNER, not whoever wrote the last event. See `PageCreatedV1`. */
   actorId: string;
+  /** Which default notebook this page is the trip's seed of, or `null`. No edit moves it. */
+  seedKey: string | null;
 };
 
 /** Every page of a trip, keyed by page id. */
@@ -35,7 +37,12 @@ export function evolvePages(state: PagesState, event: PageEvent): PagesState {
   switch (event.type) {
     case "PageCreated": {
       const { pageId, title, context, content, actorId } = event.payload;
-      return { ...state, [pageId]: { title, context, content, actorId } };
+      // A key read off an old event is not granted twice: the first live page
+      // to hold it keeps it (`seedKeyOf`). The `pages` projection asks the
+      // same question of its rows, so the two agree.
+      const { key, derived } = seedKeyOf(event.payload);
+      const taken = derived && key !== null && Object.entries(state).some(([id, p]) => id !== pageId && p.seedKey === key);
+      return { ...state, [pageId]: { title, context, content, actorId, seedKey: taken ? null : key } };
     }
     case "PageEdited": {
       const current = state[event.payload.pageId];
@@ -115,6 +122,7 @@ export function pageStatesEqual(a: PageState, b: PageState): boolean {
   return (
     a.title === b.title &&
     a.actorId === b.actorId &&
+    a.seedKey === b.seedKey &&
     a.context.kind === b.context.kind &&
     a.context.tripId === b.context.tripId &&
     docsEqual(a.content, b.content)
@@ -145,7 +153,17 @@ export function diffPageStates(current: PagesState, target: PagesState, tripId: 
       created.push({
         type: "PageCreated",
         version: 1,
-        payload: { tripId, pageId, title: want.title, context: want.context, content: want.content, actorId: want.actorId },
+        // The key is written out, `null` included, so a page brought back by
+        // an undo is the seed it was, whatever its title is by then.
+        payload: {
+          tripId,
+          pageId,
+          title: want.title,
+          context: want.context,
+          content: want.content,
+          actorId: want.actorId,
+          seedKey: want.seedKey,
+        },
       });
       continue;
     }
@@ -216,6 +234,11 @@ export function decidePageCommand(
       if (state[command.pageId] !== undefined) {
         return { ok: false, rejection: { code: "page-exists", message: "That page already exists." } };
       }
+      // A seed key is what makes a notebook one of the trip's defaults, so only
+      // the seeder may write one, never a person's create.
+      if (command.seedKey !== undefined && actorId !== SYSTEM_ACTOR_ID) {
+        return { ok: false, rejection: { code: "seed-key-reserved", message: "Only a trip's default notebooks carry a seed key." } };
+      }
       return {
         ok: true,
         events: [
@@ -234,6 +257,7 @@ export function decidePageCommand(
               // here, which is what keeps SPEC §7's "Comes with your trip"
               // line telling the truth.
               actorId,
+              ...(command.seedKey === undefined ? {} : { seedKey: command.seedKey }),
             },
           },
         ],

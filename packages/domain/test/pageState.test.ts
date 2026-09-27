@@ -34,7 +34,7 @@ function envelope(seq: number, type: string, payload: unknown): EventEnvelope {
 }
 
 const created = (seq: number, pageId: string, title: string, text: string, kind?: "overview") =>
-  envelope(seq, "PageCreated", { tripId: TRIP, pageId, title, context: ctx(kind), content: doc(text), actorId: ALICE });
+  envelope(seq, "PageCreated", { tripId: TRIP, pageId, title, context: ctx(kind), content: doc(text), actorId: ALICE, seedKey: null });
 
 describe("evolvePages", () => {
   it("creates, edits and deletes", () => {
@@ -91,25 +91,61 @@ describe("foldPages", () => {
   });
 });
 
+// A default is known by its seed key, never its title (Mitchell, 2026-09-27).
+// A log written before the key existed carries none, so the fold reads it off
+// the event the way the column's migration did: a `system` page with a seeded
+// title, or the Overview's marker. Two old events can name one key — a seed
+// renamed away, then added back beside it — and the first live one keeps it.
+describe("the seed key of a page created before seed keys existed", () => {
+  const legacy = (seq: number, pageId: string, title: string, kind?: "overview") =>
+    envelope(seq, "PageCreated", { tripId: TRIP, pageId, title, context: ctx(kind), content: doc("x"), actorId: "system" });
+
+  it("is read off the event, granted once, and survives a rename", () => {
+    const state = foldPages([
+      legacy(1, P1, "Money"),
+      envelope(2, "PageEdited", { tripId: TRIP, pageId: P1, title: "Budget" }),
+      legacy(3, P2, "Money"),
+    ]);
+    expect(state[P1]).toMatchObject({ title: "Budget", seedKey: "money" });
+    expect(state[P2]?.seedKey).toBeNull();
+    expect(foldPages([legacy(1, P1, "Trip Overview", "overview")])[P1]?.seedKey).toBe("overview");
+    // A person's page is never a seed, whatever it is called.
+    expect(foldPages([created(1, P1, "Money", "x")])[P1]?.seedKey).toBeNull();
+  });
+
+  it("is carried by the create an undo writes, so a renamed seed comes back as that seed", () => {
+    const renamed = foldPages([legacy(1, P1, "Money"), envelope(2, "PageEdited", { tripId: TRIP, pageId: P1, title: "Budget" })]);
+    const [recreate] = diffPageStates({}, renamed, TRIP);
+    expect(recreate).toMatchObject({ type: "PageCreated", payload: { title: "Budget", seedKey: "money" } });
+    expect(evolvePages({}, recreate!)[P1]?.seedKey).toBe("money");
+  });
+
+  it("is written only by the seeder, never by a person's create", () => {
+    const create = { type: "CreatePage" as const, tripId: TRIP, pageId: P1, title: "Money", context: ctx(), content: doc("x"), seedKey: "money" };
+    expect(decidePageCommand({}, create, ALICE)).toMatchObject({ ok: false, rejection: { code: "seed-key-reserved" } });
+    expect(decidePageCommand({}, create, "system")).toMatchObject({ ok: true, events: [{ payload: { seedKey: "money" } }] });
+  });
+});
+
 describe("pageStatesEqual", () => {
   // The bug this exists to prevent: `JSON.stringify` calls two documents that
   // differ only in key order different, so an undo would emit a `PageEdited`
   // that changes nothing and the next comparison would ask for it again.
   it("ignores key order inside the document", () => {
-    const a = { title: "T", context: ctx(), content: { v: 1, type: "doc", content: [] } as unknown as PageDoc, actorId: ALICE };
-    const b = { title: "T", context: ctx(), content: { content: [], type: "doc", v: 1 } as unknown as PageDoc, actorId: ALICE };
+    const a = { title: "T", context: ctx(), content: { v: 1, type: "doc", content: [] } as unknown as PageDoc, actorId: ALICE, seedKey: null };
+    const b = { title: "T", context: ctx(), content: { content: [], type: "doc", v: 1 } as unknown as PageDoc, actorId: ALICE, seedKey: null };
     expect(pageStatesEqual(a, b)).toBe(true);
   });
 
   it("sees a real content change", () => {
-    const a = { title: "T", context: ctx(), content: doc("one"), actorId: ALICE };
-    const b = { title: "T", context: ctx(), content: doc("two"), actorId: ALICE };
+    const a = { title: "T", context: ctx(), content: doc("one"), actorId: ALICE, seedKey: null };
+    const b = { title: "T", context: ctx(), content: doc("two"), actorId: ALICE, seedKey: null };
     expect(pageStatesEqual(a, b)).toBe(false);
   });
 });
 
 describe("diffPageStates — the events that make undo cover notebooks", () => {
-  const page = (title: string, text: string) => ({ title, context: ctx(), content: doc(text), actorId: ALICE });
+  const page = (title: string, text: string) => ({ title, context: ctx(), content: doc(text), actorId: ALICE, seedKey: null });
 
   it("re-creates a page the target has and the present does not", () => {
     const events = diffPageStates({}, { [P1]: page("Overview", "a") }, TRIP);
@@ -140,7 +176,7 @@ describe("diffPageStates — the events that make undo cover notebooks", () => {
 
 describe("decidePageCommand", () => {
   const overview: PagesState = {
-    [P1]: { title: "Overview", context: ctx("overview"), content: doc("a"), actorId: "system" },
+    [P1]: { title: "Overview", context: ctx("overview"), content: doc("a"), actorId: "system", seedKey: "overview" },
   };
 
   // The autosave fires on the pause AFTER a change that already saved. Writing

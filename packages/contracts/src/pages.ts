@@ -267,6 +267,15 @@ export type PageContent = z.infer<typeof PageContent>;
 export const WidgetShape = z.enum(["single", "block", "repeat"]);
 export type WidgetShape = z.infer<typeof WidgetShape>;
 
+/**
+ * Which default notebook a page is the trip's seed of: a default template's
+ * key (`"overview"`, `"before-you-go"`, `"bookings-and-confirmations"`,
+ * `"money"`). Permanent: a seed is recognised by it, never by its title, so a
+ * renamed seed is still that seed (Mitchell, 2026-09-27; KI-2026-09-27-e).
+ */
+export const SeedKey = z.string().min(1).max(100);
+export type SeedKey = z.infer<typeof SeedKey>;
+
 export const Page = z.object({
   id: z.string().uuid(),
   tripId: z.string().uuid(),
@@ -276,6 +285,11 @@ export const Page = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   actorId: z.string().min(1),
+  /**
+   * Present on a page that came with the trip: which default it is. Absent on
+   * every other page, and on a list from a server deployed before it.
+   */
+  seedKey: SeedKey.optional(),
 });
 export type Page = z.infer<typeof Page>;
 
@@ -283,9 +297,9 @@ export type Page = z.infer<typeof Page>;
 // in the server module that writes it because the UI now READS it — the
 // provenance line below is "is this row's actorId this sentinel?" — and a
 // sentinel compared on both sides of the server/UI wall is a contract, not a
-// server detail (AGENTS.md invariant 5). Migration 0005's
-// `pages_system_seed_unique` partial index is scoped to exactly this value, so
-// changing the string means changing that index too.
+// server detail (AGENTS.md invariant 5). A `PageCreated` written before
+// `seedKey` existed is read as a seed only when it names this owner
+// (`seedKeyOf`), and so is the migration that backfilled the key.
 export const SYSTEM_ACTOR_ID = "system";
 
 // `actorId` rides along because the Notebook index draws a provenance line
@@ -301,7 +315,7 @@ export const SYSTEM_ACTOR_ID = "system";
  * `GET /v1/…/pages` paging on a field the rows are not sorted by, which cannot
  * be made correct from the caller's side however the cursor is compared.
  */
-export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, createdAt: true, updatedAt: true, actorId: true });
+export const PageSummary = Page.pick({ id: true, tripId: true, title: true, context: true, createdAt: true, updatedAt: true, actorId: true, seedKey: true });
 export type PageSummary = z.infer<typeof PageSummary>;
 
 /**
