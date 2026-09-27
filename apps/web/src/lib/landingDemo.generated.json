@@ -1,0 +1,368 @@
+{
+  "currency": "USD",
+  "accents": {
+    "00000000-0000-4000-8000-000000000001": "success",
+    "00000000-0000-4000-8000-000000000002": "success",
+    "00000000-0000-4000-8000-000000000003": "success",
+    "00000000-0000-4000-8000-000000000004": "brand",
+    "00000000-0000-4000-8000-000000000005": "success",
+    "00000000-0000-4000-8000-000000000006": "warning",
+    "00000000-0000-4000-8000-000000000007": "danger",
+    "00000000-0000-4000-8000-000000000008": "danger",
+    "00000000-0000-4000-8000-000000000009": "danger",
+    "00000000-0000-4000-8000-000000000010": "danger",
+    "00000000-0000-4000-8000-000000000011": "danger",
+    "00000000-0000-4000-8000-000000000012": "danger",
+    "00000000-0000-4000-8000-000000000013": "info",
+    "00000000-0000-4000-8000-000000000014": "success"
+  },
+  "river": {
+    "dayId": "00000000-0000-4000-8000-000000000007",
+    "ordinal": 7,
+    "city": "Kyoto",
+    "activityIds": [
+      "00000000-0000-4000-8000-000000000044",
+      "00000000-0000-4000-8000-000000000045",
+      "00000000-0000-4000-8000-000000000046",
+      "00000000-0000-4000-8000-000000000047",
+      "00000000-0000-4000-8000-000000000048"
+    ],
+    "activities": {
+      "00000000-0000-4000-8000-000000000044": {
+        "activityId": "00000000-0000-4000-8000-000000000044",
+        "title": "Shinkansen Odawara → Kyoto",
+        "timeWindow": {
+          "start": "09:30",
+          "end": "11:45"
+        },
+        "location": {
+          "name": "Odawara Station, Odawara, Odawara, Japan",
+          "city": "Odawara",
+          "area": "Odawara",
+          "lat": 35.2547,
+          "lng": 139.1546,
+          "countryCode": "JP"
+        },
+        "notes": null,
+        "anchors": [],
+        "kind": "transit",
+        "tags": [],
+        "cost": {
+          "amountMinor": 3000,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": "train",
+        "endLocation": {
+          "name": "Kyoto Station, Shimogyō, Kyoto, Japan",
+          "city": "Kyoto",
+          "area": "Shimogyō",
+          "lat": 34.9858,
+          "lng": 135.7588,
+          "countryCode": "JP"
+        },
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8000-000000000045": {
+        "activityId": "00000000-0000-4000-8000-000000000045",
+        "title": "Lunch at Honke Owariya",
+        "timeWindow": {
+          "start": "12:30",
+          "end": "13:30"
+        },
+        "location": {
+          "name": "Honke Owariya, Nakagyō, Kyoto, Japan",
+          "city": "Kyoto",
+          "area": "Nakagyō",
+          "lat": 35.0149,
+          "lng": 135.7592,
+          "countryCode": "JP"
+        },
+        "notes": null,
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal"
+        ],
+        "cost": {
+          "amountMinor": 2000,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8000-000000000046": {
+        "activityId": "00000000-0000-4000-8000-000000000046",
+        "title": "Nijō Castle",
+        "timeWindow": {
+          "start": "14:30",
+          "end": "16:30"
+        },
+        "location": {
+          "name": "Nijō Castle, Nakagyō, Kyoto, Japan",
+          "city": "Kyoto",
+          "area": "Nakagyō",
+          "lat": 35.0142,
+          "lng": 135.7481,
+          "countryCode": "JP"
+        },
+        "notes": null,
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "ticketed"
+        ],
+        "cost": {
+          "amountMinor": 7500,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8000-000000000047": {
+        "activityId": "00000000-0000-4000-8000-000000000047",
+        "title": "Check in at Nazuna Gosho",
+        "timeWindow": {
+          "start": "17:00",
+          "end": "17:30"
+        },
+        "location": {
+          "name": "Nazuna Kyoto Gosho, Kamigyō, Kyoto, Japan",
+          "city": "Kyoto",
+          "area": "Kamigyō",
+          "lat": 35.0246,
+          "lng": 135.7601,
+          "countryCode": "JP"
+        },
+        "notes": null,
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "lodging"
+        ],
+        "cost": {
+          "amountMinor": 30500,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8000-000000000048": {
+        "activityId": "00000000-0000-4000-8000-000000000048",
+        "title": "Dinner at Gion Nanba",
+        "timeWindow": {
+          "start": "19:00",
+          "end": "21:00"
+        },
+        "location": {
+          "name": "Gion Nanba, Gion, Kyoto, Japan",
+          "city": "Kyoto",
+          "area": "Gion",
+          "lat": 35.0037,
+          "lng": 135.7756,
+          "countryCode": "JP"
+        },
+        "notes": "No reservation yet. Priya wants kaiseki here.",
+        "anchors": [],
+        "kind": "pending",
+        "tags": [
+          "meal"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": "maybe"
+      }
+    }
+  },
+  "notebook": {
+    "strip": {
+      "kind": "trip-strip",
+      "runs": [
+        {
+          "city": "Tokyo",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000001",
+              "ordinal": 1,
+              "date": null,
+              "city": "Tokyo"
+            },
+            {
+              "dayId": "00000000-0000-4000-8000-000000000002",
+              "ordinal": 2,
+              "date": null,
+              "city": "Tokyo"
+            },
+            {
+              "dayId": "00000000-0000-4000-8000-000000000003",
+              "ordinal": 3,
+              "date": null,
+              "city": "Tokyo"
+            }
+          ],
+          "phrase": "days 1–3 Tokyo"
+        },
+        {
+          "city": "Nikkō",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000004",
+              "ordinal": 4,
+              "date": null,
+              "city": "Nikkō"
+            }
+          ],
+          "phrase": "day 4 Nikkō"
+        },
+        {
+          "city": "Tokyo",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000005",
+              "ordinal": 5,
+              "date": null,
+              "city": "Tokyo"
+            }
+          ],
+          "phrase": "day 5 Tokyo"
+        },
+        {
+          "city": "Hakone",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000006",
+              "ordinal": 6,
+              "date": null,
+              "city": "Hakone"
+            }
+          ],
+          "phrase": "day 6 Hakone"
+        },
+        {
+          "city": "Kyoto",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000007",
+              "ordinal": 7,
+              "date": null,
+              "city": "Kyoto"
+            },
+            {
+              "dayId": "00000000-0000-4000-8000-000000000008",
+              "ordinal": 8,
+              "date": null,
+              "city": "Kyoto"
+            },
+            {
+              "dayId": "00000000-0000-4000-8000-000000000009",
+              "ordinal": 9,
+              "date": null,
+              "city": "Kyoto"
+            },
+            {
+              "dayId": "00000000-0000-4000-8000-000000000010",
+              "ordinal": 10,
+              "date": null,
+              "city": "Kyoto"
+            }
+          ],
+          "phrase": "days 7–10 Kyoto"
+        },
+        {
+          "city": "Osaka",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000011",
+              "ordinal": 11,
+              "date": null,
+              "city": "Osaka"
+            },
+            {
+              "dayId": "00000000-0000-4000-8000-000000000012",
+              "ordinal": 12,
+              "date": null,
+              "city": "Osaka"
+            }
+          ],
+          "phrase": "days 11–12 Osaka"
+        },
+        {
+          "city": "Naoshima",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000013",
+              "ordinal": 13,
+              "date": null,
+              "city": "Naoshima"
+            }
+          ],
+          "phrase": "day 13 Naoshima"
+        },
+        {
+          "city": "Tokyo",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8000-000000000014",
+              "ordinal": 14,
+              "date": null,
+              "city": "Tokyo"
+            }
+          ],
+          "phrase": "day 14 Tokyo"
+        }
+      ],
+      "summary": "Days 1–3 Tokyo, day 4 Nikkō, day 5 Tokyo, day 6 Hakone, days 7–10 Kyoto, days 11–12 Osaka, day 13 Naoshima, day 14 Tokyo"
+    },
+    "day": {
+      "kind": "itinerary-day",
+      "dayId": "00000000-0000-4000-8000-000000000005",
+      "cities": [
+        "Tokyo"
+      ],
+      "window": "9 am – 10 pm",
+      "cost": "$485.00",
+      "ordinal": 5,
+      "date": null,
+      "activities": [
+        {
+          "title": "Coffee at Koffee Mameya",
+          "timeWindow": "9 am – 10 am",
+          "cost": "$65.00"
+        },
+        {
+          "title": "Nezu Museum",
+          "timeWindow": "10:30 am – 1 pm",
+          "cost": "$95.00"
+        },
+        {
+          "title": "Lunch at Kagari",
+          "timeWindow": "12:30 pm – 2 pm",
+          "cost": "$45.00"
+        },
+        {
+          "title": "Itoya and Ginza Six",
+          "timeWindow": "4 pm – 6 pm",
+          "cost": "$125.00"
+        },
+        {
+          "title": "Omakase at Sushi Yoshitake",
+          "timeWindow": "8 pm – 10 pm",
+          "cost": "$155.00"
+        }
+      ]
+    }
+  }
+}
