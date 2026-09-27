@@ -3,7 +3,7 @@ import { guard } from "@/server/pages-guard";
 import { inviteTokenOf } from "@/server/access/trip-access";
 import { isUuid } from "@/server/ids";
 import { MAX_PAGE_BODY_BYTES, getPage } from "@/server/pages";
-import { executePageCommand } from "@/server/pageCommands";
+import { executePageCommand, PAGE_TITLE_TAKEN_CODE } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
 
 // `pages.id` is a uuid column, so `getPage("not-a-uuid")` is not a miss — it is
@@ -81,6 +81,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ tripId
     // client tell the two apart and offer the draft instead.
     if (result.error.code === PAGE_CHANGED_CODE) {
       return Response.json({ error: result.error.message, code: PAGE_CHANGED_CODE }, { status: 409 });
+    }
+    // A rename onto a title another of the trip's seeded notebooks holds.
+    if (result.error.code === PAGE_TITLE_TAKEN_CODE) {
+      return Response.json({ error: result.error.message, code: PAGE_TITLE_TAKEN_CODE }, { status: 409 });
     }
     if (result.error.code === "forbidden") return Response.json({ error: result.error.message }, { status: 403 });
     return Response.json({ error: result.error.message }, { status: 400 });

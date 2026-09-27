@@ -185,7 +185,7 @@ export interface TemplateSeed {
  * ones. In the `…f` block, beside the demo's `…e` page ids (`server/pages.ts`),
  * so none can collide with a minted page.
  */
-const PLACEHOLDER_IDS: SiblingIds = {
+export const PLACEHOLDER_IDS: SiblingIds = {
   "before-you-go": "00000000-0000-4000-8000-00000000f001",
   "bookings-and-confirmations": "00000000-0000-4000-8000-00000000f002",
   money: "00000000-0000-4000-8000-00000000f003",

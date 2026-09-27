@@ -386,3 +386,42 @@ export const UpdatePageInput = z.object({
   expectedUpdatedAt: PageRevision.optional(),
 });
 export type UpdatePageInput = z.infer<typeof UpdatePageInput>;
+
+/**
+ * "Reset to default" on a seeded notebook (Mitchell, 2026-09-27). Owner only.
+ * The page keeps its id; its title and document become the current template's,
+ * recorded as one more edit in the trip's history — not a delete and recreate.
+ *
+ * `expectedUpdatedAt` is `UpdatePageInput`'s guard: a reset confirmed against a
+ * version that has moved since is refused (409 `page-changed`) rather than
+ * wiping words the owner never saw.
+ */
+export const ResetPageInput = z.object({
+  expectedUpdatedAt: PageRevision.optional(),
+});
+export type ResetPageInput = z.infer<typeof ResetPageInput>;
+
+/**
+ * What a reset answers: the page as it now is, and `restoreSeq` — the version
+ * of the trip's history just before the reset, which `RestorePageInput` takes
+ * to undo it. `null` when the notebook already matched its template and
+ * nothing was written.
+ */
+export const ResetPageResult = z.object({
+  page: Page,
+  restoreSeq: z.number().int().nonnegative().nullable(),
+});
+export type ResetPageResult = z.infer<typeof ResetPageResult>;
+
+/**
+ * Put a notebook back to its title and document as of `toSeq` in the trip's
+ * history, as one more edit. It never deletes and never recreates: a notebook
+ * that did not exist at `toSeq`, or no longer exists, is refused. That is what
+ * keeps it clear of KI-2026-09-22-c's trap, where a revert behind a backfilled
+ * genesis would delete notebooks.
+ */
+export const RestorePageInput = z.object({
+  toSeq: z.number().int().nonnegative(),
+  expectedUpdatedAt: PageRevision.optional(),
+});
+export type RestorePageInput = z.infer<typeof RestorePageInput>;

@@ -1,4 +1,12 @@
-import { CreatePageInput, Page, PageListEntry, type UpdatePageInput } from "@tc/contracts";
+import {
+  CreatePageInput,
+  Page,
+  PageListEntry,
+  ResetPageInput,
+  ResetPageResult,
+  RestorePageInput,
+  type UpdatePageInput,
+} from "@tc/contracts";
 import { apiUrl, networkError, refusal, type ApiResult } from "@/lib/apiClient";
 import { beginWrite, endWrite } from "@/lib/queryCache";
 import { fitsKeepalive } from "@/lib/keepalive";
@@ -145,6 +153,63 @@ export async function deletePage(tripId: string, pageId: string): Promise<ApiRes
     const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`), { method: "DELETE" });
     if (!res.ok) return await refusal(res);
     return { ok: true, value: { ok: true } };
+  } catch (err) {
+    return networkError(err);
+  } finally {
+    endWrite(scope);
+  }
+}
+
+// The trip's default notebooks (Mitchell, 2026-09-27; owner only). Three
+// writes, under the same two invariants as the helpers above: they resolve,
+// and they open a write scope.
+
+/** "Add missing default notebooks": seeds what the trip lacks, and answers with the list as it now is. */
+export async function addMissingDefaultNotebooks(tripId: string): Promise<ApiResult<NotebookList>> {
+  return pageWrite(tripId, `/api/trips/${tripId}/pages/defaults`, {}, (data) => {
+    const body = data as { pages: unknown[]; viewerId?: unknown };
+    return {
+      pages: body.pages.map((p) => PageListEntry.parse(p)),
+      viewerId: typeof body.viewerId === "string" ? body.viewerId : null,
+    };
+  });
+}
+
+/** "Reset to default" on a seeded notebook: the page as it now is, and the version to undo back to. */
+export async function resetPageToDefault(
+  tripId: string,
+  pageId: string,
+  input: ResetPageInput,
+): Promise<ApiResult<ResetPageResult>> {
+  return pageWrite(tripId, `/api/trips/${tripId}/pages/${pageId}/reset`, ResetPageInput.parse(input), (data) =>
+    ResetPageResult.parse(data),
+  );
+}
+
+/** The reset's Undo: the notebook put back to how it was at `toSeq`. */
+export async function restorePageVersion(
+  tripId: string,
+  pageId: string,
+  input: RestorePageInput,
+): Promise<ApiResult<Page>> {
+  return pageWrite(tripId, `/api/trips/${tripId}/pages/${pageId}/restore`, RestorePageInput.parse(input), (data) =>
+    Page.parse((data as { page: unknown }).page),
+  );
+}
+
+// One POST, parsed inside the `try` so a schema throw on a 200 is a result
+// rather than a rejection (the first invariant above).
+async function pageWrite<T>(tripId: string, path: string, body: unknown, read: (data: unknown) => T): Promise<ApiResult<T>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(path), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: read(await res.json()) };
   } catch (err) {
     return networkError(err);
   } finally {
