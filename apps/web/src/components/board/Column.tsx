@@ -166,15 +166,15 @@ export function Column({
 
   // Untimed stops cannot sit on an axis, so they get the "Any time" shelf
   // above it; everything with a window goes on the river. List order is kept
-  // on the shelf — it is the only order an untimed stop has. A phone draws no
-  // river, so its shelf is every stop (see the shelf below).
+  // on the shelf — it is the only order an untimed stop has. The same on a
+  // phone as on a desktop, since the phone got the river too (M29 phone).
   const shelf = useMemo(
     () =>
       activityIds.flatMap((id) => {
         const activity = activities[id];
-        return activity && (fullWidth || !activity.timeWindow) ? [activity] : [];
+        return activity && !activity.timeWindow ? [activity] : [];
       }),
-    [activityIds, activities, fullWidth],
+    [activityIds, activities],
   );
 
   useEffect(() => {
@@ -301,30 +301,28 @@ export function Column({
           empty or not: it is the second of the four rows every column shares,
           and a column that skipped it would shift its river up a row.
 
-          **A phone keeps the list** (`fullWidth`). The design draws the river
-          on the desktop only; its phone Plan is a list of stop cards
-          (`phoneStops`, `…Redesign.dc.html:863`), and a to-scale block on a
-          phone would put a 30-minute stop's controls in a 24px box, under
-          SPEC §13.1's 44px floor. So there, every stop is a card in this list,
-          in the day's own order, as before. */}
+          **A phone gets the river too** (M29 phone). Until 2026-09-26 it kept
+          a card per stop, because the design's phone Plan is a card list
+          (`phoneStops`, `…Redesign.dc.html:863`). Mitchell, that day: *"cards
+          should get the river, we might need to think through the gestures,
+          but keep functionality as similar as possible."* So the phone's one
+          day is this same shelf above this same river, and its gestures are
+          DayRiver's touch versions. */}
       <div className="flex min-w-0 flex-col gap-1">
         {shelf.length > 0 && (
           <>
-            {!fullWidth && (
-              <Text variant="muted" as="span" className="px-1 font-semibold">
-                Any time
-              </Text>
-            )}
-            <ul aria-label={fullWidth ? `${title} stops` : `${title}, any time`} className="m-0 list-none p-0">
+            <Text variant="muted" as="span" className="px-1 font-semibold">
+              Any time
+            </Text>
+            <ul aria-label={`${title}, any time`} className="m-0 list-none p-0">
               {shelf.map((activity) => (
                 <ActivityCard
                   key={activity.activityId}
                   activity={activity}
                   dayId={dayId}
                   hasConflict={conflictIds.has(activity.activityId)}
-                  // An untimed stop cannot overlap anything; on the phone's
-                  // list, a card carries its overlap chip as it always has.
-                  overlap={fullWidth ? (overlaps.get(activity.activityId) ?? null) : null}
+                  // An untimed stop cannot overlap anything.
+                  overlap={null}
                   currency={currency}
                   onEdit={() => onEditActivity(activity.activityId)}
                   onRemove={() => onRemoveActivity(activity.activityId)}
@@ -348,27 +346,25 @@ export function Column({
             the rack lands at the river's time like any other (`placeWindow`). */}
         {isOver && <span aria-hidden className="h-0.5 rounded-full bg-brand" />}
       </div>
-      {!fullWidth && (
-        <DayRiver
-          title={title}
-          dayId={dayId}
-          axis={axis}
-          activityIds={activityIds}
-          activities={activities}
-          accent={accent}
-          conflictIds={conflictIds}
-          overlaps={overlaps}
-          overlapPartners={overlapPartners}
-          currency={currency}
-          onEditActivity={onEditActivity}
-          onRemoveActivity={onRemoveActivity}
-          onDismissOverlap={onDismissOverlap}
-          focusedTag={focusedTag}
-          onToggleTag={onToggleTag}
-          readOnly={readOnly}
-          gestures={gestures}
-        />
-      )}
+      <DayRiver
+        title={title}
+        dayId={dayId}
+        axis={axis}
+        activityIds={activityIds}
+        activities={activities}
+        accent={accent}
+        conflictIds={conflictIds}
+        overlaps={overlaps}
+        overlapPartners={overlapPartners}
+        currency={currency}
+        onEditActivity={onEditActivity}
+        onRemoveActivity={onRemoveActivity}
+        onDismissOverlap={onDismissOverlap}
+        focusedTag={focusedTag}
+        onToggleTag={onToggleTag}
+        readOnly={readOnly}
+        gestures={gestures}
+      />
       {/* SPEC §36.9b: "+ Add a stop sits 22 px below the axis, brand-tinted
           and full width" — 22px is the row gap (8px) plus this margin. A
           wrapper even when there is no button, so a read-only column still

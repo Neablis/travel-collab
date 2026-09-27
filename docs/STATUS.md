@@ -38,7 +38,7 @@ at 17 of 22, and the five open boxes need a person, not code (next section).
 
 **Two more milestones are built beside M14, not current, and not in `TODO.md`'s
 order** (placing them is Mitchell's call). **M29 — The time river**: all four
-parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 12 of 15 after
+parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 17 of 20 (five boxes came with #251's phone part) after
 the 2026-09-27 reconciliation and the `m29-kind-control.spec.ts` walks. What is
 left is part 4's Overview read and the gate-close items. **M30 — Notebooks with one job each**: merged as #247, then #248-#253. Its
 gate is 6 of 9. `m30-notebooks-and-links.spec.ts` now covers the walk's content,

@@ -3,6 +3,74 @@ import type { Location } from "@tc/contracts";
 import { commandsFor, type CommandsForOverrides } from "@tc/factories";
 import { E2E_SUPER_CODE } from "./admission";
 
+/**
+ * **One finger, driven the way a real one is** (M29 phone). Playwright's
+ * `touchscreen` can only tap; a hold, a carry and a swipe need a finger that
+ * goes down, moves and comes up as three separate things. Chromium's
+ * `Input.dispatchTouchEvent` feeds the same input pipeline a touchscreen does,
+ * so the page gets real touch AND pointer events, and a move the page does
+ * not cancel scrolls it, which is what lets a spec tell a swipe from a drag.
+ *
+ * Chromium only. Needs a context with `hasTouch: true`.
+ *
+ * A hold is never a sleep: `down`, then wait for what the hold draws (the
+ * river's outline, a block's `data-lifted`), then move.
+ */
+export async function fingerOn(page: Page) {
+  const cdp = await page.context().newCDPSession(page);
+  let at = { x: 0, y: 0 };
+  const send = (type: "touchStart" | "touchMove", x: number, y: number) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: [{ x, y, id: 1, radiusX: 1, radiusY: 1, force: 1 }] });
+  return {
+    async down(x: number, y: number) {
+      at = { x, y };
+      await send("touchStart", x, y);
+    },
+    /** To (x, y) in `steps` even moves, as a finger passes through the points between. */
+    async move(x: number, y: number, steps = 10) {
+      const from = at;
+      for (let i = 1; i <= steps; i++) {
+        await send("touchMove", from.x + ((x - from.x) * i) / steps, from.y + ((y - from.y) * i) / steps);
+      }
+      at = { x, y };
+    },
+    async up() {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    },
+  };
+}
+
+/**
+ * A point on a day's river at `hours`, with the page scrolled so `centre`
+ * (default: `hours`) sits in the middle of the part of the screen the river
+ * shows in: below the sticky header, above the rack and the phone's tab bar.
+ * A finger or a pointer aimed where one of those covers the river touches
+ * that instead — and `scrollIntoViewIfNeeded` is happy to leave a target
+ * right there, under the rack. The edges are the px properties each publishes
+ * (DayRiver's `visibleBand` reads the same ones).
+ *
+ * `axisStart` is the river's first hour; `x` how far in, clear of the 38px
+ * tick gutter.
+ */
+export async function riverPoint(
+  page: Page,
+  river: Locator,
+  hours: number,
+  { axisStart, centre = hours, x = 150 }: { axisStart: number; centre?: number; x?: number },
+): Promise<{ x: number; y: number }> {
+  const PX_PER_HOUR = 44;
+  const middle = await river.evaluate((el) => {
+    const px = (name: string) => parseFloat(getComputedStyle(el).getPropertyValue(name)) || 0;
+    return (px("--sticky-stack-height") + innerHeight - px("--rack-height") - px("--phone-tab-bar-height")) / 2;
+  });
+  const box = await river.boundingBox();
+  if (!box) throw new Error("riverPoint: the river has no box");
+  await page.evaluate((dy) => window.scrollBy(0, dy), box.y + (centre - axisStart) * PX_PER_HOUR - middle);
+  const after = await river.boundingBox();
+  if (!after) throw new Error("riverPoint: the river has no box");
+  return { x: after.x + x, y: after.y + (hours - axisStart) * PX_PER_HOUR };
+}
+
 // @atlaskit/pragmatic-drag-and-drop is built on the browser's native HTML5
 // Drag and Drop API. Locator.dragTo() drives it with a single mouse-down /
 // one-jump mouse-move / mouse-up sequence, and relies on Chromium to

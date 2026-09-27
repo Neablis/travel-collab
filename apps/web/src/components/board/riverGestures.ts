@@ -39,6 +39,51 @@ export const RIVER_NEW_STOP_MINUTES = durationMinutes(DEFAULT_DURATION_LABEL);
 export const RIVER_DRAG_THRESHOLD_PX = 4;
 
 /**
+ * **How long a finger must stay still before a press on the river is a
+ * gesture rather than the start of a scroll** (M29 phone). A touch river's
+ * sketch and its block moves both begin with this hold. Until it fires the
+ * press belongs to the browser, so a swipe scrolls the river as it would scroll
+ * a list. After it fires the river takes the touch, and the page stops
+ * scrolling under the finger.
+ *
+ * 450ms is just under the ~500ms long-press the platforms use for their own
+ * menus, so the river's hold lands first.
+ */
+export const RIVER_TOUCH_HOLD_MS = 450;
+
+/**
+ * How far a finger may drift during that hold and still be holding. Past it,
+ * the press was a swipe. A finger at rest wobbles a few pixels, and the
+ * browser's own touch slop (the distance before it starts a pan) is of the
+ * same order.
+ */
+export const RIVER_TOUCH_SLOP_PX = 8;
+
+/**
+ * **Scrolling the page while a touch gesture is held near its edge.** A phone
+ * shows a few hours of the river at a time, and once a hold has taken the touch
+ * the finger cannot scroll it, so a block carried to the edge of the screen has
+ * to scroll the page itself. This returns px for one frame: negative near the
+ * top of the part of the screen the river can be seen in, positive near its
+ * bottom, faster the deeper the finger is, full speed over the chrome itself,
+ * and 0 in between.
+ *
+ * `top` and `bottom` are that part's edges, not the viewport's: on a phone the
+ * sticky trip header covers the top third of the screen and the rack and tab
+ * bar the bottom sixth, and a band measured from the viewport's edges would sit
+ * entirely under them, where the finger is over no river at all.
+ */
+export function edgeScrollDelta(clientY: number, top: number, bottom: number): number {
+  const MAX_PX_PER_FRAME = 12;
+  const band = Math.min(56, Math.max(1, (bottom - top) / 6));
+  const intoTop = top + band - clientY;
+  if (intoTop > 0) return -Math.ceil(Math.min(1, intoTop / band) * MAX_PX_PER_FRAME);
+  const intoBottom = clientY - (bottom - band);
+  if (intoBottom > 0) return Math.ceil(Math.min(1, intoBottom / band) * MAX_PX_PER_FRAME);
+  return 0;
+}
+
+/**
  * One past the last minute a window may END on. A gesture can reach midnight
  * (`24:00`), and a stored window cannot say that — `toTimeString` clamps it to
  * 23:59 on the way out (`DAY_END_MIN`).
