@@ -10,6 +10,7 @@ import { defaultNotebookRefusal } from "@/server/defaultNotebookResponses";
 //
 // No body: which notebooks are missing is the server's to work out, from the
 // same `@tc/pages` rule the index used to decide whether to offer this.
+/** Seeds the default notebooks this trip lacks (owner only) and answers `{ pages, viewerId }`, as the list does. */
 export async function POST(_req: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   const g = await guard(tripId, "owner");

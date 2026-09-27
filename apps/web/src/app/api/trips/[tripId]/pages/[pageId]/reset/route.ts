@@ -12,6 +12,7 @@ import { readBody } from "@/server/readBody";
 // `restoreSeq` is the version just before the reset — what the screen's Undo
 // hands to `…/restore`. A reset that changed nothing wrote nothing, and has
 // nothing to undo.
+/** Resets a seeded notebook to its template (owner only); answers `ResetPageResult`. */
 export async function POST(req: Request, { params }: { params: Promise<{ tripId: string; pageId: string }> }) {
   const { tripId, pageId } = await params;
   const g = await guard(tripId, "owner");
