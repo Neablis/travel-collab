@@ -4,7 +4,16 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import * as pagesClientModule from "@/lib/pagesClient";
 import { instantiateDefaults } from "@tc/pages";
-import { createPage, deletePage, fetchPage, fetchPages, updatePage } from "@/lib/pagesClient";
+import {
+  addMissingDefaultNotebooks,
+  createPage,
+  deletePage,
+  fetchPage,
+  fetchPages,
+  resetPageToDefault,
+  restorePageVersion,
+  updatePage,
+} from "@/lib/pagesClient";
 import { pageFixture } from "@tc/factories";
 import { cachedRead, clearQueryCache } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -99,6 +108,9 @@ describe("pagesClient totality — no helper ever rejects", () => {
       createPage(TRIP_ID, { title: "T", context: { tripId: TRIP_ID }, content: newPageDoc() }),
     updatePage: () => updatePage(TRIP_ID, PAGE_ID, { title: "T" }),
     deletePage: () => deletePage(TRIP_ID, PAGE_ID),
+    addMissingDefaultNotebooks: () => addMissingDefaultNotebooks(TRIP_ID),
+    resetPageToDefault: () => resetPageToDefault(TRIP_ID, PAGE_ID, {}),
+    restorePageVersion: () => restorePageVersion(TRIP_ID, PAGE_ID, { toSeq: 1 }),
   };
 
   // The witness: asserts nothing about behaviour, only that the table above is
@@ -151,6 +163,9 @@ describe("notebook writes invalidate the trip's cached reads", () => {
     createPage: () => createPage(TRIP_ID, instantiateDefaults(TRIP_ID, () => crypto.randomUUID())[0]!),
     updatePage: () => updatePage(TRIP_ID, PAGE_ID, { title: "Renamed" }),
     deletePage: () => deletePage(TRIP_ID, PAGE_ID),
+    addMissingDefaultNotebooks: () => addMissingDefaultNotebooks(TRIP_ID),
+    resetPageToDefault: () => resetPageToDefault(TRIP_ID, PAGE_ID, {}),
+    restorePageVersion: () => restorePageVersion(TRIP_ID, PAGE_ID, { toSeq: 1 }),
   };
 
   async function seed(): Promise<void> {

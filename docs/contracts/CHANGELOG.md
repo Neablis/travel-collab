@@ -27,6 +27,26 @@ Format:
   to the page's own metadata on a failed parse.
 - **Breaking?** No. New schema, new routes, no existing shape changed.
 
+## 2026-09-27 — `ResetPageInput`, `ResetPageResult`, `RestorePageInput`: reset a seeded notebook, and undo it
+
+- **Added:** `ResetPageInput` (`expectedUpdatedAt?`), `ResetPageResult` (`page`,
+  `restoreSeq: number | null`) and `RestorePageInput` (`toSeq`, `expectedUpdatedAt?`), the
+  bodies of three new internal routes: `POST /api/trips/:id/pages/defaults` (add the
+  default notebooks the trip is missing; answers the `GET` list's shape),
+  `POST …/pages/:pageId/reset` and `POST …/pages/:pageId/restore`. Owner only (Mitchell,
+  2026-09-27: *"Only trip owner"*).
+- **Unchanged on purpose:** `PageCommand` and `PageEvent`. A reset and a restore are
+  `EditPage` → `PageEdited`; adding missing seeds is `CreatePage` → `PageCreated` with
+  `system` as the owner, the parameter `decidePageCommand` already takes. No new event type,
+  so nothing in history, projection or replay learns anything new (ADR-036 amendment
+  2026-09-27).
+- Why: a trip is seeded once, lazily, so a trip made before M30 never gets the itinerary
+  Overview or the later seeds, and an edited seed had no way back to its template.
+- Consumers updated: `apps/web` (`pagesClient`'s three writers, `ResetToDefault`,
+  `PageScreen`'s Undo, `NotebookScreen`'s list action, the MSW pages handlers). Not in
+  `/api/v1` — a feature does not owe the public API an endpoint (`using-the-api.md`).
+- **Breaking?** No. Additive; no migration.
+
 ## 2026-09-27 — `TripWeatherPoint.placeToday`: the weather block's "Today" is the place's date (KI-2026-09-27-c)
 
 - **Added:** `placeToday?: IsoDate` on `TripWeatherPoint` — the calendar date at the point's

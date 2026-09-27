@@ -2,15 +2,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { TEMPLATE_LIBRARY, isOverviewPage, type TemplateSeed } from "@tc/pages";
+import { TEMPLATE_LIBRARY, isOverviewPage, missingDefaultTemplates, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
 import type { PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail } from "@tc/contracts";
-import { createPage, deletePage, fetchPages } from "@/lib/pagesClient";
+import { addMissingDefaultNotebooks, createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { deleteSavedNotebook, fetchSavedNotebooks, instantiateSavedNotebook } from "@/lib/savedNotebooksClient";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { PHONE_TOUCH } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { fetchTripDetail, type ApiError } from "@/lib/apiClient";
+import { fetchTripAccess, fetchTripDetail, type ApiError } from "@/lib/apiClient";
 import { DEDUPE, cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { provenanceLabel } from "@/lib/pageScope";
@@ -309,6 +309,41 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     });
   };
 
+  // **"Add missing default notebooks"** (Mitchell, 2026-09-27; *"Only trip
+  // owner"*). A trip is seeded once, the first time this list is read, so a
+  // trip made before a seed existed never gets it — the M30 itinerary Overview
+  // is the case that asked. Offered only while something is missing, by the
+  // same `@tc/pages` rule the server seeds by, so the button never promises
+  // what the server would answer "nothing to add" to.
+  //
+  // The role is read only when something IS missing: a trip with all its
+  // defaults, which is nearly every trip, costs no request.
+  const somethingMissing = pages !== null && missingDefaultTemplates(pages).length > 0;
+  const [isOwner, setIsOwner] = useState(false);
+  const [adding, setAdding] = useState(false);
+  useEffect(() => {
+    if (!somethingMissing) return;
+    let cancelled = false;
+    void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
+      if (!cancelled) setIsOwner(access.ok && access.value.myRole === "owner");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [somethingMissing, tripId]);
+  const handleAddMissing = () => {
+    setAdding(true);
+    void addMissingDefaultNotebooks(tripId).then((result) => {
+      setAdding(false);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setError(null);
+      setPages(result.value.pages);
+    });
+  };
+
   const handleDelete = (pageId: string) => {
     void deletePage(tripId, pageId).then((result) => {
       if (!result.ok) {
@@ -535,6 +570,20 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             ))}
           </ul>
         )}
+        {/* Under the list rather than beside the heading: it is about what the
+            list lacks, and it reads as the answer to that once you have seen
+            the list. Absent while loading or failed, when nothing is known to
+            be missing. */}
+        {status === "ready" && somethingMissing && isOwner ? (
+          <div className="mt-3 flex items-center gap-3">
+            <Button variant="secondary" size="sm" onClick={handleAddMissing} disabled={adding}>
+              Add missing default notebooks
+            </Button>
+            <Text as="span" variant="secondary">
+              This trip is missing some of the notebooks a new trip comes with.
+            </Text>
+          </div>
+        ) : null}
       </section>
 
       {/* **Templates BELOW the notebooks you already have.** Mitchell,

@@ -36,3 +36,4 @@ export { readerClock, toClockLabel, toClockRange } from "./clockLabel";
 // "14th" in `apps/web` (`ordinalDayOfMonth`), which delegates to it.
 export { ordinal, formatShortDate } from "./format";
 export * from "./widgetSearch";
+export * from "./defaultNotebooks";

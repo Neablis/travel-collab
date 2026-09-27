@@ -9,7 +9,7 @@ import {
   type PageDoc,
 } from "@tc/contracts";
 import { projectTripDetails, projectTripSummaries } from "@tc/domain";
-import { and, desc, eq, getTableColumns, or, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, or, sql } from "drizzle-orm";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Queryable } from "./db/client";
@@ -212,6 +212,16 @@ export async function getTripDetail(tripId: string): Promise<TripDetail | null> 
  * row, restoring a changed one, removing one the log deleted) and leaves the
  * rest alone. The rows it leaves are also the ones the backfill skipped as
  * unreadable (ADR-038 decision 4), which must not be rewritten either.
+ *
+ * **The rows the log DOES know are cleared first, and their timestamps put
+ * back after** (2026-09-27). Replaying onto them in place broke on
+ * `pages_system_seed_unique` once a seed could be deleted and seeded again
+ * ("Add missing default notebooks"): the old seed's genesis re-inserted its
+ * `system` title while the new seed's row already held it. Replayed from
+ * empty, the table passes through the same states the live writes did, which
+ * the index already accepted. `createdAt` is the row's (a backfilled genesis
+ * is not when the page was made, and it orders the list); so is `updatedAt`,
+ * unless an edit in the log moved it.
  */
 export async function rebuildProjections(): Promise<void> {
   await db.transaction(async (tx) => {
@@ -226,7 +236,29 @@ export async function rebuildProjections(): Promise<void> {
     for (const d of details) {
       await tx.insert(tripDetails).values({ tripId: d.tripId, doc: d });
     }
-    await applyPageEvents(tx, envelopes.filter((e) => isPageEventType(e.type)));
+    const pageEnvelopes = envelopes.filter((e) => isPageEventType(e.type));
+    const pageIdOf = (e: EventEnvelope) => (e.payload as { pageId: string }).pageId;
+    const logged = [...new Set(pageEnvelopes.map(pageIdOf))];
+    const edited = new Set(pageEnvelopes.filter((e) => e.type === "PageEdited").map(pageIdOf));
+    const kept: { id: string; createdAt: string; updatedAt: string }[] = [];
+    // In chunks: a statement takes at most 65,535 parameters.
+    for (let i = 0; i < logged.length; i += 1000) {
+      const ids = logged.slice(i, i + 1000);
+      kept.push(
+        ...(await tx
+          .select({ id: pages.id, createdAt: pages.createdAt, updatedAt: pages.updatedAt })
+          .from(pages)
+          .where(inArray(pages.id, ids))),
+      );
+      await tx.delete(pages).where(inArray(pages.id, ids));
+    }
+    await applyPageEvents(tx, pageEnvelopes);
+    for (const row of kept) {
+      await tx
+        .update(pages)
+        .set({ createdAt: row.createdAt, ...(edited.has(row.id) ? {} : { updatedAt: row.updatedAt }) })
+        .where(eq(pages.id, row.id));
+    }
   });
 }
 

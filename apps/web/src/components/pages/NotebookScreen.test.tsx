@@ -5,7 +5,7 @@ import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
-import { TEMPLATE_LIBRARY } from "@tc/pages";
+import { TEMPLATE_LIBRARY, instantiateDefaults } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeSavedNotebookHandlers } from "@/mocks/handlers";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
 
@@ -29,6 +29,9 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // Imported after the `vi.mock` calls, which are hoisted anyway — written this
 // way so a reader is not left wondering whether the screen got the real client.
 import { NotebookScreen } from "./NotebookScreen";
+import { fetchTripAccess } from "@/lib/apiClient";
+import { cachedRead } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {
@@ -56,7 +59,25 @@ const server = setupServer(
   // And the reader's saved notebooks (M14 link 10), read on every render for
   // the gallery. An empty library, which renders nothing extra.
   ...makeSavedNotebookHandlers(),
+  // And the reader's role, read whenever the trip is missing a default
+  // notebook ("Add missing default notebooks" is the owner's). An EDITOR by
+  // default, so a suite written before the action sees the list it was
+  // written against; the tests about the action set `accessRole`.
+  http.get("/api/trips/:tripId/access", ({ params }) => {
+    accessReads += 1;
+    return HttpResponse.json({
+      access: {
+        tripId: params.tripId,
+        myRole: accessRole,
+        members: [{ userId: "dev-alice", role: accessRole, name: null, email: null, image: null }],
+        invites: [],
+        collaboratorsEntitled: true,
+      },
+    });
+  }),
 );
+let accessRole: "owner" | "editor" = "editor";
+let accessReads = 0;
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   pushMock.mockClear();
@@ -66,6 +87,8 @@ beforeEach(() => {
 afterEach(() => {
   server.resetHandlers();
   cleanup();
+  accessRole = "editor";
+  accessReads = 0;
 });
 afterAll(() => server.close());
 
@@ -200,6 +223,52 @@ describe("NotebookScreen", () => {
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(page.id));
     await waitFor(() => expect(within(list).queryByText(page.title)).toBeNull());
+  });
+
+  // "Add missing default notebooks" (Mitchell, 2026-09-27; owner only). The
+  // trip's notebooks come from `instantiateDefaults`, so "complete" means what
+  // a new trip gets rather than a list typed here.
+  describe("adding the default notebooks a trip is missing", () => {
+    const ADD = { name: "Add missing default notebooks" };
+    const defaults = () =>
+      instantiateDefaults(TRIP_ID, () => crypto.randomUUID()).map((seed) =>
+        pageFixture({ ...seed, tripId: TRIP_ID, actorId: SYSTEM_ACTOR_ID }),
+      );
+
+    it("offers the owner the action only while a default is missing, and adding brings it back", async () => {
+      accessRole = "owner";
+      const all = defaults();
+      const gone = all.at(-1)!;
+      server.use(...makePagesHandlers(all));
+
+      render(<NotebookScreen tripId={TRIP_ID} />);
+      const list = await screen.findByRole("region", { name: "Your notebooks" });
+      await within(list).findByText(gone.title);
+      expect(screen.queryByRole("button", ADD)).toBeNull();
+
+      // Deleting a seed is how a trip comes to be missing one; the action
+      // follows the list rather than the page load.
+      fireEvent.click(screen.getByRole("button", { name: `Delete ${gone.title}` }));
+      await waitFor(() => expect(within(list).queryByText(gone.title)).toBeNull());
+      fireEvent.click(await screen.findByRole("button", ADD));
+
+      expect(await within(list).findByText(gone.title)).toBeTruthy();
+      await waitFor(() => expect(screen.queryByRole("button", ADD)).toBeNull());
+    });
+
+    it("does not offer it to an editor, even with a default missing", async () => {
+      server.use(...makePagesHandlers(defaults().slice(0, 1)));
+
+      render(<NotebookScreen tripId={TRIP_ID} />);
+      await screen.findByRole("region", { name: "Your notebooks" });
+      await waitFor(() => expect(accessReads).toBe(1));
+      // Join the read the component made, through the cache it made it with:
+      // once that has answered, so has the component's, inside `act`.
+      await act(async () => {
+        await cachedRead(tripKeys.access(TRIP_ID), () => fetchTripAccess(TRIP_ID));
+      });
+      expect(screen.queryByRole("button", ADD)).toBeNull();
+    });
   });
 
   // SPEC §7's index half. Each of these asserts one thing the design asked for
