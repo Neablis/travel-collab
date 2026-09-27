@@ -446,12 +446,20 @@ export function DayRiver({
     const pressY = yOf(e.clientY);
     const pressClientY = e.clientY;
     holdThen(e, () => {
-      const hour = doubleClickWindow(axis, pressY);
+      let hour = doubleClickWindow(axis, pressY);
       let sketch: MinuteWindow | null = null;
       setGhost({ kind: "sketch", window: hour });
       follow(
         (ev) => {
-          if (sketch === null && Math.abs(ev.clientY - pressClientY) < RIVER_DRAG_THRESHOLD_PX) return;
+          if (sketch === null && Math.abs(ev.clientY - pressClientY) < RIVER_DRAG_THRESHOLD_PX) {
+            // A still finger can still be over a new time: held near the
+            // screen's edge, the page scrolls the river under it (`follow`'s
+            // replay). The hour is the one under the finger, re-read here, and
+            // the release adds that one (CodeRabbit, #251).
+            hour = doubleClickWindow(axis, yOf(ev.clientY));
+            setGhost({ kind: "sketch", window: hour });
+            return;
+          }
           sketch = sketchWindow(axis, pressY, yOf(ev.clientY));
           setGhost({ kind: "sketch", window: sketch });
         },

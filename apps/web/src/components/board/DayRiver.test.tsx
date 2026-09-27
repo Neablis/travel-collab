@@ -275,6 +275,7 @@ describe("gestures on empty time", () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => {
       vi.useRealTimers();
+      vi.restoreAllMocks();
       Reflect.deleteProperty(document, "elementFromPoint");
     });
 
@@ -294,6 +295,37 @@ describe("gestures on empty time", () => {
       hold();
       expect(screen.getByTestId("river-ghost").textContent).toBe("12 pm – 1 pm");
       fireEvent.pointerUp(window, finger);
+      expect(g.onCreateAt).toHaveBeenCalledExactlyOnceWith({ start: "12:00", end: "13:00" });
+    });
+
+    // CodeRabbit on #251: a finger held still near the screen's edge scrolls
+    // the page, so the river moves under a finger that has not. The hour it
+    // adds is the one under the finger when it lets go, not where it pressed.
+    it("a held press whose page edge-scrolls under a still finger adds the hour it ends over", () => {
+      const g = gestures();
+      renderRiver([morning, evening], false, g);
+      const river = screen.getByTestId("day-river");
+      // The river's top 200px above the screen, so a finger 20px down —
+      // inside the top scroll band — is over 2 pm (220px down the river).
+      let top = -200;
+      vi.spyOn(river, "getBoundingClientRect").mockImplementation(() => ({ top }) as DOMRect);
+      // The page scrolls up two hours and then is at its top.
+      let scrolled = false;
+      const scrollBy = vi.spyOn(window, "scrollBy").mockImplementation(() => {
+        if (!scrolled) top += 2 * 44;
+        scrolled = true;
+      });
+
+      fireEvent.pointerDown(river, { ...finger, clientY: 20 });
+      hold();
+      expect(screen.getByTestId("river-ghost").textContent).toBe("2 pm – 3 pm");
+      // The finger has not moved; the frames that follow scroll the page.
+      fireEvent.pointerMove(window, { ...finger, buttons: 1, clientY: 20 });
+      act(() => void vi.advanceTimersByTime(100));
+      expect(scrollBy).toHaveBeenCalled();
+      expect(screen.getByTestId("river-ghost").textContent).toBe("12 pm – 1 pm");
+      fireEvent.pointerUp(window, finger);
+
       expect(g.onCreateAt).toHaveBeenCalledExactlyOnceWith({ start: "12:00", end: "13:00" });
     });
 
