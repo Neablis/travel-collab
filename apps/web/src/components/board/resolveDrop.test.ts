@@ -242,13 +242,29 @@ describe("resolveDrop on a river", () => {
     ]);
   });
 
-  it("leaves a stop from the rack to the rack's own rule", () => {
+  // Mitchell, 2026-09-26: "When dragging and dropping from anywhere, it should
+  // have same functionality". A stop off the rack is placed like any other —
+  // it used to be left to the rack's fitted time (`rackDropWindow`).
+  describe("a stop off the Unscheduled rack", () => {
+    // Day 1 holds a1 09:00–10:00; a2 is parked, still holding 14:00–15:00.
     const parked = tripDetailFixture({ ...river, days: [{ dayId: DAY_1, activityIds: [A1], date: null, costSubtotal: 0 }], backlog: [A2] });
-    expect(resolveDrop(parked, { activityId: A2 }, at("16:00", "17:00"))).toEqual({
-      kind: "move",
-      activityId: A2,
-      toDayId: DAY_1,
-      position: 1,
+
+    it("is placed at the time it was dropped, onto the day", () => {
+      expect(resolveDrop(parked, { activityId: A2 }, at("08:00", "09:00"))).toEqual({
+        kind: "place",
+        activityId: A2,
+        toDayId: DAY_1,
+        position: 0,
+        timeWindow: { start: "08:00", end: "09:00" },
+      });
+    });
+
+    it("goes onto the day and to its time as one batch, the move first", () => {
+      const outcome = resolveDrop(parked, { activityId: A2 }, at("16:00", "17:00"));
+      expect(outcome?.kind === "place" && placeCommands("t", outcome)).toEqual([
+        { type: "MoveActivity", tripId: "t", activityId: A2, toDayId: DAY_1, position: 1 },
+        { type: "UpdateActivity", tripId: "t", activityId: A2, timeWindow: { start: "16:00", end: "17:00" } },
+      ]);
     });
   });
 });

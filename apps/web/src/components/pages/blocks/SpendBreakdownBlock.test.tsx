@@ -93,6 +93,37 @@ describe("SpendBreakdownBlock", () => {
     ]);
   });
 
+  it("never keys shares that add up past 100%, nor calls a real cost 0%", () => {
+    // 16.5% / 16.5% / 67% rounds to 17 + 17 + 67 = 101 slice by slice; and a
+    // sliver beside a large cost rounds to 0. The key a reader adds up says
+    // 100 in both, and the sliver still says it is there.
+    const shownShares = () =>
+      within(screen.getByRole("table", { name: "Spend by kind" }))
+        .getAllByRole("row")
+        .slice(1, -1)
+        .map((row) => within(row).getAllByRole("cell")[1]!.textContent);
+    const percentsOf = (shares: (string | null)[]) =>
+      shares.filter((share) => share !== "—").map((share) => (share === "<1%" ? 0 : Number.parseInt(share!, 10)));
+
+    const halves = payloadOf((trip, id) => {
+      set(trip, id(0, 0), { amountMinor: 67000, currency: "USD" }, "planned");
+      set(trip, id(0, 1), { amountMinor: 16500, currency: "USD" }, "pending");
+      set(trip, id(1, 0), { amountMinor: 16500, currency: "USD" }, "transit");
+    });
+    const { unmount } = render(<SpendBreakdownBlock payload={halves} />);
+    expect(shownShares()).toEqual(["67%", "17%", "16%"]);
+    expect(percentsOf(shownShares()).reduce((a, b) => a + b, 0)).toBe(100);
+    unmount();
+
+    const sliver = payloadOf((trip, id) => {
+      set(trip, id(0, 0), { amountMinor: 1_000_000, currency: "USD" }, "planned");
+      set(trip, id(0, 1), { amountMinor: 100, currency: "USD" }, "transit");
+    });
+    render(<SpendBreakdownBlock payload={sliver} />);
+    expect(shownShares()).toEqual(["100%", "—", "<1%"]);
+    expect(percentsOf(shownShares()).reduce((a, b) => a + b, 0)).toBe(100);
+  });
+
   it("colours each tag's slice as Spend by day colours its stack", () => {
     const tags = payloadOf((trip, id) => {
       set(trip, id(0, 0), { amountMinor: 100, currency: "USD" }, "planned", ["meal"]);
