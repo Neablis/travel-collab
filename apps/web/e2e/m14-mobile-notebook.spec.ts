@@ -558,8 +558,7 @@ test.describe("a table's column names on a phone", () => {
     }
     // A stop with a note, so the Notes column holds prose that has to wrap at
     // this width — beside two stops whose Notes cells are empty.
-    const setDates = commands.find((c) => c.type === "SetTripDates");
-    const dayId = setDates?.type === "SetTripDates" ? setDates.newDayIds[0] : undefined;
+    const dayId = firstDayId(commands);
     const added = await page.request.post(`/api/trips/${tripId}/commands`, {
       data: {
         type: "AddActivity",
@@ -600,29 +599,38 @@ test.describe("a table's column names on a phone", () => {
       .then((r) => r.json());
     await page.goto(`/trips/${tripId}/pages/${created.page.id as string}`);
     await expect(page.getByRole("heading", { name: "Kyoto stops", level: 1 })).toBeVisible();
+    await expectEveryValueNamed(page, "Reading");
 
-    for (const mode of ["Reading", "Editing"] as const) {
-      if (mode === "Editing") {
-        await page.getByRole("button", { name: "Edit page" }).click();
-        await expect(page.getByRole("button", { name: "Done editing" })).toBeVisible();
-      }
-      const table = page.getByRole("table");
-      await expect(table.getByRole("row")).toHaveCount(4);
-      // Still a table to a screen reader: the heading row left the screen,
-      // not the accessibility tree.
-      await expect(table.getByRole("columnheader")).toHaveText(["Stop", "Time", "Cost", "Place", "Notes", "Cost"]);
-
-      const measured = await tableOnAPhone(table);
-      expect(measured.overflow, `${mode}: the table scrolls sideways`).toBeLessThanOrEqual(0);
-      // Three stops × Time, Cost, Place and Cost, and the one note.
-      expect(measured.cells, `${mode}: cells holding a value`).toHaveLength(13);
-      for (const cell of measured.cells) {
-        expect(cell.label, `${mode}: a value in the ${cell.column} column`).toBe(cell.column);
-        expect(cell.labelShown, `${mode}: ${cell.column} is named on screen`).toBe(true);
-        expect(cell.insideCell, `${mode}: ${cell.column} stays inside its cell and the card`).toBe(true);
-        expect(cell.besideValue, `${mode}: ${cell.column} sits on its value's line, ahead of it`).toBe(true);
-      }
-      expect(measured.brokenWords, `${mode}: words broken across lines`).toEqual([]);
-    }
+    // Editing is where Mitchell saw it: the same table inside the editor's
+    // node view, which is a different subtree with its own wrapper.
+    await page.getByRole("button", { name: "Edit page" }).click();
+    await expect(page.getByRole("button", { name: "Done editing" })).toBeVisible();
+    await expectEveryValueNamed(page, "Editing");
   });
 });
+
+/** The first day `commandsFor` creates, which is where the page's table points. */
+function firstDayId(commands: ReturnType<typeof commandsFor>): string | undefined {
+  return commands.flatMap((c) => (c.type === "SetTripDates" ? c.newDayIds : []))[0];
+}
+
+/** The claims of the walk above, for the page's one table in either mode. */
+async function expectEveryValueNamed(page: import("@playwright/test").Page, mode: "Reading" | "Editing") {
+  const table = page.getByRole("table");
+  await expect(table.getByRole("row")).toHaveCount(4);
+  // Still a table to a screen reader: the heading row left the screen, not
+  // the accessibility tree.
+  await expect(table.getByRole("columnheader")).toHaveText(["Stop", "Time", "Cost", "Place", "Notes", "Cost"]);
+
+  const measured = await tableOnAPhone(table);
+  expect(measured.overflow, `${mode}: the table scrolls sideways`).toBeLessThanOrEqual(0);
+  // Three stops × Time, Cost, Place and Cost, and the one note.
+  expect(measured.cells, `${mode}: cells holding a value`).toHaveLength(13);
+  for (const cell of measured.cells) {
+    expect(cell.label, `${mode}: a value in the ${cell.column} column`).toBe(cell.column);
+    expect(cell.labelShown, `${mode}: ${cell.column} is named on screen`).toBe(true);
+    expect(cell.insideCell, `${mode}: ${cell.column} stays inside its cell and the card`).toBe(true);
+    expect(cell.besideValue, `${mode}: ${cell.column} sits on its value's line, ahead of it`).toBe(true);
+  }
+  expect(measured.brokenWords, `${mode}: words broken across lines`).toEqual([]);
+}
