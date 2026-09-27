@@ -20,8 +20,10 @@ import type { SendFailure } from "@/components/trip/context/optimistic";
 // explains why that matters); only the mark is a client island, the same
 // shape as the account menu it sits beside.
 //
-// Nothing else is allowed to publish: a second writer would race the trip's
-// own state and there is only one light to show it on.
+// Nothing else is allowed to publish where a trip already does: a second
+// writer would race the trip's own state and there is only one light to show
+// it on. The one other writer is `PageScreen`, on the notebook route, which
+// mounts no `TripProvider` — one writer per screen either way.
 
 export type SaveState = {
   unsent: number;

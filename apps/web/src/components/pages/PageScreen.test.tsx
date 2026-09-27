@@ -9,6 +9,7 @@ import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factori
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import { SaveLightMark, SaveLightProvider } from "@/components/SaveLight";
 import { everyWidget, everyWidgetPage, rawSyntaxLeaks } from "@/test-support/rawSyntax";
 import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 
@@ -227,6 +228,50 @@ describe("PageScreen", () => {
 
     await waitFor(() => expect(seen).toBe(2));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Second name");
+  });
+
+  // PR 258's preview walk: renaming "Bookings" onto a system notebook's name
+  // was refused with 409 `page-title-taken`, and the screen put the old title
+  // back and said nothing — no message, and the header light (the only save
+  // status this route has) still read "All changes saved".
+  it("says why a rename was refused, and the save light stops claiming it saved", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Bookings" });
+    const refusedMessage = "A notebook called “Money” already exists in this trip.";
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", () =>
+        HttpResponse.json({ error: refusedMessage, code: "page-title-taken" }, { status: 409 }),
+      ),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+
+    render(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+      </SaveLightProvider>,
+    );
+    const heading = await screen.findByRole("heading", { name: "Bookings", level: 1 });
+    expect(screen.getByRole("status", { name: "All changes saved" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+
+    heading.textContent = "Money";
+    await act(async () => {
+      heading.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toContain(refusedMessage);
+    expect(screen.queryByRole("status", { name: "All changes saved" })).toBeNull();
+    expect(screen.getByRole("status", { name: "Couldn't save — 1 change not sent" })).toBeTruthy();
+    // Reverted with the error, as a save refused as stale is: the heading is
+    // the name the server still has.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Bookings");
+
+    // Dismissing the message hands the light back.
+    await userEvent.click(within(screen.getByTestId("page-rename-failure")).getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status", { name: "All changes saved" })).toBeTruthy();
   });
 
   it("resolves a day macro's own params against the loaded TripDetail", async () => {
