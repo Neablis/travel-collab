@@ -77,6 +77,19 @@ test("the owner resets an edited Overview to its default, and adds back a missin
   await expect(page.getByRole("button", { name: "Add missing default notebooks" })).toHaveCount(0);
   await page.reload();
   await expect(mine.getByRole("link", { name: /^Money/ })).toBeVisible();
+
+  // -- and the Overview's card for it leads to the Money that is back --
+  // It comes back under the id it had, so the card the Overview already
+  // carries resolves; under a fresh id it said "this notebook was deleted".
+  const moneyHref = await mine.getByRole("link", { name: /^Money/ }).getAttribute("href");
+  const moneyId = /\/pages\/([^/?#]+)/.exec(moneyHref ?? "")?.[1];
+  expect(moneyId).toBeTruthy();
+  await mine.getByRole("link", { name: /^Overview/ }).click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  const card = page.getByRole("link", { name: /Money/ });
+  await expect(card).toBeVisible();
+  await expect(card).toHaveAttribute("href", new RegExp(`/pages/${moneyId}(?:[?#]|$)`));
+  await expect(page.getByText("this notebook was deleted")).toHaveCount(0);
 });
 
 test("the reset can be undone straight afterwards", async ({ page }) => {

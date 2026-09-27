@@ -65,8 +65,11 @@ describe("addMissingDefaultPages", () => {
     expect(after.map((p) => p.title).sort()).toEqual(DEFAULT_TEMPLATES.map((t) => t.title).sort());
     // The survivors are the same rows, same ids, not re-seeded.
     for (const page of before) expect(after.find((p) => p.id === page.id)).toEqual(page);
+    // Back under the id it had, so every link to it still resolves — the
+    // Overview's card above all, which a fresh id left saying "this notebook
+    // was deleted" (walk on the reset PR, 2026-09-27).
     const back = after.find((p) => p.title === A_SEED)!;
-    expect(back.id).not.toBe(gone.id);
+    expect(back.id).toBe(gone.id);
     expect(back.actorId).toBe(SYSTEM_ACTOR_ID);
 
     // Again: nothing missing, nothing written — not even an event.

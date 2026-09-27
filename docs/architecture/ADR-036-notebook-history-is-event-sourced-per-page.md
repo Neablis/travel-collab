@@ -111,7 +111,14 @@ add the seeds a trip is missing, owner only. Both are built on the model above:
   in one batch. The seed identity is the one `pages_system_seed_unique` already uses: a
   `system` page with a template's title, or the page marked `kind: "overview"`. A seed the
   reader renamed is not recognised: it offers no reset, and "add missing" seeds the
-  template again beside it.
+  template again beside it (KI-2026-09-27-e).
+- **A seed the trip once had comes back under the id it had.** The newest deleted page whose
+  first `PageCreated` was that template's seed lends its id, so every link to it anywhere
+  resolves again; a fresh id left an existing Overview's card saying "this notebook was
+  deleted". A `PageCreated` for a deleted id is an ordinary create: the delete removed the id
+  from the fold, and the projection deleted the row. The alternative, re-pointing every
+  notebook's links to a new id, would have been an edit to notebooks the owner never asked to
+  change. A seed with no genesis in the log (a row the backfill skipped) still gets a new id.
 - **The rebuild now clears the rows the log knows before replaying them**, then puts back
   their `createdAt` (and `updatedAt`, unless the log edited them). A seed deleted and then
   seeded again leaves two `system` pages with one title in the log. Replaying onto the

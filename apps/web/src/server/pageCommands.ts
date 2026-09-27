@@ -3,6 +3,7 @@ import {
   PageCommand,
   PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
+  PageEvent as PageEventSchema,
   SYSTEM_ACTOR_ID,
   serializePageDoc,
   type EventEnvelope,
@@ -404,6 +405,26 @@ async function seedCandidates(tx: PageStep["tx"], tripId: string): Promise<SeedC
     .orderBy(asc(pages.createdAt), asc(pages.id));
 }
 
+/**
+ * Every page this stream has created, as its FIRST `PageCreated` said it was,
+ * oldest first — what `instantiateMissingDefaults` reads a deleted seed's id
+ * off, so a re-added seed comes back under it. A seed that was deleted always
+ * has one: the delete went through `commitPageStep`, which backfills the
+ * genesis first. (Not a row the backfill skipped as unreadable, which has no
+ * genesis; that seed comes back under a fresh id.)
+ */
+function genesisOf(history: readonly EventEnvelope[]): SeedCandidate[] {
+  const seen = new Map<string, SeedCandidate>();
+  for (const envelope of history) {
+    if (envelope.type !== "PageCreated") continue;
+    const event = PageEventSchema.parse({ type: envelope.type, version: envelope.version, payload: envelope.payload });
+    if (event.type !== "PageCreated") continue;
+    const { pageId, title, context, actorId } = event.payload;
+    if (!seen.has(pageId)) seen.set(pageId, { id: pageId, title, context, actorId });
+  }
+  return [...seen.values()];
+}
+
 // Postgres's unique_violation. The one way two writers can both believe a seed
 // is missing: `listPages`' lazy seeding writes straight to the table, outside
 // the stream, so `expectedSeq` cannot serialise it against this. The
@@ -423,7 +444,7 @@ function isUniqueViolation(error: unknown): boolean {
  */
 export async function addMissingDefaultPages(tripId: string, actorId: string): Promise<PageCommandResult> {
   try {
-    return await commitPageStep(tripId, actorId, "owner", async ({ tx, pages: state }) => {
+    return await commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
       const candidates = await seedCandidates(tx, tripId);
       // Minted up front and SORTED, so the new notebooks come back from the
       // list in a new trip's order. They share one `createdAt` (the batch's
@@ -432,7 +453,7 @@ export async function addMissingDefaultPages(tripId: string, actorId: string): P
         .map(() => randomUUID())
         .sort();
       let next = 0;
-      const seeds = instantiateMissingDefaults(tripId, candidates, () => fresh[next++]!);
+      const seeds = instantiateMissingDefaults(tripId, candidates, () => fresh[next++]!, genesisOf(history));
 
       let folded = state;
       const events: PageEvent[] = [];

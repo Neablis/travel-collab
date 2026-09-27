@@ -67,8 +67,17 @@ export function missingDefaultTemplates(pages: readonly SeedCandidate[]): Templa
  * template, built exactly as `instantiateDefaults` builds a new trip's, and
  * empty when nothing is missing.
  *
- * A missing Overview links to the siblings the trip ALREADY has, by their
- * existing ids, and to the new ones by the ids minted here (ADR-056).
+ * **A seed the trip once had comes back under the id it had.** `former` is
+ * every notebook the trip has had and no longer does, as each was created,
+ * oldest first; the latest one of a missing template lends its id. So every
+ * link to it, anywhere, resolves again: an existing Overview's card for a
+ * re-added Money named the deleted id and said "this notebook was deleted",
+ * and re-pointing it would have been an edit to a notebook the owner never
+ * asked to change. The page aggregate allows it: a delete removes the id from
+ * the fold, so creating it again is an ordinary create.
+ *
+ * A template the trip never had gets an id minted here, and a missing Overview
+ * links to the siblings the trip ALREADY has, by their existing ids (ADR-056).
  * `mintId` is the caller's, as it is for `instantiateDefaults`: this package
  * has no randomness (Invariant 4).
  */
@@ -76,10 +85,17 @@ export function instantiateMissingDefaults(
   tripId: string,
   pages: readonly SeedCandidate[],
   mintId: () => string,
+  former: readonly SeedCandidate[] = [],
 ): SeededPage[] {
   const missing = missingDefaultTemplates(pages);
   const ids = { ...seededIds(pages) };
-  for (const t of missing) ids[t.key] = mintId();
+  const live = new Set(pages.map((p) => p.id));
+  const previous: Record<string, string> = {};
+  for (const page of former) {
+    const template = seedTemplateOf(page);
+    if (template !== undefined && !live.has(page.id)) previous[template.key] = page.id;
+  }
+  for (const t of missing) ids[t.key] = previous[t.key] ?? mintId();
   return missing.map((t) => ({
     id: ids[t.key]!,
     title: t.title,
