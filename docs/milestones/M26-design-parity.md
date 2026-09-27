@@ -2035,8 +2035,8 @@ the same PR, not a regression in the code.
     `docs/specs/2026-09-27-link-previews-and-real-hero-design.md` §3. The
     handoff's art survives only as the placeholder while the panels' code
     loads (`LandingHeroArt.tsx`). The map panel, pills, copy and CTAs are
-    unchanged. **Send it back to design** so the hero artboards match; nothing
-    in `.design-sync/**` was edited here.
+    unchanged. **Sent back to design as `DRIFT.md` D20** (Mitchell approved
+    the entry), so the hero artboards can be redrawn to match.
 
 **And two places the design disagrees with itself**, which only the design side
 can settle: the empty-home hero (a dashed "No trips yet" card) versus §32.1's
