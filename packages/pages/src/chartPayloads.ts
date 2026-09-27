@@ -88,7 +88,10 @@ export interface SpendBreakdownSlice<K extends string = ActivityKind | SpendSeri
   amountMinor: number;
   /** `amountMinor` as a reader says it; `null` when it is 0. */
   amount: string | null;
-  /** "60%" of the charted total, "<1%" for a sliver; `null` when `amount` is. */
+  /**
+   * "60%" of the charted total, "<1%" for a sliver; `null` when `amount` is.
+   * Apportioned across the slices (`shares.ts`), so the percents add up to 100.
+   */
   share: string | null;
 }
 

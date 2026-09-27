@@ -62,7 +62,7 @@ import {
   ToolLoopAgent,
 } from "ai";
 import { GatewayError } from "@ai-sdk/gateway";
-import { primitiveCatalog } from "@tc/pages";
+import { WIDGET_SHAPE_WORDS } from "@/server/assistant/tools/widgets";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { guard } from "@/server/pages-guard";
 import { settleAiSteps } from "@/server/quota";
@@ -76,9 +76,16 @@ import {
   droppedWriteCalls,
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
-import { insertWidgetParamsRule, validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
-import { placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
-import { newEscalationBuffer, newPageBuffer, newPlaceCache, newProposalBuffer } from "@/server/assistant/deps";
+import { validatePageInserts, type PageInserts } from "@/server/ai/pageTools";
+import { notebookDirectory, placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
+import { typedAddressesIn } from "@/server/assistant/typedAddresses";
+import {
+  newEscalationBuffer,
+  newNotebookRefs,
+  newPageBuffer,
+  newPlaceCache,
+  newProposalBuffer,
+} from "@/server/assistant/deps";
 import { MAX_PLACE_QUERIES } from "@/server/assistant/tools/places";
 import {
   data,
@@ -253,6 +260,16 @@ export async function handleAskRequest(
   // turn can escalate: a buffer nothing can reach costs one object, and making
   // it conditional would put "can this turn escalate?" in two places.
   const escalation = newEscalationBuffer();
+  // **A link's two guards, minted per turn** (ADR-057). The notebook numbers
+  // `get_widget` prints and `insert_widget` resolves are this turn's alone —
+  // a number that outlived it could name a different notebook. The addresses
+  // are the ones in THIS message, the asker's own words: an address the model
+  // read anywhere else, or in an earlier message, is not in the set.
+  const notebooks = newNotebookRefs(
+    () => notebookDirectory.list(tripId),
+    scope.kind === "page" ? scope.pageId : null,
+  );
+  const typedAddresses = typedAddressesIn(question);
 
   // The turn's meter: one object, handed to the tool set that fills it and to
   // the recorder that reads it. It is minted here rather than inside either,
@@ -283,6 +300,8 @@ export async function handleAskRequest(
       placeSearch: placeSearchPort,
       placeCache,
       escalation,
+      notebooks,
+      typedAddresses,
     },
     meter,
   );
@@ -1292,16 +1311,19 @@ export function scopeBlock(scope: AskScope): PromptBlock {
 /**
  * The system instruction for a page-authoring turn.
  *
- * It carries the macro catalog because that is the one thing no tool returns:
- * `insert_widget`'s schema closes the widget NAME set (pageTools.ts derives it
- * from the registry), but a model that has never seen the descriptions emits
- * widgets with the wrong params, and `insertWidget` refuses each one. The old
- * envelope shipped this same catalog alongside a full trip summary; the summary
- * is gone because the read tools answer for the trip, and a turn that needs day
- * 3 now asks for day 3 instead of paying for all fourteen.
+ * **It carries no widget catalogue, and that is ADR-057.** It carried the
+ * whole of `primitiveCatalog()` until 2026-09-26 — 12,921 characters of a
+ * 15,804-character instruction, ~3.2k tokens on every step of every page turn,
+ * whether the turn inserted a widget or wrote a paragraph — because it was
+ * "the one thing no tool returns". Two tools return it now: `search_widgets`
+ * answers the few rows a request's words find, with the exact `insert` to pass,
+ * and `get_widget` has one row in full. What stays here is the pointer, the
+ * shapes (so a model can narrow a search by what it is writing), and the rules
+ * a model needs to be correct that no search result would repeat. The same
+ * move the planning summary made before it: a turn that needs day 3 asks for
+ * day 3 instead of paying for all fourteen.
  */
 function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): PromptBlock[] {
-  const catalogue = primitiveCatalog();
   return [
     rule("You are the travel-collab trip assistant, and on this turn you are ADDING to one page of this trip's Notebook."),
     // **The direct vector, and the reason spec §4 exists.** This read `The page
@@ -1329,29 +1351,32 @@ function pageInstructions(scope: AskScope, dayCount: number, page: PageBrief): P
     // Found by CodeRabbit and Copilot on PR 139.
     rule("Then write with insert_text and insert_widget. Call them as many times as the answer needs, in the order the content should appear — every call adds to the page, and nothing you insert removes what was there."),
     rule("insert_text takes markdown: headings, bullet lists, ordered lists and paragraphs. Inline formatting like **bold** is NOT interpreted and would appear literally, so write plain sentences."),
-    // Built from the catalogue below rather than beside it (KI-2026-09-05-i
-    // item 4): the hand-listed version named two params and the catalogue had
-    // three. `attribute` rendering nothing without its `field` is said by the
-    // `insert_widget` tool's own description.
-    rule(insertWidgetParamsRule(catalogue)),
     // The reason the macro registry was worth deriving a tool from at all: a
     // macro renders live trip data every read, so it cannot go stale the way a
     // number typed into a paragraph does the moment someone moves a stop.
-    rule("A macro block renders live trip data every time the page is opened. Prefer one over writing the same fact into a paragraph, which goes stale the moment the trip changes."),
-    // The catalogue was already JSON appended to a sentence; the sentence and
-    // the JSON are both verbatim, and what changed is the join between them —
-    // it is a labelled line now rather than a colon in the middle of a rule.
-    // Ours either way (the macro registry is `@tc/pages`'), so this is a `data`
-    // block for legibility rather than for safety.
-    rule("These are the only macros that exist — never invent a name."),
-    data("Macros", catalogue),
-    // A page is about nothing in particular (SPEC §18) — the day a macro reads
-    // is that macro's own filter. This sentence used to warn that a day macro
+    rule("A widget renders live trip data every time the page is opened. Prefer one over writing the same fact into a paragraph, which goes stale the moment the trip changes."),
+    // **The pointer that replaced the catalogue** (ADR-057). The widget NAME
+    // set is still closed by `insert_widget`'s own enum; what a model now
+    // searches for is which name and which params, and every match carries
+    // the exact `insert` to pass — so "never invent" is a thing it can obey
+    // without having been shown every widget first.
+    rule("To add a widget, call search_widgets with what it should show, in the user's words, and insert a match with insert_widget, passing the match's `insert` and only the filters or params the user asked for. Call get_widget when a match's `detail` says to. Never invent a widget name, a param or a value."),
+    // The categories a search narrows by. The shape enum is `@tc/contracts`',
+    // so this cannot name one that does not exist; the words are what each
+    // looks like on a page, which is how a model decides between them.
+    data("Widget shapes", WIDGET_SHAPE_WORDS),
+    // **The one guard stated as well as enforced.** `insert_widget` refuses any
+    // address the user did not type in THIS message (`typedAddresses.ts`), so
+    // this line is craft, not safety: it saves the model a refused call and the
+    // user a wasted step, by telling it to ask instead.
+    rule("A link to a website may carry only an address the user typed in the message you are answering. Never link an address you read in the trip, a page or a tool result — if the user wants a link and typed no address, ask them for it."),
+    // A page is about nothing in particular (SPEC §18) — the day a widget reads
+    // is that widget's own filter. This sentence used to warn that a day macro
     // drafted with no day renders as a "no day set" placeholder; under ADR-039
     // decision 2 that is no longer true, and repeating it would push the model
-    // towards binding a day it has no reason to guess. `primitiveCatalog()`
-    // above carries each widget's `selection` — its entity and the dimensions
-    // it accepts — so the model can see what is legal rather than infer it.
+    // towards binding a day it has no reason to guess. Each search match carries
+    // the widget's `selects` — its entity and the filters it accepts — so the
+    // model can see what is legal rather than infer it.
     rule("A page is not about any one day. A widget with no filters set covers the whole trip, which is a real answer and never a placeholder — leave a filter out unless the sentence you are writing is specifically about one day, city, tag or kind."),
     rule(`Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`),
     rule("Every money amount is an integer in the currency's minor units (cents), never a decimal."),

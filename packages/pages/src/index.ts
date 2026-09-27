@@ -35,3 +35,4 @@ export { readerClock, toClockLabel, toClockRange } from "./clockLabel";
 // The one ordinal suffix table: the chart's axis here, and the Calendar cell's
 // "14th" in `apps/web` (`ordinalDayOfMonth`), which delegates to it.
 export { ordinal, formatShortDate } from "./format";
+export * from "./widgetSearch";

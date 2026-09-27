@@ -285,3 +285,60 @@ test("a playbook day the assistant found reaches the board once it is approved",
 
   await finderContext.close();
 });
+
+// ADR-057: the page turn's prompt no longer carries the widget catalogue, so
+// the assistant has to FIND a widget before it can insert one. Mitchell's
+// condition for that trade (2026-09-26): *"make sure the AI assistant can still
+// create and make changes in a notebook"*. This is the walk that proves it on
+// the path every deployment actually runs — the simulated model searches with
+// the person's own sentence, inserts the top match, and the chart lands in the
+// notebook, survives the save and reads back after a reload.
+test("asked to add a spend by tag chart to Money, the assistant finds it and puts it in the notebook", async ({ page }) => {
+  const tripName = e2eTripName("AI Notebook Widget");
+  await page.goto("/");
+  // A priced stop, so each "Spend by tag" pie draws its table rather than its
+  // empty line — the table's name is what is counted below.
+  const tripId = await createMappedTrip(page, tripName, 2, { costs: [{ amountMinor: 2500, currency: "USD" }] });
+  // The four seeded notebooks are made on the trip's first list (ADR-056).
+  const listed = (await page.request.get(`/api/trips/${tripId}/pages`).then((r) => r.json())) as {
+    pages: { id: string; title: string }[];
+  };
+  const money = listed.pages.find((notebook) => notebook.title === "Money")!;
+  await page.goto(`/trips/${tripId}/pages/${money.id}`);
+  await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
+
+  // Money is seeded with one already (#246), so the claim is one MORE.
+  const tagPies = page.getByRole("table", { name: "Spend by tag" });
+  await expect(tagPies).toHaveCount(1);
+
+  // An insert lands only while the page is being edited (PageScreen's
+  // `page-inserts` guard), at the caret — put it on a line of its own at the end.
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await page.locator(".tc-page-editor p").last().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+
+  await openAssistantRail(page);
+  await page.getByPlaceholder("Ask AI to add to this page…").fill("add a spend by tag chart to Money");
+  const [response] = await Promise.all([
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
+    page.keyboard.press("Enter"),
+  ]);
+  expect(response.status()).toBe(200);
+
+  // Emitted only by simulatedModel.ts's widget branch, after `insert_widget`
+  // answered ok — and it names the match `search_widgets` ranked first.
+  await expect(page.getByRole("log", { name: "Conversation" })).toContainText("I've added Spend by tag");
+  await expect(tagPies).toHaveCount(2);
+
+  // The edit session writes once, when it ends (ADR-036).
+  await Promise.all([
+    page.waitForResponse(
+      (r) => /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH" && r.ok(),
+    ),
+    page.getByRole("button", { name: "Done editing" }).click(),
+  ]);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
+  await expect(tagPies).toHaveCount(2);
+});

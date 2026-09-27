@@ -15,7 +15,10 @@ import { LinkTarget, type LinkCardPayload, type LinkView } from "../../linkTarge
 // a smart search bar that knows what is available and autocompletes, and has
 // simple previews"*, and an external one that is *"just a href shorthand"*.
 //
-// Neither is offered to the assistant (`composable: false`): see `MacroDef`.
+// Both are offered to the assistant since ADR-057, each behind a guard in the
+// assistant's `insert_widget` rather than here: an internal link is named by a
+// number from this turn's list of notebooks and never by an id, and an external
+// one only for an address the user typed in the message being answered.
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -80,7 +83,6 @@ export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload> = {
   params: InternalLinkParams,
   inputs: [{ name: "to", type: "target", label: "Links to" }],
   needs: ["notebooks"],
-  composable: false,
   description:
     "A card linking to another notebook in this trip, a day, or the trip's Plan, Calendar or Map, with its name and a line about it. Follows renames; says so if the notebook is deleted.",
   emptyText: "this notebook was deleted",
@@ -189,7 +191,6 @@ export const externalLink: MacroDef<ExternalLinkParams, { href: string; text: st
     { name: "href", type: "url", label: "Web address" },
     { name: "label", type: "text", label: "Link text", placeholder: "The site's name" },
   ],
-  composable: false,
   description: "A link to a website, inline in a sentence. Opens in a new tab. Only http and https addresses.",
   emptyText: "add a web address",
   preview: "a link to a website, in your own words",
