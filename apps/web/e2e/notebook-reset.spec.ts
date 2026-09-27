@@ -117,3 +117,50 @@ test("the reset can be undone straight afterwards", async ({ page }) => {
   await expect(page.getByText("Words worth keeping.")).toBeVisible();
   await expect(page.getByText(LETTER)).toHaveCount(0);
 });
+
+// A seed renamed away from its template's title is not recognised, so "Add
+// missing" seeds a second one; renaming the first back onto that title is then
+// refused as `page-title-taken` (409). The screen used to put the old title
+// back and say nothing, with the header light still reading "All changes
+// saved" (PR 258's preview walk).
+test("a rename onto a default notebook's title is refused, and the screen says so", async ({ page }) => {
+  const tripName = e2eTripName("Aveiro");
+  await page.goto("/");
+  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("link", { name: tripName }).click();
+  await openNotebookIndex(page);
+  const mine = page.getByRole("region", { name: "Your notebooks" });
+
+  // Enter commits a title (PageTitle); its PATCH is awaited, refused or not.
+  const rename = async (to: string) => {
+    await page.getByRole("heading", { level: 1 }).click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.type(to);
+    await Promise.all([
+      page.waitForResponse(
+        (r) => /\/api\/trips\/[^/]+\/pages\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "PATCH",
+      ),
+      page.keyboard.press("Enter"),
+    ]);
+  };
+
+  await mine.getByRole("link", { name: /^Money/ }).click();
+  await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await rename("Budget");
+  await expect(page.getByRole("heading", { name: "Budget", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("page-rename-failure")).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Notebook", exact: true }).click();
+  await page.getByRole("button", { name: "Add missing default notebooks" }).click();
+  await expect(mine.getByRole("link", { name: /^Money/ })).toBeVisible();
+
+  await mine.getByRole("link", { name: /^Budget/ }).click();
+  await expect(page.getByRole("heading", { name: "Budget", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Edit page" }).click();
+  await rename("Money");
+
+  await expect(page.getByTestId("page-rename-failure")).toContainText("A notebook called “Money” already exists in this trip.");
+  await expect(page.getByRole("heading", { name: "Budget", level: 1 })).toBeVisible();
+  await expect(page.getByRole("status", { name: "All changes saved" })).toHaveCount(0);
+});

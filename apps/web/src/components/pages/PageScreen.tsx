@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
@@ -41,6 +41,7 @@ import { useAskThread } from "@/components/assistant/useAskThread";
 import { useEditSession } from "./useEditSession";
 import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } from "./pageDraft";
 import type { ApiError } from "@/lib/apiClient";
+import { usePublishSaveState } from "@/components/SaveLight";
 import type { DroppedInsert, PageNode } from "@tc/contracts";
 import type { AskEventHandler } from "@/components/assistant/useAskThread";
 import { getMacro } from "@tc/pages";
@@ -675,6 +676,8 @@ export function PageScreen({
   editingRef.current = editing;
   // Which rename is the current one. See `handleRename`.
   const renameSeq = useRef(0);
+  // The last rename the server refused, and what it said. See `handleRename`.
+  const [renameRefusal, setRenameRefusal] = useState<{ title: string; message: string; at: string } | null>(null);
 
   // **The notebook's AI surface is the assistant rail, not a prompt box.**
   // Mitchell, walking the preview (2026-09-04): *"This should be the same style
@@ -858,16 +861,26 @@ export function PageScreen({
     // CodeRabbit found the failure half on #149; the success half is the same
     // race and is fixed by the same guard.
     const seq = ++renameSeq.current;
+    setRenameRefusal(null);
     setPage((prev) => (prev === null ? prev : { ...prev, title }));
     void updatePage(tripId, pageId, { title }).then((result) => {
       if (seq !== renameSeq.current) return;
       if (!result.ok) {
         // Put the old name back rather than leaving the screen showing a name
-        // the server never took. `setError`/`setStatus("error")` — the pair
-        // this screen uses elsewhere — replaces the whole document with an
-        // alert, which is the right weight for "the notebook would not load"
-        // and much too heavy for "the rename did not stick".
+        // the server never took — what a save refused as stale does too: the
+        // page shows what is saved, and a banner says why. `setError`/
+        // `setStatus("error")` replaces the whole document with an alert, the
+        // right weight for "the notebook would not load" and much too heavy for
+        // "the rename did not stick".
+        //
+        // And SAY so, in the server's words. This used to revert and nothing
+        // else: renaming onto another notebook's name (`page-title-taken`,
+        // 409) put the old title back with no message, while the header light
+        // went on reading "All changes saved" (PR 258's preview walk). The
+        // refusal is held until the next rename or a Dismiss, and published
+        // to the light for as long as it is held.
         setPage((prev) => (prev === null || previousTitle === null ? prev : { ...prev, title: previousTitle }));
+        setRenameRefusal({ title, message: result.error.message, at: new Date().toISOString() });
         return;
       }
       baseRef.current = result.value.updatedAt;
@@ -875,6 +888,17 @@ export function PageScreen({
       setPage((prev) => (prev === null ? prev : { ...prev, title: result.value.title, updatedAt: result.value.updatedAt }));
     });
   };
+
+  // The light's Retry sends the refused name again. Through a ref, so the
+  // callback the light holds stays one identity across renders.
+  const handleRenameRef = useRef(handleRename);
+  handleRenameRef.current = handleRename;
+  const renameRefusalRef = useRef(renameRefusal);
+  renameRefusalRef.current = renameRefusal;
+  const retryRename = useCallback(() => {
+    const refused = renameRefusalRef.current;
+    if (refused !== null) handleRenameRef.current(refused.title);
+  }, []);
 
   const toggleEditing = () => setEditing((was) => !was);
 
@@ -1180,6 +1204,26 @@ export function PageScreen({
           document and tries again on its own; Retry is the same send now.
           Shaped like the library's sync-failure banner (`ReadStates.tsx`):
           `warning`, since what is on screen is still the reader's work. */}
+      {/* A rename the server refused. The title is back to the saved one;
+          this says why, in the server's words (e.g. `page-title-taken`). An
+          alert, not the Banner's default status: it answers something the
+          reader just did, and it is the only trace the rename leaves. */}
+      {renameRefusal !== null ? (
+        <Banner
+          variant="warning"
+          role="alert"
+          className="mb-3"
+          data-testid="page-rename-failure"
+          actions={
+            <Button variant="ghost" size="sm" onClick={() => setRenameRefusal(null)}>
+              Dismiss
+            </Button>
+          }
+        >
+          Couldn&apos;t rename this notebook. {renameRefusal.message}
+        </Banner>
+      ) : null}
+      <PublishRenameRefusal refusal={renameRefusal} retry={retryRename} />
       {session.failed ? (
         <Banner
           variant="warning"
@@ -1484,4 +1528,22 @@ export function PageScreen({
       ) : null}
     </PageContainer>
   );
+}
+
+// **The header light, on this route.** The notebook page mounts no
+// `TripProvider`, so nothing else publishes here and the light rested at
+// "All changes saved" whatever became of a write. A refused rename is a change
+// the server did not take, so for as long as the screen holds one the light
+// says so, and its Retry sends the name again. A leaf, as `TripProvider`'s own
+// publisher is, so a change of light re-renders this and not the screen.
+function PublishRenameRefusal({
+  refusal,
+  retry,
+}: {
+  refusal: { message: string; at: string } | null;
+  retry: () => void;
+}) {
+  const failure = useMemo(() => (refusal === null ? null : { at: refusal.at, message: refusal.message }), [refusal]);
+  usePublishSaveState({ unsent: refusal === null ? 0 : 1, failure, retry });
+  return null;
 }
