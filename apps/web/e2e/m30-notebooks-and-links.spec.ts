@@ -136,7 +136,11 @@ test.describe("the Japan demo's Overview", () => {
     // is a real link, so Tab reaches it and Enter follows it.
     await page.getByRole("link", { name: "Overview", exact: true }).click();
     await expect(page.getByText(/^Here is your itinerary, day by day/)).toBeVisible();
-    await page.getByTestId("link-card").filter({ hasText: "Bookings" }).focus();
+    // From a known focus on the card before it, so Tab — not `focus()` — is
+    // what reaches Bookings (a <span> card would be skipped).
+    await page.getByTestId("link-card").filter({ hasText: "Before you go" }).focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByTestId("link-card").filter({ hasText: "Bookings" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/demo\?view=Overview&page=[0-9a-f-]+$/);
     await expect(page.getByRole("heading", { name: "Still to book" })).toBeVisible();
