@@ -190,7 +190,21 @@ export function DayGrid({
             // `h-auto` over the size's fixed `h-9`: a caller's title may wrap
             // (a city name has no length bound), and a grid item stretches, so
             // a two-line cell makes its row taller rather than spilling.
-            className="h-auto min-h-11 flex-col gap-0 px-1 py-1 text-xs font-normal md:min-h-9"
+            //
+            // **The same 1px border on and off, so picking never reflows.**
+            // Mitchell, PR #269 preview: *"The border in the date picker causes
+            // the squares to grow and the full modal to grow and shrink as you
+            // select dates"*. `secondary` draws `border`, `primary` draws none,
+            // and with `h-auto` a cell is exactly its content plus its border —
+            // so a selected cell was 2px shorter, a row of them shrank, and the
+            // dialog around the grid moved with every click or drag. A selected
+            // cell keeps the border as `border-transparent`: the brand fill
+            // shows through it (a background paints under its own border), so
+            // it looks the same and measures the same.
+            className={cn(
+              "h-auto min-h-11 flex-col gap-0 border px-1 py-1 text-xs font-normal md:min-h-9",
+              on && "border-transparent",
+            )}
             onClick={() => onPick(index)}
           >
             {/* **The quiet line is `slate` only when the cell is OFF.**
