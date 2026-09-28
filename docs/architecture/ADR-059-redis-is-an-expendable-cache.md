@@ -38,11 +38,17 @@ a boundary, rather than reversed.
    (`KV_REST_API_URL`, `KV_REST_API_TOKEN`), both optional in `server/config.ts`.
    **Which store backs it is `CACHE_DRIVER`** (added 2026-09-27, Mitchell): `upstash`, `memory`
    or `off`.
-   - **Blank means auto:** `upstash` when both credentials are set, `memory` otherwise.
-   - An explicit valid value wins, except `upstash` without both credentials, which falls back
-     to `memory`.
+   - **Blank means auto:** `upstash` when both credentials are set. Otherwise it is `memory`
+     locally, and `off` on Vercel (`VERCEL_ENV` set).
+   - An explicit valid value wins, with two exceptions. `upstash` without both credentials
+     falls back as auto would. **`memory` on Vercel is downgraded to `off`.**
    - An unknown value resolves as blank.
-   - Both fallbacks warn once. `resolveCacheDriver` is the table, and it is tested row by row.
+   - Every fallback warns once. `resolveCacheDriver` is the table, and it is tested row by row.
+   - **`memory` is for a single process, and so never on Vercel** (CodeRabbit, PR #259). A
+     deployment runs many instances, each with its own Map. If instance A caches a pending
+     invite's card and instance B handles the revoke, B deletes from its own Map and A goes on
+     naming the sender until the TTL expires. A revoke has to reach every copy, and only a
+     shared store does that.
    - **`memory`** (`server/cache/memory.ts`) is a capped `Map`: 1000 keys, oldest write evicted
      first, per-key TTL with lazy expiry. It sits behind the same fail-open wrapper. It stores
      and decodes values the way `@upstash/redis` does, so a bare `"123"` comes back as the
@@ -53,7 +59,9 @@ a boundary, rather than reversed.
      has to be a singleton, since the memory driver *is* its Map.
    - **Previews stay on `upstash` by default.** They are the only pre-production run of the real
      client. If Upstash usage from previews ever shows up in the budget, set
-     `CACHE_DRIVER=memory` for the **Preview** environment in Vercel. That needs no code change.
+     `CACHE_DRIVER=off` for the **Preview** environment in Vercel. That needs no code change.
+     Not `memory`: it would be downgraded to `off` anyway, for the multi-instance reason
+     above.
    - *Not adopted: serverless-redis-http (SRH).* It runs a local Redis behind an Upstash-shaped
      REST endpoint, and it is the higher-fidelity local option: the real client, real Redis
      semantics. It costs a container on every laptop and in CI, and the memory driver already
@@ -66,7 +74,10 @@ a boundary, rather than reversed.
 4. **Shared free tier: keys are prefixed by environment.** They take the form
    `${VERCEL_ENV ?? "dev"}:<use>:…`, and every key is built in one file,
    `server/cache/keys.ts`, which is therefore the whole key space. A preview cannot read,
-   overwrite or delete a production entry.
+   overwrite or delete a production entry. **A credential never appears in a key.** Invite
+   tokens and referral codes are hashed with SHA-256, so anyone who can list the database's
+   keys learns nothing usable, and the same input still yields the same key for lookup and
+   delete.
 5. **No negative caching.** A miss that found nothing (an unknown token, a revoked invite, an
    unknown referral code) writes nothing. Otherwise anyone could fill the free tier by asking
    for junk, and the rate limiter already bounds how often junk is asked for.
@@ -80,8 +91,8 @@ entry.
 
 | Key | Holds | TTL | Written when | Deleted when |
 |---|---|---|---|---|
-| `<env>:og:invite:<token>` | `InviteCard` (first names and counts only) | 3600 s | the lookup returns a **personal** card | the invite is revoked or accepted (`access/invites.ts`, after the commit, best-effort) |
-| `<env>:og:referral:<code>` | `{ firstName }` | 86400 s | the code names a referrer | never; it expires |
+| `<env>:og:invite:sha256(<token>)` | `InviteCard` (first names and counts only) | 3600 s | the lookup returns a **personal** card | the invite is revoked or accepted (`access/invites.ts`, after the commit, best-effort) |
+| `<env>:og:referral:sha256(<code>)` | `{ firstName }` | 86400 s | the code names a referrer | never; it expires |
 
 **Budget.** The CDN fronts every route, so Redis is touched only on an **edge miss**:
 

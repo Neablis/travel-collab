@@ -1,8 +1,10 @@
 import type { RedisClient } from "./redis";
 
-// The in-process driver (ADR-059, `CACHE_DRIVER=memory`): what a dev server
-// uses when no Upstash credentials are set, so a cache hit, an expiry and a
-// revoke's delete all happen locally instead of never happening at all.
+// The in-process driver (ADR-059, `CACHE_DRIVER=memory`): what a local dev
+// server uses when no Upstash credentials are set, so a cache hit, an expiry
+// and a revoke's delete all happen locally instead of never happening at all.
+// Never on Vercel: `resolveCacheDriver` refuses it there, because each instance
+// would hold its own copy and a revoke clears only one.
 //
 // **It stores what Upstash stores, and reads it back the way Upstash's client
 // does.** Upstash keeps a string as-is and anything else as its

@@ -15,19 +15,29 @@ afterEach(() => {
 });
 
 describe("resolveCacheDriver", () => {
+  // `local` is one `next dev` process; `vercel` is many instances, where a
+  // per-process Map cannot see another instance's revoke.
+  const local = { onVercel: false };
+  const vercel = { onVercel: true };
   const creds = { url: "https://example.upstash.io", token: "t" };
   const none = { url: "", token: "" };
 
   it.each([
-    ["auto, with credentials", "upstash", false, { requested: "", ...creds }],
-    ["auto, without credentials", "memory", false, { requested: "", ...none }],
-    ["auto, with only the URL", "memory", false, { requested: "", url: creds.url, token: "" }],
-    ["explicit memory, with credentials", "memory", false, { requested: "memory", ...creds }],
-    ["explicit off, with credentials", "off", false, { requested: "off", ...creds }],
-    ["explicit upstash, with credentials", "upstash", false, { requested: "upstash", ...creds }],
-    ["explicit upstash, missing credentials", "memory", true, { requested: "upstash", ...none }],
-    ["invalid, with credentials", "upstash", true, { requested: "redis", ...creds }],
-    ["invalid, without credentials", "memory", true, { requested: "Memory", ...none }],
+    ["local, auto, with credentials", "upstash", false, { requested: "", ...creds, ...local }],
+    ["local, auto, without credentials", "memory", false, { requested: "", ...none, ...local }],
+    ["local, auto, with only the URL", "memory", false, { requested: "", url: creds.url, token: "", ...local }],
+    ["local, explicit memory, with credentials", "memory", false, { requested: "memory", ...creds, ...local }],
+    ["local, explicit off, with credentials", "off", false, { requested: "off", ...creds, ...local }],
+    ["local, explicit upstash, with credentials", "upstash", false, { requested: "upstash", ...creds, ...local }],
+    ["local, explicit upstash, missing credentials", "memory", true, { requested: "upstash", ...none, ...local }],
+    ["local, invalid, with credentials", "upstash", true, { requested: "redis", ...creds, ...local }],
+    ["local, invalid, without credentials", "memory", true, { requested: "Memory", ...none, ...local }],
+    ["vercel, auto, with credentials", "upstash", false, { requested: "", ...creds, ...vercel }],
+    ["vercel, auto, without credentials", "off", false, { requested: "", ...none, ...vercel }],
+    ["vercel, explicit memory", "off", true, { requested: "memory", ...creds, ...vercel }],
+    ["vercel, explicit off", "off", false, { requested: "off", ...creds, ...vercel }],
+    ["vercel, explicit upstash, missing credentials", "off", true, { requested: "upstash", ...none, ...vercel }],
+    ["vercel, invalid, without credentials", "off", true, { requested: "redis", ...none, ...vercel }],
   ] as const)("%s → %s", (_case, driver, warns, input) => {
     const resolved = resolveCacheDriver(input);
 

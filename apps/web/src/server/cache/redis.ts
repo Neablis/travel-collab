@@ -15,8 +15,8 @@ import { createMemoryClient } from "./memory";
 //     nothing else — never a 500, never a stall. One warning per instance.
 //   * It is a port, the ADR-007 shape: callers get `getCache()` and never the
 //     client. `CACHE_DRIVER` picks the store — Upstash, an in-process Map
-//     (`memory.ts`, the default without credentials) or nothing — so nothing
-//     needs Redis to run.
+//     (`memory.ts`, local dev only) or nothing — so nothing needs Redis to
+//     run.
 //
 // Keys are built in `keys.ts`, which prefixes the environment: that file is
 // the whole key space on the shared instance, in one place.
@@ -89,27 +89,46 @@ export type CacheDriver = "upstash" | "memory" | "off";
 
 const DRIVERS: readonly string[] = ["upstash", "memory", "off"];
 
+// **`memory` is for one process only** (CodeRabbit, PR #259). A deployment runs
+// many instances, each with its own Map: instance A caches a pending invite's
+// card, instance B handles the revoke and deletes from ITS Map, and A goes on
+// naming the sender for up to the hour's TTL. A revoke must reach every copy,
+// and only a shared store can do that, so on Vercel (`VERCEL_ENV` set) the
+// choices are Upstash or nothing. Local dev is one `next dev` process, which is
+// where `memory` is right.
 /**
- * `CACHE_DRIVER`, resolved (ADR-059). An explicit valid value wins, except
- * `upstash` without both credentials, which falls back to `memory`. Blank
- * means auto: `upstash` when both credentials are set, `memory` otherwise. An
- * unknown value is auto too. `warning` is set whenever the request was not
- * honoured as written. Pure, for the resolution table's test.
+ * `CACHE_DRIVER`, resolved (ADR-059). Blank means auto: `upstash` when both
+ * credentials are set; otherwise `memory` locally and `off` on Vercel. An
+ * explicit valid value wins, except `upstash` without both credentials (falls
+ * back as auto would) and `memory` on Vercel (`off`). An unknown value is auto.
+ * `warning` is set whenever the request was not honoured as written. Pure, for
+ * the resolution table's test.
  */
 export function resolveCacheDriver(input: {
   requested: string;
   url: string;
   token: string;
+  onVercel: boolean;
 }): { driver: CacheDriver; warning: string | null } {
   const hasCredentials = input.url !== "" && input.token !== "";
-  const auto: CacheDriver = hasCredentials ? "upstash" : "memory";
+  const withoutShared: CacheDriver = input.onVercel ? "off" : "memory";
+  const auto: CacheDriver = hasCredentials ? "upstash" : withoutShared;
   const requested = input.requested.trim();
   if (requested === "") return { driver: auto, warning: null };
   if (!DRIVERS.includes(requested)) {
     return { driver: auto, warning: `CACHE_DRIVER="${requested}" is not upstash|memory|off; using ${auto}` };
   }
   if (requested === "upstash" && !hasCredentials) {
-    return { driver: "memory", warning: "CACHE_DRIVER=upstash but KV_REST_API_URL/KV_REST_API_TOKEN are not both set; using memory" };
+    return {
+      driver: withoutShared,
+      warning: `CACHE_DRIVER=upstash but KV_REST_API_URL/KV_REST_API_TOKEN are not both set; using ${withoutShared}`,
+    };
+  }
+  if (requested === "memory" && input.onVercel) {
+    return {
+      driver: "off",
+      warning: "CACHE_DRIVER=memory is per-instance, so a revoke on one instance would not clear another; using off",
+    };
   }
   return { driver: requested as CacheDriver, warning: null };
 }
@@ -128,7 +147,8 @@ let cache: CachePort | null = null;
 export function getCache(): CachePort {
   if (cache !== null) return cache;
   const { cacheDriver, kvRestApiUrl: url, kvRestApiToken: token } = serverConfig;
-  const { driver, warning } = resolveCacheDriver({ requested: cacheDriver, url, token });
+  const onVercel = (process.env.VERCEL_ENV ?? "") !== "";
+  const { driver, warning } = resolveCacheDriver({ requested: cacheDriver, url, token, onVercel });
   // Once, because the singleton means this branch runs once per instance.
   if (warning !== null) console.warn(`[cache] ${warning}`);
   cache =
