@@ -363,15 +363,17 @@ export function KeepDayDialog({
           is the date picker and save button, and right side is the new moved
           elements"*. Stacked, the preview sat under a twelve-day grid, so each
           toggle changed something below the fold, and Keep was below that.
-          The left column is `sticky` in the dialog's scrolling body, so a long
-          preview scrolls on its own and the picker and Keep stay in view.
+          The right column scrolls inside the height the left one sets (see
+          below), so the picker and Keep stay put while the preview moves. The
+          left column is also `sticky`, for the one case where it is taller
+          than the dialog's 85vh cap and the body itself has to scroll.
           **Below `md` it is the old single column — "a backup version of
           mobile/small screens".** The left column is `contents` there, so its
           children join the stack; `order-last` moves the buttons under the
           preview, where they were, and `sticky bottom-0` keeps them on screen
           while the stack scrolls. Document order is the `md` column order,
           which is what a screen reader and Tab follow at every width. */}
-      <div className="flex flex-col gap-3 md:grid md:grid-cols-2 md:gap-6">
+      <div className="flex flex-col gap-3 md:grid md:min-h-96 md:grid-cols-2 md:gap-6">
         <div className="contents md:sticky md:top-0 md:flex md:flex-col md:gap-3 md:self-start">
           <FormField id={nameId} label="Name">
             {/* **Opens focused, so the one-day keep is "accept it and press
@@ -537,7 +539,18 @@ export function KeepDayDialog({
             </Button>
           </div>
         </div>
-        <div className="flex flex-col gap-3">
+        {/* **The preview scrolls; the dialog never grows.** Mitchell, PR #269
+            preview: *"Dont increase the max size, when you select enough dates
+            to have the whats included grow past high, then go into scroll.
+            Never have the modal get bigger"*. `h-0 min-h-full` takes this
+            column out of the row's sizing — at zero height it asks the grid
+            for nothing, and `min-h-full` then stretches it to the row the LEFT
+            column sets — so picking days changes what scrolls here, never the
+            dialog's height. `md:min-h-96` on the grid is the floor that keeps a
+            one-day keep (a name field and two buttons on the left) from
+            squeezing the preview into a sliver. Below `md` the stack scrolls
+            as one, as it did. */}
+        <div className="flex flex-col gap-3 md:h-0 md:min-h-full md:overflow-y-auto">
           <FormField id={includedId} label="What's included">
             <Text as="span" id={includedId} className="text-sm text-ink">
               {includedSummary(selected, days, clock)}
