@@ -25,7 +25,7 @@
 import { and, eq, lte, sql } from "drizzle-orm";
 import { NO_CEILINGS, type EntitlementCeilings } from "./assistant/entitlements";
 import { db } from "./db/client";
-import type { Db } from "./db/client";
+import type { Db, Queryable } from "./db/client";
 import { rateLimitCounters } from "./db/schema";
 
 /**
@@ -742,17 +742,22 @@ export async function sweepExpiredCounters(
   now: Date = new Date(),
   database: Db = db,
 ): Promise<void> {
-  for (const policy of policies) {
-    await database
-      .delete(rateLimitCounters)
-      .where(
-        and(
-          // `starts_with`, not LIKE: a policy name is not a pattern, and the
-          // colon keeps "ai-hourly" from reaching "ai-hourly-something".
-          sql`starts_with(${rateLimitCounters.bucket}, ${`${policy.name}:`})`,
-          // A window [start, start + windowMs) has ended once `now` reaches its end.
-          lte(rateLimitCounters.windowStart, new Date(now.getTime() - policy.windowMs)),
-        ),
-      );
-  }
+  for (const policy of policies) await sweepStatement(policy, now, database);
+}
+
+/**
+ * One policy's sweep, unexecuted. Exported so `quota.int.test.ts` can EXPLAIN
+ * the exact statement: `rate_limit_counters_link_preview_window` (schema.ts) is
+ * partial on this `starts_with` text, and only a plan shows the two still agree.
+ */
+export function sweepStatement(policy: QuotaPolicy, now: Date, database: Queryable = db) {
+  return database.delete(rateLimitCounters).where(
+    and(
+      // `starts_with`, not LIKE: a policy name is not a pattern, and the
+      // colon keeps "ai-hourly" from reaching "ai-hourly-something".
+      sql`starts_with(${rateLimitCounters.bucket}, ${`${policy.name}:`})`,
+      // A window [start, start + windowMs) has ended once `now` reaches its end.
+      lte(rateLimitCounters.windowStart, new Date(now.getTime() - policy.windowMs)),
+    ),
+  );
 }

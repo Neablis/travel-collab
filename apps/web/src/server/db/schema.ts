@@ -981,17 +981,39 @@ export const aiUsage = pgTable(
 //
 // One row per bucket, not per bucket per window: `server/quota.ts` carries the
 // window forward in the same upsert that increments, so row count is bounded by
-// the number of actors and there is no expiry sweep. `bucket` is the primary
-// key for exactly that reason — the atomic `ON CONFLICT DO UPDATE ... RETURNING`
+// the number of actors — until the actor is a client IP, which is why
+// `sweepExpiredCounters` exists. `bucket` is the primary key for exactly that
+// reason — the atomic `ON CONFLICT DO UPDATE ... RETURNING`
 // it enables is what makes the counter correct across concurrent serverless
 // instances, where an in-memory counter caps nothing.
-export const rateLimitCounters = pgTable("rate_limit_counters", {
-  // "<policy>:user:<userId>" or "<policy>:global" — see server/quota.ts.
-  bucket: text("bucket").primaryKey(),
-  // `mode: "date"` — the Access-module convention, see the `savedDays` note (KI-53).
-  windowStart: timestamp("window_start", { withTimezone: true, mode: "date" }).notNull(),
-  hits: integer("hits").notNull(),
-});
+export const rateLimitCounters = pgTable(
+  "rate_limit_counters",
+  {
+    // "<policy>:user:<userId>" or "<policy>:global" — see server/quota.ts.
+    bucket: text("bucket").primaryKey(),
+    // `mode: "date"` — the Access-module convention, see the `savedDays` note (KI-53).
+    windowStart: timestamp("window_start", { withTimezone: true, mode: "date" }).notNull(),
+    hits: integer("hits").notNull(),
+  },
+  (t) => [
+    // For the sweep, and only the sweep (`sweepExpiredCounters`, run for
+    // `linkPreviewQuota`). The primary key cannot serve it: `starts_with` over
+    // an en_US-collated key is not a range the planner derives, and a
+    // bucket-led index would walk every live link-preview row to find the
+    // ended ones anyway. Partial on the one swept policy and led by the window,
+    // so a sweep reads exactly the rows it deletes, and account rows (which are
+    // never swept, and keep ancient windows forever) are not in it at all.
+    // EXPLAIN at 20k rows: 5.2 ms seq scan → 0.16 ms index scan (PR body).
+    //
+    // The predicate must match the query's text: the sweep passes the prefix as
+    // a bound parameter, which a custom plan folds to this constant. Rename the
+    // policy and this index silently stops being used — quota.int.test.ts's
+    // plan test is what notices.
+    index("rate_limit_counters_link_preview_window")
+      .on(t.windowStart)
+      .where(sql`starts_with(${t.bucket}, 'link-preview-minute:')`),
+  ],
+);
 
 // **Outside data, cached per source and rounded point** (ADR-052 decision 2):
 // MET Norway forecasts and NASA POWER normals, in the NORMALIZED shape the
