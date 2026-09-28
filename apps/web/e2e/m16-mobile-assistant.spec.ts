@@ -108,6 +108,12 @@ test.describe("mobile assistant (phone viewport)", () => {
           activityId: crypto.randomUUID(),
           dayId,
           title: `Tall stop ${i + 1}`,
+          // **Timed, two hours apart, 5 am to 8 pm** — what makes the page
+          // tall is now the RIVER's height (44px an hour on the trip's shared
+          // axis), not a stack of cards. These were untimed until PR #269, and
+          // untimed stops are drawn in the Unscheduled rack now rather than on
+          // an "Any time" shelf in the column, so eight of them add no height.
+          timeWindow: { start: `${String(5 + 2 * i).padStart(2, "0")}:00`, end: `${String(6 + 2 * i).padStart(2, "0")}:00` },
         },
       });
     }

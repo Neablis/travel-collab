@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UnscheduledRack } from "./UnscheduledRack";
@@ -9,8 +9,8 @@ afterEach(cleanup);
 // times, so a parked stop usually has none — but one created unscheduled can
 // still carry a window, and the card has to tell the truth about which.
 const items = [
-  { activityId: "a1", title: "Souvenir shopping", area: "Rochester", timeWindow: null, bookedBy: null },
-  { activityId: "a2", title: "Second breakfast", area: null, timeWindow: { start: "08:00", end: "09:00" }, bookedBy: null },
+  { activityId: "a1", title: "Souvenir shopping", area: "Rochester", timeWindow: null, bookedBy: null, day: null, badge: null },
+  { activityId: "a2", title: "Second breakfast", area: null, timeWindow: { start: "08:00", end: "09:00" }, bookedBy: null, day: null, badge: null },
 ];
 const dayOptions = [{ value: "d1", label: "Day 1 · Sep 5" }, { value: "d2", label: "Day 2 · Sep 6" }];
 
@@ -80,6 +80,72 @@ describe("UnscheduledRack", () => {
   });
 });
 
+// PR #269: an untimed stop keeps its day, and the rack draws it under that day
+// — Mitchell: "not sure how we should show the date ownership still in the
+// unscheduled rack". Day-less stops come first, whatever order they arrive in.
+describe("UnscheduledRack — a day's untimed stops", () => {
+  const day3 = { dayId: "d3", tag: "Day 3", heading: "Day 3 · Kyoto" };
+  const withDays = [
+    {
+      activityId: "a3",
+      title: "Nishiki market",
+      area: null,
+      timeWindow: null,
+      bookedBy: null,
+      day: day3,
+      badge: { label: "To book", variant: "warning" as const },
+    },
+    ...items,
+  ];
+
+  it("heads each day's group with the day, after the stops with no day", () => {
+    renderRack({ open: true, items: withDays });
+
+    const group = screen.getByRole("group", { name: "Day 3 · Kyoto" });
+    expect(within(group).getByText("Nishiki market")).toBeTruthy();
+    expect(within(group).queryByText("Souvenir shopping")).toBeNull();
+    const titles = screen.getAllByTestId("rack-card").map((card) => card.textContent);
+    expect(titles.findIndex((t) => t?.includes("Nishiki market"))).toBe(2);
+  });
+
+  it("tags the card itself with its day, so it still says so when lifted out", () => {
+    renderRack({ open: true, items: withDays });
+
+    const card = screen.getAllByTestId("rack-card").find((c) => c.textContent?.includes("Nishiki market"))!;
+    expect(within(card).getByText("Day 3")).toBeTruthy();
+  });
+
+  // What the board's card said about an untimed stop, kept now that the rack
+  // is where one is drawn: a pending stop is very often an untimed one.
+  it("wears the stop's kind badge", () => {
+    renderRack({ open: true, items: withDays });
+
+    const card = screen.getAllByTestId("rack-card").find((c) => c.textContent?.includes("Nishiki market"))!;
+    expect(within(card).getByText("To book")).toBeTruthy();
+  });
+
+  it("counts every card it holds, day-less and untimed alike", () => {
+    renderRack({ items: withDays });
+
+    expect(within(screen.getByRole("button", { name: /unscheduled/i })).getByText("3")).toBeTruthy();
+  });
+
+  // jsdom implements no `scrollIntoView`, so it is stubbed on the prototype and
+  // the element it was called on is read back from the mock.
+  it("scrolls the day's group into view when a chip reveals it", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      renderRack({ open: true, items: withDays, reveal: { dayId: "d3", seq: 1 } });
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByRole("group", { name: "Day 3 · Kyoto" }));
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    }
+  });
+});
+
 // docs/reviews/2026-08-28-m11-pr71-review.md §5: the drawer had no viewer
 // awareness, so a viewer could drag a parked stop onto a day (it moved and
 // snapped back) or pick a day from the select — both real MoveActivity +
@@ -119,7 +185,6 @@ describe("UnscheduledRack — a viewer's drawer", () => {
     renderRack({ open: true, onAssign: undefined });
     expect(screen.queryAllByRole("combobox", { name: "Add to day" })).toHaveLength(0);
   });
-
   // The empty state's instruction ("Drag a stop down here…") is only true for
   // someone who can drag, so a viewer gets the state without the instruction.
   it("drops the drag instruction from the empty state", () => {

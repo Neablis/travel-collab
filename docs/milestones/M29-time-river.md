@@ -49,7 +49,15 @@ from.
    thresholds: title only when short, time and area from 40 px, tags from 70 px. Untimed
    stops get a defined place rather than vanishing. **+ Add a stop** sits 22 px below the
    axis. *(Removed 2026-09-28, PR #269, from Mitchell's preview review: the gestures
-   below and the header's "Add stop" already open the same sheet.)*
+   below and the header's "Add stop" already open the same sheet.)* *(The untimed
+   stops' place moved on 2026-09-28, PR #269: the "Any time" shelf above each river is
+   gone, and an untimed stop is drawn in the Unscheduled rack under a "Day N · City"
+   heading, after the stops with no day. It keeps its day in the trip — only where it
+   is drawn changed. Each column's header counts them on an "N any time" chip that
+   opens the rack on that day, and is a drop target that keeps a stop on that day with
+   no time. Mitchell: "I dont like this 'Any time' section … Right now they stack up
+   and push everything down in the ui making all the other days worse", then, on the
+   options offered, "Some version of 3".)*
 3. **Gestures.** Double-click empty time to add a stop there; drag across empty time to
    sketch one that long; drag a block's bottom edge to change when it ends; drag a block
    and the drop lands at the time under the pointer, previewed as an outline of the
@@ -92,7 +100,9 @@ the part-3 PR. Mitchell, 2026-09-26:
 
 So a phone's Plan day renders the same `DayRiver`, with the same layout, block styles
 and colours, under the same "Any time" shelf, one day at a time as before
-(`Column`/`Board`'s `oneDay`). Only a stop with no time is still a card.
+(`Column`/`Board`'s `oneDay`). Only a stop with no time is still a card. *(Since PR
+#269 that card is in the Unscheduled rack under its day, on the phone as on the
+desktop; the shelf is gone and the day's header carries the "N any time" chip.)*
 
 **The gestures, mapped.** They follow the POINTER, not the width: any touch press gets
 them (`pointerType === "touch"`, and `pointer-coarse:` for the grip's size), so a touch
