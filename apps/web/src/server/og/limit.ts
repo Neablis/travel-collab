@@ -61,11 +61,12 @@ function maybeSweep(): void {
   if (Math.random() < SWEEP_PROBABILITY) scheduleSweep();
 }
 
-// **One sweep at a time per instance** (CodeRabbit, PR #259). The DELETE can
-// scan the table (`rate_limit_counters` has only its `bucket` primary key, and
-// `starts_with` over a default-collation text key does not use it), so two
-// overlapping sweeps would be two scans for the work of one. The flag clears
-// when the sweep settles, whether it succeeded or not.
+// **One sweep at a time per instance** (CodeRabbit, PR #259). A sweep with a
+// backlog deletes most of the IP-keyed rows, and the planner rightly scans the
+// table for that (the partial `rate_limit_counters_link_preview_window` index
+// serves the usual small sweep), so two overlapping sweeps would be two scans
+// for the work of one. The flag clears when the sweep settles, whether it
+// succeeded or not.
 let sweeping = false;
 
 /**
