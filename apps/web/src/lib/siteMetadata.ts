@@ -16,10 +16,11 @@ import type { Metadata } from "next";
 
 export const SITE_NAME = "Caesura";
 
-// The landing hero (LandingScreen.tsx), headline + sub, joined.
+// The landing hero (LandingScreen.tsx), headline + the sub's first sentence,
+// joined.
 export const SITE_DESCRIPTION =
-  "The trip everyone actually helped plan. One shared plan your whole group " +
-  "can move around — days, times, costs, who's in.";
+  "Put the best day on repeat. Caesura is a trip planner built on playbooks: " +
+  "real days from real trips, saved by the people who lived them.";
 
 // The committed card next to the root layout (src/app/opengraph-image.png —
 // regenerate with scripts/generate-og-assets.mjs). The file convention
@@ -33,7 +34,7 @@ const OG_IMAGE = {
   url: "/opengraph-image.png",
   width: 1200,
   height: 630,
-  alt: "Caesura — the trip everyone actually helped plan. A day-column trip board beside the wordmark.",
+  alt: "Caesura — put the best day on repeat. A day-column trip board beside the wordmark.",
 };
 
 export function pageMetadata({

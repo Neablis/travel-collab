@@ -6,10 +6,15 @@ import { Table, TBody, TD, TFoot, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 
-// The three "Planning is the trip, three times over" blocks, transcribed from
+// The landing page's four feature blocks — Playbooks, Together, Countdown,
+// Notebook, in that order. Three are transcribed from
 // `.design-sync/handoff/design/Trip Planner Redesign.dc.html:2016-2199`
-// (`data-r="lhowgrid"`). The <h2> above the grid and the section padding belong
-// to `LandingScreen.tsx`; this file renders the grid and nothing else.
+// (`data-r="lhowgrid"`); their words, the order, and the whole Countdown block
+// are Mitchell's retro of 2026-09-28 (DRIFT D21,
+// `docs/design-feedback/2026-09-28-landing-retro-copy.md`), which the design
+// file does not carry yet. Each block's title is the section's <h2> — there is
+// no heading above the grid any more. The section padding belongs to
+// `LandingScreen.tsx`; this file renders the grid and nothing else.
 //
 // A server component on purpose: there is no state and no interaction in here,
 // so it must not acquire `"use client"`. Every value is a fixture declared
@@ -31,6 +36,15 @@ const COST_ROWS = [
   { item: "Kikunoi Roan dinner", who: "All 4", cost: "$210" },
 ] as const;
 const COST_TOTAL = "$550";
+
+// The Countdown block's steps. A fixture frozen the night before, never computed
+// from `Date.now()`: the page runs on nothing (SPEC §14), and a clock read here
+// would also render one thing on the server and another after hydration.
+const COUNTDOWN_STEPS = [
+  { label: "One month", done: true },
+  { label: "One week", done: true },
+  { label: "Tomorrow", done: false },
+] as const;
 
 // `dc.html:2166-2185`.
 const PLAYBOOK_STOPS = [
@@ -90,7 +104,7 @@ function BlockHead({ eyebrow, title, children }: { eyebrow: string; title: strin
   return (
     <div className="flex flex-col gap-1.75 p-4.5 pb-3">
       <DataText className="text-2xs tracking-widest text-brand-pressed uppercase">{eyebrow}</DataText>
-      <Heading level={3}>{title}</Heading>
+      <Heading level={2}>{title}</Heading>
       <Text as="p" variant="secondary" className="leading-normal text-pretty">
         {children}
       </Text>
@@ -112,18 +126,68 @@ function JungleDay({ day, title, bars }: { day: string; title: string; bars: rea
 
 export function LandingFeatureBlocks(): React.ReactElement {
   return (
-    // `lg:`, not `md:`. At the md breakpoint each card is 225px, and after the
-    // two fixed 62px jungle days and their gaps the borrowed Day 2 card is left
-    // 51px wide — about 17px of usable text width once its padding is taken,
-    // so "6:40a Sunrise, Freedom Beach" cannot render at all. lg gives it 137px
-    // (CodeRabbit, PR #58 — its arithmetic checked out exactly). One column
-    // below that, which is the readable answer on a phone anyway.
-    <div className="grid gap-4.5 lg:grid-cols-3">
+    // Two columns from `lg`, not three or four. Four at the old three-column
+    // width would squeeze the Playbooks card's borrowed Day 2 to nothing: at
+    // three columns it already had only 137px of the ~300px card after the two
+    // fixed 62px jungle days (CodeRabbit, PR #58), and a quarter-width card
+    // leaves it none. One column below `lg`.
+    <div className="grid gap-4.5 lg:grid-cols-2">
+      {/* Playbooks — `dc.html:2138-2198` */}
+      <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
+        <BlockHead eyebrow="Playbooks" title="Relive someone’s perfect day.">
+          Every playbook is a day that actually happened, saved by the person who lived it, in the order
+          it happened. The sunrise, the alley, the swim. Drop it into your trip and it&rsquo;s yours now.
+        </BlockHead>
+
+        <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
+          <div className="flex items-center gap-2.25 rounded-lg border border-hairline bg-surface px-2.5 py-2.25">
+            <span className="grid size-7.5 flex-none place-items-center rounded-full bg-warning-tint text-3xs font-semibold text-warning-ink">
+              ML
+            </span>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <Text as="span" className="text-xs font-semibold">A perfect Phuket beach day</Text>
+              <div className="flex items-center gap-1.75">
+                <span className="flex items-center gap-0.75">
+                  <span aria-hidden className="pointer-events-none text-warning-ink">★</span>
+                  <DataText className="text-2xs font-semibold text-ink">4.8</DataText>
+                </span>
+                <span aria-hidden className="pointer-events-none size-0.75 rounded-full bg-border-strong" />
+                <Text as="span" variant="secondary" className="text-2xs">Relived 214 times</Text>
+              </div>
+            </div>
+            <Text as="span" variant="secondary" className="ml-auto flex-none text-2xs">Malee</Text>
+          </div>
+
+          {/* `62px 1fr 62px`, as flex so the fixed columns need no inline grid
+              template. The borrowed day is mid-drop between the jungle days. */}
+          <div className="flex items-stretch gap-1.75">
+            <JungleDay {...JUNGLE_DAYS[0]} />
+
+            <div className="flex min-w-0 flex-1 -rotate-1 flex-col gap-1.25 rounded-md border-2 border-brand border-dashed bg-brand-tint px-2.25 py-2 shadow-lifted">
+              <div className="flex items-center gap-1.5">
+                <DataText className="text-3xs tracking-wider text-brand-pressed uppercase">Day 2</DataText>
+                <span className={cn(NAME_CHIP, "ml-auto bg-brand text-surface")}>Phuket</span>
+              </div>
+              <div className="flex flex-col gap-1 rounded-sm bg-surface px-2 py-1.75">
+                {PLAYBOOK_STOPS.map(({ time, stop }) => (
+                  <div key={time} className="flex items-center gap-1.75">
+                    <DataText className="text-3xs">{time}</DataText>
+                    <Text as="span" className="text-2xs">{stop}</Text>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <JungleDay {...JUNGLE_DAYS[1]} />
+          </div>
+        </div>
+      </Card>
+
       {/* Together — `dc.html:2018-2093` */}
       <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
-        <BlockHead eyebrow="Together" title="Four people, one schedule">
-          The timeline is live: drag a stop and everyone sees it land, argue in place, and leave the
-          maybes as ideas until the group decides.
+        <BlockHead eyebrow="Together" title="The trip starts before the trip.">
+          One plan your whole group can touch. Drag a stop and watch everyone react. Tap the ones you
+          can&rsquo;t wait for. Argue about Pontocho now, thank yourselves in Kyoto.
         </BlockHead>
 
         <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
@@ -150,6 +214,11 @@ export function LandingFeatureBlocks(): React.ReactElement {
             >
               <Text as="span" className="truncate text-xs">Fushimi Inari, early</Text>
               <span className={cn(NAME_CHIP, "bg-brand-tint text-brand-pressed")}>Sam</span>
+              {/* "Tap the ones you can't wait for" — three of the four did. */}
+              <span className="ml-auto flex flex-none items-center gap-0.5">
+                <span role="img" aria-label="Can't wait" className="text-2xs text-danger">♥</span>
+                <DataText className="text-3xs">3</DataText>
+              </span>
             </TimelineRow>
 
             <TravelGap>Train + 20 min walk</TravelGap>
@@ -204,11 +273,69 @@ export function LandingFeatureBlocks(): React.ReactElement {
         </div>
       </Card>
 
+      {/* Countdown — new in the 2026-09-28 retro; no design artboard yet. */}
+      <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
+        <BlockHead eyebrow="Countdown" title="Too excited to sleep.">
+          Every trip gets a living countdown, shared with the whole group. One month. One week. Wheels
+          up tomorrow. Sleep if you can.
+        </BlockHead>
+
+        <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
+          <div className="flex items-center gap-2">
+            <DataText className="text-3xs tracking-wider uppercase">Kyoto · Apr 4</DataText>
+            <div className="ml-auto flex">
+              {CREW.map((initials) => (
+                <span
+                  key={initials}
+                  className="-ml-1.5 grid size-5.25 place-items-center rounded-full border-2 border-surface bg-brand-tint text-3xs font-semibold text-brand-pressed"
+                >
+                  {initials}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center gap-1 rounded-md border border-hairline bg-paper px-3.75 py-5">
+            <DataText className="text-4xl font-semibold text-ink">1</DataText>
+            <DataText className="text-2xs tracking-widest uppercase">day to go</DataText>
+            <Text as="span" className="pt-1.5 font-display text-lg font-semibold">
+              Wheels up tomorrow.
+            </Text>
+          </div>
+
+          <ol className="flex items-center gap-1.5">
+            {COUNTDOWN_STEPS.map(({ label, done }) => (
+              <li key={label} className="flex min-w-0 flex-1 flex-col gap-1">
+                <span
+                  aria-hidden
+                  className={cn("pointer-events-none h-1 rounded-full", done ? "bg-brand" : "bg-brand-tint")}
+                />
+                <DataText className={cn("truncate text-3xs tracking-wider uppercase", done ? null : "text-brand-pressed")}>
+                  {label}
+                </DataText>
+              </li>
+            ))}
+          </ol>
+
+          <div className="flex items-start gap-2 rounded-md bg-moss px-2.75 py-2.25">
+            <span className="grid size-5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed">
+              PR
+            </span>
+            <div className="flex flex-col gap-0.5">
+              <Text as="span" className="text-xs">
+                “Bags are by the door. Is anyone else still up?”
+              </Text>
+              <DataText className="text-3xs tracking-wider uppercase">Priya · 1:12 am · 3 replies</DataText>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {/* Notebook — `dc.html:2095-2136` */}
       <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
-        <BlockHead eyebrow="Notebook" title="Write it like a letter">
-          Pages that read as prose but pull their times and costs from the plan. Move a day and the
-          writing keeps up.
+        <BlockHead eyebrow="Notebook" title="How you’ll remember it.">
+          Pages that read like the letter home, with times and costs pulled live from the plan. Before
+          the trip it&rsquo;s a promise. After, it&rsquo;s the keepsake.
         </BlockHead>
 
         <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
@@ -267,57 +394,6 @@ export function LandingFeatureBlocks(): React.ReactElement {
             <Text as="p" className="text-sm leading-relaxed text-pretty">
               Trains are on Sam, and we settle up in Osaka.
             </Text>
-          </div>
-        </div>
-      </Card>
-
-      {/* Playbooks — `dc.html:2138-2198` */}
-      <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
-        <BlockHead eyebrow="Playbooks" title="Borrow a day from anyone">
-          Share the days that worked, take the ones that worked for someone else. Drop a
-          stranger&rsquo;s beach day between your jungle days and the trip makes room for it.
-        </BlockHead>
-
-        <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
-          <div className="flex items-center gap-2.25 rounded-lg border border-hairline bg-surface px-2.5 py-2.25">
-            <span className="grid size-7.5 flex-none place-items-center rounded-full bg-warning-tint text-3xs font-semibold text-warning-ink">
-              ML
-            </span>
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <Text as="span" className="text-xs font-semibold">A perfect Phuket beach day</Text>
-              <div className="flex items-center gap-1.75">
-                <span className="flex items-center gap-0.75">
-                  <span aria-hidden className="pointer-events-none text-warning-ink">★</span>
-                  <DataText className="text-2xs font-semibold text-ink">4.8</DataText>
-                </span>
-                <span aria-hidden className="pointer-events-none size-0.75 rounded-full bg-border-strong" />
-                <Text as="span" variant="secondary" className="text-2xs">Shared 214 times</Text>
-              </div>
-            </div>
-            <Text as="span" variant="secondary" className="ml-auto flex-none text-2xs">Malee</Text>
-          </div>
-
-          {/* `62px 1fr 62px`, as flex so the fixed columns need no inline grid
-              template. The borrowed day is mid-drop between the jungle days. */}
-          <div className="flex items-stretch gap-1.75">
-            <JungleDay {...JUNGLE_DAYS[0]} />
-
-            <div className="flex min-w-0 flex-1 -rotate-1 flex-col gap-1.25 rounded-md border-2 border-brand border-dashed bg-brand-tint px-2.25 py-2 shadow-lifted">
-              <div className="flex items-center gap-1.5">
-                <DataText className="text-3xs tracking-wider text-brand-pressed uppercase">Day 2</DataText>
-                <span className={cn(NAME_CHIP, "ml-auto bg-brand text-surface")}>Phuket</span>
-              </div>
-              <div className="flex flex-col gap-1 rounded-sm bg-surface px-2 py-1.75">
-                {PLAYBOOK_STOPS.map(({ time, stop }) => (
-                  <div key={time} className="flex items-center gap-1.75">
-                    <DataText className="text-3xs">{time}</DataText>
-                    <Text as="span" className="text-2xs">{stop}</Text>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <JungleDay {...JUNGLE_DAYS[1]} />
           </div>
         </div>
       </Card>
