@@ -240,19 +240,22 @@ describe("Board", () => {
     expect(callbacks.onRemoveDay).toHaveBeenCalledWith(DAY);
   });
 
-  // Board no longer owns an inline create form (E2, ADR-011 R2): each
-  // column's foot "+" raises the portable editor via
+  // Board no longer owns an inline create form (E2, ADR-011 R2): a double-click
+  // on a day's river raises the portable editor via
   // useEditor().openCreate(prefill), with the prefill sourced at the
-  // trigger's own position. The board-level "no dayId" trigger is the
-  // header's "Add stop" now (Task 3.3 deleted the Backlog column's "+ Add
-  // activity" along with the column) — TripHeader.test.tsx covers it. The
-  // sheet itself (seeding, save, dispatch) is covered by
-  // ActivityEditorSheet's own tests in TripBoardScreen.test.tsx; this only
-  // asserts the trigger wiring.
-  it("a column's foot + opens the editor prefilled with that column's dayId", () => {
+  // gesture's own day. The column's "+ Add a stop" button that also did this
+  // is gone (PR #269); the board-level "no dayId" trigger is the header's "Add
+  // stop" — TripHeader.test.tsx covers it. The sheet itself (seeding, save,
+  // dispatch) is covered by ActivityEditorSheet's own tests in
+  // TripBoardScreen.test.tsx; this only asserts the trigger wiring.
+  it("a double-click on a day's river opens the editor prefilled with that day", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks());
-    fireEvent.click(screen.getByRole("button", { name: "Add activity to Day 1" }));
-    expect(getEditorState()).toEqual({ mode: "create", prefill: { dayId: DAY } });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    fireEvent.doubleClick(within(column).getByTestId("day-river"), { clientY: 0 });
+    expect(getEditorState()).toEqual({
+      mode: "create",
+      prefill: expect.objectContaining({ dayId: DAY }),
+    });
   });
 
   // #29: an activity card's Edit raises the SAME portable editor (openEdit) the
@@ -341,13 +344,13 @@ describe("Board", () => {
     expect(dropList?.className).not.toContain("bg-brand-tint");
   });
 
-  // SPEC §36.9b: "+ Add a stop sits 22 px below the axis" — on every day,
-  // whether or not it already has stops (this fixture's Day 1 has two), not
-  // collapsed to a bare "+" once populated.
-  it("a populated day column still shows + Add a stop", () => {
+  // The per-day "+ Add a stop" is gone (PR #269): the river's double-click
+  // and the header's "Add stop" both open the same sheet, so a second button
+  // under every day only repeated them.
+  it("a day column has no + Add a stop button of its own", () => {
     renderBoard(fixture(), noopCallbacks());
-    const addButton = screen.getByRole("button", { name: "Add activity to Day 1" });
-    expect(addButton.textContent).toBe("+ Add a stop");
+    const column = screen.getAllByTestId("day-column")[0]!;
+    expect(within(column).queryByRole("button", { name: /add a stop|^Add activity to/i })).toBeNull();
   });
 
   // Handoff README §"Day columns view": compact cards (12px padding).
@@ -423,20 +426,19 @@ describe("Board", () => {
   });
 
   // The copy table lists no Board-specific empty-day string, so an empty day
-  // column's honest treatment is exactly this: the empty axis and the
-  // "+ Add a stop" under it — nothing invented.
-  it("gives an empty day column its + Add a stop", () => {
+  // column's honest treatment is exactly this: the empty axis, which is itself
+  // the way in (double-click or drag across it) — nothing invented.
+  it("gives an empty day column its river", () => {
     const emptyDay = tripDetailFixture({
       days: [{ dayId: DAY, activityIds: [], date: null, costSubtotal: 0 }],
       activities: {},
     });
     renderBoard(emptyDay, noopCallbacks());
     const column = screen.getAllByTestId("day-column")[0]!;
-    const addButton = within(column).getByRole("button", { name: "Add activity to Day 1" });
-    expect(addButton.textContent).toBe("+ Add a stop");
+    expect(within(column).getByTestId("day-river")).toBeTruthy();
   });
 
-  it("gives every day of an all-empty trip its own + Add", () => {
+  it("gives every day of an all-empty trip its own river", () => {
     const d2 = "44444444-4444-4444-8444-444444444444";
     const d3 = "55555555-5555-4555-8555-555555555555";
     renderBoard(
@@ -447,7 +449,7 @@ describe("Board", () => {
       noopCallbacks(),
     );
     expect(screen.getAllByTestId("day-column")).toHaveLength(3);
-    expect(screen.getAllByRole("button", { name: /^Add activity to/ })).toHaveLength(3);
+    expect(screen.getAllByTestId("day-river")).toHaveLength(3);
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
   });
 
@@ -470,8 +472,6 @@ describe("Board", () => {
     expect(column.querySelectorAll('[data-testid^="activity-card-"]')).toHaveLength(9);
     expect(within(column).getByText("Stop 1")).toBeTruthy();
     expect(within(column).getByText("Stop 9")).toBeTruthy();
-    // The add affordance stays below the ninth card.
-    expect(within(column).getByRole("button", { name: "Add activity to Day 1" })).toBeTruthy();
   });
 
   // Task 4.1 (M10 Phase 4): the board's per-stop cost, using the trip's own
@@ -616,7 +616,6 @@ describe("a read-only board", () => {
       /^Edit Colosseum/,
       /^Remove Colosseum$/,
       /^Remove Day 1$/,
-      /^Add activity to Day 1$/,
       /^Dismiss:/,
       /^Dismiss overlap warning$/,
     ]) {

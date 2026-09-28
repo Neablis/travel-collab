@@ -48,7 +48,8 @@ from.
    Overlapping stops sit side by side in half-width lanes marked *OVERLAP*. Size
    thresholds: title only when short, time and area from 40 px, tags from 70 px. Untimed
    stops get a defined place rather than vanishing. **+ Add a stop** sits 22 px below the
-   axis.
+   axis. *(Removed 2026-09-28, PR #269, from Mitchell's preview review: the gestures
+   below and the header's "Add stop" already open the same sheet.)*
 3. **Gestures.** Double-click empty time to add a stop there; drag across empty time to
    sketch one that long; drag a block's bottom edge to change when it ends; drag a block
    and the drop lands at the time under the pointer, previewed as an outline of the

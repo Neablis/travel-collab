@@ -1571,7 +1571,6 @@ describe("TripBoardScreen — a viewer's board", () => {
 
     expect(screen.queryByTestId("one-more-day-column")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Add activity to / })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Remove Day / })).toBeNull();
     // The rack's day-assign select is the drawer's non-drag write path.
     fireEvent.click(screen.getByRole("button", { name: /unscheduled/i }));
@@ -2048,7 +2047,6 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
     expect(within(day).getAllByText("Overlap")).toHaveLength(2);
     expect(within(day).getByText(/^Lunch at Kagari, .*, overlaps Nezu Museum$/)).toBeTruthy();
 
-    expect(within(day).queryByRole("button", { name: /^Add activity to/ })).toBeNull();
     expect(within(day).queryByRole("button", { name: /^Remove / })).toBeNull();
     expect(within(day).queryByRole("button", { name: "Dismiss overlap warning" })).toBeNull();
     // The trailing "One more day?" column is Plan's AddDay affordance, and it
@@ -2065,7 +2063,6 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
     navigateToView("Plan");
 
     const day = await screen.findByTestId("day-column");
-    expect(within(day).getByRole("button", { name: /^Add activity to/ })).toBeTruthy();
     // `getAll`, because a day column carries a Remove for the DAY and one per
     // card. The property is that an owner gets them at all — the viewer case
     // above asserts the absence, which is the half that can rot.

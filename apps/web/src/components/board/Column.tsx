@@ -60,7 +60,6 @@ export function Column({
   isFocused = false,
   onSelect,
   columnRef,
-  onAddActivity,
   onDismissOverlap,
   focusedTag = null,
   onToggleTag,
@@ -114,7 +113,6 @@ export function Column({
    * entry per day rather than one ref.
    */
   columnRef?: (node: HTMLElement | null) => void;
-  onAddActivity?: () => void;
   onDismissOverlap: (conflictId: string) => void;
   /** SPEC §11's focused tag, passed to every card so off-tag stops dim. */
   focusedTag?: ActivityTag | null;
@@ -131,7 +129,7 @@ export function Column({
    * holding the `TripDetail` they come out of. Handing them through here would
    * make every column's signature carry the trip in order to draw one button.
    *
-   * Optional, like `onRemoveDay` and `onAddActivity` above, and for the same
+   * Optional, like `onRemoveDay` above, and for the same
    * reason: a read-only board simply does not pass it. SPEC §24 — "nothing
    * renders disabled ... the Keep pennant [is] absent, so the page reads as a
    * finished thing rather than a form you lack permission for."
@@ -139,8 +137,9 @@ export function Column({
   keepFlag?: ReactNode;
   /**
    * The river's gestures for this day (M29 part 3) — double-click, sketch,
-   * resize and drop-at-a-time. Withheld on a read-only board, like
-   * `onAddActivity`, and then the river offers none.
+   * resize and drop-at-a-time — and, with the header's "Add stop", the way a
+   * stop is added to this day. Withheld on a read-only board, like
+   * `onRemoveDay`, and then the river offers none.
    */
   gestures?: RiverGestures;
 }) {
@@ -204,12 +203,12 @@ export function Column({
       // the family so that layer has something to colour it with.
       data-city-accent={accent}
       className={cn(
-        // `row-span-4 grid-rows-subgrid`: on the desktop row every column
-        // shares the row's four tracks (globals.css `.day-columns-row`), so
+        // `row-span-3 grid-rows-subgrid`: on the desktop row every column
+        // shares the row's three tracks (globals.css `.day-columns-row`), so
         // shelves of different heights still start every river at the same
         // height. On a phone the parent is not a grid, `subgrid` falls back
         // to ordinary rows, and the column simply stacks.
-        "row-span-4 grid min-h-44 grid-rows-subgrid gap-y-2 rounded-2xl p-2",
+        "row-span-3 grid min-h-44 grid-rows-subgrid gap-y-2 rounded-2xl p-2",
         // **`shrink-0` only while there is a row to shrink in** (M26 link 13).
         // A phone renders ONE column and it takes the width; keeping
         // `shrink-0` there would be harmless and keeping the 268px would not,
@@ -298,7 +297,7 @@ export function Column({
           untimed stop is visible"). So it keeps the card it always had, on a
           shelf above the river — above rather than below, because below would
           put it under 600-odd pixels of day. The shelf is always rendered,
-          empty or not: it is the second of the four rows every column shares,
+          empty or not: it is the second of the three rows every column shares,
           and a column that skipped it would shift its river up a row.
 
           **A phone gets the river too** (M29 phone). Until 2026-09-26 it kept
@@ -365,26 +364,6 @@ export function Column({
         readOnly={readOnly}
         gestures={gestures}
       />
-      {/* SPEC §36.9b: "+ Add a stop sits 22 px below the axis, brand-tinted
-          and full width" — 22px is the row gap (8px) plus this margin. A
-          wrapper even when there is no button, so a read-only column still
-          fills the fourth row it shares with its neighbours. The accessible
-          name is still "Add activity to Day N", which specs and tests across
-          the suite find it by. */}
-      <div>
-        {onAddActivity && (
-          <Button
-            variant="ghost"
-            onClick={onAddActivity}
-            aria-label={`Add activity to ${title}`}
-            // The design's own hint for the river's two faster ways in.
-            title="Or double-click the timeline, or drag across empty time"
-            className="mt-3.5 w-full justify-center rounded-lg border border-brand bg-brand-tint font-semibold text-brand-pressed hover:bg-surface hover:text-brand-pressed"
-          >
-            + Add a stop
-          </Button>
-        )}
-      </div>
     </section>
   );
 }
