@@ -3,6 +3,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+// Named for its first user; it is a plain fallback-on-error boundary.
+import { ChartErrorBoundary } from "@/components/ui/chart";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
@@ -24,6 +26,13 @@ import { cn } from "@/lib/cn";
 // (`next build`, 2026-09-27), all of it for two views that are not on screen
 // when the page opens. The load starts once the page has painted, so it has
 // normally landed long before the ten-second rotation or a pill asks for it.
+//
+// **A load that fails keeps the static art.** `Suspense` does not catch a
+// rejected `lazy` import, and the only boundary above `/welcome` is
+// `app/global-error.tsx`, so a replaced chunk or a dropped connection would
+// otherwise take the whole front door down the moment a panel was shown. Each
+// panel has its own boundary whose fallback is the art `Suspense` shows while
+// loading (`SpendByDayBlock` and its chart, same shape).
 const loadPanels = () => import("./LandingHeroPanels");
 const TimelinePanel = lazy(() => loadPanels().then((m) => ({ default: m.TimelinePanel })));
 const NotebookPanel = lazy(() => loadPanels().then((m) => ({ default: m.NotebookPanel })));
@@ -145,8 +154,16 @@ export function LandingHeroArt(): React.ReactElement {
   // updated design-side.**
   const [stopped, setStopped] = useState(false);
 
+  // The prefetch, only where this tree is on screen: it is rendered on a phone
+  // too, hidden (`LandingScreen`'s `hidden md:flex`), and a phone that only ever
+  // sees `PhoneFrontDoor` should not download the river and the blocks. 768px
+  // is `md`, the breakpoint that hides it. A view that is shown still loads
+  // its panel whatever the width. A failed prefetch is not this effect's to
+  // report: the view that needs the panel meets the same failure and its
+  // boundary shows the static art.
   useEffect(() => {
-    void loadPanels();
+    if (typeof window.matchMedia !== "function" || !window.matchMedia("(min-width: 768px)").matches) return;
+    loadPanels().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -333,9 +350,11 @@ function TimelineView(): React.ReactElement {
   return (
     <>
       <div className={PANEL}>
-        <Suspense fallback={<TimelineArt />}>
-          <TimelinePanel />
-        </Suspense>
+        <ChartErrorBoundary fallback={<TimelineArt />}>
+          <Suspense fallback={<TimelineArt />}>
+            <TimelinePanel />
+          </Suspense>
+        </ChartErrorBoundary>
       </div>
 
       <div
@@ -361,9 +380,11 @@ function NotebookView(): React.ReactElement {
   return (
     <>
       <div className={PANEL}>
-        <Suspense fallback={<NotebookArt />}>
-          <NotebookPanel />
-        </Suspense>
+        <ChartErrorBoundary fallback={<NotebookArt />}>
+          <Suspense fallback={<NotebookArt />}>
+            <NotebookPanel />
+          </Suspense>
+        </ChartErrorBoundary>
       </div>
 
       <DataText
