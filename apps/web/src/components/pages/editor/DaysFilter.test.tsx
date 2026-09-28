@@ -110,30 +110,41 @@ describe("DaysFilter — click and drag across days", () => {
     expect(pressed()).toEqual([false, false, false, false]);
   });
 
-  it("a press that never leaves its day is still a click: two of them make the range", async () => {
+  // Mitchell, PR #269 preview: *"get rid of the 'First click start, second
+  // click end, select all elements between' this should be either drag and
+  // select, or click one offs"*.
+  it("a click is that one day, a second click moves to the day clicked, and clicking it again clears", async () => {
     const { onChange, cells, pressed } = await openFilter();
 
     // What a real click is: down, up and click on the same cell.
-    for (const cell of [cells[1]!, cells[3]!]) {
+    const click = (cell: Element) => {
       fireEvent.pointerDown(cell, mouse);
       fireEvent.pointerUp(window, mouse);
       fireEvent.click(cell);
-    }
+    };
+    click(cells[1]!);
+    click(cells[3]!);
+    expect(pressed()).toEqual([false, false, false, true]);
+    click(cells[3]!);
 
     expect(onChange.mock.calls).toEqual([
       [{ dates: { from: "2027-06-02", through: "2027-06-02" } }],
-      [{ dates: { from: "2027-06-02", through: "2027-06-04" } }],
+      [{ dates: { from: "2027-06-04", through: "2027-06-04" } }],
+      [{}],
     ]);
-    expect(pressed()).toEqual([false, true, true, true]);
+    expect(pressed()).toEqual([false, false, false, false]);
+    expect(screen.queryByText(/Now pick the last day/)).toBeNull();
   });
 
-  it("the keyboard still selects a range: Enter on the first day, Space on the last", async () => {
+  // A drag needs a pointer, so the keyboard reaches a run with Shift — the
+  // convention lists and calendars already use.
+  it("the keyboard selects a run with Shift: Enter on the first day, Shift+Space on the last", async () => {
     const { onChange, cells, pressed } = await openFilter();
 
     cells[0]!.focus();
     await userEvent.keyboard("{Enter}");
     cells[2]!.focus();
-    await userEvent.keyboard(" ");
+    await userEvent.keyboard("{Shift>} {/Shift}");
 
     expect(onChange).toHaveBeenLastCalledWith({ dates: { from: "2027-06-01", through: "2027-06-03" } });
     expect(pressed()).toEqual([true, true, true, false]);

@@ -16,8 +16,8 @@ import { cn } from "@/lib/cn";
 // days of trip, and you can select the days."*
 //
 // So: a button showing the current selection, opening a grid of the trip's own
-// days. Click one, click a second to reach it (or press one and drag to the
-// other), click "All days" to clear.
+// days. Click a day for that day, press one and drag to another for the run
+// between them, click "All days" to clear.
 //
 // **It always writes `dates`, never `day`** — Mitchell's call when the two were
 // put to him, because one control writing two different dimensions depending on
@@ -124,10 +124,9 @@ export function DaysFilter({
   label: string;
 }) {
   const [open, setOpen] = useState(false);
-  // The first click of a two-click range. Local, and deliberately not written
-  // to the document: a half-made range is not a filter, and storing one would
-  // make the widget resolve against it between the two clicks.
-  const [anchor, setAnchor] = useState<number | null>(null);
+  // The last day picked by a click, so Shift can reach from it. Local and never
+  // written: it is where the next Shift-click starts, not part of the filter.
+  const [lastPicked, setLastPicked] = useState<number | null>(null);
   const { range, legacyDay, stale } = daysSelectionOf(params, detail);
 
   const dated = detail.days.filter((day) => day.date !== null);
@@ -146,10 +145,9 @@ export function DaysFilter({
   // unselected day and the drag selects; start on a selected one and it
   // deselects) cannot be stored: `dates` is a `DateRangeRef`, one
   // `{from, through}`, so deselecting the middle of a range is a hole the
-  // document cannot hold. A drag is the two-click range in one stroke — pressed
-  // day to released day, replacing what was there — which is exactly what
-  // clicking those two days does. (`KeepDayDialog` keeps a SET of days, and
-  // there the same grid paints.)
+  // document cannot hold. A drag is a range — pressed day to released
+  // day, replacing what was there. (`KeepDayDialog` drags the same way, and
+  // there a click toggles a day in and out of a SET, which this cannot store.)
 
   // Two days as a range, ordered: reaching backwards is as good as forwards.
   const rangeOf = (a: number, b: number): DaysSelection | null => {
@@ -162,7 +160,7 @@ export function DaysFilter({
   const commitDrag = (drag: DayGridDrag) => {
     const selection = rangeOf(drag.start, drag.current);
     if (selection === null) return;
-    setAnchor(null);
+    setLastPicked(null);
     onChange(withDaysSelection(params, selection));
   };
 
@@ -176,25 +174,32 @@ export function DaysFilter({
     return inRange || (drag === null && legacyDay === index);
   };
 
-  const pick = (index: number) => {
+  // **A click is that one day; a drag is a run.** Mitchell, PR #269 preview:
+  // *"get rid of the 'First click start, second click end, select all elements
+  // between' this should be either drag and select, or click one offs"*. The
+  // two-click range made every click ambiguous — the same click meant "this
+  // day" or "the end of a range" depending on a hidden state the helper line
+  // had to narrate ("Now pick the last day."). Now a click always means the day
+  // clicked, and clicking the day that is already the whole selection clears
+  // back to All days, so a click is also how a one-off is undone.
+  //
+  // **Shift-click still reaches from the last day picked**, silently. Without
+  // it the keyboard could not select a run at all — a drag needs a pointer —
+  // and it is the convention every list and calendar already uses, so it needs
+  // no line of copy to teach it.
+  const pick = (index: number, extend: boolean) => {
     const date = detail.days[index]?.date;
     if (date == null) return;
-    if (anchor === null) {
-      // One click is a single day, which is a range whose ends are equal — the
-      // shape `DateRangeRef` uses for "a single date", so there is one stored
-      // form rather than two.
-      setAnchor(index);
-      onChange(withDaysSelection(params, { from: date, through: date }));
+    if (extend && lastPicked !== null) {
+      const reach = rangeOf(lastPicked, index);
+      if (reach !== null) onChange(withDaysSelection(params, reach));
       return;
     }
-    const anchorDate = detail.days[anchor]?.date;
-    if (anchorDate == null) return;
-    // Ordered here, where the two ends are two CLICKS rather than two typed
-    // values: reaching backwards through a calendar is how ranges are selected
-    // everywhere, and there is no "what the author typed" to preserve.
-    const [from, through] = anchorDate <= date ? [anchorDate, date] : [date, anchorDate];
-    setAnchor(null);
-    onChange(withDaysSelection(params, { from, through }));
+    setLastPicked(index);
+    // One day is a range whose ends are equal — the shape `DateRangeRef` uses
+    // for "a single date", so there is one stored form rather than two.
+    const alreadyJustThis = legacyDay === null && range !== null && range.from === date && range.through === date;
+    onChange(withDaysSelection(params, alreadyJustThis ? null : { from: date, through: date }));
   };
 
   const trigger = (
@@ -221,7 +226,7 @@ export function DaysFilter({
         setOpen(next);
         // Closed mid-drag: the grid unmounts with the popover's content,
         // and `DayGrid` abandons a drag it is unmounted in the middle of.
-        if (!next) setAnchor(null);
+        if (!next) setLastPicked(null);
       }}
       trigger={trigger}
       align="start"
@@ -233,7 +238,7 @@ export function DaysFilter({
           variant={range === null && legacyDay === null && !stale ? "primary" : "secondary"}
           className="min-h-11 w-full"
           onClick={() => {
-            setAnchor(null);
+            setLastPicked(null);
             onChange(withDaysSelection(params, null));
             setOpen(false);
           }}
@@ -249,11 +254,7 @@ export function DaysFilter({
           </Text>
         ) : (
           <>
-            <Text variant="muted">
-              {anchor === null
-                ? "Pick a day, or pick two or drag across them to select a range."
-                : "Now pick the last day."}
-            </Text>
+            <Text variant="muted">Click a day, or drag across several.</Text>
             {/* **Three columns, not four.** Mitchell, on the preview: *"i like
                 the UX, but the ui is a little lacking"*. Four cells across a
                 `w-72` popover left each one about 64px wide, which is why the

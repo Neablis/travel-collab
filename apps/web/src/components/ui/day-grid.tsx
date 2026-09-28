@@ -71,7 +71,8 @@ export function DayGrid({
   columns: 2 | 3;
   selectable?: (index: number) => boolean;
   pressed: (index: number, drag: DayGridDrag | null) => boolean;
-  onPick: (index: number) => void;
+  /** A click (or Enter/Space). `extend` is Shift held: "reach from the last day picked". */
+  onPick: (index: number, extend: boolean) => void;
   onDragCommit: (drag: DayGridDrag) => void;
   /**
    * The drag as it happens: the span each time the pointer reaches another
@@ -217,7 +218,7 @@ export function DayGrid({
               "h-auto min-h-11 flex-col gap-0 border px-1 py-1 text-xs font-normal md:min-h-9",
               on && "border-transparent",
             )}
-            onClick={() => onPick(index)}
+            onClick={(e) => onPick(index, e.shiftKey)}
           >
             {/* **The quiet line is `slate` only when the cell is OFF.**
                 Mitchell, PR #269 preview: *"For the widget inputs date picker
