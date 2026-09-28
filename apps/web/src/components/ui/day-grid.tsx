@@ -56,6 +56,7 @@ export function DayGrid({
   pressed,
   onPick,
   onDragCommit,
+  onDragChange,
   cell,
 }: {
   /** The group's accessible name. */
@@ -72,6 +73,15 @@ export function DayGrid({
   pressed: (index: number, drag: DayGridDrag | null) => boolean;
   onPick: (index: number) => void;
   onDragCommit: (drag: DayGridDrag) => void;
+  /**
+   * The drag as it happens: the span each time the pointer reaches another
+   * day, then `null` when it ends (committed or abandoned). For a caller that
+   * shows the consequence of a selection somewhere other than the cells — the
+   * Keep dialog's preview — so that consequence moves with the pointer
+   * instead of jumping on release. Not called for a press that never leaves
+   * its day: that is a click.
+   */
+  onDragChange?: (drag: DayGridDrag | null) => void;
   /**
    * What a cell says: `title` on the first line (`Day 3`, `Day 3 · Kyoto`) and
    * `detail` under it, smaller and quieter (a date, a stop count). Each caller
@@ -130,6 +140,7 @@ export function DayGrid({
       current = over;
       moved = true;
       setDrag({ start, current });
+      onDragChange?.({ start, current });
     };
     const up = (ev: PointerEvent) => {
       if (ev.pointerId === pointerId) finish(true);
@@ -146,6 +157,7 @@ export function DayGrid({
       window.removeEventListener("keydown", escape);
       endGesture.current = null;
       setDrag(null);
+      if (moved) onDragChange?.(null);
       // A press that never left its day is a click, and `onPick` does with it
       // what it always did.
       if (!commit || !moved) return;

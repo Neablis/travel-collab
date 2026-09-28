@@ -413,37 +413,45 @@ describe("KeepDayDialog — click and drag across days", () => {
     return { cells, over, pressed };
   }
 
-  it("pressed on an unselected day, a drag selects every day it crosses and keeps the rest", async () => {
+  // Mitchell, PR #269 preview: *"When you start dragging, clear the existing
+  // selected days. When you select one without a drag, it shouldnt clear
+  // existing"* — and the preview should *"update as your dragging"*.
+  it("a drag replaces the selection with the days it crosses, and everything follows it live", async () => {
     const { cells, over, pressed } = await openGrid();
-    // Day 3 arrives selected; Days 1–2 are painted in.
+    const included = () => screen.getByTestId("keep-day-preview").textContent;
+    const before = included();
+    // Day 3 arrives selected; a drag across Days 1–2 clears it.
     fireEvent.pointerDown(cells[0]!, mouse);
     over(cells[1]!);
     fireEvent.pointerMove(window, mouse);
-    // The span shows while the drag lasts, and nothing is kept yet.
-    expect(pressed()).toEqual([true, true, true]);
-    expect(screen.getByRole("button", { name: "Keep this day" })).toBeTruthy();
+    expect(pressed()).toEqual([true, true, false]);
+    // Live, before the release: the button and the summary describe the drag.
+    expect(screen.getByRole("button", { name: "Keep 2 days" })).toBeTruthy();
+    const during = included();
+    expect(during).not.toBe(before);
 
     fireEvent.pointerUp(window, mouse);
     // The click the release produces is the drag's, not a toggle of Day 2.
     fireEvent.click(cells[1]!);
 
-    expect(pressed()).toEqual([true, true, true]);
-    expect(screen.getByRole("button", { name: "Keep 3 days" })).toBeTruthy();
+    expect(pressed()).toEqual([true, true, false]);
+    expect(screen.getByRole("button", { name: "Keep 2 days" })).toBeTruthy();
+    expect(included()).toBe(during);
   });
 
-  it("pressed on a selected day, a drag deselects the span and leaves days outside it alone", async () => {
+  it("a drag replaces even a hand-picked set, whichever day it starts on", async () => {
     const { cells, over, pressed } = await openGrid();
     await userEvent.click(cells[0]!);
     expect(pressed()).toEqual([true, false, true]);
 
-    // From Day 3 (in) back to Day 2: both go out, Day 1 stays in.
+    // From Day 3 (already in) back to Day 2: the run is Days 2–3, and Day 1 goes.
     fireEvent.pointerDown(cells[2]!, mouse);
     over(cells[1]!);
     fireEvent.pointerMove(window, mouse);
     fireEvent.pointerUp(window, mouse);
     fireEvent.click(cells[1]!);
 
-    expect(pressed()).toEqual([true, false, false]);
+    expect(pressed()).toEqual([false, true, true]);
   });
 
   it("a press that never leaves its day is still a click, and toggles just that day", async () => {
@@ -465,6 +473,7 @@ describe("KeepDayDialog — click and drag across days", () => {
     fireEvent.pointerDown(cells[0]!, mouse);
     over(cells[1]!);
     fireEvent.pointerMove(window, mouse);
+    expect(pressed()).toEqual([true, true, false]);
     act(() => void fireEvent.keyDown(window, { key: "Escape" }));
     fireEvent.pointerUp(window, mouse);
 

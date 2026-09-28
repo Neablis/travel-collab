@@ -264,7 +264,21 @@ export function KeepDayDialog({
   // that a day is chosen but cannot show when it was chosen. Honouring click
   // order would make two identical-looking selections produce two different
   // Playbooks. Reordering days is not a feature M23 ships.
-  const selected = days.filter((d) => selectedIds.includes(d.dayId));
+  //
+  // **What the dialog describes is the drag while one is under way.** Mitchell,
+  // PR #269 preview: *"would love for this to update as your dragging, not
+  // when your done dragging"*. `liveDrag` is `DayGrid`'s span as the pointer
+  // moves; the summary, the preview and the Keep button all read `selected`,
+  // so they follow it and settle on release, when the span is committed. The
+  // name does not: it follows only a committed selection (`selectedIds`), so
+  // a drag does not retype the field under the reader on every day crossed.
+  const [liveDrag, setLiveDrag] = useState<DayGridDrag | null>(null);
+  const spanIds = (drag: DayGridDrag) => {
+    const { first, last } = dragSpan(drag);
+    return days.filter((_, index) => index >= first && index <= last).map((d) => d.dayId);
+  };
+  const shownIds = liveDrag === null ? selectedIds : spanIds(liveDrag);
+  const selected = days.filter((d) => shownIds.includes(d.dayId));
 
   // Reset on every open, so a dialog reopened on a different day does not offer
   // the previous day's selection or its name.
@@ -296,32 +310,20 @@ export function KeepDayDialog({
     );
   }
 
-  // **Press and drag PAINTS.** Mitchell, PR #269 preview: *"This date selector
-  // should also support click to drag"*, and *"look more like the other date
-  // selector in a widget"* — so this is `DaysFilter`'s grid and gesture
-  // (`DayGrid`), with this dialog's own selection rule on top. That rule is
-  // NOT a range: the days kept are any set (Mitchell, 2026-09-19, header), so
-  // a drag cannot replace the selection with its span the way the filter's
-  // does — that would throw away "Day 1 and Day 5" the moment someone dragged
-  // across Days 2–3. It paints instead: pressed on a day that is OUT, the drag
-  // puts every day it crosses IN; pressed on a day that is IN, it takes them
-  // out. Days outside the span are untouched. The span is the contiguous run
-  // from the pressed day to the day under the pointer, shown live and applied
-  // once on release; a press that never leaves its day is a click and toggles
-  // that one day, as it always did.
-  const paintsIn = (drag: DayGridDrag) => !selectedIds.includes(days[drag.start]!.dayId);
-  const inSpan = (index: number, drag: DayGridDrag) => {
-    const { first, last } = dragSpan(drag);
-    return index >= first && index <= last;
-  };
+  // **A drag REPLACES the selection; a click toggles one day.** Mitchell, PR
+  // #269 preview: *"When you start dragging, clear the existing selected days.
+  // When you select one without a drag, it shouldnt clear existing"*. So a
+  // drag is a range, as it is in `DaysFilter` — the span from the pressed day
+  // to the day under the pointer is the whole selection while it lasts, and on
+  // release — and a set that is not a run ("Day 1 and Day 5") is still made
+  // the way it always was, by clicking days one at a time. This replaces the
+  // first version, which painted days in or out and left the rest alone.
+  // Escape (or a release the grid never hears) abandons the drag and puts the
+  // earlier selection back, because nothing was committed.
   const pressedAt = (index: number, drag: DayGridDrag | null) =>
-    drag !== null && inSpan(index, drag) ? paintsIn(drag) : selectedIds.includes(days[index]!.dayId);
-  function paint(drag: DayGridDrag) {
-    const on = paintsIn(drag);
-    const span = days.filter((_, index) => inSpan(index, drag)).map((d) => d.dayId);
-    setSelectedIds((prev) =>
-      on ? [...prev, ...span.filter((id) => !prev.includes(id))] : prev.filter((id) => !span.includes(id)),
-    );
+    drag !== null ? spanIds(drag).includes(days[index]!.dayId) : selectedIds.includes(days[index]!.dayId);
+  function replaceWithSpan(drag: DayGridDrag) {
+    setSelectedIds(spanIds(drag));
   }
 
   async function save() {
@@ -408,8 +410,9 @@ export function KeepDayDialog({
               </Text>
               {/* A strip of the trip's days, each one a toggle. NOT a range — see
                   the header. The anchor day arrives selected, so the one-day keep
-                  is untouched; every other day is one click away (or one drag
-                  across several — see `paint`) and they need not be adjacent.
+                  is untouched; every other day is one click away, and they need
+                  not be adjacent. A drag picks a run instead, replacing what
+                  was picked (see `replaceWithSpan`).
                   `aria-pressed` rather than checkboxes because these
                   are buttons that change what the dialog is about, and a screen
                   reader should hear the state on the control itself. */}
@@ -477,7 +480,8 @@ export function KeepDayDialog({
                 columns={2}
                 pressed={pressedAt}
                 onPick={(index) => toggle(days[index]!.dayId)}
-                onDragCommit={paint}
+                onDragCommit={replaceWithSpan}
+              onDragChange={setLiveDrag}
                 cell={(index) => {
                   const day = days[index]!;
                   return {
