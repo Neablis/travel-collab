@@ -2,8 +2,8 @@ import { after } from "next/server";
 import { consumeQuota, linkPreviewQuota, quotaRefusal, sweepExpiredCounters } from "../quota";
 
 // The rate limit on the four `/api/og/**` routes (Mitchell, 2026-09-27): the
-// Postgres counter `quota.ts` already keeps, not a new store — there is no
-// Redis (ADR-052).
+// Postgres counter `quota.ts` already keeps. Never the shared Redis: ADR-059
+// keeps it an expendable cache, and a limiter spends a command per request.
 //
 // **It sits behind the CDN.** The routes answer with `s-maxage`, so a repeat
 // fetch of the same link is served by Vercel's edge and never runs the
@@ -28,10 +28,18 @@ export function clientIp(request: Request): string {
  * 503 when the counter itself is down, `consumeQuota`'s fail-closed rule) to
  * return, marked uncacheable.
  */
-export async function limitLinkPreview(request: Request): Promise<Response | null> {
-  if (Math.random() < SWEEP_PROBABILITY) scheduleSweep();
+export async function limitLinkPreview(
+  request: Request,
+  onAllowed: () => void = maybeSweep,
+): Promise<Response | null> {
   const decision = await consumeQuota(linkPreviewQuota(), clientIp(request));
-  if (decision.allowed) return null;
+  if (decision.allowed) {
+    // Only an allowed request may start a sweep (CodeRabbit, PR #259): refused
+    // traffic is the abusive kind, and letting it trigger DELETEs would hand a
+    // flood a lever on the database. `onAllowed` is injected by the tests.
+    onAllowed();
+    return null;
+  }
   const refusal = quotaRefusal(decision);
   refusal.headers.set("Cache-Control", "no-store");
   return refusal;
@@ -49,12 +57,42 @@ export async function limitLinkPreview(request: Request): Promise<Response | nul
 // of IPs seen in that span. With no traffic there are no new rows to sweep.
 const SWEEP_PROBABILITY = 0.01;
 
-function scheduleSweep(): void {
+function maybeSweep(): void {
+  if (Math.random() < SWEEP_PROBABILITY) scheduleSweep();
+}
+
+// **One sweep at a time per instance** (CodeRabbit, PR #259). The DELETE can
+// scan the table (`rate_limit_counters` has only its `bucket` primary key, and
+// `starts_with` over a default-collation text key does not use it), so two
+// overlapping sweeps would be two scans for the work of one. The flag clears
+// when the sweep settles, whether it succeeded or not.
+let sweeping = false;
+
+/**
+ * Start a sweep after the response unless one is already in flight on this
+ * instance. Returns whether it started. `run` and `defer` are injected by the
+ * tests; `defer` is `after` in a request.
+ */
+export function scheduleSweep(
+  run: () => Promise<void> = () => sweepExpiredCounters(linkPreviewQuota()),
+  defer: (task: () => Promise<void>) => void = after,
+): boolean {
+  if (sweeping) return false;
+  sweeping = true;
   try {
     // After the response, and never able to fail it: a missed sweep leaves a
     // few more ended rows for the next one, which changes no decision.
-    after(() => sweepExpiredCounters(linkPreviewQuota()).catch(() => undefined));
+    defer(() =>
+      run()
+        .catch(() => undefined)
+        .finally(() => {
+          sweeping = false;
+        }),
+    );
+    return true;
   } catch {
-    // `after` throws outside a request scope (a test calling this directly).
+    // `after` throws outside a request scope; nothing was scheduled.
+    sweeping = false;
+    return false;
   }
 }
