@@ -9,6 +9,7 @@ import { tripKeys } from "@/lib/queryKeys";
 import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
@@ -102,6 +103,34 @@ function droppedNotice(dropped: readonly DroppedInsert[]): string {
 // because by the time TipTap has fallen back to an empty document the content
 // is already gone from memory.
 //
+/**
+ * **An open notebook's shape while its reads are in flight** — the toolbar row
+ * (back link left, the mode toggle right) and the document card with its title
+ * and a few lines of prose, at the loaded card's own padding, so nothing jumps
+ * when the real page replaces it. No widget rail: it only exists in Editing,
+ * which a notebook does not open in.
+ */
+function NotebookSkeleton() {
+  return (
+    <PageContainer>
+      <SkeletonRegion label="Loading this notebook" className="flex flex-col">
+        <div className="mt-3 mb-3 flex items-center justify-between gap-3 md:my-0 md:py-3" data-testid="notebook-skeleton">
+          <Skeleton className="h-3.5 w-32" />
+          <Skeleton className="h-10 w-28 rounded-lg" />
+        </div>
+        <div className="rounded-md border border-hairline px-5 py-6 sm:px-12 sm:py-10">
+          <Skeleton className="h-8 w-1/2" delay={2} />
+          <div className="mt-6 flex flex-col gap-3">
+            {["w-full", "w-11/12", "w-4/5", "w-full", "w-2/3"].map((width, line) => (
+              <Skeleton key={line} className={`h-3.5 ${width}`} delay={3} data-testid="notebook-skeleton-line" />
+            ))}
+          </div>
+        </div>
+      </SkeletonRegion>
+    </PageContainer>
+  );
+}
+
 // `Banner` rather than a hand-rolled box: it already carries `role="status"`
 // and the palette's own `warning` tokens. The first draft of this used
 // `bg-amber-50`, which renders as nothing at all — `globals.css` sets
@@ -904,13 +933,15 @@ export function PageScreen({
 
   const toggleEditing = () => setEditing((was) => !was);
 
-  // **No loading state at all** — the trip board's rule (TripBoardScreen.tsx),
-  // on Mitchell's call: *"dont even have the loading state. KEep it simple."*
-  // It used to paint `Loading…` alone, the flicker on Overview → Edit Overview.
-  // The chrome cannot stand in for it: the breadcrumb's first crumb is the
-  // trip's name and every button acts on a page that is not here yet, so a
-  // first frame of it would be a placeholder too (KI-2026-09-20-e).
-  if (status === "loading") return null;
+  // **The page's shape in outlines, never a word** (KI-2026-09-20-e). It used
+  // to paint `Loading…` alone, the flicker on Overview → Edit Overview; then it
+  // painted nothing, on Mitchell's *"dont even have the loading state"*. The
+  // blank frame read as "no skeleton loading page when opening a notebook"
+  // (Mitchell, PR #269 preview), so it is `ui/skeleton.tsx`'s outlines now —
+  // still no word. The chrome cannot stand in for it: the breadcrumb's first
+  // crumb is the trip's name and every button acts on a page that is not here
+  // yet, so the toolbar row is outlined too.
+  if (status === "loading") return <NotebookSkeleton />;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
       <PageContainer>

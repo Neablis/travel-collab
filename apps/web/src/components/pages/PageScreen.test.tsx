@@ -1363,7 +1363,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
   it("opens read-only, explains why, and never autosaves over the page", async () => {
     const { onUpdate } = await renderWithStoredContent(withNewerNode);
 
-    const notice = await screen.findByRole("status");
+    // The loading outlines are a `status` region too; the notice is the one
+    // left once they are gone.
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
+    const notice = screen.getByRole("status");
     expect(notice.textContent).toContain("callout");
 
     // No editor at all: mounting one is what destroys the document, so the
@@ -1408,7 +1411,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
       content: [{ type: "heading", attrs: { level: 9 }, content: [] }],
     });
 
-    const notice = await screen.findByRole("status");
+    // The loading outlines are a `status` region too; the notice is the one
+    // left once they are gone.
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
+    const notice = screen.getByRole("status");
     expect(notice.textContent).toContain("can't read");
     expect(editorTextbox()).toBeNull();
     // Nothing parsed, so there is no AST to render — and inventing one would be
@@ -1887,6 +1893,24 @@ describe("PageScreen while its first read is pending", () => {
     const { container } = render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
 
     expect(container.textContent).not.toMatch(/Loading/);
+  });
+
+  // Mitchell, PR #269 preview: "Theres no skeleton loading page when opening a
+  // notebook". Not a word (above) and not a blank frame either: the toolbar
+  // row and the document card, outlined.
+  it("draws the notebook's shape in outlines", () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => new Promise<never>(() => {})),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(screen.getByRole("status", { name: "Loading this notebook" })).toBeTruthy();
+    expect(screen.getByTestId("notebook-skeleton")).toBeTruthy();
+    expect(screen.getAllByTestId("notebook-skeleton-line").length).toBeGreaterThan(0);
   });
 });
 
