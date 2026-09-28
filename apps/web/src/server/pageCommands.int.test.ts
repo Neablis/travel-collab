@@ -348,7 +348,7 @@ describe("executePageCommand", () => {
     await db.delete(pages).where(eq(pages.id, packing));
     await db.update(pages).set({ content: docWith("drifted") as never }).where(eq(pages.id, overview.id));
     await db.update(pages).set({ title: "drifted" }).where(eq(pages.id, legacyId));
-    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch" });
+    await db.insert(pages).values({ ...live.find((r) => r.id === overview.id)!, id: scratch, title: "Scratch", seedKey: null });
 
     await rebuildProjections();
 

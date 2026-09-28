@@ -63,35 +63,30 @@ describe("the default-notebook routes", () => {
   });
 });
 
-// A seed renamed away from its template's title is not recognised
-// (KI-2026-09-27-e), so "Add missing" seeds the template again beside it.
-// Renaming the first one back then collides with the second on
-// `pages_system_seed_unique`, which escaped as a 500. It is the ordinary 409,
-// saying which name is taken.
-describe("renaming a seed onto a title another seed holds", () => {
+// Titles are free (Mitchell, 2026-09-27): a default is known by its seed key,
+// so any notebook may take any name, including one another notebook has. Until
+// then the seed index was on (trip, title), and renaming "Before you go" to
+// "Money" was refused as 409 `page-title-taken`.
+describe("renaming a notebook onto a name another notebook has", () => {
   beforeEach(() => {
     currentUserId = "";
   });
 
-  it("is the ordinary 409, naming the notebook", async () => {
+  it("is allowed, and each keeps being the default it was", async () => {
     const { tripId, ownerId } = await sharedTrip();
     currentUserId = ownerId;
-    const money = (await listPages(tripId)).find((p) => p.title === "Money")!;
-    const rename = (title: string) =>
-      PATCH(
-        new Request(`http://test/api/trips/${tripId}/pages/${money.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title }),
-        }),
-        { params: Promise.resolve({ tripId, pageId: money.id }) },
-      );
-    expect((await rename("Budget")).status).toBe(200);
-    const added = await ADD_MISSING(post(`http://test/api/trips/${tripId}/pages/defaults`), { params: Promise.resolve({ tripId }) });
-    expect(added.status).toBe(200);
+    const beforeYouGo = (await listPages(tripId)).find((p) => p.seedKey === "before-you-go")!;
+    const res = await PATCH(
+      new Request(`http://test/api/trips/${tripId}/pages/${beforeYouGo.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "Money" }),
+      }),
+      { params: Promise.resolve({ tripId, pageId: beforeYouGo.id }) },
+    );
+    expect(res.status).toBe(200);
 
-    const res = await rename("Money");
-    expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: "A notebook called “Money” already exists in this trip." });
+    const named = (await listPages(tripId)).filter((p) => p.title === "Money");
+    expect(named.map((p) => p.seedKey).sort()).toEqual(["before-you-go", "money"]);
   });
 });

@@ -140,7 +140,8 @@ describe("pages repository", () => {
 
   // KI-6 regression. Two concurrent first visits (two tabs, or a double-fetch)
   // both observe zero rows before either has inserted, so both seed; only the
-  // `pages_system_seed_unique` partial index stops the second one landing.
+  // `pages_seed_key_unique` partial index (on the title until 2026-09-27) stops
+  // the second one landing.
   //
   // The pool warm-up is load-bearing, not incidental: with a cold pool the
   // second listPages() has to open a fresh Postgres connection (TCP + auth)

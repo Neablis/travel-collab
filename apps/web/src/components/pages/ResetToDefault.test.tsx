@@ -44,9 +44,10 @@ function notebooks(tripId: string) {
     title: "Overview",
     context: { tripId, kind: "overview" },
     actorId: SYSTEM_ACTOR_ID,
+    seedKey: "overview",
   });
-  // Titled like a seed on purpose: the title alone does not make a notebook a
-  // seed; who made it does.
+  // Titled like a seed on purpose: the title does not make a notebook a seed;
+  // its seed key does.
   const mine = pageFixture({ id: crypto.randomUUID(), tripId, title: "Bookings", context: { tripId }, actorId: "dev-alice" });
   return { seeded, mine };
 }
@@ -65,6 +66,16 @@ describe("ResetToDefault", () => {
     // Both rendered side by side, so waiting for the seeded one's button is
     // also waiting out the role read the other one would have needed.
     expect(await screen.findAllByRole("button", { name: "Reset to default" })).toHaveLength(1);
+  });
+
+  // Mitchell, 2026-09-27: a default may be renamed. "Money" renamed "Budget"
+  // is still the Money default, so it keeps its way back (KI-2026-09-27-e).
+  it("is offered on a default notebook the owner renamed", async () => {
+    role = "owner";
+    const tripId = crypto.randomUUID();
+    const renamed = pageFixture({ id: crypto.randomUUID(), tripId, title: "Budget", context: { tripId }, actorId: SYSTEM_ACTOR_ID, seedKey: "money" });
+    render(<ResetToDefault tripId={tripId} page={renamed} onReset={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Reset to default" })).toBeTruthy();
   });
 
   it("is not offered to an editor, even on a seeded notebook", async () => {

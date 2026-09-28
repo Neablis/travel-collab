@@ -91,8 +91,8 @@ import type {
 // what the gallery OFFERS. Apart from the Overview, the first is a subset of
 // the second — so a notebook somebody deleted can be started again from the
 // gallery — and it stays small deliberately: a library that plants every entry
-// in every trip stops being a library, and `pages_system_seed_unique` makes
-// each seeded title a permanent fixture of that trip's index.
+// in every trip stops being a library, and every seed it plants is one more
+// notebook each trip keeps a permanent key for (`Page.seedKey`).
 
 const heading = (text: string, level: 1 | 2 | 3 = 2): PageHeadingNode => ({
   type: "heading",
@@ -533,8 +533,11 @@ export function isOverviewPage(context: PageContext): boolean {
   return context.kind === OVERVIEW_KIND;
 }
 
-/** A seeded page: what `CreatePageInput` carries, and the id the seeder gave it. */
-export type SeededPage = CreatePageInput & { id: string };
+/**
+ * A seeded page: what `CreatePageInput` carries, the id the seeder gave it, and
+ * its template's key, which the page keeps for good (`Page.seedKey`).
+ */
+export type SeededPage = CreatePageInput & { id: string; seedKey: string };
 
 /**
  * The pages a new trip is seeded with, each with its id.
@@ -550,6 +553,7 @@ export function instantiateDefaults(tripId: string, mintId: () => string): Seede
   for (const t of DEFAULT_TEMPLATES) ids[t.key] = mintId();
   return DEFAULT_TEMPLATES.map((t) => ({
     id: ids[t.key]!,
+    seedKey: t.key,
     title: t.title,
     context: t.buildContext(tripId),
     content: t.buildContent ? t.buildContent(ids) : t.content,
