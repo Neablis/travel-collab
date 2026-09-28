@@ -94,9 +94,12 @@ export function SlashMenu({
               }}
             >
               <span className="text-sm font-medium text-ink">{w.title}</span>
-              {/* The same FIXED sample the picker shows (ADR-037 decision 5) —
-                  one preview string per widget, wherever it is offered. */}
-              <span className="text-xs text-slate">{w.preview}</span>
+              {/* The same sentence the picker's rail shows under each title
+                  (`summary`), so a widget reads the same wherever it is
+                  offered. It was `preview`, whose fragments ("how many there
+                  are") Mitchell asked to replace with real descriptions on the
+                  PR #269 preview. */}
+              <span className="text-xs text-slate">{w.summary}</span>
             </Button>
           </li>
         ))}
