@@ -210,9 +210,11 @@ export function TripMetaPill({
           />
           {end !== null && <span className="font-mono text-sm text-slate">{`→ ${formatTripDateWithYear(end)}`}</span>}
         </div>
-        <span className="text-xs leading-normal text-slate">
-          Every day moves with it. Order, times and notes stay as they are.
-        </span>
+        {/* No explanatory line under the date (Mitchell, PR #269 preview: "Drop
+            the words here, we dont need so much extra text all over the app").
+            It said "Every day moves with it. Order, times and notes stay as
+            they are." — true, and shown by the end date beside the field
+            moving as you pick. */}
         <div className="flex justify-end">
           <Button type="button" variant="secondary" size="sm" onClick={() => changeOpen(false)}>
             Done
