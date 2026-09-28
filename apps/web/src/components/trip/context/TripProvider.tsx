@@ -470,7 +470,12 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // exactly this hazard ("anything dispatched later in this same tick
         // predicts against this result rather than the pre-dispatch queue");
         // the history branch now guards on the same value it is guarding.
-        if ((optimisticRef.current?.pending.length ?? 0) > 0) return { ok: true };
+        // Refused, not accepted (CodeRabbit, PR #269): nothing was sent, and
+        // `DispatchResult` means "accepted" by `ok: true`. Still silent on the
+        // board, as KI-90 left it — this only stops the result lying.
+        if ((optimisticRef.current?.pending.length ?? 0) > 0) {
+          return { ok: false, message: "Your last changes are still saving. Try again in a moment." };
+        }
         setError(null);
         const result = await sendTripCommand(command);
         if (!result.ok) {

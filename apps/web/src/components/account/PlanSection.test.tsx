@@ -439,7 +439,27 @@ describe("the card's three answers", () => {
     serve(granted("2026-12-01T00:00:00.000Z"));
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
-    expect(text("plan-expires")).toBe("Until December 1, then back to free v1.");
+    expect(text("plan-expires")).toBe("Until December 1, then free v1.");
+  });
+
+  // CodeRabbit, PR #269: the fallback is whatever outlasts this grant, not the
+  // bought plan by assumption. A permanent founder plus under a premium comp
+  // that ends in December leaves the account on plus.
+  it("names the tier another grant keeps the account on after this one ends", async () => {
+    serve({
+      ...granted("2026-12-01T00:00:00.000Z"),
+      grantedVersionRefs: ["premium@v1", "plus@v1"],
+      grants: [
+        { planId: "premium", version: 1, source: "admin", expiresAt: "2026-12-01T00:00:00.000Z" },
+        { planId: "plus", version: 1, source: "founder", expiresAt: null },
+      ],
+      // plus has to be on offer to rank at all (`effectiveTierRef`), between
+      // free and premium as the real catalogue orders them.
+      catalogue: [CATALOGUE[0]!, { ...CATALOGUE[0]!, planId: "plus", held: false, priceMinor: 900 }, ...CATALOGUE.slice(1)],
+    });
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-expires")).toBe("Until December 1, then plus v1.");
   });
 
   it("says a permanent grant does not expire", async () => {

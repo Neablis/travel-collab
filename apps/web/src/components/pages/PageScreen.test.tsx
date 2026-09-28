@@ -1393,6 +1393,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
 
   it("takes the assistant away too, since what it inserts would be autosaved", async () => {
     await renderWithStoredContent(withNewerNode);
+    // The loading outlines are a `status` too, so wait for them to go and the
+    // locked branch to be what is on screen before asserting absences
+    // (CodeRabbit, PR #269).
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
     await screen.findByRole("status");
     // Not only the rail — its launcher, in BOTH of its shapes. This branch
     // never mounts an editor at all (that is the whole of decision 4), so an

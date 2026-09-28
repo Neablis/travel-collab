@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SLASH_LISTBOX_ID, slashOptionId, type SlashMenuState } from "./useSlashMenu";
 
@@ -36,6 +36,16 @@ export function SlashMenu({
     if (el) setSize({ width: el.offsetWidth, height: el.offsetHeight });
   }, [rows]);
 
+  // **The active row stays in view** (CodeRabbit, PR #269). Each row carries
+  // a whole sentence now, so six of them can be taller than the menu's cap
+  // below; arrowing to one out of sight must scroll it in, the way a native
+  // listbox does. `?.` on the method because jsdom has no `scrollIntoView`.
+  const activeName = state?.names[state.active]?.name ?? null;
+  useEffect(() => {
+    if (activeName === null) return;
+    document.getElementById(slashOptionId(activeName))?.scrollIntoView?.({ block: "nearest" });
+  }, [activeName]);
+
   if (state === null) return null;
 
   // **Clamped to the viewport.** The caret's own coordinates put a fixed 18rem
@@ -63,7 +73,11 @@ export function SlashMenu({
       role="listbox"
       id={SLASH_LISTBOX_ID}
       aria-label="Insert a widget"
-      className="overlay-layer fixed w-72 overflow-hidden rounded-md border border-hairline bg-surface shadow-overlay"
+      // `max-h-80` + `overflow-y-auto` (CodeRabbit, PR #269): with a sentence
+      // per row the list can outgrow a short viewport, and `overflow-hidden`
+      // left the lower rows unreachable by pointer. 320px is a token; the
+      // flip-above logic above still measures the capped height.
+      className="overlay-layer fixed max-h-80 w-72 overflow-x-hidden overflow-y-auto rounded-md border border-hairline bg-surface shadow-overlay"
       // eslint-disable-next-line no-restricted-syntax -- caret coordinates, recomputed per keystroke from `coordsAtPos`. There is no token for "wherever the cursor happens to be", and every colour, size and spacing below is a token.
       style={{ left, top }}
     >

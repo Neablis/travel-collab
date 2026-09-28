@@ -373,6 +373,10 @@ describe("NotebookScreen", () => {
     server.use(...makePagesHandlers([]));
     const essentials = TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips);
     const more = TEMPLATE_LIBRARY.filter((t) => !t.seedIntoNewTrips);
+    // Witnesses (CodeRabbit, PR #269): an empty group would run its loop
+    // below zero times and pass while checking nothing.
+    expect(essentials.length).toBeGreaterThan(0);
+    expect(more.length).toBeGreaterThan(0);
     const startButton = (title: string) => ({ name: `Start from ${title}` });
 
     render(<NotebookScreen tripId={TRIP_ID} />);

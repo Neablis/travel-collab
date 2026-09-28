@@ -216,6 +216,22 @@ export function PlanSection() {
         .sort((a, b) => (a.expiresAt === null ? -1 : b.expiresAt === null ? 1 : b.expiresAt.localeCompare(a.expiresAt)))[0]
     : undefined;
   const grantEnds = effectiveGrant?.expiresAt != null ? formatDate(effectiveGrant.expiresAt) : null;
+  // **What the account is on once that grant ends — worked out, not assumed**
+  // (CodeRabbit, PR #269). It used to say "then back to" the bought plan, which
+  // is wrong whenever another grant outlasts this one: a free account holding a
+  // premium comp to December and a permanent founder plus drops to plus, not
+  // free. The grants still active after this one's end, ranked the same way
+  // `effectiveTierRef` ranks them now.
+  const expiresAt = effectiveGrant?.expiresAt ?? null;
+  const fallbackRef =
+    expiresAt === null
+      ? null
+      : effectiveTierRef({
+          ...plan,
+          grantedVersionRefs: plan.grants
+            .filter((g) => g !== effectiveGrant && (g.expiresAt === null || g.expiresAt > expiresAt))
+            .map((g) => `${g.planId}@v${g.version}`),
+        });
   const capabilities = plan.entitlements.map(
     (entitlement) => ENTITLEMENT_LABEL[entitlement as keyof typeof ENTITLEMENT_LABEL] ?? entitlement,
   );
@@ -267,7 +283,7 @@ export function PlanSection() {
           <Text variant="secondary" className="text-xs" data-testid="plan-expires">
             {grantEnds === null
               ? "This doesn't expire."
-              : `Until ${grantEnds}, then back to ${planId} ${version}.`}
+              : `Until ${grantEnds}, then ${fallbackRef?.split("@").join(" ") ?? `${planId} ${version}`}.`}
           </Text>
         ) : null}
         {!trialEndShown && renews !== null ? (
