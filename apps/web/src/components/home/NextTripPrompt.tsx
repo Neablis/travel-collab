@@ -25,10 +25,12 @@ export type NextTripPromptProps = {
 // **A button that runs the page's own handler, not a second flow.** It opens
 // the same `NewTripWizard` the page head does, through the same
 // `startNewTrip`, so there is one sheet and one set of rules about when it
-// may open. Its accessible name is *Start a new trip*, not *New trip*, because
-// the page-head button is still on screen above it: two buttons with one name
-// would be indistinguishable to a screen reader and to any test that finds a
-// control by its role and name.
+// may open. Its accessible name is *Start planning*, and it must not CONTAIN
+// "new trip": the page-head "New trip" button is still on screen above it, and
+// a role query by name matches substrings — "Start a new trip" made every
+// `getByRole("button", { name: "New trip" })` in the e2e suite match two
+// buttons on a one-trip Home and fail strict mode (m25's round trip, CI on PR
+// #269).
 //
 // Not `EmptyState`: that is the dashed "this filter matched nothing" box, and
 // FirstTripStart's note already says why an account's own trips are not an
@@ -57,7 +59,7 @@ export function NextTripPrompt({ onStart, disabled = false }: NextTripPromptProp
       </Text>
       <Button type="button" variant="primary" size="touch" className="mt-2" disabled={disabled} onClick={onStart}>
         <Plus className="size-4" aria-hidden />
-        Start a new trip
+        Start planning
       </Button>
     </section>
   );

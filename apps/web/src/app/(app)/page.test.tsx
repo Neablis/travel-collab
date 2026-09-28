@@ -617,8 +617,13 @@ describe("Home page head", () => {
   it("invites a one-trip account to plan its next trip, through the same sheet as New trip", async () => {
     renderHome([tripSummaryFixture()]);
     const prompt = await screen.findByRole("region", { name: /start planning your next trip/i });
+    // ONE button whose name contains "new trip" — a role query by name matches
+    // substrings, and "Start a new trip" here made every e2e
+    // `getByRole("button", { name: "New trip" })` hit two buttons on a one-trip
+    // Home (m25's round trip failed in CI on PR #269).
+    expect(screen.getAllByRole("button", { name: /new trip/i })).toHaveLength(1);
 
-    await userEvent.click(within(prompt).getByRole("button", { name: "Start a new trip" }));
+    await userEvent.click(within(prompt).getByRole("button", { name: "Start planning" }));
 
     expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
