@@ -6,7 +6,7 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ToggleChip } from "@/components/ui/toggle-chip";
+import { DayGrid, dragSpan, type DayGridDrag } from "@/components/ui/day-grid";
 import { Text } from "@/components/ui/text";
 import { createSavedDay } from "@/lib/apiClient";
 import { isDroppedFromPlaybook } from "@/lib/savedStops";
@@ -296,6 +296,34 @@ export function KeepDayDialog({
     );
   }
 
+  // **Press and drag PAINTS.** Mitchell, PR #269 preview: *"This date selector
+  // should also support click to drag"*, and *"look more like the other date
+  // selector in a widget"* — so this is `DaysFilter`'s grid and gesture
+  // (`DayGrid`), with this dialog's own selection rule on top. That rule is
+  // NOT a range: the days kept are any set (Mitchell, 2026-09-19, header), so
+  // a drag cannot replace the selection with its span the way the filter's
+  // does — that would throw away "Day 1 and Day 5" the moment someone dragged
+  // across Days 2–3. It paints instead: pressed on a day that is OUT, the drag
+  // puts every day it crosses IN; pressed on a day that is IN, it takes them
+  // out. Days outside the span are untouched. The span is the contiguous run
+  // from the pressed day to the day under the pointer, shown live and applied
+  // once on release; a press that never leaves its day is a click and toggles
+  // that one day, as it always did.
+  const paintsIn = (drag: DayGridDrag) => !selectedIds.includes(days[drag.start]!.dayId);
+  const inSpan = (index: number, drag: DayGridDrag) => {
+    const { first, last } = dragSpan(drag);
+    return index >= first && index <= last;
+  };
+  const pressedAt = (index: number, drag: DayGridDrag | null) =>
+    drag !== null && inSpan(index, drag) ? paintsIn(drag) : selectedIds.includes(days[index]!.dayId);
+  function paint(drag: DayGridDrag) {
+    const on = paintsIn(drag);
+    const span = days.filter((_, index) => inSpan(index, drag)).map((d) => d.dayId);
+    setSelectedIds((prev) =>
+      on ? [...prev, ...span.filter((id) => !prev.includes(id))] : prev.filter((id) => !span.includes(id)),
+    );
+  }
+
   async function save() {
     const trimmed = name.trim();
     if (selected.length === 0) {
@@ -359,8 +387,9 @@ export function KeepDayDialog({
             </Text>
             {/* A strip of the trip's days, each one a toggle. NOT a range — see
                 the header. The anchor day arrives selected, so the one-day keep
-                is untouched; every other day is one click away and they need not
-                be adjacent. `aria-pressed` rather than checkboxes because these
+                is untouched; every other day is one click away (or one drag
+                across several — see `paint`) and they need not be adjacent.
+                `aria-pressed` rather than checkboxes because these
                 are buttons that change what the dialog is about, and a screen
                 reader should hear the state on the control itself. */}
             {/* **A grid, so every day is the same width and the same height.**
@@ -411,30 +440,39 @@ export function KeepDayDialog({
                 may not.** A city name has no length bound, so the label
                 is the one line allowed to break — and grid items stretch,
                 so a two-line chip makes its whole row taller rather than
-                misaligning it. */}
-            <div
-              className="grid grid-cols-2 gap-1.5"
-              role="group"
-              aria-label="Days to keep"
-            >
-              {days.map((day, index) => {
-                const on = selectedIds.includes(day.dayId);
-                return (
-                  <ToggleChip key={day.dayId} pressed={on} onClick={() => toggle(day.dayId)}>
-                    <span className="text-sm font-semibold">
-                      Day {index + 1}
-                      {day.city === null ? "" : ` · ${day.city}`}
-                    </span>
-                    <span className="whitespace-nowrap opacity-80">
+                misaligning it.
+                **The cell is `DayGrid`'s now, not a `ToggleChip`.** Mitchell,
+                PR #269 preview: *"it should look more like the other date
+                selector in a widget. Obviously keep the more context"* — so
+                a kept day is drawn filled, like a selected day in the
+                notebook's `DaysFilter`, and the city, date and stop count
+                stay. The measurements above were taken on the chip (`px-2`,
+                a `text-xs` meta line, `gap-1.5`); the shared cell is
+                narrower on every count (`px-1`, `text-2xs`, `gap-1`), so two
+                columns only gained slack. */}
+            <DayGrid
+              label="Days to keep"
+              count={days.length}
+              columns={2}
+              pressed={pressedAt}
+              onPick={(index) => toggle(days[index]!.dayId)}
+              onDragCommit={paint}
+              cell={(index) => {
+                const day = days[index]!;
+                return {
+                  key: day.dayId,
+                  title: `Day ${index + 1}${day.city === null ? "" : ` · ${day.city}`}`,
+                  detail: (
+                    <span className="whitespace-nowrap">
                       {day.date === null ? "" : `${formatTripDate(day.date)} · `}
                       {day.stops.length === 0
                         ? "no stops"
                         : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`}
                     </span>
-                  </ToggleChip>
-                );
-              })}
-            </div>
+                  ),
+                };
+              }}
+            />
           </div>
         ) : (
           days.length > 1 && (

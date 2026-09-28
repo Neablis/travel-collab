@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
@@ -366,5 +366,91 @@ describe("KeepDayDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Keep this day" }));
     expect(await screen.findByText("forbidden")).toBeTruthy();
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+// Mitchell, PR #269 preview: *"This date selector should also support click to
+// drag ... try to re-use components and see similiar functionality using the
+// same style and code"*. The grid and its gesture are `DayGrid`, shared with
+// the notebook's `DaysFilter`; what is this dialog's own is the rule a drag
+// applies — a PAINT over a set, not a range — so that is what is proven here.
+// jsdom has no `elementFromPoint`, so each test points it at the cell the
+// "pointer" is over, as `DaysFilter.test.tsx` does.
+describe("KeepDayDialog — click and drag across days", () => {
+  afterEach(() => Reflect.deleteProperty(document, "elementFromPoint"));
+
+  const mouse = { pointerType: "mouse", pointerId: 1, button: 0, buttons: 1 } as const;
+
+  async function openGrid() {
+    renderDialog();
+    await openPicker();
+    const group = screen.getByRole("group", { name: "Days to keep" });
+    const cells = within(group).getAllByRole("button");
+    let under: Element | null = null;
+    document.elementFromPoint = () => under;
+    const over = (cell: Element) => {
+      under = cell;
+    };
+    const pressed = () => cells.map((c) => c.getAttribute("aria-pressed") === "true");
+    return { cells, over, pressed };
+  }
+
+  it("pressed on an unselected day, a drag selects every day it crosses and keeps the rest", async () => {
+    const { cells, over, pressed } = await openGrid();
+    // Day 3 arrives selected; Days 1–2 are painted in.
+    fireEvent.pointerDown(cells[0]!, mouse);
+    over(cells[1]!);
+    fireEvent.pointerMove(window, mouse);
+    // The span shows while the drag lasts, and nothing is kept yet.
+    expect(pressed()).toEqual([true, true, true]);
+    expect(screen.getByRole("button", { name: "Keep this day" })).toBeTruthy();
+
+    fireEvent.pointerUp(window, mouse);
+    // The click the release produces is the drag's, not a toggle of Day 2.
+    fireEvent.click(cells[1]!);
+
+    expect(pressed()).toEqual([true, true, true]);
+    expect(screen.getByRole("button", { name: "Keep 3 days" })).toBeTruthy();
+  });
+
+  it("pressed on a selected day, a drag deselects the span and leaves days outside it alone", async () => {
+    const { cells, over, pressed } = await openGrid();
+    await userEvent.click(cells[0]!);
+    expect(pressed()).toEqual([true, false, true]);
+
+    // From Day 3 (in) back to Day 2: both go out, Day 1 stays in.
+    fireEvent.pointerDown(cells[2]!, mouse);
+    over(cells[1]!);
+    fireEvent.pointerMove(window, mouse);
+    fireEvent.pointerUp(window, mouse);
+    fireEvent.click(cells[1]!);
+
+    expect(pressed()).toEqual([true, false, false]);
+  });
+
+  it("a press that never leaves its day is still a click, and toggles just that day", async () => {
+    const { cells, pressed } = await openGrid();
+    // What a real click is: down, up and click on the same cell.
+    for (const expected of [
+      [true, false, true],
+      [false, false, true],
+    ]) {
+      fireEvent.pointerDown(cells[0]!, mouse);
+      fireEvent.pointerUp(window, mouse);
+      fireEvent.click(cells[0]!);
+      expect(pressed()).toEqual(expected);
+    }
+  });
+
+  it("Escape mid-drag keeps nothing and puts the selection back", async () => {
+    const { cells, over, pressed } = await openGrid();
+    fireEvent.pointerDown(cells[0]!, mouse);
+    over(cells[1]!);
+    fireEvent.pointerMove(window, mouse);
+    act(() => void fireEvent.keyDown(window, { key: "Escape" }));
+    fireEvent.pointerUp(window, mouse);
+
+    expect(pressed()).toEqual([false, false, true]);
+    expect(screen.getByRole("button", { name: "Keep this day" })).toBeTruthy();
   });
 });
