@@ -124,7 +124,6 @@
   "apps/web/src/components/front/PhoneFrontDoor.tsx::PhoneFrontDoor",
   "apps/web/src/components/front/authCopy.ts::errorMessage",
   "apps/web/src/components/home/HomeSkeletons.tsx::NextTripHeroSkeleton",
-  "apps/web/src/components/home/HomeSkeletons.tsx::TripGridSkeleton",
   "apps/web/src/components/home/ImportTripButton.tsx::ImportTripButton",
   "apps/web/src/components/home/NewTripWizard.tsx::NewTripConversation",
   "apps/web/src/components/home/NewTripWizard.tsx::NewTripWizard",
