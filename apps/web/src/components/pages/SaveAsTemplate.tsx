@@ -30,7 +30,12 @@ export function SaveAsTemplate({ tripId, pageId, title }: { tripId: string; page
   const [name, setName] = useState(title);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
+  // The title saved and which save it was. The count is the toast's `key`, so
+  // every save gets a toast of its own and its own full timer — saving the
+  // same title twice would otherwise hand `Toast` the same message, its timer
+  // would not restart, and the first save's countdown would dismiss the second
+  // save's confirmation early (CodeRabbit, PR #269).
+  const [saved, setSaved] = useState<{ title: string; count: number } | null>(null);
   const { run, celebrate } = usePennantCelebration();
 
   const openDialog = () => {
@@ -52,7 +57,7 @@ export function SaveAsTemplate({ tripId, pageId, title }: { tripId: string; page
       setError(result.error.message);
       return;
     }
-    setSaved(result.value.title);
+    setSaved((prev) => ({ title: result.value.title, count: (prev?.count ?? 0) + 1 }));
     celebrate();
     setOpen(false);
   }
@@ -77,7 +82,13 @@ export function SaveAsTemplate({ tripId, pageId, title }: { tripId: string; page
           button: the pennant shares a row with the notebook's title, which has
           no room for a sentence, and the toast is how the day pennant says the
           same thing. Same words, same `status` role. */}
-      {saved !== null && <Toast message={`Saved “${saved}” to your templates`} onDismiss={() => setSaved(null)} />}
+      {saved !== null && (
+        <Toast
+          key={saved.count}
+          message={`Saved “${saved.title}” to your templates`}
+          onDismiss={() => setSaved((prev) => (prev?.count === saved.count ? null : prev))}
+        />
+      )}
       <Dialog open={open} onOpenChange={setOpen} title="Save as template">
         <div className="flex flex-col gap-3">
           <Text variant="secondary">
