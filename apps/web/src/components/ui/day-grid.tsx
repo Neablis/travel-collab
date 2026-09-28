@@ -193,8 +193,19 @@ export function DayGrid({
             className="h-auto min-h-11 flex-col gap-0 px-1 py-1 text-xs font-normal md:min-h-9"
             onClick={() => onPick(index)}
           >
+            {/* **The quiet line is `slate` only when the cell is OFF.**
+                Mitchell, PR #269 preview: *"For the widget inputs date picker
+                the text is blending into the background of a picked date"*.
+                A selected cell is `primary` — `bg-brand` with `text-surface`,
+                the pairing every filled control here uses — and the detail
+                line hard-coded `text-slate` over it: grey on dark green, in
+                both themes. On, it takes `text-surface` like the title does
+                (which inherits it from the button); off, it stays the quieter
+                `slate` on `surface`. Everything a caller puts in `title` or
+                `detail` inherits from these two spans, so no caller has to
+                repeat the rule. */}
             <span className="font-medium">{title}</span>
-            <span className="text-2xs text-slate">{detail}</span>
+            <span className={cn("text-2xs", on ? "text-surface" : "text-slate")}>{detail}</span>
           </Button>
         );
       })}
