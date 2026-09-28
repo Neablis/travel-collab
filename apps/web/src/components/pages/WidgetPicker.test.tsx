@@ -226,9 +226,21 @@ describe("WidgetPicker", () => {
       // side — passed this test (CodeRabbit, PR 139).
       expect(shown.length).toBeGreaterThan(0);
       expect(shown.length).toBeLessThan(catalogue.length);
+      const inlines = catalogue.filter((w) => w.shape === "single").map((w) => w.title);
       for (const row of shown) {
-        expect(row.textContent).toMatch(/inline/);
+        expect(inlines.some((t) => row.textContent?.includes(t))).toBe(true);
       }
+    });
+
+    // With one kind on, every row is that kind, so the per-row chip only
+    // repeated the filter (Mitchell, PR #269 preview). It comes back on All.
+    it("drops the per-row kind chip while one kind is filtered on, and brings it back on All", async () => {
+      render(<WidgetPicker onPick={vi.fn()} />);
+      await userEvent.click(within(filters()).getByRole("radio", { name: "List" }));
+      for (const row of rows()) expect(within(row).queryByText("a list")).toBeNull();
+
+      await userEvent.click(within(filters()).getByRole("radio", { name: "All" }));
+      expect(within(screen.getByRole("button", { name: /A line for each/ })).getByText("a list")).toBeTruthy();
     });
 
     // **A radiogroup is one tab stop moved through with the arrows** (WAI-ARIA),

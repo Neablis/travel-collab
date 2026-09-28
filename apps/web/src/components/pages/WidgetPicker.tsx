@@ -489,9 +489,16 @@ export function WidgetPicker({
                       cursor is. */}
                   {draggable ? <span aria-hidden className="text-2xs text-slate">&#8759;</span> : null}
                   <span className="text-sm font-semibold text-ink">{w.title}</span>
-                  <Badge variant="neutral" className="font-mono text-2xs font-normal">
-                    {SHAPE_LABEL[w.shape]}
-                  </Badge>
+                  {/* Only under All. With one kind filtered on, every row is
+                      that kind, so the chip would repeat the filter on every
+                      line (Mitchell, PR #269 preview: "Drop the
+                      inline/block/list when you are filtering the widgets.
+                      They will always all be the same"). */}
+                  {shape === null && (
+                    <Badge variant="neutral" className="font-mono text-2xs font-normal">
+                      {SHAPE_LABEL[w.shape]}
+                    </Badge>
+                  )}
                 </span>
                 {/* `text-brand-pressed`, which is the one colour on the card
                     that is not ink or slate — the design uses it to mark the
