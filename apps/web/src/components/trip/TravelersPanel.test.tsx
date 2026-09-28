@@ -72,6 +72,11 @@ describe("TravelersPanel", () => {
 
     expect(screen.getByRole("status", { name: "Loading travelers" })).toBeTruthy();
     expect(screen.queryByText("Alice")).toBeNull();
+    // …and the invite form and the invites under it, which pop in with the
+    // same answer: *"I meant to add a placeholder under invite someone and the
+    // invites"*. Skeletons are aria-hidden, so their test ids are the handle.
+    expect(screen.getByTestId("travelers-skeleton-invite-form")).toBeTruthy();
+    expect(screen.getByTestId("travelers-skeleton-invites")).toBeTruthy();
 
     answer({ ok: true, value: access() });
     expect(await screen.findByText("Alice")).toBeTruthy();
