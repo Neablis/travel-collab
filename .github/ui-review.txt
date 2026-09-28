@@ -1,0 +1,6 @@
+Placeholder for the UI bug-bash PR opened 2026-09-28.
+
+vercel-preview.yml only requests a preview for a PR that touches something
+outside its prose-only paths-ignore list, so a docs-only PR would get no
+preview to leave toolbar comments on. This file is that trigger. Delete it
+in the PR's first fix commit, or before merging.
