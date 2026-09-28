@@ -112,11 +112,11 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   // **On day 1, in the Unscheduled rack** (PR #269). The simulated plan's
   // stops carry no time, and an untimed stop keeps its day but is drawn in
   // the rack under that day, not in the column — the column counts them on
-  // its "any time" chip, which is what opens the rack on them. The rack is
+  // its "Unscheduled" chip, which is what opens the rack on them. The rack is
   // outside `.trip-board-content`, so it is located on its own, and the
   // proposal card cannot be mistaken for it.
   const day1 = page.getByTestId("day-column").first();
-  const anyTime = day1.getByRole("button", { name: /^2 any time/ });
+  const anyTime = day1.getByRole("button", { name: /^2 Unscheduled/ });
   await expect(anyTime).toBeVisible();
   await anyTime.click();
   const day1Group = page.getByTestId("unscheduled-rack").getByRole("group", { name: /^Day 1\b/ });
@@ -130,7 +130,7 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   await card.getByRole("button", { name: "Undo" }).click();
   await expect(page.getByTestId("unscheduled-rack").getByText("Sample: coffee stop")).toHaveCount(0);
   await expect(page.getByTestId("unscheduled-rack").getByText("Sample: evening stroll")).toHaveCount(0);
-  await expect(day1.getByRole("button", { name: /any time/ })).toHaveCount(0);
+  await expect(day1.getByRole("button", { name: /Unscheduled/ })).toHaveCount(0);
   await expect(card).toContainText("Put back the way it was.");
 });
 

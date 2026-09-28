@@ -1618,7 +1618,7 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     expect(within(day2).queryByText("Nishiki market")).toBeNull();
 
     // The chip opens the collapsed rack on Day 2's group.
-    fireEvent.click(within(day2).getByRole("button", { name: /^1 any time on Day 2/ }));
+    fireEvent.click(within(day2).getByRole("button", { name: /^1 Unscheduled on Day 2/ }));
 
     const rack = screen.getByTestId("unscheduled-rack");
     const toggle = within(rack).getByRole("button", { name: /^Unscheduled/ });
@@ -1639,7 +1639,7 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(within(screen.getAllByTestId("day-column")[1]!).getByRole("button", { name: /^1 any time/ }));
+    fireEvent.click(within(screen.getAllByTestId("day-column")[1]!).getByRole("button", { name: /^1 Unscheduled/ }));
     const group = screen.getByRole("group", { name: "Day 2" });
     await userEvent.selectOptions(within(group).getByRole("combobox", { name: "Add to day" }), DAY_2);
 
@@ -1655,7 +1655,7 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByText("Viewer")).toBeTruthy();
-    fireEvent.click(within(screen.getAllByTestId("day-column")[1]!).getByRole("button", { name: /^1 any time/ }));
+    fireEvent.click(within(screen.getAllByTestId("day-column")[1]!).getByRole("button", { name: /^1 Unscheduled/ }));
     const group = screen.getByRole("group", { name: "Day 2" });
     expect(within(group).getByText("Nishiki market")).toBeTruthy();
     // …and nothing on the card that would change it.

@@ -42,7 +42,7 @@ export const DAY_COLUMN_WIDTH_PX = 268;
 // drawer, so `dayId` is always a real day and the old full-width/backlog
 // variant — plus its `fullWidth` and `children` props — is gone.
 /**
- * One day of the Plan: its header (with the "N any time" chip when the day
+ * One day of the Plan: its header (with the "N Unscheduled" chip when the day
  * has untimed stops) over its time river.
  */
 export function Column({
@@ -73,7 +73,7 @@ export function Column({
 }: {
   title: string;
   /**
-   * Opens the Unscheduled rack on this day's untimed stops — the "N any time"
+   * Opens the Unscheduled rack on this day's untimed stops — the "N Unscheduled"
    * chip's click. Given on a read-only board too: showing a reader where the
    * stops are is not a write. Without it the chip is still drawn, as text.
    */
@@ -157,7 +157,7 @@ export function Column({
   // header and a river, and a stop dragged over either — or over a river
   // block, which is not a drop target of its own (RiverBlock) — means "this
   // day". Part 3 nests the river's own target inside it, which adds "at this
-  // time"; PR #269 nests the "any time" chip, which adds "at no time".
+  // time"; PR #269 nests the "Unscheduled" chip, which adds "at no time".
   const [section, setSection] = useState<HTMLElement | null>(null);
   const sectionRef = useCallback(
     (node: HTMLElement | null) => {
@@ -216,7 +216,7 @@ export function Column({
       className={cn(
         // `row-span-2 grid-rows-subgrid`: on the desktop row every column
         // shares the row's two tracks (globals.css `.day-columns-row`), so a
-        // header that wraps to a second line — a long date, the "any time"
+        // header that wraps to a second line — a long date, the "Unscheduled"
         // chip — still starts every river at the same height. On a phone the
         // parent is not a grid, `subgrid` falls back to ordinary rows, and the
         // column simply stacks.
@@ -271,7 +271,7 @@ export function Column({
           header, and the "this day" drop line under it. */}
       <div className="flex min-w-0 flex-col gap-1">
         <header data-day-header className="day-sync-target flex items-baseline justify-between gap-1">
-          {/* The title and the day's "any time" chip, together at the start of
+          {/* The title and the day's "Unscheduled" chip, together at the start of
               the header, so `justify-between` keeps meaning "the day at one
               end, its controls at the other". */}
           <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
@@ -334,7 +334,7 @@ export function Column({
           (`phoneStops`, `…Redesign.dc.html:863`). Mitchell, that day: *"cards
           should get the river, we might need to think through the gestures,
           but keep functionality as similar as possible."* So the phone's one
-          day is this same header over this same river, "any time" chip
+          day is this same header over this same river, "Unscheduled" chip
           included, and its gestures are DayRiver's touch versions. */}
       <DayRiver
         title={title}
@@ -361,11 +361,16 @@ export function Column({
 
 /**
  * The day header's pointer to its untimed stops, which the Unscheduled rack
- * draws (PR #269): "2 any time", a button that opens the rack on this day's
+ * draws (PR #269): "2 Unscheduled", a button that opens the rack on this day's
  * group. On an editable board it is also a drop target — a stop dropped on it
  * stays on (or moves to) this day with its time cleared (`resolveDrop`'s
  * `anyTime`). A day with none draws nothing, except during a drag, when an
- * empty "Any time" target stands in so any day can take one.
+ * empty "Unscheduled" target stands in so any day can take one.
+ *
+ * **"Unscheduled", not "any time"** (Mitchell, PR #269: *"Change (1
+ * Unscheduled)"*): the chip opens the rack by that name, so it says the
+ * rack's word. It still means "on this day, no time" — the rack draws these
+ * stops under their day.
  */
 function AnyTimeChip({
   count,
@@ -410,7 +415,7 @@ function AnyTimeChip({
   if (count === 0 && !dragging) return null;
   // The visible words lead the accessible name, so a voice user can say what
   // they see; the day follows because every column draws one of these.
-  const label = count === 0 ? "Any time" : `${count} any time`;
+  const label = count === 0 ? "Unscheduled" : `${count} Unscheduled`;
   const look = cn(
     "rounded-full border px-2 py-0.5 text-xs font-medium text-slate transition-colors",
     count === 0 ? "border-dashed border-border-strong" : "border-hairline bg-surface",
@@ -421,7 +426,7 @@ function AnyTimeChip({
       ref={setElement}
       variant="ghost"
       onClick={onReveal}
-      aria-label={`${label} on ${title}, in Unscheduled`}
+      aria-label={`${label} on ${title}`}
       className={cn("h-auto", look)}
     >
       {label}

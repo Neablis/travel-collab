@@ -519,14 +519,14 @@ describe("a day's untimed stops", () => {
     expect(within(columnOf()).queryByText("Colosseum")).toBeNull();
     // The timed one is still on the river.
     expect(within(columnOf()).getByTestId(`activity-card-${A2}`)).toBeTruthy();
-    expect(within(columnOf()).getByRole("button", { name: /^1 any time on Day 1/ })).toBeTruthy();
+    expect(within(columnOf()).getByRole("button", { name: /^1 Unscheduled on Day 1/ })).toBeTruthy();
   });
 
   it("ask for their day's group in the rack when the chip is clicked", async () => {
     const callbacks = noopCallbacks();
     renderBoard(oneUntimed(), callbacks);
 
-    await userEvent.click(within(columnOf()).getByRole("button", { name: /^1 any time/ }));
+    await userEvent.click(within(columnOf()).getByRole("button", { name: /^1 Unscheduled/ }));
 
     expect(callbacks.onRevealAnyTime).toHaveBeenCalledWith(DAY);
   });
@@ -534,7 +534,7 @@ describe("a day's untimed stops", () => {
   it("put no chip on a day that has none", () => {
     renderBoard(fixture(), noopCallbacks());
 
-    expect(within(columnOf()).queryByRole("button", { name: /any time/i })).toBeNull();
+    expect(within(columnOf()).queryByRole("button", { name: /unscheduled/i })).toBeNull();
   });
 });
 

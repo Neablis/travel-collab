@@ -25,7 +25,7 @@ export type RackEvent =
  * (so the next drag's `dragEnd` does not close it either), from both a
  * drag-opened and an already-open drawer.
  *
- * `reveal` is a day column's "N any time" chip asking to be shown its day's
+ * `reveal` is a day column's "N Unscheduled" chip asking to be shown its day's
  * untimed stops (PR #269). It is not a `toggle`: clicked while the drawer is
  * already open, a toggle would shut the drawer on the very stops the reader
  * asked to see. It opens, or leaves open, and the user owns it — as `parked`.

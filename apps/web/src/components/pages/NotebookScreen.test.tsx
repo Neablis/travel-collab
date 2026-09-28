@@ -401,6 +401,7 @@ describe("NotebookScreen", () => {
 
     fireEvent.click(within(filter).getByRole("radio", { name: "More" }));
     const moreGroup = screen.getByRole("region", { name: "More templates" });
+    expect(screen.queryByRole("heading", { name: "More templates" })).toBeNull();
     for (const t of more) expect(within(moreGroup).getByRole("button", startButton(t.title))).toBeTruthy();
     for (const t of essentials) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
     // Blank is not a group, so no filter takes it away.
@@ -408,6 +409,12 @@ describe("NotebookScreen", () => {
 
     fireEvent.click(within(filter).getByRole("radio", { name: "Essentials" }));
     for (const t of essentials) expect(screen.getByRole("button", startButton(t.title))).toBeTruthy();
+    // Mitchell, PR #269 preview: *"Remove More templates, the tabs do the
+    // same"*, and of the Essentials note, *"Remove this line, and the Title"*.
+    // The filter says which group is showing; the group only names itself to
+    // assistive tech.
+    expect(screen.queryByRole("heading", { name: "Essentials" })).toBeNull();
+    expect(screen.queryByText(/every new trip comes with/)).toBeNull();
     for (const t of more) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
   });
 

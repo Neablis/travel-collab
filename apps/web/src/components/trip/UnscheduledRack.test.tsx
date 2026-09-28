@@ -98,11 +98,15 @@ describe("UnscheduledRack — a day's untimed stops", () => {
     ...items,
   ];
 
-  it("heads each day's group with the day, after the stops with no day", () => {
+  // Named, not headed: *"Drop the header, i can see the Day 3 in the card
+  // already"* (Mitchell, PR #269 preview). The group's name is for assistive
+  // tech and the chip's reveal; the card's own tag is what a sighted user reads.
+  it("groups each day's stops under the day's name, after the stops with no day", () => {
     renderRack({ open: true, items: withDays });
 
     const group = screen.getByRole("group", { name: "Day 3 · Kyoto" });
     expect(within(group).getByText("Nishiki market")).toBeTruthy();
+    expect(screen.queryByText("Day 3 · Kyoto")).toBeNull();
     expect(within(group).queryByText("Souvenir shopping")).toBeNull();
     const titles = screen.getAllByTestId("rack-card").map((card) => card.textContent);
     expect(titles.findIndex((t) => t?.includes("Nishiki market"))).toBe(2);

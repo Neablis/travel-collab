@@ -12,7 +12,7 @@ export type DropOutcome =
    */
   | { kind: "place"; activityId: string; toDayId: string; position: number | null; timeWindow: TimeWindow | null }
   /**
-   * A drop on a day's "any time" chip (PR #269): the stop goes to that day
+   * A drop on a day's "Unscheduled" chip (PR #269): the stop goes to that day
    * with NO time. Same halves as `place` — `position: null` when it is already
    * on the day, `clearTime: false` when it already has no window — and never
    * both, which resolves to `null`.
@@ -78,7 +78,7 @@ export function resolveDrop(
 
   const toDayId = typeof targetData.dayId === "string" ? targetData.dayId : null;
 
-  // A day's "any time" chip (Column's header): this day, no time.
+  // A day's "Unscheduled" chip (Column's header): this day, no time.
   if (toDayId !== null && targetData.anyTime === true) return keepAnyTime(trip, activityId, toDayId);
 
   // A day's river says WHEN as well as which day (DayRiver's drop target), and
@@ -148,7 +148,7 @@ function isAnyTimeOnADay(trip: TripDetail, activityId: string): boolean {
 }
 
 /**
- * A drop on a day's "any time" chip, as the smallest change that gets there.
+ * A drop on a day's "Unscheduled" chip, as the smallest change that gets there.
  *
  * Appended to the day's list: an untimed stop has no clock to be ordered by,
  * and the end is where the old "Any time" shelf put one dropped on its column.

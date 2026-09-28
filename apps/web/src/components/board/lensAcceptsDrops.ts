@@ -16,7 +16,7 @@ import type { View } from "@/components/trip/context/LensRouter";
  * the drop targets rather than being restated beside them and drifting.
  *
  * Today only Plan registers any: `dropTargetForElements` is wired for the
- * rack's own zone, `Column.tsx`'s day columns and their "any time" chips, and
+ * rack's own zone, `Column.tsx`'s day columns and their "Unscheduled" chips, and
  * each `DayRiver`, all inside the Plan view. Nothing under `lenses/` registers
  * one.
  *

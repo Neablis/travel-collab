@@ -121,7 +121,7 @@ describe("resolveDrop", () => {
 });
 
 // PR #269: a day's untimed stops are drawn in the Unscheduled rack under their
-// day, and a day column's "any time" chip is a drop target meaning "this day,
+// day, and a day column's "Unscheduled" chip is a drop target meaning "this day,
 // no time" — the gesture the old "Any time" shelf's column drop was.
 describe("resolveDrop and a day's untimed stops", () => {
   const chip = (dayId: string) => ({ dayId, anyTime: true });

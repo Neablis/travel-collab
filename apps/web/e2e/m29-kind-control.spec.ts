@@ -112,7 +112,7 @@ test("a card's badge reads To book in amber, Maybe in neutral, or its mode, and 
   // than on an "Any time" shelf in the column — so that is the card whose
   // badge has to fit, at the rack card's own 208px. The day's chip is what
   // opens it, as a reader would.
-  await page.getByTestId("day-column").first().getByRole("button", { name: /^3 any time/ }).click();
+  await page.getByTestId("day-column").first().getByRole("button", { name: /^3 Unscheduled/ }).click();
 
   // Three badges: the planned stop earns none.
   await expect(page.getByTestId(/^kind-badge-/)).toHaveCount(stops.length);

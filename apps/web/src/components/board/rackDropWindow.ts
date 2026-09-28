@@ -12,7 +12,7 @@ export type Slot = { start: string; end: string };
  * included, lands there by the river's rule instead (`placeWindow`,
  * `resolveDrop`'s `place` outcome; Mitchell, 2026-09-26). This is still reached
  * from the part of a column outside its river — its header, since the "Any
- * time" shelf went in PR #269 — though not from the header's "any time" chip,
+ * time" shelf went in PR #269 — though not from the header's "Unscheduled" chip,
  * whose drop means "no time" on purpose (`resolveDrop`'s `anyTime`).
  *
  * Extracted as a pure function for the reason `resolveDrop` and

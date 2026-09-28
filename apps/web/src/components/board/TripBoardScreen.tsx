@@ -292,7 +292,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // reducer with its own unit tests), not here.
   const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
-  // The day whose group a column's "any time" chip last asked the rack to
+  // The day whose group a column's "Unscheduled" chip last asked the rack to
   // show (PR #269). `seq` so a second click on the same chip reveals again —
   // after the reader has scrolled the rack elsewhere, say.
   const [rackReveal, setRackReveal] = useState<{ dayId: string; seq: number } | null>(null);
@@ -496,7 +496,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // picked, its own included — the time is what takes it out of the rack, as
   // the day is for a parked stop. Picking its own day skips the move, which
   // would change nothing and still cost an undo step. Moving it to another
-  // day while leaving it untimed is a drop on that day's "any time" chip.
+  // day while leaving it untimed is a drop on that day's "Unscheduled" chip.
   const assignFromRack = (activityId: string, dayId: string) => {
     const day = activeTrip.days.find((d) => d.dayId === dayId);
     if (day === undefined) return;
@@ -553,7 +553,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     if (commands.length > 0) void dispatchBatch(commands);
   };
 
-  // A drop on a day's "any time" chip (PR #269): the day, and no time, as ONE
+  // A drop on a day's "Unscheduled" chip (PR #269): the day, and no time, as ONE
   // batch for the reason `placeActivity` is — one gesture, one undo. What the
   // old "Any time" shelf's column drop did for an untimed stop, now available
   // to a timed one too: with the shelf gone, it is the one drag that takes a

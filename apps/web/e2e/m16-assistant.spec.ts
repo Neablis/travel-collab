@@ -188,8 +188,8 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   //
   // The AI's stops carry no time, so since PR #269 they are drawn in the
   // Unscheduled rack under Day 1 rather than on the column's "Any time"
-  // shelf — the day's "2 any time" chip opens the rack on them.
-  await page.getByTestId("day-column").first().getByRole("button", { name: /^2 any time/ }).click();
+  // shelf — the day's "2 Unscheduled" chip opens the rack on them.
+  await page.getByTestId("day-column").first().getByRole("button", { name: /^2 Unscheduled/ }).click();
   await page.getByTestId("unscheduled-rack").getByRole("button", { name: "Edit Sample: coffee stop" }).click();
   await page.getByRole("radiogroup", { name: "Kind" }).getByRole("radio", { name: "Pending" }).click();
   await page.getByRole("button", { name: "Save" }).click();

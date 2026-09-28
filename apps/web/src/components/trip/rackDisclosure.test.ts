@@ -37,7 +37,7 @@ describe("rackDisclosure", () => {
     expect(rackDisclosure(rackDisclosure(parked, { type: "dragStart" }), { type: "dragEnd" })).toEqual(parked);
   });
 
-  // PR #269: a day's "N any time" chip opens the drawer on that day's untimed
+  // PR #269: a day's "N Unscheduled" chip opens the drawer on that day's untimed
   // stops. Clicked with the drawer already open, it must not shut it — which
   // is what a `toggle` would have done.
   it("opens on a reveal, and stays open on a second one, owned by the user", () => {

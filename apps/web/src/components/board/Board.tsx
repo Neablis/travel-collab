@@ -114,12 +114,12 @@ export type BoardCallbacks = {
    */
   onPlace: (outcome: PlaceOutcome) => void;
   /**
-   * A drop on a day's "any time" chip (PR #269): to that day, with no time, as
+   * A drop on a day's "Unscheduled" chip (PR #269): to that day, with no time, as
    * ONE change (`anyTimeCommands`).
    */
   onAnyTime: (outcome: AnyTimeOutcome) => void;
   /**
-   * A day's "any time" chip was clicked: open the Unscheduled rack on that
+   * A day's "Unscheduled" chip was clicked: open the Unscheduled rack on that
    * day's untimed stops. Called on a read-only board too — it only shows.
    */
   onRevealAnyTime: (dayId: string) => void;

@@ -112,31 +112,18 @@ type TemplateFilter = "essentials" | "more" | "yours";
 // sideways.
 const TEMPLATE_ROW = "flex items-center gap-3 px-3 py-2";
 
-// A titled group of template rows. A `section` so each group is a region a
+// A named group of template rows. A `section` so each group is a region a
 // screen reader can jump between and a test can name — "Your templates" has
 // been one since M14 link 10, and the two seed groups follow its shape.
-function TemplateGroup({
-  id,
-  title,
-  note,
-  children,
-}: {
-  id: string;
-  title: string;
-  note?: string;
-  children: React.ReactNode;
-}) {
+//
+// **Named, not titled.** Mitchell, PR #269 preview: *"Remove More templates,
+// the tabs do the same"* and, of the Essentials note, *"Remove this line, and
+// the Title"*. The filter above shows one group at a time and already says
+// which, so a visible heading repeated it. The name stays for assistive tech.
+function TemplateGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <section aria-labelledby={id} className="mt-5">
-      <Heading level={4} id={id}>
-        {title}
-      </Heading>
-      {note ? (
-        <Text variant="muted" className="mt-0.5">
-          {note}
-        </Text>
-      ) : null}
-      <ul className="mt-2 flex flex-col divide-y divide-hairline rounded-md border border-hairline bg-surface">
+    <section aria-label={label} className="mt-5">
+      <ul className="flex flex-col divide-y divide-hairline rounded-md border border-hairline bg-surface">
         {children}
       </ul>
     </section>
@@ -760,12 +747,12 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         </div>
         {/* **Yours first, when you have any.** A template you kept from
             another trip is one you already chose once, so it is the likeliest
-            pick; its own heading is what tells it apart from a seed of the
+            pick; the Yours filter is what tells it apart from a seed of the
             same name, and its provenance line says which trip it came from.
-            Absent when there are none — an empty "Your templates" is a heading
+            Absent when there are none — an empty "Your templates" is a group
             promising a feature before anyone has used it. */}
         {hasSaved && showing("yours") && (
-          <TemplateGroup id="your-templates" title="Your templates">
+          <TemplateGroup label="Your templates">
             {(savedTemplates ?? []).map((template) => (
               <li key={template.savedNotebookId} className={TEMPLATE_ROW}>
                 <div className="min-w-0 flex-1">
@@ -799,18 +786,14 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           </TemplateGroup>
         )}
         {showing("essentials") && (
-          <TemplateGroup
-            id="essential-templates"
-            title="Essentials"
-            note="The notebooks every new trip comes with — start one again if you removed it."
-          >
+          <TemplateGroup label="Essentials">
             {ESSENTIAL_STARTERS.map((starter) => (
               <StarterRow key={starter.key} starter={starter} disabled={creating} onUse={handleCreate} />
             ))}
           </TemplateGroup>
         )}
         {showing("more") && (
-          <TemplateGroup id="more-templates" title="More templates">
+          <TemplateGroup label="More templates">
             {MORE_STARTERS.map((starter) => (
               <StarterRow key={starter.key} starter={starter} disabled={creating} onUse={handleCreate} />
             ))}

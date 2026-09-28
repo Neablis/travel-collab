@@ -29,9 +29,11 @@ export type RackItem = {
    * The day this stop is ON, for an untimed stop that has one; `null` for a
    * parked stop with no day. Mitchell, PR #269's preview: *"Maybe anything
    * without a time is in unscheduled? … not sure how we should show the date
-   * ownership still in the unscheduled rack"* — this is that ownership, shown
-   * twice: `heading` over the day's group ("Day 3 · Kyoto") and `tag` on the
-   * card itself ("Day 3"), so the card still says whose it is while dragged.
+   * ownership still in the unscheduled rack"* — this is that ownership: `tag`
+   * on the card itself ("Day 3"), so it still says whose it is while dragged,
+   * and `heading` ("Day 3 · Kyoto") naming the day's group to assistive tech.
+   * `heading` is not drawn: *"Drop the header, i can see the Day 3 in the card
+   * already"* (Mitchell, PR #269 preview).
    */
   day: { dayId: string; tag: string; heading: string } | null;
   /** The stop's kind badge (`board/activityKind`'s `kindBadge`), or null for a planned stop. */
@@ -105,7 +107,7 @@ export function UnscheduledRack({
   /** Removes a card's stop from the trip. Absent on a read-only board, like `onAssign`. */
   onRemove?: (activityId: string) => void;
   /**
-   * A day column's "N any time" chip asking for its day's group: scrolled
+   * A day column's "N Unscheduled" chip asking for its day's group: scrolled
    * into view and focused once the drawer is open. `seq` changes on every
    * click, so a second click on the same chip reveals it again.
    */
@@ -230,7 +232,9 @@ export function UnscheduledRack({
           is shut. */}
       {open ? (
         <div
-          className="flex gap-2.5 overflow-x-auto"
+          // `items-end`: the No day group keeps its label and the day groups
+          // have none, so the card rows line up along the bottom.
+          className="flex items-end gap-2.5 overflow-x-auto"
           // eslint-disable-next-line no-restricted-syntax -- 26px side / 14px bottom card-row padding is design-fixed geometry with no token equivalent
           style={{ padding: "0 26px 14px" }}
         >
@@ -253,9 +257,10 @@ export function UnscheduledRack({
                   ))}
                 </NoDayGroup>
               ) : (
-                // A day's untimed stops, headed by the day. A named group so
-                // a screen reader hears whose they are once, and the target a
-                // day column's "N any time" chip reveals (`data-rack-day`).
+                // A day's untimed stops. No visible heading — each card wears
+                // its day's tag — but a named group, so a screen reader hears
+                // whose they are once, and the target a day column's
+                // "N Unscheduled" chip reveals (`data-rack-day`).
                 // `tabIndex={-1}`: focusable by that reveal, not a Tab stop.
                 <div
                   key={group.day.dayId}
@@ -263,14 +268,11 @@ export function UnscheduledRack({
                   aria-label={group.day.heading}
                   data-rack-day={group.day.dayId}
                   tabIndex={-1}
-                  className="flex shrink-0 flex-col gap-1 rounded-lg focus-visible:outline-2 focus-visible:outline-brand"
+                  className="flex shrink-0 gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-brand"
                 >
-                  <span className="text-xs font-semibold text-slate">{group.day.heading}</span>
-                  <div className="flex flex-1 gap-2.5">
-                    {group.items.map((item) => (
-                      <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
-                    ))}
-                  </div>
+                  {group.items.map((item) => (
+                    <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
+                  ))}
                 </div>
               ),
             )
