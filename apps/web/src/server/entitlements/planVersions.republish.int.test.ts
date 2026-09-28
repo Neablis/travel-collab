@@ -26,11 +26,11 @@
 // all against a real database. **What is mocked:** Stripe, at the four
 // functions of `stripeApi.ts` these paths call, and nothing further in.
 import { randomUUID } from "node:crypto";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { eq, inArray } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { subscriptions, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import type { StripePrice, StripeSubscription } from "@/server/billing/stripeApi";
 import type { PlanVersion } from "./planVersions";
@@ -116,11 +116,41 @@ const DAY = 24 * 60 * 60 * 1000;
 const T0 = new Date("2026-10-01T12:00:00.000Z");
 const T1 = new Date(T0.getTime() + 31 * DAY);
 
+/** Every account this file creates, so `afterAll` can remove exactly those. */
+const created: string[] = [];
+
 async function makeAccount(): Promise<string> {
   const id = `dev-${randomUUID()}`;
+  created.push(id);
   await upsertUser({ id, email: null, name: null, image: null });
   return id;
 }
+
+// **`plus@v2` must not outlive this file** (KI-2026-09-25-p). The fixture is
+// published only through this file's `vi.mock`, which dies with the file, but
+// the rows written on it do not: the webhook leaves a `users` row and a
+// `subscriptions` row pinned to `plus@v2` in the run's shared database. A later
+// file that resolves every account through the real resolver
+// (`adminOverview`'s accounts panel) then reads a version its deploy never
+// published and throws `UnknownPlanVersionError`. Removing both rows for the
+// accounts made here keeps the fixture's reach to the file that defines it.
+afterAll(async () => {
+  if (created.length > 0) {
+    await db.delete(subscriptions).where(inArray(subscriptions.userId, created));
+    await db.delete(users).where(inArray(users.id, created));
+  }
+  // And nothing else escaped: no row left anywhere is pinned to a version the
+  // real module does not publish. Catches an account made without
+  // `makeAccount`, which the deletes above would miss.
+  const pinned = [
+    ...(await db.select({ planId: users.planId, planVersion: users.planVersion }).from(users)),
+    ...(await db.select({ planId: subscriptions.planId, planVersion: subscriptions.planVersion }).from(subscriptions)),
+  ];
+  const unpublished = pinned
+    .map((row) => `${row.planId}@v${row.planVersion}`)
+    .filter((ref) => !actualPlanVersions.isPublishedRef(ref));
+  expect(unpublished).toEqual([]);
+});
 
 function subscription(input: { id: string; userId: string; ref: string; periodEnd: Date }): StripeSubscription {
   return {

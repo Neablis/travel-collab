@@ -109,7 +109,7 @@ describe("NASA POWER climatology adapter", () => {
     await power().normals(OSLO);
     const { url } = requestOf(fetchMock);
     expect(url.origin + url.pathname).toBe("https://power.larc.nasa.gov/api/temporal/climatology/point");
-    expect(url.searchParams.get("parameters")).toBe("T2M_MAX,T2M_MIN,PRECTOTCORR");
+    expect(url.searchParams.get("parameters")).toBe("T2M,T2M_RANGE,PRECTOTCORR");
     expect(url.searchParams.get("latitude")).toBe("59.91");
     expect(url.searchParams.get("longitude")).toBe("10.75");
   });
@@ -118,12 +118,31 @@ describe("NASA POWER climatology adapter", () => {
     stubFetch(() => new Response(JSON.stringify(powerClimatology)));
     const fetched = await power().normals(OSLO);
     if (fetched.kind !== "fresh") throw new Error("expected fresh");
+    // The real header carries the period only in `range`, not `start`/`end`.
     expect(fetched.value.period).toEqual({ fromYear: 2001, throughYear: 2020 });
-    expect(fetched.value.months[0]).toEqual({ month: 1, highC: -0.71, lowC: -6.83, precipitationMmPerDay: 1.98 });
+    expect(fetched.value.months[0]).toMatchObject({ month: 1, precipitationMmPerDay: 1.98 });
     // November's rainfall is POWER's -999 fill value: no guess, no month.
     expect(fetched.value.months.map((m) => m.month)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
     // Normals are kept a month (ADR-052 decision 2).
     expect(fetched.expiresAt.toISOString()).toBe("2026-10-24T09:30:00.000Z");
+  });
+
+  // KI-2026-09-27-b. The fixture's T2M and T2M_RANGE are POWER's real Kyoto
+  // response (fetched by Mitchell, 2026-09-27; its PRECTOTCORR is not yet a
+  // recording). `T2M_MAX`/`T2M_MIN` there are the month's extremes — August
+  // 33.66 / 15.44 — and were printed as "high / low" until this test.
+  it("reads a typical day, not the month's extremes: the mean ± half the mean daily range", async () => {
+    stubFetch(() => new Response(JSON.stringify(powerClimatology)));
+    const fetched = await power().normals(OSLO);
+    if (fetched.kind !== "fresh") throw new Error("expected fresh");
+    const august = fetched.value.months.find((m) => m.month === 8)!;
+    // 25.69 ± 7.37 / 2
+    expect(august.highC).toBeCloseTo(29.38, 1);
+    expect(august.lowC).toBeCloseTo(22.0, 1);
+    const january = fetched.value.months.find((m) => m.month === 1)!;
+    // 2.25 ± 6.73 / 2
+    expect(january.highC).toBeCloseTo(5.62, 1);
+    expect(january.lowC).toBeCloseTo(-1.12, 1);
   });
 
   it("throws on a failure, so the cache can serve what it has", async () => {

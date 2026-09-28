@@ -59,7 +59,7 @@ Walk it once before M14's weather gate box is ticked, and again whenever
      route's own, when the forecast is unconfigured;
    - `[external] <key>: <message>` — from the cache's read-through, whenever a call
      fails; `<key>` names the source and the rounded point (`met:forecast:…` or
-     `power:normals:…`);
+     `power:normals2:…`);
    - `[external] MET Norway refused the request (403): …` — the adapter's own, when MET
      rejects our User-Agent or our coordinate precision.
    The reader sees typical, labelled "— no forecast right now", when only the forecast
@@ -71,7 +71,7 @@ Walk it once before M14's weather gate box is ticked, and again whenever
 
    **NASA POWER** (`apps/web/src/server/external/weather/nasa-power.ts`). Call the
    endpoint once from a machine that can reach it, with the same query the adapter sends:
-   `https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M_MAX,T2M_MIN,PRECTOTCORR&community=AG&latitude=35.01&longitude=135.77&format=JSON`
+   `https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M,T2M_RANGE,PRECTOTCORR&community=AG&latitude=35.01&longitude=135.77&format=JSON`
    - **Endpoint path.** Does `/api/temporal/climatology/point` answer 200 with this
      query, or redirect or refuse it?
    - **Averaging period.** What `header.start` / `header.end` (or `header.range`)

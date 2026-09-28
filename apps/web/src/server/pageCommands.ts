@@ -3,9 +3,15 @@ import {
   PageCommand,
   PageContext as PageContextSchema,
   PageDoc as PageDocSchema,
+  PageEvent as PageEventSchema,
+  SYSTEM_ACTOR_ID,
+  seedKeyOf,
   serializePageDoc,
+  type EventEnvelope,
   type Page,
+  type PageDoc,
   type PageEvent,
+  type TripRole,
 } from "@tc/contracts";
 import {
   decidePageCommand,
@@ -16,18 +22,27 @@ import {
   type PageDecision,
   type PagesState,
 } from "@tc/domain";
-import { eq } from "drizzle-orm";
+import {
+  defaultDocumentFor,
+  instantiateMissingDefaults,
+  missingDefaultTemplates,
+  type SeedCandidate,
+} from "@tc/pages";
+import { asc, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
 import { appendToStream, readStream } from "./eventStore";
 import { hasAtLeast } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { checkPageDocForWrite } from "./pages";
+import { checkPageDocForWrite, toPage } from "./pages";
 import { applyPageEvents } from "./projections";
 
 export type PageCommandResult =
-  | { ok: true; tripId: string; page: Page | null }
+  // `seq` is the last event appended, or `null` when nothing was — what a
+  // caller needs to name "the version before this" (`restorePageVersion`).
+  | { ok: true; tripId: string; page: Page | null; seq: number | null }
   | { ok: false; error: { code: string; message: string } };
 
 /**
@@ -74,47 +89,7 @@ export async function executePageCommand(
     command = { ...command, content: checked.doc };
   }
 
-  // The demo trip is read-only all the way down (ADR-031, KI-2026-09-05-d).
-  // Refused here rather than at the route, so no caller can reach the write
-  // path by finding a different door.
-  if (isDemoTripId(command.tripId)) {
-    return { ok: false, error: { code: "demo-trip-readonly", message: "The demo trip cannot be changed." } };
-  }
-
-  return db.transaction(async (tx): Promise<PageCommandResult> => {
-    const history = await readStream(tx, command.tripId);
-    const tripState = foldEnvelopes(history);
-    if (tripState === null) {
-      return { ok: false, error: { code: "trip-not-found", message: "This trip does not exist." } };
-    }
-
-    const members = await effectiveMembers(tx, command.tripId, tripState.members);
-    if (!hasAtLeast(actorId, members, "editor")) {
-      return { ok: false, error: { code: "forbidden", message: "Not allowed to edit this trip's notebooks." } };
-    }
-
-    // **Lazy genesis, and it is not optional.** Every page that existed before
-    // this milestone is a ROW with no `PageCreated` event — `listPages` seeds
-    // the Overview lazily on first read and has always written straight to the
-    // table. So the fold cannot see them, and without this the first edit to
-    // any existing notebook is answered `page-not-found`. An integration test
-    // caught exactly that on the seeded Overview.
-    //
-    // Backfilled here rather than by a data migration, for the reason
-    // `listPages`'s own lazy seeding gives: a migration has to find every trip,
-    // including ones created between deploying it and running it, and this
-    // cannot miss one — the genesis is written the first time a page is
-    // commanded, which is the first moment it could possibly matter.
-    //
-    // `SYSTEM_ACTOR_ID` is NOT assumed: the row's own `actorId` is carried into
-    // the payload, so SPEC §7's "Comes with your trip" / "Yours" line keeps
-    // telling the truth about a page a person created before this existed.
-    const genesis = await missingGenesis(tx, command.tripId, foldPages(history));
-    const pagesState = genesis.reduce(
-      (acc, event) => evolvePages(acc, event),
-      foldPages(history),
-    );
-
+  return commitPageStep(command.tripId, actorId, "editor", async ({ tx, pages: pagesState }) => {
     let decision = decidePageCommand(pagesState, command, actorId);
 
     // **A row the backfill had to skip can still be DELETED.**
@@ -134,68 +109,164 @@ export async function executePageCommand(
     }
     if (!decision.ok) return { ok: false, error: decision.rejection };
 
-    // A no-op edit: an edit session that ended where it began (typed, then
-    // undone), or a second commit trigger racing the first. Nothing is
-    // appended, so `headSeq` does not move and no co-traveller is woken for a
-    // change that did not happen.
+    // **The stale-save guard** (CodeRabbit, PR #222). `expectedSeq` is the
+    // head as of THIS request's read, so it cannot refuse an older document
+    // that simply arrives last; this can. See `EditPage`.
     //
-    // **The genesis is dropped with it.** Writing backfill events for an edit
-    // that turned out to be a no-op would move `headSeq` and wake every
-    // co-traveller for nothing, which is the exact cost this branch exists to
-    // avoid. They cost nothing to re-derive on the next real command.
-    //
-    // **Before the revision check, on purpose.** A document identical to the
-    // stored one loses nothing whatever revision it was typed against, and the
-    // common way to get here is exactly that: a `pagehide` keepalive landed,
-    // then the ordinary commit of the same words arrived behind it naming the
-    // revision the keepalive just moved past. Refusing it would report a
-    // conflict with the author's own words.
-    if (decision.events.length === 0) {
-      return { ok: true, tripId: command.tripId, page: await readPage(tx, command.pageId) };
-    }
-
-    // **The stale-save guard** (CodeRabbit, PR #222). `expectedSeq` below is
-    // the head as of THIS request's read, so it cannot refuse an older
-    // document that simply arrives last; this can. See `EditPage`.
-    //
-    // Read from the `pages` row, the only place a page's `updatedAt` lives
-    // (the fold carries no timestamps, and a lazily seeded page has no event to
-    // carry one). It is consistent with `history` without a lock: this read is
-    // a later statement in the same transaction, so it sees at least every
-    // commit the stream read saw, and any page write that lands after it moves
-    // the stream too and is refused by `expectedSeq` instead.
-    //
-    // Compared as instants, not strings: the client echoes Postgres's text,
-    // and nothing should hang on its formatting.
-    if (command.type === "EditPage" && command.expectedUpdatedAt !== undefined) {
-      const [row] = await tx.select({ updatedAt: pages.updatedAt }).from(pages).where(eq(pages.id, command.pageId));
-      if (row === undefined || Date.parse(row.updatedAt) !== Date.parse(command.expectedUpdatedAt)) {
+    // **Only for an edit that changes something, on purpose.** A document
+    // identical to the stored one loses nothing whatever revision it was typed
+    // against, and the common way to get here is exactly that: a `pagehide`
+    // keepalive landed, then the ordinary commit of the same words arrived
+    // behind it naming the revision the keepalive just moved past. Refusing it
+    // would report a conflict with the author's own words.
+    if (decision.events.length > 0 && command.type === "EditPage" && command.expectedUpdatedAt !== undefined) {
+      if (!(await pageIsAt(tx, command.pageId, command.expectedUpdatedAt))) {
         return { ok: false, error: { code: PAGE_CHANGED_CODE, message: "This page changed since you opened it." } };
       }
     }
-
-    const appended = await appendToStream(tx, {
-      streamId: command.tripId,
-      expectedSeq: history.length,
-      // Genesis first: an edit to a backfilled page must fold after the create
-      // that introduces it, in the same batch so the two cannot be separated by
-      // a crash.
-      events: [...genesis, ...decision.events].map(storedPageEvent),
-      actorId,
-      occurredAt: new Date().toISOString(),
-      batchId: crypto.randomUUID(),
-      origin: { kind: "user" },
-    });
-    if (!appended.ok) {
-      return {
-        ok: false,
-        error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
-      };
-    }
-
-    await applyPageEvents(tx, appended.envelopes);
-    return { ok: true, tripId: command.tripId, page: await readPage(tx, command.pageId) };
+    return { ok: true, events: decision.events, pageId: command.pageId };
   });
+}
+
+/** What a step inside `commitPageStep` sees: the stream as read, and the page aggregate with its genesis folded in. */
+type PageStep = {
+  tx: Parameters<typeof appendToStream>[0];
+  history: EventEnvelope[];
+  pages: PagesState;
+};
+
+/** A step's answer: the events to append (none is a no-op), and which page to read back. */
+type PageStepOutcome =
+  | { ok: true; events: PageEvent[]; pageId: string | null }
+  | { ok: false; error: { code: string; message: string } };
+
+/**
+ * The page pipeline around one decision: load the stream, authorize, backfill
+ * the genesis, let `step` decide, append with optimistic concurrency, project.
+ *
+ * Every page write reaches the log through here — `executePageCommand` and the
+ * default-notebook actions in `defaultNotebooks.ts` — so none of them grows a
+ * second way to write a page. `minimum` is the role the write needs: an editor
+ * edits a notebook, and only the owner resets the trip's defaults (Mitchell,
+ * 2026-09-27).
+ */
+async function commitPageStep(
+  tripId: string,
+  actorId: string,
+  minimum: TripRole,
+  step: (s: PageStep) => Promise<PageStepOutcome>,
+): Promise<PageCommandResult> {
+  // The demo trip is read-only all the way down (ADR-031, KI-2026-09-05-d).
+  // Refused here rather than at the route, so no caller can reach the write
+  // path by finding a different door.
+  if (isDemoTripId(tripId)) {
+    return { ok: false, error: { code: "demo-trip-readonly", message: "The demo trip cannot be changed." } };
+  }
+
+  try {
+    return await db.transaction(async (tx): Promise<PageCommandResult> => {
+      const history = await readStream(tx, tripId);
+      const tripState = foldEnvelopes(history);
+      if (tripState === null) {
+        return { ok: false, error: { code: "trip-not-found", message: "This trip does not exist." } };
+      }
+
+      const members = await effectiveMembers(tx, tripId, tripState.members);
+      if (!hasAtLeast(actorId, members, minimum)) {
+        const message = minimum === "owner" ? "Only the trip's owner can do this." : "Not allowed to edit this trip's notebooks.";
+        return { ok: false, error: { code: "forbidden", message } };
+      }
+
+      // **Lazy genesis, and it is not optional.** Every page that existed before
+      // this milestone is a ROW with no `PageCreated` event — `listPages` seeds
+      // the Overview lazily on first read and has always written straight to the
+      // table. So the fold cannot see them, and without this the first edit to
+      // any existing notebook is answered `page-not-found`. An integration test
+      // caught exactly that on the seeded Overview.
+      //
+      // Backfilled here rather than by a data migration, for the reason
+      // `listPages`'s own lazy seeding gives: a migration has to find every trip,
+      // including ones created between deploying it and running it, and this
+      // cannot miss one — the genesis is written the first time a page is
+      // commanded, which is the first moment it could possibly matter.
+      //
+      // `SYSTEM_ACTOR_ID` is NOT assumed: the row's own `actorId` is carried into
+      // the payload, so SPEC §7's "Comes with your trip" / "Yours" line keeps
+      // telling the truth about a page a person created before this existed.
+      const genesis = await missingGenesis(tx, tripId, foldPages(history));
+      const pagesState = genesis.reduce((acc, event) => evolvePages(acc, event), foldPages(history));
+
+      const outcome = await step({ tx, history, pages: pagesState });
+      if (!outcome.ok) return outcome;
+
+      // A no-op: an edit session that ended where it began (typed, then undone),
+      // a second commit trigger racing the first, or a default-notebook action
+      // with nothing left to do. Nothing is appended, so `headSeq` does not move
+      // and no co-traveller is woken for a change that did not happen.
+      //
+      // **The genesis is dropped with it.** Writing backfill events for a no-op
+      // would move `headSeq` and wake every co-traveller for nothing, which is
+      // the exact cost this branch exists to avoid. They cost nothing to
+      // re-derive on the next real command.
+      if (outcome.events.length === 0) {
+        const page = outcome.pageId === null ? null : await readPage(tx, outcome.pageId);
+        return { ok: true, tripId, page, seq: null };
+      }
+
+      const appended = await appendToStream(tx, {
+        streamId: tripId,
+        // The whole stream's length, not the page aggregate's: a trip command
+        // and a notebook save take `seq` numbers from one sequence, so they
+        // must serialise however separately they fold.
+        expectedSeq: history.length,
+        // Genesis first: an edit to a backfilled page must fold after the create
+        // that introduces it, in the same batch so the two cannot be separated by
+        // a crash.
+        events: [...genesis, ...outcome.events].map(storedPageEvent),
+        actorId,
+        occurredAt: new Date().toISOString(),
+        batchId: crypto.randomUUID(),
+        origin: { kind: "user" },
+      });
+      if (!appended.ok) {
+        return {
+          ok: false,
+          error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+        };
+      }
+
+      await applyPageEvents(tx, appended.envelopes);
+      const page = outcome.pageId === null ? null : await readPage(tx, outcome.pageId);
+      return { ok: true, tripId, page, seq: appended.envelopes.at(-1)?.seq ?? null };
+    });
+  } catch (error) {
+    // **Two seeds with one key.** `pages_seed_key_unique` allows one notebook
+    // per default per trip, and no rename can ask for a second (titles are
+    // free since 2026-09-27; the index used to be on the title, and refused a
+    // rename onto a seed's name as `page-title-taken`). What can still reach
+    // it is `listPages`' lazy seeding, which writes straight to the table
+    // outside the stream, landing between this transaction's read and its
+    // write: "add missing" then plants a key the table has just been given.
+    // That is a race lost, which a retry resolves, not a server fault.
+    if (uniqueViolation(error)?.constraint !== SEED_KEY_INDEX) throw error;
+    return RACE_LOST;
+  }
+}
+
+const SEED_KEY_INDEX = "pages_seed_key_unique";
+
+// Read from the `pages` row, the only place a page's `updatedAt` lives (the
+// fold carries no timestamps, and a lazily seeded page has no event to carry
+// one). It is consistent with the stream without a lock: this read is a later
+// statement in the same transaction, so it sees at least every commit the
+// stream read saw, and any page write that lands after it moves the stream too
+// and is refused by `expectedSeq` instead.
+//
+// Compared as instants, not strings: the client echoes Postgres's text, and
+// nothing should hang on its formatting.
+async function pageIsAt(tx: PageStep["tx"], pageId: string, expectedUpdatedAt: string): Promise<boolean> {
+  const [row] = await tx.select({ updatedAt: pages.updatedAt }).from(pages).where(eq(pages.id, pageId));
+  return row !== undefined && Date.parse(row.updatedAt) === Date.parse(expectedUpdatedAt);
 }
 
 /**
@@ -256,17 +327,7 @@ async function readPage(
   pageId: string,
 ): Promise<Page | null> {
   const [row] = await tx.select().from(pages).where(eq(pages.id, pageId));
-  if (row === undefined) return null;
-  return {
-    id: row.id,
-    tripId: row.tripId,
-    title: row.title,
-    context: row.context,
-    content: row.content,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    actorId: row.actorId,
-  };
+  return row === undefined ? null : toPage(row);
 }
 
 /**
@@ -320,8 +381,187 @@ async function missingGenesis(
         context: row.context,
         content: content.data,
         actorId: row.actorId,
+        // Written out, `null` included, so the log says which default this
+        // row is rather than leaving a replay to work it out from the title.
+        seedKey: row.seedKey,
       },
     });
   }
   return genesis;
+}
+
+// ── The trip's default notebooks: add the missing ones, reset one ─────────────
+//
+// Mitchell, 2026-09-27: *"a way to reset a trips default notebooks back to
+// there seed and add any new seeds that didnt exist when the trip was made"*,
+// and on who: *"Only trip owner"*. A trip is seeded once, lazily, the first
+// time its notebooks are listed, so a trip made before M30 never gets the
+// itinerary Overview or the seeds added since.
+//
+// All three go through `commitPageStep`, so each is one batch in the trip's
+// log like any other notebook write: visible in history, projected by the same
+// writer, serialised against every other command by `expectedSeq`. Which
+// template a notebook came from, and what it builds, is `@tc/pages`' answer
+// (`seedTemplateOf`), shared with the screen that decides whether to offer
+// the control.
+
+/** The trip's notebook rows, in the shape `@tc/pages` recognises seeds from. Includes rows the fold skipped. */
+async function seedCandidates(tx: PageStep["tx"], tripId: string): Promise<SeedCandidate[]> {
+  return tx
+    .select({ id: pages.id, seedKey: pages.seedKey })
+    .from(pages)
+    .where(eq(pages.tripId, tripId))
+    .orderBy(asc(pages.createdAt), asc(pages.id));
+}
+
+/**
+ * Every page this stream has created, as its FIRST `PageCreated` said it was,
+ * oldest first — what `instantiateMissingDefaults` reads a deleted seed's id
+ * off, so a re-added seed comes back under it. A seed that was deleted always
+ * has one: the delete went through `commitPageStep`, which backfills the
+ * genesis first. (Not a row the backfill skipped as unreadable, which has no
+ * genesis; that seed comes back under a fresh id.)
+ */
+function genesisOf(history: readonly EventEnvelope[]): SeedCandidate[] {
+  const seen = new Map<string, SeedCandidate>();
+  for (const envelope of history) {
+    if (envelope.type !== "PageCreated") continue;
+    const event = PageEventSchema.parse({ type: envelope.type, version: envelope.version, payload: envelope.payload });
+    if (event.type !== "PageCreated") continue;
+    // The key the event names, or the one an event from before keys implies.
+    if (!seen.has(event.payload.pageId)) seen.set(event.payload.pageId, { id: event.payload.pageId, seedKey: seedKeyOf(event.payload).key });
+  }
+  return [...seen.values()];
+}
+
+// Postgres's unique_violation, and the constraint it names. Walks the `cause` chain, as `eventStore.ts` does: drizzle wraps the driver's
+// error, and the constraint name is on the driver's.
+function uniqueViolation(error: unknown): { constraint: string | undefined } | null {
+  let cursor: unknown = error;
+  while (typeof cursor === "object" && cursor !== null) {
+    const { code, constraint, cause } = cursor as { code?: unknown; constraint?: unknown; cause?: unknown };
+    if (code === "23505") return { constraint: typeof constraint === "string" ? constraint : undefined };
+    cursor = cause;
+  }
+  return null;
+}
+
+/**
+ * Adds every default notebook the trip has no seed for, as `listPages`' lazy
+ * seeding would have — owned by `system`, under the same ids scheme, each with
+ * its template's key — and touches nothing that exists. Owner only. A trip
+ * missing nothing appends nothing (`seq: null`).
+ */
+export async function addMissingDefaultPages(tripId: string, actorId: string): Promise<PageCommandResult> {
+  return commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
+      const candidates = await seedCandidates(tx, tripId);
+      // Minted up front and SORTED, so the new notebooks come back from the
+      // list in a new trip's order. They share one `createdAt` (the batch's
+      // `occurredAt`), and `listPages` breaks that tie on `id`.
+      const fresh = missingDefaultTemplates(candidates)
+        .map(() => randomUUID())
+        .sort();
+      let next = 0;
+      const seeds = instantiateMissingDefaults(tripId, candidates, () => fresh[next++]!, genesisOf(history));
+
+      let folded = state;
+      const events: PageEvent[] = [];
+      for (const seed of seeds) {
+        // Through the page decision like any create, with `system` as the
+        // OWNER — the parameter exists for exactly this (`decidePageCommand`).
+        // The envelope still names the person who asked.
+        const decision = decidePageCommand(
+          folded,
+          {
+            type: "CreatePage",
+            tripId,
+            pageId: seed.id,
+            title: seed.title,
+            context: seed.context,
+            content: seed.content,
+            seedKey: seed.seedKey,
+          },
+          SYSTEM_ACTOR_ID,
+        );
+        if (!decision.ok) return { ok: false, error: decision.rejection };
+        for (const event of decision.events) {
+          folded = evolvePages(folded, event);
+          events.push(event);
+        }
+      }
+      return { ok: true, events, pageId: null };
+  });
+}
+
+const RACE_LOST: PageCommandResult = {
+  ok: false,
+  error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+};
+
+/**
+ * Puts a seeded notebook back to its current template — title and document —
+ * as one more edit. The page keeps its id, so every link to it still resolves.
+ * Owner only. `not-a-default` for a notebook no template recognises.
+ *
+ * The version it replaced stays in the log; `ResetPageResult.restoreSeq` names
+ * it for `restorePageVersion`.
+ */
+export async function resetPageToDefault(
+  tripId: string,
+  pageId: string,
+  actorId: string,
+  expectedUpdatedAt?: string,
+): Promise<PageCommandResult> {
+  return commitPageStep(tripId, actorId, "owner", async ({ tx, pages: state }) => {
+    const candidates = await seedCandidates(tx, tripId);
+    const page = candidates.find((row) => row.id === pageId);
+    if (page === undefined) return { ok: false, error: { code: "page-not-found", message: "No such page." } };
+    const seed = defaultDocumentFor(page, candidates);
+    if (seed === null) {
+      return { ok: false, error: { code: "not-a-default", message: "This notebook did not come with the trip, so it has no default to reset to." } };
+    }
+    return editTo(tx, state, { tripId, pageId, ...seed }, actorId, expectedUpdatedAt);
+  });
+}
+
+/**
+ * Puts a notebook's title and document back to what they were at `toSeq` in
+ * the trip's history, as one more edit — the undo for a reset. It never
+ * deletes or recreates a notebook, so it cannot fall into KI-2026-09-22-c.
+ * Owner only, because it is the reset's undo; a general page undo is that
+ * entry's to design.
+ */
+export async function restorePageVersion(
+  tripId: string,
+  pageId: string,
+  toSeq: number,
+  actorId: string,
+  expectedUpdatedAt?: string,
+): Promise<PageCommandResult> {
+  return commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
+    const past = toSeq <= history.length ? foldPages(history, toSeq)[pageId] : undefined;
+    if (past === undefined) {
+      return { ok: false, error: { code: "page-version-not-found", message: "This notebook has no saved version from then." } };
+    }
+    return editTo(tx, state, { tripId, pageId, title: past.title, content: past.content }, actorId, expectedUpdatedAt);
+  });
+}
+
+// The shared tail of a reset and a restore: an `EditPage` through the page
+// decision, with the write check and the stale-save guard every edit gets.
+async function editTo(
+  tx: PageStep["tx"],
+  state: PagesState,
+  target: { tripId: string; pageId: string; title: string; content: PageDoc },
+  actorId: string,
+  expectedUpdatedAt: string | undefined,
+): Promise<PageStepOutcome> {
+  const checked = checkPageDocForWrite(target.content);
+  if (!checked.ok) return { ok: false, error: { code: "invalid-page", message: checked.message } };
+  const decision = decidePageCommand(state, { type: "EditPage", ...target, content: checked.doc }, actorId);
+  if (!decision.ok) return { ok: false, error: decision.rejection };
+  if (decision.events.length > 0 && expectedUpdatedAt !== undefined && !(await pageIsAt(tx, target.pageId, expectedUpdatedAt))) {
+    return { ok: false, error: { code: PAGE_CHANGED_CODE, message: "This page changed since you opened it." } };
+  }
+  return { ok: true, events: decision.events, pageId: target.pageId };
 }

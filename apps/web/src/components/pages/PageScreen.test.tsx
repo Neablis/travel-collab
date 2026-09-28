@@ -4,11 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
-import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
+import { CURRENT_PAGE_DOC_VERSION, SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeWeatherHandler } from "@/mocks/handlers";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import { SaveLightMark, SaveLightProvider } from "@/components/SaveLight";
 import { everyWidget, everyWidgetPage, rawSyntaxLeaks } from "@/test-support/rawSyntax";
 import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
 
@@ -227,6 +228,49 @@ describe("PageScreen", () => {
 
     await waitFor(() => expect(seen).toBe(2));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Second name");
+  });
+
+  // PR 258's preview walk: a refused rename put the old title back and said
+  // nothing — no message, and the header light (the only save status this
+  // route has) still read "All changes saved". The refusal it was found on
+  // (409 `page-title-taken`) is gone, as titles are free since 2026-09-27;
+  // a rename is still refused when the reader's role was taken away.
+  it("says why a rename was refused, and the save light stops claiming it saved", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Bookings" });
+    const refusedMessage = "Not allowed to edit this trip's notebooks.";
+    server.use(
+      http.patch("/api/trips/:tripId/pages/:pageId", () => HttpResponse.json({ error: refusedMessage }, { status: 403 })),
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+
+    render(
+      <SaveLightProvider>
+        <SaveLightMark />
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+      </SaveLightProvider>,
+    );
+    const heading = await screen.findByRole("heading", { name: "Bookings", level: 1 });
+    expect(screen.getByRole("status", { name: "All changes saved" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+
+    heading.textContent = "Money";
+    await act(async () => {
+      heading.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toContain(refusedMessage);
+    expect(screen.queryByRole("status", { name: "All changes saved" })).toBeNull();
+    expect(screen.getByRole("status", { name: "Couldn't save — 1 change not sent" })).toBeTruthy();
+    // Reverted with the error, as a save refused as stale is: the heading is
+    // the name the server still has.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Bookings");
+
+    // Dismissing the message hands the light back.
+    await userEvent.click(within(screen.getByTestId("page-rename-failure")).getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status", { name: "All changes saved" })).toBeTruthy();
   });
 
   it("resolves a day macro's own params against the loaded TripDetail", async () => {
@@ -1893,5 +1937,49 @@ describe("PageScreen — a write left behind by an earlier test", () => {
     releaseEarlier?.();
     await vi.waitFor(() => expect(mine.length + refusedWrites.length).toBeGreaterThan(0));
     expect(mine).toEqual([]);
+  });
+});
+
+// *Undo reset* is gated like *Reset to default*: Reading only. In Editing the
+// session holds words the log has not seen yet, and the undo replaced the
+// editor's document with the version before the reset, losing them without a
+// word (review of the reset PR, 2026-09-27). Hidden rather than dismissed, so
+// an owner who opens Editing and changes nothing still has the undo after.
+describe("PageScreen — Undo reset", () => {
+  it("is not offered while Editing, and is again back in Reading", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({
+      tripId: trip.tripId,
+      title: "Money",
+      actorId: SYSTEM_ACTOR_ID,
+      seedKey: "money",
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "My own budget" }] }] },
+    });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      http.get("/api/trips/:tripId/access", ({ params }) =>
+        HttpResponse.json({
+          access: {
+            tripId: params.tripId,
+            myRole: "owner",
+            members: [{ userId: "u1", role: "owner", name: null, email: null, image: null }],
+            invites: [],
+            collaboratorsEntitled: true,
+          },
+        }),
+      ),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Reset to default" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Reset notebook" }));
+    expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
+    expect(screen.queryByRole("button", { name: "Undo reset" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();
   });
 });

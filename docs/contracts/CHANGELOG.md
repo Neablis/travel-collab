@@ -13,6 +13,70 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-27 — `SeedKey`, `Page.seedKey`, `CreatePage.seedKey`, `PageCreatedV1.payload.seedKey`, `seedKeyOf`: a default notebook is known by a permanent key, not its title (KI-2026-09-27-e)
+
+- **Added:** `SeedKey` (a default template's key: `overview`, `before-you-go`,
+  `bookings-and-confirmations`, `money`); `seedKey?: SeedKey` on `Page`, and so on
+  `PageSummary` and `PageListEntry` (present only on a page that came with the trip);
+  `seedKey?: SeedKey` on the `CreatePage` command (only the `system` owner may write one,
+  `decidePageCommand` refuses anyone else as `seed-key-reserved`); `seedKey?: SeedKey | null`
+  on `PageCreatedV1`'s payload (`null` = not a seed; **absent = written before the field
+  existed**); `seedKeyOf(payload)`, which reads the key an event names, or, for an old event,
+  the one its `system` owner and seeded title (or `kind: "overview"`) imply, from a table
+  frozen at the titles seeded on 2026-09-27.
+- Why: Mitchell, 2026-09-27: *"You should be allowed to rename a default notebook, or delete
+  one."* A seed was recognised by its title, so renaming "Money" to "Budget" made it an
+  ordinary notebook: no Reset, and "Add missing" planted a second "Money". Recognition now
+  goes by the key, which no edit moves, and titles are free — two notebooks may share one.
+  The key is in the log, not only in a column, so a projection rebuild reproduces it
+  (Invariant 1); `seedKeyOf` is how an old log gives the keys migration 0032 backfilled.
+- **Gone:** the `page-title-taken` refusal (409) on a notebook rename. Nothing can produce it
+  once the title index is gone (`pages_system_seed_unique` → `pages_seed_key_unique`). A
+  collision on the key index is the lazy seeder racing "Add missing", answered as
+  `concurrency-conflict`.
+- Consumers updated: `@tc/domain` (`PageState.seedKey`, `evolvePages` grants a derived key
+  once and passes a deleted holder's key to the oldest page implying it, `diffPageStates` writes the key on a re-create, `decidePageCommand`), `@tc/pages`
+  (`seedTemplateOf` and everything built on it read `seedKey`; `SeededPage` carries it),
+  `apps/web` (`pages` projection and `seed_key` column, lazy seeding, the genesis backfill,
+  "Add missing", both page PATCH routes and `defaultNotebookResponses` lose
+  `page-title-taken`, `ResetToDefault`/`NotebookScreen` via `@tc/pages`, the MSW handlers,
+  `openapi.json` regenerated for the pages endpoints' new optional field).
+- **Breaking?** No for clients: additive and optional, and a list from a server deployed
+  before it parses. **Migration 0032** adds and backfills the column; production needs the
+  `migrate-production` dispatch after merge.
+
+## 2026-09-27 — `ResetPageInput`, `ResetPageResult`, `RestorePageInput`: reset a seeded notebook, and undo it
+
+- **Added:** `ResetPageInput` (`expectedUpdatedAt?`), `ResetPageResult` (`page`,
+  `restoreSeq: number | null`) and `RestorePageInput` (`toSeq`, `expectedUpdatedAt?`), the
+  bodies of three new internal routes: `POST /api/trips/:id/pages/defaults` (add the
+  default notebooks the trip is missing; answers the `GET` list's shape),
+  `POST …/pages/:pageId/reset` and `POST …/pages/:pageId/restore`. Owner only (Mitchell,
+  2026-09-27: *"Only trip owner"*).
+- **Unchanged on purpose:** `PageCommand` and `PageEvent`. A reset and a restore are
+  `EditPage` → `PageEdited`; adding missing seeds is `CreatePage` → `PageCreated` with
+  `system` as the owner, the parameter `decidePageCommand` already takes. No new event type,
+  so nothing in history, projection or replay learns anything new (ADR-036 amendment
+  2026-09-27).
+- Why: a trip is seeded once, lazily, so a trip made before M30 never gets the itinerary
+  Overview or the later seeds, and an edited seed had no way back to its template.
+- Consumers updated: `apps/web` (`pagesClient`'s three writers, `ResetToDefault`,
+  `PageScreen`'s Undo, `NotebookScreen`'s list action, the MSW pages handlers). Not in
+  `/api/v1` — a feature does not owe the public API an endpoint (`using-the-api.md`).
+- **Breaking?** No. Additive; no migration.
+
+## 2026-09-27 — `TripWeatherPoint.placeToday`: the weather block's "Today" is the place's date (KI-2026-09-27-c)
+
+- **Added:** `placeToday?: IsoDate` on `TripWeatherPoint` — the calendar date at the point's
+  place when the route answered, read in the zone its days were cut in.
+- Why: Mitchell, 2026-09-27: *"Location that a trip should be in in that day, not the readers
+  current location"*. The resolver chose "Today" from the reader's browser date; only the
+  server knows the place's zone (ADR-052, amended 2026-09-27).
+- Consumers updated: `apps/web` (`buildTripWeather` sets it; the weather route's integration
+  test expects it), `@tc/pages` (`day.weather` compares each point with its own `placeToday`).
+- **Breaking?** No. Additive and optional: a client reading an answer without it falls back to
+  the reader's date, as before.
+
 ## 2026-09-26 — `DroppedInsert` and `pageInserts.dropped`: a page turn says what it did not land (ADR-058)
 
 - **Added:** `DroppedInsert` (`{ name, reason }`) and `dropped?: DroppedInsert[]` on

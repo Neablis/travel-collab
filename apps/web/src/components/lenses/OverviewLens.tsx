@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { PageDoc, PageSummary, TripDetail, TripGlobals } from "@tc/contracts";
 import { isOverviewPage } from "@tc/pages";
 import { fetchPage, fetchPages } from "@/lib/pagesClient";
@@ -42,7 +43,7 @@ import { cn } from "@/lib/cn";
 // this component reads through that same path. The effect is identical from
 // outside — every trip has an Overview, and looking at either surface
 // materialises it — and it keeps the seeding race that `listPages` already
-// solves (`pages_system_seed_unique`, and the backdating that keeps the order
+// solves (`pages_seed_key_unique`, and the backdating that keeps the order
 // stable) in the one place that solves it. Moving the seed to trip creation
 // would have to re-solve both, and would leave every trip created before the
 // change without one.
@@ -52,9 +53,18 @@ export function OverviewLens({
   remoteRevision = 0,
   confirmedSeq = 0,
   readOnly = false,
+  pageId: linkedPageId = null,
 }: {
   detail: TripDetail;
   tripId: string;
+  /**
+   * Another notebook to read here in the Overview's place — `?page=`, where a
+   * link card sends a reader who has no notebook route: the demo's visitor and
+   * an invitee having a look (`linkHref`). Mitchell, 2026-09-27, on the demo's
+   * "Also in this trip": *"i cant click them"* — they drew with no link at all.
+   * Read-only here for the reason the Overview is: this tab does not edit.
+   */
+  pageId?: string | null;
   /**
    * Withholds **Edit** (M27 D6). A prop for `remoteRevision`'s reason below.
    * Before this a viewer was shown an Edit that led to a page they could only
@@ -92,6 +102,7 @@ export function OverviewLens({
   // times on the 12-hour default whatever the reader chose, and "your name" /
   // "home airport" empty. Defaults, not a throw, outside a provider.
   const user = usePreferences();
+  const pathname = usePathname();
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
   const [state, setState] = useState<
     | { status: "loading" }
@@ -157,7 +168,13 @@ export function OverviewLens({
       });
       if (!live) return;
       if (!list.ok) return setState({ status: "error", message: "Couldn't load this trip's Overview." });
-      const summary = list.value.pages.find((p: PageSummary) => isOverviewPage(p.context));
+      const summary = list.value.pages.find((p: PageSummary) =>
+        linkedPageId === null ? isOverviewPage(p.context) : p.id === linkedPageId,
+      );
+      // A linked notebook that has since been deleted, or a hand-edited URL.
+      if (summary === undefined && linkedPageId !== null) {
+        return setState({ status: "error", message: "This notebook is not in this trip." });
+      }
       // A trip whose Overview is genuinely absent: every trip seeded since
       // 2026-09-12 has one, and a trip that was seeded BEFORE it has the two
       // older prose pages instead and will never be re-seeded (`listPages`
@@ -191,7 +208,7 @@ export function OverviewLens({
     return () => {
       live = false;
     };
-  }, [tripId, attempt, remoteRevision]);
+  }, [tripId, attempt, remoteRevision, linkedPageId]);
 
   // **The globals, in an effect of their own, also keyed on your own
   // commands.** `day.sun` and `day.fromHome` read a day's place and zone from
@@ -238,7 +255,8 @@ export function OverviewLens({
   // edit mode, and its breadcrumb's first crumb reads "← <Trip> overview" and
   // comes back here. A query parameter rather than state, because the page is
   // a different route and a reload must not forget how you got there.
-  const pageId = state.status === "ready" || state.status === "unreadable" ? state.page.id : null;
+  const shown = state.status === "ready" || state.status === "unreadable" ? state.page : null;
+  const pageId = shown?.id ?? null;
   const openInNotebook = readOnly ? null : (
     <Link
       href={pageId === null ? `/trips/${tripId}/pages` : `/trips/${tripId}/pages/${pageId}?from=overview`}
@@ -342,7 +360,23 @@ export function OverviewLens({
     <div className="pt-8 pb-22">
       <div className="tc-overview-letter">
         <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
-          <span className="font-mono text-2xs tracking-widest text-slate uppercase">Overview</span>
+          {linkedPageId === null ? (
+            <span className="font-mono text-2xs tracking-widest text-slate uppercase">Overview</span>
+          ) : (
+            // The way back: the demo draws no Notebooks menu, so without it a
+            // visitor who followed a card had only the Overview tab to leave by.
+            <span className="flex min-w-0 items-center gap-2 font-mono text-2xs tracking-widest text-slate uppercase">
+              <Link href={`${pathname ?? ""}?view=Overview`} className="text-slate hover:text-ink">
+                Overview
+              </Link>
+              {shown === null ? null : (
+                <>
+                  <span aria-hidden>/</span>
+                  <span className="truncate text-ink">{shown.title}</span>
+                </>
+              )}
+            </span>
+          )}
           {openInNotebook}
         </div>
         {body()}

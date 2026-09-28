@@ -16,6 +16,27 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Reset a trip's default notebooks to their seed, and add any seed the trip is
+  missing (asked 2026-09-27).** Mitchell, reading the M29/M30 Overview: *"Its hard to
+  test this, we might want a way to reset a trips default notebooks back to there seed
+  and add any new seeds that didnt exist when the trip was made."* A trip gets its
+  default notebooks once, lazily, the first time its notebooks are listed
+  (`apps/web/src/server/pages.ts`, `instantiateDefaults` in
+  `packages/pages/src/templates.ts`). So a trip made before M30 never gets the new
+  itinerary Overview or the seeds added since, and the only fresh copy is a new trip or
+  `/demo`. Two actions:
+  - **Add missing seeds.** Seed each `DEFAULT_TEMPLATES` entry the trip has no system seed
+    row for. `pages_system_seed_unique` already identifies seeded rows, so this is the
+    existing insert with `onConflictDoNothing`.
+  - **Reset a seeded notebook to its template.** Notebook history is event-sourced per
+    page (ADR-036), so a reset is one more edit session: undoable, and visible in
+    history, not a delete-and-recreate. It should confirm first, since it replaces the
+    notebook's content.
+  
+  Open questions: where the control lives (the notebook list, or each notebook's menu),
+  who may use it (owner only?), and whether the Overview's links to the other seeds
+  survive a reset (they name seed ids, which a reset keeps).
+
 - **An architecture map that is generated, drift-checked, and annotated at gate
   close (designed 2026-09-18 — `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md`).**
   Mitchell's ask: a skill that reviews the codebase and keeps an up-to-date
@@ -181,7 +202,7 @@ here two days later.
   `apps/web/src/server/pageCommands.ts` instead, so it is no longer even
   enforced at the database. Either way it is a string inside a document, so
   nothing in the schema says a trip has exactly one, and the uniqueness that
-  matters (`pages_system_seed_unique`) is keyed off the seed rather than off
+  matters (`pages_seed_key_unique`, since 2026-09-27) is keyed off the seed rather than off
   this.
 
   A real column — `pages.kind`, or a nullable `pages.is_overview` with a partial

@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TripWeatherResponse, type TripWeather } from "@tc/contracts";
-import { renderMacro } from "@tc/pages";
+import { clockIn, renderMacro } from "@tc/pages";
+import { addDaysIso } from "@/lib/dates";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { externalDataCache, rateLimitCounters } from "@/server/db/schema";
 import type { Climate, Forecast } from "@/server/external/weather";
 import { getTripDetail } from "@/server/projections";
+import { timeZoneAt } from "@/server/timeZones";
 
 // ADR-052's gate: *"a quiet `unavailable` placeholder when the source is down.
 // That state is proved with a failing port stub, not by assertion."* This file
@@ -39,9 +41,22 @@ vi.mock("@/server/external/weather", () => ({
 const { GET } = await import("./route");
 
 const OSLO = { name: "Oslo Opera House", lat: 59.907419, lng: 10.753285, city: "Oslo" };
-const isoDaysFromNow = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+// Oslo's calendar date, not UTC's or the runner's. The block calls a day
+// "Today" by the date at the place (`placeToday`, KI-2026-09-27-c), which the
+// route reads as `clockIn(zone, now)` in the stop's own zone — so the trip is
+// dated the same way. Later days are calendar arithmetic, not `+ n * 24h`: on
+// the eve of a spring-forward the next day is 23 hours long, and 24 hours from
+// 23:30 lands two dates on.
+const OSLO_ZONE = timeZoneAt(OSLO.lat, OSLO.lng)!;
+const osloDay = (n: number) => addDaysIso(clockIn(OSLO_ZONE, Date.now()).date, n);
 
-/** Two dated days, today and tomorrow (UTC), with a located stop on each. */
+// A pinned clock, so every run sees the same dates. The instant is the one
+// this file failed at when it dated the trip by UTC (2026-09-27, 16:41 in
+// California): 23:41 UTC, already the 28th in Oslo. `Date` only — Postgres
+// I/O keeps real timers.
+const NOW = new Date("2026-09-27T23:41:00Z");
+
+/** Two dated days, today and tomorrow in Oslo, with a located stop on each. */
 async function seedTrip(): Promise<string> {
   const tripId = randomUUID();
   const days = [randomUUID(), randomUUID()];
@@ -50,7 +65,7 @@ async function seedTrip(): Promise<string> {
     if (!result.ok) throw new Error(`seed failed: ${JSON.stringify(result)}`);
   };
   await run({ type: "CreateTrip", tripId, name: "Oslo" });
-  await run({ type: "SetTripDates", tripId, startDate: isoDaysFromNow(0), endDate: isoDaysFromNow(1), newDayIds: days });
+  await run({ type: "SetTripDates", tripId, startDate: osloDay(0), endDate: osloDay(1), newDayIds: days });
   for (const dayId of days) {
     await run({ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Opera", location: OSLO });
   }
@@ -72,13 +87,15 @@ async function weatherOf(tripId: string): Promise<TripWeather> {
 async function widgetOn(tripId: string, weather: TripWeather) {
   const trip = await getTripDetail(tripId);
   return renderMacro(
-    { trip: trip!, page: { tripId }, user: null, globals: null, today: isoDaysFromNow(0), external: { weather: { state: "ready", value: weather } } },
+    { trip: trip!, page: { tripId }, user: null, globals: null, today: osloDay(0), external: { weather: { state: "ready", value: weather } } },
     "day.weather",
     {},
   );
 }
 
 beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
   currentUserId = OWNER;
   forecastPort = { forecast: failing("MET Norway") };
   climatePort = { normals: failing("NASA POWER") };
@@ -88,6 +105,10 @@ beforeEach(async () => {
   await db.delete(rateLimitCounters);
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("GET /api/trips/:tripId/weather", () => {
@@ -105,9 +126,13 @@ describe("GET /api/trips/:tripId/weather", () => {
   it("with both sources down, answers 200 with every point unavailable — and the widget is the quiet placeholder", async () => {
     const tripId = await seedTrip();
     const weather = await weatherOf(tripId);
+    // Today's date in Oslo at NOW, which is what every point says today is
+    // there — not the runner's date, nor UTC's 27th (KI-2026-09-27-c).
+    const placeToday = "2026-09-28";
+    const down = { forecast: { unavailable: "source" }, typical: { unavailable: "source" }, placeToday };
     expect(weather.points).toEqual([
-      { date: isoDaysFromNow(0), city: "Oslo", forecast: { unavailable: "source" }, typical: { unavailable: "source" } },
-      { date: isoDaysFromNow(1), city: "Oslo", forecast: { unavailable: "source" }, typical: { unavailable: "source" } },
+      { date: osloDay(0), city: "Oslo", ...down },
+      { date: osloDay(1), city: "Oslo", ...down },
     ]);
     expect(await widgetOn(tripId, weather)).toEqual({ status: "unavailable", reason: "source" });
   });

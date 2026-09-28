@@ -219,3 +219,40 @@ test("dragging a stop off the rack onto a day's river lands it at that time with
   await expect(parked).toContainText("9 am – 11 am");
   await expect(block(day2, /^Edit Tea house,/)).toHaveCount(0);
 });
+
+// Mitchell, on #257's preview (Vercel comment, 2026-09-27): *"Any element in the
+// timeline on the plan that has a hover state can pop through here"* — pinned to
+// the trip header's view tabs. A hovered block takes `z-10` (its tag reveal hangs
+// out of it) and the sticky trip header was `z-10` too, so a block scrolled half
+// under the header painted over it the moment the pointer touched its visible
+// half. Asked of the browser's own hit-testing, since only it knows what is on top.
+test("a hovered block scrolled under the sticky trip header stays under it", async ({ page }) => {
+  // Short enough that the Plan scrolls far enough to tuck a block under the header.
+  await page.setViewportSize({ width: 1280, height: 520 });
+  await riverTrip(page, "RiverUnderHeader");
+  const header = page.locator('header[aria-label="Trip"]');
+  const breakfast = block(page.getByTestId("day-column").nth(0), /^Edit Day 1 breakfast,/);
+  await expect(breakfast).toBeVisible();
+
+  const headerBox = (await header.boundingBox())!;
+  const headerBottom = headerBox.y + headerBox.height;
+  // Scroll until the block's top half is behind the header and its bottom half shows.
+  const before = (await breakfast.boundingBox())!;
+  await page.evaluate((dy) => window.scrollBy(0, dy), before.y - (headerBottom - before.height / 2));
+  const tucked = (await breakfast.boundingBox())!;
+  expect(tucked.y, "the block's top is behind the header").toBeLessThan(headerBottom - 4);
+  expect(tucked.y + tucked.height, "and its bottom still shows below it").toBeGreaterThan(headerBottom + 4);
+
+  // Hover the half that shows, then ask what is on top where the other half is.
+  const x = tucked.x + tucked.width / 2;
+  await page.mouse.move(x, (headerBottom + tucked.y + tucked.height) / 2);
+  const underHeader = Math.max(tucked.y + 2, headerBottom - 6);
+  const onTop = await page.evaluate(
+    ({ px, py }) => {
+      const hit = document.elementFromPoint(px, py);
+      return { inHeader: !!hit?.closest('header[aria-label="Trip"]'), what: hit?.outerHTML.slice(0, 80) ?? null };
+    },
+    { px: x, py: underHeader },
+  );
+  expect(onTop.inHeader, `the header should be on top at y=${underHeader}; found ${onTop.what}`).toBe(true);
+});

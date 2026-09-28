@@ -1,5 +1,5 @@
 import { HttpResponse, http } from "msw";
-import { notebookPreviewOf } from "@tc/pages";
+import { defaultDocumentFor, instantiateMissingDefaults, notebookPreviewOf } from "@tc/pages";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
@@ -11,6 +11,8 @@ import {
   CreateSavedNotebookInput,
   PAGE_CHANGED_CODE,
   PutReviewInput,
+  RestorePageInput,
+  SYSTEM_ACTOR_ID,
   TripCommand,
   TripWeatherResponse,
   UpdatePageInput,
@@ -292,6 +294,8 @@ export function makePagesHandlers(
   },
 ) {
   let pages = structuredClone(initialPages);
+  const versions = new Map<number, Page>();
+  let versionSeq = 0;
   return [
     // `viewerId` mirrors the real route, which resolves the reader from its own
     // guard so the index's provenance line can say "Yours" truthfully. Defaults
@@ -365,6 +369,42 @@ export function makePagesHandlers(
       options?.onDelete?.(params.pageId as string);
       pages = pages.filter((_, i) => i !== idx);
       return HttpResponse.json({ ok: true });
+    }),
+    // The default-notebook actions (owner only on the real routes; a suite
+    // exercising the refusal overrides these). Built by the same `@tc/pages`
+    // functions the server uses, so a mocked reset puts back what a real one
+    // would. The reset's Undo reads a version kept here, where the server folds
+    // the log to `toSeq`.
+    http.post("/api/trips/:tripId/pages/defaults", ({ params }) => {
+      const tripId = params.tripId as string;
+      const now = new Date().toISOString();
+      for (const seed of instantiateMissingDefaults(tripId, pages.filter((p) => p.tripId === tripId), () => crypto.randomUUID())) {
+        pages.push({ ...seed, tripId, createdAt: now, updatedAt: now, actorId: SYSTEM_ACTOR_ID });
+      }
+      return HttpResponse.json({
+        pages: pages.filter((p) => p.tripId === tripId).map((p) => ({ ...p, preview: notebookPreviewOf(p.content) })),
+        viewerId: options?.viewerId ?? "dev-alice",
+      });
+    }),
+    http.post("/api/trips/:tripId/pages/:pageId/reset", ({ params }) => {
+      const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
+      if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      const existing = pages[idx]!;
+      const seed = defaultDocumentFor(existing, pages.filter((p) => p.tripId === params.tripId));
+      if (seed === null) return HttpResponse.json({ error: "not a default", code: "not-a-default" }, { status: 409 });
+      versions.set(++versionSeq, existing);
+      const reset: Page = { ...existing, ...seed, updatedAt: new Date().toISOString() };
+      pages[idx] = reset;
+      return HttpResponse.json({ page: reset, restoreSeq: versionSeq });
+    }),
+    http.post("/api/trips/:tripId/pages/:pageId/restore", async ({ params, request }) => {
+      const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
+      const { toSeq } = RestorePageInput.parse(await request.json());
+      const past = versions.get(toSeq);
+      if (idx === -1 || past === undefined) return HttpResponse.json({ error: "not-found" }, { status: 404 });
+      const restored: Page = { ...pages[idx]!, title: past.title, content: past.content, updatedAt: new Date().toISOString() };
+      pages[idx] = restored;
+      return HttpResponse.json({ page: restored });
     }),
   ];
 }
