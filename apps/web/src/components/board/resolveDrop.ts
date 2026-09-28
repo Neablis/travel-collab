@@ -1,4 +1,3 @@
-import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { type BatchableCommand, TimeWindow, type TripDetail } from "@tc/contracts";
 
 export type DropOutcome =
@@ -43,11 +42,8 @@ function containerOf(trip: TripDetail, activityId: string): string | null {
  * HTML5 drag events that jsdom cannot produce (no DataTransfer, no DragEvent),
  * so the routing decision is only checkable if it does not need a drag to run.
  *
- * The plan's draft signature typed both payloads `Record<string, unknown>`;
- * they are `Record<string | symbol, unknown>` here because that is what pdnd's
- * `source.data` / `dropTarget.data` actually are, and what `attachClosestEdge`
- * / `extractClosestEdge` require — the closest-edge value lives under a private
- * `Symbol` key, which a string-only index signature cannot carry.
+ * Both payloads are `Record<string | symbol, unknown>` because that is what
+ * pdnd's `source.data` / `dropTarget.data` actually are.
  */
 export function resolveDrop(
   trip: TripDetail,
@@ -97,41 +93,21 @@ export function resolveDrop(
     return placeOnRiver(trip, activityId, toDayId, riverWindow.data);
   }
 
-  if (typeof targetData.cardActivityId === "string") {
-    // Dropped on a card: insert before/after it depending on the edge.
-    const list = listFor(trip, toDayId);
-    const index = list.indexOf(targetData.cardActivityId);
-    let position = extractClosestEdge(targetData) === "bottom" ? index + 1 : index;
-    // Moving down within the same list: account for the dragged card's removal.
-    const from = containerOf(trip, activityId);
-    const sourceIndex = list.indexOf(activityId);
-    if (from === toDayId && sourceIndex !== -1 && sourceIndex < position) {
-      position -= 1;
-    }
-    return { kind: "move", activityId, toDayId, position };
-  }
-
-  // Dropped on a column rather than a card.
+  // Dropped on a day's column, outside its river and its chip.
   //
-  // A card is not a drop target for itself (`canDrop` in ActivityCard rejects
-  // its own source), so releasing over a stop's OWN original position finds no
-  // card underneath and lands here. Appending in that case moved the stop to
-  // the end of its day — the drag equivalent of putting something back where
-  // you found it and watching it jump elsewhere. Reported by Mitchell on PR
-  // #55: "Move back to the ghost location for the original drop location and
-  // try to drop into original location. Expected: Stay at current location,
-  // dont move. Reality: Moves to end of day."
+  // A column drop for a stop already on that day is a no-op — `null`, not its
+  // current position, because a MoveActivity that changes nothing still costs
+  // a history entry and an undo step. Mitchell on PR #55: "Move back to the
+  // ghost location for the original drop location and try to drop into
+  // original location. Expected: Stay at current location, dont move.
+  // Reality: Moves to end of day." Only a stop arriving from another day or
+  // the rack is moved, and it appends.
   //
-  // So a column drop for a stop already on that day is a no-op — `null`, not
-  // its current position, because a MoveActivity that changes nothing still
-  // costs a history entry and an undo step.
-  //
-  // This does not cost the deliberate "send it to the end" gesture: dropping
-  // below the last card hits that card's bottom edge and resolves through the
-  // card branch above with `position: list.length`. The column branch is only
-  // reached from the gaps between and around cards, and only matters for a
-  // stop arriving from another day or the rack — which still appends, as
-  // before.
+  // (There used to be a branch above for a drop ON a stop's card — insert
+  // before or after it by closest edge. Only the day column's `ActivityCard`
+  // was that kind of target, and it went with the "Any time" shelf in PR #269:
+  // timed stops are river blocks, whose drops name a time, and untimed ones
+  // are rack cards.)
   if (containerOf(trip, activityId) === toDayId) return null;
 
   return {

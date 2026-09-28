@@ -44,9 +44,6 @@ importers:
       '@atlaskit/pragmatic-drag-and-drop-auto-scroll':
         specifier: ^3.2.0
         version: 3.2.0
-      '@atlaskit/pragmatic-drag-and-drop-hitbox':
-        specifier: ^2.2.0
-        version: 2.2.0
       '@flags-sdk/vercel':
         specifier: ^1.4.7
         version: 1.4.7(flags@4.3.0(@opentelemetry/api@1.9.1)(next@16.3.3(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(next@16.3.3(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@24.13.6)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))
@@ -409,9 +406,6 @@ packages:
 
   '@atlaskit/pragmatic-drag-and-drop-auto-scroll@3.2.0':
     resolution: {integrity: sha512-vuL+AJae6c6lkmFd63v7c/7J7seyi7ZA8uMLNe9GvvApySToun3Zlv8SfyZU0d+wcNG4+Ix6qpRb8jOobZgNNg==}
-
-  '@atlaskit/pragmatic-drag-and-drop-hitbox@2.2.0':
-    resolution: {integrity: sha512-L0Wq4EKc9Yx+iywci3NLhwjsaru+hyZ9C/H7mz5pvrSh7vpp9q2YabRr85OnCLaY6equ5pxGVyI4PF3HP69ZMw==}
 
   '@atlaskit/pragmatic-drag-and-drop@3.1.0':
     resolution: {integrity: sha512-VU+2Oh6OgvC6D1xiX3lfm1gZJsaSPD+ZKjAHodOQ9IO6RfOvAyReLlK5ut9gIUpPmbD8d09wlCs7y4A6/I8c5Q==}
@@ -6198,11 +6192,6 @@ snapshots:
   '@asamuzakjp/nwsapi@2.3.9': {}
 
   '@atlaskit/pragmatic-drag-and-drop-auto-scroll@3.2.0':
-    dependencies:
-      '@atlaskit/pragmatic-drag-and-drop': 3.1.0
-      '@babel/runtime': 7.29.7
-
-  '@atlaskit/pragmatic-drag-and-drop-hitbox@2.2.0':
     dependencies:
       '@atlaskit/pragmatic-drag-and-drop': 3.1.0
       '@babel/runtime': 7.29.7

@@ -194,8 +194,8 @@ export function RiverBlock({
 
   useEffect(() => {
     const el = ref.current;
-    // Same reason as ActivityCard: a reader must not pick a stop up only for
-    // the provider to refuse the move and snap it back (ADR-031).
+    // A reader must not pick a stop up only for the provider to refuse the
+    // move and snap it back (ADR-031) — the rack's cards hold the same rule.
     if (!el || readOnly) return;
     return draggable({
       element: el,

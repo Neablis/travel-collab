@@ -582,7 +582,7 @@ export function Board({
         },
       }),
       // Root cause of the Task-11-era drag-and-drop regression: nothing here
-      // is actually about Board/Column/ActivityCard's own restyle — it's that
+      // is actually about Board/Column/(then) ActivityCard's own restyle — it's that
       // the cumulative height of everything above the day-columns row (Task
       // 9's taller sticky header, Task 8's day-chips row, etc.) now commonly
       // pushes later day columns below the fold on an ordinary viewport,
@@ -593,7 +593,7 @@ export function Board({
       // valid pragmatic-drag-and-drop drop target — `location.current
       // .dropTargets` comes up empty because the browser's own hit-testing
       // has nothing to find at an off-screen point — so no restyle-local
-      // tweak to Board/Column/ActivityCard fixes this; the page needs to be
+      // tweak to those components fixes this; the page needs to be
       // able to scroll during a drag, same as it already can with the mouse
       // when not dragging. `autoScrollWindowForElements` is the
       // pragmatic-drag-and-drop project's own answer to exactly this shape

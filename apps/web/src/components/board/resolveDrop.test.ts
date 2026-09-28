@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { attachClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { tripDetailFixture } from "@tc/factories";
 import { anyTimeCommands, placeCommands, resolveDrop } from "./resolveDrop";
 
@@ -43,40 +42,6 @@ function fixture() {
 
 const trip = fixture();
 
-// attachClosestEdge stores the edge under a private `Symbol` key. Hand-writing
-// that key would encode a library internal that is free to change, so these
-// fixtures call the real attacher against a stubbed 100x100 rect and let it
-// pick the edge from where the pointer sits.
-function edgeData(edge: "top" | "bottom"): Record<string | symbol, unknown> {
-  const element = document.createElement("div");
-  element.getBoundingClientRect = () => ({
-    top: 0,
-    bottom: 100,
-    left: 0,
-    right: 100,
-    width: 100,
-    height: 100,
-    x: 0,
-    y: 0,
-    toJSON: () => ({}),
-  });
-  const input = {
-    altKey: false,
-    button: 0,
-    buttons: 1,
-    ctrlKey: false,
-    metaKey: false,
-    shiftKey: false,
-    clientX: 50,
-    clientY: edge === "top" ? 5 : 95,
-    pageX: 50,
-    pageY: edge === "top" ? 5 : 95,
-  };
-  return attachClosestEdge({}, { element, input, allowedEdges: ["top", "bottom"] });
-}
-
-const topEdge = () => edgeData("top");
-const bottomEdge = () => edgeData("bottom");
 
 // The same trip with a1 given a time. The rack unschedules a stop that is on
 // the schedule — a timed one; an untimed one on a day is already drawn in the
@@ -108,9 +73,9 @@ describe("resolveDrop", () => {
   // location and try to drop into original location. Expected: Stay at current
   // location, dont move. Reality: Moves to end of day."
   //
-  // The mechanism: ActivityCard's `canDrop` rejects its own source, so a card
-  // is not a drop target for itself. Releasing over a stop's own position
-  // therefore finds no card and lands on the column — which used to append.
+  // Letting go over the column of the day a stop is already on used to
+  // append it — the drag equivalent of putting something back and watching
+  // it jump to the end.
   it("is a no-op when a stop is dropped on the column of the day it is already on", () => {
     expect(resolveDrop(trip, { activityId: A1 }, { dayId: DAY_1 })).toBeNull();
     expect(resolveDrop(trip, { activityId: A2 }, { dayId: DAY_1 })).toBeNull();
@@ -139,35 +104,6 @@ describe("resolveDrop", () => {
       toDayId: DAY_1,
       position: 1,
     });
-  });
-
-  it("keeps 'send it to the end' working, via the last card's bottom edge", () => {
-    // The deliberate gesture the no-op above must not have eaten: dropping
-    // below the last card resolves through the CARD branch, not the column.
-    const target = { cardActivityId: A2, dayId: DAY_1, ...bottomEdge() };
-    expect(resolveDrop(trip, { activityId: A1 }, target)).toEqual({
-      kind: "move",
-      activityId: A1,
-      toDayId: DAY_1,
-      position: 1,
-    });
-  });
-
-  it("inserts before a card when the closest edge is the top", () => {
-    const target = { cardActivityId: A2, dayId: DAY_1, ...topEdge() };
-    expect(resolveDrop(trip, { activityId: A3 }, target)).toMatchObject({ position: 1 });
-  });
-
-  it("corrects the index when moving down within the same list", () => {
-    // a1 (index 0) dropped below a2 (index 1): naive insert is 2, but removing
-    // a1 first shifts everything left, so the correct position is 1.
-    const target = { cardActivityId: A2, dayId: DAY_1, ...bottomEdge() };
-    expect(resolveDrop(trip, { activityId: A1 }, target)).toMatchObject({ position: 1 });
-  });
-
-  it("does not correct the index when moving between lists", () => {
-    const target = { cardActivityId: A2, dayId: DAY_1, ...bottomEdge() };
-    expect(resolveDrop(trip, { activityId: A3 }, target)).toMatchObject({ position: 2 });
   });
 
   it("is a no-op without an activity id or without a target", () => {

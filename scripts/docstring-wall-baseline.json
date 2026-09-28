@@ -103,7 +103,6 @@
   "apps/web/src/components/assistant/Transcript.tsx::toolNoteLabel",
   "apps/web/src/components/assistant/useAskThread.ts::useAskThread",
   "apps/web/src/components/assistant/useAssistantShape.ts::useAssistantShape",
-  "apps/web/src/components/board/ActivityCard.tsx::ActivityCard",
   "apps/web/src/components/board/ActivityEditor.tsx::ActivityEditor",
   "apps/web/src/components/board/ConflictBanner.tsx::ConflictBanner",
   "apps/web/src/components/board/HistoryPanel.tsx::HistoryPanel",

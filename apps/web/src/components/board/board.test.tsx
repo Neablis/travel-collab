@@ -633,8 +633,8 @@ describe("selecting a day from its column", () => {
 
 // A viewer's board, and the public demo's (ADR-031). The rule is one line —
 // show the plan, offer nothing that changes it — and the reason it is tested
-// per control is that each one is dropped at a different level: the card's own
-// buttons in ActivityCard, the day's two in Column (via props Board withholds),
+// per control is that each one is dropped at a different level: a stop's own
+// in RiverBlock, the day's two in Column (via props Board withholds),
 // the trailing column and the banner's actions in Board itself. A control added
 // at any of those levels without a `readOnly` clause reaches a reader.
 describe("a read-only board", () => {
