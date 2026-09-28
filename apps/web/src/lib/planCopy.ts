@@ -141,6 +141,6 @@ export function lapsedSentence(losesCollaborators: boolean): string {
 export const ENTITLEMENT_LABEL: Record<Entitlement, string> = {
   "ai.ask": "Ask the assistant about your trips",
   "ai.command": "Let the assistant make changes for you",
-  "trip.collaborators": "Other people editing your trips, with votes and comments",
+  "trip.collaborators": "Invite friends to plan your trips with you, with votes and comments",
   "api.tokens": "API tokens for your own tools",
 };
