@@ -12,8 +12,9 @@ import { cn } from "../../lib/cn";
 // grown click-and-drag. So its cell and its gesture moved here, and both
 // pickers are now this grid with a different selection POLICY on top:
 //
-// - `DaysFilter` stores ONE contiguous range (`DateRangeRef`), so a drag is the
-//   two-click range in one stroke.
+// - `DaysFilter` stores a run of days as a range and separate days as a list
+//   (`DatesRef`): a click adds or removes one day, and a drag REPLACES the
+//   selection with the run it crossed.
 // - `KeepDayDialog` keeps ANY SET of days ("any, not just ones in a row"), so a
 //   drag PAINTS: started on an unselected day it selects the span it crosses,
 //   started on a selected one it deselects it.

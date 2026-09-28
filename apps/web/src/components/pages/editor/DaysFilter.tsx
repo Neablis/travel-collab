@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
-import type { TripDetail } from "@tc/contracts";
+import type { DatesRef, TripDetail } from "@tc/contracts";
+import { datesInclude, datesLabel } from "@tc/pages";
 import { Button } from "@/components/ui/button";
-import { DayGrid, type DayGridDrag } from "@/components/ui/day-grid";
+import { DayGrid, dragSpan, type DayGridDrag } from "@/components/ui/day-grid";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
@@ -16,15 +17,15 @@ import { cn } from "@/lib/cn";
 // days of trip, and you can select the days."*
 //
 // So: a button showing the current selection, opening a grid of the trip's own
-// days. Click a day for that day, press one and drag to another for the run
-// between them, click "All days" to clear.
+// days. Click a day to add it or take it away, press one and drag to another
+// for the run between them, click "All days" to clear.
 //
 // **It always writes `dates`, never `day`** — Mitchell's call when the two were
 // put to him, because one control writing two different dimensions depending on
 // how many cells you touched is a rule nobody can predict from the outside. The
 // cost is stated rather than hidden: a `dates` filter resolves against real
 // dates, so on a trip with no dates there is nothing to select and the popover
-// says so instead of offering cells that would store a range matching nothing.
+// says so instead of offering cells that would store dates matching nothing.
 //
 // **It still READS a stored `day`**, and clearing removes both keys. Documents
 // migrated from `cost.day` and friends carry one (ADR-039's v1 → v2 step), and a
@@ -36,29 +37,34 @@ import { cn } from "@/lib/cn";
 // list of numbered days and that is what the filter is actually over. "Day 3"
 // is also the label every other surface uses for it.
 
-/** What the widget's params say about which days, read as a range of dates. */
-export interface DaysSelection {
-  from: string;
-  through: string;
+// Read leniently, as the range always was: a stored value is shown for what it
+// says rather than re-validated here — `insertWidget` and the page's own write
+// check are where a bad one is refused.
+function storedDates(value: unknown): DatesRef | null {
+  if (Array.isArray(value)) {
+    const list = value.filter((date): date is string => typeof date === "string");
+    return list.length > 0 ? list : null;
+  }
+  const range = value as { from?: unknown; through?: unknown } | undefined;
+  return typeof range?.from === "string" && typeof range?.through === "string"
+    ? { from: range.from, through: range.through }
+    : null;
 }
 
 /**
  * The current selection, and whether it came from a binding this control can no
  * longer produce.
  *
- * `stale` is a `day` ref pointing at a day the trip no longer has — the same
- * state the widget renders as "that day was removed". It has to be visible here
- * or the reader has no way back to All.
+ * `dates` is the stored binding — one run of days as a range, or separate days
+ * as a list (`DatesRef`). `stale` is a `day` ref pointing at a day the trip no
+ * longer has — the same state the widget renders as "that day was removed". It
+ * has to be visible here or the reader has no way back to All.
  */
 export function daysSelectionOf(
   params: Record<string, unknown>,
   detail: TripDetail,
-): { range: DaysSelection | null; legacyDay: number | null; stale: boolean } {
-  const dates = params.dates as { from?: unknown; through?: unknown } | undefined;
-  const range =
-    typeof dates?.from === "string" && typeof dates?.through === "string"
-      ? { from: dates.from, through: dates.through }
-      : null;
+): { dates: DatesRef | null; legacyDay: number | null; stale: boolean } {
+  const dates = storedDates(params.dates);
 
   const ref = params.day as { kind?: string; index?: number; dayId?: string } | undefined;
   let legacyDay: number | null = null;
@@ -71,40 +77,67 @@ export function daysSelectionOf(
     if (index === -1) stale = true;
     else legacyDay = index;
   }
-  return { range, legacyDay, stale };
+  return { dates, legacyDay, stale };
 }
 
 /**
  * The button's label — what this widget is showing, in the words of the page.
  *
- * A date rather than "Day 3" when a range is set, because a range is a range of
- * DATES and printing a day number for it would claim a precision the binding
- * does not have (a range can span days the trip has since renumbered).
+ * Dates rather than "Day 3" when `dates` is set, because the binding is a set
+ * of DATES and printing a day number for it would claim a precision it does not
+ * have (a range can span days the trip has since renumbered). Written as the
+ * page writes dates — "Jun 1 – Jun 4", "Jun 2, Jun 5", "5 days" — by the same
+ * `datesLabel` a widget's own title uses; it printed the raw `2027-06-01 –
+ * 2027-06-04` until separate days made a list of those unreadable.
  */
 export function daysSummary(params: Record<string, unknown>, detail: TripDetail): string {
-  const { range, legacyDay, stale } = daysSelectionOf(params, detail);
+  const { dates, legacyDay, stale } = daysSelectionOf(params, detail);
   if (stale) return "That day was removed";
-  if (range) return range.from === range.through ? range.from : `${range.from} – ${range.through}`;
+  if (dates) return datesLabel(dates);
   if (legacyDay !== null) return `Day ${legacyDay + 1}`;
   return "All days";
+}
+
+/**
+ * The trip's days `indexes` name, as the binding that stores them: `null` for
+ * none, a range when they are one unbroken run of the trip's days, a list
+ * otherwise.
+ *
+ * **A run stays a range** so the change that brought in the list moves no
+ * existing document: a single day or a dragged run is written exactly as it
+ * was before, and a list appears only for a selection a range cannot hold. "One
+ * run" means the range from the first to the last date would select nothing
+ * else — every dated day of the trip between them is picked.
+ */
+export function datesOfDays(detail: TripDetail, indexes: Iterable<number>): DatesRef | null {
+  const picked = new Set<string>();
+  for (const index of indexes) {
+    const date = detail.days[index]?.date;
+    if (date != null) picked.add(date);
+  }
+  const list = [...picked].sort();
+  if (list.length === 0) return null;
+  const range = { from: list[0]!, through: list[list.length - 1]! };
+  const unbroken = detail.days.every((day) => !datesInclude(range, day.date) || picked.has(day.date!));
+  return unbroken ? range : list;
 }
 
 /**
  * Write a selection, or clear it.
  *
  * **Clearing removes BOTH keys**, which is what makes a migrated `day` binding
- * escapable and what keeps `{}` the one spelling of "every day". Writing a range
- * removes `day` for the same reason: two bindings for one question is a widget
- * whose answer depends on which one a resolver happens to check first.
+ * escapable and what keeps `{}` the one spelling of "every day". Writing a
+ * selection removes `day` for the same reason: two bindings for one question is
+ * a widget whose answer depends on which one a resolver happens to check first.
  */
 export function withDaysSelection(
   params: Record<string, unknown>,
-  selection: DaysSelection | null,
+  selection: DatesRef | null,
 ): Record<string, unknown> {
   const merged = { ...params };
   delete merged.day;
   if (selection === null) delete merged.dates;
-  else merged.dates = { from: selection.from, through: selection.through };
+  else merged.dates = Array.isArray(selection) ? [...selection] : { from: selection.from, through: selection.through };
   return merged;
 }
 
@@ -127,10 +160,27 @@ export function DaysFilter({
   // The last day picked by a click, so Shift can reach from it. Local and never
   // written: it is where the next Shift-click starts, not part of the filter.
   const [lastPicked, setLastPicked] = useState<number | null>(null);
-  const { range, legacyDay, stale } = daysSelectionOf(params, detail);
+  const { dates, legacyDay, stale } = daysSelectionOf(params, detail);
 
   const dated = detail.days.filter((day) => day.date !== null);
   const summary = daysSummary(params, detail);
+
+  // The stored selection as the trip's days, whichever form it is in. A legacy
+  // `day` counts as picked, so the first click after a migration adds to it
+  // rather than silently dropping it.
+  const selected = new Set<number>();
+  detail.days.forEach((day, index) => {
+    if (dates !== null && datesInclude(dates, day.date)) selected.add(index);
+  });
+  if (legacyDay !== null) selected.add(legacyDay);
+
+  // The dated days from `a` to `b`, inclusive and in either direction.
+  const run = (a: number, b: number): number[] => {
+    const { first, last } = dragSpan({ start: a, current: b });
+    return Array.from({ length: last - first + 1 }, (_, i) => first + i).filter(
+      (index) => detail.days[index]?.date != null,
+    );
+  };
 
   // **Press on a day and drag across the others to select them** (Mitchell,
   // PR #269 preview: *"The date picker in a widget for selecting days should
@@ -141,24 +191,15 @@ export function DaysFilter({
   // with the Keep-a-day picker (Mitchell, PR #269 preview: *"re-use components
   // and see similiar functionality using the same style and code"*).
   //
-  // **Always a range, never a paint.** The usual paint gesture (start on an
-  // unselected day and the drag selects; start on a selected one and it
-  // deselects) cannot be stored: `dates` is a `DateRangeRef`, one
-  // `{from, through}`, so deselecting the middle of a range is a hole the
-  // document cannot hold. A drag is a range — pressed day to released
-  // day, replacing what was there. (`KeepDayDialog` drags the same way, and
-  // there a click toggles a day in and out of a SET, which this cannot store.)
-
-  // Two days as a range, ordered: reaching backwards is as good as forwards.
-  const rangeOf = (a: number, b: number): DaysSelection | null => {
-    const first = detail.days[a]?.date;
-    const second = detail.days[b]?.date;
-    if (first == null || second == null) return null;
-    return first <= second ? { from: first, through: second } : { from: second, through: first };
-  };
-
+  // **A drag is a run, replacing what was there — not a paint.** The Keep
+  // dialog's drag paints (started on an unselected day it selects the span,
+  // started on a selected one it deselects it), and since `dates` can hold
+  // separate days this one could too. It does not, because here a click
+  // already adds and removes one day at a time: the drag is the other gesture
+  // in Mitchell's *"either drag and select, or click one offs"*, and it means
+  // "these days", pressed day to released day.
   const commitDrag = (drag: DayGridDrag) => {
-    const selection = rangeOf(drag.start, drag.current);
+    const selection = datesOfDays(detail, run(drag.start, drag.current));
     if (selection === null) return;
     setLastPicked(null);
     onChange(withDaysSelection(params, selection));
@@ -168,38 +209,36 @@ export function DaysFilter({
   // document. A drag under way stands in for the stored selection, a legacy
   // `day` included: releasing it replaces both.
   const pressed = (index: number, drag: DayGridDrag | null): boolean => {
-    const date = detail.days[index]?.date ?? null;
-    const shown = drag !== null ? rangeOf(drag.start, drag.current) : range;
-    const inRange = date !== null && shown !== null && date >= shown.from && date <= shown.through;
-    return inRange || (drag === null && legacyDay === index);
+    if (drag === null) return selected.has(index);
+    return run(drag.start, drag.current).includes(index);
   };
 
-  // **A click is that one day; a drag is a run.** Mitchell, PR #269 preview:
-  // *"get rid of the 'First click start, second click end, select all elements
-  // between' this should be either drag and select, or click one offs"*. The
-  // two-click range made every click ambiguous — the same click meant "this
-  // day" or "the end of a range" depending on a hidden state the helper line
-  // had to narrate ("Now pick the last day."). Now a click always means the day
-  // clicked, and clicking the day that is already the whole selection clears
-  // back to All days, so a click is also how a one-off is undone.
+  // **A click adds that one day, or takes it away.** Mitchell, PR #269
+  // preview: *"get rid of the 'First click start, second click end, select all
+  // elements between' this should be either drag and select, or click one
+  // offs"*. A click first replaced the selection with the day clicked, because
+  // `dates` could only hold one range; asked whether it should become a list so
+  // Day 2 and Day 5 could be picked together, he answered *"Yes go ahead"*. So a
+  // click toggles one day in the set, and taking the last one away is All days
+  // — nothing stored — rather than an empty filter that shows nothing.
   //
-  // **Shift-click still reaches from the last day picked**, silently. Without
-  // it the keyboard could not select a run at all — a drag needs a pointer —
-  // and it is the convention every list and calendar already uses, so it needs
-  // no line of copy to teach it.
+  // **Shift-click ADDS the run from the last day picked.** Without it the
+  // keyboard could not select a run at all — a drag needs a pointer. It adds
+  // rather than replaces because a click here already means "and this one":
+  // Day 2, then Shift on Day 4, then Day 7, then Shift on Day 9 is two runs,
+  // which is a set the keyboard could not otherwise build. Replacing is what a
+  // drag, or "All days" first, is for.
   const pick = (index: number, extend: boolean) => {
-    const date = detail.days[index]?.date;
-    if (date == null) return;
+    if (detail.days[index]?.date == null) return;
+    const next = new Set(selected);
     if (extend && lastPicked !== null) {
-      const reach = rangeOf(lastPicked, index);
-      if (reach !== null) onChange(withDaysSelection(params, reach));
-      return;
+      for (const day of run(lastPicked, index)) next.add(day);
+    } else {
+      setLastPicked(index);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
     }
-    setLastPicked(index);
-    // One day is a range whose ends are equal — the shape `DateRangeRef` uses
-    // for "a single date", so there is one stored form rather than two.
-    const alreadyJustThis = legacyDay === null && range !== null && range.from === date && range.through === date;
-    onChange(withDaysSelection(params, alreadyJustThis ? null : { from: date, through: date }));
+    onChange(withDaysSelection(params, datesOfDays(detail, next)));
   };
 
   const trigger = (
@@ -235,7 +274,7 @@ export function DaysFilter({
     >
       <div className="flex flex-col gap-2">
         <Button
-          variant={range === null && legacyDay === null && !stale ? "primary" : "secondary"}
+          variant={dates === null && legacyDay === null && !stale ? "primary" : "secondary"}
           className="min-h-11 w-full"
           onClick={() => {
             setLastPicked(null);
@@ -247,14 +286,14 @@ export function DaysFilter({
         </Button>
         {dated.length === 0 ? (
           // The cost of always writing `dates`, said out loud rather than shown
-          // as cells that would store a range matching nothing.
+          // as cells that would store dates matching nothing.
           <Text variant="muted">
             This trip has no dates yet, so there are no days to filter by. Add a start date to the
             trip and they appear here.
           </Text>
         ) : (
           <>
-            <Text variant="muted">Click a day, or drag across several.</Text>
+            <Text variant="muted">Click days one at a time, or drag across several.</Text>
             {/* **Three columns, not four.** Mitchell, on the preview: *"i like
                 the UX, but the ui is a little lacking"*. Four cells across a
                 `w-72` popover left each one about 64px wide, which is why the

@@ -28,8 +28,14 @@ const detail = tripDetailFixture({
 const mouse = { pointerType: "mouse", pointerId: 1, button: 0, buttons: 1 } as const;
 const finger = { pointerType: "touch", pointerId: 7, button: 0, buttons: 1 } as const;
 
-function Harness({ onChange }: { onChange: (params: Record<string, unknown>) => void }) {
-  const [params, setParams] = useState<Record<string, unknown>>({});
+function Harness({
+  onChange,
+  initial,
+}: {
+  onChange: (params: Record<string, unknown>) => void;
+  initial: Record<string, unknown>;
+}) {
+  const [params, setParams] = useState<Record<string, unknown>>(initial);
   return (
     <DaysFilter
       params={params}
@@ -45,10 +51,14 @@ function Harness({ onChange }: { onChange: (params: Record<string, unknown>) => 
   );
 }
 
-async function openFilter() {
+// The button that opens the grid, which is also the label saying what is
+// picked — the words a reader of the settings panel sees.
+const trigger = () => screen.getByRole("button", { name: "The days: dates" });
+
+async function openFilter(initial: Record<string, unknown> = {}) {
   const onChange = vi.fn();
-  render(<Harness onChange={onChange} />);
-  await userEvent.click(screen.getByRole("button", { name: "The days: dates" }));
+  render(<Harness onChange={onChange} initial={initial} />);
+  await userEvent.click(trigger());
   const grid = await screen.findByRole("group", { name: "Trip days" });
   const cells = within(grid).getAllByRole("button");
   let under: Element | null = null;
@@ -110,30 +120,88 @@ describe("DaysFilter — click and drag across days", () => {
     expect(pressed()).toEqual([false, false, false, false]);
   });
 
-  // Mitchell, PR #269 preview: *"get rid of the 'First click start, second
-  // click end, select all elements between' this should be either drag and
-  // select, or click one offs"*.
-  it("a click is that one day, a second click moves to the day clicked, and clicking it again clears", async () => {
+  it("a drag replaces separate days with the run it crossed", async () => {
+    const { onChange, cells, over, pressed } = await openFilter({ dates: ["2027-06-01", "2027-06-04"] });
+    expect(pressed()).toEqual([true, false, false, true]);
+
+    fireEvent.pointerDown(cells[1]!, mouse);
+    over(cells[2]!);
+    fireEvent.pointerMove(window, mouse);
+    // The preview is the run alone: the two days already picked are not in it.
+    expect(pressed()).toEqual([false, true, true, false]);
+    fireEvent.pointerUp(window, mouse);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith({ dates: { from: "2027-06-02", through: "2027-06-03" } });
+    expect(pressed()).toEqual([false, true, true, false]);
+  });
+});
+
+// What a real click is: down, up and click on the same cell.
+function click(cell: Element) {
+  fireEvent.pointerDown(cell, mouse);
+  fireEvent.pointerUp(window, mouse);
+  fireEvent.click(cell);
+}
+
+// Mitchell, PR #269 preview: *"get rid of the 'First click start, second click
+// end, select all elements between' this should be either drag and select, or
+// click one offs"*. With `dates` holding one range a click could only REPLACE
+// the selection; asked whether it should become a list so Day 2 and Day 5 could
+// be picked together, he answered *"Yes go ahead"*.
+describe("DaysFilter — a click picks one day at a time", () => {
+  it("a click adds a day to what is picked, so Day 2 and Day 4 are stored together", async () => {
     const { onChange, cells, pressed } = await openFilter();
 
-    // What a real click is: down, up and click on the same cell.
-    const click = (cell: Element) => {
-      fireEvent.pointerDown(cell, mouse);
-      fireEvent.pointerUp(window, mouse);
-      fireEvent.click(cell);
-    };
     click(cells[1]!);
-    click(cells[3]!);
-    expect(pressed()).toEqual([false, false, false, true]);
     click(cells[3]!);
 
     expect(onChange.mock.calls).toEqual([
+      // One day is still the range it always was — nothing about a single
+      // pick moved when the list arrived.
       [{ dates: { from: "2027-06-02", through: "2027-06-02" } }],
-      [{ dates: { from: "2027-06-04", through: "2027-06-04" } }],
-      [{}],
+      // Two days with a day between them: a list, which a range cannot hold.
+      [{ dates: ["2027-06-02", "2027-06-04"] }],
     ]);
-    expect(pressed()).toEqual([false, false, false, false]);
+    expect(pressed()).toEqual([false, true, false, true]);
+    // Said as the page says dates, not as `2027-06-02`.
+    expect(trigger().textContent).toBe("Jun 2, Jun 4");
     expect(screen.queryByText(/Now pick the last day/)).toBeNull();
+  });
+
+  it("days picked next to each other are stored as a range, not a list", async () => {
+    const { onChange, cells } = await openFilter();
+
+    click(cells[2]!);
+    click(cells[0]!);
+    click(cells[1]!);
+
+    expect(onChange).toHaveBeenLastCalledWith({ dates: { from: "2027-06-01", through: "2027-06-03" } });
+    expect(trigger().textContent).toBe("Jun 1 – Jun 3");
+  });
+
+  it("a click on a picked day takes it away, and taking the last one away is All days", async () => {
+    const { onChange, cells, pressed } = await openFilter({ dates: ["2027-06-02", "2027-06-04"] });
+
+    click(cells[3]!);
+    expect(onChange).toHaveBeenLastCalledWith({ dates: { from: "2027-06-02", through: "2027-06-02" } });
+    click(cells[1]!);
+
+    // Nothing stored: "every day" is the absent key, never an empty filter.
+    expect(onChange).toHaveBeenLastCalledWith({});
+    expect(pressed()).toEqual([false, false, false, false]);
+    expect(trigger().textContent).toBe("All days");
+  });
+
+  it("a migrated `day` binding is one of the picked days, and a click adds to it", async () => {
+    // Documents from before ADR-039's v1 → v2 step carry `day`; the control
+    // still reads it, and must not drop it on the first click.
+    const { onChange, cells, pressed } = await openFilter({ day: { kind: "index", index: 1 } });
+    expect(pressed()).toEqual([false, true, false, false]);
+
+    click(cells[3]!);
+
+    expect(onChange).toHaveBeenLastCalledWith({ dates: ["2027-06-02", "2027-06-04"] });
   });
 
   // A drag needs a pointer, so the keyboard reaches a run with Shift — the
@@ -148,5 +216,21 @@ describe("DaysFilter — click and drag across days", () => {
 
     expect(onChange).toHaveBeenLastCalledWith({ dates: { from: "2027-06-01", through: "2027-06-03" } });
     expect(pressed()).toEqual([true, true, true, false]);
+  });
+
+  it("Shift ADDS its run to the days already picked rather than replacing them", async () => {
+    const { onChange, cells, pressed } = await openFilter();
+
+    cells[3]!.focus();
+    await userEvent.keyboard("{Enter}");
+    cells[0]!.focus();
+    await userEvent.keyboard("{Enter}");
+    cells[1]!.focus();
+    await userEvent.keyboard("{Shift>} {/Shift}");
+
+    // Day 4 was picked first and is still there: the run Day 1–2 joined it.
+    expect(onChange).toHaveBeenLastCalledWith({ dates: ["2027-06-01", "2027-06-02", "2027-06-04"] });
+    expect(pressed()).toEqual([true, true, false, true]);
+    expect(trigger().textContent).toBe("Jun 1, Jun 2, Jun 4");
   });
 });
