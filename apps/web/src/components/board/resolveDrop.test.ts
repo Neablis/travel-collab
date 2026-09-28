@@ -239,6 +239,16 @@ describe("resolveDrop and a day's untimed stops", () => {
   it("is a no-op for an untimed stop on a day dropped back on the rack", () => {
     expect(resolveDrop(trip, { activityId: A1 }, { rack: true })).toBeNull();
   });
+
+  // Mitchell, PR #269 (decision 3C): the rack's "No day" section is where a
+  // drop is aimed at "no day at all", so there it does take the stop off its
+  // day — the one way left to turn "any time on Day 3" into "no day".
+  it("takes an untimed stop off its day when dropped on the rack's No day section", () => {
+    expect(resolveDrop(trip, { activityId: A1 }, { rack: true, noDay: true })).toEqual({
+      kind: "unschedule",
+      activityId: A1,
+    });
+  });
 });
 
 // M29 part 3: a drop on a day's river carries the window the outline showed

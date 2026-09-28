@@ -108,6 +108,20 @@ describe("UnscheduledRack — a day's untimed stops", () => {
     expect(titles.findIndex((t) => t?.includes("Nishiki market"))).toBe(2);
   });
 
+  // Decision 3C: the day-less stops sit in a "No day" section, and it is there
+  // even when none are day-less — it is the drop target that takes a stop off
+  // its day, so it has to exist to be dropped on.
+  it("puts the day-less stops under No day, and keeps an empty No day to drop on", () => {
+    renderRack({ open: true, items: withDays });
+    const noDay = screen.getByRole("group", { name: "No day" });
+    expect(within(noDay).getByText("Souvenir shopping")).toBeTruthy();
+    expect(within(noDay).queryByText("Nishiki market")).toBeNull();
+    cleanup();
+
+    renderRack({ open: true, items: withDays.slice(0, 1) });
+    expect(within(screen.getByRole("group", { name: "No day" })).getByText(/drop a stop here to take it off its day/i)).toBeTruthy();
+  });
+
   it("tags the card itself with its day, so it still says so when lifted out", () => {
     renderRack({ open: true, items: withDays });
 

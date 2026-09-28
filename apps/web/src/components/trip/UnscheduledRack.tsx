@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -114,7 +114,12 @@ export function UnscheduledRack({
   const ref = useRef<HTMLElement>(null);
   const [isOver, setIsOver] = useState(false);
   const Caret = open ? ChevronDown : ChevronRight;
-  const groups = groupByDay(items);
+  // A "No day" section even with no day-less stops in it, whenever a day's
+  // untimed stops are here: it is the one place a drop takes a stop off its
+  // day (decision 3C), so it has to exist to be dropped on.
+  const byDay = groupByDay(items);
+  const groups: RackGroup[] =
+    byDay.length > 0 && byDay[0]!.day !== null ? [{ day: null, items: [] }, ...byDay] : byDay;
 
   // The reveal lands after the drawer has rendered open — the chip's click
   // opens it and names the day in the same update, so the group is not in the
@@ -242,9 +247,11 @@ export function UnscheduledRack({
           ) : (
             groups.map((group) =>
               group.day === null ? (
-                group.items.map((item) => (
-                  <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
-                ))
+                <NoDayGroup key="no-day" editable={onAssign !== undefined}>
+                  {group.items.map((item) => (
+                    <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
+                  ))}
+                </NoDayGroup>
               ) : (
                 // A day's untimed stops, headed by the day. A named group so
                 // a screen reader hears whose they are once, and the target a
@@ -271,6 +278,51 @@ export function UnscheduledRack({
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * The rack's "No day" section: the stops with no day at all, and the drop
+ * target that makes a stop one of them. Mitchell, PR #269 (decision 3C): a
+ * stop kept "any time on Day 3" needs a way to lose its day, and a drop
+ * anywhere else on the rack deliberately does nothing to such a stop (see
+ * `resolveDrop`), so this section carries `noDay` and the resolver honours
+ * it. Empty, it says what a drop does — only on an editable board, where a
+ * drop can happen.
+ */
+function NoDayGroup({ editable, children }: { editable: boolean; children: ReactNode[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isOver, setIsOver] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !editable) return;
+    return dropTargetForElements({
+      element: el,
+      getData: () => ({ rack: true, noDay: true }),
+      onDragEnter: () => setIsOver(true),
+      onDragLeave: () => setIsOver(false),
+      onDrop: () => setIsOver(false),
+    });
+  }, [editable]);
+  if (children.length === 0 && !editable) return null;
+  return (
+    <div
+      ref={ref}
+      role="group"
+      aria-label="No day"
+      className={cn("flex shrink-0 flex-col gap-1 rounded-lg transition-colors", isOver && "bg-brand-tint")}
+    >
+      <span className="text-xs font-semibold text-slate">No day</span>
+      <div className="flex flex-1 gap-2.5">
+        {children.length > 0 ? (
+          children
+        ) : (
+          <p className="m-0 flex items-center rounded-lg border border-dashed border-border-strong px-3 text-xs text-slate">
+            Drop a stop here to take it off its day
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

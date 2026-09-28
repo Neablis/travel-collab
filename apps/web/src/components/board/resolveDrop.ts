@@ -69,8 +69,14 @@ export function resolveDrop(
   // it back and watch it jump" defect the column branch below exists for
   // (Mitchell, PR #55). It keeps its day; a drop on another day's chip or
   // river is how it goes elsewhere.
+  //
+  // **The rack's "No day" section is the one exception to the exception.**
+  // Mitchell, PR #269 (decision 3C): a stop that is "any time on Day 3" needs
+  // a way to become "no day at all", and the place to say so is the section
+  // that holds day-less stops. A drop there is aimed, not a card let go of
+  // where it was found, so it unschedules whatever it carries.
   if (targetData.rack === true) {
-    if (isAnyTimeOnADay(trip, activityId)) return null;
+    if (targetData.noDay !== true && isAnyTimeOnADay(trip, activityId)) return null;
     return { kind: "unschedule", activityId };
   }
 
