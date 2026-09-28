@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { displayNameFor } from "@/lib/displayName";
 import {
@@ -153,6 +154,23 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
 
   return (
     <div className="flex flex-col gap-3" data-testid="travelers-panel">
+      {/* **The member list's outline while it loads** — Mitchell, PR #269
+          preview: *"Need a skeleton placeholder here, so it doesnt pop in
+          magically"*. Two rows shaped like a member row (a name, a role
+          badge): the owner and one more is the commonest trip. Only while
+          nothing has answered — a failure is said below, not left breathing.
+          The invite form is not outlined: whether it shows at all depends on
+          the role this request returns. */}
+      {access === null && error === null && (
+        <SkeletonRegion label="Loading travelers" className="flex flex-col gap-1.5">
+          {[1, 2].map((row) => (
+            <div key={row} className="flex items-center justify-between gap-3">
+              <Skeleton className="h-3 w-28" delay={row === 1 ? 1 : 2} />
+              <Skeleton circle className="h-5 w-12" delay={row === 1 ? 1 : 2} />
+            </div>
+          ))}
+        </SkeletonRegion>
+      )}
       <div className="flex flex-col gap-1.5">
         {(access?.members ?? []).map((member) => (
           // The testid carries the userId so a test can assert identity AND
