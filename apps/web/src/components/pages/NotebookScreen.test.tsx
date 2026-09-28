@@ -341,10 +341,18 @@ describe("NotebookScreen", () => {
     render(<NotebookScreen tripId={TRIP_ID} />);
     await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
 
-    for (const template of TEMPLATE_LIBRARY) {
-      expect(screen.getByRole("button", { name: `Start from ${template.title}` })).toBeTruthy();
+    // Every template is offered under one of the two filters (there is no
+    // "All" — Mitchell, PR #269 preview), so this walks both.
+    const offered = new Set<string>();
+    for (const group of ["Essentials", "More"]) {
+      fireEvent.click(screen.getByRole("radio", { name: group }));
+      for (const template of TEMPLATE_LIBRARY) {
+        if (screen.queryByRole("button", { name: `Start from ${template.title}` })) offered.add(template.key);
+      }
     }
+    expect([...offered].sort()).toEqual(TEMPLATE_LIBRARY.map((t) => t.key).sort());
     expect(screen.getByRole("button", { name: "Start from Blank notebook" })).toBeTruthy();
+    // Still on "More": the gallery-only one, with its description.
     expect(screen.getByText(galleryOnly.description)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: `Start from ${dayTemplate.title}` }));
@@ -382,17 +390,18 @@ describe("NotebookScreen", () => {
     render(<NotebookScreen tripId={TRIP_ID} />);
     await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
 
-    const essentialGroup = screen.getByRole("region", { name: "Essentials" });
-    const moreGroup = screen.getByRole("region", { name: "More templates" });
-    for (const t of essentials) expect(within(essentialGroup).getByRole("button", startButton(t.title))).toBeTruthy();
-    for (const t of more) expect(within(moreGroup).getByRole("button", startButton(t.title))).toBeTruthy();
-
+    // Mitchell, PR #269 preview: *"Make the options, Essential and More, no
+    // all, and more shouldnt include essentials"*. It opens on Essentials alone.
     const filter = screen.getByRole("radiogroup", { name: "Show templates" });
-    // No saved templates, so no "Yours" to filter onto.
-    expect(within(filter).queryByRole("radio", { name: "Yours" })).toBeNull();
+    expect(within(filter).getAllByRole("radio").map((r) => r.textContent)).toEqual(["Essentials", "More"]);
+    expect(within(filter).getByRole("radio", { name: "Essentials", checked: true })).toBeTruthy();
+    const essentialGroup = screen.getByRole("region", { name: "Essentials" });
+    for (const t of essentials) expect(within(essentialGroup).getByRole("button", startButton(t.title))).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "More templates" })).toBeNull();
 
     fireEvent.click(within(filter).getByRole("radio", { name: "More" }));
-    for (const t of more) expect(screen.getByRole("button", startButton(t.title))).toBeTruthy();
+    const moreGroup = screen.getByRole("region", { name: "More templates" });
+    for (const t of more) expect(within(moreGroup).getByRole("button", startButton(t.title))).toBeTruthy();
     for (const t of essentials) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
     // Blank is not a group, so no filter takes it away.
     expect(screen.getByRole("button", { name: "Start from Blank notebook" })).toBeTruthy();
@@ -402,7 +411,7 @@ describe("NotebookScreen", () => {
     for (const t of more) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
   });
 
-  it("filters to your own templates, and falls back to all once the last one is removed", async () => {
+  it("filters to your own templates, and falls back to Essentials once the last one is removed", async () => {
     server.use(...makePagesHandlers([]), ...makeSavedNotebookHandlers([savedPackingList()]));
     const aSeed = TEMPLATE_LIBRARY[0]!;
 
@@ -417,7 +426,7 @@ describe("NotebookScreen", () => {
     // be left filtered onto a group that no longer exists — i.e. empty.
     fireEvent.click(screen.getByRole("button", { name: "Remove your template Packing list" }));
     await waitFor(() => expect(screen.queryByRole("radio", { name: "Yours" })).toBeNull());
-    expect(screen.getByRole("radio", { name: "All", checked: true })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Essentials", checked: true })).toBeTruthy();
     expect(screen.getByRole("button", { name: `Start from ${aSeed.title}` })).toBeTruthy();
   });
 

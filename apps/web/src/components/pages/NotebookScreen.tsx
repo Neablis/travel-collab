@@ -96,9 +96,13 @@ const BLANK_STARTER: Starter = {
 const ESSENTIAL_STARTERS: Starter[] = TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips).map(starterFrom);
 const MORE_STARTERS: Starter[] = TEMPLATE_LIBRARY.filter((t) => !t.seedIntoNewTrips).map(starterFrom);
 
-// Which group the gallery's filter is showing. "yours" is offered only while
-// there is a saved template to show, so it is never a filter onto nothing.
-type TemplateFilter = "all" | "essentials" | "more" | "yours";
+// Which group the gallery's filter is showing — exactly one, always. "yours" is
+// offered only while there is a saved template to show, so it is never a
+// filter onto nothing. There is no "all": Mitchell, PR #269 preview: *"Make the
+// options, Essential and More, no all, and more shouldnt include essentials"*.
+// All was the same wall of templates the filter was added to break up, one
+// click away and selected by default, so the page opened on the wall.
+type TemplateFilter = "essentials" | "more" | "yours";
 
 // **One row per template, not one card.** Title, the description on ONE line,
 // and the action at the end — so a group reads as a list you run your eye down
@@ -238,12 +242,20 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // trip's list down with it. `null` until known, and nothing renders for it.
   const [savedTemplates, setSavedTemplates] = useState<SavedNotebookSummary[] | null>(null);
   const hasSaved = savedTemplates !== null && savedTemplates.length > 0;
-  const [chosenFilter, setTemplateFilter] = useState<TemplateFilter>("all");
+  // Until the reader picks, it opens on YOURS when there are any — a template
+  // you kept is one you already chose once, the likeliest pick — and on
+  // Essentials otherwise, the notebooks every trip starts with.
+  const [chosenFilter, setTemplateFilter] = useState<TemplateFilter | null>(null);
   // Removing your last saved template takes the "Yours" chip away; falling back
-  // to All here, rather than in the remove handler, keeps the chip and the list
-  // from ever disagreeing about what is selected.
-  const templateFilter: TemplateFilter = chosenFilter === "yours" && !hasSaved ? "all" : chosenFilter;
-  const showing = (group: Exclude<TemplateFilter, "all">) => templateFilter === "all" || templateFilter === group;
+  // to Essentials here, rather than in the remove handler, keeps the chip and
+  // the list from ever disagreeing about what is selected.
+  const templateFilter: TemplateFilter =
+    chosenFilter === null || (chosenFilter === "yours" && !hasSaved)
+      ? hasSaved
+        ? "yours"
+        : "essentials"
+      : chosenFilter;
+  const showing = (group: TemplateFilter) => templateFilter === group;
   useEffect(() => {
     let cancelled = false;
     void fetchSavedNotebooks().then((result) => {
@@ -732,7 +744,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         {/* The filter, as a pill — what a filter looks like elsewhere in this
             app (`DiscoverScreen`) — and a radiogroup because exactly one group
             shows at a time. `SegmentedControl` brings the roving tab stop and
-            the phone touch floor; four short labels fit a 320px row without
+            the phone touch floor; three short labels fit a 320px row without
             wrapping. */}
         <div className="mt-3">
           <SegmentedControl
@@ -740,7 +752,6 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             value={templateFilter}
             onValueChange={setTemplateFilter}
             options={[
-              { value: "all", label: "All" },
               ...(hasSaved ? [{ value: "yours" as const, label: "Yours" }] : []),
               { value: "essentials", label: "Essentials" },
               { value: "more", label: "More" },
