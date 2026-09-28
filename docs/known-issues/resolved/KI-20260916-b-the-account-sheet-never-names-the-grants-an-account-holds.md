@@ -60,3 +60,14 @@
   contrast and a third clause made it unreadable; replacing
   `grantedVersionRefs` with the new field, because `effectiveTierRef` and its
   tests read it and removing it would widen this change for no reader.
+
+- **Superseded 2026-09-28 (PR #269, Mitchell's preview review).** The per-grant
+  "Granted to you: …" line this entry added, and the "You bought …; a grant
+  confers …" line beside it, were removed on the product owner's call: *"Drop
+  the you bough and granted line for now. This square should just be Whats my
+  current tier, when does my account renew (or expire back to free), and what
+  is my capabilities at this tier. We will need to add a display in future
+  about billing history."* The card now names the effective tier, when the
+  grant conferring it ends (or that it does not) and what the account falls
+  back to. Naming each grant and its source is deferred to that future billing
+  history view.

@@ -345,8 +345,9 @@ describe("NextTripHero", () => {
   // SPEC §35.2: the three stat tiles became one actionable line. The decision
   // half is the trip's real, live TripDetail.conflicts count (it was a
   // hardcoded `value="2"` behind a Preview shell once, Task 8.5), and it is a
-  // way into the trip — the place those decisions get made.
-  it("says how many decisions the trip needs, from its real conflicts, as a way into the trip", async () => {
+  // way into the trip's Plan view — the place those decisions get made. Overview,
+  // where a bare trip URL lands, shows none of them (Mitchell, PR #269 preview).
+  it("says how many decisions the trip needs, from its real conflicts, as a way into the trip's Plan view", async () => {
     const trip = tripSummaryFixture();
     fetchTripDetailMock.mockResolvedValue({
       ok: true,
@@ -362,7 +363,7 @@ describe("NextTripHero", () => {
     render(<NextTripHero trip={trip} />);
 
     const decisions = await screen.findByRole("link", { name: "3 need a decision" });
-    expect(decisions.getAttribute("href")).toBe(`/trips/${trip.tripId}`);
+    expect(decisions.getAttribute("href")).toBe(`/trips/${trip.tripId}?view=Plan`);
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(document.querySelector('[data-preview-id="home-decisions"]')).toBeNull();
   });

@@ -265,7 +265,6 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     // and toHaveCount is strict-mode-safe where getBy* would throw on 0 or 2.
     await expect(carol.getByTestId("one-more-day-column")).toHaveCount(0);
     await expect(carol.getByRole("button", { name: "Add a day" })).toHaveCount(0);
-    await expect(carol.getByRole("button", { name: /^Add activity to / })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: /^Remove Day / })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: `Remove ${stopTitle}` })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: "Share" })).toHaveCount(0);

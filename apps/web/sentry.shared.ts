@@ -16,25 +16,12 @@
 // a bundle.
 
 /**
- * Where events go.
- *
- * The literal is the fallback rather than the only value, so a fork, a second
- * Sentry project, or a local run that wants telemetry to go nowhere is one
- * environment variable away instead of a code edit. Set it to the empty string
- * to disable Sentry entirely: `Sentry.init({ dsn: "" })` is the SDK's own
- * documented no-op, and it is what `sentryEnabled` below reports on.
- */
-export const SENTRY_DSN =
-  process.env.NEXT_PUBLIC_SENTRY_DSN ??
-  "https://305df166f51c7bdec326b199cd9dca9c@o4511998018125824.ingest.us.sentry.io/4511998020616192";
-
-/**
  * Which deployment an event came from.
  *
  * `VERCEL_ENV` ("production" | "preview" | "development") is set by Vercel and
- * is the distinction that matters for triage: a preview error is a reviewer
- * hitting a branch, a production error is a user. Locally it is unset and
- * `NODE_ENV` answers instead — which is why this is not just `VERCEL_ENV`.
+ * is the distinction that matters for triage: a production error is a user.
+ * A preview sends nothing at all — see `SENTRY_DSN` below. Locally it is unset
+ * and `NODE_ENV` answers instead — which is why this is not just `VERCEL_ENV`.
  *
  * `NEXT_PUBLIC_VERCEL_ENV` comes first for the reason `envRate` sets out: in
  * the browser the other two are `undefined` and `NODE_ENV` is "production" on
@@ -45,6 +32,31 @@ export const SENTRY_DSN =
  * tagged `production`, that setting is the first thing to check.
  */
 export const SENTRY_ENVIRONMENT = process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "development";
+
+/**
+ * Where events go.
+ *
+ * The literal is the fallback rather than the only value, so a fork, a second
+ * Sentry project, or a local run that wants telemetry to go nowhere is one
+ * environment variable away instead of a code edit. Set it to the empty string
+ * to disable Sentry entirely: `Sentry.init({ dsn: "" })` is the SDK's own
+ * documented no-op, and it is what `sentryEnabled` below reports on.
+ *
+ * **Off on a Vercel preview, whatever the variable says** (Mitchell, PR #269
+ * preview: "Sentry shouldnt be running on previews any"). A preview is a
+ * reviewer walking a branch, and its errors were already filed apart from
+ * production's under `environment: "preview"` — but every preview page still
+ * loaded Replay, profiling and tracing, and posted to `/monitoring` often
+ * enough to be answered 429, spending the project's quota on sessions nobody
+ * triages. The same `""` off switch, keyed on `SENTRY_ENVIRONMENT`, so it
+ * holds in all three runtimes: the browser reads `NEXT_PUBLIC_VERCEL_ENV`,
+ * the server and edge `VERCEL_ENV`.
+ */
+export const SENTRY_DSN =
+  SENTRY_ENVIRONMENT === "preview"
+    ? ""
+    : (process.env.NEXT_PUBLIC_SENTRY_DSN ??
+      "https://305df166f51c7bdec326b199cd9dca9c@o4511998018125824.ingest.us.sentry.io/4511998020616192");
 
 /**
  * Which build an event came from, so a stack trace resolves against the right

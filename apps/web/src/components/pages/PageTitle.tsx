@@ -32,10 +32,13 @@ import { cn } from "@/lib/cn";
  * notebook with no name is not a state the rest of the app has a word for.
  */
 export function PageTitle({
+  id,
   title,
   editable,
   onRename,
 }: {
+  /** The heading's id, for a container that is labelled by it (`PageScreen`'s document card). */
+  id?: string;
   title: string;
   editable: boolean;
   onRename: (next: string) => void;
@@ -67,6 +70,7 @@ export function PageTitle({
   return (
     <Heading
       level={1}
+      id={id}
       ref={ref}
       contentEditable={editable}
       suppressContentEditableWarning

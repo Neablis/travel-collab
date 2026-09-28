@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedStop } from "@tc/contracts";
@@ -115,6 +115,24 @@ describe("KeepDayDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: /Day 1/ }));
     expect(screen.queryByText(/Order and gaps kept/)).toBeNull();
     expect(screen.queryByText(/no dates/i)).toBeNull();
+  });
+
+  // Mitchell, PR #269 preview: the picker and Keep on the left, "What's
+  // included" and the preview on the right. Stacked, Keep sat below a preview
+  // that grows with every day picked. Document order is the part jsdom can
+  // see: it is the column order at `md`, and the order Tab and a screen reader
+  // follow at every width. (Below `md` CSS alone moves the buttons back under
+  // the preview; jsdom applies no stylesheet, so that half is not tested here.)
+  it("puts Keep with the day picker, ahead of what it will keep", async () => {
+    renderDialog();
+    await openPicker();
+    const grid = screen.getByRole("group", { name: "Days to keep" });
+    const keep = screen.getByRole("button", { name: "Keep this day" });
+    const included = screen.getByText("What's included");
+    const follows = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(grid, keep)).toBe(true);
+    expect(follows(keep, included)).toBe(true);
+    expect(follows(keep, screen.getByTestId("keep-day-preview"))).toBe(true);
   });
 
   it("copes with a day whose stops have no times", () => {
@@ -366,5 +384,100 @@ describe("KeepDayDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Keep this day" }));
     expect(await screen.findByText("forbidden")).toBeTruthy();
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+// Mitchell, PR #269 preview: *"This date selector should also support click to
+// drag ... try to re-use components and see similiar functionality using the
+// same style and code"*. The grid and its gesture are `DayGrid`, shared with
+// the notebook's `DaysFilter`; what is this dialog's own is the rule a drag
+// applies — a PAINT over a set, not a range — so that is what is proven here.
+// jsdom has no `elementFromPoint`, so each test points it at the cell the
+// "pointer" is over, as `DaysFilter.test.tsx` does.
+describe("KeepDayDialog — click and drag across days", () => {
+  afterEach(() => Reflect.deleteProperty(document, "elementFromPoint"));
+
+  const mouse = { pointerType: "mouse", pointerId: 1, button: 0, buttons: 1 } as const;
+
+  async function openGrid() {
+    renderDialog();
+    await openPicker();
+    const group = screen.getByRole("group", { name: "Days to keep" });
+    const cells = within(group).getAllByRole("button");
+    let under: Element | null = null;
+    document.elementFromPoint = () => under;
+    const over = (cell: Element) => {
+      under = cell;
+    };
+    const pressed = () => cells.map((c) => c.getAttribute("aria-pressed") === "true");
+    return { cells, over, pressed };
+  }
+
+  // Mitchell, PR #269 preview: *"When you start dragging, clear the existing
+  // selected days. When you select one without a drag, it shouldnt clear
+  // existing"* — and the preview should *"update as your dragging"*.
+  it("a drag replaces the selection with the days it crosses, and everything follows it live", async () => {
+    const { cells, over, pressed } = await openGrid();
+    const included = () => screen.getByTestId("keep-day-preview").textContent;
+    const before = included();
+    // Day 3 arrives selected; a drag across Days 1–2 clears it.
+    fireEvent.pointerDown(cells[0]!, mouse);
+    over(cells[1]!);
+    fireEvent.pointerMove(window, mouse);
+    expect(pressed()).toEqual([true, true, false]);
+    // Live, before the release: the button and the summary describe the drag.
+    expect(screen.getByRole("button", { name: "Keep 2 days" })).toBeTruthy();
+    const during = included();
+    expect(during).not.toBe(before);
+
+    fireEvent.pointerUp(window, mouse);
+    // The click the release produces is the drag's, not a toggle of Day 2.
+    fireEvent.click(cells[1]!);
+
+    expect(pressed()).toEqual([true, true, false]);
+    expect(screen.getByRole("button", { name: "Keep 2 days" })).toBeTruthy();
+    expect(included()).toBe(during);
+  });
+
+  it("a drag replaces even a hand-picked set, whichever day it starts on", async () => {
+    const { cells, over, pressed } = await openGrid();
+    await userEvent.click(cells[0]!);
+    expect(pressed()).toEqual([true, false, true]);
+
+    // From Day 3 (already in) back to Day 2: the run is Days 2–3, and Day 1 goes.
+    fireEvent.pointerDown(cells[2]!, mouse);
+    over(cells[1]!);
+    fireEvent.pointerMove(window, mouse);
+    fireEvent.pointerUp(window, mouse);
+    fireEvent.click(cells[1]!);
+
+    expect(pressed()).toEqual([false, true, true]);
+  });
+
+  it("a press that never leaves its day is still a click, and toggles just that day", async () => {
+    const { cells, pressed } = await openGrid();
+    // What a real click is: down, up and click on the same cell.
+    for (const expected of [
+      [true, false, true],
+      [false, false, true],
+    ]) {
+      fireEvent.pointerDown(cells[0]!, mouse);
+      fireEvent.pointerUp(window, mouse);
+      fireEvent.click(cells[0]!);
+      expect(pressed()).toEqual(expected);
+    }
+  });
+
+  it("Escape mid-drag keeps nothing and puts the selection back", async () => {
+    const { cells, over, pressed } = await openGrid();
+    fireEvent.pointerDown(cells[0]!, mouse);
+    over(cells[1]!);
+    fireEvent.pointerMove(window, mouse);
+    expect(pressed()).toEqual([true, true, false]);
+    act(() => void fireEvent.keyDown(window, { key: "Escape" }));
+    fireEvent.pointerUp(window, mouse);
+
+    expect(pressed()).toEqual([false, false, true]);
+    expect(screen.getByRole("button", { name: "Keep this day" })).toBeTruthy();
   });
 });

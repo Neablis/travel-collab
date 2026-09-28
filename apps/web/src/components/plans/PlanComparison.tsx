@@ -31,7 +31,7 @@ import { formatPrice } from "@/lib/planCopy";
  */
 export function whoItIsFor(choice: AccountPlanChoice): string {
   const has = (entitlement: string) => choice.entitlements.includes(entitlement);
-  if (has("trip.collaborators")) return "For planning with other people, all editing the same trip.";
+  if (has("trip.collaborators")) return "For planning with friends, all on the same trip.";
   if (has("ai.ask")) return "For planning with the assistant doing the legwork.";
   return "For planning a trip on your own, start to finish.";
 }
@@ -50,11 +50,11 @@ export function planBullets(choice: AccountPlanChoice): string[] {
     "Trips, days and stops — no limit",
     "Map, costs and saved days",
     has("ai.ask")
-      ? `The assistant: ${choice.perUserRequestsPerDay ?? "no limit on"} questions and ${choice.perUserStepsPerDay ?? "no limit on"} steps a day`
+      ? `Ask the assistant ${choice.perUserRequestsPerDay ?? "unlimited"} questions about your trips and have it make ${choice.perUserStepsPerDay ?? "unlimited"} changes a day`
       : "No assistant",
     has("trip.collaborators")
-      ? "Other people editing your trips, with votes and comments"
-      : "Nobody else editing your trips",
+      ? "Invite friends to plan your trips with you, with votes and comments"
+      : "Just you on your trips — no invites",
   ];
 }
 
@@ -65,25 +65,35 @@ interface Row {
 }
 
 // The seven rows §29 names, in its order.
+//
+// **Worded for the person choosing, not for the quota.** Mitchell, PR #269
+// preview: *"'Steps a day' makes no sense to a person, it needs to better
+// express that this is how much the AI can write or change your trips"*, and
+// of "Other people editing": *"more like allowing you to invite friends to
+// your trip"*. A step is the assistant's unit of work in `quota.ts`; to a
+// buyer it is how many changes the assistant can make for them. And of
+// "Questions a day": *"better wording is something about being able to
+// leverage the AI assistant to ask questions"* — a question is only a
+// question if it says who it is asked of.
 const ROWS: Row[] = [
   { label: "Trips, days, stops", cell: () => "No limit" },
   { label: "Map, costs, saved days", cell: () => "Yes" },
   {
-    label: "Questions a day",
+    label: "Questions you can ask the assistant a day",
     cell: (choice) =>
       choice.entitlements.includes("ai.ask")
         ? String(choice.perUserRequestsPerDay ?? "No limit")
         : "—",
   },
   {
-    label: "Steps a day",
+    label: "Changes the assistant can make a day",
     cell: (choice) =>
       choice.entitlements.includes("ai.ask")
         ? String(choice.perUserStepsPerDay ?? "No limit")
         : "—",
   },
   {
-    label: "Other people editing",
+    label: "Invite friends to your trips",
     cell: (choice) => (choice.entitlements.includes("trip.collaborators") ? "Yes" : "—"),
   },
   {

@@ -62,6 +62,35 @@ beforeEach(() => {
 });
 
 describe("TravelersPanel", () => {
+  // Mitchell, PR #269 preview: *"Need a skeleton placeholder here, so it
+  // doesnt pop in magically"*. The member list used to be nothing at all until
+  // the access request landed, then appeared whole.
+  it("holds the member list's place while it loads, and gives it up when the list lands", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchTripAccessMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    render(<TravelersPanel tripId={tripId} />);
+
+    expect(screen.getByRole("status", { name: "Loading travelers" })).toBeTruthy();
+    expect(screen.queryByText("Alice")).toBeNull();
+    // …and the invite form and the invites under it, which pop in with the
+    // same answer: *"I meant to add a placeholder under invite someone and the
+    // invites"*. Skeletons are aria-hidden, so their test ids are the handle.
+    expect(screen.getByTestId("travelers-skeleton-invite-form")).toBeTruthy();
+    expect(screen.getByTestId("travelers-skeleton-invites")).toBeTruthy();
+
+    answer({ ok: true, value: access() });
+    expect(await screen.findByText("Alice")).toBeTruthy();
+    expect(screen.queryByRole("status", { name: "Loading travelers" })).toBeNull();
+  });
+
+  it("drops the placeholder when the list fails to load, so it is not left breathing", async () => {
+    fetchTripAccessMock.mockResolvedValue({ ok: false, error: { message: "Could not load travelers" } });
+    render(<TravelersPanel tripId={tripId} />);
+
+    expect(await screen.findByText("Could not load travelers")).toBeTruthy();
+    expect(screen.queryByRole("status", { name: "Loading travelers" })).toBeNull();
+  });
+
   it("names each traveller by the best thing it knows and badges their role", async () => {
     render(<TravelersPanel tripId={tripId} />);
     // Identity's name wins; an email stands in when there is no name.
@@ -316,7 +345,9 @@ describe("TravelersPanel", () => {
     it("explains the cap when collaborators are already on the trip", async () => {
       fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled() });
       render(<TravelersPanel tripId={tripId} />);
-      const banner = await screen.findByRole("status");
+      // The list first: until it lands, the only status is the loading one.
+      await screen.findByText("Alice");
+      const banner = screen.getByRole("status");
       expect(banner.textContent).toContain("read this trip but not edit it");
       expect(banner.textContent).toContain("Nobody was removed");
       expect(banner.textContent).toContain("restores everyone");

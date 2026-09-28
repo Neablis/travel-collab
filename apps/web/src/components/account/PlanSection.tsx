@@ -8,11 +8,12 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { effectiveTierRef, type AccountPlanView } from "@/lib/accountPlan";
+import { Check } from "lucide-react";
 import {
+  ENTITLEMENT_LABEL,
   PLAN_STATE_BADGE,
   PLAN_STATE_LABEL,
   formatDate,
-  grantsSentence,
   lapsedSentence,
   pastDueSentence,
 } from "@/lib/planCopy";
@@ -203,10 +204,37 @@ export function PlanSection() {
   const losesCollaborators = billing.losesOnLapse.includes("trip.collaborators");
   const renews = formatDate(billing.renewsAt);
   const trialEnds = formatDate(billing.trialEndsAt);
-  // The same condition that renders `plan-trial-ends` below, so the free
-  // week's date is printed once.
   const trialEndShown = billing.state === "trial" && trialEnds !== null;
-  const granted = grantsSentence(plan.grants, trialEndShown);
+  // **When the tier on the card stops, if a grant is what confers it** — the
+  // grant behind `effectiveRef`, and of several for that same tier the one
+  // that lasts longest (a permanent one wins). `undefined` when no grant is
+  // above the bought plan: then the subscription's own renewal line is the
+  // answer.
+  const effectiveGrant = grantedAbove
+    ? plan.grants
+        .filter((g) => `${g.planId}@v${g.version}` === effectiveRef)
+        .sort((a, b) => (a.expiresAt === null ? -1 : b.expiresAt === null ? 1 : b.expiresAt.localeCompare(a.expiresAt)))[0]
+    : undefined;
+  const grantEnds = effectiveGrant?.expiresAt != null ? formatDate(effectiveGrant.expiresAt) : null;
+  // **What the account is on once that grant ends — worked out, not assumed**
+  // (CodeRabbit, PR #269). It used to say "then back to" the bought plan, which
+  // is wrong whenever another grant outlasts this one: a free account holding a
+  // premium comp to December and a permanent founder plus drops to plus, not
+  // free. The grants still active after this one's end, ranked the same way
+  // `effectiveTierRef` ranks them now.
+  const expiresAt = effectiveGrant?.expiresAt ?? null;
+  const fallbackRef =
+    expiresAt === null
+      ? null
+      : effectiveTierRef({
+          ...plan,
+          grantedVersionRefs: plan.grants
+            .filter((g) => g !== effectiveGrant && (g.expiresAt === null || g.expiresAt > expiresAt))
+            .map((g) => `${g.planId}@v${g.version}`),
+        });
+  const capabilities = plan.entitlements.map(
+    (entitlement) => ENTITLEMENT_LABEL[entitlement as keyof typeof ENTITLEMENT_LABEL] ?? entitlement,
+  );
 
   return (
     // **No `<Heading>Plan</Heading>` and no `aria-labelledby` pointing at one.**
@@ -229,48 +257,56 @@ export function PlanSection() {
             {PLAN_STATE_LABEL[billing.state]}
           </Badge>
         </div>
-        <Text variant="secondary" className="text-xs" data-testid="plan-held">
-          {grantedAbove
-            ? `You bought ${planId} ${version}; a grant on this account confers ${effectivePlanId} ${effectiveVersion}.`
-            : `Your plan is ${planId} ${version}.`}
-        </Text>
-        {/* **Which grants, and why**
-            (KI-20260916-b-the-account-sheet-never-names-the-grants-an-account-holds).
-            The line above names the tier they add up to; this names each one
-            with its source and end, so a founder grant beneath an admin comp
-            is not invisible. */}
-        {granted !== null ? (
-          <Text variant="secondary" className="text-xs" data-testid="plan-grants">
-            {granted}
-          </Text>
-        ) : null}
-        <Text variant="secondary" className="text-xs">
-          {plan.entitlements.length === 0
-            ? "Planning only — the assistant and collaborators are not on this plan."
-            : `You can: ${plan.entitlements.join(", ")}.`}
-        </Text>
+        {/* **Three questions, in this order: what tier, until when, and what it
+            lets me do** (Mitchell, PR #269 preview: *"This square should just
+            be Whats my current tier, when does my account renew (or expire
+            back to free), and what is my capabilities at this tier"*). The
+            tier is the row above. The "You bought … ; a grant confers …" line
+            and the per-grant "Granted to you: …" line are gone "for now" in
+            the same comment — they answered KI-20260916-b's "which grants,
+            and why", which billing history is the better home for later. */}
         {/* **The renewal sentence changes with the state rather than being one
             line with a date in it.** "Renews on 20 October" and "ends on 20
             October" are the same date and opposite facts, and a person deciding
-            whether to fix a card is reading for exactly that difference. */}
-        {/* **A free week has an end date and no renewal date**, because a trial
-            is a grant rather than a subscription period — so `renewsAt` is null
-            for the one state every brand-new account is in, and this line was
-            simply absent there. A browser walk of the preview found the badge
-            saying *Free week* with nothing anywhere saying when the week ended
-            or what happened then. */}
+            whether to fix a card is reading for exactly that difference.
+
+            A free week has an end date and no renewal date, because a trial
+            is a grant rather than a subscription period. A tier conferred by
+            any other grant says when that grant ends and what the account goes
+            back to — the bought plan — or that it does not end. */}
         {trialEndShown ? (
           <Text variant="secondary" className="text-xs" data-testid="plan-trial-ends">
             Your free week runs to {trialEnds}. After that this account is on {planId} {version}
             {" "}unless you choose a plan.
           </Text>
-        ) : renews !== null ? (
+        ) : effectiveGrant !== undefined ? (
+          <Text variant="secondary" className="text-xs" data-testid="plan-expires">
+            {grantEnds === null
+              ? "This doesn't expire."
+              : `Until ${grantEnds}, then ${fallbackRef?.split("@").join(" ") ?? `${planId} ${version}`}.`}
+          </Text>
+        ) : null}
+        {!trialEndShown && renews !== null ? (
           <Text variant="secondary" className="text-xs" data-testid="plan-renews">
             {billing.state === "cancelling"
               ? `Ends on ${renews}. Until then nothing changes.`
               : `Renews on ${renews}.`}
           </Text>
         ) : null}
+
+        {/* **What this tier lets you do, one line each** (Mitchell, PR #269
+            preview: "rather than a comma seperated string"). The raw
+            entitlement keys, comma-joined, are gone; each is named in
+            `ENTITLEMENT_LABEL`'s words. Planning itself is on every plan, so
+            it heads the list and the list is never empty. */}
+        <ul className="mt-1 flex flex-col gap-1" aria-label="What you can do" data-testid="plan-capabilities">
+          {["Plan trips, days and stops, with the map and costs", ...capabilities].map((capability) => (
+            <li key={capability} className="flex items-start gap-2 text-xs text-ink">
+              <Check aria-hidden className="mt-px size-3.5 shrink-0 text-success" />
+              {capability}
+            </li>
+          ))}
+        </ul>
 
         <div className="mt-1 flex flex-wrap gap-2">
           {/* **A link, not a chooser** (SPEC §29). The sheet lost its expanding

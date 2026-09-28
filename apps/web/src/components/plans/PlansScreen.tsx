@@ -9,7 +9,7 @@ import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
-import type { AccountPlanChoice, AccountPlanView } from "@/lib/accountPlan";
+import { grantedTier, type AccountPlanChoice, type AccountPlanView } from "@/lib/accountPlan";
 import { formatDate, formatPrice } from "@/lib/planCopy";
 import { cn } from "@/lib/cn";
 import { PlanComparison, planBullets, whoItIsFor } from "./PlanComparison";
@@ -491,8 +491,27 @@ function heldLine(plan: AccountPlanView, held: AccountPlanChoice | null): string
       ? null
       : formatPrice(held.priceMinor, held.currency);
 
+  // **A grant above the held plan is said FIRST, as the plan you have.**
+  // Mitchell, PR #269 preview: *"Its confusing this says premium, but when i
+  // click 'change plan' it says i have free"*. Account → Plan leads with the
+  // tier in effect; this line led with the plan held, so the same account read
+  // "premium" on one screen and "free" one click later. Both stay — the held
+  // plan is what a change here replaces — but in the order a person asks them.
+  // The trial keeps its own sentence below, which already says both.
+  const granted = state === "trial" ? null : grantedTier(plan);
+  const grantedUntil = granted === null ? null : formatDate(granted.expiresAt);
+
   let sentence: string;
-  if (state === "trial") {
+  if (granted !== null) {
+    const have = `You have ${granted.planId} right now, granted to your account${grantedUntil === null ? "" : ` until ${grantedUntil}`}.`;
+    // A lapsed subscription keeps its price on the record, but nobody is
+    // paying it — "the plan you pay for is plus, at $9 a month" would claim a
+    // payment that stopped (CodeRabbit, PR #269).
+    sentence =
+      state === "lapsed"
+        ? `${have} Your ${planId} subscription has lapsed.`
+        : `${have} The plan you pay for is ${planId}${paidFor === null ? ", at no charge" : `, at ${paidFor} a month`}.`;
+  } else if (state === "trial") {
     // The one state with no subscription period, so `renewsAt` is null and the
     // trial's own expiry is the only date there is.
     sentence =
@@ -535,6 +554,15 @@ function Chooser({
   const grantInPlay = plan.entitlements.some(
     (entitlement) => !(held?.entitlements ?? []).includes(entitlement),
   );
+  // The card for the plan a grant puts the account on, when that is not the
+  // held one — the same fact the line at the top now leads with. It is the
+  // emphasised card, because it is what the account can do; the held card
+  // keeps its disabled button, relabelled as what it is: the plan paid for.
+  const grantedPlanId = grantedTier(plan)?.planId ?? null;
+  const current = (choice: AccountPlanChoice) =>
+    grantedPlanId === null ? choice.held : choice.planId === grantedPlanId;
+  // Not "pay for" once the subscription has lapsed: nothing is being paid.
+  const heldLabel = grantedPlanId === null || plan.billing.state === "lapsed" ? "What you hold" : "What you pay for";
   return (
     <div className="flex flex-col gap-5">
       {/* **Three cards in display order, each with four bullets enumerating
@@ -547,14 +575,18 @@ function Chooser({
             key={choice.planId}
             data-testid={`plan-card-${choice.planId}`}
             className={
-              choice.held
+              current(choice)
                 ? "flex flex-col gap-2 rounded-lg border border-border-strong bg-moss p-4"
                 : "flex flex-col gap-2 rounded-lg border border-hairline p-4"
             }
           >
             <div className="flex items-center justify-between gap-2">
               <Heading level={3}>{choice.planId}</Heading>
-              {choice.held ? <Badge variant="success">What you hold</Badge> : null}
+              {choice.planId === grantedPlanId ? (
+                <Badge variant="success">You have this now</Badge>
+              ) : choice.held ? (
+                <Badge variant={grantedPlanId === null ? "success" : "neutral"}>{heldLabel}</Badge>
+              ) : null}
             </div>
             <Text as="span" className="text-lg font-semibold text-ink">
               {choice.priceMinor === null
@@ -590,7 +622,7 @@ function Chooser({
               onClick={() => onChoose(choice.planId)}
               data-testid={`plan-choose-${choice.planId}`}
             >
-              {choice.held ? "What you hold" : `Choose ${choice.planId}`}
+              {choice.held ? heldLabel : `Choose ${choice.planId}`}
             </Button>
           </div>
         ))}

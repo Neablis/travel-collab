@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { makeSavedNotebookHandlers } from "@/mocks/handlers";
@@ -30,6 +30,37 @@ describe("SaveAsTemplate", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({ tripId: TRIP_ID, pageId: PAGE_ID, title: "Packing list" }));
     expect(await screen.findByRole("status")).toHaveProperty("textContent", "Saved “Packing list” to your templates");
+  });
+
+  // CodeRabbit, PR #269: saving the same title twice handed the toast the
+  // same message, so its timer did not restart and the FIRST save's countdown
+  // dismissed the second save's confirmation early.
+  it("gives a repeated save its own full confirmation", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const onSave = vi.fn();
+      server.use(...makeSavedNotebookHandlers([], { onSave }));
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<SaveAsTemplate tripId={TRIP_ID} pageId={PAGE_ID} title="Packing list" />);
+
+      const saveOnce = async (times: number) => {
+        await user.click(screen.getByRole("button", { name: "Save as template" }));
+        await user.keyboard("{Enter}");
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(times));
+        await screen.findByRole("status");
+      };
+      await saveOnce(1);
+      act(() => void vi.advanceTimersByTime(2000));
+      await saveOnce(2);
+      // 3s after the first save, 1s after the second: the second's toast is up.
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(screen.getByRole("status")).toHaveProperty("textContent", "Saved “Packing list” to your templates");
+      // And it does still go, on its own timer.
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(screen.queryByRole("status")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("saves under the name typed instead", async () => {

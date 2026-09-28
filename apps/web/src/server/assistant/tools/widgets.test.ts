@@ -30,6 +30,15 @@ describe("search_widgets", () => {
     expect(Object.keys(result.filterValues).sort()).toEqual(expect.arrayContaining(["day", "kind"]));
     expect(result.filterValues).toHaveProperty("day", expect.stringContaining("1-based"));
   });
+
+  it("tells the assistant both ways to write dates: a run, and separate days as a list", async () => {
+    // Separate days are storable (Mitchell, PR #269 preview: *"Yes go
+    // ahead"*); a form naming only the range would keep the assistant from
+    // ever writing Day 2 and Day 5 together.
+    const result = await searchWidgetsTool.invoke({ query: "add a spend by tag chart to Money" }, deps());
+    expect(result.filterValues).toHaveProperty("dates", expect.stringContaining('"from": "YYYY-MM-DD"'));
+    expect(result.filterValues).toHaveProperty("dates", expect.stringContaining('["YYYY-MM-DD", "YYYY-MM-DD"]'));
+  });
 });
 
 describe("get_widget", () => {

@@ -349,8 +349,14 @@ const money: TemplateSeed = {
 
 const tripOverview: TemplateSeed = {
   key: "trip-overview",
-  title: "Trip Overview",
-  description: "The whole trip in one place — the why, the shape, the money.",
+  // **"Trip journal", not "Trip Overview"** (Mitchell, PR #269, 2026-09-28).
+  // Beside the seeded "Overview" in Essentials, "Trip Overview" in More read
+  // as the same template listed twice. What this one actually is — the old
+  // default notebook, three writing prompts and no widgets — is a journal.
+  // The key stays `trip-overview`: it is what existing pages and the gallery's
+  // tests are keyed by, and nothing a reader sees.
+  title: "Trip journal",
+  description: "A blank page with prompts: why you're going, the rough shape, the budget.",
   // **No longer seeded** — Mitchell, 2026-09-12: *"Only 1 notebook per trip is
   // always generated, this is undeletable notebook that needs to be created on
   // every new trip."* That one is `overviewPage` above. This stays in the

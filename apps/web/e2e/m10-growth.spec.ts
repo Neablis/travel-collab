@@ -36,9 +36,10 @@ test("adding a day appends it and every view renders it as an empty day", async 
   await expect(page.getByTestId("one-more-day-column")).toBeVisible();
   await expect(page.getByText("One more day?")).toBeVisible();
   await expect(page.getByRole("button", { name: "+ Add day" })).toHaveCount(0);
-  // The empty column is not a blank gap: it carries a route to a stop.
+  // The empty column is not a blank gap: its river is the route to a stop
+  // (double-click or drag across it — the per-day button went in PR #269).
   const lastColumn = page.getByTestId("day-column").last();
-  await expect(lastColumn.getByRole("button", { name: /^Add activity to / })).toBeVisible();
+  await expect(lastColumn.getByTestId("day-river")).toBeVisible();
 
   // -- Calendar --
   await page.getByRole("tab", { name: "Calendar" }).click();

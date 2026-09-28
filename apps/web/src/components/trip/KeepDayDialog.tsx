@@ -2,11 +2,11 @@
 
 import { useEffect, useId, useState } from "react";
 import type { SavedStop, TimeFormat } from "@tc/contracts";
-import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ToggleChip } from "@/components/ui/toggle-chip";
+import { DayGrid, dragSpan, type DayGridDrag } from "@/components/ui/day-grid";
 import { Text } from "@/components/ui/text";
 import { createSavedDay } from "@/lib/apiClient";
 import { isDroppedFromPlaybook } from "@/lib/savedStops";
@@ -264,7 +264,21 @@ export function KeepDayDialog({
   // that a day is chosen but cannot show when it was chosen. Honouring click
   // order would make two identical-looking selections produce two different
   // Playbooks. Reordering days is not a feature M23 ships.
-  const selected = days.filter((d) => selectedIds.includes(d.dayId));
+  //
+  // **What the dialog describes is the drag while one is under way.** Mitchell,
+  // PR #269 preview: *"would love for this to update as your dragging, not
+  // when your done dragging"*. `liveDrag` is `DayGrid`'s span as the pointer
+  // moves; the summary, the preview and the Keep button all read `selected`,
+  // so they follow it and settle on release, when the span is committed. The
+  // name does not: it follows only a committed selection (`selectedIds`), so
+  // a drag does not retype the field under the reader on every day crossed.
+  const [liveDrag, setLiveDrag] = useState<DayGridDrag | null>(null);
+  const spanIds = (drag: DayGridDrag) => {
+    const { first, last } = dragSpan(drag);
+    return days.filter((_, index) => index >= first && index <= last).map((d) => d.dayId);
+  };
+  const shownIds = liveDrag === null ? selectedIds : spanIds(liveDrag);
+  const selected = days.filter((d) => shownIds.includes(d.dayId));
 
   // Reset on every open, so a dialog reopened on a different day does not offer
   // the previous day's selection or its name.
@@ -296,6 +310,22 @@ export function KeepDayDialog({
     );
   }
 
+  // **A drag REPLACES the selection; a click toggles one day.** Mitchell, PR
+  // #269 preview: *"When you start dragging, clear the existing selected days.
+  // When you select one without a drag, it shouldnt clear existing"*. So a
+  // drag is a range, as it is in `DaysFilter` — the span from the pressed day
+  // to the day under the pointer is the whole selection while it lasts, and on
+  // release — and a set that is not a run ("Day 1 and Day 5") is still made
+  // the way it always was, by clicking days one at a time. This replaces the
+  // first version, which painted days in or out and left the rest alone.
+  // Escape (or a release the grid never hears) abandons the drag and puts the
+  // earlier selection back, because nothing was committed.
+  const pressedAt = (index: number, drag: DayGridDrag | null) =>
+    drag !== null ? spanIds(drag).includes(days[index]!.dayId) : selectedIds.includes(days[index]!.dayId);
+  function replaceWithSpan(drag: DayGridDrag) {
+    setSelectedIds(spanIds(drag));
+  }
+
   async function save() {
     const trimmed = name.trim();
     if (selected.length === 0) {
@@ -320,174 +350,223 @@ export function KeepDayDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={selected.length > 1 ? "Keep these days" : "Keep this day"}>
-      <div className="flex flex-col gap-3">
-        <FormField id={nameId} label="Name">
-          {/* **Opens focused, so the one-day keep is "accept it and press
-              Enter".** `autoFocus` is what makes that true. Without it Radix
-              focuses the first tabbable node in `DialogContent` — the header's
-              Close button — so a bare Enter on open closed the dialog and saved
-              nothing (KI-2026-09-19-d, measured on a preview 2026-09-19). Radix
-              only does that when nothing inside the content already has focus,
-              and React's `autoFocus` lands first, so the field wins without
-              touching the shared `Dialog`.
-              Enter is guarded the same way the Keep button is: a selection with
-              nothing in it cannot be kept, and `save()` itself refuses a blank
-              name with the same message either way. */}
-          <Input
-            id={nameId}
-            autoFocus
-            value={name}
-            onChange={(e) => {
-              setNameTouched(true);
-              setName(e.target.value);
-            }}
-            onKeyDown={submitOnEnter(() => {
-              if (busy || nothingToSave) return;
-              void save();
-            })}
-            placeholder="e.g. A day in Nakameguro"
-          />
-        </FormField>
-        {showDays ? (
-          <div className="flex flex-col gap-1.75">
-            {/* §35.7's helper, in place of a "Days" label: it answers the one
-                question the grid raises — do they have to be consecutive? —
-                before anybody has to find out by trying. */}
-            <Text as="span" variant="muted">
-              Days — any, not just ones in a row
-            </Text>
-            {/* A strip of the trip's days, each one a toggle. NOT a range — see
-                the header. The anchor day arrives selected, so the one-day keep
-                is untouched; every other day is one click away and they need not
-                be adjacent. `aria-pressed` rather than checkboxes because these
-                are buttons that change what the dialog is about, and a screen
-                reader should hear the state on the control itself. */}
-            {/* **A grid, so every day is the same width and the same height.**
-                Mitchell, preview feedback on #192: *"Make these a Table, they
-                should fit the longest text, but also all be aligned in height and
-                width"*. `flex-wrap` sized each chip to its own label, so a row
-                lined up on nothing — "Day 1 / no stops" next to "Day 12 / Sep 14
-                · 6 stops".
-                Implemented as a CSS grid rather than a real `<table>`: these are
-                toggle buttons in a `role="group"`, and wrapping them in table
-                semantics would tell a screen reader they are tabular data. The
-                grid gives the alignment the feedback is about; the roles stay
-                honest.
-                **Two columns at every width, and the number is measured
-                rather than chosen.** This shipped as `grid-cols-2
-                sm:grid-cols-3` with a comment asserting that three columns
-                "fits the longest label this can produce". Measured on the
-                preview: it does not. At 1280px the group is 408px, so a
-                3-column cell is `(408 - 2×6) / 3 = 132px` with a 114px content
-                box — and the widest label this can render, `Day 3` over
-                `Wed, Sep 16 · 10 stops`, is **124.19px**. It does not wrap
-                (`whitespace-nowrap`) and does not ellipsise (`overflow:
-                visible`), so it simply spilled: 10 of 12 chips ate all 8px of
-                their right padding and the worst crossed the 1px border by
-                1.19px.
-                The label needs 124.19 + 16 padding + 2 border = **142.19px**.
-                Two columns give 201px at desktop and 182.5px at 411px —
-                +58.81 and +40.31 of slack, enough for a three-digit stop count
-                and any month abbreviation. Three columns were short by 10.19px
-                at desktop and 22.52px on a phone, so `sm:grid-cols-3` was never
-                right at any width; the `sm` branch only hid it on the screen
-                nobody was measuring.
-                **The date is what makes the label long.** A dateless trip
-                renders `6 stops` (39.48px) and had 74px of slack at three
-                columns — which is why every earlier fixture looked fine and
-                only a trip with a start date showed the overflow.
-                A fixed count rather than an `auto-fill` track because the
-                obvious spelling, `grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]`,
-                is an arbitrary Tailwind value and `check-color-wall` refuses
-                those (design-system.md: tokens only). It was right to: the
-                dialog is `max-w-md`, so the track count was never responsive to
-                anything but a width this control already knows.
-                Equal `1fr` columns give the width half of the ask; grid items
-                stretch by default, so the heights agree without being asked —
-                and that half was already correct, at 132.00px × 12 and
-                42.38px × 12 before this change.
-                **The `Day N · City` label (M27, §35.7) may wrap; the meta
-                may not.** A city name has no length bound, so the label
-                is the one line allowed to break — and grid items stretch,
-                so a two-line chip makes its whole row taller rather than
-                misaligning it. */}
-            <div
-              className="grid grid-cols-2 gap-1.5"
-              role="group"
-              aria-label="Days to keep"
-            >
-              {days.map((day, index) => {
-                const on = selectedIds.includes(day.dayId);
-                return (
-                  <ToggleChip key={day.dayId} pressed={on} onClick={() => toggle(day.dayId)}>
-                    <span className="text-sm font-semibold">
-                      Day {index + 1}
-                      {day.city === null ? "" : ` · ${day.city}`}
-                    </span>
-                    <span className="whitespace-nowrap opacity-80">
-                      {day.date === null ? "" : `${formatTripDate(day.date)} · `}
-                      {day.stops.length === 0
-                        ? "no stops"
-                        : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`}
-                    </span>
-                  </ToggleChip>
-                );
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={selected.length > 1 ? "Keep these days" : "Keep this day"}
+      size="wide"
+    >
+      {/* **Two columns at `md` and up: what you pick, beside what it keeps.**
+          Mitchell, PR #269 preview: *"Maybe have the "What's included" section
+          to the right of the date picker so you can see what's being added"*,
+          then *"a wider modal because its side by side two columns. Left side
+          is the date picker and save button, and right side is the new moved
+          elements"*. Stacked, the preview sat under a twelve-day grid, so each
+          toggle changed something below the fold, and Keep was below that.
+          The right column scrolls inside the height the left one sets (see
+          below), so the picker and Keep stay put while the preview moves. The
+          left column is also `sticky`, for the one case where it is taller
+          than the dialog's 85vh cap and the body itself has to scroll.
+          **Below `md` it is the old single column — "a backup version of
+          mobile/small screens".** The left column is `contents` there, so its
+          children join the stack; `order-last` moves the buttons under the
+          preview, where they were, and `sticky bottom-0` keeps them on screen
+          while the stack scrolls. Document order is the `md` column order,
+          which is what a screen reader and Tab follow at every width. */}
+      <div className="flex flex-col gap-3 md:grid md:min-h-96 md:grid-cols-2 md:gap-6">
+        <div className="contents md:sticky md:top-0 md:flex md:flex-col md:gap-3 md:self-start">
+          <FormField id={nameId} label="Name">
+            {/* **Opens focused, so the one-day keep is "accept it and press
+                Enter".** `autoFocus` is what makes that true. Without it Radix
+                focuses the first tabbable node in `DialogContent` — the header's
+                Close button — so a bare Enter on open closed the dialog and saved
+                nothing (KI-2026-09-19-d, measured on a preview 2026-09-19). Radix
+                only does that when nothing inside the content already has focus,
+                and React's `autoFocus` lands first, so the field wins without
+                touching the shared `Dialog`.
+                Enter is guarded the same way the Keep button is: a selection with
+                nothing in it cannot be kept, and `save()` itself refuses a blank
+                name with the same message either way. */}
+            <Input
+              id={nameId}
+              autoFocus
+              value={name}
+              onChange={(e) => {
+                setNameTouched(true);
+                setName(e.target.value);
+              }}
+              onKeyDown={submitOnEnter(() => {
+                if (busy || nothingToSave) return;
+                void save();
               })}
+              placeholder="e.g. A day in Nakameguro"
+            />
+          </FormField>
+          {showDays ? (
+            <div className="flex flex-col gap-1.75">
+              {/* §35.7's helper, in place of a "Days" label: it answers the one
+                  question the grid raises — do they have to be consecutive? —
+                  before anybody has to find out by trying. */}
+              <Text as="span" variant="muted">
+                Days — any, not just ones in a row
+              </Text>
+              {/* A strip of the trip's days, each one a toggle. NOT a range — see
+                  the header. The anchor day arrives selected, so the one-day keep
+                  is untouched; every other day is one click away, and they need
+                  not be adjacent. A drag picks a run instead, replacing what
+                  was picked (see `replaceWithSpan`).
+                  `aria-pressed` rather than checkboxes because these
+                  are buttons that change what the dialog is about, and a screen
+                  reader should hear the state on the control itself. */}
+              {/* **A grid, so every day is the same width and the same height.**
+                  Mitchell, preview feedback on #192: *"Make these a Table, they
+                  should fit the longest text, but also all be aligned in height and
+                  width"*. `flex-wrap` sized each chip to its own label, so a row
+                  lined up on nothing — "Day 1 / no stops" next to "Day 12 / Sep 14
+                  · 6 stops".
+                  Implemented as a CSS grid rather than a real `<table>`: these are
+                  toggle buttons in a `role="group"`, and wrapping them in table
+                  semantics would tell a screen reader they are tabular data. The
+                  grid gives the alignment the feedback is about; the roles stay
+                  honest.
+                  **Two columns at every width, and the number is measured
+                  rather than chosen.** This shipped as `grid-cols-2
+                  sm:grid-cols-3` with a comment asserting that three columns
+                  "fits the longest label this can produce". Measured on the
+                  preview: it does not. At 1280px the group is 408px, so a
+                  3-column cell is `(408 - 2×6) / 3 = 132px` with a 114px content
+                  box — and the widest label this can render, `Day 3` over
+                  `Wed, Sep 16 · 10 stops`, is **124.19px**. It does not wrap
+                  (`whitespace-nowrap`) and does not ellipsise (`overflow:
+                  visible`), so it simply spilled: 10 of 12 chips ate all 8px of
+                  their right padding and the worst crossed the 1px border by
+                  1.19px.
+                  The label needs 124.19 + 16 padding + 2 border = **142.19px**.
+                  Two columns give 201px at desktop and 182.5px at 411px —
+                  +58.81 and +40.31 of slack, enough for a three-digit stop count
+                  and any month abbreviation. Three columns were short by 10.19px
+                  at desktop and 22.52px on a phone, so `sm:grid-cols-3` was never
+                  right at any width; the `sm` branch only hid it on the screen
+                  nobody was measuring.
+                  **The date is what makes the label long.** A dateless trip
+                  renders `6 stops` (39.48px) and had 74px of slack at three
+                  columns — which is why every earlier fixture looked fine and
+                  only a trip with a start date showed the overflow.
+                  A fixed count rather than an `auto-fill` track because the
+                  obvious spelling, `grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]`,
+                  is an arbitrary Tailwind value and `check-color-wall` refuses
+                  those (design-system.md: tokens only). It was right to: the
+                  dialog is `max-w-md`, so the track count was never responsive to
+                  anything but a width this control already knows.
+                  Equal `1fr` columns give the width half of the ask; grid items
+                  stretch by default, so the heights agree without being asked —
+                  and that half was already correct, at 132.00px × 12 and
+                  42.38px × 12 before this change.
+                  **The `Day N · City` label (M27, §35.7) may wrap; the meta
+                  may not.** A city name has no length bound, so the label
+                  is the one line allowed to break — and grid items stretch,
+                  so a two-line chip makes its whole row taller rather than
+                  misaligning it.
+                  **The cell is `DayGrid`'s now, not a `ToggleChip`.** Mitchell,
+                  PR #269 preview: *"it should look more like the other date
+                  selector in a widget. Obviously keep the more context"* — so
+                  a kept day is drawn filled, like a selected day in the
+                  notebook's `DaysFilter`, and the city, date and stop count
+                  stay. The measurements above were taken on the chip (`px-2`,
+                  a `text-xs` meta line, `gap-1.5`); the shared cell is
+                  narrower on every count (`px-1`, `text-2xs`, `gap-1`), so two
+                  columns only gained slack. */}
+              <DayGrid
+                label="Days to keep"
+                count={days.length}
+                columns={2}
+                pressed={pressedAt}
+                onPick={(index) => toggle(days[index]!.dayId)}
+                onDragCommit={replaceWithSpan}
+              onDragChange={setLiveDrag}
+                cell={(index) => {
+                  const day = days[index]!;
+                  return {
+                    key: day.dayId,
+                    title: `Day ${index + 1}${day.city === null ? "" : ` · ${day.city}`}`,
+                    detail: (
+                      <span className="whitespace-nowrap">
+                        {day.date === null ? "" : `${formatTripDate(day.date)} · `}
+                        {day.stops.length === 0
+                          ? "no stops"
+                          : `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`}
+                      </span>
+                    ),
+                  };
+                }}
+              />
             </div>
-          </div>
-        ) : (
-          days.length > 1 && (
-            /* **The ask, not a disclosure triangle.** It reads as a question
-               and answers with the picker, which is how the feedback put it —
-               and it is absent altogether on a one-day trip, where there is no
-               other day to add and the question would be a dead end.
-               `variant="secondary"` and full width: it sits between two form
-               fields, and a ghost button there reads as a hint rather than as
-               something to press. */
+          ) : (
+            days.length > 1 && (
+              /* **The ask, not a disclosure triangle.** It reads as a question
+                 and answers with the picker, which is how the feedback put it —
+                 and it is absent altogether on a one-day trip, where there is no
+                 other day to add and the question would be a dead end.
+                 `variant="secondary"` and full width: it sits between two form
+                 fields, and a ghost button there reads as a hint rather than as
+                 something to press. */
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => setShowDays(true)}
+              >
+                Do you want to add more days?
+              </Button>
+            )
+          )}
+          {error !== null && (
+            <Text as="span" className="text-xs text-danger-ink">
+              {error}
+            </Text>
+          )}
+          <div className="sticky bottom-0 order-last flex justify-end gap-2 border-t border-hairline bg-surface pt-3 md:static md:order-none md:border-0 md:pt-0">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
             <Button
               type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={() => setShowDays(true)}
+              variant="primary"
+              disabled={busy || nothingToSave}
+              onClick={() => void save()}
             >
-              Do you want to add more days?
+              {selected.length > 1 ? `Keep ${selected.length} days` : "Keep this day"}
             </Button>
-          )
-        )}
-        <FormField id={includedId} label="What's included">
-          <Text as="span" id={includedId} className="text-sm text-ink">
-            {includedSummary(selected, days, clock)}
+          </div>
+        </div>
+        {/* **The preview scrolls; the dialog never grows.** Mitchell, PR #269
+            preview: *"Dont increase the max size, when you select enough dates
+            to have the whats included grow past high, then go into scroll.
+            Never have the modal get bigger"*. `h-0 min-h-full` takes this
+            column out of the row's sizing — at zero height it asks the grid
+            for nothing, and `min-h-full` then stretches it to the row the LEFT
+            column sets — so picking days changes what scrolls here, never the
+            dialog's height. `md:min-h-96` on the grid is the floor that keeps a
+            one-day keep (a name field and two buttons on the left) from
+            squeezing the preview into a sliver. Below `md` the stack scrolls
+            as one, as it did. */}
+        <div className="flex flex-col gap-3 md:h-0 md:min-h-full md:overflow-y-auto">
+          <FormField id={includedId} label="What's included">
+            <Text as="span" id={includedId} className="text-sm text-ink">
+              {includedSummary(selected, days, clock)}
+            </Text>
+          </FormField>
+          {selected.length > 0 && <KeepPreview selected={selected} all={days} />}
+          {droppedDates !== null && (
+            <Text as="span" className="text-xs text-slate" data-testid="keep-day-dropped-dates">
+              {droppedDates}
+            </Text>
+          )}
+          <Text as="span" className="text-xs text-slate">
+            Saved days are private to you. Add one to any trip you can edit.
           </Text>
-        </FormField>
-        {selected.length > 0 && <KeepPreview selected={selected} all={days} />}
-        {droppedDates !== null && (
-          <Text as="span" className="text-xs text-slate" data-testid="keep-day-dropped-dates">
-            {droppedDates}
-          </Text>
-        )}
-        <Text as="span" className="text-xs text-slate">
-          Saved days are private to you. Add one to any trip you can edit.
-        </Text>
-        {error !== null && (
-          <Text as="span" className="text-xs text-danger-ink">
-            {error}
-          </Text>
-        )}
+        </div>
       </div>
-      <DialogFooter>
-        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          disabled={busy || nothingToSave}
-          onClick={() => void save()}
-        >
-          {selected.length > 1 ? `Keep ${selected.length} days` : "Keep this day"}
-        </Button>
-      </DialogFooter>
     </Dialog>
   );
 }

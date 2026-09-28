@@ -62,7 +62,12 @@ export const FILTER_VALUE_FORMS: Readonly<Partial<Record<FilterDimension, unknow
   // 2026-09-26 carried `tag: ["meal"]` (KI-2026-09-26-r).
   tag: `ONE of ${ActivityTag.options.join(", ")} — a single string, never a list`,
   kind: `ONE of ${ActivityKind.options.join(", ")} — a single string, never a list`,
-  dates: { from: "YYYY-MM-DD", through: "YYYY-MM-DD" },
+  // Two forms since separate days became storable (Mitchell, PR #269 preview:
+  // *"Yes go ahead"*). A sentence naming both, for the reason `tag` is one: a
+  // bare example of one shape reads to a live model as the only shape.
+  dates:
+    'a run of days as {"from": "YYYY-MM-DD", "through": "YYYY-MM-DD"}, or separate days as a list of ' +
+    'dates, earliest first, each once: ["YYYY-MM-DD", "YYYY-MM-DD"]',
 };
 
 /** How a link target is written: a number from `get_widget`, a day number or a tab. Never an id. */

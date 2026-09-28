@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
@@ -9,6 +9,7 @@ import { tripKeys } from "@/lib/queryKeys";
 import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Heading } from "@/components/ui/heading";
 import { PageTitle } from "./PageTitle";
 import { SaveAsTemplate } from "./SaveAsTemplate";
@@ -102,6 +103,34 @@ function droppedNotice(dropped: readonly DroppedInsert[]): string {
 // because by the time TipTap has fallen back to an empty document the content
 // is already gone from memory.
 //
+/**
+ * **An open notebook's shape while its reads are in flight** — the toolbar row
+ * (back link left, the mode toggle right) and the document card with its title
+ * and a few lines of prose, at the loaded card's own padding, so nothing jumps
+ * when the real page replaces it. No widget rail: it only exists in Editing,
+ * which a notebook does not open in.
+ */
+function NotebookSkeleton() {
+  return (
+    <PageContainer>
+      <SkeletonRegion label="Loading this notebook" className="flex flex-col">
+        <div className="mt-3 mb-3 flex items-center justify-between gap-3 md:my-0 md:py-3" data-testid="notebook-skeleton">
+          <Skeleton className="h-3.5 w-32" />
+          <Skeleton className="h-10 w-28 rounded-lg" />
+        </div>
+        <div className="rounded-md border border-hairline px-5 py-6 sm:px-12 sm:py-10">
+          <Skeleton className="h-8 w-1/2" delay={2} />
+          <div className="mt-6 flex flex-col gap-3">
+            {["w-full", "w-11/12", "w-4/5", "w-full", "w-2/3"].map((width, line) => (
+              <Skeleton key={line} className={`h-3.5 ${width}`} delay={3} data-testid="notebook-skeleton-line" />
+            ))}
+          </div>
+        </div>
+      </SkeletonRegion>
+    </PageContainer>
+  );
+}
+
 // `Banner` rather than a hand-rolled box: it already carries `role="status"`
 // and the palette's own `warning` tokens. The first draft of this used
 // `bg-amber-50`, which renders as nothing at all — `globals.css` sets
@@ -188,6 +217,10 @@ export function PageScreen({
 }) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);
+  // Names the document card after its own `h1`, so the card is an `article`
+  // with the notebook's title — what a screen reader lands on, and how a test
+  // says a control is ON the notebook rather than in the toolbar above it.
+  const titleId = useId();
   // The account, for account-scope widgets (ADR-037 open question 2), READ FROM
   // THE PROVIDER the whole app shell already mounts (`(app)/layout.tsx`).
   //
@@ -904,13 +937,15 @@ export function PageScreen({
 
   const toggleEditing = () => setEditing((was) => !was);
 
-  // **No loading state at all** — the trip board's rule (TripBoardScreen.tsx),
-  // on Mitchell's call: *"dont even have the loading state. KEep it simple."*
-  // It used to paint `Loading…` alone, the flicker on Overview → Edit Overview.
-  // The chrome cannot stand in for it: the breadcrumb's first crumb is the
-  // trip's name and every button acts on a page that is not here yet, so a
-  // first frame of it would be a placeholder too (KI-2026-09-20-e).
-  if (status === "loading") return null;
+  // **The page's shape in outlines, never a word** (KI-2026-09-20-e). It used
+  // to paint `Loading…` alone, the flicker on Overview → Edit Overview; then it
+  // painted nothing, on Mitchell's *"dont even have the loading state"*. The
+  // blank frame read as "no skeleton loading page when opening a notebook"
+  // (Mitchell, PR #269 preview), so it is `ui/skeleton.tsx`'s outlines now —
+  // still no word. The chrome cannot stand in for it: the breadcrumb's first
+  // crumb is the trip's name and every button acts on a page that is not here
+  // yet, so the toolbar row is outlined too.
+  if (status === "loading") return <NotebookSkeleton />;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
       <PageContainer>
@@ -1135,11 +1170,14 @@ export function PageScreen({
           >
             {editing ? "Done editing" : "Edit page"}
           </Button>
-          {/* Reading only: what is kept is the STORED document, and in Editing
-              the session's changes have not been committed yet (M14 link 10). */}
-          {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
+          {/* "Save as template" is no longer in this row: it is the pennant at
+              the top right of the notebook card below (Mitchell, PR #269
+              preview). */}
           {/* Reading only, for the reason `ResetToDefault` gives; it hides
-              itself from anyone but the owner, and on a notebook a person made. */}
+              itself — its `⋯` trigger included — from anyone but the owner, and
+              on a notebook a person made. A small ghost `⋯` rather than a
+              button beside "Edit page" (Mitchell, PR #269 preview: *"reset to
+              default shouldnt be so prominent"*). */}
           {editing ? null : (
             <ResetToDefault
               tripId={tripId}
@@ -1288,14 +1326,31 @@ export function PageScreen({
           `items-start` so the column does not stretch to the document's height
           and pin its own sticky position to the bottom of a long page. */}
       <div className="flex items-start gap-6">
-      <Card raised className="min-w-0 flex-1 overflow-hidden p-0">
+      <Card raised role="article" aria-labelledby={titleId} className="min-w-0 flex-1 overflow-hidden p-0">
         <div className="flex flex-col px-5 py-6 sm:px-12 sm:py-10">
           {/* `h1`, and the document's own — the trip's name is the app chrome
               above this card, not this page's heading. Editable only in
               Editing: Reading is the traveller's view (§18) and a title that
               accepts a caret there would be the one piece of chrome left in a
               mode whose whole point is not having any. */}
-          <PageTitle title={page.title} editable={editing} onRename={handleRename} />
+          {/* The title's row, with "Save as template" pinned at its right as the
+              keep-a-day pennant — Mitchell, PR #269 preview: *"a flag like when
+              saving a day for saving a notebook on the top right of the
+              notebook"*. A flex row rather than an absolutely placed flag, so
+              the title's box ends where the flag begins and a long title wraps
+              before it on a 390px phone instead of running underneath it.
+              `items-start` keeps the flag level with the first line of a
+              wrapped title.
+
+              Reading only: what is kept is the STORED document, and in Editing
+              the session's changes have not been committed yet (M14 link 10).
+              In Editing the title has the row to itself. */}
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1 break-words">
+              <PageTitle id={titleId} title={page.title} editable={editing} onRename={handleRename} />
+            </div>
+            {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
+          </div>
           {/* `mt-4` is the seam between the title and the document. It used to
               be `mt-3` on a wrapper that also held the editor and the rail as
               flex siblings; the rail is neither a sibling nor in this box any

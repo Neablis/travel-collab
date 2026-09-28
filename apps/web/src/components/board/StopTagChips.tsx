@@ -5,12 +5,11 @@ import { cn } from "@/lib/cn";
 import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint } from "@/lib/activityTags";
 
 /**
- * A stop's tag chips — SPEC §11's click-a-chip-to-focus, shared by the day
- * column's card and the river's block (M29 part 2) so the two cannot disagree
- * on what a chip is, says or does.
+ * A stop's tag chips — SPEC §11's click-a-chip-to-focus, on the river's block.
  *
- * Moved verbatim out of `ActivityCard`; the reasoning each line carried there
- * is kept with it.
+ * Moved verbatim out of the day column's old `ActivityCard` (M29 part 2), which
+ * shared it until PR #269 retired that card; the reasoning each line carried
+ * there is kept with it.
  */
 export function StopTagChips({
   activityId,

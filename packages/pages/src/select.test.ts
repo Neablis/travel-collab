@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cityDayOrdinals,
   costOfStops,
+  datesLabel,
   dayIndexOf,
   narrow,
   stopsInCity,
@@ -10,6 +11,8 @@ import {
   type WidgetFilterValues,
 } from "./select";
 import { selectionTrip } from "./test-support/selectionTrip";
+import { insertWidget } from "./insert";
+import { getMacro } from "./registry";
 
 // `narrow` is the one place ADR-039's selection is implemented, so it is the one
 // place these rules are worth pinning: eleven primitives read it, and a rule
@@ -72,6 +75,23 @@ describe("narrow — what a filter selects (ADR-039 decisions 1 and 2)", () => {
     expect(titles(june)).not.toContain("Souvenirs");
     const oneDay = selected(trip, globals, { dates: { from: "2027-06-02", through: "2027-06-02" } });
     expect(oneDay.days).toEqual([1]);
+  });
+
+  // Mitchell, PR #269 preview, asked whether Day 2 and Day 5 could be picked
+  // together: *"Yes go ahead"*. A range cannot hold that — everything between
+  // its ends is in it — so a `dates` binding may be a list of separate days.
+  // Day 3 is dated here so there is a day BETWEEN the two picked for the list
+  // to leave out; in the base fixture it has no date and proves nothing.
+  it("narrows to separate days, and to exactly those — the day between them is out", () => {
+    const { trip, globals } = selectionTrip();
+    trip.days[2]!.date = "2027-06-03";
+    const firstAndThird = selected(trip, globals, { dates: ["2027-06-01", "2027-06-03"] });
+    expect(firstAndThird.days).toEqual([0, 2]);
+    expect(titles(firstAndThird)).toEqual(["Colosseum", "Lunch", "Free morning", "Maybe a hike"]);
+    // The backlog is out, as it is for a range: an unscheduled stop is on no day.
+    expect(titles(firstAndThird)).not.toContain("Souvenirs");
+    // And the range that spans the same two ends still means every day in it.
+    expect(selected(trip, globals, { dates: { from: "2027-06-01", through: "2027-06-03" } }).days).toEqual([0, 1, 2]);
   });
 
   it("gives a stop its own city, and its day's when it has none", () => {
@@ -273,5 +293,60 @@ describe("attributing stops to a city (`stopsInCity`)", () => {
     expect(cityDayOrdinals(rome, [0, 1, 2])).toEqual([1, 2]);
     expect(cityDayOrdinals(rome, [0])).toEqual([1]);
     expect(cityDayOrdinals(rome, [])).toEqual([]);
+  });
+});
+
+// The widgets themselves, through the one door a widget enters a document by
+// (`insertWidget`) and the resolver that reads it back — so "a list is
+// storable" and "a list shows exactly those days" are both witnessed, not only
+// `narrow`'s half of them.
+describe("a widget bound to separate days (a `dates` list)", () => {
+  const context = (trip: ReturnType<typeof selectionTrip>["trip"], globals: ReturnType<typeof selectionTrip>["globals"]) => ({
+    trip,
+    page: { tripId: trip.tripId },
+    user: null,
+    globals,
+    today: null,
+  });
+  const resolved = (name: string, params: unknown) => {
+    const { trip, globals } = selectionTrip();
+    trip.days[2]!.date = "2027-06-03";
+    const inserted = insertWidget(name, params);
+    if (!inserted.ok) throw new Error(`refused: ${JSON.stringify(inserted.error)}`);
+    return getMacro(name)!.resolve(context(trip, globals), inserted.node.attrs.params as never);
+  };
+
+  it("`dates` names each day it holds, and a range is still the span", () => {
+    expect(resolved("dates", { dates: ["2027-06-01", "2027-06-03"] })).toEqual({
+      status: "ok",
+      value: "Jun 1, 2027 · Jun 3, 2027",
+    });
+    expect(resolved("dates", { dates: { from: "2027-06-01", through: "2027-06-03" } })).toEqual({
+      status: "ok",
+      value: "Jun 1, 2027 – Jun 3, 2027",
+    });
+  });
+
+  it("`day.rows` lists exactly the days on the list", () => {
+    const rows = resolved("day.rows", { dates: ["2027-06-01", "2027-06-03"] });
+    if (rows.status !== "ok") throw new Error(`expected rows, got ${JSON.stringify(rows)}`);
+    expect(JSON.stringify(rows.value)).not.toContain("Day 2");
+    expect(JSON.stringify(rows.value)).toContain("Day 1");
+    expect(JSON.stringify(rows.value)).toContain("Day 3");
+  });
+
+  it("is refused at insert when the list is out of order", () => {
+    const refused = insertWidget("cost", { dates: ["2027-06-03", "2027-06-01"] });
+    expect(refused.ok).toBe(false);
+    expect(refused.ok === false && refused.error.reason).toBe("bad-params");
+  });
+});
+
+describe("datesLabel — a `dates` binding as the page says it", () => {
+  it("says a range as before, separate days as a list, and a long list as a count", () => {
+    expect(datesLabel({ from: "2027-06-01", through: "2027-06-01" })).toBe("Jun 1");
+    expect(datesLabel({ from: "2027-06-01", through: "2027-06-04" })).toBe("Jun 1 – Jun 4");
+    expect(datesLabel(["2026-10-09", "2026-10-12"])).toBe("Oct 9, Oct 12");
+    expect(datesLabel(["2026-10-09", "2026-10-12", "2026-10-14", "2026-10-15"])).toBe("4 days");
   });
 });

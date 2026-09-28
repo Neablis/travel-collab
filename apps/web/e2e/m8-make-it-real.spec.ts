@@ -61,8 +61,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // -- existing activity editor (ActivityEditor.tsx), same pattern as
   // m1-board.spec.ts. Task 3.3 deleted the Backlog column that used to carry
   // the "+ Add activity" trigger; the header's "Add stop" is the same
-  // openCreate() with no dayId, and it is unambiguous too (each day column's
-  // own button is labelled "Add activity to Day N"). What it creates is parked
+  // openCreate() with no dayId. What it creates is parked
   // in the Unscheduled drawer, which starts collapsed. --
   const rack = page.getByTestId("unscheduled-rack");
   await page.getByRole("button", { name: "Add stop" }).click();

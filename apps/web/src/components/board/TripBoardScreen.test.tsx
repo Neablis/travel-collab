@@ -355,7 +355,10 @@ describe("TripBoardScreen", () => {
         [activityId]: {
           activityId,
           title: "Weekday Market",
-          timeWindow: null,
+          // Timed, so it is a block on the river: an untimed stop is drawn in
+          // the Unscheduled rack since PR #269. This test is about the badge
+          // clearing, and the river block carries it in its name.
+          timeWindow: { start: "10:00", end: "11:00" },
           location: null,
           notes: null,
           anchors: [{ kind: "dayOfWeek", days: ["tue", "wed"] }],
@@ -414,15 +417,15 @@ describe("TripBoardScreen", () => {
 
     renderScreen(withConflict.tripId);
 
-    expect(await screen.findByText("Weekday Market")).toBeTruthy();
-    expect(screen.getByRole("img", { name: "conflict" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /^Edit Weekday Market.*, has conflicts$/ })).toBeTruthy();
 
     // Undo moved inside the History popover (PR #55 preview feedback), so it
     // has to be opened first — it is no longer a bare header button.
     fireEvent.click(await screen.findByRole("button", { name: /history/i }));
     fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
 
-    await waitFor(() => expect(screen.queryByRole("img", { name: "conflict" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("button", { name: /has conflicts/ })).toBeNull());
+    expect(screen.getByRole("button", { name: /^Edit Weekday Market/ })).toBeTruthy();
   });
 
   // KI-20: Itinerary/Daily/Trip are retired, not merely nav-less. An old
@@ -1560,6 +1563,107 @@ describe("assistant ask — unsent work blocks the ask", () => {
 //
 // The server refuses each of these commands independently (accessPolicy.ts);
 // this is defence in depth and a legible read-only board, never the boundary.
+// PR #269, Mitchell on the board's "Any time" shelf: "Maybe anything without a
+// time is in unscheduled?", then "not sure how we should show the date
+// ownership still in the unscheduled rack". The stop keeps its day in the
+// trip; the rack draws it under that day, and its column points there.
+describe("TripBoardScreen — a day's untimed stops", () => {
+  const DAY_1 = "71111111-1111-4111-8111-111111111111";
+  const DAY_2 = "72222222-2222-4222-8222-222222222222";
+  const TIMED = "73333333-3333-4333-8333-333333333333";
+  const UNTIMED = "74444444-4444-4444-8444-444444444444";
+  const PARKED = "75555555-5555-4555-8555-555555555555";
+  const LATER = "76666666-6666-4666-8666-666666666666";
+  const stop = (activityId: string, title: string, timeWindow: { start: string; end: string } | null) => ({
+    activityId,
+    title,
+    timeWindow,
+    location: null,
+    notes: null,
+    anchors: [],
+    kind: "planned" as const,
+    tags: [],
+    cost: null,
+    bookedBy: null,
+    participants: [],
+    mode: null,
+    endLocation: null,
+    pendingReason: null,
+  });
+  const trip = () =>
+    tripDetailFixture({
+      days: [
+        { dayId: DAY_1, activityIds: [TIMED], date: null, costSubtotal: 0 },
+        // The untimed stop is NOT last on its day: a MoveActivity "to the end"
+        // of its own day is then a real reorder the server would record, not
+        // a no-op the provider drops unsent — so the test below can see one.
+        { dayId: DAY_2, activityIds: [UNTIMED, LATER], date: null, costSubtotal: 0 },
+      ],
+      backlog: [PARKED],
+      activities: {
+        [TIMED]: stop(TIMED, "Fushimi Inari", { start: "09:00", end: "11:00" }),
+        [UNTIMED]: stop(UNTIMED, "Nishiki market", null),
+        [LATER]: stop(LATER, "Gion walk", { start: "18:00", end: "19:00" }),
+        [PARKED]: stop(PARKED, "Tea ceremony", null),
+      },
+    });
+
+  it("draws one in the rack under its day, after the stops with no day, and only counts it on its column", async () => {
+    const fixture = trip();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const day2 = screen.getAllByTestId("day-column")[1]!;
+    expect(within(day2).queryByText("Nishiki market")).toBeNull();
+
+    // The chip opens the collapsed rack on Day 2's group.
+    fireEvent.click(within(day2).getByRole("button", { name: /^1 Unscheduled on Day 2/ }));
+
+    const rack = screen.getByTestId("unscheduled-rack");
+    const toggle = within(rack).getByRole("button", { name: /^Unscheduled/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(within(toggle).getByText("2")).toBeTruthy();
+    const group = within(rack).getByRole("group", { name: "Day 2" });
+    expect(within(group).getByText("Nishiki market")).toBeTruthy();
+    expect(within(rack).getAllByTestId("rack-card").map((card) => within(card).queryByText("Tea ceremony") !== null)).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("gives one a time on its own day from Add to day, without moving it", async () => {
+    const fixture = trip();
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(within(screen.getAllByTestId("day-column")[1]!).getByRole("button", { name: /^1 Unscheduled/ }));
+    const group = screen.getByRole("group", { name: "Day 2" });
+    await userEvent.selectOptions(within(group).getByRole("combobox", { name: "Add to day" }), DAY_2);
+
+    await waitFor(() =>
+      expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ type: "UpdateActivity", activityId: UNTIMED })),
+    );
+    expect(onCommand).not.toHaveBeenCalledWith(expect.objectContaining({ type: "MoveActivity" }));
+  });
+
+  it("still shows a viewer where they are", async () => {
+    const fixture = trip();
+    server.use(...makeTripHandlers(fixture, { myRole: "viewer" }));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByText("Viewer")).toBeTruthy();
+    fireEvent.click(within(screen.getAllByTestId("day-column")[1]!).getByRole("button", { name: /^1 Unscheduled/ }));
+    const group = screen.getByRole("group", { name: "Day 2" });
+    expect(within(group).getByText("Nishiki market")).toBeTruthy();
+    // …and nothing on the card that would change it.
+    expect(within(group).queryByRole("button", { name: /^(Edit|Remove) Nishiki market$/ })).toBeNull();
+    expect(within(group).queryByRole("combobox", { name: "Add to day" })).toBeNull();
+  });
+});
+
 describe("TripBoardScreen — a viewer's board", () => {
   it("says Viewer and offers no way to change the trip", async () => {
     const fixture = tripDetailFixture();
@@ -1571,7 +1675,6 @@ describe("TripBoardScreen — a viewer's board", () => {
 
     expect(screen.queryByTestId("one-more-day-column")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Add activity to / })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Remove Day / })).toBeNull();
     // The rack's day-assign select is the drawer's non-drag write path.
     fireEvent.click(screen.getByRole("button", { name: /unscheduled/i }));
@@ -1653,7 +1756,10 @@ describe("TripBoardScreen — approving an assistant proposal", () => {
         [NEW_ACTIVITY_ID]: {
           activityId: NEW_ACTIVITY_ID,
           title: "Coffee at Fuglen",
-          timeWindow: null,
+          // Timed, so it is drawn on day 1's river: an untimed stop is drawn
+          // in the (collapsed) Unscheduled rack since PR #269, where "on the
+          // board" and "gone again after Undo" could not be told apart.
+          timeWindow: { start: "15:00", end: "16:00" },
           location: null,
           notes: null,
           anchors: [],
@@ -2048,7 +2154,6 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
     expect(within(day).getAllByText("Overlap")).toHaveLength(2);
     expect(within(day).getByText(/^Lunch at Kagari, .*, overlaps Nezu Museum$/)).toBeTruthy();
 
-    expect(within(day).queryByRole("button", { name: /^Add activity to/ })).toBeNull();
     expect(within(day).queryByRole("button", { name: /^Remove / })).toBeNull();
     expect(within(day).queryByRole("button", { name: "Dismiss overlap warning" })).toBeNull();
     // The trailing "One more day?" column is Plan's AddDay affordance, and it
@@ -2065,7 +2170,6 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
     navigateToView("Plan");
 
     const day = await screen.findByTestId("day-column");
-    expect(within(day).getByRole("button", { name: /^Add activity to/ })).toBeTruthy();
     // `getAll`, because a day column carries a Remove for the DAY and one per
     // card. The property is that an owner gets them at all — the viewer case
     // above asserts the absence, which is the half that can rot.
@@ -2100,5 +2204,46 @@ describe("TripBoardScreen — a viewer's Map lens", () => {
 
     await waitFor(() => expect(mapLensProps).toHaveBeenCalled());
     expect(mapLensProps).not.toHaveBeenCalledWith(expect.objectContaining({ readOnly: true }));
+  });
+});
+
+// Mitchell, PR #269 preview: "i cant add a stop, it just closes with no
+// message". He was on a trip deleted a moment earlier in another flow; every
+// command on a deleted trip is refused locally, and the sheet closed anyway,
+// with the reason on a line under the header. The sheet now stays open with
+// what was typed, and says why, and nothing is sent.
+describe("the add-a-stop sheet on a refused change", () => {
+  it("stays open with the reason when the trip refuses the stop, and sends nothing", async () => {
+    const fixture = tripDetailFixture({ status: "deleted" });
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+    await screen.findByRole("heading", { name: fixture.name });
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add stop" })[0]!);
+    await screen.findByRole("heading", { name: "Add a stop" });
+    await userEvent.type(screen.getByLabelText("What or where"), "Gelato{enter}");
+
+    const refused = await screen.findByTestId("activity-save-refused");
+    expect(refused.textContent).toBe("This trip has been deleted. Nothing was saved.");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect((screen.getByLabelText("What or where") as HTMLInputElement).value).toBe("Gelato");
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("closes once the stop is accepted, with no refusal shown", async () => {
+    const fixture = tripDetailFixture();
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+    await screen.findByRole("heading", { name: fixture.name });
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add stop" })[0]!);
+    await screen.findByRole("heading", { name: "Add a stop" });
+    await userEvent.type(screen.getByLabelText("What or where"), "Gelato{enter}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByTestId("activity-save-refused")).toBeNull();
+    await waitFor(() => expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", title: "Gelato" })));
   });
 });

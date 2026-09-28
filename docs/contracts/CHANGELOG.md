@@ -13,6 +13,36 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-28 — `DateListRef` and `DatesRef`: a `dates` filter can hold separate days (PR #269 preview)
+
+- **Added:** `DateListRef` (a non-empty list of `YYYY-MM-DD` calendar dates, earliest first,
+  each once) and `DatesRef` (`DateRangeRef | DateListRef`) in `packages/contracts/src/pages.ts`.
+  **Changed:** `FILTER_VALUE_SCHEMAS.dates` is `DatesRef` (was `DateRangeRef`), so every
+  primitive declaring `dates` accepts `dates: ["2027-06-02", "2027-06-05"]` as well as
+  `dates: { from, through }`. `DateRangeRef` itself is unchanged.
+- Why: Mitchell, PR #269 preview, on the notebook widget's days control: *"get rid of the 'First
+  click start, second click end, select all elements between' this should be either drag and
+  select, or click one offs"*. With one range stored, a click could only replace the selection;
+  asked whether the filter should become a list so Day 2 and Day 5 could be picked together, he
+  answered *"Yes go ahead"*. ADR-039 amendment 2026-09-28.
+- **A run is still written as a range.** `DaysFilter` writes a list only when the days picked
+  are not one unbroken run of the trip's days, so a single day or a dragged run is stored exactly
+  as before. The list is refused, not tidied, when out of order or repeated — one spelling per
+  set, for the reason a reversed range is refused.
+- Consumers updated: `@tc/pages` — `narrow` tests days through the new `datesInclude` (the one
+  place a day is matched against `dates`), `datesLabel` is the one wording of a binding ("Jun 1 –
+  Jun 4", "Jun 2, Jun 5", "5 days"), `cost.breakdown`'s title uses it, and the `dates` widget
+  names each day of a list instead of printing a span. `apps/web` — `DaysFilter` (a click toggles
+  one day, a drag replaces with a run, Shift-click adds a run, the button reads `datesLabel`
+  instead of raw ISO dates), `day-grid.tsx`'s header, and the assistant's `FILTER_VALUE_FORMS`
+  names both spellings. `insertWidget`, `writeCheck` and the property sweep take the union
+  through the params schemas with no edit of their own.
+- **Breaking?** No for readers: every stored `dates` is a range and parses and resolves as
+  before; no document version, no `PAGE_DOC_MIGRATIONS` step (the 2026-09-24 `headings` / `view`
+  precedent). A build older than this one reading a page that stores a list renders that one
+  widget in `renderMacro`'s `bad-params` state (the page still opens) — the deploy-overlap
+  window only, since nothing outside this repo writes these documents.
+
 ## 2026-09-27 — `LinkPreviewMeta`: the text beside a per-link preview card
 
 - **Added:** `LinkPreviewMeta` (`{ title, description }`, `.strict()`), in

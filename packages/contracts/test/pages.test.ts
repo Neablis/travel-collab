@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MacroNode, PageContext, Page, CreatePageInput, DateRangeRef, PAGE_TITLE_MAX, PageCommand, PageEditedV1, UpdatePageInput } from "../src";
+import { MacroNode, PageContext, Page, CreatePageInput, DateRangeRef, DatesRef, FILTER_VALUE_SCHEMAS, PAGE_TITLE_MAX, PageCommand, PageEditedV1, UpdatePageInput } from "../src";
 
 describe("page contracts", () => {
   it("accepts a valid inline macro node", () => {
@@ -122,5 +122,33 @@ describe("DateRangeRef", () => {
     // somebody made, and quietly reinterpreting it is how a widget shows a
     // confident wrong answer.
     expect(DateRangeRef.safeParse({ from: "2027-06-04", through: "2027-06-01" }).success).toBe(false);
+  });
+});
+
+// Mitchell, PR #269 preview: separate days picked together — Day 2 and Day 5 —
+// need the stored filter to hold a set, and he answered *"Yes go ahead"*. The
+// set is a list beside the range, not a replacement for it: every stored
+// document holds a range, and must still parse as exactly that.
+describe("DatesRef — a range, or separate days", () => {
+  it("still takes every range it took before, unchanged", () => {
+    const range = { from: "2027-06-01", through: "2027-06-04" };
+    expect(DatesRef.parse(range)).toEqual(range);
+    // The value a widget's params are built from is this one, not the range.
+    expect(FILTER_VALUE_SCHEMAS.dates.parse(range)).toEqual(range);
+    expect(DatesRef.safeParse({ from: "2027-06-04", through: "2027-06-01" }).success).toBe(false);
+  });
+
+  it("takes separate days as a list of dates", () => {
+    expect(FILTER_VALUE_SCHEMAS.dates.parse(["2027-06-02", "2027-06-05"])).toEqual(["2027-06-02", "2027-06-05"]);
+    expect(DatesRef.safeParse(["2027-06-02"]).success).toBe(true);
+  });
+
+  it("refuses a list out of order, with a repeat, empty, or naming a date that cannot happen", () => {
+    // One spelling per set: the control writes it sorted, and a list that is
+    // not is a mistake rather than a second way to say the same thing.
+    expect(DatesRef.safeParse(["2027-06-05", "2027-06-02"]).success).toBe(false);
+    expect(DatesRef.safeParse(["2027-06-02", "2027-06-02"]).success).toBe(false);
+    expect(DatesRef.safeParse([]).success).toBe(false);
+    expect(DatesRef.safeParse(["2027-06-02", "2027-02-30"]).success).toBe(false);
   });
 });

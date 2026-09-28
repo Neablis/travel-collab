@@ -128,6 +128,35 @@ describe("PageScreen", () => {
     expect(screen.queryByRole("button", { name: "Save as template" })).toBeNull();
   });
 
+  // Mitchell, PR #269 preview: *"Maybe a flag like when saving a day for saving
+  // a notebook on the top right of the notebook"*. The pennant is ON the
+  // document — inside the card its own title names — and not in the toolbar
+  // above it, where "Edit page" stays.
+  it("puts the Save as template pennant on the notebook, not in the toolbar", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing list" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const notebook = await screen.findByRole("article", { name: "Packing list" });
+    expect(within(notebook).getByRole("heading", { level: 1, name: "Packing list" })).toBeTruthy();
+    expect(within(notebook).getByRole("button", { name: "Save as template" })).toBeTruthy();
+    expect(within(notebook).queryByRole("button", { name: "Edit page" })).toBeNull();
+  });
+
+  // The `⋯` holds one item, Reset to default, which is owner-only and
+  // seed-only. On a notebook a person made there is nothing to put in it, so
+  // there is no `⋯` — a menu that opens onto nothing lies about itself.
+  it("shows no ⋯ on a notebook a person made", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Bookings", actorId: "dev-alice" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByRole("button", { name: "Save as template" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More notebook actions" })).toBeNull();
+  });
+
   // Mitchell, 2026-09-06 on a 411px phone, pointing at the notebook index's
   // Rename button: *"rename shouldn't be a button here, the title should be at
   // the top of the notebook as a h1 and when you edit the title it does the
@@ -961,7 +990,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
         within(screen.getByTestId("widget-settings"))
           .getByRole("button", { name: /What it costs: dates/ })
           .textContent,
-      ).toBe("2027-06-01"),
+      ).toBe("Jun 1"),
     );
 
     // Back to the prose, then Escape — which is how a person leaves a widget:
@@ -981,7 +1010,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
         within(screen.getByTestId("widget-settings"))
           .getByRole("button", { name: /The days in detail: dates/ })
           .textContent,
-      ).toBe("2027-06-02"),
+      ).toBe("Jun 2"),
     );
 
     // The document holds both, which is the actual claim — and the only place
@@ -1363,7 +1392,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
   it("opens read-only, explains why, and never autosaves over the page", async () => {
     const { onUpdate } = await renderWithStoredContent(withNewerNode);
 
-    const notice = await screen.findByRole("status");
+    // The loading outlines are a `status` region too; the notice is the one
+    // left once they are gone.
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
+    const notice = screen.getByRole("status");
     expect(notice.textContent).toContain("callout");
 
     // No editor at all: mounting one is what destroys the document, so the
@@ -1390,6 +1422,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
 
   it("takes the assistant away too, since what it inserts would be autosaved", async () => {
     await renderWithStoredContent(withNewerNode);
+    // The loading outlines are a `status` too, so wait for them to go and the
+    // locked branch to be what is on screen before asserting absences
+    // (CodeRabbit, PR #269).
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
     await screen.findByRole("status");
     // Not only the rail — its launcher, in BOTH of its shapes. This branch
     // never mounts an editor at all (that is the whole of decision 4), so an
@@ -1408,7 +1444,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
       content: [{ type: "heading", attrs: { level: 9 }, content: [] }],
     });
 
-    const notice = await screen.findByRole("status");
+    // The loading outlines are a `status` region too; the notice is the one
+    // left once they are gone.
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
+    const notice = screen.getByRole("status");
     expect(notice.textContent).toContain("can't read");
     expect(editorTextbox()).toBeNull();
     // Nothing parsed, so there is no AST to render — and inventing one would be
@@ -1888,6 +1927,24 @@ describe("PageScreen while its first read is pending", () => {
 
     expect(container.textContent).not.toMatch(/Loading/);
   });
+
+  // Mitchell, PR #269 preview: "Theres no skeleton loading page when opening a
+  // notebook". Not a word (above) and not a blank frame either: the toolbar
+  // row and the document card, outlined.
+  it("draws the notebook's shape in outlines", () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => new Promise<never>(() => {})),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(screen.getByRole("status", { name: "Loading this notebook" })).toBeTruthy();
+    expect(screen.getByTestId("notebook-skeleton")).toBeTruthy();
+    expect(screen.getAllByTestId("notebook-skeleton-line").length).toBeGreaterThan(0);
+  });
 });
 
 // KI-2026-09-24-t, the guard at the top of this file. The first test ends with
@@ -1972,6 +2029,11 @@ describe("PageScreen — Undo reset", () => {
     );
 
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    // Behind the `⋯` since Mitchell's PR #269 preview: not in the toolbar
+    // until the menu is opened.
+    const more = await screen.findByRole("button", { name: "More notebook actions" });
+    expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+    await userEvent.click(more);
     await userEvent.click(await screen.findByRole("button", { name: "Reset to default" }));
     await userEvent.click(await screen.findByRole("button", { name: "Reset notebook" }));
     expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();

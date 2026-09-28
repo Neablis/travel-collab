@@ -77,7 +77,7 @@ export interface SlashMenuState {
   active: number;
   // `name` is the PRESET's id — what `onPick` hands back and what
   // `insertPreset` resolves. It is not what the document stores.
-  names: readonly { name: string; title: string; preview: string }[];
+  names: readonly { name: string; title: string; summary: string }[];
 }
 
 export interface SlashMenu {
@@ -134,7 +134,7 @@ export function useSlashMenu({
       const names = presetCatalog()
         .filter((w) => widgetMatches(w, query))
         .slice(0, MAX_ROWS)
-        .map((w) => ({ name: w.name, title: w.title, preview: w.preview }));
+        .map((w) => ({ name: w.name, title: w.title, summary: w.summary }));
       // A query that matches nothing closes the menu rather than showing an
       // empty box: at that point the person is writing a date, not choosing a
       // widget, and a menu hovering over "9/11" is in the way.

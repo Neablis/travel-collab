@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { PlanSection } from "./PlanSection";
@@ -111,7 +111,7 @@ describe("what you hold", () => {
     serve(subscribed());
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
-    expect(text("plan-held")).toContain("premium");
+    expect(text("plan-effective")).toContain("premium");
     expect(text("plan-state")).toBe("Active");
   });
 
@@ -388,14 +388,15 @@ describe("a grant above the held plan", () => {
     expect(text("plan-effective")).toContain("2");
   });
 
-  // Both facts, because the billing copy below the card is about the
-  // SUBSCRIPTION: an account reading only "premium" would have no way to
-  // understand a renewal notice naming `plus`.
-  it("still names the plan that was actually bought", async () => {
+  // A permanent comp above the bought plan: the tier it confers does not end,
+  // and the card says so rather than "You bought plus; a grant confers …"
+  // (Mitchell, PR #269 preview dropped that line).
+  it("says a permanent comp above the bought plan does not expire", async () => {
     serve(comped());
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
-    expect(text("plan-held")).toContain("plus");
+    expect(screen.queryByTestId("plan-held")).toBeNull();
+    expect(text("plan-expires")).toBe("This doesn't expire.");
   });
 
   // The guard against the reverse failure: with no grant, the label is the held
@@ -405,7 +406,7 @@ describe("a grant above the held plan", () => {
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
     expect(text("plan-effective")).toContain("premium");
-    expect(text("plan-held")).toContain("premium");
+    expect(screen.queryByTestId("plan-expires")).toBeNull();
   });
 
   // A plan the chooser does not offer (`studio` ships disabled) must never
@@ -422,52 +423,82 @@ describe("a grant above the held plan", () => {
   });
 });
 
-// **Which grants, not only the tier they add up to**
-// (KI-20260916-b-the-account-sheet-never-names-the-grants-an-account-holds). The
-// reported account held `free@v1` with an admin `premium` comp and a founder
-// grant; the sheet named one tier and the founder grant appeared nowhere, so a
-// correct answer read as a broken mapping.
-describe("the grants on an account", () => {
-  const granted = (): AccountPlanView => ({
+// **Tier, until when, and what it lets you do** — the three questions the card
+// answers (Mitchell, PR #269 preview). The "You bought … ; a grant confers …"
+// and "Granted to you: …" lines went in the same comment, "for now".
+describe("the card's three answers", () => {
+  const granted = (expiresAt: string | null): AccountPlanView => ({
     ...FREE,
-    grantedVersionRefs: ["premium@v1", "plus@v1"],
-    grants: [
-      { planId: "premium", version: 1, source: "admin", expiresAt: null },
-      { planId: "plus", version: 1, source: "founder", expiresAt: "2026-12-01T00:00:00.000Z" },
-    ],
+    grantedVersionRefs: ["premium@v1"],
+    grants: [{ planId: "premium", version: 1, source: "admin", expiresAt }],
     entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
     canRefer: true,
   });
 
-  it("names every grant with where it came from and when it ends", async () => {
-    serve(granted());
+  it("says when a granted tier ends and what the account goes back to", async () => {
+    serve(granted("2026-12-01T00:00:00.000Z"));
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
-    expect(text("plan-grants")).toBe(
-      "Granted to you: premium v1 (admin, permanent) and plus v1 (founder, until December 1).",
-    );
+    expect(text("plan-expires")).toBe("Until December 1, then free v1.");
   });
 
-  // The free week is a grant too, and the line below already dates it — so
-  // this row names the tier and the badge's word, and not the date again.
-  it("names a free week without repeating its end date", async () => {
+  // CodeRabbit, PR #269: the fallback is whatever outlasts this grant, not the
+  // bought plan by assumption. A permanent founder plus under a premium comp
+  // that ends in December leaves the account on plus.
+  it("names the tier another grant keeps the account on after this one ends", async () => {
     serve({
-      ...FREE,
-      grantedVersionRefs: ["plus@v1"],
-      grants: [{ planId: "plus", version: 1, source: "trial", expiresAt: "2026-09-22T00:00:00.000Z" }],
-      entitlements: ["ai.ask", "ai.command"],
-      billing: { ...FREE.billing, state: "trial", trialEndsAt: "2026-09-22T00:00:00.000Z" },
+      ...granted("2026-12-01T00:00:00.000Z"),
+      grantedVersionRefs: ["premium@v1", "plus@v1"],
+      grants: [
+        { planId: "premium", version: 1, source: "admin", expiresAt: "2026-12-01T00:00:00.000Z" },
+        { planId: "plus", version: 1, source: "founder", expiresAt: null },
+      ],
+      // plus has to be on offer to rank at all (`effectiveTierRef`), between
+      // free and premium as the real catalogue orders them.
+      catalogue: [CATALOGUE[0]!, { ...CATALOGUE[0]!, planId: "plus", held: false, priceMinor: 900 }, ...CATALOGUE.slice(1)],
     });
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
-    expect(text("plan-grants")).toBe("Granted to you: plus v1 (free week).");
-    expect(text("plan-trial-ends")).toContain("September 22");
+    expect(text("plan-expires")).toBe("Until December 1, then plus v1.");
   });
 
-  it("is absent when nothing is granted", async () => {
-    serve(subscribed());
+  it("says a permanent grant does not expire", async () => {
+    serve(granted(null));
+    render(<PlanSection />);
+    await screen.findByTestId("plan-section");
+    expect(text("plan-expires")).toBe("This doesn't expire.");
+  });
+
+  it("no longer lists the grants or the bought plan in sentences", async () => {
+    serve(granted(null));
     render(<PlanSection />);
     await screen.findByTestId("plan-section");
     expect(screen.queryByTestId("plan-grants")).toBeNull();
+    expect(screen.queryByTestId("plan-held")).toBeNull();
+    expect(screen.queryByText(/Granted to you|You bought/)).toBeNull();
+  });
+
+  // "Find a better way to show capabilities, rather than a comma seperated
+  // string" — one item each, in words, never the raw keys.
+  it("lists what the tier lets you do, one item each, in words", async () => {
+    serve(granted(null));
+    render(<PlanSection />);
+    const list = await screen.findByRole("list", { name: "What you can do" });
+    const items = within(list).getAllByRole("listitem").map((li) => li.textContent);
+    expect(items).toEqual([
+      "Plan trips, days and stops, with the map and costs",
+      "Ask the assistant about your trips",
+      "Let the assistant make changes for you",
+      "Invite friends to plan your trips with you, with votes and comments",
+    ]);
+    expect(screen.queryByText(/ai\.ask|trip\.collaborators/)).toBeNull();
+  });
+
+  it("still lists planning on a plan with no capabilities beyond it", async () => {
+    render(<PlanSection />);
+    const list = await screen.findByRole("list", { name: "What you can do" });
+    expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Plan trips, days and stops, with the map and costs",
+    ]);
   });
 });

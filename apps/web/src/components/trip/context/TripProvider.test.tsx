@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
@@ -746,16 +747,18 @@ const HISTORY_COMMANDS = [
 
 function SameTickProbe({ command }: { command: (typeof HISTORY_COMMANDS)[number] }) {
   const { activeTrip, dispatch } = useTrip();
+  const [historyResult, setHistoryResult] = useState("none");
   return (
     <div>
       <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+      <span data-testid="historyResult">{historyResult}</span>
       <button
         // ONE handler, so both dispatches land in one React tick and the second
         // closes over the same render's `pending`. This is the race, not a
         // simulation of it: no timers, no fake scheduler.
         onClick={() => {
           void dispatch({ type: "AddDay", tripId: "x", dayId: "d-race" } as never);
-          void dispatch(command as never);
+          void dispatch(command as never).then((result) => setHistoryResult(result.ok ? "ok" : "refused"));
         }}
       >
         edit-then-history
@@ -790,6 +793,9 @@ describe.each(HISTORY_COMMANDS)(
         (call) => (call[0] as { type: string }).type,
       );
       expect(sentTypes).toEqual(["AddDay"]);
+      // And it SAYS it was refused (CodeRabbit, PR #269): `ok: true` here would
+      // tell a caller that closes on success that an ignored command landed.
+      expect(screen.getByTestId("historyResult").textContent).toBe("refused");
     });
 
     it("keeps the optimistic edit on screen (it used to vanish with no error)", async () => {

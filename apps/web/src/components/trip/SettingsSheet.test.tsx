@@ -87,7 +87,6 @@ function renderSheet(
       onOpenChange={vi.fn()}
       startDate={null}
       endDate={null}
-      dayCount={0}
       counts={overrides.counts ?? { days: 3, stops: 12, cities: 2 }}
       currency="USD"
       budget={overrides.budget ?? null}
@@ -505,6 +504,13 @@ describe("SettingsSheet trip overview (the hidden meta pill's counts)", () => {
       expect(screen.getByText("3 cities")).toBeTruthy();
     },
   );
+
+  // Mitchell, PR #269 preview: "Can there be a more distinct seperator between
+  // 14 days, 69 stops, x cities?" — a dot between each, and only between.
+  it("separates the three counts with a dot between each", () => {
+    renderSheet({ counts: { days: 14, stops: 69, cities: 4 } });
+    expect(screen.getByTestId("trip-overview-counts").textContent).toBe("14 days·69 stops·4 cities");
+  });
 });
 
 describe("SettingsSheet share", () => {

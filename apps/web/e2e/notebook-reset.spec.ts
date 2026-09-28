@@ -53,6 +53,9 @@ test("the owner resets an edited Overview to its default, and adds back a missin
   await expect(page.getByText(LETTER)).toHaveCount(0);
 
   // -- Reset to default, confirmed: the template's letter is back --
+  // Behind the notebook's `⋯` since Mitchell's PR #269 preview ("reset to
+  // default shouldnt be so prominent"), so every reset below opens it first.
+  await page.getByRole("button", { name: "More notebook actions" }).click();
   await page.getByRole("button", { name: "Reset to default" }).click();
   const dialog = page.getByRole("dialog", { name: "Reset to default?" });
   await expect(dialog).toContainText("can undo the reset");
@@ -107,6 +110,7 @@ test("the reset can be undone straight afterwards", async ({ page }) => {
   await page.keyboard.type("Words worth keeping.");
   await finishEditing(page);
 
+  await page.getByRole("button", { name: "More notebook actions" }).click();
   await page.getByRole("button", { name: "Reset to default" }).click();
   await page.getByRole("dialog", { name: "Reset to default?" }).getByRole("button", { name: "Reset notebook" }).click();
   await expect(page.getByText(LETTER)).toBeVisible();
@@ -157,6 +161,7 @@ test("a renamed default notebook is still that default, and resets to its templa
   // And it keeps its way back: the template's title and all.
   await mine.getByRole("link", { name: /^Budget/ }).click();
   await expect(page.getByRole("heading", { name: "Budget", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "More notebook actions" }).click();
   await page.getByRole("button", { name: "Reset to default" }).click();
   await page.getByRole("dialog", { name: "Reset to default?" }).getByRole("button", { name: "Reset notebook" }).click();
   await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();

@@ -49,6 +49,27 @@ export function ratingLine(day: Pick<DiscoverDay, "rating" | "reviewCount">): st
   return `${day.rating.toFixed(1)} · ${day.reviewCount} review${day.reviewCount === 1 ? "" : "s"}`;
 }
 
+/** At most this many city chips on a card; the rest become one "+N more". */
+export const MAX_CITY_CHIPS = 3;
+
+/**
+ * **Which cities a card draws as chips, and how many it only counts**
+ * (Mitchell, PR #269 preview: "Have a max amount of 3 of these for a trip, if
+ * more then 3 make a 4th thats just a number").
+ *
+ * A long multi-city Playbook wrapped its chips across two or three lines and
+ * pushed the title down the card. Three chips, then one that says how many
+ * more. The matched cities go first, so the city a search asked for is never
+ * the one folded into the count — a matched chip is the card's answer to the
+ * search. Otherwise the day's own order is kept.
+ */
+export function cityChips(day: Pick<DiscoverDay, "cities" | "matchedCities">): { shown: string[]; hidden: string[] } {
+  const matched = day.cities.filter((city) => day.matchedCities.includes(city));
+  const rest = day.cities.filter((city) => !day.matchedCities.includes(city));
+  const ordered = [...matched, ...rest];
+  return { shown: ordered.slice(0, MAX_CITY_CHIPS), hidden: ordered.slice(MAX_CITY_CHIPS) };
+}
+
 /**
  * `origin` is where this card is being rendered, and it rides both links out of
  * it so the page they open knows the way back. A profile renders these cards
@@ -59,6 +80,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
   const line = matchLine(day);
   const rated = ratingLine(day);
   const back = backQuery(origin);
+  const chips = cityChips(day);
   return (
     <Card
       raised
@@ -78,7 +100,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           or the extra cities look like a mistake rather than the offer. */}
       <div className="flex flex-wrap items-start gap-2">
         <ul className="flex flex-wrap gap-1.5" data-testid="city-chips">
-          {day.cities.map((city) => {
+          {chips.shown.map((city) => {
             const matched = day.matchedCities.includes(city);
             return (
               <li
@@ -96,6 +118,15 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
               </li>
             );
           })}
+          {chips.hidden.length > 0 && (
+            <li
+              title={chips.hidden.join(", ")}
+              data-testid="city-chips-more"
+              className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide text-slate uppercase"
+            >
+              +{chips.hidden.length} more
+            </li>
+          )}
         </ul>
         <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
           {day.isMine && <Badge variant="brand">Yours</Badge>}

@@ -101,6 +101,8 @@ function noopCallbacks(): BoardCallbacks {
   return {
     onMove: vi.fn(),
     onPlace: vi.fn(),
+    onAnyTime: vi.fn(),
+    onRevealAnyTime: vi.fn(),
     onRetime: vi.fn(),
     onUnschedule: vi.fn(),
     onDragStart: vi.fn(),
@@ -240,19 +242,22 @@ describe("Board", () => {
     expect(callbacks.onRemoveDay).toHaveBeenCalledWith(DAY);
   });
 
-  // Board no longer owns an inline create form (E2, ADR-011 R2): each
-  // column's foot "+" raises the portable editor via
+  // Board no longer owns an inline create form (E2, ADR-011 R2): a double-click
+  // on a day's river raises the portable editor via
   // useEditor().openCreate(prefill), with the prefill sourced at the
-  // trigger's own position. The board-level "no dayId" trigger is the
-  // header's "Add stop" now (Task 3.3 deleted the Backlog column's "+ Add
-  // activity" along with the column) — TripHeader.test.tsx covers it. The
-  // sheet itself (seeding, save, dispatch) is covered by
-  // ActivityEditorSheet's own tests in TripBoardScreen.test.tsx; this only
-  // asserts the trigger wiring.
-  it("a column's foot + opens the editor prefilled with that column's dayId", () => {
+  // gesture's own day. The column's "+ Add a stop" button that also did this
+  // is gone (PR #269); the board-level "no dayId" trigger is the header's "Add
+  // stop" — TripHeader.test.tsx covers it. The sheet itself (seeding, save,
+  // dispatch) is covered by ActivityEditorSheet's own tests in
+  // TripBoardScreen.test.tsx; this only asserts the trigger wiring.
+  it("a double-click on a day's river opens the editor prefilled with that day", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks());
-    fireEvent.click(screen.getByRole("button", { name: "Add activity to Day 1" }));
-    expect(getEditorState()).toEqual({ mode: "create", prefill: { dayId: DAY } });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    fireEvent.doubleClick(within(column).getByTestId("day-river"), { clientY: 0 });
+    expect(getEditorState()).toEqual({
+      mode: "create",
+      prefill: expect.objectContaining({ dayId: DAY }),
+    });
   });
 
   // #29: an activity card's Edit raises the SAME portable editor (openEdit) the
@@ -341,13 +346,13 @@ describe("Board", () => {
     expect(dropList?.className).not.toContain("bg-brand-tint");
   });
 
-  // SPEC §36.9b: "+ Add a stop sits 22 px below the axis" — on every day,
-  // whether or not it already has stops (this fixture's Day 1 has two), not
-  // collapsed to a bare "+" once populated.
-  it("a populated day column still shows + Add a stop", () => {
+  // The per-day "+ Add a stop" is gone (PR #269): the river's double-click
+  // and the header's "Add stop" both open the same sheet, so a second button
+  // under every day only repeated them.
+  it("a day column has no + Add a stop button of its own", () => {
     renderBoard(fixture(), noopCallbacks());
-    const addButton = screen.getByRole("button", { name: "Add activity to Day 1" });
-    expect(addButton.textContent).toBe("+ Add a stop");
+    const column = screen.getAllByTestId("day-column")[0]!;
+    expect(within(column).queryByRole("button", { name: /add a stop|^Add activity to/i })).toBeNull();
   });
 
   // Handoff README §"Day columns view": compact cards (12px padding).
@@ -423,20 +428,19 @@ describe("Board", () => {
   });
 
   // The copy table lists no Board-specific empty-day string, so an empty day
-  // column's honest treatment is exactly this: the empty axis and the
-  // "+ Add a stop" under it — nothing invented.
-  it("gives an empty day column its + Add a stop", () => {
+  // column's honest treatment is exactly this: the empty axis, which is itself
+  // the way in (double-click or drag across it) — nothing invented.
+  it("gives an empty day column its river", () => {
     const emptyDay = tripDetailFixture({
       days: [{ dayId: DAY, activityIds: [], date: null, costSubtotal: 0 }],
       activities: {},
     });
     renderBoard(emptyDay, noopCallbacks());
     const column = screen.getAllByTestId("day-column")[0]!;
-    const addButton = within(column).getByRole("button", { name: "Add activity to Day 1" });
-    expect(addButton.textContent).toBe("+ Add a stop");
+    expect(within(column).getByTestId("day-river")).toBeTruthy();
   });
 
-  it("gives every day of an all-empty trip its own + Add", () => {
+  it("gives every day of an all-empty trip its own river", () => {
     const d2 = "44444444-4444-4444-8444-444444444444";
     const d3 = "55555555-5555-4555-8555-555555555555";
     renderBoard(
@@ -447,7 +451,7 @@ describe("Board", () => {
       noopCallbacks(),
     );
     expect(screen.getAllByTestId("day-column")).toHaveLength(3);
-    expect(screen.getAllByRole("button", { name: /^Add activity to/ })).toHaveLength(3);
+    expect(screen.getAllByTestId("day-river")).toHaveLength(3);
     expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
   });
 
@@ -459,7 +463,9 @@ describe("Board", () => {
         activities: Object.fromEntries(
           ids.map((id, i) => [
             id,
-            { activityId: id, title: `Stop ${i + 1}`, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
+            // Timed, an hour apart: an untimed stop is drawn in the rack now
+            // (PR #269), and this is about the river keeping every block.
+            { activityId: id, title: `Stop ${i + 1}`, timeWindow: { start: `${String(8 + i).padStart(2, "0")}:00`, end: `${String(8 + i).padStart(2, "0")}:45` }, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: null , bookedBy: null, participants: [], mode: null, endLocation: null, pendingReason: null},
           ]),
         ),
       }),
@@ -470,33 +476,65 @@ describe("Board", () => {
     expect(column.querySelectorAll('[data-testid^="activity-card-"]')).toHaveLength(9);
     expect(within(column).getByText("Stop 1")).toBeTruthy();
     expect(within(column).getByText("Stop 9")).toBeTruthy();
-    // The add affordance stays below the ninth card.
-    expect(within(column).getByRole("button", { name: "Add activity to Day 1" })).toBeTruthy();
   });
 
   // Task 4.1 (M10 Phase 4): the board's per-stop cost, using the trip's own
-  // currency (threaded Board -> Column -> ActivityCard) through formatMoney
-  // (KI-2) — same convention every other money surface uses (#46: EUR
-  // renders as its "€" symbol).
+  // currency (threaded Board -> Column -> DayRiver -> RiverBlock) through
+  // formatMoney (KI-2) — same convention every other money surface uses (#46:
+  // EUR renders as its "€" symbol).
   //
-  // An UNTIMED stop, which keeps its card on the "Any time" shelf: a river
-  // block shows its cost only when it is tall and has the width (RiverBlock).
-  it("shows a card's cost through formatMoney, using the trip's own currency", () => {
+  // A TIMED stop, alone in its lane: a river block shows its cost only when it
+  // is tall and has the width (RiverBlock). This used an untimed stop's card on
+  // the "Any time" shelf, and a second test here held that card's "No cost
+  // yet"; the shelf went in PR #269, untimed stops are drawn in the
+  // Unscheduled rack, and the board draws no card to say it on.
+  it("shows a stop's cost through formatMoney, using the trip's own currency", () => {
     const trip = fixture();
     trip.currency = "EUR";
-    trip.activities[A1]!.timeWindow = null;
+    trip.activities[A2]!.timeWindow = { start: "13:00", end: "15:00" };
     trip.activities[A1]!.cost = { amountMinor: 4200, currency: "EUR" };
     renderBoard(trip, noopCallbacks());
     const card = screen.getByTestId(`activity-card-${A1}`);
     expect(within(card).getByText("€42.00")).toBeTruthy();
   });
+});
 
-  it("says so honestly when a card's activity has no cost", () => {
-    const trip = fixture(); // fixture()'s activities both have cost: null
+// PR #269, Mitchell on the "Any time" shelf: "Right now they stack up and push
+// everything down in the ui making all the other days worse". An untimed stop
+// keeps its day but is drawn in the Unscheduled rack; its column keeps only a
+// count, which opens the rack on it.
+describe("a day's untimed stops", () => {
+  function oneUntimed() {
+    const trip = fixture();
     trip.activities[A1]!.timeWindow = null;
-    renderBoard(trip, noopCallbacks());
-    const card = screen.getByTestId(`activity-card-${A1}`);
-    expect(within(card).getByText("No cost yet")).toBeTruthy();
+    trip.conflicts = [];
+    return trip;
+  }
+  const columnOf = () => screen.getAllByTestId("day-column")[0]!;
+
+  it("are drawn nowhere in their column, which counts them on its header instead", () => {
+    renderBoard(oneUntimed(), noopCallbacks());
+
+    expect(within(columnOf()).queryByTestId(`activity-card-${A1}`)).toBeNull();
+    expect(within(columnOf()).queryByText("Colosseum")).toBeNull();
+    // The timed one is still on the river.
+    expect(within(columnOf()).getByTestId(`activity-card-${A2}`)).toBeTruthy();
+    expect(within(columnOf()).getByRole("button", { name: /^1 Unscheduled on Day 1/ })).toBeTruthy();
+  });
+
+  it("ask for their day's group in the rack when the chip is clicked", async () => {
+    const callbacks = noopCallbacks();
+    renderBoard(oneUntimed(), callbacks);
+
+    await userEvent.click(within(columnOf()).getByRole("button", { name: /^1 Unscheduled/ }));
+
+    expect(callbacks.onRevealAnyTime).toHaveBeenCalledWith(DAY);
+  });
+
+  it("put no chip on a day that has none", () => {
+    renderBoard(fixture(), noopCallbacks());
+
+    expect(within(columnOf()).queryByRole("button", { name: /unscheduled/i })).toBeNull();
   });
 });
 
@@ -595,8 +633,8 @@ describe("selecting a day from its column", () => {
 
 // A viewer's board, and the public demo's (ADR-031). The rule is one line —
 // show the plan, offer nothing that changes it — and the reason it is tested
-// per control is that each one is dropped at a different level: the card's own
-// buttons in ActivityCard, the day's two in Column (via props Board withholds),
+// per control is that each one is dropped at a different level: a stop's own
+// in RiverBlock, the day's two in Column (via props Board withholds),
 // the trailing column and the banner's actions in Board itself. A control added
 // at any of those levels without a `readOnly` clause reaches a reader.
 describe("a read-only board", () => {
@@ -616,7 +654,6 @@ describe("a read-only board", () => {
       /^Edit Colosseum/,
       /^Remove Colosseum$/,
       /^Remove Day 1$/,
-      /^Add activity to Day 1$/,
       /^Dismiss:/,
       /^Dismiss overlap warning$/,
     ]) {

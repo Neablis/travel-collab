@@ -187,8 +187,13 @@ children are already gone in their own envelope, correctly parented.
 - The Sentry wizard's `/sentry-example-page` and its always-throwing
   `/api/sentry-example-api` were deleted on 2026-09-25 (KI-2026-09-05-f; ADR-032
   amendment): the route was unauthenticated and let anyone fill the project with
-  errors. From a deployed preview, a real error is the round-trip check.
+  errors. A real error in **production** is the round-trip check now:
+- **Sentry is off on Vercel previews** (2026-09-28, PR #269; ADR-032
+  amendment). `sentry.shared.ts` blanks the DSN whenever the environment is
+  `preview`, in all three runtimes, so a preview sends no errors, traces,
+  replays or AI spans at all. Nothing you do on a preview will show up in
+  Sentry; `telemetry.int.test.ts` is the pre-merge check that the wiring works.
 - A turn only produces AI spans and non-zero token metrics when the `ai-live`
   flag is on for that session — see
-  [environments-and-deploys.md](environments-and-deploys.md) for flipping it
-  on a preview through the Flags Explorer.
+  [environments-and-deploys.md](environments-and-deploys.md) for the Flags
+  Explorer. On a preview they are produced and then dropped (above).

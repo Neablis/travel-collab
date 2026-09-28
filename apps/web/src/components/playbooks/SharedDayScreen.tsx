@@ -18,6 +18,7 @@ import { DataText } from "@/components/ui/data-text";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { TabStrip } from "@/components/ui/tab-strip";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/lib/formatMoney";
 import {
@@ -333,7 +334,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
     return (
       <div className="flex flex-col gap-4">
         <BackLink href={backHref} label={backLabel} />
-        <Card className="h-64 animate-pulse rounded-lg bg-moss" aria-hidden data-testid="shared-day-skeleton" />
+        <SharedDaySkeleton />
       </div>
     );
   }
@@ -416,10 +417,6 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 .filter((part) => part !== null)
                 .join(" · ")}
             </DataText>
-            <Text variant="secondary" className="mt-1">
-              Kept out of {day.sourceTripName}. Order and gaps kept, no dates — drop it into any
-              trip and the times reflow around it.
-            </Text>
           </div>
 
           {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
@@ -804,6 +801,50 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
         }}
       />
     </div>
+  );
+}
+
+/**
+ * **The page's own shape while its one read is in flight** (Mitchell, PR #269
+ * preview: "no progressive loading … it just pops in when done loading").
+ *
+ * This was a single 256px filled block, so the whole page — title, map,
+ * author strip, stops, rail — arrived at once in place of a shape it did not
+ * resemble. These are `ui/skeleton.tsx`'s outlines laid out the way the loaded
+ * page is: the title and its meta line, the map frame at its real height
+ * (`SharedDayMap`: `h-86` on a desktop, the 48px route panel on a phone, which
+ * is the same `md` line `useIsPhone` draws), the author strip, a few stop rows
+ * in the list's time | pin | title columns, and the `lg:w-72` rail.
+ */
+function SharedDaySkeleton() {
+  return (
+    <SkeletonRegion label="Loading this day" className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col gap-4" data-testid="shared-day-skeleton">
+        <div className="flex flex-col gap-2.5">
+          <Skeleton className="h-8 w-2/3" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+        <Skeleton className="h-12 w-full rounded-xl md:h-86" delay={2} data-testid="shared-day-skeleton-map" />
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-hairline p-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-3.5 w-24" delay={2} />
+            <Skeleton className="h-2.5 w-44" delay={2} />
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          {["w-1/2", "w-2/5", "w-3/5", "w-1/3"].map((titleWidth, row) => (
+            <div key={row} className="flex items-center gap-2.5 md:gap-3" data-testid="shared-day-skeleton-stop">
+              <Skeleton className="h-3 w-15.5 shrink-0 md:w-21.5" delay={3} />
+              <Skeleton circle className="size-6 shrink-0" delay={3} />
+              <Skeleton className={`h-3.5 ${titleWidth}`} delay={3} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="lg:w-72 lg:shrink-0">
+        <Skeleton className="h-48 w-full rounded-lg" delay={2} />
+      </div>
+    </SkeletonRegion>
   );
 }
 

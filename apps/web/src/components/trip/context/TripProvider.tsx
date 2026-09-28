@@ -32,6 +32,14 @@ import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
+/**
+ * What `dispatch` knows once a command has been tried locally: accepted, or
+ * refused with the message the board also shows. Mitchell, PR #269 preview:
+ * "i cant add a stop, it just closes with no message" — the stop sheet closed
+ * whatever happened, and on a deleted trip the refusal only reached a line
+ * under the header that a scrolled board had hidden.
+ */
+export type DispatchResult = { ok: true } | { ok: false; message: string };
 type TripCtx = {
   // The trip this provider is for. Exposed because several controls need it
   // to talk to an endpoint rather than to read state — `trip` is null while
@@ -44,7 +52,14 @@ type TripCtx = {
   status: Status;
   error: string | null;
   pending: boolean;
-  dispatch: (command: BoardCommand) => Promise<void>;
+  /**
+   * Sends one command. Resolves with whether it was ACCEPTED here — queued for
+   * the server, or answered by it for a history command — so a caller that
+   * closes a form on success can keep it open on a refusal and say why. It
+   * does not wait for the server to confirm a queued command; that failure is
+   * the header's to report (KI-36's retained queue), as before.
+   */
+  dispatch: (command: BoardCommand) => Promise<DispatchResult>;
   dispatchBatch: (commands: BatchableCommand[]) => Promise<void>;
   // Replace confirmed state with an authoritative outcome the client didn't
   // predict — the AI planning batch is decided server-side, so the client
@@ -350,10 +365,10 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     ? "This is an example trip, so nothing here changes. Make it yours and every part of it becomes editable."
     : "You have view-only access to this trip.";
 
-  const runDispatch = useCallback((commands: BatchableCommand[]) => {
+  const runDispatch = useCallback((commands: BatchableCommand[]): DispatchResult => {
     if (readOnly) {
       setError(refusal);
-      return;
+      return { ok: false, message: refusal };
     }
     // Predicted OUTSIDE the updater, against `optimistic` from this render.
     //
@@ -370,19 +385,20 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // since React may invoke them more than once". This is that rule applied
     // to the path that was still breaking it.
     const base = optimisticRef.current;
-    if (!base) return;
+    if (!base) return { ok: false, message: "This trip hasn't finished loading. Try again in a moment." };
     const result = enqueue(base, `c${++seq.current}`, commands);
     if (!result.ok) {
       // A no-op changed nothing, which is not worth alarming anyone about —
       // the same judgement the send effect makes on the server's own no-op.
       setError(result.code === "no-op" ? null : result.message);
-      return;
+      return result.code === "no-op" ? { ok: true } : { ok: false, message: result.message };
     }
     // Advanced before `setOptimistic` so anything dispatched later in this same
     // tick predicts against this result rather than the pre-dispatch queue.
     optimisticRef.current = result.state;
     setError(null);
     setOptimistic(result.state);
+    return { ok: true };
   }, [readOnly, refusal]);
 
   // ---- M13 link 2: a co-traveller's edits arrive ------------------------
@@ -431,10 +447,10 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   onRemoteChangeRef.current = onRemoteChange;
 
   const dispatch = useCallback(
-    async (command: BoardCommand) => {
+    async (command: BoardCommand): Promise<DispatchResult> => {
       if (readOnly) {
         setError(refusal);
-        return;
+        return { ok: false, message: refusal };
       }
       if (HISTORY_TYPES.has(command.type)) {
         // The REF, not the render-time `pending` (KI-70). This used to be the
@@ -454,7 +470,12 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // exactly this hazard ("anything dispatched later in this same tick
         // predicts against this result rather than the pre-dispatch queue");
         // the history branch now guards on the same value it is guarding.
-        if ((optimisticRef.current?.pending.length ?? 0) > 0) return;
+        // Refused, not accepted (CodeRabbit, PR #269): nothing was sent, and
+        // `DispatchResult` means "accepted" by `ok: true`. Still silent on the
+        // board, as KI-90 left it — this only stops the result lying.
+        if ((optimisticRef.current?.pending.length ?? 0) > 0) {
+          return { ok: false, message: "Your last changes are still saving. Try again in a moment." };
+        }
         setError(null);
         const result = await sendTripCommand(command);
         if (!result.ok) {
@@ -466,10 +487,13 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
           // same thing a second time, somewhere else.
           if (result.error.code === "undo-target-changed") {
             onRemoteChange();
-            return;
+            return { ok: false, message: result.error.message };
           }
-          if (result.error.code !== "no-op") setError(result.error.message);
-          return;
+          if (result.error.code !== "no-op") {
+            setError(result.error.message);
+            return { ok: false, message: result.error.message };
+          }
+          return { ok: true };
         }
         // KI-90: this was `{ confirmed: result.value, pending: [] }`. The guard
         // above runs BEFORE the await, so a unit enqueued while the undo was in
@@ -479,9 +503,9 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // the queue holds by the time it lands.
         setOptimistic((prev) => (prev ? adoptOutcome(prev, result.value) : prev));
         exit();
-        return;
+        return { ok: true };
       }
-      runDispatch([command as BatchableCommand]);
+      return runDispatch([command as BatchableCommand]);
     },
     // No `pending` here any more: the guard above reads the ref instead, so
     // this callback no longer has to be rebuilt on every queue change — and

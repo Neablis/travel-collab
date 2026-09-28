@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { displayNameFor } from "@/lib/displayName";
 import {
@@ -153,6 +154,47 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
 
   return (
     <div className="flex flex-col gap-3" data-testid="travelers-panel">
+      {/* **The member list's outline while it loads** — Mitchell, PR #269
+          preview: *"Need a skeleton placeholder here, so it doesnt pop in
+          magically"*, and then *"I meant to add a placeholder under invite
+          someone and the invites"*. The whole panel pops in on one answer, so
+          the whole panel is outlined, in the panel's own order: two member
+          rows (a name, a role badge — the owner and one more is the commonest
+          trip), the invite form (field and role picker, the button, its note),
+          and one invite row. Only while nothing has answered — a failure is
+          said below, not left breathing.
+
+          The form's outline is drawn for everyone, though only an owner gets
+          the form: the role is in the very answer being waited for, and an
+          outline that goes away costs less than a form that appears from
+          nothing. */}
+      {access === null && error === null && (
+        <SkeletonRegion label="Loading travelers" className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            {[1, 2].map((row) => (
+              <div key={row} className="flex items-center justify-between gap-3">
+                <Skeleton className="h-3 w-28" delay={row === 1 ? 1 : 2} />
+                <Skeleton circle className="h-5 w-12" delay={row === 1 ? 1 : 2} />
+              </div>
+            ))}
+          </div>
+          <div data-testid="travelers-skeleton-invite-form" className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 flex-1" delay={2} />
+              <Skeleton className="h-9 w-24" delay={2} />
+            </div>
+            <Skeleton className="h-7 w-full" delay={2} />
+            <Skeleton className="h-3 w-3/4" delay={3} />
+          </div>
+          <div
+            data-testid="travelers-skeleton-invites"
+            className="flex items-center justify-between gap-2 border-t border-hairline pt-3"
+          >
+            <Skeleton className="h-3 w-32" delay={3} />
+            <Skeleton circle className="h-5 w-12" delay={3} />
+          </div>
+        </SkeletonRegion>
+      )}
       <div className="flex flex-col gap-1.5">
         {(access?.members ?? []).map((member) => (
           // The testid carries the userId so a test can assert identity AND

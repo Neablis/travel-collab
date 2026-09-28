@@ -121,6 +121,9 @@ const FILTER_VALUES: { [D in FilterDimension]: fc.Arbitrary<z.input<(typeof FILT
     { from: "2026-10-01", through: "2026-10-01" },
     { from: "2026-01-01", through: "2026-12-31" },
     { from: "2027-01-01", through: "2027-01-02" },
+    // Separate days (PR #269 preview): every primitive taking `dates` must
+    // accept and resolve the list form as it does the range.
+    ["2026-10-01", "2026-10-03"],
   ),
 };
 

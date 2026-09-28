@@ -118,7 +118,11 @@ test.describe("M21 — what each plan is for, and what it costs", () => {
     await expect(page.getByTestId("plans-grant-note")).toContainText("as published");
 
     await expect(page.getByTestId("plan-choose-free")).toBeDisabled();
-    await expect(page.getByTestId("plan-choose-free")).toContainText("What you hold");
+    // The free week puts the account on plus, so free is the plan it PAYS for
+    // and plus is the one it has (Mitchell, PR #269 preview: Account said one
+    // plan and this page another).
+    await expect(page.getByTestId("plan-choose-free")).toContainText("What you pay for");
+    await expect(page.getByTestId("plan-card-plus")).toContainText("You have this now");
   });
 
   test("returning from Stripe waits for the webhook instead of announcing success", async ({ page }) => {
