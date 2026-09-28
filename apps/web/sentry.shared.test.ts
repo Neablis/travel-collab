@@ -215,6 +215,30 @@ describe("SENTRY_DSN", () => {
   });
 });
 
+// Mitchell, PR #269 preview: "Sentry shouldnt be running on previews any" —
+// every preview page was posting to `/monitoring` and being answered 429. Both
+// halves, because the two runtimes find out differently: the browser only has
+// the public name, the server and edge only the plain one. And an explicitly
+// set DSN does not bring it back, or a project-wide env var would.
+describe("SENTRY_DSN on a Vercel preview", () => {
+  it("is off in the browser, where only NEXT_PUBLIC_VERCEL_ENV says preview", async () => {
+    const mod = await moduleWith({ NEXT_PUBLIC_VERCEL_ENV: "preview", NODE_ENV: "production" });
+    expect(mod.SENTRY_DSN).toBe("");
+    expect(mod.sentryEnabled).toBe(false);
+  });
+
+  it("is off on the server and edge, where only VERCEL_ENV says preview", async () => {
+    const mod = await moduleWith({ VERCEL_ENV: "preview", NEXT_PUBLIC_SENTRY_DSN: "https://abc@o1.ingest.us.sentry.io/2" });
+    expect(mod.SENTRY_DSN).toBe("");
+    expect(mod.sentryEnabled).toBe(false);
+  });
+
+  it("stays on in production", async () => {
+    const mod = await moduleWith({ NEXT_PUBLIC_VERCEL_ENV: "production", VERCEL_ENV: "production" });
+    expect(mod.sentryEnabled).toBe(true);
+  });
+});
+
 describe("SENTRY_ENVIRONMENT", () => {
   // The one that matters in the browser: NODE_ENV is "production" in every
   // built app, preview included, so without the public name every preview
