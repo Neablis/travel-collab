@@ -490,7 +490,6 @@ export function TripHeader({
         onOpenChange={setSettingsOpen}
         startDate={activeTrip.startDate}
         endDate={activeTrip.days[activeTrip.days.length - 1]?.date ?? null}
-        dayCount={activeTrip.days.length}
         // The pill's own three figures, derived by the pill's own function
         // (TripMetaPill.tsx) — so what the sheet states below `md` and what
         // the pill states above it are the same numbers by construction, not

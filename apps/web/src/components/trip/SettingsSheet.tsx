@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -69,11 +69,6 @@ export function SettingsSheet({
   onOpenChange,
   startDate,
   endDate,
-  // Re-mounted use (this task): TripDateControl no longer computes
-  // newDayIds — Task 8b.6 made the end date derived, not picked. dayCount is
-  // still threaded through because the derived-end hint copy needs N ("The
-  // end follows the N days in your plan").
-  dayCount,
   counts,
   currency,
   budget,
@@ -89,7 +84,6 @@ export function SettingsSheet({
   onOpenChange: (open: boolean) => void;
   startDate: string | null;
   endDate: string | null;
-  dayCount: number;
   // Days, stops and cities, from `tripCounts`, the one function that derives
   // them (TripMetaPill.tsx). The pill itself states only the dates since SPEC
   // §35.3, so this is now the one place they are shown. They came here
@@ -224,7 +218,6 @@ export function SettingsSheet({
             tripId={tripId}
             startDate={startDate}
             endDate={endDate}
-            dayCount={dayCount}
             onCommand={(command) => {
               dispatch(command);
               setDatesOpen(false);
@@ -253,10 +246,23 @@ export function SettingsSheet({
             live, not a phone-only mirror of them. */}
         <div>
           <SectionHeading>Trip overview</SectionHeading>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <DataText size="sm">{counts.days} days</DataText>
-            <DataText size="sm">{counts.stops} stops</DataText>
-            <DataText size="sm">{counts.cities} cities</DataText>
+          {/* A dot between the three (Mitchell, PR #269 preview: "Can there be
+              a more distinct seperator between 14 days, 69 stops, x cities?").
+              A 16px gap alone read as one run of numbers. The dot is the
+              separator the rest of the app already uses between facts on
+              one line, and it is `aria-hidden` so a screen reader hears the
+              three figures, not the punctuation. */}
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1" data-testid="trip-overview-counts">
+            {[`${counts.days} days`, `${counts.stops} stops`, `${counts.cities} cities`].map((fact, i) => (
+              <Fragment key={fact}>
+                {i > 0 && (
+                  <span aria-hidden className="text-slate">
+                    ·
+                  </span>
+                )}
+                <DataText size="sm">{fact}</DataText>
+              </Fragment>
+            ))}
           </div>
         </div>
 

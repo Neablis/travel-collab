@@ -5,7 +5,6 @@ import { X } from "lucide-react";
 import type { TripCommand } from "@tc/contracts";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { Text } from "../ui/text";
 import { DataText } from "../ui/data-text";
 import { formatTripDateWithYear } from "../../lib/formatDate";
 
@@ -26,14 +25,12 @@ export function TripDateControl({
   tripId,
   startDate,
   endDate = null,
-  dayCount = 0,
   onCommand,
   onClose,
 }: {
   tripId: string;
   startDate: string | null;
   endDate?: string | null;
-  dayCount?: number;
   onCommand: (command: TripCommand) => void;
   // Feedback from Mitchell testing the preview, 2026-08-24: selecting a date
   // now saves immediately (see handleChange below), so Done no longer has a
@@ -117,9 +114,10 @@ export function TripDateControl({
           </Button>
         )}
       </div>
-      <Text variant="muted">
-        {`Pick the day you leave. The end follows the ${dayCount} days in your plan — add or remove a day and it moves.`}
-      </Text>
+      {/* No hint line (Mitchell, PR #269 preview: "Remove this helper text
+          to"). It read "Pick the day you leave. The end follows the N days in
+          your plan — add or remove a day and it moves."; the end date beside
+          the field already shows it following. */}
     </div>
   );
 }
