@@ -2099,3 +2099,44 @@ describe("TripBoardScreen — a viewer's Map lens", () => {
     expect(mapLensProps).not.toHaveBeenCalledWith(expect.objectContaining({ readOnly: true }));
   });
 });
+
+// Mitchell, PR #269 preview: "i cant add a stop, it just closes with no
+// message". He was on a trip deleted a moment earlier in another flow; every
+// command on a deleted trip is refused locally, and the sheet closed anyway,
+// with the reason on a line under the header. The sheet now stays open with
+// what was typed, and says why, and nothing is sent.
+describe("the add-a-stop sheet on a refused change", () => {
+  it("stays open with the reason when the trip refuses the stop, and sends nothing", async () => {
+    const fixture = tripDetailFixture({ status: "deleted" });
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+    await screen.findByRole("heading", { name: fixture.name });
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add stop" })[0]!);
+    await screen.findByRole("heading", { name: "Add a stop" });
+    await userEvent.type(screen.getByLabelText("What or where"), "Gelato{enter}");
+
+    const refused = await screen.findByTestId("activity-save-refused");
+    expect(refused.textContent).toBe("This trip has been deleted. Nothing was saved.");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect((screen.getByLabelText("What or where") as HTMLInputElement).value).toBe("Gelato");
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("closes once the stop is accepted, with no refusal shown", async () => {
+    const fixture = tripDetailFixture();
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { onCommand }));
+    renderScreen(fixture.tripId);
+    await screen.findByRole("heading", { name: fixture.name });
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add stop" })[0]!);
+    await screen.findByRole("heading", { name: "Add a stop" });
+    await userEvent.type(screen.getByLabelText("What or where"), "Gelato{enter}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByTestId("activity-save-refused")).toBeNull();
+    await waitFor(() => expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", title: "Gelato" })));
+  });
+});
