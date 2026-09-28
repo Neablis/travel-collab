@@ -128,6 +128,35 @@ describe("PageScreen", () => {
     expect(screen.queryByRole("button", { name: "Save as template" })).toBeNull();
   });
 
+  // Mitchell, PR #269 preview: *"Maybe a flag like when saving a day for saving
+  // a notebook on the top right of the notebook"*. The pennant is ON the
+  // document — inside the card its own title names — and not in the toolbar
+  // above it, where "Edit page" stays.
+  it("puts the Save as template pennant on the notebook, not in the toolbar", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing list" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const notebook = await screen.findByRole("article", { name: "Packing list" });
+    expect(within(notebook).getByRole("heading", { level: 1, name: "Packing list" })).toBeTruthy();
+    expect(within(notebook).getByRole("button", { name: "Save as template" })).toBeTruthy();
+    expect(within(notebook).queryByRole("button", { name: "Edit page" })).toBeNull();
+  });
+
+  // The `⋯` holds one item, Reset to default, which is owner-only and
+  // seed-only. On a notebook a person made there is nothing to put in it, so
+  // there is no `⋯` — a menu that opens onto nothing lies about itself.
+  it("shows no ⋯ on a notebook a person made", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Bookings", actorId: "dev-alice" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByRole("button", { name: "Save as template" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More notebook actions" })).toBeNull();
+  });
+
   // Mitchell, 2026-09-06 on a 411px phone, pointing at the notebook index's
   // Rename button: *"rename shouldn't be a button here, the title should be at
   // the top of the notebook as a h1 and when you edit the title it does the
@@ -2000,6 +2029,11 @@ describe("PageScreen — Undo reset", () => {
     );
 
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    // Behind the `⋯` since Mitchell's PR #269 preview: not in the toolbar
+    // until the menu is opened.
+    const more = await screen.findByRole("button", { name: "More notebook actions" });
+    expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+    await userEvent.click(more);
     await userEvent.click(await screen.findByRole("button", { name: "Reset to default" }));
     await userEvent.click(await screen.findByRole("button", { name: "Reset notebook" }));
     expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
@@ -217,6 +217,10 @@ export function PageScreen({
 }) {
   const [page, setPage] = useState<Page | null>(null);
   const [trip, setTrip] = useState<TripDetail | null>(null);
+  // Names the document card after its own `h1`, so the card is an `article`
+  // with the notebook's title — what a screen reader lands on, and how a test
+  // says a control is ON the notebook rather than in the toolbar above it.
+  const titleId = useId();
   // The account, for account-scope widgets (ADR-037 open question 2), READ FROM
   // THE PROVIDER the whole app shell already mounts (`(app)/layout.tsx`).
   //
@@ -1166,11 +1170,14 @@ export function PageScreen({
           >
             {editing ? "Done editing" : "Edit page"}
           </Button>
-          {/* Reading only: what is kept is the STORED document, and in Editing
-              the session's changes have not been committed yet (M14 link 10). */}
-          {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
+          {/* "Save as template" is no longer in this row: it is the pennant at
+              the top right of the notebook card below (Mitchell, PR #269
+              preview). */}
           {/* Reading only, for the reason `ResetToDefault` gives; it hides
-              itself from anyone but the owner, and on a notebook a person made. */}
+              itself — its `⋯` trigger included — from anyone but the owner, and
+              on a notebook a person made. A small ghost `⋯` rather than a
+              button beside "Edit page" (Mitchell, PR #269 preview: *"reset to
+              default shouldnt be so prominent"*). */}
           {editing ? null : (
             <ResetToDefault
               tripId={tripId}
@@ -1319,14 +1326,31 @@ export function PageScreen({
           `items-start` so the column does not stretch to the document's height
           and pin its own sticky position to the bottom of a long page. */}
       <div className="flex items-start gap-6">
-      <Card raised className="min-w-0 flex-1 overflow-hidden p-0">
+      <Card raised role="article" aria-labelledby={titleId} className="min-w-0 flex-1 overflow-hidden p-0">
         <div className="flex flex-col px-5 py-6 sm:px-12 sm:py-10">
           {/* `h1`, and the document's own — the trip's name is the app chrome
               above this card, not this page's heading. Editable only in
               Editing: Reading is the traveller's view (§18) and a title that
               accepts a caret there would be the one piece of chrome left in a
               mode whose whole point is not having any. */}
-          <PageTitle title={page.title} editable={editing} onRename={handleRename} />
+          {/* The title's row, with "Save as template" pinned at its right as the
+              keep-a-day pennant — Mitchell, PR #269 preview: *"a flag like when
+              saving a day for saving a notebook on the top right of the
+              notebook"*. A flex row rather than an absolutely placed flag, so
+              the title's box ends where the flag begins and a long title wraps
+              before it on a 390px phone instead of running underneath it.
+              `items-start` keeps the flag level with the first line of a
+              wrapped title.
+
+              Reading only: what is kept is the STORED document, and in Editing
+              the session's changes have not been committed yet (M14 link 10).
+              In Editing the title has the row to itself. */}
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1 break-words">
+              <PageTitle id={titleId} title={page.title} editable={editing} onRename={handleRename} />
+            </div>
+            {editing ? null : <SaveAsTemplate tripId={tripId} pageId={pageId} title={page.title} />}
+          </div>
           {/* `mt-4` is the seam between the title and the document. It used to
               be `mt-3` on a wrapper that also held the editor and the rail as
               flex siblings; the rail is neither a sibling nor in this box any
