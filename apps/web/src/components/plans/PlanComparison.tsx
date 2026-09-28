@@ -50,7 +50,7 @@ export function planBullets(choice: AccountPlanChoice): string[] {
     "Trips, days and stops — no limit",
     "Map, costs and saved days",
     has("ai.ask")
-      ? `The assistant: ${choice.perUserRequestsPerDay ?? "no limit on"} questions and ${choice.perUserStepsPerDay ?? "no limit on"} changes to your trips a day`
+      ? `Ask the assistant ${choice.perUserRequestsPerDay ?? "unlimited"} questions about your trips and have it make ${choice.perUserStepsPerDay ?? "unlimited"} changes a day`
       : "No assistant",
     has("trip.collaborators")
       ? "Invite friends to plan your trips with you, with votes and comments"
@@ -71,12 +71,15 @@ interface Row {
 // express that this is how much the AI can write or change your trips"*, and
 // of "Other people editing": *"more like allowing you to invite friends to
 // your trip"*. A step is the assistant's unit of work in `quota.ts`; to a
-// buyer it is how many changes the assistant can make for them.
+// buyer it is how many changes the assistant can make for them. And of
+// "Questions a day": *"better wording is something about being able to
+// leverage the AI assistant to ask questions"* — a question is only a
+// question if it says who it is asked of.
 const ROWS: Row[] = [
   { label: "Trips, days, stops", cell: () => "No limit" },
   { label: "Map, costs, saved days", cell: () => "Yes" },
   {
-    label: "Questions for the assistant a day",
+    label: "Questions you can ask the assistant a day",
     cell: (choice) =>
       choice.entitlements.includes("ai.ask")
         ? String(choice.perUserRequestsPerDay ?? "No limit")

@@ -173,7 +173,7 @@ describe("the chooser", () => {
   it("enumerates each plan's own contents rather than referring to another's", async () => {
     render(<PlansScreen />);
     const premium = within(await screen.findByTestId("plan-card-premium"));
-    expect(premium.getByText(/200 questions and 1600 changes to your trips a day/)).toBeTruthy();
+    expect(premium.getByText(/Ask the assistant 200 questions about your trips and have it make 1600 changes a day/)).toBeTruthy();
     expect(premium.getByText(/Invite friends to plan your trips with you/)).toBeTruthy();
     for (const card of ["plan-card-free", "plan-card-plus", "plan-card-premium"]) {
       expect(screen.getByTestId(card).textContent).not.toMatch(/everything in/i);
@@ -188,8 +188,10 @@ describe("the chooser", () => {
     const rows = table.getAllByRole("rowheader").map((th) => th.textContent);
     expect(rows).toContain("Changes the assistant can make a day");
     expect(rows).toContain("Invite friends to your trips");
+    expect(rows).toContain("Questions you can ask the assistant a day");
     expect(rows).not.toContain("Steps a day");
     expect(rows).not.toContain("Other people editing");
+    expect(rows).not.toContain("Questions a day");
   });
 
   // §29: *"the held card is the only emphasised one, and its CTA is disabled
