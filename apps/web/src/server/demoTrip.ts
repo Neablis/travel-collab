@@ -205,6 +205,17 @@ function demoTrip(): Demo {
   return memo;
 }
 
+/**
+ * The demo trip folded from a start date the caller chooses, bypassing the memo.
+ *
+ * For `scripts/landing-demo.ts`, which snapshots a slice of this trip for the
+ * front door's hero. A snapshot is drift-checked by regenerating it, so it has
+ * to be folded from a fixed date rather than from today.
+ */
+export function demoTripDetailFor(startDate: string): TripDetail {
+  return buildDemo(startDate).detail;
+}
+
 /** What `GET /api/trips/:id` serves for the demo, via `requireTripAccess`. */
 export function demoTripDetail(): TripDetail {
   return demoTrip().detail;

@@ -1,18 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+// Named for its first user; it is a plain fallback-on-error boundary.
+import { ChartErrorBoundary } from "@/components/ui/chart";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 
-// The landing hero's rotating art — three views of the same Japan trip,
-// transcribed from the design source
-// `.design-sync/handoff/design/Trip Planner Redesign.dc.html:1885-1999`.
-// Every value here is a marketing fixture that lives in this file: SPEC §14
-// gives the front door no session, no fetch and no backend, so a data-model
-// change must never be able to break it.
+// The landing hero's rotating art — three views of the same Japan trip. The
+// map, the pills and the static Timeline and Notebook art are transcribed from
+// the design source `.design-sync/handoff/design/Trip Planner Redesign.dc.html:1885-1999`
+// and are marketing fixtures that live in this file. The Timeline and Notebook
+// panels a reader normally sees are not: they are the product's own river and
+// notebook blocks on a committed snapshot of the `/demo` trip
+// (`LandingHeroPanels.tsx`), and the static art is what stands in while their
+// code loads. SPEC §14 holds either way — no session, no fetch, no backend —
+// and a fixture change that would move the snapshot fails `pnpm landing:verify`
+// rather than the page.
+
+// **The real panels are split out of the first load.** The river and the
+// blocks bring the board's drag-and-drop and `@tc/pages` with them, which put
+// `/welcome`'s first-load JS up from 319 to 400 KB gzip when imported directly
+// (`next build`, 2026-09-27), all of it for two views that are not on screen
+// when the page opens. The load starts once the page has painted, so it has
+// normally landed long before the ten-second rotation or a pill asks for it.
+//
+// **A load that fails keeps the static art.** `Suspense` does not catch a
+// rejected `lazy` import, and the only boundary above `/welcome` is
+// `app/global-error.tsx`, so a replaced chunk or a dropped connection would
+// otherwise take the whole front door down the moment a panel was shown. Each
+// panel has its own boundary whose fallback is the art `Suspense` shows while
+// loading (`SpendByDayBlock` and its chart, same shape).
+const loadPanels = () => import("./LandingHeroPanels");
+const TimelinePanel = lazy(() => loadPanels().then((m) => ({ default: m.TimelinePanel })));
+const NotebookPanel = lazy(() => loadPanels().then((m) => ({ default: m.NotebookPanel })));
 
 const ROTATE_MS = 10_000;
 const VIEW_COUNT = 3;
@@ -92,6 +115,9 @@ const NOTEBOOK_COMMENT = {
 };
 
 const MACRO_CHIP = "rounded-sm bg-brand-tint px-1.5 py-px text-brand-pressed";
+// Sized by its content, the static art's and the real panels' alike: the real
+// river is scaled to fit and the real notebook bounds its own height
+// (`LandingHeroPanels.tsx`), so neither needs the panel to clip for it.
 const PANEL = "absolute inset-x-0 top-14.5 overflow-hidden rounded-xl border border-hairline bg-surface shadow-lifted";
 const PANEL_HEAD = "flex items-center gap-2.5 border-b border-hairline px-3.5 py-3";
 const FOOT_LABEL = "absolute bottom-0 rounded-full bg-paper/80 px-2.5 py-1";
@@ -127,6 +153,18 @@ export function LandingHeroArt(): React.ReactElement {
   // gap on PR #58). **SPEC §14 is now stale on this point and should be
   // updated design-side.**
   const [stopped, setStopped] = useState(false);
+
+  // The prefetch, only where this tree is on screen: it is rendered on a phone
+  // too, hidden (`LandingScreen`'s `hidden md:flex`), and a phone that only ever
+  // sees `PhoneFrontDoor` should not download the river and the blocks. 768px
+  // is `md`, the breakpoint that hides it. A view that is shown still loads
+  // its panel whatever the width. A failed prefetch is not this effect's to
+  // report: the view that needs the panel meets the same failure and its
+  // boundary shows the static art.
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function" || !window.matchMedia("(min-width: 768px)").matches) return;
+    loadPanels().catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (stopped || prefersReducedMotion()) return;
@@ -312,48 +350,11 @@ function TimelineView(): React.ReactElement {
   return (
     <>
       <div className={PANEL}>
-        <div className={PANEL_HEAD}>
-          <Text as="span" className="font-display font-semibold">
-            Day 7 · Kyoto → Osaka
-          </Text>
-          <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
-        </div>
-        <div className="px-3.5 pt-1.5 pb-3">
-          {TIMELINE_ROWS.map((row) => (
-            <div
-              key={row.time}
-              className={cn(
-                "grid gap-3 py-2.5",
-                "last" in row ? null : "border-b border-hairline",
-                "highlighted" in row ? "-mx-1.5 my-1 rounded-md bg-brand-tint px-1.5" : null,
-              )}
-              // eslint-disable-next-line no-restricted-syntax -- 62px time column, see TIMELINE_GRID above
-              style={TIMELINE_GRID}
-            >
-              <DataText size="xs" className={cn("text-2xs", "highlighted" in row ? "text-brand-pressed" : null)}>
-                {row.time}
-              </DataText>
-              <div className="flex flex-col gap-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Text as="span" className={cn("text-sm", "muted" in row ? "text-slate" : "font-semibold")}>
-                    {row.title}
-                  </Text>
-                  {"badge" in row ? <Badge variant={row.badge.variant}>{row.badge.label}</Badge> : null}
-                  {"chip" in row ? (
-                    <span className="rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold tracking-wider text-surface uppercase">
-                      {row.chip}
-                    </span>
-                  ) : null}
-                </div>
-                {"note" in row ? (
-                  <Text as="span" variant="muted">
-                    {row.note}
-                  </Text>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ChartErrorBoundary fallback={<TimelineArt />}>
+          <Suspense fallback={<TimelineArt />}>
+            <TimelinePanel />
+          </Suspense>
+        </ChartErrorBoundary>
       </div>
 
       <div
@@ -379,45 +380,11 @@ function NotebookView(): React.ReactElement {
   return (
     <>
       <div className={PANEL}>
-        <div className={PANEL_HEAD}>
-          <Text as="span" className="font-display font-semibold">
-            Getting to Kurama — Day 5
-          </Text>
-          <DataText className="ml-auto text-2xs tracking-wider uppercase">Notebook</DataText>
-        </div>
-
-        <Text as="p" className="px-3.5 py-3.5 text-sm leading-relaxed text-pretty">
-          {NOTEBOOK_PROSE.lead}
-          <DataText size="xs" className={MACRO_CHIP}>
-            7:45 am
-          </DataText>
-          {NOTEBOOK_PROSE.afterDeparture}
-          <DataText size="xs" className={MACRO_CHIP}>
-            ¥1,340
-          </DataText>
-          {NOTEBOOK_PROSE.afterFare}
-          <span className="border-b-2 border-warning bg-warning-tint px-0.5">{NOTEBOOK_PROSE.warning}</span>
-          {NOTEBOOK_PROSE.beforeReturn}
-          <DataText size="xs" className={MACRO_CHIP}>
-            4:10 pm
-          </DataText>
-          {NOTEBOOK_PROSE.tail}
-        </Text>
-
-        <div className="mx-3.5 mb-3.5 flex items-start gap-2.5 rounded-lg bg-moss px-3 py-2.5">
-          <span
-            aria-hidden
-            className="grid size-5.5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed"
-          >
-            PR
-          </span>
-          <div className="flex flex-col gap-1">
-            <Text as="span" className="text-xs text-pretty">
-              {NOTEBOOK_COMMENT.quote}
-            </Text>
-            <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_COMMENT.meta}</DataText>
-          </div>
-        </div>
+        <ChartErrorBoundary fallback={<NotebookArt />}>
+          <Suspense fallback={<NotebookArt />}>
+            <NotebookPanel />
+          </Suspense>
+        </ChartErrorBoundary>
       </div>
 
       <DataText
@@ -427,6 +394,101 @@ function NotebookView(): React.ReactElement {
       >
         Times come from the plan — move the day and they follow
       </DataText>
+    </>
+  );
+}
+
+function TimelineArt(): React.ReactElement {
+  return (
+    <>
+      <div className={PANEL_HEAD}>
+        <Text as="span" className="font-display font-semibold">
+          Day 7 · Kyoto → Osaka
+        </Text>
+        <DataText className="ml-auto text-2xs tracking-wider uppercase">Timeline</DataText>
+      </div>
+      <div className="px-3.5 pt-1.5 pb-3">
+        {TIMELINE_ROWS.map((row) => (
+          <div
+            key={row.time}
+            className={cn(
+              "grid gap-3 py-2.5",
+              "last" in row ? null : "border-b border-hairline",
+              "highlighted" in row ? "-mx-1.5 my-1 rounded-md bg-brand-tint px-1.5" : null,
+            )}
+            // eslint-disable-next-line no-restricted-syntax -- 62px time column, see TIMELINE_GRID above
+            style={TIMELINE_GRID}
+          >
+            <DataText size="xs" className={cn("text-2xs", "highlighted" in row ? "text-brand-pressed" : null)}>
+              {row.time}
+            </DataText>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Text as="span" className={cn("text-sm", "muted" in row ? "text-slate" : "font-semibold")}>
+                  {row.title}
+                </Text>
+                {"badge" in row ? <Badge variant={row.badge.variant}>{row.badge.label}</Badge> : null}
+                {"chip" in row ? (
+                  <span className="rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold tracking-wider text-surface uppercase">
+                    {row.chip}
+                  </span>
+                ) : null}
+              </div>
+              {"note" in row ? (
+                <Text as="span" variant="muted">
+                  {row.note}
+                </Text>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function NotebookArt(): React.ReactElement {
+  return (
+    <>
+      <div className={PANEL_HEAD}>
+        <Text as="span" className="font-display font-semibold">
+          Getting to Kurama — Day 5
+        </Text>
+        <DataText className="ml-auto text-2xs tracking-wider uppercase">Notebook</DataText>
+      </div>
+
+      <Text as="p" className="px-3.5 py-3.5 text-sm leading-relaxed text-pretty">
+        {NOTEBOOK_PROSE.lead}
+        <DataText size="xs" className={MACRO_CHIP}>
+          7:45 am
+        </DataText>
+        {NOTEBOOK_PROSE.afterDeparture}
+        <DataText size="xs" className={MACRO_CHIP}>
+          ¥1,340
+        </DataText>
+        {NOTEBOOK_PROSE.afterFare}
+        <span className="border-b-2 border-warning bg-warning-tint px-0.5">{NOTEBOOK_PROSE.warning}</span>
+        {NOTEBOOK_PROSE.beforeReturn}
+        <DataText size="xs" className={MACRO_CHIP}>
+          4:10 pm
+        </DataText>
+        {NOTEBOOK_PROSE.tail}
+      </Text>
+
+      <div className="mx-3.5 mb-3.5 flex items-start gap-2.5 rounded-lg bg-moss px-3 py-2.5">
+        <span
+          aria-hidden
+          className="grid size-5.5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed"
+        >
+          PR
+        </span>
+        <div className="flex flex-col gap-1">
+          <Text as="span" className="text-xs text-pretty">
+            {NOTEBOOK_COMMENT.quote}
+          </Text>
+          <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_COMMENT.meta}</DataText>
+        </div>
+      </div>
     </>
   );
 }

@@ -688,7 +688,7 @@ function RiverGhost({ ghost, axis, clock }: { ghost: Ghost; axis: RiverAxis; clo
       // eslint-disable-next-line no-restricted-syntax -- the outline's top and height are its window on the shared axis, computed geometry
       style={{
         top: minuteToPx(axis, ghost.window.start),
-        height: Math.max(10, minuteToPx({ t0: 0 }, ghost.window.end - ghost.window.start)),
+        height: Math.max(10, minuteToPx({ t0: 0, pxPerHour: axis.pxPerHour }, ghost.window.end - ghost.window.start)),
       }}
     >
       <DataText

@@ -90,7 +90,10 @@ export default defineConfig({
           // `scripts/with-test-db.test.ts` covers the four silent decisions in
           // the per-run-database wrapper (KI-2026-08-30-e) — which hosts it
           // may provision on, what URL the child gets, which database names
-          // the sweep may drop, and when the template is stale. Named file by
+          // the sweep may drop, and when the template is stale.
+          // `scripts/landing-demo.test.ts` is `pnpm landing:verify`: the landing
+          // hero's snapshot against a fresh fold of the demo fixture, run here
+          // so the drift check sits in CI beside the fixture's own. Named file by
           // file, not by a `scripts/**` glob: the other files in `scripts/`
           // are entry points, not test subjects.
           include: [
@@ -100,6 +103,7 @@ export default defineConfig({
             "sentry.shared.test.ts",
             "scripts/geocode-japan-seed.test.ts",
             "scripts/with-test-db.test.ts",
+            "scripts/landing-demo.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,

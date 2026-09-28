@@ -37,6 +37,14 @@ export type RiverAxis = {
   t1: number;
   /** The axis's drawn height. */
   heightPx: number;
+  /**
+   * Pixels an hour, when not the board's 44. The board never sets it; the
+   * landing hero does, to fit a whole day into a fixed-height picture
+   * (`LandingHeroPanels.tsx`). Carried on the axis rather than passed beside
+   * it so every function that turns minutes into pixels — layout, ticks, the
+   * gesture outline and its inverse — reads one scale and cannot disagree.
+   */
+  pxPerHour?: number;
 };
 
 /**
@@ -48,7 +56,7 @@ export type RiverAxis = {
  * heights. `null` windows (untimed stops) are skipped; with none left the axis
  * falls back to 8:00–22:00, so an empty trip still draws a day to plan into.
  */
-export function riverAxis(windows: Iterable<TimeWindow | null>): RiverAxis {
+export function riverAxis(windows: Iterable<TimeWindow | null>, pxPerHour?: number): RiverAxis {
   let first = Infinity;
   let last = -Infinity;
   for (const window of windows) {
@@ -59,12 +67,13 @@ export function riverAxis(windows: Iterable<TimeWindow | null>): RiverAxis {
   const empty = !(last > first);
   const t0 = empty ? RIVER_FALLBACK_MINUTES.t0 : Math.floor(first / 60) * 60;
   const t1 = empty ? RIVER_FALLBACK_MINUTES.t1 : Math.min(DAY_MINUTES, Math.ceil(last / 60) * 60);
-  return { t0, t1, heightPx: minuteToPx({ t0 }, t1) };
+  const scale = pxPerHour === undefined ? {} : { pxPerHour };
+  return { t0, t1, heightPx: minuteToPx({ t0, ...scale }, t1), ...scale };
 }
 
-/** Where a minute of the day sits on the axis, from its top edge. */
-export function minuteToPx(axis: Pick<RiverAxis, "t0">, minute: number): number {
-  return ((minute - axis.t0) / 60) * RIVER_PX_PER_HOUR;
+/** Where a minute of the day sits on the axis, from its top edge, at the axis's own scale. */
+export function minuteToPx(axis: Pick<RiverAxis, "t0" | "pxPerHour">, minute: number): number {
+  return ((minute - axis.t0) / 60) * (axis.pxPerHour ?? RIVER_PX_PER_HOUR);
 }
 
 /** Every whole hour on the axis, both ends included. */
@@ -123,7 +132,7 @@ export function layoutRiver(axis: RiverAxis, stops: readonly RiverStop[]): River
   const boxes = stops.map(({ id, window }) => {
     const start = toMinutes(window.start);
     const end = toMinutes(window.end);
-    const heightPx = Math.max(RIVER_MIN_BLOCK_PX, minuteToPx({ t0: 0 }, end - start) - RIVER_BLOCK_GAP_PX);
+    const heightPx = Math.max(RIVER_MIN_BLOCK_PX, minuteToPx({ t0: 0, pxPerHour: axis.pxPerHour }, end - start) - RIVER_BLOCK_GAP_PX);
     const unclamped = minuteToPx(axis, start);
     const topPx = Math.max(0, Math.min(unclamped, axis.heightPx - heightPx));
     return { id, start, end, topPx, heightPx };

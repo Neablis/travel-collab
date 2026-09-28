@@ -51,6 +51,17 @@ describe("the axis's scale", () => {
       { minute: 720, topPx: 132 },
     ]);
   });
+
+  // The landing hero's river (`LandingHeroPanels.tsx`) draws a whole day in a
+  // fixed-height picture. Every conversion reads the axis's own scale, so the
+  // height, the ticks and each block agree at 20px an hour as they do at 44.
+  it("is the axis's own px-an-hour when it carries one, everywhere", () => {
+    const scaled = riverAxis([w("09:00", "21:00")], 20);
+    expect(scaled).toEqual({ t0: 9 * 60, t1: 21 * 60, heightPx: 12 * 20, pxPerHour: 20 });
+    expect(riverTicks(scaled).map((t) => t.topPx)).toEqual(Array.from({ length: 13 }, (_, i) => i * 20));
+    const [block] = layoutRiver(scaled, [stop("a", "19:00", "21:00")]);
+    expect(block).toMatchObject({ topPx: 200, heightPx: 38 });
+  });
 });
 
 describe("layoutRiver", () => {

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setViewportMatches } from "../../../vitest.setup";
 import { LandingHeroArt } from "./LandingHeroArt";
@@ -10,10 +10,13 @@ afterEach(() => {
 });
 
 // One string per view that appears in no other view, so "shows X" and
-// "no longer shows Y" are the same assertion read two ways.
+// "no longer shows Y" are the same assertion read two ways. The Timeline's and
+// Notebook's are their footers, which are there before the real panels' code
+// has loaded as well as after — the rotation is about which view is up, not
+// about whether its panel has arrived.
 const MAP = "Fushimi Inari";
-const TIMELINE = "Shinkansen to Osaka";
-const NOTEBOOK = "Getting to Kurama — Day 5";
+const TIMELINE = "Dana is reading Day 7";
+const NOTEBOOK = "Times come from the plan — move the day and they follow";
 
 const pill = (label: string) => screen.getByRole("button", { name: label });
 
@@ -93,6 +96,45 @@ describe("LandingHeroArt", () => {
     fireEvent.click(pill("Day 7"));
     expect(screen.getByText(TIMELINE)).toBeDefined();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // The Timeline panel is the board's own river on the `/demo` trip's Day 7
+  // (`landingDemo.generated.json`), not a drawing of one. Asserted on what a
+  // reader gets from it — a stop the fixture puts on that day, at its time —
+  // and on its being read-only: an Edit button here would open nothing.
+  it("draws the real, read-only river for the demo trip's Day 7", async () => {
+    render(<LandingHeroArt />);
+    fireEvent.click(pill("Day 7"));
+    const river = within(await screen.findByRole("list", { name: "Day 7 timeline" }));
+    expect(river.queryAllByRole("button")).toHaveLength(0);
+    // A read-only block's whole description is its text, where an editor's is
+    // its Edit button's name.
+    expect(river.getByText(/^Nijō Castle, 2:30 pm – 4:30 pm, Planned/)).toBeDefined();
+    expect(river.getByText(/^Shinkansen Odawara → Kyoto, 9:30 am – 11:45 am, Train/)).toBeDefined();
+  });
+
+  // The whole day fits the panel, the last stop included (Mitchell, on the
+  // first screenshots: the river clipped at 3 pm). jsdom does no layout, but
+  // the river's geometry is inline style computed from its axis, so "in view"
+  // is checkable as arithmetic: the river is no taller than the ~270px the
+  // hero leaves it, and the 7 pm dinner ends inside the river.
+  it("fits the whole of Day 7 in the panel, down to the evening's dinner", async () => {
+    render(<LandingHeroArt />);
+    fireEvent.click(pill("Day 7"));
+    const list = await screen.findByRole("list", { name: "Day 7 timeline" });
+    expect(within(list).getByText(/^Dinner at Gion Nanba, 7 pm – 9 pm, Maybe/)).toBeDefined();
+
+    const riverHeight = parseFloat(screen.getByTestId("day-river").style.height);
+    expect(riverHeight).toBeLessThanOrEqual(270);
+    const dinner = screen.getByTestId("activity-card-00000000-0000-4000-8000-000000000048");
+    expect(parseFloat(dinner.style.top) + parseFloat(dinner.style.height)).toBeLessThanOrEqual(riverHeight);
+  });
+
+  it("draws the real notebook widgets for the demo trip", async () => {
+    render(<LandingHeroArt />);
+    fireEvent.click(pill("Day 5"));
+    expect(await screen.findByRole("img", { name: /^Days 1–3 Tokyo, day 4 Nikkō/ })).toBeDefined();
+    expect(screen.getByText("Nezu Museum")).toBeDefined();
   });
 
   it("names the pill group so the stop behaviour is discoverable", () => {
