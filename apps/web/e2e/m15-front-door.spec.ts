@@ -13,22 +13,25 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/welcome$/);
   await expect(
-    page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+    page.getByRole("heading", { name: "Put the best day on repeat." }),
   ).toBeVisible();
 
-  // SPEC §14's copy rules: "Early access" is the only footnote, and the old
-  // free/open-source line is gone for good.
+  // SPEC §14's copy rules, as the 2026-09-28 retro left them: "Free during
+  // early access" is the footnote, and the old free/open-source line is gone
+  // for good.
   //
   // **Scoped to the desktop landing, because there are two front doors now.**
   // SPEC §28 added `PhoneFrontDoor`, a separate composition that carries its
-  // own "Early access." and is in the DOM at every width — `md:hidden` decides
+  // own "Free during early access." and is in the DOM at every width — `md:hidden` decides
   // which one is on screen. `getByText` does not care about visibility, so an
   // unscoped match finds both and trips strict mode. The headline above
   // survives unscoped only because `getByRole` reads the accessibility tree,
   // where `display: none` has already removed one of them; that difference is
   // exactly the trap, so the whole copy check is scoped rather than half of it.
   const landing = page.getByTestId("desktop-landing");
-  await expect(landing.getByText(/Early access/)).toBeVisible();
+  await expect(
+    landing.getByText("Free during early access. Invite the group with a link, nothing to install."),
+  ).toBeVisible();
   await expect(page.getByText(/Free and open source/)).toHaveCount(0);
 
   // M11 link 4 built the real thing, so this is a link now, not a Preview

@@ -61,8 +61,13 @@ const CREW = ["SK", "PR", "JM", "MT"] as const;
 // them, so they take design-system.md's computed-geometry escape hatch —
 // collected here so the map view spends one disable on all three pins instead
 // of one each.
+//
+// `loved` is the retro's one change to this art (2026-09-28, DRIFT D21): a
+// "can't wait" heart on one stop, "so the feeling is visible before it's
+// explained". It rides on the pin rather than the label because the label is
+// `lg`-only and the heart should show at every width the map does.
 const MAP_PINS = [
-  { num: "1", title: "Fushimi Inari", time: "9:40", confirmed: true, at: { left: "14%", top: "22%" } },
+  { num: "1", title: "Fushimi Inari", time: "9:40", confirmed: true, loved: true, at: { left: "14%", top: "22%" } },
   { num: "2", title: "Nishiki Market", time: "1:15", confirmed: true, at: { left: "34%", top: "55%" } },
   { num: "3", title: "Ryokan · unconfirmed", time: null, confirmed: false, at: { left: "70%", top: "78%" } },
 ] as const;
@@ -255,15 +260,28 @@ function MapView(): React.ReactElement {
           // eslint-disable-next-line no-restricted-syntax -- absolute art coordinates, see MAP_PINS above
           style={pin.at}
         >
-          <span
-            className={cn(
-              "grid size-7 flex-none place-items-center rounded-full font-mono font-semibold",
-              pin.confirmed
-                ? "bg-brand text-xs text-surface shadow-float"
-                : "border-2 border-dashed border-brand bg-surface text-2xs text-brand-pressed",
-            )}
-          >
-            {pin.num}
+          <span className="relative flex-none">
+            <span
+              className={cn(
+                "grid size-7 place-items-center rounded-full font-mono font-semibold",
+                pin.confirmed
+                  ? "bg-brand text-xs text-surface shadow-float"
+                  : "border-2 border-dashed border-brand bg-surface text-2xs text-brand-pressed",
+              )}
+            >
+              {pin.num}
+            </span>
+            {/* A sibling of the number, not inside it, so the pin's own text
+                stays "1" for anything that reads it. */}
+            {"loved" in pin ? (
+              <span
+                role="img"
+                aria-label="Can't wait"
+                className="absolute -top-1.5 -right-2 grid size-4.5 place-items-center rounded-full bg-surface text-2xs leading-none text-danger shadow-float"
+              >
+                ♥
+              </span>
+            ) : null}
           </span>
           {/* Labels only from `lg` up. The pin group is centred on its
               coordinate (`-translate-x-1/2`), so with a ~161px label attached

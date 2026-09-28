@@ -212,21 +212,25 @@ describe("the phone front door (SPEC §28)", () => {
 
     // *"Is also awkward wording ... and missing the graphic"*, twice, and
     // *"missing the example. Attached example of what it should look like"*.
-    // Three of the four claims carry a card in the design and none of them did
-    // in the build.
-    it("draws the example under every claim that has one", () => {
+    // Every claim carries a card since the 2026-09-28 retro (the card-less
+    // "One plan" opener went; Playbooks leads, and Countdown is new).
+    it("draws the example under every claim", () => {
       render(<PhoneFrontDoor />);
       const claims = screen.getAllByTestId("front-door-claim");
+      // Playbooks: somebody else's day, and what happens when you take it.
+      expect(within(claims[0]!).getByText("A beach day in Phuket")).toBeTruthy();
+      expect(within(claims[0]!).getByText(/Relived 214 times/)).toBeTruthy();
+      expect(within(claims[0]!).getByText(/Dropping in as Day 2/)).toBeTruthy();
       // Together: three stops and the change somebody else made.
       expect(within(claims[1]!).getByText("Fushimi Inari, early")).toBeTruthy();
       expect(within(claims[1]!).getByText(/Priya moved this an hour later/)).toBeTruthy();
+      // Countdown: the night before, and somebody still awake.
+      expect(within(claims[2]!).getByText("Wheels up tomorrow")).toBeTruthy();
+      expect(within(claims[2]!).getByText(/Is anyone else still up/)).toBeTruthy();
       // Notebook: a sentence with a value in it, over the costs that value is
       // the total of.
-      expect(within(claims[2]!).getByText("$596")).toBeTruthy();
-      expect(within(claims[2]!).getByText("Ryokan · Hakone")).toBeTruthy();
-      // Playbooks: somebody else's day, and what happens when you take it.
-      expect(within(claims[3]!).getByText("A beach day in Phuket")).toBeTruthy();
-      expect(within(claims[3]!).getByText(/Dropping in as Day 2/)).toBeTruthy();
+      expect(within(claims[3]!).getByText("$596")).toBeTruthy();
+      expect(within(claims[3]!).getByText("Ryokan · Hakone")).toBeTruthy();
     });
 
     // The half of "awkward wording" that was a BUILD defect rather than a copy
@@ -235,7 +239,7 @@ describe("the phone front door (SPEC §28)", () => {
     it("keeps the Together headline to the headline", () => {
       render(<PhoneFrontDoor />);
       const claims = screen.getAllByTestId("front-door-claim");
-      expect(within(claims[1]!).getByText("Everyone moves the same day.")).toBeTruthy();
+      expect(within(claims[1]!).getByText("The trip starts before the trip.")).toBeTruthy();
     });
 
     // *"The mobile homepage styling is missing the background box with
@@ -254,7 +258,15 @@ describe("the phone front door (SPEC §28)", () => {
   it("puts the call to action on the paper after the pin, not over the map", () => {
     render(<PhoneFrontDoor />);
     const cta = within(screen.getByTestId("phone-front-door"));
-    expect(cta.getByRole("link", { name: "Continue with Google" }).getAttribute("href")).toBe("/signup");
+    expect(cta.getByRole("link", { name: "Start a trip" }).getAttribute("href")).toBe("/signup");
     expect(cta.getByRole("link", { name: "Look around a real trip" }).getAttribute("href")).toBe("/demo");
+  });
+
+  it("ends on the same footer as the desktop landing", () => {
+    render(<PhoneFrontDoor />);
+    const footer = within(within(screen.getByTestId("phone-front-door")).getByRole("contentinfo"));
+    expect(footer.getByRole("link", { name: "mitchell@demarcosoftware.com" }).getAttribute("href")).toBe(
+      "mailto:mitchell@demarcosoftware.com",
+    );
   });
 });

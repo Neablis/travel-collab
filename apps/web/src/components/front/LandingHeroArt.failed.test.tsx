@@ -36,7 +36,7 @@ describe("LandingHeroArt when the real panels fail to load", () => {
     await waitFor(() => expect(logged).toHaveBeenCalled());
     expect(desktop.getByText("Getting to Kurama — Day 5")).toBeDefined();
 
-    expect(desktop.getByRole("heading", { name: "The trip everyone actually helped plan." })).toBeDefined();
+    expect(desktop.getByRole("heading", { name: "Put the best day on repeat." })).toBeDefined();
   });
 
   // The eager prefetch (desktop only) meets the same failure with no view

@@ -853,7 +853,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/welcome");
       await expect(
-        page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+        page.getByRole("heading", { name: "Put the best day on repeat." }),
       ).toBeVisible();
 
       const offenders = await page.evaluate(() => {
@@ -933,13 +933,13 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       //
       // **The second witness is the phone front door's, since SPEC §28.** At
       // these widths the desktop landing is `display: none` and `PhoneFrontDoor`
-      // is the page, so "Four people, one schedule" — a desktop feature-card
-      // heading — is no longer on screen and this walk waited 30 seconds for
+      // is the page, so a desktop feature-card
+      // heading is no longer on screen and this walk waited 30 seconds for
       // it. The pinned scroll sequence is what this width actually renders, and
       // it is also the thing most able to push the page sideways: four
       // absolutely-positioned claims translating horizontally under a headline.
       await expect(
-        page.getByRole("heading", { name: "The trip everyone actually helped plan." }),
+        page.getByRole("heading", { name: "Put the best day on repeat." }),
       ).toBeVisible();
       await expect(page.getByTestId("phone-front-door")).toBeVisible();
       await expect(page.getByTestId("front-door-claim").first()).toBeVisible();

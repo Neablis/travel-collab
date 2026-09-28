@@ -112,7 +112,8 @@ function ExampleCard({ children, className }: { children: ReactNode; className?:
 }
 
 /**
- * The four claims, each with the example the design draws under it.
+ * The four claims, each with the example card under it. Order and headings are
+ * the 2026-09-28 retro's (DRIFT D21): Playbooks, Together, Countdown, Notebook.
  *
  * **The examples are the half the build shipped without**, and Mitchell said so
  * three times on the preview — *"missing the graphic"*, *"missing the graphic"*,
@@ -128,14 +129,34 @@ function ExampleCard({ children, className }: { children: ReactNode; className?:
  */
 const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = [
   {
-    label: "One plan",
-    body: "One shared plan your whole group can move around — days, times, costs, who's in.",
-    // No card in the design either: the opening claim is the promise, and the
-    // three that follow are the evidence.
+    // The 2026-09-28 retro's headings, as on the desktop blocks (DRIFT D21).
+    // This one now opens the sequence, as Playbooks opens the desktop page.
+    label: "Playbooks",
+    body: "Relive someone's perfect day.",
+    example: (
+      <ExampleCard className="flex flex-col gap-2.5">
+        <span className="flex items-baseline justify-between gap-2.5">
+          <Text as="span" className="text-sm font-semibold text-ink">
+            A beach day in Phuket
+          </Text>
+          <DataText size="xs" className="shrink-0 text-slate">
+            4.8 ★
+          </DataText>
+        </span>
+        <Text as="span" className="text-xs text-slate">
+          6 stops · Relived 214 times
+        </Text>
+        <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
+          <Text as="span" className="text-xs text-ink">
+            Dropping in as Day 2 — times shift to fit.
+          </Text>
+        </span>
+      </ExampleCard>
+    ),
   },
   {
     label: "Together",
-    body: "Everyone moves the same day.",
+    body: "The trip starts before the trip.",
     example: (
       <ExampleCard className="flex flex-col gap-2">
         {CLAIM_STOPS.map((stop) => (
@@ -166,12 +187,40 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
     ),
   },
   {
-    // **"Write it up", not "Write about it".** Mitchell called the original
-    // awkward and did not name a replacement; this is the smallest edit that
-    // answers it — "write about it" is what you do to a topic, "write it up" is
-    // what you do to a trip, and the sentence after it is unchanged.
+    // New in the retro: anticipation gets a home. A frozen fixture, not a
+    // clock — the front door runs on nothing (SPEC §14).
+    label: "Countdown",
+    body: "Too excited to sleep.",
+    example: (
+      <ExampleCard className="flex flex-col gap-2.5">
+        <span className="flex items-baseline justify-between gap-2.5">
+          <Text as="span" className="text-sm font-semibold text-ink">
+            Wheels up tomorrow
+          </Text>
+          <DataText size="xs" className="shrink-0 text-slate">
+            Kyoto · Apr 4
+          </DataText>
+        </span>
+        <Text as="span" className="text-xs text-slate">
+          One month · One week · <span className="text-brand-pressed">One day</span>
+        </Text>
+        <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
+          <DataText
+            size="xs"
+            className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
+          >
+            PR
+          </DataText>
+          <Text as="span" className="text-xs text-brand-pressed">
+            Bags are by the door. Is anyone else still up?
+          </Text>
+        </span>
+      </ExampleCard>
+    ),
+  },
+  {
     label: "Notebook",
-    body: "Write it up. The numbers keep themselves right.",
+    body: "How you'll remember it.",
     example: (
       <ExampleCard>
         <Text as="span" className="mb-2 block text-sm text-ink">
@@ -196,33 +245,6 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
             </DataText>
           </span>
         ))}
-      </ExampleCard>
-    ),
-  },
-  {
-    // **"Borrow the perfect day"** — Mitchell's own suggestion on the preview,
-    // against the design's "Borrow a day someone already got right". Shorter,
-    // and it names what you get rather than describing where it came from.
-    label: "Playbooks",
-    body: "Borrow the perfect day.",
-    example: (
-      <ExampleCard className="flex flex-col gap-2.5">
-        <span className="flex items-baseline justify-between gap-2.5">
-          <Text as="span" className="text-sm font-semibold text-ink">
-            A beach day in Phuket
-          </Text>
-          <DataText size="xs" className="shrink-0 text-slate">
-            4.8 ★
-          </DataText>
-        </span>
-        <Text as="span" className="text-xs text-slate">
-          6 stops · Shared 214 times
-        </Text>
-        <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
-          <Text as="span" className="text-xs text-ink">
-            Dropping in as Day 2 — times shift to fit.
-          </Text>
-        </span>
       </ExampleCard>
     ),
   },
@@ -401,10 +423,10 @@ export function PhoneFrontDoor() {
           {/* The headline holds still while the claims pass underneath. */}
           <div className="relative px-6 pt-16">
             <Text variant="muted" className="uppercase tracking-widest">
-              Trips, planned together
+              Days worth reliving
             </Text>
             <Heading level={1} className="mt-2 text-3xl">
-              The trip everyone actually helped plan.
+              Put the best day on repeat.
             </Heading>
           </div>
 
@@ -452,14 +474,16 @@ export function PhoneFrontDoor() {
           flow, with nothing behind it. */}
       <section className="flex min-h-dvh flex-col justify-center gap-4 bg-paper px-6">
         <Heading level={2} className="text-2xl">
-          Start a trip.
+          Start the plan, then send the link.
         </Heading>
-        <Text variant="secondary">Invite the group by link. Nothing to install.</Text>
+        <Text variant="secondary">
+          A trip takes about a minute to set up. Everything after that is easier with company.
+        </Text>
         <Link
           href="/signup"
           className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}
         >
-          Continue with Google
+          Start a trip
         </Link>
         <Link
           href="/demo"
@@ -467,8 +491,20 @@ export function PhoneFrontDoor() {
         >
           Look around a real trip
         </Link>
-        <Text variant="muted">Early access.</Text>
+        <Text variant="muted">Free during early access.</Text>
       </section>
+
+      {/* The desktop landing's footer, same four items (see LandingScreen). */}
+      <footer className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-hairline bg-paper px-6 py-5">
+        <Text as="span" variant="muted">&copy; 2026 Caesura</Text>
+        <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+        <Text as="span" variant="muted">Privacy</Text>
+        <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+        <Text as="span" variant="muted">Terms</Text>
+        <a href="mailto:mitchell@demarcosoftware.com" className="w-full text-xs text-slate">
+          mitchell@demarcosoftware.com
+        </a>
+      </footer>
     </div>
   );
 }

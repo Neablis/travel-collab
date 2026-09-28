@@ -22,7 +22,7 @@ describe("LandingScreen", () => {
   it("leads with the product claim", () => {
     render(<LandingScreen />);
     expect(
-      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "The trip everyone actually helped plan." }),
+      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "Put the best day on repeat." }),
     ).toBeDefined();
   });
 
@@ -33,12 +33,12 @@ describe("LandingScreen", () => {
 
   it("sends every primary call to action to sign-up", () => {
     render(<LandingScreen />);
-    // "Start a trip" is asked twice — header and closing CTA band — so this
-    // enumerates both rather than loosening the assertion to the first match.
+    // "Start a trip" is asked three times — header, hero and closing CTA band —
+    // so this enumerates all three rather than loosening the assertion to the
+    // first match.
     const startTrip = within(screen.getByTestId("desktop-landing")).getAllByRole("link", { name: "Start a trip" });
-    expect(startTrip).toHaveLength(2);
+    expect(startTrip).toHaveLength(3);
     for (const link of startTrip) expect(link.getAttribute("href")).toBe("/signup");
-    expect(within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Continue with Google" }).getAttribute("href")).toBe("/signup");
   });
 
   // M11 link 4 retired both shells (`landing-peek-trip`,
@@ -76,30 +76,40 @@ describe("LandingScreen", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("carries the Early access footnote", () => {
+  it("carries the early-access footnote under the hero and the closing CTA", () => {
     render(<LandingScreen />);
-    expect(within(screen.getByTestId("desktop-landing")).getByText(/Early access/)).toBeDefined();
+    const desktop = within(screen.getByTestId("desktop-landing"));
+    expect(desktop.getByText("Free during early access. Invite the group with a link, nothing to install.")).toBeDefined();
+    expect(desktop.getByText("Free during early access.")).toBeDefined();
   });
 
-  it("names what the page is for", () => {
+  it("ends on a footer with the contact address", () => {
     render(<LandingScreen />);
-    expect(
-      within(screen.getByTestId("desktop-landing")).getByRole("heading", { name: "Planning is the trip, three times over." }),
-    ).toBeDefined();
+    const footer = within(within(screen.getByTestId("desktop-landing")).getByRole("contentinfo"));
+    expect(footer.getByText("© 2026 Caesura")).toBeDefined();
+    expect(footer.getByRole("link", { name: "mitchell@demarcosoftware.com" }).getAttribute("href")).toBe(
+      "mailto:mitchell@demarcosoftware.com",
+    );
   });
 
-  // SPEC §14, copy rules: no "free", no "open source", no "no credit card" —
-  // Caesura is a product for groups, not a tool, and the only footnote is
-  // "Early access". The page shipped all three of those before this pass;
-  // this is the guard that stops the old positioning creeping back.
-  // `free` is word-bounded on purpose: the Playbooks block's fixture copy
-  // legitimately reads "Sunrise, Freedom Beach" (`dc.html:2169`).
+  // SPEC §14, copy rules, as the 2026-09-28 retro left them: no "open source",
+  // no "no credit card" — Caesura is a product for groups, not a tool. The
+  // retro reopened "free" deliberately, but only as the early-access footnote:
+  // every "free" on the page must be the start of "Free during early access",
+  // never the pitch. Word-bounded because the Playbooks fixture legitimately
+  // reads "Sunrise, Freedom Beach" (`dc.html:2169`).
+  //
+  // **Matched per element, not against `container.textContent`.** The whole
+  // page's text is its elements' text glued together with no separator, so a
+  // "Free …" kicker straight after the header's "Start a trip" reads as
+  // "tripFree" — no word boundary, no match. The old form passed with exactly
+  // that planted; `queryAllByText` tests each element's own text.
   it.each([
-    ["free", /\bfree\b/i],
+    ["free, except as the early-access footnote", /\bfree\b(?! during early access)/i],
     ["open source", /open[ -]source/i],
     ["no credit card", /credit card/i],
   ])("never sells itself on %s (SPEC §14)", (_label, pattern) => {
-    const { container } = render(<LandingScreen />);
-    expect(container.textContent ?? "").not.toMatch(pattern);
+    render(<LandingScreen />);
+    expect(screen.queryAllByText(pattern)).toEqual([]);
   });
 });

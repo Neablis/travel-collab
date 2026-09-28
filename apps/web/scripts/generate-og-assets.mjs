@@ -149,8 +149,8 @@ const card = /* html */ `<!doctype html>
       </div>
       <div class="wordmark display">Caesura</div>
     </div>
-    <h1 class="display">The trip everyone actually helped plan.</h1>
-    <div class="sub">One shared plan your whole group can move around&nbsp;— days, times, costs, who&rsquo;s&nbsp;in.</div>
+    <h1 class="display">Put the best day on repeat.</h1>
+    <div class="sub">Real days from real trips, saved by the people who lived&nbsp;them.</div>
   </div>
   <div class="board">
     <div class="col" style="margin-top: 26px">
