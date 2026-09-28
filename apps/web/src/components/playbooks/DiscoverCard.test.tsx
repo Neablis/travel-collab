@@ -105,3 +105,36 @@ describe("a Discover card's rating", () => {
     expect(rating.textContent).not.toMatch(/\d/);
   });
 });
+
+// Mitchell, PR #269 preview: at most three city chips, then one that counts
+// the rest, so a many-city Playbook does not wrap its chips down the card.
+describe("a Discover card's city chips", () => {
+  const chipTexts = () => within(screen.getByTestId("city-chips")).getAllByRole("listitem").map((li) => li.textContent);
+
+  it("draws every city when there are three or fewer, and no count", () => {
+    render(<DiscoverCard day={day({ cities: ["Kyoto", "Uji", "Nara"] })} origin={{ from: "playbooks" }} />);
+    expect(chipTexts()).toEqual(["Kyoto", "Uji", "Nara"]);
+    expect(screen.queryByTestId("city-chips-more")).toBeNull();
+  });
+
+  it("draws three, then +N more naming the rest on hover", () => {
+    render(
+      <DiscoverCard
+        day={day({ cities: ["Tokyo", "Hakone", "Kyoto", "Uji", "Nara", "Osaka", "Kobe"] })}
+        origin={{ from: "playbooks" }}
+      />,
+    );
+    expect(chipTexts()).toEqual(["Tokyo", "Hakone", "Kyoto", "+4 more"]);
+    expect(screen.getByTestId("city-chips-more").getAttribute("title")).toBe("Uji, Nara, Osaka, Kobe");
+  });
+
+  it("never folds a matched city into the count", () => {
+    render(
+      <DiscoverCard
+        day={day({ cities: ["Tokyo", "Hakone", "Kyoto", "Uji", "Nara"], matchedCities: ["Nara"] })}
+        origin={{ from: "playbooks" }}
+      />,
+    );
+    expect(chipTexts()).toEqual(["Nara", "Tokyo", "Hakone", "+2 more"]);
+  });
+});
