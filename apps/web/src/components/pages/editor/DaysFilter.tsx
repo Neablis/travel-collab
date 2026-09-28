@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useState } from "react";
 import type { TripDetail } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
+import { DayGrid, type DayGridDrag } from "@/components/ui/day-grid";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
@@ -137,7 +138,9 @@ export function DaysFilter({
   // allow Click and drag to select multiple"*). The run from the pressed day to
   // the day under the pointer shows as selected while the drag lasts, and is
   // written ONCE on release — one edit, one undo, and the widget never resolves
-  // against a half-dragged range.
+  // against a half-dragged range. The gesture itself is `DayGrid`'s, shared
+  // with the Keep-a-day picker (Mitchell, PR #269 preview: *"re-use components
+  // and see similiar functionality using the same style and code"*).
   //
   // **Always a range, never a paint.** The usual paint gesture (start on an
   // unselected day and the drag selects; start on a selected one and it
@@ -145,32 +148,8 @@ export function DaysFilter({
   // `{from, through}`, so deselecting the middle of a range is a hole the
   // document cannot hold. A drag is the two-click range in one stroke — pressed
   // day to released day, replacing what was there — which is exactly what
-  // clicking those two days does.
-  //
-  // Pointer Events, so mouse, finger and pen are one code path. The day under
-  // the pointer is hit-tested with `elementFromPoint` rather than read from the
-  // event's target, because a finger's pointer is implicitly captured by the
-  // cell it landed on and every move reports THAT cell (the reason `DayRiver`'s
-  // touch lift hit-tests too). Window listeners rather than `setPointerCapture`:
-  // capturing retargets a mouse's click onto the capturing element, and a plain
-  // click on a day has to keep landing on that day.
-  const [drag, setDrag] = useState<{ start: number; current: number } | null>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-  // The click a finished drag's release produces. It is not a pick — the drag
-  // already wrote the range — so it is swallowed once, and the next press clears
-  // it in case that click never came (released outside the grid).
-  const swallowClick = useRef(false);
-  const endGesture = useRef<(() => void) | null>(null);
-  // The control unmounting mid-drag leaves no listener behind.
-  useEffect(() => () => endGesture.current?.(), []);
-
-  const dayAt = (x: number, y: number): number | null => {
-    if (typeof document.elementFromPoint !== "function") return null;
-    const cell = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-day-index]");
-    if (!cell || !gridRef.current?.contains(cell)) return null;
-    const index = Number(cell.dataset.dayIndex);
-    return detail.days[index]?.date != null ? index : null;
-  };
+  // clicking those two days does. (`KeepDayDialog` keeps a SET of days, and
+  // there the same grid paints.)
 
   // Two days as a range, ordered: reaching backwards is as good as forwards.
   const rangeOf = (a: number, b: number): DaysSelection | null => {
@@ -180,67 +159,22 @@ export function DaysFilter({
     return first <= second ? { from: first, through: second } : { from: second, through: first };
   };
 
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    swallowClick.current = false;
-    if (e.button !== 0) return;
-    const cell = (e.target as Element).closest<HTMLElement>("[data-day-index]");
-    if (!cell) return;
-    const start = Number(cell.dataset.dayIndex);
-    if (detail.days[start]?.date == null) return;
-    endGesture.current?.();
-    const { pointerId } = e;
-    let current = start;
-    let moved = false;
-
-    const move = (ev: PointerEvent) => {
-      if (ev.pointerId !== pointerId) return;
-      // A mouse whose button came up somewhere this window never heard about.
-      if (ev.pointerType === "mouse" && ev.buttons === 0) {
-        finish(false);
-        return;
-      }
-      const over = dayAt(ev.clientX, ev.clientY);
-      if (over === null || over === current) return;
-      current = over;
-      moved = true;
-      setDrag({ start, current });
-    };
-    const up = (ev: PointerEvent) => {
-      if (ev.pointerId === pointerId) finish(true);
-    };
-    const cancel = () => finish(false);
-    const escape = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") finish(false);
-    };
-    function finish(commit: boolean) {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("blur", cancel);
-      window.removeEventListener("keydown", escape);
-      endGesture.current = null;
-      setDrag(null);
-      // A press that never left its day is a click, and `pick` does with it
-      // what it always did.
-      if (!commit || !moved) return;
-      const selection = rangeOf(start, current);
-      if (selection === null) return;
-      swallowClick.current = true;
-      setAnchor(null);
-      onChange(withDaysSelection(params, selection));
-    }
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", cancel);
-    window.addEventListener("blur", cancel);
-    window.addEventListener("keydown", escape);
-    endGesture.current = cancel;
+  const commitDrag = (drag: DayGridDrag) => {
+    const selection = rangeOf(drag.start, drag.current);
+    if (selection === null) return;
+    setAnchor(null);
+    onChange(withDaysSelection(params, selection));
   };
 
-  // What the cells show: the drag's run while one is under way, else the document.
-  const shown = drag !== null ? rangeOf(drag.start, drag.current) : range;
-  const inRange = (date: string | null): boolean =>
-    date !== null && shown !== null && date >= shown.from && date <= shown.through;
+  // What a cell shows: the drag's run while one is under way, else the
+  // document. A drag under way stands in for the stored selection, a legacy
+  // `day` included: releasing it replaces both.
+  const pressed = (index: number, drag: DayGridDrag | null): boolean => {
+    const date = detail.days[index]?.date ?? null;
+    const shown = drag !== null ? rangeOf(drag.start, drag.current) : range;
+    const inRange = date !== null && shown !== null && date >= shown.from && date <= shown.through;
+    return inRange || (drag === null && legacyDay === index);
+  };
 
   const pick = (index: number) => {
     const date = detail.days[index]?.date;
@@ -285,12 +219,9 @@ export function DaysFilter({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) {
-          setAnchor(null);
-          // Closed mid-drag: the drag is abandoned, not committed on a release
-          // the reader can no longer see the days for.
-          endGesture.current?.();
-        }
+        // Closed mid-drag: the grid unmounts with the popover's content,
+        // and `DayGrid` abandons a drag it is unmounted in the middle of.
+        if (!next) setAnchor(null);
       }}
       trigger={trigger}
       align="start"
@@ -330,45 +261,23 @@ export function DaysFilter({
                 column of ISO strings is not something anyone reads, it is
                 something they decode. Three cells give the date room to be a
                 date. */}
-            {/* `touch-none` so a finger drawn across the days selects them
-                rather than scrolling (the browser cancels a pointer it takes
-                for a scroll); `select-none` so a mouse drag does not also
-                highlight the cells' text. */}
-            <div
-              ref={gridRef}
-              role="group"
-              aria-label="Trip days"
-              className="grid touch-none select-none grid-cols-3 gap-1"
-              onPointerDown={onPointerDown}
-              onClickCapture={(e) => {
-                if (!swallowClick.current) return;
-                swallowClick.current = false;
-                e.stopPropagation();
-                e.preventDefault();
+            <DayGrid
+              label="Trip days"
+              count={detail.days.length}
+              columns={3}
+              selectable={(index) => detail.days[index]?.date != null}
+              pressed={pressed}
+              onPick={pick}
+              onDragCommit={commitDrag}
+              cell={(index) => {
+                const day = detail.days[index]!;
+                return {
+                  key: day.dayId,
+                  title: `Day ${index + 1}`,
+                  detail: day.date === null ? "no date" : formatTripDate(day.date),
+                };
               }}
-            >
-              {detail.days.map((day, index) => {
-                // A drag under way stands in for the stored selection, a legacy
-                // `day` included: releasing it replaces both.
-                const selected = inRange(day.date) || (drag === null && legacyDay === index);
-                return (
-                  <Button
-                    key={day.dayId}
-                    variant={selected ? "primary" : "secondary"}
-                    disabled={day.date === null}
-                    aria-pressed={selected}
-                    data-day-index={index}
-                    className="min-h-11 flex-col gap-0 px-1 py-1 text-xs font-normal"
-                    onClick={() => pick(index)}
-                  >
-                    <span className="font-medium">Day {index + 1}</span>
-                    <span className="text-2xs text-slate">
-                      {day.date === null ? "no date" : formatTripDate(day.date)}
-                    </span>
-                  </Button>
-                );
-              })}
-            </div>
+            />
           </>
         )}
         {stale ? (
