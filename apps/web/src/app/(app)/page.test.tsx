@@ -609,6 +609,60 @@ describe("Home page head", () => {
     expect(screen.queryByTestId("trip-card")).toBeNull();
   });
 
+  // **Mitchell, PR #269 preview**: a one-trip Home ended at the hero's bottom
+  // edge, and he asked for *"a larger call to action… 'Lets start planning your
+  // next trip' and a secon button to start a new trip"* there. The button has
+  // its own name because the head's "New trip" is still on the page, and it
+  // opens THE new-trip sheet rather than a second one.
+  it("invites a one-trip account to plan its next trip, through the same sheet as New trip", async () => {
+    renderHome([tripSummaryFixture()]);
+    const prompt = await screen.findByRole("region", { name: /start planning your next trip/i });
+
+    await userEvent.click(within(prompt).getByRole("button", { name: "Start a new trip" }));
+
+    expect(await screen.findByRole("dialog", { name: /new trip/i })).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  it("does not invite a next trip while there are other trips to show", async () => {
+    renderHome([tripSummaryFixture(), PERU]);
+    await screen.findByRole("heading", { name: "Other trips" });
+    expect(screen.queryByRole("region", { name: /start planning your next trip/i })).toBeNull();
+  });
+
+  // The list landed once, then a reload failed: the region error says so, and
+  // an invitation under it would sit on top of a list the page now knows is
+  // stale. Reached for real — delete Peru, Undo, and the reload 500s.
+  it("does not invite a next trip while the list's reload has failed", async () => {
+    let listReads = 0;
+    fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.includes("/commands")) {
+        return jsonResponse({ detail: tripDetailFixture({ tripId: PERU.tripId }), history: historyFixture(PERU.tripId) });
+      }
+      if (url.endsWith("/api/trips")) {
+        listReads += 1;
+        return listReads === 1 ? jsonResponse({ trips: [tripSummaryFixture(), PERU] }) : jsonResponse({ error: "boom" }, 500);
+      }
+      if (/\/api\/trips\/[^/]+$/.test(url)) return jsonResponse({ trip: tripDetailFixture({ tripId }) });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<Home />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /trip actions for peru/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    // With Peru gone, Japan is the only trip — the invitation's own state —
+    // until the reload that Undo starts comes back failed.
+    expect(await screen.findByRole("region", { name: /start planning your next trip/i })).toBeTruthy();
+    const toast = (await screen.findAllByRole("status")).find((node) => /deleted "peru"/i.test(node.textContent ?? ""))!;
+    await userEvent.click(within(toast).getByRole("button", { name: /undo/i }));
+
+    await screen.findByTestId("home-trips-error");
+    expect(screen.queryByRole("region", { name: /start planning your next trip/i })).toBeNull();
+  });
+
   // **M27 D3.** The hero left the grid, and the grid's cards were the only
   // place a trip's lifecycle menu lived on Home. The single-trip fixtures in
   // "Home trip actions" above reach Delete and Duplicate through the hero's
