@@ -44,7 +44,9 @@ test("a stop can be dragged into the unscheduled rack and back onto a day", asyn
   // -- dropping on the rack unschedules and strips the time window --
   await expect(page.getByTestId("rack-card")).toHaveCount(1);
   await expect(rack.getByText(title, { exact: false })).toBeVisible();
-  await expect(rack.getByText(/no time yet/i)).toBeVisible();
+  // On the card: the rack's own hint ("Stops with no day or no time yet")
+  // says those words too, since it grew to hold a day's untimed stops.
+  await expect(page.getByTestId("rack-card").getByText(/no time yet/i)).toBeVisible();
 
   // -- and back out onto a day --
   await dragCardTo(page.getByTestId("rack-card").first(), page.getByTestId("day-column").nth(1));
