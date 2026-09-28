@@ -293,9 +293,20 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
               Open trip
             </Link>
             {/* A link, where the artboard draws a button with the same
-                handler as *Open plan*: it goes to the trip, and a navigation is
-                a link — middle-clickable, and read as one. The trip's own
-                conflict banner is where the decisions are made. */}
+                handler as *Open plan*: a navigation is a link — middle-clickable,
+                and read as one.
+
+                **It opens the Plan view, not the trip's default Overview** —
+                Mitchell, PR #269 preview: *"Clicking this should go to the
+                plans page, not overview. You cant make the decisions on
+                overview page"*. The conflicts this line counts are listed,
+                dismissed and jumped to by `ConflictBanner`, which only `Board`
+                renders, and `Board` is the Plan view (`TripBoardScreen`);
+                Overview is read-only and shows none of them (SPEC §24). A bare
+                `/trips/<id>` lands on Overview, so it took you to a page where
+                the decision could not be made. `?view=Plan` is the URL
+                `PhoneTabBar`'s Plan tab and `MapLens` already use. Not
+                `/plans`: that route is the billing plans page (SPEC §29). */}
             {(detailLoading || hasDecisions || hasUnbooked) && (
               <div className="flex min-h-11 basis-full flex-wrap items-center gap-x-4.5 gap-y-3 md:min-h-0 md:basis-auto">
                 {detailLoading ? (
@@ -304,7 +315,7 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
                   <>
                     {hasDecisions && (
                       <Link
-                        href={`/trips/${trip.tripId}`}
+                        href={`/trips/${trip.tripId}?view=Plan`}
                         className={cn(
                           "inline-flex items-center gap-2 py-1.5 text-sm font-semibold text-danger-ink no-underline hover:underline",
                           PHONE_TOUCH,
