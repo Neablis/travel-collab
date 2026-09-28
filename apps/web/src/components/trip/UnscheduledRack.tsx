@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toClockRange } from "@/lib/time";
@@ -86,6 +86,8 @@ export function UnscheduledRack({
   open,
   onToggle,
   onAssign,
+  onEdit,
+  onRemove,
   reveal = null,
 }: {
   items: RackItem[];
@@ -98,6 +100,10 @@ export function UnscheduledRack({
    * one onto a day is a command, and goes.
    */
   onAssign?: (activityId: string, dayId: string) => void;
+  /** Opens a card's stop in the editor. Absent on a read-only board, like `onAssign`. */
+  onEdit?: (activityId: string) => void;
+  /** Removes a card's stop from the trip. Absent on a read-only board, like `onAssign`. */
+  onRemove?: (activityId: string) => void;
   /**
    * A day column's "N any time" chip asking for its day's group: scrolled
    * into view and focused once the drawer is open. `seq` changes on every
@@ -237,7 +243,7 @@ export function UnscheduledRack({
             groups.map((group) =>
               group.day === null ? (
                 group.items.map((item) => (
-                  <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} />
+                  <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
                 ))
               ) : (
                 // A day's untimed stops, headed by the day. A named group so
@@ -255,7 +261,7 @@ export function UnscheduledRack({
                   <span className="text-xs font-semibold text-slate">{group.day.heading}</span>
                   <div className="flex flex-1 gap-2.5">
                     {group.items.map((item) => (
-                      <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} />
+                      <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
                     ))}
                   </div>
                 </div>
@@ -272,6 +278,8 @@ function RackCard({
   item,
   dayOptions,
   onAssign,
+  onEdit,
+  onRemove,
 }: {
   item: RackItem;
   dayOptions: { value: string; label: string }[];
@@ -281,6 +289,8 @@ function RackCard({
    * one onto a day is a command, and goes.
    */
   onAssign?: (activityId: string, dayId: string) => void;
+  onEdit?: (activityId: string) => void;
+  onRemove?: (activityId: string) => void;
 }) {
   const clock = useTimeFormat();
   const ref = useRef<HTMLDivElement>(null);
@@ -323,10 +333,10 @@ function RackCard({
     >
       <Card className="flex h-full flex-col gap-2 rounded-lg p-3">
         <div>
-          {(item.day !== null || item.badge !== null) && (
+          {(item.day !== null || item.badge !== null || onEdit !== undefined || onRemove !== undefined) && (
             <div className="mb-1 flex items-start gap-1">
-              {/* `flex-wrap`, so two badges stack inside the 208px card
-                  instead of running out of it. */}
+              {/* `flex-wrap`, so two badges beside a phone's two 44px controls
+                  stack inside the 208px card instead of running out of it. */}
               <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
                 {/* The day an untimed stop is on, on the card itself as well as
                     over its group: a card lifted out of the group for a drag
@@ -340,6 +350,34 @@ function RackCard({
                   <Badge variant={item.badge.variant} data-testid={`kind-badge-${item.activityId}`}>
                     {item.badge.label}
                   </Badge>
+                )}
+              </span>
+              {/* Edit and Remove, as the board's card had them. An untimed
+                  stop was edited from its card on the "Any time" shelf; drawn
+                  here now, it keeps the controls rather than becoming a stop
+                  you can only drag. Withheld on a read-only board. */}
+              <span className="flex shrink-0 gap-0.5">
+                {onEdit !== undefined && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-auto"
+                    onClick={() => onEdit(item.activityId)}
+                    aria-label={`Edit ${item.title}`}
+                  >
+                    <Pencil className="size-3.5" aria-hidden />
+                  </Button>
+                )}
+                {onRemove !== undefined && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-auto"
+                    onClick={() => onRemove(item.activityId)}
+                    aria-label={`Remove ${item.title}`}
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </Button>
                 )}
               </span>
             </div>

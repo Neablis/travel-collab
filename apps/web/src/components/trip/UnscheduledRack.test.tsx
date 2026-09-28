@@ -115,13 +115,20 @@ describe("UnscheduledRack — a day's untimed stops", () => {
     expect(within(card).getByText("Day 3")).toBeTruthy();
   });
 
-  // What the board's card said about an untimed stop, kept now that the rack
-  // is where one is drawn: a pending stop is very often an untimed one.
-  it("wears the stop's kind badge", () => {
-    renderRack({ open: true, items: withDays });
+  // What the board's card said and did for an untimed stop, kept now that the
+  // rack is where one is drawn: its kind, and a way to edit or remove it.
+  it("wears the stop's kind badge, and edits or removes that stop", async () => {
+    const onEdit = vi.fn();
+    const onRemove = vi.fn();
+    renderRack({ open: true, items: withDays, onEdit, onRemove });
 
     const card = screen.getAllByTestId("rack-card").find((c) => c.textContent?.includes("Nishiki market"))!;
     expect(within(card).getByText("To book")).toBeTruthy();
+    await userEvent.click(within(card).getByRole("button", { name: "Edit Nishiki market" }));
+    await userEvent.click(within(card).getByRole("button", { name: "Remove Nishiki market" }));
+
+    expect(onEdit).toHaveBeenCalledWith("a3");
+    expect(onRemove).toHaveBeenCalledWith("a3");
   });
 
   it("counts every card it holds, day-less and untimed alike", () => {

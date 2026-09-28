@@ -1318,6 +1318,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             open={rack.open}
             onToggle={() => onRackEvent({ type: "toggle" })}
             onAssign={readOnly ? undefined : assignFromRack}
+            onEdit={readOnly ? undefined : openEdit}
+            onRemove={readOnly ? undefined : (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId })}
             reveal={rackReveal}
           />
         </div>

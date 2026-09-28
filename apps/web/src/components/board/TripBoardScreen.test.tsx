@@ -1659,6 +1659,7 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     const group = screen.getByRole("group", { name: "Day 2" });
     expect(within(group).getByText("Nishiki market")).toBeTruthy();
     // …and nothing on the card that would change it.
+    expect(within(group).queryByRole("button", { name: /^(Edit|Remove) Nishiki market$/ })).toBeNull();
     expect(within(group).queryByRole("combobox", { name: "Add to day" })).toBeNull();
   });
 });
