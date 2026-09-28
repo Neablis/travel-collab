@@ -279,6 +279,28 @@ describe("the chooser", () => {
     expect(note.textContent).not.toContain("free week");
   });
 
+  // Mitchell, PR #269 preview: *"Its confusing this says premium, but when i
+  // click 'change plan' it says i have free"*. Account → Plan names the tier in
+  // effect; this page has to lead with the same one.
+  it("leads with the plan a grant puts you on, and names the one you pay for second", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+        grantedVersionRefs: ["premium@v1"],
+        grants: [{ planId: "premium", version: 1, source: "admin", expiresAt: "2026-12-01T00:00:00.000Z" }],
+        billing: { ...VIEW.billing, state: "none" },
+      },
+    });
+    render(<PlansScreen />);
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toMatch(/^You have premium right now, granted to your account until December 1/);
+    expect(line).toContain("The plan you pay for is free, at no charge.");
+    expect(within(screen.getByTestId("plan-card-premium")).getByText("You have this now")).toBeTruthy();
+    expect(within(screen.getByTestId("plan-card-free")).getByRole("button", { name: "What you pay for" })).toBeTruthy();
+    expect(screen.queryByText("What you hold")).toBeNull();
+  });
+
   it("carries no such disclaimer when nothing is granted", async () => {
     render(<PlansScreen />);
     await screen.findByTestId("plan-cards");
