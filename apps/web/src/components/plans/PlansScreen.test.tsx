@@ -301,6 +301,43 @@ describe("the chooser", () => {
     expect(screen.queryByText("What you hold")).toBeNull();
   });
 
+  // CodeRabbit, PR #269. A lapse moves the tier in effect without any grant
+  // (plus confers free once it lapses), and a lapsed price is not a payment.
+  it("does not call a lapse a grant, nor a lapsed plan one you pay for", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        planVersionRef: "plus@v1",
+        conferredVersionRef: "free@v1",
+        catalogue: VIEW.catalogue.map((c) => ({ ...c, held: c.planId === "plus" })),
+        billing: { ...VIEW.billing, state: "lapsed" },
+      },
+    });
+    render(<PlansScreen />);
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toBe("Your plus subscription has lapsed.");
+    expect(screen.queryByText("You have this now")).toBeNull();
+  });
+
+  it("names a lapsed plan as lapsed even while a grant is in effect", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        planVersionRef: "plus@v1",
+        conferredVersionRef: "free@v1",
+        entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+        grantedVersionRefs: ["premium@v1"],
+        grants: [{ planId: "premium", version: 1, source: "admin", expiresAt: null }],
+        catalogue: VIEW.catalogue.map((c) => ({ ...c, held: c.planId === "plus" })),
+        billing: { ...VIEW.billing, state: "lapsed" },
+      },
+    });
+    render(<PlansScreen />);
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toBe("You have premium right now, granted to your account. Your plus subscription has lapsed.");
+    expect(within(screen.getByTestId("plan-card-plus")).getByRole("button", { name: "What you hold" })).toBeTruthy();
+  });
+
   it("carries no such disclaimer when nothing is granted", async () => {
     render(<PlansScreen />);
     await screen.findByTestId("plan-cards");

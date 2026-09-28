@@ -169,6 +169,11 @@ export function effectiveTierRef(plan: AccountPlanView): string {
  * agree on: which plan is in effect, and until when. Of several grants for that
  * plan, the longest-lasting one answers "until when" (a permanent one wins),
  * the same rule `PlanSection` uses for its expiry line.
+ *
+ * **`null` unless a grant actually confers that plan** (CodeRabbit, PR #269).
+ * The effective tier can differ from the held plan WITHOUT any grant: after a
+ * lapse, a `plus` subscription confers `free` (`conferredVersionRef`), and
+ * calling that "granted to your account" would be false twice over.
  */
 export function grantedTier(plan: AccountPlanView): { planId: string; expiresAt: string | null } | null {
   const effectiveRef = effectiveTierRef(plan);
@@ -178,5 +183,6 @@ export function grantedTier(plan: AccountPlanView): { planId: string; expiresAt:
   const grant = plan.grants
     .filter((g) => `${g.planId}@v${g.version}` === effectiveRef)
     .sort((a, b) => (a.expiresAt === null ? -1 : b.expiresAt === null ? 1 : b.expiresAt.localeCompare(a.expiresAt)))[0];
-  return { planId, expiresAt: grant?.expiresAt ?? null };
+  if (grant === undefined) return null;
+  return { planId, expiresAt: grant.expiresAt };
 }

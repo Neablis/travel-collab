@@ -503,7 +503,14 @@ function heldLine(plan: AccountPlanView, held: AccountPlanChoice | null): string
 
   let sentence: string;
   if (granted !== null) {
-    sentence = `You have ${granted.planId} right now, granted to your account${grantedUntil === null ? "" : ` until ${grantedUntil}`}. The plan you pay for is ${planId}${paidFor === null ? ", at no charge" : `, at ${paidFor} a month`}.`;
+    const have = `You have ${granted.planId} right now, granted to your account${grantedUntil === null ? "" : ` until ${grantedUntil}`}.`;
+    // A lapsed subscription keeps its price on the record, but nobody is
+    // paying it — "the plan you pay for is plus, at $9 a month" would claim a
+    // payment that stopped (CodeRabbit, PR #269).
+    sentence =
+      state === "lapsed"
+        ? `${have} Your ${planId} subscription has lapsed.`
+        : `${have} The plan you pay for is ${planId}${paidFor === null ? ", at no charge" : `, at ${paidFor} a month`}.`;
   } else if (state === "trial") {
     // The one state with no subscription period, so `renewsAt` is null and the
     // trial's own expiry is the only date there is.
@@ -554,7 +561,8 @@ function Chooser({
   const grantedPlanId = grantedTier(plan)?.planId ?? null;
   const current = (choice: AccountPlanChoice) =>
     grantedPlanId === null ? choice.held : choice.planId === grantedPlanId;
-  const heldLabel = grantedPlanId === null ? "What you hold" : "What you pay for";
+  // Not "pay for" once the subscription has lapsed: nothing is being paid.
+  const heldLabel = grantedPlanId === null || plan.billing.state === "lapsed" ? "What you hold" : "What you pay for";
   return (
     <div className="flex flex-col gap-5">
       {/* **Three cards in display order, each with four bullets enumerating
