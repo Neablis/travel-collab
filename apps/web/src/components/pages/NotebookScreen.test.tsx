@@ -33,6 +33,24 @@ import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
+/** A notebook the reader saved as a template from another trip (M14 link 10). */
+function savedPackingList() {
+  return {
+    savedNotebookId: "5a0e0000-0000-4000-8000-0000000000aa",
+    ownerId: "dev-alice",
+    title: "Packing list",
+    docVersion: 1,
+    visibility: "private" as const,
+    provenance: {
+      sourceTripId: "5a0e0000-0000-4000-8000-0000000000bb",
+      sourceTripName: "Kyoto 2026",
+      sourcePageId: "5a0e0000-0000-4000-8000-0000000000cc",
+      savedAt: new Date().toISOString(),
+    },
+    content: { v: 1 as const, type: "doc" as const, content: [] },
+  };
+}
+
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {
   return async (
@@ -132,25 +150,7 @@ describe("NotebookScreen", () => {
     const onInstantiate = vi.fn();
     server.use(
       ...makePagesHandlers([]),
-      ...makeSavedNotebookHandlers(
-        [
-          {
-            savedNotebookId: "5a0e0000-0000-4000-8000-0000000000aa",
-            ownerId: "dev-alice",
-            title: "Packing list",
-            docVersion: 1,
-            visibility: "private",
-            provenance: {
-              sourceTripId: "5a0e0000-0000-4000-8000-0000000000bb",
-              sourceTripName: "Kyoto 2026",
-              sourcePageId: "5a0e0000-0000-4000-8000-0000000000cc",
-              savedAt: new Date().toISOString(),
-            },
-            content: { v: 1, type: "doc", content: [] },
-          },
-        ],
-        { onInstantiate },
-      ),
+      ...makeSavedNotebookHandlers([savedPackingList()], { onInstantiate }),
     );
 
     render(<NotebookScreen tripId={TRIP_ID} />);
@@ -176,10 +176,12 @@ describe("NotebookScreen", () => {
   // gallery was a screenful of choices already made, sitting above the list of
   // what those choices produced.
   //
-  // Read off `getAllByRole`, which returns regions in document order, so this
+  // Read off `getAllByRole`, which returns elements in document order, so this
   // asserts the ORDER rather than the presence of two sections — which is the
   // whole of the request, and which a `mb-8` moved to the wrong element would
-  // still satisfy if it only counted them.
+  // still satisfy if it only counted them. The level-3 headings rather than the
+  // regions, because the gallery's groups are regions of their own now (PR
+  // #269 preview) and each top-level section is labelled by its level-3 one.
   it("lists your notebooks above the template gallery", async () => {
     const page = pageFixture({ tripId: TRIP_ID });
     server.use(...makePagesHandlers([page]));
@@ -187,9 +189,7 @@ describe("NotebookScreen", () => {
     render(<NotebookScreen tripId={TRIP_ID} />);
     await screen.findByRole("region", { name: "Your notebooks" });
 
-    const inOrder = screen
-      .getAllByRole("region")
-      .map((region) => within(region).getByRole("heading", { level: 3 }).textContent);
+    const inOrder = screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
     expect(inOrder).toEqual(["Your notebooks", "Start from a template"]);
   });
 
@@ -362,6 +362,59 @@ describe("NotebookScreen", () => {
         }),
       ),
     );
+  });
+
+  // Mitchell, PR #269 preview: *"its just a wall of templates, its ugly and
+  // hard to navigate"*. The gallery is grouped by the seed's own
+  // `seedIntoNewTrips` and a filter narrows it to one group. Every expectation
+  // is derived from `TEMPLATE_LIBRARY`, so a template landing in the wrong
+  // group, or a filter that hides nothing, fails here by name.
+  it("groups the templates by whether a trip comes with them, and the filter narrows to one group", async () => {
+    server.use(...makePagesHandlers([]));
+    const essentials = TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips);
+    const more = TEMPLATE_LIBRARY.filter((t) => !t.seedIntoNewTrips);
+    const startButton = (title: string) => ({ name: `Start from ${title}` });
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+
+    const essentialGroup = screen.getByRole("region", { name: "Essentials" });
+    const moreGroup = screen.getByRole("region", { name: "More templates" });
+    for (const t of essentials) expect(within(essentialGroup).getByRole("button", startButton(t.title))).toBeTruthy();
+    for (const t of more) expect(within(moreGroup).getByRole("button", startButton(t.title))).toBeTruthy();
+
+    const filter = screen.getByRole("radiogroup", { name: "Show templates" });
+    // No saved templates, so no "Yours" to filter onto.
+    expect(within(filter).queryByRole("radio", { name: "Yours" })).toBeNull();
+
+    fireEvent.click(within(filter).getByRole("radio", { name: "More" }));
+    for (const t of more) expect(screen.getByRole("button", startButton(t.title))).toBeTruthy();
+    for (const t of essentials) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
+    // Blank is not a group, so no filter takes it away.
+    expect(screen.getByRole("button", { name: "Start from Blank notebook" })).toBeTruthy();
+
+    fireEvent.click(within(filter).getByRole("radio", { name: "Essentials" }));
+    for (const t of essentials) expect(screen.getByRole("button", startButton(t.title))).toBeTruthy();
+    for (const t of more) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
+  });
+
+  it("filters to your own templates, and falls back to all once the last one is removed", async () => {
+    server.use(...makePagesHandlers([]), ...makeSavedNotebookHandlers([savedPackingList()]));
+    const aSeed = TEMPLATE_LIBRARY[0]!;
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    await screen.findByRole("region", { name: "Your templates" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Yours" }));
+    expect(screen.getByRole("button", { name: "Start from your template Packing list" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: `Start from ${aSeed.title}` })).toBeNull();
+
+    // Removing the last one takes the chip with it, and the gallery must not
+    // be left filtered onto a group that no longer exists — i.e. empty.
+    fireEvent.click(screen.getByRole("button", { name: "Remove your template Packing list" }));
+    await waitFor(() => expect(screen.queryByRole("radio", { name: "Yours" })).toBeNull());
+    expect(screen.getByRole("radio", { name: "All", checked: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: `Start from ${aSeed.title}` })).toBeTruthy();
   });
 
   // SPEC §23 — the phone assistant, and this is the ONE screen where §23's
