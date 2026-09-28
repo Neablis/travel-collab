@@ -21,6 +21,13 @@ if (existsSync(envLocalPath)) {
 // a digest against a fixture.
 process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key";
 
+// The link-preview cache (ADR-059) is off under test: a process-wide memory
+// cache would let one test's lookup answer another's, and hide the database
+// behaviour a test is there to see. Tests that exercise a cache inject a port.
+// `||=` for the same blank-in-`.env.local` reason as above; set it to
+// `memory` for a run that wants the real driver.
+process.env.CACHE_DRIVER ||= "off";
+
 export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src") } },
   test: {

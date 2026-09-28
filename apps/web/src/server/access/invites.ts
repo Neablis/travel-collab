@@ -7,6 +7,8 @@ import type {
   InviteStatus,
   TripInvite,
 } from "@tc/contracts";
+import { inviteCardKey } from "../cache/keys";
+import { getCache } from "../cache/redis";
 import { db, type Queryable } from "../db/client";
 import { tripInvites } from "../db/schema";
 import { isUuid } from "../ids";
@@ -143,7 +145,7 @@ export async function revokeInvite(
   if (!isUuid(inviteId)) {
     return { ok: false, error: { code: "not-found", message: "This invite does not exist." } };
   }
-  return db.transaction(async (tx): Promise<AccessResult<TripInvite>> => {
+  const result = await db.transaction(async (tx): Promise<AccessResult<TripInvite>> => {
     const claimed = await tx
       .update(tripInvites)
       .set({ status: "revoked", revokedAt: new Date(now) })
@@ -174,6 +176,16 @@ export async function revokeInvite(
     }
     return { ok: true, value: toDto(row) };
   });
+  if (result.ok) await forgetInviteCard(result.value.token);
+  return result;
+}
+
+// A revoked or spent invite must stop naming its sender (spec 2026-09-27
+// §2.1), so its cached link-preview card goes with it. After the commit, never
+// inside the transaction: the cache is best-effort and bounded (ADR-059), and
+// a Redis that is down must not hold a revoke open or roll it back.
+async function forgetInviteCard(token: string): Promise<void> {
+  await getCache().del(inviteCardKey(token));
 }
 
 async function findByToken(token: string): Promise<InviteRow | undefined> {
@@ -267,7 +279,9 @@ export async function acceptInvite(
     return { ok: true, value: { tripId: existing.tripId, role: existing.role as InviteRole } };
   }
   try {
-    return await acceptInviteTransaction(token, userId, now, detail);
+    const result = await acceptInviteTransaction(token, userId, now, detail);
+    if (result.ok) await forgetInviteCard(token);
+    return result;
   } catch (error) {
     if (error instanceof AlreadyAMemberError) {
       return { ok: false, error: { code: "invalid", message: "You are already on this trip." } };

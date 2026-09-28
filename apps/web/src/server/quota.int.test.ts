@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq, like } from "drizzle-orm";
 import { db } from "./db/client";
 import { rateLimitCounters } from "./db/schema";
-import { consumeQuota, pgCounters, type QuotaPolicy } from "./quota";
+import { consumeQuota, pgCounters, sweepExpiredCounters, type QuotaPolicy } from "./quota";
 import { referenceCounters } from "@/server/test-support/quotaCounters";
 import { witness } from "@/test-support/witness";
 
@@ -304,5 +304,52 @@ describe("consumeQuota against a real database", () => {
     });
     // …and someone else is unaffected by it.
     expect(await consumeQuota([policy()], "bob", counters, T0)).toEqual({ allowed: true });
+  });
+});
+
+// Keyed by account, this table was bounded by the number of accounts. Keyed by
+// IP (`linkPreviewQuota`, server/og/limit.ts) it grows with every address that
+// ever unfurls a link, and `bump` only ever overwrites a row — it never removes
+// one. The sweep is what bounds it again.
+describe("sweepExpiredCounters", () => {
+  const readBuckets = async () =>
+    (
+      await db
+        .select({ bucket: rateLimitCounters.bucket })
+        .from(rateLimitCounters)
+        .where(like(rateLimitCounters.bucket, `${keyPrefix}%`))
+    )
+      .map((row) => row.bucket)
+      .sort();
+
+  it("deletes rows whose window has ended and keeps every row still inside one", async () => {
+    const counters = pgCounters();
+    const minute = policy(); // 60s window
+    const windowStart = new Date("2026-08-28T12:00:00.000Z");
+    const now = new Date(windowStart.getTime() + minute.windowMs);
+
+    // Ended exactly at `now`: the next bump would roll it, so it holds nothing.
+    await counters.bump(`${minute.name}:user:gone`, windowStart);
+    // Started one ms before `now`: live, and deleting it would reset a count.
+    await counters.bump(`${minute.name}:user:live`, new Date(now.getTime() - 1));
+    // Another policy's row, old by any window: not named, so not ours to touch.
+    await counters.bump(key("other-policy:user:x"), new Date(0));
+
+    await sweepExpiredCounters([minute], now);
+
+    expect(await readBuckets()).toEqual([`${minute.name}:user:live`, key("other-policy:user:x")].sort());
+  });
+
+  it("leaves a swept bucket counting from one, as a rolled window would", async () => {
+    const counters = pgCounters();
+    const minute = policy();
+    for (let i = 0; i < minute.perUser + 1; i += 1) await consumeQuota([minute], "ip", counters, T0);
+    const later = new Date(T0.getTime() + minute.windowMs);
+
+    await sweepExpiredCounters([minute], later);
+
+    expect(await readBuckets()).toEqual([]);
+    expect(await consumeQuota([minute], "ip", counters, later)).toEqual({ allowed: true });
+    expect(await counters.bump(`${minute.name}:user:ip`, later)).toBe(2);
   });
 });

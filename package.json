@@ -27,7 +27,8 @@
     "redfirst": "node scripts/redfirst.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:int:if-db && node scripts/tier3-stamp.mjs record",
     "seed:verify": "SEED_VERIFY_REPORT=1 pnpm --filter @tc/fixtures test",
-    "content:verify": "pnpm --filter web content:verify"
+    "content:verify": "pnpm --filter web content:verify",
+    "og:verify": "pnpm --filter web og:verify"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^10.0.0",

@@ -22,7 +22,7 @@
 // the assistant drafts — yet still pays for the round-trips, and the geocode
 // proxy never writes an event at all. Counting events would meter exactly the
 // requests that are cheapest to make and miss the abusive ones.
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { NO_CEILINGS, type EntitlementCeilings } from "./assistant/entitlements";
 import { db } from "./db/client";
 import type { Db } from "./db/client";
@@ -305,6 +305,27 @@ export function weatherQuota(): QuotaPolicy[] {
       windowMs: DAY_MS,
       perUser: envCeiling("WEATHER_RATE_LIMIT_PER_USER_DAILY", 200),
       global: envCeiling("WEATHER_RATE_LIMIT_GLOBAL_DAILY", 5000),
+    },
+  ];
+}
+
+/**
+ * Link-preview quota (spec 2026-09-27 §2.2): the four public `/api/og/**`
+ * routes, keyed by client IP because their callers have no account.
+ *
+ * Generous on purpose. A chat app's unfurler fetches the page, its meta and its
+ * image in a burst, from a handful of shared crawler IPs, and a shared link is
+ * then answered by the CDN rather than by us (`server/og/card.tsx`'s cache
+ * headers), so what reaches this counter is cache misses only. 60 a minute per
+ * IP is far above an unfurler and far below a loop walking referral codes.
+ */
+export function linkPreviewQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "link-preview-minute",
+      windowMs: 60 * 1000,
+      perUser: envCeiling("LINK_PREVIEW_RATE_LIMIT_PER_IP_MINUTE", 60),
+      global: envCeiling("LINK_PREVIEW_RATE_LIMIT_GLOBAL_MINUTE", 3000),
     },
   ];
 }
@@ -635,10 +656,11 @@ function secondsUntilWindowEnd(policy: QuotaPolicy, windowStart: Date, now: Date
 }
 
 /**
- * One row per bucket, forever — not one row per bucket per window. The upsert
- * carries the window forward in place, so the table's size is bounded by the
- * number of actors rather than by traffic, and there is no sweep job to forget
- * to run.
+ * One row per bucket — not one row per bucket per window. The upsert carries
+ * the window forward in place, so the table's size is bounded by the number of
+ * actors rather than by traffic. That bound only holds while actors are
+ * accounts: an IP-keyed policy's actors are unbounded, and
+ * `sweepExpiredCounters` is what removes their ended rows.
  *
  * `greatest(...)` and the strict `>` comparison make the window monotonic per
  * bucket. Two serverless instances with slightly skewed clocks can otherwise
@@ -690,4 +712,47 @@ export function pgCounters(database: Db = db): QuotaCounters {
         );
     },
   };
+}
+
+/**
+ * **Delete every counter row whose window has fully ended**, for the named
+ * policies only.
+ *
+ * `bump` keeps one row per bucket and only ever overwrites it, so the table is
+ * as large as the set of keys that have ever been charged. Keyed by account
+ * that was bounded; keyed by client IP (`linkPreviewQuota`) it is not, and
+ * nothing else removes a row.
+ *
+ * Deleting an ended row changes no decision. `bump` would discard its count on
+ * the next charge anyway, `peekQuota` already reads it as zero, and a `release`
+ * aimed at an ended window is a refund to a window nobody can be charged in
+ * again. A concurrent `bump` is safe either way: one that rolls the row first
+ * moves `window_start` past the predicate, which Postgres re-checks before it
+ * deletes; one that arrives after inserts a fresh row.
+ *
+ * **Per policy, not by one age cutoff**, because a row only says when its
+ * window started, not how long it lasts — that lives on the policy. A single
+ * "older than a day" rule would be wrong the day a policy with a longer window
+ * appears: it would delete live counters, and a deleted counter is a reset
+ * one. A policy nobody passes here is simply never swept, which is how every
+ * row behaved before this existed.
+ */
+export async function sweepExpiredCounters(
+  policies: readonly QuotaPolicy[],
+  now: Date = new Date(),
+  database: Db = db,
+): Promise<void> {
+  for (const policy of policies) {
+    await database
+      .delete(rateLimitCounters)
+      .where(
+        and(
+          // `starts_with`, not LIKE: a policy name is not a pattern, and the
+          // colon keeps "ai-hourly" from reaching "ai-hourly-something".
+          sql`starts_with(${rateLimitCounters.bucket}, ${`${policy.name}:`})`,
+          // A window [start, start + windowMs) has ended once `now` reaches its end.
+          lte(rateLimitCounters.windowStart, new Date(now.getTime() - policy.windowMs)),
+        ),
+      );
+  }
 }

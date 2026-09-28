@@ -29,7 +29,7 @@ import { getTripDetail } from "./projections";
 export async function readInviteLanding(
   token: string,
   viewerId: string | null,
-): Promise<{ status: number; landing: InviteLanding }> {
+): Promise<{ status: number; landing: InviteLanding; crew?: CrewMember[] }> {
   const signedIn = viewerId !== null;
   const invite = await inviteByToken(token);
   if (invite === null) {
@@ -73,8 +73,17 @@ export async function readInviteLanding(
 
   const names = await namesFor([invite.invitedBy, ...members.map((m) => m.userId)]);
   const plan = summarizePlan(detail);
+  // First names (SPEC §35.6). Kept with their ids beside the landing, never in
+  // it: the contract carries names only, and the link-preview card needs the
+  // ids to leave the inviter out of its "with …" line.
+  const crew = members.map((m) => ({
+    userId: m.userId,
+    firstName: firstNameOf(names(m.userId)),
+    isInviter: m.userId === invite.invitedBy,
+  }));
   return {
     status: 200,
+    crew,
     landing: {
       state: "valid",
       signedIn,
@@ -92,11 +101,13 @@ export async function readInviteLanding(
       },
       days: plan.days,
       legs: plan.legs,
-      // First names (SPEC §35.6).
-      crew: members.map((m) => firstNameOf(names(m.userId))),
+      crew: crew.map((m) => m.firstName),
     },
   };
 }
+
+/** One person on the trip, as a pending invite's landing names them. Server-side only. */
+export type CrewMember = { userId: string; firstName: string; isInviter: boolean };
 
 function unavailable(
   status: number,

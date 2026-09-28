@@ -1,7 +1,15 @@
 import { InviteLandingScreen } from "@/components/access/InviteLandingScreen";
 import { isGoogleSignInAvailable } from "@/lib/googleAuth";
+import { linkPreviewMetadata } from "@/lib/linkPreview";
 
-export const metadata = { title: "You're invited" };
+// The link's own preview card (spec 2026-09-27 §2): the inviter's first name
+// and the trip for a pending invite, the generic invitation for anything else.
+// The route decides which; this only points at it.
+/** Metadata for `/invite/<token>`: the invite card, or the plain title if its lookup fails. */
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  return linkPreviewMetadata(`/api/og/invite/${encodeURIComponent(token)}`, { title: "You're invited" });
+}
 
 // Under `(front)`, not `(app)`, since M27 link 6: an invite link is opened by
 // people who may have no account, and the landing (SPEC §35.6) has to tell

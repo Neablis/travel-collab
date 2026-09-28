@@ -21,6 +21,15 @@ export const serverConfig = {
   // NEVER a user's. Unset, `getForecast()` throws, as `getGeocoder()` does
   // without its key.
   externalDataContact: process.env.EXTERNAL_DATA_CONTACT ?? "",
+  // The cache's store (ADR-059): `upstash` | `memory` | `off`, blank for auto
+  // (Upstash with both credentials below, memory without). Resolved, with its
+  // fallbacks, by `resolveCacheDriver` in `server/cache/redis.ts`.
+  cacheDriver: process.env.CACHE_DRIVER ?? "",
+  // The shared Upstash Redis (ADR-059), REST pair only. Optional. Vercel's
+  // Marketplace integration sets both on Preview and Production, alongside
+  // KV_URL / REDIS_URL / the read-only token, which nothing here reads.
+  kvRestApiUrl: process.env.KV_REST_API_URL ?? "",
+  kvRestApiToken: process.env.KV_REST_API_TOKEN ?? "",
   aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY ?? "",
   aiModel: process.env.AI_MODEL ?? DEFAULT_AI_MODEL,
   // The pre-turn intent classifier's model (askIntent.ts). Falls through to

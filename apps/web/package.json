@@ -30,6 +30,8 @@
     "db:reseed": "pnpm db:reset --yes && pnpm db:seed && pnpm content:import",
     "content:import": "node --env-file-if-exists=.env.local scripts/import-content.ts",
     "content:verify": "node scripts/import-content.ts --dry-run",
+    "og:tokens": "node scripts/generate-og-tokens.mjs",
+    "og:verify": "node scripts/generate-og-tokens.mjs --check",
     "openapi:generate": "UPDATE_OPENAPI=1 vitest run -c vitest.unit.config.ts src/server/public-api/openapi.test.ts"
   },
   "dependencies": {
@@ -52,6 +54,7 @@
     "@tiptap/pm": "^2.11.0",
     "@tiptap/react": "^2.11.0",
     "@tiptap/starter-kit": "^2.11.0",
+    "@upstash/redis": "^1.39.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "ai": "^7.0.84",
