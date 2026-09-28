@@ -782,17 +782,21 @@ test.describe("responsive (trip header on a phone)", () => {
 test.describe("responsive (narrow viewport, signed out)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("the landing feature cards stack below 1024px and sit in a row above it", async ({ page }) => {
+  test("the landing feature cards stack below 1024px and sit two by two above it", async ({ page }) => {
     // Measures the CARD ROOTS, not the eyebrow text inside them, and throws
     // rather than substituting a sentinel when a box is missing. The first
-    // version of this mapped a missing box to -1, which made the 900px
+    // version of this mapped a missing box to -1, which made the stacked
     // assertion (`new Set(xs).size === 1`) pass on [-1, -1, -1] — green whether
     // or not the cards rendered at all (CodeRabbit, PR #58). Both axes are
-    // asserted too: three cards drawn on top of each other share an x and would
-    // otherwise satisfy the row check.
+    // asserted too: cards drawn on top of each other share an x and a y and
+    // would otherwise satisfy either check alone.
+    //
+    // Four cards in page order since the 2026-09-28 retro (DRIFT D21), and the
+    // order is asserted rather than sorted away: Playbooks leading is the
+    // retro's whole argument.
     const cardBoxes = async () => {
       const boxes = await page.evaluate(() => {
-        return ["Together", "Notebook", "Playbooks"].map((eyebrow) => {
+        return ["Playbooks", "Together", "Countdown", "Notebook"].map((eyebrow) => {
           const span = Array.from(document.querySelectorAll("span")).find(
             (el) => el.textContent?.trim() === eyebrow,
           );
@@ -806,41 +810,42 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       });
       const found = boxes.filter((b) => b !== null);
       // eslint-disable-next-line playwright/no-conditional-in-test -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-      if (found.length !== 3) {
-        throw new Error(`expected 3 landing feature cards, measured ${found.length}`);
+      if (found.length !== 4) {
+        throw new Error(`expected 4 landing feature cards, measured ${found.length}`);
       }
       return found as { x: number; y: number; width: number }[];
     };
 
-    // 900px: one column — same x, strictly increasing y, and each card wider
-    // than a single column of the three-up layout would be.
+    // 900px: one column — same x, y strictly increasing in page order, and
+    // each card wider than a column of the two-up layout.
     await page.setViewportSize({ width: 900, height: 900 });
     await page.goto("/welcome");
     const stacked = await cardBoxes();
     expect(new Set(stacked.map((b) => b.x)).size).toBe(1);
     const stackedY = stacked.map((b) => b.y);
     expect(stackedY).toEqual([...stackedY].sort((a, b) => a - b));
-    expect(new Set(stackedY).size).toBe(3);
+    expect(new Set(stackedY).size).toBe(4);
 
-    // 1280px: three columns — shared y, strictly increasing x. Below the lg
-    // breakpoint the borrowed Day 2 card is ~51px wide and its stop rows cannot
-    // render, which is why this grid is lg: and not md: (CodeRabbit, #58).
+    // 1280px: two by two — Playbooks and Together on the first row, Countdown
+    // and Notebook on the second, left column before right. Below the lg
+    // breakpoint the borrowed Day 2 card has no room for its stop rows, which
+    // is why this grid is lg: and not md: (CodeRabbit, #58).
     await page.setViewportSize({ width: 1280, height: 900 });
-    const row = await cardBoxes();
+    const [playbooks, together, countdown, notebook] = await cardBoxes();
 
-    // The 900px comment above claims each card is "wider than a single column
-    // of the three-up layout would be" — this is the line that makes that true
-    // rather than aspirational. Without it the helper returned `width` and
-    // nothing read it, so a width regression passed (CodeRabbit, PR #58).
-    // Narrowest stacked card vs widest three-up card: ~844 vs ~368.
+    // The 900px comment claims each stacked card is wider than a two-up
+    // column — this is the line that makes that true rather than aspirational
+    // (CodeRabbit, PR #58). Narrowest stacked vs widest two-up: ~844 vs ~560.
     expect(Math.min(...stacked.map((b) => b.width))).toBeGreaterThan(
-      Math.max(...row.map((b) => b.width)),
+      Math.max(playbooks!.width, together!.width, countdown!.width, notebook!.width),
     );
 
-    expect(new Set(row.map((b) => b.y)).size).toBe(1);
-    const rowX = row.map((b) => b.x);
-    expect(new Set(rowX).size).toBe(3);
-    expect(rowX).toEqual([...rowX].sort((a, b) => a - b));
+    expect(together!.y).toBe(playbooks!.y);
+    expect(notebook!.y).toBe(countdown!.y);
+    expect(countdown!.y).toBeGreaterThan(playbooks!.y);
+    expect(countdown!.x).toBe(playbooks!.x);
+    expect(notebook!.x).toBe(together!.x);
+    expect(together!.x).toBeGreaterThan(playbooks!.x);
   });
 
   // Every visible piece of the hero art must sit inside the viewport at phone
