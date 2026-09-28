@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
 import type { ActivityTag, ActivityView } from "@tc/contracts";
@@ -9,8 +9,6 @@ import type { Overlap } from "@/components/lenses/overlapData";
 import { Button } from "@/components/ui/button";
 import { type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
-import { Text } from "@/components/ui/text";
-import { ActivityCard } from "./ActivityCard";
 import { DayRiver, type RiverGestures } from "./DayRiver";
 import type { RiverAxis } from "./riverLayout";
 
@@ -43,6 +41,10 @@ export const DAY_COLUMN_WIDTH_PX = 268;
 // unscheduled pool moved out of the board entirely, into the Unscheduled
 // drawer, so `dayId` is always a real day and the old full-width/backlog
 // variant — plus its `fullWidth` and `children` props — is gone.
+/**
+ * One day of the Plan: its header (with the "N any time" chip when the day
+ * has untimed stops) over its time river.
+ */
 export function Column({
   title,
   dayId,
@@ -67,8 +69,15 @@ export function Column({
   fullWidth = false,
   keepFlag,
   gestures,
+  onRevealAnyTime,
 }: {
   title: string;
+  /**
+   * Opens the Unscheduled rack on this day's untimed stops — the "N any time"
+   * chip's click. Given on a read-only board too: showing a reader where the
+   * stops are is not a write. Without it the chip is still drawn, as text.
+   */
+  onRevealAnyTime?: () => void;
   /**
    * **Take the whole width instead of the desktop's 268px** — M26 link 13.
    *
@@ -144,10 +153,11 @@ export function Column({
   gestures?: RiverGestures;
 }) {
   // **The whole column is the drop target** (M29 part 2). It was the card
-  // list, which filled the column below the header; now the column is a shelf
-  // and a river, and a stop dragged over either — or over a river block, which
-  // is not a drop target of its own (RiverBlock) — means "this day". Part 3
-  // nests the river's own target inside it, which adds "at this time".
+  // list, which filled the column below the header; now the column is a
+  // header and a river, and a stop dragged over either — or over a river
+  // block, which is not a drop target of its own (RiverBlock) — means "this
+  // day". Part 3 nests the river's own target inside it, which adds "at this
+  // time"; PR #269 nests the "any time" chip, which adds "at no time".
   const [section, setSection] = useState<HTMLElement | null>(null);
   const sectionRef = useCallback(
     (node: HTMLElement | null) => {
@@ -156,23 +166,24 @@ export function Column({
     },
     [columnRef],
   );
-  // Whether this column itself — not one of its untimed cards — is the
-  // innermost drop target. ActivityCard's own top/bottom edge line covers
-  // every case where a card *is* the innermost target; this covers what's
-  // left, which is exactly where resolveDrop.ts's "dropped on a column"
+  // Whether this column itself — not its river or its chip — is the innermost
+  // drop target, which is exactly where resolveDrop.ts's "dropped on a column"
   // branch fires. No hover tint on the column itself (Task 3.3).
   const [isOver, setIsOver] = useState(false);
 
-  // Untimed stops cannot sit on an axis, so they get the "Any time" shelf
-  // above it; everything with a window goes on the river. List order is kept
-  // on the shelf — it is the only order an untimed stop has. The same on a
-  // phone as on a desktop, since the phone got the river too (M29 phone).
-  const shelf = useMemo(
+  // **Untimed stops are counted here and drawn in the rack** (PR #269). They
+  // had an "Any time" shelf above the river, and Mitchell, on the preview:
+  // *"I dont like this 'Any time' section … Right now they stack up and push
+  // everything down in the ui making all the other days worse"* — the shelf
+  // was a row every column shared, so one day's three untimed stops pushed
+  // every day's 09:00 down with it. The stops keep their day; the Unscheduled
+  // rack draws them under it, and this column keeps only a pointer to them.
+  const anyTimeCount = useMemo(
     () =>
-      activityIds.flatMap((id) => {
+      activityIds.filter((id) => {
         const activity = activities[id];
-        return activity && !activity.timeWindow ? [activity] : [];
-      }),
+        return activity !== undefined && !activity.timeWindow;
+      }).length,
     [activityIds, activities],
   );
 
@@ -203,12 +214,13 @@ export function Column({
       // the family so that layer has something to colour it with.
       data-city-accent={accent}
       className={cn(
-        // `row-span-3 grid-rows-subgrid`: on the desktop row every column
-        // shares the row's three tracks (globals.css `.day-columns-row`), so
-        // shelves of different heights still start every river at the same
-        // height. On a phone the parent is not a grid, `subgrid` falls back
-        // to ordinary rows, and the column simply stacks.
-        "row-span-3 grid min-h-44 grid-rows-subgrid gap-y-2 rounded-2xl p-2",
+        // `row-span-2 grid-rows-subgrid`: on the desktop row every column
+        // shares the row's two tracks (globals.css `.day-columns-row`), so a
+        // header that wraps to a second line — a long date, the "any time"
+        // chip — still starts every river at the same height. On a phone the
+        // parent is not a grid, `subgrid` falls back to ordinary rows, and the
+        // column simply stacks.
+        "row-span-2 grid min-h-44 grid-rows-subgrid gap-y-2 rounded-2xl p-2",
         // **`shrink-0` only while there is a row to shrink in** (M26 link 13).
         // A phone renders ONE column and it takes the width; keeping
         // `shrink-0` there would be harmless and keeping the 268px would not,
@@ -255,96 +267,75 @@ export function Column({
           which is under the sticky header stack — the class's scroll margin is
           what makes it land just below it instead (globals.css,
           KI-2026-09-13-a). */}
-      <header data-day-header className="day-sync-target flex items-baseline justify-between">
-        {/* Mitchell, preview feedback on PR #55: "You should also be able to
-            select the day here, and it syncs to the day card above." The chips
-            row was the only way to focus a day; the column you are already
-            looking at is the more obvious place to click. Same call as the
-            chip's, same `aria-pressed`, and — since M16 Wave 2 gave the chips
-            a toggle-off — the same toggle-off, because matching the chips
-            beats inventing a second selection idiom on the same state. It
-            reports WHETHER it is clearing rather than what to focus, so the
-            index stays where it already lived (Board.tsx). */}
-        {onSelect ? (
-          <Button
-            variant="ghost"
-            onClick={() => onSelect(isFocused)}
-            aria-pressed={isFocused}
-            className="h-auto p-0 text-sm font-semibold text-ink hover:bg-transparent hover:underline"
-          >
-            {title}
-          </Button>
-        ) : (
-          <span className="text-sm font-semibold text-ink">{title}</span>
-        )}
-        {/* The day header's own controls, in the order the design draws them:
-            keep this day, then remove it. Wrapped rather than left as two
-            siblings of the title, so `justify-between` keeps meaning "title at
-            one end, controls at the other" whether one, both or neither is
-            given. `items-center` inside a `items-baseline` header because the
-            pennant is a 30px circle with no text baseline to sit on. */}
-        <span className="flex items-center gap-1">
-          {keepFlag}
-          {onRemoveDay && (
-            <Button variant="ghost" size="icon" onClick={onRemoveDay} aria-label={`Remove ${title}`}>
-              <X className="size-3.5" aria-hidden />
-            </Button>
-          )}
-        </span>
-      </header>
-      {/* **The "Any time" shelf** (M29 part 2). A stop with no time cannot sit
-          on a to-scale axis, and it must not vanish either (M29's gate: "an
-          untimed stop is visible"). So it keeps the card it always had, on a
-          shelf above the river — above rather than below, because below would
-          put it under 600-odd pixels of day. The shelf is always rendered,
-          empty or not: it is the second of the three rows every column shares,
-          and a column that skipped it would shift its river up a row.
-
-          **A phone gets the river too** (M29 phone). Until 2026-09-26 it kept
+      {/* One grid item for the first of the two rows every column shares: the
+          header, and the "this day" drop line under it. */}
+      <div className="flex min-w-0 flex-col gap-1">
+        <header data-day-header className="day-sync-target flex items-baseline justify-between gap-1">
+          {/* The title and the day's "any time" chip, together at the start of
+              the header, so `justify-between` keeps meaning "the day at one
+              end, its controls at the other". */}
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+            {/* Mitchell, preview feedback on PR #55: "You should also be able to
+                select the day here, and it syncs to the day card above." The chips
+                row was the only way to focus a day; the column you are already
+                looking at is the more obvious place to click. Same call as the
+                chip's, same `aria-pressed`, and — since M16 Wave 2 gave the chips
+                a toggle-off — the same toggle-off, because matching the chips
+                beats inventing a second selection idiom on the same state. It
+                reports WHETHER it is clearing rather than what to focus, so the
+                index stays where it already lived (Board.tsx). */}
+            {onSelect ? (
+              <Button
+                variant="ghost"
+                onClick={() => onSelect(isFocused)}
+                aria-pressed={isFocused}
+                className="h-auto p-0 text-sm font-semibold text-ink hover:bg-transparent hover:underline"
+              >
+                {title}
+              </Button>
+            ) : (
+              <span className="text-sm font-semibold text-ink">{title}</span>
+            )}
+            <AnyTimeChip
+              count={anyTimeCount}
+              title={title}
+              dayId={dayId}
+              onReveal={onRevealAnyTime}
+              droppable={gestures !== undefined}
+            />
+          </span>
+          {/* The day header's own controls, in the order the design draws them:
+              keep this day, then remove it. Wrapped rather than left as two
+              siblings of the title, so `justify-between` keeps meaning "title at
+              one end, controls at the other" whether one, both or neither is
+              given. `items-center` inside a `items-baseline` header because the
+              pennant is a 30px circle with no text baseline to sit on. */}
+          <span className="flex shrink-0 items-center gap-1">
+            {keepFlag}
+            {onRemoveDay && (
+              <Button variant="ghost" size="icon" onClick={onRemoveDay} aria-label={`Remove ${title}`}>
+                <X className="size-3.5" aria-hidden />
+              </Button>
+            )}
+          </span>
+        </header>
+        {/* The "this day" half of the drop feedback: shown only while the
+            column itself — not its river, not its chip — is the innermost drop
+            target. Over the river, the river is (M29 part 3) and draws its own
+            outline at the pointer's time; over the chip, the chip lights up.
+            This is the rest of the column, where a dropped stop keeps its time:
+            a timed one lands on the river at that time and an untimed one stays
+            untimed, in the rack under this day. (A day-less stop with no time
+            off the rack is given a fitted time, `rackDropWindow`.) */}
+        {isOver && <span aria-hidden className="h-0.5 rounded-full bg-brand" />}
+      </div>
+      {/* **A phone gets the river too** (M29 phone). Until 2026-09-26 it kept
           a card per stop, because the design's phone Plan is a card list
           (`phoneStops`, `…Redesign.dc.html:863`). Mitchell, that day: *"cards
           should get the river, we might need to think through the gestures,
           but keep functionality as similar as possible."* So the phone's one
-          day is this same shelf above this same river, and its gestures are
-          DayRiver's touch versions. */}
-      <div className="flex min-w-0 flex-col gap-1">
-        {shelf.length > 0 && (
-          <>
-            <Text variant="muted" as="span" className="px-1 font-semibold">
-              Any time
-            </Text>
-            <ul aria-label={`${title}, any time`} className="m-0 list-none p-0">
-              {shelf.map((activity) => (
-                <ActivityCard
-                  key={activity.activityId}
-                  activity={activity}
-                  dayId={dayId}
-                  hasConflict={conflictIds.has(activity.activityId)}
-                  // An untimed stop cannot overlap anything.
-                  overlap={null}
-                  currency={currency}
-                  onEdit={() => onEditActivity(activity.activityId)}
-                  onRemove={() => onRemoveActivity(activity.activityId)}
-                  onDismissOverlap={onDismissOverlap}
-                  focusedTag={focusedTag}
-                  onToggleTag={onToggleTag}
-                  readOnly={readOnly}
-                />
-              ))}
-            </ul>
-          </>
-        )}
-        {/* The "this day" half of the drop feedback: shown only while the
-            column itself, not one of its cards, is the innermost drop target.
-            Over the river, the river is (M29 part 3) and draws its own outline
-            at the pointer's time; this is everywhere else in the column, where
-            a dropped stop keeps its time, so a timed one lands on the river at
-            that time and an untimed one at the end of this shelf — which is
-            where this line sits. (An untimed stop off the rack dropped here is
-            given a fitted time, `rackDropWindow`.) Over the river, a stop off
-            the rack lands at the river's time like any other (`placeWindow`). */}
-        {isOver && <span aria-hidden className="h-0.5 rounded-full bg-brand" />}
-      </div>
+          day is this same header over this same river, "any time" chip
+          included, and its gestures are DayRiver's touch versions. */}
       <DayRiver
         title={title}
         dayId={dayId}
@@ -365,5 +356,79 @@ export function Column({
         gestures={gestures}
       />
     </section>
+  );
+}
+
+/**
+ * The day header's pointer to its untimed stops, which the Unscheduled rack
+ * draws (PR #269): "2 any time", a button that opens the rack on this day's
+ * group. On an editable board it is also a drop target — a stop dropped on it
+ * stays on (or moves to) this day with its time cleared (`resolveDrop`'s
+ * `anyTime`). A day with none draws nothing, except during a drag, when an
+ * empty "Any time" target stands in so any day can take one.
+ */
+function AnyTimeChip({
+  count,
+  title,
+  dayId,
+  onReveal,
+  droppable,
+}: {
+  count: number;
+  title: string;
+  dayId: string;
+  onReveal?: () => void;
+  droppable: boolean;
+}) {
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [isOver, setIsOver] = useState(false);
+
+  // Any drag on the board, not only one over this column: the empty target
+  // has to be there before the pointer reaches it. Registered only where a
+  // drop could land, so a read-only board neither listens nor offers one.
+  useEffect(() => {
+    if (!droppable) return;
+    return monitorForElements({
+      onDragStart: () => setDragging(true),
+      onDrop: () => setDragging(false),
+    });
+  }, [droppable]);
+
+  useEffect(() => {
+    if (!droppable || element === null) return;
+    return dropTargetForElements({
+      element,
+      canDrop: ({ source }) => typeof source.data.activityId === "string",
+      getData: () => ({ dayId, anyTime: true }),
+      onDragEnter: () => setIsOver(true),
+      onDragLeave: () => setIsOver(false),
+      onDrop: () => setIsOver(false),
+    });
+  }, [droppable, element, dayId]);
+
+  if (count === 0 && !dragging) return null;
+  // The visible words lead the accessible name, so a voice user can say what
+  // they see; the day follows because every column draws one of these.
+  const label = count === 0 ? "Any time" : `${count} any time`;
+  const look = cn(
+    "rounded-full border px-2 py-0.5 text-xs font-medium text-slate transition-colors",
+    count === 0 ? "border-dashed border-border-strong" : "border-hairline bg-surface",
+    isOver && "border-brand bg-brand-tint text-ink",
+  );
+  return onReveal !== undefined && count > 0 ? (
+    <Button
+      ref={setElement}
+      variant="ghost"
+      onClick={onReveal}
+      aria-label={`${label} on ${title}, in Unscheduled`}
+      className={cn("h-auto", look)}
+    >
+      {label}
+    </Button>
+  ) : (
+    <span ref={setElement} className={look}>
+      {label}
+    </span>
   );
 }

@@ -11,9 +11,17 @@ export type DropOutcome =
    * `timeWindow: null` when it already has that window — but never both, which
    * is a no-op and resolves to `null` instead.
    */
-  | { kind: "place"; activityId: string; toDayId: string; position: number | null; timeWindow: TimeWindow | null };
+  | { kind: "place"; activityId: string; toDayId: string; position: number | null; timeWindow: TimeWindow | null }
+  /**
+   * A drop on a day's "any time" chip (PR #269): the stop goes to that day
+   * with NO time. Same halves as `place` — `position: null` when it is already
+   * on the day, `clearTime: false` when it already has no window — and never
+   * both, which resolves to `null`.
+   */
+  | { kind: "anyTime"; activityId: string; toDayId: string; position: number | null; clearTime: boolean };
 
 export type PlaceOutcome = Extract<DropOutcome, { kind: "place" }>;
+export type AnyTimeOutcome = Extract<DropOutcome, { kind: "anyTime" }>;
 
 function listFor(trip: TripDetail, dayId: string | null): string[] {
   return dayId === null
@@ -52,13 +60,28 @@ export function resolveDrop(
 
   // The rack check comes first on purpose: a drop on the unscheduled drawer
   // means "take this off the schedule" no matter what else the target carries.
-  if (targetData.rack === true) return { kind: "unschedule", activityId };
+  //
+  // **Except for a stop the rack is already showing as its day's.** An untimed
+  // stop on a day is drawn in the rack now, under its day (PR #269), and the
+  // rack is the only place it can be picked up from — so a drag of one that
+  // ends on the rack is a card put back where it was found. Unscheduling it
+  // there would strip its day and move it to the front of the drawer: the "put
+  // it back and watch it jump" defect the column branch below exists for
+  // (Mitchell, PR #55). It keeps its day; a drop on another day's chip or
+  // river is how it goes elsewhere.
+  if (targetData.rack === true) {
+    if (isAnyTimeOnADay(trip, activityId)) return null;
+    return { kind: "unschedule", activityId };
+  }
 
   const toDayId = typeof targetData.dayId === "string" ? targetData.dayId : null;
 
+  // A day's "any time" chip (Column's header): this day, no time.
+  if (toDayId !== null && targetData.anyTime === true) return keepAnyTime(trip, activityId, toDayId);
+
   // A day's river says WHEN as well as which day (DayRiver's drop target), and
   // it says it the same way whatever was dragged — a block from this day or
-  // another, a card off the "Any time" shelf, a stop off the rack (Mitchell,
+  // another, a card off the rack, parked or waiting under its day (Mitchell,
   // 2026-09-26: "When dragging and dropping from anywhere, it should have same
   // functionality"). The window was worked out by the river (`placeWindow`);
   // there is no per-source branch here. `rackDropWindow`'s fitted time is only
@@ -123,6 +146,40 @@ export function placeCommands(tripId: string, { activityId, toDayId, position, t
   if (position !== null) commands.push({ type: "MoveActivity", tripId, activityId, toDayId, position });
   if (timeWindow !== null) commands.push({ type: "UpdateActivity", tripId, activityId, timeWindow });
   return commands;
+}
+
+/**
+ * An `anyTime` outcome as the commands that carry it out, for ONE batch — the
+ * same reasoning as `placeCommands`: one gesture, one undo. Move first, so the
+ * cleared window is the stop's on the day it lands on.
+ */
+export function anyTimeCommands(tripId: string, { activityId, toDayId, position, clearTime }: AnyTimeOutcome): BatchableCommand[] {
+  const commands: BatchableCommand[] = [];
+  if (position !== null) commands.push({ type: "MoveActivity", tripId, activityId, toDayId, position });
+  if (clearTime) commands.push({ type: "UpdateActivity", tripId, activityId, timeWindow: null });
+  return commands;
+}
+
+/** Whether a stop sits on a day with no time — what the rack shows under that day. */
+function isAnyTimeOnADay(trip: TripDetail, activityId: string): boolean {
+  return containerOf(trip, activityId) !== null && trip.activities[activityId]?.timeWindow == null;
+}
+
+/**
+ * A drop on a day's "any time" chip, as the smallest change that gets there.
+ *
+ * Appended to the day's list: an untimed stop has no clock to be ordered by,
+ * and the end is where the old "Any time" shelf put one dropped on its column.
+ * On its own day it does not move at all (a MoveActivity that changes nothing
+ * still costs an undo step), and an untimed stop dropped on its own day's chip
+ * changes nothing and resolves to `null`.
+ */
+function keepAnyTime(trip: TripDetail, activityId: string, toDayId: string): DropOutcome | null {
+  const clearTime = trip.activities[activityId]?.timeWindow != null;
+  const sameDay = containerOf(trip, activityId) === toDayId;
+  if (sameDay && !clearTime) return null;
+  const position = sameDay ? null : listFor(trip, toDayId).filter((id) => id !== activityId).length;
+  return { kind: "anyTime", activityId, toDayId, position, clearTime };
 }
 
 /**

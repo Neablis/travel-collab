@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { attachClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { tripDetailFixture } from "@tc/factories";
-import { placeCommands, resolveDrop } from "./resolveDrop";
+import { anyTimeCommands, placeCommands, resolveDrop } from "./resolveDrop";
 
 const A1 = "a1";
 const A2 = "a2";
@@ -78,9 +78,17 @@ function edgeData(edge: "top" | "bottom"): Record<string | symbol, unknown> {
 const topEdge = () => edgeData("top");
 const bottomEdge = () => edgeData("bottom");
 
+// The same trip with a1 given a time. The rack unschedules a stop that is on
+// the schedule — a timed one; an untimed one on a day is already drawn in the
+// rack (PR #269), and its own describe below covers it.
+const timedA1 = tripDetailFixture({
+  ...trip,
+  activities: { ...trip.activities, [A1]: { ...trip.activities[A1]!, timeWindow: { start: "09:00", end: "10:00" } } },
+});
+
 describe("resolveDrop", () => {
   it("routes a drop on the rack to unschedule", () => {
-    expect(resolveDrop(trip, { activityId: A1 }, { rack: true })).toEqual({
+    expect(resolveDrop(timedA1, { activityId: A1 }, { rack: true })).toEqual({
       kind: "unschedule",
       activityId: A1,
     });
@@ -170,9 +178,66 @@ describe("resolveDrop", () => {
   it("prefers the rack over a day id on the same target", () => {
     // Guards the branch order: the rack check must come first, so a rack
     // target that also carries a stale dayId still unschedules.
-    expect(resolveDrop(trip, { activityId: A1 }, { rack: true, dayId: DAY_1 })).toMatchObject({
+    expect(resolveDrop(timedA1, { activityId: A1 }, { rack: true, dayId: DAY_1 })).toMatchObject({
       kind: "unschedule",
     });
+  });
+});
+
+// PR #269: a day's untimed stops are drawn in the Unscheduled rack under their
+// day, and a day column's "any time" chip is a drop target meaning "this day,
+// no time" — the gesture the old "Any time" shelf's column drop was.
+describe("resolveDrop and a day's untimed stops", () => {
+  const chip = (dayId: string) => ({ dayId, anyTime: true });
+
+  it("takes a timed stop's time away when it is dropped on its own day's chip, and moves nothing", () => {
+    expect(resolveDrop(timedA1, { activityId: A1 }, chip(DAY_1))).toEqual({
+      kind: "anyTime",
+      activityId: A1,
+      toDayId: DAY_1,
+      position: null,
+      clearTime: true,
+    });
+  });
+
+  it("moves a timed stop to the end of another day and takes its time away, as one batch", () => {
+    const outcome = resolveDrop(timedA1, { activityId: A1 }, chip(DAY_2));
+    expect(outcome).toEqual({ kind: "anyTime", activityId: A1, toDayId: DAY_2, position: 1, clearTime: true });
+    expect(outcome?.kind === "anyTime" && anyTimeCommands("t", outcome)).toEqual([
+      { type: "MoveActivity", tripId: "t", activityId: A1, toDayId: DAY_2, position: 1 },
+      { type: "UpdateActivity", tripId: "t", activityId: A1, timeWindow: null },
+    ]);
+  });
+
+  it("only moves an untimed stop dropped on another day's chip — it has no time to clear", () => {
+    const outcome = resolveDrop(trip, { activityId: A1 }, chip(DAY_2));
+    expect(outcome).toEqual({ kind: "anyTime", activityId: A1, toDayId: DAY_2, position: 1, clearTime: false });
+    expect(outcome?.kind === "anyTime" && anyTimeCommands("t", outcome)).toEqual([
+      { type: "MoveActivity", tripId: "t", activityId: A1, toDayId: DAY_2, position: 1 },
+    ]);
+  });
+
+  it("gives a parked stop a day and no time", () => {
+    const parked = tripDetailFixture({ ...timedA1, days: [{ dayId: DAY_1, activityIds: [A2], date: null, costSubtotal: 0 }], backlog: [A1] });
+    expect(resolveDrop(parked, { activityId: A1 }, chip(DAY_1))).toEqual({
+      kind: "anyTime",
+      activityId: A1,
+      toDayId: DAY_1,
+      position: 1,
+      clearTime: true,
+    });
+  });
+
+  it("is a no-op for an untimed stop dropped on its own day's chip", () => {
+    expect(resolveDrop(trip, { activityId: A1 }, chip(DAY_1))).toBeNull();
+  });
+
+  // The rack is the only place such a stop can be picked up from, so a drag
+  // that ends on the rack is a card put back where it was. Unscheduling it
+  // would strip its day and jump it to the front of the drawer (Mitchell's
+  // "put it back and it moves" report on PR #55, in a new place).
+  it("is a no-op for an untimed stop on a day dropped back on the rack", () => {
+    expect(resolveDrop(trip, { activityId: A1 }, { rack: true })).toBeNull();
   });
 });
 

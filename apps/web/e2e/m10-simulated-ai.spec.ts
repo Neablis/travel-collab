@@ -108,16 +108,29 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   expect(applied.status()).toBe(200);
 
   // The assertion M10's gate once made, restored: the plan is on the board.
-  await expect(board.getByText("Sample: coffee stop")).toBeVisible();
-  await expect(board.getByText("Sample: evening stroll")).toBeVisible();
+  //
+  // **On day 1, in the Unscheduled rack** (PR #269). The simulated plan's
+  // stops carry no time, and an untimed stop keeps its day but is drawn in
+  // the rack under that day, not in the column — the column counts them on
+  // its "any time" chip, which is what opens the rack on them. The rack is
+  // outside `.trip-board-content`, so it is located on its own, and the
+  // proposal card cannot be mistaken for it.
+  const day1 = page.getByTestId("day-column").first();
+  const anyTime = day1.getByRole("button", { name: /^2 any time/ });
+  await expect(anyTime).toBeVisible();
+  await anyTime.click();
+  const day1Group = page.getByTestId("unscheduled-rack").getByRole("group", { name: /^Day 1\b/ });
+  await expect(day1Group.getByText("Sample: coffee stop")).toBeVisible();
+  await expect(day1Group.getByText("Sample: evening stroll")).toBeVisible();
   await expect(card).toContainText("✓ Done — added “Sample: coffee stop” to day 1");
 
   // ONE atomic batch, so ONE undo takes the whole plan back off (ADR-013).
   // Two commands committed separately would need two. Taken from the card
   // itself (M27 D17): it is offered because nothing has changed since.
   await card.getByRole("button", { name: "Undo" }).click();
-  await expect(board.getByText("Sample: coffee stop")).toHaveCount(0);
-  await expect(board.getByText("Sample: evening stroll")).toHaveCount(0);
+  await expect(page.getByTestId("unscheduled-rack").getByText("Sample: coffee stop")).toHaveCount(0);
+  await expect(page.getByTestId("unscheduled-rack").getByText("Sample: evening stroll")).toHaveCount(0);
+  await expect(day1.getByRole("button", { name: /any time/ })).toHaveCount(0);
   await expect(card).toContainText("Put back the way it was.");
 });
 

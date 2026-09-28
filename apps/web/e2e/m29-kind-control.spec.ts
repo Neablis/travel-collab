@@ -107,10 +107,17 @@ test("a card's badge reads To book in amber, Maybe in neutral, or its mode, and 
   // Straight to the URL: below 768px the lens tab strip is hidden.
   await page.goto(`/trips/${tripId}?view=Plan`);
 
+  // **The cards are the Unscheduled rack's** (PR #269). These stops have no
+  // time, and an untimed stop is drawn in the rack under its day now rather
+  // than on an "Any time" shelf in the column — so that is the card whose
+  // badge has to fit, at the rack card's own 208px. The day's chip is what
+  // opens it, as a reader would.
+  await page.getByTestId("day-column").first().getByRole("button", { name: /^3 any time/ }).click();
+
   // Three badges: the planned stop earns none.
   await expect(page.getByTestId(/^kind-badge-/)).toHaveCount(stops.length);
   for (const stop of stops) {
-    const card = page.getByTestId(`activity-card-${stop.activityId}`);
+    const card = page.getByTestId("rack-card").filter({ hasText: stop.title });
     const badge = page.getByTestId(`kind-badge-${stop.activityId}`);
     await expect(card).toContainText(stop.title);
     await expect(badge).toHaveText(stop.label);

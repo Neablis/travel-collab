@@ -31,11 +31,18 @@ test.describe("M26 link 13 — Plan on a phone", () => {
   // available-width measurement (x 165 -> 247).
   const LONG_TITLE = "Kiyomizu-dera temple and the Higashiyama lanes below it";
 
-  // **The stop is untimed, and that is why it is still a card** (M29 phone).
-  // Since 2026-09-26 a phone draws its day as the river, and only a stop with
-  // no time keeps a card, on the "Any time" shelf above it; the measurements
-  // below are of that card. A timed stop is a river block, walked in the M29
-  // describe at the end of this file.
+  // **The stop is a river block, noon to 2 pm** (M29 phone, PR #269). Since
+  // 2026-09-26 a phone draws its day as the river. Until PR #269 this stop was
+  // untimed, because an untimed stop kept a card on an "Any time" shelf above
+  // the river and these measurements were of that card; the shelf is gone and
+  // an untimed stop is drawn in the Unscheduled rack instead. The block is
+  // what the day column draws now, so it is what link 13's width has to
+  // reach: its title row is the same `span.min-w-0` beside a controls span
+  // that the card's was, and by arithmetic (not yet measured) a regression to
+  // the 268px desktop column leaves it ~168px, under the floor below, against
+  // ~258px in a full-width phone column. Two hours
+  // tall, so its edit button is a 44px target by its own height alone, and
+  // clear of the factory's 9–10 am stop, so it has the lane to itself.
   async function planWithALongStop(page: import("@playwright/test").Page) {
     const tripId = await createMappedTrip(page, e2eTripName("PhonePlan"), 3);
     const detail = await (await page.request.get(`/api/trips/${tripId}`)).json();
@@ -46,6 +53,7 @@ test.describe("M26 link 13 — Plan on a phone", () => {
         activityId: crypto.randomUUID(),
         dayId: detail.trip.days[0].dayId,
         title: LONG_TITLE,
+        timeWindow: { start: "12:00", end: "14:00" },
       },
     });
     expect(response.ok()).toBe(true);
