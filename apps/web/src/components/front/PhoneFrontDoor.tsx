@@ -491,7 +491,6 @@ export function PhoneFrontDoor() {
         >
           Look around a real trip
         </Link>
-        <Text variant="muted">Free during early access.</Text>
       </section>
 
       {/* The desktop landing's footer, same four items (see LandingScreen). */}

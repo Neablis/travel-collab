@@ -89,11 +89,11 @@ describe("LandingScreen", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("carries the early-access footnote under the hero and the closing CTA", () => {
+  it("tells the group how they join, under the hero's buttons", () => {
     render(<LandingScreen />);
-    const desktop = within(screen.getByTestId("desktop-landing"));
-    expect(desktop.getByText("Free during early access. Invite the group with a link, nothing to install.")).toBeDefined();
-    expect(desktop.getByText("Free during early access.")).toBeDefined();
+    expect(
+      within(screen.getByTestId("desktop-landing")).getByText("Invite the group with a link, nothing to install."),
+    ).toBeDefined();
   });
 
   it("ends on a footer with the contact address", () => {
@@ -105,12 +105,13 @@ describe("LandingScreen", () => {
     );
   });
 
-  // SPEC §14, copy rules, as the 2026-09-28 retro left them: no "open source",
-  // no "no credit card" — Caesura is a product for groups, not a tool. The
-  // retro reopened "free" deliberately, but only as the early-access footnote:
-  // every "free" on the page must be the start of "Free during early access",
-  // never the pitch. Word-bounded because the Playbooks fixture legitimately
-  // reads "Sunrise, Freedom Beach" (`dc.html:2169`).
+  // SPEC §14, copy rules: no "free", no "open source", no "no credit card" —
+  // Caesura is a product for groups, not a tool. The 2026-09-28 retro put
+  // "Free during early access" on the page and Mitchell took it back off on
+  // the preview ("there will always be a free" tier, so it promised the wrong
+  // thing); this is the guard that keeps it off. Word-bounded because the
+  // Playbooks fixture legitimately reads "Sunrise, Freedom Beach"
+  // (`dc.html:2169`).
   //
   // **Matched per element, not against `container.textContent`.** The whole
   // page's text is its elements' text glued together with no separator, so a
@@ -118,7 +119,7 @@ describe("LandingScreen", () => {
   // "tripFree" — no word boundary, no match. The old form passed with exactly
   // that planted; `queryAllByText` tests each element's own text.
   it.each([
-    ["free, except as the early-access footnote", /\bfree\b(?! during early access)/i],
+    ["free", /\bfree\b/i],
     ["open source", /open[ -]source/i],
     ["no credit card", /credit card/i],
   ])("never sells itself on %s (SPEC §14)", (_label, pattern) => {

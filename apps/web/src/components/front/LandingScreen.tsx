@@ -18,10 +18,11 @@ import { cn } from "@/lib/cn";
 // page, new temperature — it sells the feeling of a day worth reliving and
 // lets the mechanics ride along. The design file still carries the old words.
 //
-// SPEC §14's copy rules, as that retro left them: no "open source", no "no
-// credit card" — Caesura is a product for groups, not a tool. "Free" is back,
-// but only as a footnote on early access ("Free during early access."), never
-// as the pitch; the retro reopened that one rule deliberately.
+// SPEC §14's copy rules hold: no "free", no "open source", no "no credit
+// card" — Caesura is a product for groups, not a tool. The retro briefly put
+// "Free during early access" under the hero and the closing CTA; Mitchell took
+// it back out on the preview (2026-09-28): "there will always be a free" tier,
+// so a line implying free ends with early access promised the wrong thing.
 // `LandingScreen.test.tsx` guards all three.
 //
 // The page runs on nothing (SPEC §14): no session, no fetch, no backend, every
@@ -242,7 +243,7 @@ export function LandingScreen() {
               </div>
 
               <Text as="p" variant="muted">
-                Free during early access. Invite the group with a link, nothing to install.
+                Invite the group with a link, nothing to install.
               </Text>
             </div>
 
@@ -267,26 +268,24 @@ export function LandingScreen() {
                 A trip takes about a minute to set up. Everything after that is easier with company.
               </Text>
             </div>
-            <div className="flex flex-col items-start gap-2">
-              <div className="flex flex-wrap gap-2.5">
-                <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-                  Start a trip
-                </Link>
-                {/* The closing CTA band asks the same thing the hero does
-                    (`dc.html:1880`, `:2211`), so it now goes to the same place.
-                    The two ids this replaced existed only because `Preview`
-                    writes its id to `data-preview-id` and two shells could not
-                    share one; two links to one href have no such problem. */}
-                <Link
-                  href={DEMO_PATH}
-                  className={cn(buttonVariants({ variant: "ghost" }), "no-underline")}
-                >
-                  See a finished one
-                </Link>
-              </div>
-              <Text as="span" variant="muted">
-                Free during early access.
-              </Text>
+            {/* `items-center`: the two buttons sit on the band's vertical
+                centre, level with the heading and body beside them (Mitchell,
+                on the preview). */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
+                Start a trip
+              </Link>
+              {/* The closing CTA band asks the same thing the hero does
+                  (`dc.html:1880`, `:2211`), so it now goes to the same place.
+                  The two ids this replaced existed only because `Preview`
+                  writes its id to `data-preview-id` and two shells could not
+                  share one; two links to one href have no such problem. */}
+              <Link
+                href={DEMO_PATH}
+                className={cn(buttonVariants({ variant: "ghost" }), "no-underline")}
+              >
+                See a finished one
+              </Link>
             </div>
           </div>
         </div>
