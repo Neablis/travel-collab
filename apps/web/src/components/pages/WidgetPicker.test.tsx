@@ -14,9 +14,8 @@ const catalogue = presetCatalog();
 // `getAllByRole("button")` counts them — which silently turned "every widget is
 // listed" into "every widget plus four" the moment filters landed. Scoped to the
 // list so the two cannot be confused again.
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const rows = () => within(screen.getByRole("list")).getAllByRole("button");
-const withInputs = catalogue.find((w) => w.inputs.length > 0)!;
-const withoutInputs = catalogue.find((w) => w.inputs.length === 0)!;
 
 // **The one thing about this surface no rendered assertion can hold.** The kind
 // icons are a picture drawn out of two fills — solid for the shape, faded for
@@ -158,17 +157,29 @@ describe("WidgetPicker", () => {
     expect(shown.some((row) => row.textContent?.includes("What it costs"))).toBe(true);
   });
 
-  // The gate's "a mono line naming what it takes". Under ADR-039 decision 2 a
-  // widget that lands with nothing bound is showing EVERYTHING rather than
-  // waiting, so the line says what you can narrow it by rather than warning
-  // that it wants pointing.
-  it("says what a widget can be narrowed by before it is inserted", () => {
+  // Mitchell, PR #269 preview: *"Remove the 'Takes' part, then go through all
+  // the descriptions and improve them. Make them a real description"*. The row
+  // prints the preset's `summary` — the reader's sentence — and not `preview`,
+  // which for half the rows was a lower-case fragment ("how many there are").
+  // Whether each summary IS a whole sentence is the data's test
+  // (`presets.test.ts`); this holds that the row shows it and not the fragment.
+  it("describes every row in its own sentence, not the preview fragment", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
-    const needsPointing = screen.getByRole("button", { name: new RegExp(withInputs.title) });
-    expect(within(needsPointing).getByText(/^takes /)).toBeTruthy();
+    for (const w of catalogue) {
+      const row = screen.getByRole("button", { name: new RegExp(`^${escapeRegExp(w.title)}`) });
+      expect(within(row).getByText(w.summary)).toBeTruthy();
+      expect(within(row).queryByText(w.preview), `${w.name} still shows its preview`).toBeNull();
+    }
+  });
 
-    const standsAlone = screen.getByRole("button", { name: new RegExp(withoutInputs.title) });
-    expect(within(standsAlone).getByText("takes nothing \u2014 goes straight in")).toBeTruthy();
+  // The sentence under the title is searchable: a word a person just read on a
+  // row has to find it. "photos" is in the sunrise row's summary and in no
+  // title, keyword or description (the keyword is "photo", which a substring
+  // match cannot stretch to "photos").
+  it("finds a preset by a word that appears only in its sentence", async () => {
+    render(<WidgetPicker onPick={vi.fn()} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search widgets" }), "photos");
+    expect(rows().map((row) => row.textContent)).toEqual([expect.stringContaining("Sunrise and sunset")]);
   });
 
   // Named for WHEN you reach for one. "a block" describes the node, which is
