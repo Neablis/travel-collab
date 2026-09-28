@@ -210,3 +210,28 @@ and never crosses the resolver seam (decision 1).
 3. **Grouping in `cost.rows`** — by day is what `costs.table` does today; by city or by tag is
    free from existing projections and would be a second dimension on one primitive rather than
    two more widgets.
+
+## Amendment — 2026-09-28: `dates` holds separate days as well as a run
+
+Decision 7 declared `dates` as a range (`DateRangeRef`), and the days control wrote one. On the
+PR #269 preview Mitchell asked for the control to be *"either drag and select, or click one
+offs"*; with one range stored, a click could only replace the selection, so Day 2 and Day 5
+could not be picked together. Asked whether the stored filter should become a list of days, he
+answered *"Yes go ahead"*.
+
+- **`dates` is `DatesRef`: a `DateRangeRef` or a `DateListRef`** — a list of `YYYY-MM-DD`
+  dates, earliest first, each once, never empty. Both live in `packages/contracts`
+  (`pages.ts`), and `FILTER_VALUE_SCHEMAS.dates` is the union, so every primitive declaring
+  `dates` accepts both with no edit of its own.
+- **Additive, so no document version.** Every stored `dates` is a range and still parses and
+  resolves exactly as it did; nothing is rewritten, so `PAGE_DOC_MIGRATIONS` does not grow
+  (the `headings` / `view` params precedent in the contracts changelog, 2026-09-24).
+- **A run is still stored as a range.** The control writes a list only when the days picked
+  are not one unbroken run of the trip's days, so a document that never needed a gap keeps the
+  spelling it always had.
+- **One predicate reads it.** `datesInclude` in `@tc/pages`' `select.ts` is the only place a
+  day is tested against a `dates` binding, and `datesLabel` beside it is the one wording for
+  it ("Jun 1 – Jun 4", "Jun 2, Jun 5", "5 days"), used by the days control's button and by
+  `cost.breakdown`'s title.
+- The `dates` widget itself names each day of a list rather than printing a span: "Jun 1 –
+  Jun 5" would claim the days between, which is what a list leaves out.

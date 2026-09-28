@@ -990,7 +990,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
         within(screen.getByTestId("widget-settings"))
           .getByRole("button", { name: /What it costs: dates/ })
           .textContent,
-      ).toBe("2027-06-01"),
+      ).toBe("Jun 1"),
     );
 
     // Back to the prose, then Escape — which is how a person leaves a widget:
@@ -1010,7 +1010,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
         within(screen.getByTestId("widget-settings"))
           .getByRole("button", { name: /The days in detail: dates/ })
           .textContent,
-      ).toBe("2027-06-02"),
+      ).toBe("Jun 2"),
     );
 
     // The document holds both, which is the actual claim — and the only place
