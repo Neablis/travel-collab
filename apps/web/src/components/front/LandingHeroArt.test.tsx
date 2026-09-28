@@ -1,7 +1,20 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { setViewportMatches } from "../../../vitest.setup";
 import { LandingHeroArt } from "./LandingHeroArt";
+
+// **The real panels are loaded before any test runs.** The hero `lazy()`-loads
+// `LandingHeroPanels` (the board's river, `@tc/pages`), and in a cold Vitest
+// worker that first import is a transform of the whole module tree: measured
+// at ~1.4s on a 4-core container, against `findBy*`'s 1s default. So the first
+// test to open a Timeline or Notebook view failed every time, in the same
+// place, and every later one passed off the warm module cache. Importing it
+// here makes `lazy()` resolve from that cache, so what these tests measure is
+// what the panels draw, not how fast the machine compiles them. A load that
+// fails is `LandingHeroArt.failed.test.tsx`'s business, not this file's.
+beforeAll(async () => {
+  await import("./LandingHeroPanels");
+});
 
 afterEach(() => {
   cleanup();
