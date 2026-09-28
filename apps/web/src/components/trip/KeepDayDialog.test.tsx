@@ -117,6 +117,24 @@ describe("KeepDayDialog", () => {
     expect(screen.queryByText(/no dates/i)).toBeNull();
   });
 
+  // Mitchell, PR #269 preview: the picker and Keep on the left, "What's
+  // included" and the preview on the right. Stacked, Keep sat below a preview
+  // that grows with every day picked. Document order is the part jsdom can
+  // see: it is the column order at `md`, and the order Tab and a screen reader
+  // follow at every width. (Below `md` CSS alone moves the buttons back under
+  // the preview; jsdom applies no stylesheet, so that half is not tested here.)
+  it("puts Keep with the day picker, ahead of what it will keep", async () => {
+    renderDialog();
+    await openPicker();
+    const grid = screen.getByRole("group", { name: "Days to keep" });
+    const keep = screen.getByRole("button", { name: "Keep this day" });
+    const included = screen.getByText("What's included");
+    const follows = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(grid, keep)).toBe(true);
+    expect(follows(keep, included)).toBe(true);
+    expect(follows(keep, screen.getByTestId("keep-day-preview"))).toBe(true);
+  });
+
   it("copes with a day whose stops have no times", () => {
     renderDialog({ stops: [{ ...stop("Wander", "09:00", "10:00"), timeWindow: null }] });
     expect(screen.getByText("1 stop, in order.")).toBeTruthy();
