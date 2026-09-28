@@ -3,6 +3,7 @@ import {
   type ActivityView,
   type CityRef,
   type DateRangeRef,
+  type DatesRef,
   type DayRef,
   type FILTER_VALUE_SCHEMAS,
   type TripDetail,
@@ -10,6 +11,7 @@ import {
   type TripGlobalsCity,
 } from "@tc/contracts";
 import type { z } from "zod";
+import { formatShortDate } from "./format";
 import { ok, unbound, type MacroResult } from "./result";
 import type { ItemScope } from "./registry-types";
 
@@ -86,12 +88,46 @@ export function dayIndexOf(trip: TripDetail, ref: DayRef | undefined): number | 
   return index === -1 ? null : index;
 }
 
-// Whether a day's date falls inside a bound range. ISO dates compare correctly
-// as strings, which is what `DateRangeRef` says and what `day.window` already
-// relies on for times: no `Date` construction, no timezone, no clock read
-// (Invariant 4).
-const inRange = (date: string | null, range: DateRangeRef): boolean =>
-  date !== null && date >= range.from && date <= range.through;
+// Whether a day's date is one a `dates` binding holds: inside the range, or on
+// the list. ISO dates compare correctly as strings, which is what
+// `DateRangeRef` says and what `day.window` already relies on for times: no
+// `Date` construction, no timezone, no clock read (Invariant 4).
+//
+// The list is separate days — Mitchell's *"Yes go ahead"* to picking Day 2 and
+// Day 5 together (PR #269 preview) — and every reader of `dates` goes through
+// this, so a widget bound to a list shows exactly those days and one bound to
+// a range shows what it always did.
+/** True when `date` is a day the `dates` binding selects; an undated day is in none. */
+export function datesInclude(ref: DatesRef, date: string | null): boolean {
+  if (date === null) return false;
+  if (Array.isArray(ref)) return ref.includes(date);
+  const range: DateRangeRef = ref;
+  return date >= range.from && date <= range.through;
+}
+
+// Past three, a list of dates stops being read and starts being counted, and
+// the places this is written — a filter's button, a chart's title — are one
+// short line.
+const DATES_LISTED_UP_TO = 3;
+
+/**
+ * A `dates` binding as a reader says it: "Jun 1", "Jun 1 – Jun 4",
+ * "Jun 2, Jun 5", or "5 days" for a list too long to read at a glance.
+ *
+ * One wording for the filter's own button and every widget that names what it
+ * is narrowed to, so the two cannot describe the same binding differently.
+ */
+export function datesLabel(ref: DatesRef): string {
+  if (Array.isArray(ref)) {
+    const list: readonly string[] = ref;
+    if (list.length > DATES_LISTED_UP_TO) return `${list.length} days`;
+    return list.map((date) => formatShortDate(date) ?? date).join(", ");
+  }
+  const range: DateRangeRef = ref;
+  const from = formatShortDate(range.from) ?? range.from;
+  const through = formatShortDate(range.through) ?? range.through;
+  return from === through ? from : `${from} – ${through}`;
+}
 
 /**
  * What each dimension narrows in `narrow` — **the line a new dimension cannot
@@ -157,7 +193,7 @@ export function narrow(
   const days: number[] = [];
   for (let index = 0; index < trip.days.length; index++) {
     if (boundDay !== null && index !== boundDay) continue;
-    if (filters.dates && !inRange(trip.days[index]!.date, filters.dates)) continue;
+    if (filters.dates && !datesInclude(filters.dates, trip.days[index]!.date)) continue;
     if (filters.city && !citiesOfDay(index).includes(filters.city)) continue;
     days.push(index);
   }

@@ -133,9 +133,10 @@ const IsoDate = z
   .refine(isCalendarDate, { message: "not a date that exists on the calendar" });
 
 /**
- * A date-range binding. A single date is `from === through`, so the control has
- * one shape rather than two — "All · a single date · a range" is absent, equal
- * endpoints, and different endpoints.
+ * A date-range binding. A single date is `from === through`, so a run of days
+ * has one shape rather than two — "All · a single date · a range" is absent,
+ * equal endpoints, and different endpoints. Separate days that are not one run
+ * are `DateListRef`, below; `DatesRef` is the two together.
  *
  * `dates` is the one declared dimension besides `day`/`city`/`tag`/`kind` that
  * is **real today** (ADR-039 decision 7): days carry dates, so a range over days
@@ -152,6 +153,41 @@ export const DateRangeRef = z
   .object({ from: IsoDate, through: IsoDate })
   .refine((r) => r.from <= r.through, { message: "from must not be after through" });
 export type DateRangeRef = z.infer<typeof DateRangeRef>;
+
+/**
+ * A set of separate days: a list of dates, earliest first, each once.
+ *
+ * Mitchell, PR #269 preview, asked whether the days control should be able to
+ * pick Day 2 and Day 5 together — which a range cannot hold, because
+ * everything between its ends is in it — and answered *"Yes go ahead"*. So a
+ * `dates` binding is a range OR this list.
+ *
+ * **The range stays the form for a run**, and the control writes a list only
+ * when the days it holds are not one: a document that never needed a gap keeps
+ * the spelling it always had, and "Jun 1 – Jun 20" stays one short value
+ * rather than twenty.
+ *
+ * **Ordered and without repeats, refused rather than tidied**, for the reason a
+ * reversed range is: one spelling per set keeps two equal filters equal in the
+ * document, and the control always writes it sorted. Not empty either — "no
+ * days" is not a filter anybody means, and "every day" is the absent key
+ * (ADR-039 decision 2).
+ */
+export const DateListRef = z
+  .array(IsoDate)
+  .min(1, "list at least one date, or leave dates out for every day")
+  .refine((list) => list.every((date, i) => i === 0 || list[i - 1]! < date), {
+    message: "list each date once, earliest first",
+  });
+export type DateListRef = z.infer<typeof DateListRef>;
+
+/**
+ * What a `dates` binding holds: one run of days as a range, or separate days
+ * as a list. Every document written before the list existed holds a range, and
+ * still parses as one — the widening is additive.
+ */
+export const DatesRef = z.union([DateRangeRef, DateListRef]);
+export type DatesRef = z.infer<typeof DatesRef>;
 
 /**
  * Every dimension's value shape, in ONE map.
@@ -210,7 +246,7 @@ export const FILTER_VALUE_SCHEMAS = {
   tag: TagRef,
   kind: KindRef,
   person: PersonRef,
-  dates: DateRangeRef,
+  dates: DatesRef,
 } as const satisfies Record<FilterDimension, z.ZodTypeAny>;
 
 // A page is trip-bound and nothing else. It is NOT "about" a day: a page holds
