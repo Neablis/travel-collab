@@ -112,6 +112,8 @@ describe("the invite card cache", () => {
     const { tripId, inviteId, token } = await pendingInvite();
     await inviteCardFor(token);
     expect(store.has(inviteCardKey(token))).toBe(true);
+    // The token is a credential; what lands in the shared store is its digest.
+    expect([...store.keys()].some((key) => key.includes(token))).toBe(false);
 
     expect((await revokeInvite(tripId, inviteId)).ok).toBe(true);
 
