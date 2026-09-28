@@ -14,6 +14,11 @@
 // the tokens out of it at generation time; a palette change means re-running
 // this script, not editing a second copy of the palette.
 //
+// The per-link cards (`src/app/api/og/**`) ARE ImageResponse routes, since
+// spec 2026-09-27: they get the same literals through a generated module,
+// `src/server/og/ogTokens.generated.ts`, which the wall exempts and a test
+// holds to globals.css. This site-wide card stays a committed PNG.
+//
 // Rendering happens in a real Chromium (Playwright, already a devDependency)
 // rather than satori so the card can use the same Google-served fonts the
 // app loads via next/font. The font files are fetched here in Node and
@@ -23,28 +28,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import { readOgColors } from "./lib/ogTokens.mjs";
 
 const root = new URL("../", import.meta.url);
 const globalsCss = readFileSync(fileURLToPath(new URL("src/app/globals.css", root)), "utf8");
 
-function token(name) {
-  const m = globalsCss.match(new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{3,8})\\b`));
-  if (!m) throw new Error(`token --color-${name} not found in globals.css`);
-  return m[1];
-}
-
-const c = {
-  paper: token("paper"),
-  surface: token("surface"),
-  moss: token("moss"),
-  hairline: token("hairline"),
-  slate: token("slate"),
-  ink: token("ink"),
-  brand: token("brand"),
-  brandTint: token("brand-tint"),
-  infoTint: token("info-tint"),
-  warningTint: token("warning-tint"),
-};
+// The parser is shared with `generate-og-tokens.mjs`, which feeds the per-link
+// preview cards the same colours (spec 2026-09-27 §2.2).
+const c = readOgColors(globalsCss);
 
 // ---------------------------------------------------------------------------
 // Favicon: the FrontDoorHeader / AppHeader mark — the ◎ glyph on a rounded

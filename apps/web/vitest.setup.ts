@@ -26,6 +26,10 @@ process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test_unit";
 // asserts a digest against a fixture.
 process.env.API_TOKEN_PEPPER ||= "test-pepper-not-a-real-key";
 
+// The link-preview cache is off under test, as in `vitest.config.ts` (ADR-059):
+// tests that exercise a cache inject a port rather than share the process one.
+process.env.CACHE_DRIVER ||= "off";
+
 // **jsdom implements no scrolling, and one dependency calls it anyway.**
 // `@atlaskit/pragmatic-drag-and-drop-auto-scroll`'s `try-scroll.js` calls
 // `window.scrollBy` while a drag is near a viewport edge, and jsdom answers

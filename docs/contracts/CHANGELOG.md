@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-27 — `LinkPreviewMeta`: the text beside a per-link preview card
+
+- **Added:** `LinkPreviewMeta` (`{ title, description }`, `.strict()`), in
+  `packages/contracts/src/linkPreview.ts`. It is what `GET /api/og/invite/:token/meta` and
+  `GET /api/og/referral/:code/meta` answer.
+- Why: `/invite/<token>` and `/signup?code=` set og:title and og:description from these
+  routes. A page cannot import `@/server`, so it fetches them (spec 2026-09-27 §2.2). The
+  schema is strict because these routes are public and the card may only carry first names:
+  a field nobody declared fails the parse instead of reaching a stranger.
+- Consumers updated: `apps/web`. Both meta routes build their body through
+  `LinkPreviewMeta.parse`, and `lib/linkPreview.ts` reads it with `safeParse`, falling back
+  to the page's own metadata on a failed parse.
+- **Breaking?** No. New schema, new routes, no existing shape changed.
+
 ## 2026-09-27 — `SeedKey`, `Page.seedKey`, `CreatePage.seedKey`, `PageCreatedV1.payload.seedKey`, `seedKeyOf`: a default notebook is known by a permanent key, not its title (KI-2026-09-27-e)
 
 - **Added:** `SeedKey` (a default template's key: `overview`, `before-you-go`,

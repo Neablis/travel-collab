@@ -37,6 +37,9 @@ decide most of the answer:
   `rate_limit_counters` (`server/quota.ts`) and `api_idempotency_keys` (ADR-051). There is no
   Redis, no KV and no use of Next's data cache (`unstable_cache` / `"use cache"`) anywhere in
   `apps/web`.
+  **Amended 2026-09-27 by ADR-059:** a shared Upstash Redis now exists, **only** as a
+  best-effort, expendable cache, and never as a source of truth. This ADR's decision 2 (the
+  outside-data cache is a Postgres table) is unchanged.
 
 Mitchell's calls on 2026-09-24: weather from **MET Norway**, not Open-Meteo; sending a
 stop's **rounded** location to an outside service is **accepted**; the four date-driven
