@@ -1,3 +1,4 @@
+import { ogColors } from "@/server/og/ogTokens.generated";
 import type { Email } from "./send";
 
 // The words of every email the product sends, and nothing else: each builder
@@ -9,14 +10,13 @@ import type { Email } from "./send";
 // `<a href=…>` must arrive as text, not as a link somebody else wrote.
 //
 // Inline styles and one table-free column, because that is what survives
-// Gmail, Outlook and Apple Mail alike. Colours are the app's light-theme
-// tokens (`globals.css`: ink, slate, paper, hairline).
+// Gmail, Outlook and Apple Mail alike. No mail client resolves `var(--…)`, so
+// the colours are the literals the OG cards already generate from
+// `globals.css` (`ogTokens.generated.ts`) — the colour wall allows raw
+// literals nowhere else, and this keeps email on the same tokens as the app.
+const { ink: INK, slate: SLATE, paper: PAPER, hairline: HAIRLINE, surface: SURFACE } = ogColors;
 
-const INK = "#151d2e";
-const SLATE = "#5a6472";
-const PAPER = "#f7f8f6";
-const HAIRLINE = "#dde2da";
-
+/** `value` safe to interpolate into HTML text or a quoted attribute: the five significant characters, entity-encoded. */
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -37,7 +37,7 @@ function layout(parts: { heading: string; paragraphs: string[]; cta: { label: st
 <p style="margin:0 0 32px;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:${SLATE}">Caesura</p>
 <h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;font-weight:600;color:${INK}">${parts.heading}</h1>
 ${paragraphs}
-<p style="margin:28px 0"><a href="${escapeHtml(parts.cta.href)}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:${INK};color:#ffffff;font-size:15px;font-weight:600;text-decoration:none">${parts.cta.label}</a></p>
+<p style="margin:28px 0"><a href="${escapeHtml(parts.cta.href)}" style="display:inline-block;padding:12px 20px;border-radius:8px;background:${INK};color:${SURFACE};font-size:15px;font-weight:600;text-decoration:none">${parts.cta.label}</a></p>
 <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid ${HAIRLINE};font-size:12px;line-height:1.5;color:${SLATE}">${parts.footer}</p>
 </div>
 </body></html>`;
