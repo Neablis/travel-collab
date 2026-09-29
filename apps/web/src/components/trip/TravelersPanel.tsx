@@ -94,9 +94,10 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
         return;
       }
       setEmail("");
-      // Copying is what actually delivers the invite — nothing sends email —
-      // so the freshly minted link goes straight onto the clipboard rather
-      // than making the owner hunt for it in the list about to re-render.
+      // The link is the invite. An address also gets it by email, but a send
+      // can fail or be unconfigured, so the freshly minted link still goes
+      // straight onto the clipboard rather than making the owner hunt for it
+      // in the list about to re-render.
       await copy(result.value);
       await load();
     } finally {
@@ -313,9 +314,9 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
           <Button type="submit" variant="secondary" size="sm" disabled={busy || inviteGated}>
             Invite someone
           </Button>
-          {/* Said once, plainly: the link IS the invite. Nothing emails it. */}
+          {/* Said once, plainly: the link IS the invite; email is a courtesy. */}
           <Text as="span" className="text-xs text-slate">
-            Creates a link and copies it — send it however you like.
+            Creates a link and copies it. Add an email and we&rsquo;ll send it there too.
           </Text>
         </form>
       )}
