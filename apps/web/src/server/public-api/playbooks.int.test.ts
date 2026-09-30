@@ -907,6 +907,69 @@ describe("POST /v1/trips/{tripId}/playbook-applications — startingAt", () => {
     });
   });
 
+  // Mitchell, 2026-09-30: merged stops land in time order. The Playbook's own
+  // order is deliberately NOT time order, and its untimed stops come first and
+  // last, so neither "append" nor "sort the Playbook alone" passes.
+  it("places each merged stop among the day's existing stops by start time, untimed ones last", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner);
+    const tripId = await emptyTrip(owner);
+    const dayId = randomUUID();
+    expect((await executeTripCommand({ type: "AddDay", tripId, dayId }, owner)).ok).toBe(true);
+    for (const [title, start, end] of [
+      ["Nine", "09:00", "10:00"],
+      ["Fifteen", "15:00", "16:00"],
+    ] as const) {
+      const added = await executeTripCommand(
+        { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title, timeWindow: { start, end } },
+        owner,
+      );
+      expect(added.ok).toBe(true);
+    }
+    const before = await tripOf(owner, tripId);
+    const { playbook } = await inline(secret, {
+      name: "Out of order",
+      days: [
+        {
+          stops: [
+            inlineStop("Whenever A", { timeWindow: null }),
+            inlineStop("Eighteen", { timeWindow: { start: "18:00", end: "19:00" } }),
+            inlineStop("Twelve", { timeWindow: { start: "12:00", end: "13:00" } }),
+            inlineStop("Whenever B", { timeWindow: null }),
+          ],
+        },
+      ],
+    });
+
+    const res = await APPLY(
+      applyReq(secret, { playbookId: playbook.savedDayId, placement: { mode: "startingAt", dayId } }),
+      P({ tripId }),
+    );
+    expect(res.status).toBe(201);
+    const applied = (await res.json()) as Applied;
+
+    const after = await tripOf(owner, tripId);
+    const day = after.days.find((d) => d.dayId === dayId)!;
+    expect(day.activityIds.map((id) => after.activities[id]!.title)).toEqual([
+      "Nine",
+      "Twelve",
+      "Fifteen",
+      "Eighteen",
+      "Whenever A",
+      "Whenever B",
+    ]);
+    // Existing stops never moved relative to each other, and `activityIds[i]`
+    // is still the Playbook's `stops[i]` however they were placed.
+    const existing = before.days[0]!.activityIds;
+    expect(day.activityIds.filter((id) => existing.includes(id))).toEqual(existing);
+    expect(applied.activityIds.map((id) => after.activities[id]!.title)).toEqual(
+      playbook.stops.map((s) => s.title),
+    );
+    // Still one change, still one undo.
+    expect((await UNDO(req(secret, {}, "POST"), P({ tripId }))).status).toBe(200);
+    expect((await tripOf(owner, tripId)).days).toEqual(before.days);
+  });
+
   it("answers a stale expectedTripSeq with 409 even when the day it names has since been removed", async () => {
     const owner = await entitled();
     const secret = await tokenFor(owner);

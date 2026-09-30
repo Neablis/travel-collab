@@ -41,7 +41,7 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
 export const API_VERSION = "1.2.0";
-export const API_FINGERPRINT = "bd8aa1490afd2429df99f9862203661cfd27d3f03797260103be626fe7f62f4f";
+export const API_FINGERPRINT = "88fcb44f7836c5442df82497a2ffbd6b492c7623d6c9da4e82fcbf70b00a2a41";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every

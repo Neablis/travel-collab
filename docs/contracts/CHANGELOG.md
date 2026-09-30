@@ -13,6 +13,29 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-30 — Public API 1.2.0: a `startingAt` merge places stops by start time
+
+- **Changed (behaviour):** `POST /v1/trips/{tripId}/playbook-applications` with `placement: {
+  mode: "startingAt" }` no longer appends a Playbook day's stops after the trip day's existing ones.
+  Each timed incoming stop goes before the first stop on the day that starts strictly later (else at
+  the end); untimed incoming stops go last, in Playbook order; existing stops never move. Days the
+  application adds keep the Playbook's order. Supersedes the "appended, unsorted" line in the 1.1.0
+  entry below.
+- **How:** `insertCommands` (`apps/web/src/server/savedDays.ts`) still emits every `AddActivity` in
+  `stops[]` order, then `placeByTime` emits `MoveActivity` commands for the incoming stops that need
+  placing — the existing command vocabulary. **No command, event type or payload changed**; the
+  batch is still one history entry and one undo. `insertCommands`' `onto` parameter is now
+  `OntoDay[]` (day id plus its stops' start times) rather than day ids.
+- The app's own insert (`/api/trips/{tripId}/saved-days/{savedDayId}`) never merges — it passes no
+  `startingAt` — so it appends as before; any future merging caller gets the ordering through the
+  same function.
+- The operation's OpenAPI `description` says so; `API_FINGERPRINT` updated (version stays `1.2.0`).
+- Why: Mitchell, 2026-09-30 — merged stops land in time order.
+- Consumers updated: `apps/web` (`savedDays.ts`, the playbook-applications route, `openapi.ts`,
+  `openapi.json`, `playbooks.int.test.ts`); `docs/guidelines/using-the-api.md`.
+- **Breaking?** No schema change. A caller relying on the old append order on a merged day sees a
+  different order; `activityIds[i]` is still the Playbook's `stops[i]`.
+
 ## 2026-09-30 — Public API 1.2.0: Playbook records carry `playbookId`
 
 - **Added:** every Playbook record `/v1/playbooks` answers — `GET /v1/playbooks/{playbookId}`, the

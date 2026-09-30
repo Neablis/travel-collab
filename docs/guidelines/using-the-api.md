@@ -462,9 +462,12 @@ Only `playbookId` is required. The answer:
   day 0 goes onto `dayId`, day 1 onto the trip's next day, and so on; only the
   days that run past the end of the trip are added, at the end. Nothing is ever
   inserted *between* two days — the trip's own days never move. **On a merged
-  day the trip's existing stops stay first, and the Playbook's stops for that
-  day are appended after them in the Playbook's order** — nothing is sorted by
-  time, so a 09:00 Playbook stop lands after a 15:00 stop already there. An unknown
+  day the Playbook's stops are placed by start time** (since `1.2.0`): each
+  timed one goes just before the first stop on the day that starts later — or
+  at the end if none does — and untimed ones go last, in the Playbook's order.
+  The trip's existing stops never move, so a day holding 09:00 and 15:00 that
+  takes 12:00, 18:00 and an untimed stop reads 09:00, 12:00, 15:00, 18:00,
+  untimed. A day the application *adds* keeps the Playbook's order. An unknown
   `dayId` is a 400. If the trip's days change between your request and the
   write, the answer is a 409 rather than a stop on the wrong day.
 - **`dayIds[i]`** is the trip day the Playbook's day `i` landed on — new on an
