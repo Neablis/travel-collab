@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "1.0.0",
-    "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library.\n- `library:write` — Create and delete saved days, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip, revoke invites, remove members, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold."
+    "version": "1.1.0",
+    "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold."
   },
   "paths": {
     "/v1/account": {
@@ -546,7 +546,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -825,7 +826,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -1105,7 +1107,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -1384,7 +1387,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -1716,7 +1720,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -1995,7 +2000,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -2280,7 +2286,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -2559,7 +2566,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -2955,7 +2963,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -3225,7 +3234,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -3376,7 +3386,8 @@
                                               "venue",
                                               "area",
                                               "city"
-                                            ]
+                                            ],
+                                            "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                           },
                                           "address": {
                                             "type": "object",
@@ -3646,7 +3657,8 @@
                                               "venue",
                                               "area",
                                               "city"
-                                            ]
+                                            ],
+                                            "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                           },
                                           "address": {
                                             "type": "object",
@@ -3772,7 +3784,7 @@
     "/v1/playbooks/{playbookId}": {
       "get": {
         "summary": "Get a Playbook — yours, or anyone's published one — every day and stop in order",
-        "description": "Requires the `library:read` scope.",
+        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -3878,7 +3890,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -4157,7 +4170,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -4319,7 +4333,7 @@
       },
       "patch": {
         "summary": "Edit one of your Playbooks — rename it, summarise it, replace its days, or publish it",
-        "description": "Requires the `library:write` scope.",
+        "description": "Requires the `library:write` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -4436,7 +4450,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -4711,7 +4726,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -4906,7 +4922,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -5185,7 +5202,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -5675,7 +5693,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -5945,7 +5964,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -6096,7 +6116,8 @@
                                             "venue",
                                             "area",
                                             "city"
-                                          ]
+                                          ],
+                                          "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                         },
                                         "address": {
                                           "type": "object",
@@ -6366,7 +6387,8 @@
                                             "venue",
                                             "area",
                                             "city"
-                                          ]
+                                          ],
+                                          "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                         },
                                         "address": {
                                           "type": "object",
@@ -6566,7 +6588,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -6845,7 +6868,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -7077,7 +7101,7 @@
     "/v1/playbooks": {
       "get": {
         "summary": "List the Playbooks you have kept, newest first",
-        "description": "Requires the `library:read` scope.",
+        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -7216,7 +7240,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -7495,7 +7520,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -7664,7 +7690,7 @@
       },
       "post": {
         "summary": "Create a Playbook — from days (or some activities) of a trip you can see, or written inline",
-        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one.",
+        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -7845,7 +7871,8 @@
                                           "venue",
                                           "area",
                                           "city"
-                                        ]
+                                        ],
+                                        "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                       },
                                       "address": {
                                         "type": "object",
@@ -8120,7 +8147,8 @@
                                           "venue",
                                           "area",
                                           "city"
-                                        ]
+                                        ],
+                                        "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                       },
                                       "address": {
                                         "type": "object",
@@ -8324,7 +8352,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -8603,7 +8632,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -8912,7 +8942,8 @@
                           "venue",
                           "area",
                           "city"
-                        ]
+                        ],
+                        "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                       },
                       "address": {
                         "type": "object",
@@ -9100,7 +9131,8 @@
                       "planned",
                       "pending",
                       "transit"
-                    ]
+                    ],
+                    "description": "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode` and `endLocation`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two and `planned` for `booked`. Omitted = unchanged; no null (send `planned`). Changing `kind` clears the fields the new kind cannot carry — `mode` and `endLocation` off `transit`, `pendingReason` off `pending` — unless the patch names them."
                   },
                   "tags": {
                     "type": "array",
@@ -9144,7 +9176,8 @@
                       "car",
                       "bike"
                     ],
-                    "nullable": true
+                    "nullable": true,
+                    "description": "Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) `transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you."
                   },
                   "endLocation": {
                     "type": "object",
@@ -9186,7 +9219,8 @@
                           "venue",
                           "area",
                           "city"
-                        ]
+                        ],
+                        "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                       },
                       "address": {
                         "type": "object",
@@ -9243,7 +9277,8 @@
                       "name"
                     ],
                     "additionalProperties": false,
-                    "nullable": true
+                    "nullable": true,
+                    "description": "Where a travel leg ends. Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) `transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you."
                   },
                   "pendingReason": {
                     "type": "string",
@@ -9251,7 +9286,8 @@
                       "book",
                       "maybe"
                     ],
-                    "nullable": true
+                    "nullable": true,
+                    "description": "Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) `pending`; otherwise a 400. A patch that changes `kind` away from `pending` clears it for you."
                   },
                   "dayId": {
                     "type": "string",
@@ -9493,7 +9529,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -9781,7 +9818,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -10196,7 +10234,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -10484,7 +10523,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -10766,7 +10806,8 @@
                           "venue",
                           "area",
                           "city"
-                        ]
+                        ],
+                        "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                       },
                       "address": {
                         "type": "object",
@@ -10952,7 +10993,8 @@
                       "planned",
                       "pending",
                       "transit"
-                    ]
+                    ],
+                    "description": "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode` and `endLocation`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two and `planned` for `booked`. Omitted = `planned`."
                   },
                   "tags": {
                     "type": "array",
@@ -10994,7 +11036,8 @@
                       "ferry",
                       "car",
                       "bike"
-                    ]
+                    ],
+                    "description": "How a travel leg travels. Only allowed when `kind` is `transit` — an omitted `kind` is `planned`, so send `kind: \"transit\"` with it; otherwise a 400."
                   },
                   "endLocation": {
                     "type": "object",
@@ -11036,7 +11079,8 @@
                           "venue",
                           "area",
                           "city"
-                        ]
+                        ],
+                        "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                       },
                       "address": {
                         "type": "object",
@@ -11092,14 +11136,16 @@
                     "required": [
                       "name"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Where a travel leg ends; `location` is where it starts. Only allowed when `kind` is `transit`; otherwise a 400."
                   },
                   "pendingReason": {
                     "type": "string",
                     "enum": [
                       "book",
                       "maybe"
-                    ]
+                    ],
+                    "description": "Why a stop is not settled: `book` (still has to be booked) or `maybe` (may not happen at all). Only allowed when `kind` is `pending`; otherwise a 400."
                   }
                 },
                 "required": [
@@ -11335,7 +11381,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -11623,7 +11670,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -12040,7 +12088,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -12328,7 +12377,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -12745,7 +12795,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -13033,7 +13084,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -13442,7 +13494,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -13730,7 +13783,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -14122,7 +14176,8 @@
                                               "venue",
                                               "area",
                                               "city"
-                                            ]
+                                            ],
+                                            "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                           },
                                           "address": {
                                             "type": "object",
@@ -14392,7 +14447,8 @@
                                               "venue",
                                               "area",
                                               "city"
-                                            ]
+                                            ],
+                                            "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                           },
                                           "address": {
                                             "type": "object",
@@ -14539,7 +14595,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -14809,7 +14866,8 @@
                                         "venue",
                                         "area",
                                         "city"
-                                      ]
+                                      ],
+                                      "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                     },
                                     "address": {
                                       "type": "object",
@@ -15029,7 +15087,8 @@
                               "venue",
                               "area",
                               "city"
-                            ]
+                            ],
+                            "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                           },
                           "address": {
                             "type": "object",
@@ -15536,7 +15595,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -15824,7 +15884,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -16233,7 +16294,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -16521,7 +16583,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -16951,7 +17014,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -17239,7 +17303,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -17835,7 +17900,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -18123,7 +18189,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -20974,7 +21041,7 @@
     "/v1/trips/{tripId}/playbook-applications": {
       "post": {
         "summary": "Apply a Playbook's days and stops to a trip, appended or merged, as one undoable change",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip.",
+        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip. With `placement: { mode: \"startingAt\" }`, a Playbook day that lands on an existing trip day is appended after that day's existing stops, in the Playbook's order; stops are not sorted by time.",
         "security": [
           {
             "bearerAuth": [
@@ -21058,7 +21125,7 @@
                         "additionalProperties": false
                       }
                     ],
-                    "description": "`append` (the default) adds every Playbook day at the end of the trip. `startingAt` merges: Playbook day k goes onto the trip day k places after `dayId`, and only the days that run past the end of the trip are added."
+                    "description": "`append` (the default) adds every Playbook day at the end of the trip. `startingAt` merges: Playbook day k goes onto the trip day k places after `dayId`, and only the days that run past the end of the trip are added. On a merged day the trip's existing stops stay first and the Playbook's stops for that day are appended after them, in the Playbook's order — never sorted by time."
                   },
                   "expectedTripSeq": {
                     "type": "integer",
@@ -21451,7 +21518,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -21739,7 +21807,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -22148,7 +22217,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -22436,7 +22506,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -22892,7 +22963,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -23180,7 +23252,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -23587,7 +23660,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -23875,7 +23949,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -24521,7 +24596,8 @@
                                             "venue",
                                             "area",
                                             "city"
-                                          ]
+                                          ],
+                                          "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                         },
                                         "address": {
                                           "type": "object",
@@ -24791,7 +24867,8 @@
                                             "venue",
                                             "area",
                                             "city"
-                                          ]
+                                          ],
+                                          "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                         },
                                         "address": {
                                           "type": "object",
@@ -24938,7 +25015,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -25208,7 +25286,8 @@
                                       "venue",
                                       "area",
                                       "city"
-                                    ]
+                                    ],
+                                    "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                                   },
                                   "address": {
                                     "type": "object",
@@ -25512,7 +25591,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -25800,7 +25880,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -26355,7 +26436,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",
@@ -26643,7 +26725,8 @@
                                   "venue",
                                   "area",
                                   "city"
-                                ]
+                                ],
+                                "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
                               },
                               "address": {
                                 "type": "object",

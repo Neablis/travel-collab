@@ -45,7 +45,8 @@ const Placement = z
   .describe(
     "`append` (the default) adds every Playbook day at the end of the trip. `startingAt` merges: " +
       "Playbook day k goes onto the trip day k places after `dayId`, and only the days that run past " +
-      "the end of the trip are added.",
+      "the end of the trip are added. On a merged day the trip's existing stops stay first and the " +
+      "Playbook's stops for that day are appended after them, in the Playbook's order — never sorted by time.",
   );
 
 const Body = z.object({
@@ -130,6 +131,12 @@ function reject(logged: Logged, reason: string, error: PublicApiError): never {
 export const { POST } = route({
   POST: {
     summary: "Apply a Playbook's days and stops to a trip, appended or merged, as one undoable change",
+    // `insertCommands` (savedDays.ts) emits one `AddActivity` per stop in the
+    // Playbook's order, and `ActivityAdded` (domain evolve.ts) appends to the
+    // day's end — no step sorts by `timeWindow`.
+    description:
+      "With `placement: { mode: \"startingAt\" }`, a Playbook day that lands on an existing trip day is " +
+      "appended after that day's existing stops, in the Playbook's order; stops are not sorted by time.",
     scope: "trips:write",
     trip: "path",
     role: "editor",

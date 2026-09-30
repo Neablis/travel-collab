@@ -82,6 +82,12 @@ interface BaseDef {
    * say what it was for.
    */
   readonly summary: string;
+  /**
+   * Optional prose for what the one-line `summary` cannot hold — a shape
+   * difference a caller would otherwise trip over, an ordering rule. Published
+   * after the scope and role lines in the operation's OpenAPI `description`.
+   */
+  readonly description?: string;
   /** The single scope a token must hold. A session holds every scope. */
   readonly scope: ApiScope;
   /**
