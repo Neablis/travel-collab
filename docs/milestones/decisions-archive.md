@@ -1,7 +1,8 @@
 # Milestone decision archive
 
 Every dated decision note whose milestones have all closed their gates, moved
-here verbatim and in order on 2026-09-21. Nothing was reworded and nothing was
+here verbatim and in order on 2026-09-21 (and two more on 2026-09-30, filed in
+date order). Nothing was reworded and nothing was
 deleted; `docs/milestones/README.md` keeps a one-line dated pointer to each.
 
 This is the treatment `docs/STATUS.md` has had twice already
@@ -414,6 +415,78 @@ precedent does not cover it: that argued *"the field did not exist"*, and
 requiring `premium@v1` to be byte-identical when the milestone closes, so the
 decision is enforced rather than remembered.
 
+### 2026-09-18 — three milestones minted, M13 moved ahead of M12, two prerequisites placed
+
+**Mitchell brought five feature ideas and one tooling idea to a design conversation
+and placed all of them the same day.** Nothing here was built; this note records
+what was decided so the next session does not re-derive it. Two of the five were
+already scoped elsewhere and did not need a milestone.
+
+**Minted: M23, M24 and M25**, each with a file, a scope and an exit gate before
+any commit — the standing task this file requires. Their rows are in the Phase 3
+table above and carry the decisions in full; the one-line versions:
+
+- **M23 — a playbook can be more than one day.** A saved day *generalises* into a
+  saved sequence rather than gaining a sibling object type.
+- **M24 — a leg knows where it goes and by what.** Transport mode and a second
+  location on a travel stop.
+- **M25 — a trip is a file you can take with you.** Export and import, emitting
+  the content-bundle format rather than a third vocabulary. Export is free.
+
+**M13 moves ahead of M12.** M13's own file already said it sat after M12
+*"because M12 is smaller and finishes a surface that is already live, **not**
+because of a dependency"* — so the move costs nothing and buys three things: link
+3's re-prediction reducer closes **KI-5, KI-90 and KI-77**, which are
+single-player data-loss defects live in the app today and not realtime work at
+all; link 5 lands *who a stop is for*, which **M19 link 3 and M14's two cut
+person widgets both wait on**; and the transport ADR stops blocking. **M23 still
+runs before both**, for the reason in its row.
+
+**Realtime was the one requested feature that needed nothing**: it is M13 links 1
+and 2, already scoped. One correction was made in the conversation and is worth
+keeping — *"websockets"* is not a decided transport. M13 link 1 is explicitly
+*"Server-Sent Events, WebSockets, or polling with a cursor — decided against this
+project's actual constraints"*, and on Vercel's serverless runtime a long-lived
+WebSocket needs a service this project does not run. The ADR decides; the word in
+the request does not.
+
+**Two pieces of non-milestone work are placed inside the order, and both are
+prerequisites rather than deliverables:**
+
+1. **The activity-field descriptor refactor — `KI-20260905-o` — runs once, before
+   M13.** Three milestones each add a field to an activity (M13 link 5's `who`,
+   M24's `mode` and `endLocation`, M19 link 1's cost kind), and today **21
+   non-test files hand-enumerate activity fields with nothing going red when one
+   is missed**. The class has already bitten three times (KI-1, KI-54, and M18's
+   editor sheet dropping `kind`/`tags`). Paid once, the three milestones are
+   cheap; paid three times, it is three chances to miss a site. **It was already
+   scheduled once** — 2026-08-29, as *"one overnight batch"*, in the placement
+   note further down this file — **and it did not happen**, which is why M13's
+   gate now carries a box for it instead of this file carrying a second promise.
+2. **An architecture map that is generated, drift-checked and annotated at gate
+   close.** Designed 2026-09-18 and approved in principle;
+   `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md` holds it,
+   and `TODO.md`'s Candidate ideas carries the summary. It is repo automation in
+   the sense of `AGENTS.md`'s *Repo automation* section, not roadmap work, which
+   is why it has no milestone number. **It proposes a sixth step for the
+   gate-close checklist at the top of this file** — the annotation layer is
+   written at gate close, with the milestone's context live, rather than
+   reconstructed cold later. That proposal is not adopted here; adopting it is a
+   decision, and the checklist has already grown once for exactly this reason.
+
+**Two asks resolved into existing milestones without a new one, and that is
+recorded rather than assumed:**
+
+- **More widgets and better widget filtering are M14** — items H, E, B, G and
+  link 3. *Saving a notebook as a template for a future trip* was **not** in M14
+  or anywhere else (link 7 seeds templates; nothing lets a person keep their
+  own), so it is **M14's new link 10**, built on ADR-029's saved-day shape rather
+  than a second personal-library pattern. M14's file carries both.
+- **Starting a trip from a saved day** and **transport mode per leg** were
+  unscheduled candidates in `TODO.md` with an open design question each. Both
+  questions are answered in the milestones that absorbed them, and both entries
+  are annotated in place and deleted at those gates.
+
 ### 2026-09-18 — Current milestone moves to M25; M22 pauses at 18/19
 
 **Mitchell's decision, 2026-09-18** — *"Start next milestone."* Taken with the
@@ -615,6 +688,83 @@ variable name in three status files is exactly the drift this file's own
 checklist exists to catch, and it survived because each copy was read as
 confirmation of the others. The KI was the only document with the fact in it,
 and it was the one document nobody re-read.
+
+### 2026-09-19 (later) — minted, scoped and placed: M26, design parity
+
+**Opened by Mitchell**, asking that the build be brought back to the design and
+naming four things: Playbooks' shared trips looking nothing like the designs,
+account settings becoming its own page, filters and tabs re-imagined to improve
+search, and a hover state on the Map view's days. The instruction was also
+broader than the four — *"go over the design and really try to match the
+designs, especially supporting both the desktop and mobile version"* — so the
+scoping ran **five read-only surveys** over the whole handoff against the
+working tree rather than costing the four items alone.
+
+**Why it is a milestone and not a sweep.** No milestone has owned this question
+since M10's Wave-2 gate closed on 2026-08-27, and that gate was honest that it
+closed a delta against *the handoff generation available at the time*. The
+handoff has moved fourteen commits since — **seven of them in the eight days to
+2026-09-19** — while the build ran five commercial and infrastructure
+milestones, three of which had no design surface at all until the design drew
+them. The two sides did not diverge through carelessness; for three weeks it was
+nobody's job to make them agree, and the design kept working.
+
+**Three things the scoping found that change what a planner should expect.**
+
+- **The phone is the larger half, and three places in this repo have been
+  waiting for it.** `docs/guidelines/design-system.md` has said layout below
+  1024px is best-effort *"until the mobile milestone"* since M5; `KI-046` says
+  *"building that is a milestone, not a fix"*; `TODO.md:1030-1037` says
+  *"placing the phone is a milestone-sized decision"*. Four phone surfaces are
+  genuinely built to spec — the route-derived tab bar, the Ask pill, the Map day
+  strip and the Notebook's push/bind/insert sheets — and **everything else a
+  phone can reach is the desktop layout reflowed.**
+- **`DRIFT.md` is stale in the build's favour in six places**, which nobody
+  would guess from reading it: it lists eleven `<Preview>`-shelled surfaces and
+  there are **six**; it calls two wizard shells *"honestly orphaned"* and both
+  were built on 2026-09-16; `w-open` is shipped; the widget catalogue is 13
+  primitives and 20 presets, not 7. **Fifteen places in total where the build is
+  right and the handoff is behind** — and the milestone's job there is to amend
+  the handoff in the same PR, not to regress the code.
+- **`DRIFT` D12 is not blocked and has never been.** It reads as *"design is
+  ahead by one control"*; the survey checked every layer and the field, the
+  wrapper, the per-call check and **the widening refusal are all shipped and
+  enforced**. The entire gap is one hardcoded `null` in a POST body.
+
+**It opens with a preflight, and the preflight is the part to defend if the
+milestone gets squeezed.** `KI-2026-09-14-c` already measured the cost of
+building from this handoff without it — four review rounds and three wrong
+builds, for **one** screen — and already named the five aids. This milestone
+builds around twenty screens from the same handoff.
+
+**Nine open questions were recorded in the file and deliberately not answered
+there**, because each is a decision rather than a task. **Mitchell answered the
+two that gated work on 2026-09-19, the same day:**
+
+- **The Map rail gets its hover card** — *"if you want more info you can move
+  your mouse over and hover or move your mouse out to see the ui witout the
+  hover."* Detail on demand rather than a second way to select a day. On that
+  reading the build's no-hover-tint rule and the design's card turn out to be
+  **compatible**: the design tints the row on **focus only** and raises the card
+  beside it, so the test defending the rule stays green and nothing is deleted.
+  What looked like the milestone's one reversal is not one.
+- **Where the phone edits is sequenced rather than blocked** — *"Phone edit is
+  right after."* Link 13 runs **last in Wave 2**, so the design answer is owed
+  against a phone that otherwise works instead of against a hypothesis, and **no
+  link in the milestone is blocked on a pending decision.** What it does not yet
+  settle is the substance: a phone treatment of Plan, or an amendment to §10
+  saying a phone can render day columns after all.
+
+The other seven — sign out's home, an account-level currency, the day chip rail
+on Map, the trip status badge, inferring *on foot* from `kind === "transit"`,
+`lastUsedAt`, and whether Duplicate clears dates for a shared-trip clone — can
+all be answered as their links come up.
+
+**Two known issues were filed by the scoping** and are both scoped as link 8:
+`KI-2026-09-19-f` (an accent reaches MapLibre through `getComputedStyle`, the
+documented non-fix — correct today only because the tokens happen to be hex) and
+`KI-2026-09-19-g` (the colour wall passes an **undefined token name**, which is
+how M23 shipped a transparent chip).
 
 ---
 
@@ -961,3 +1111,158 @@ below, verbatim, so **nothing was deleted**.
       `insertCommands.contract.test.ts` now fails if a second construction
       appears.)*
 
+---
+
+## Moved out of README.md on 2026-09-30
+
+The retirement pass under `docs/guidelines/retiring-a-rule.md`, run because
+`docs/milestones/README.md` was at 89% of its surface budget. Verbatim, nothing
+reworded. Two kinds of text:
+
+- **The Current-milestone placement paragraphs from M26 to M28.** Each records
+  why a milestone was current. All of those milestones have closed; the live
+  line is `Current milestone:` in `README.md`.
+- **Four notes from under the Phase 3 table** whose stated order was superseded
+  by later decisions (their own text says so), plus M10's reopened Wave-1 gate,
+  which Wave 2 closed on 2026-08-27. The 2026-07-28 restructure, the 2026-07-07
+  placement notes, the 2026-07-10/11 renumberings and the 2026-08-23 design sync
+  stay in `README.md`: the renumbering tables are how to read older files.
+
+### Current-milestone placements, M26 to M28
+
+*(The paragraphs below are earlier placements, kept for their reasoning.)*
+
+**M28 — Three kinds — was current from 2026-09-25 to 2026-09-26.**
+**2026-09-25, PLACED BY MITCHELL** after M24's gate closed: *"Planned =
+Default, Pending = Combo Idea / Hold, Transit = Travel. The rest feel too small
+to be worth complicating ui."* Built the same day (#238, #239); ADR-054;
+`docs/milestones/M28-three-kinds.md`.
+
+**M14 was current for a few hours on 2026-09-25**, until M28 was placed ahead.
+
+**M24 — A leg knows where it goes and by what — was current from 2026-09-23**
+to 2026-09-25.
+
+**2026-09-23, PLACED BY MITCHELL** ahead of M12, the way M26 was placed ahead
+of M13: M12 puts ratings onto surfaces this pass reshapes (Discover's Filters
+menu, the new-trip Playbook-day turn), and reshaping them once is cheaper.
+Scope, ten links, seventeen decisions and the gate:
+`docs/milestones/M27-simplify-pass.md`. M12 is next.
+
+*(The paragraphs below are M12's placement, kept for its reasoning.)*
+
+**2026-09-22, BY M13'S GATE CLOSING** at **10 of 10** — the second consecutive
+move made by a gate rather than by Mitchell placing a milestone, which is the
+way the checklist at the top of this file describes. M13 held the line from
+2026-09-21.
+
+**M13's last box, the two-actor browser walk, is ticked on Mitchell's
+attestation** — he walked the preview himself after `#201` merged. An agent
+could not: a two-member trip needs the owner's `trip.collaborators`
+entitlement and the preview answers **402**. That is the same basis M21, M22
+and M26 closed boxes on, and it is named in the milestone file rather than
+blurred. M13 also carried an **unplanned sixth piece** — notebooks joining the
+event log, after a two-device report — and its retro is in the milestone file.
+
+*(The paragraphs below are M26's close, kept for its reasoning.)*
+
+**Two of M26's boxes closed on Mitchell's attestation, not on agent-recorded
+evidence** — the API-token scope walk and the free-account no-access fork, both
+of which the preview seed cannot produce an account for. Same basis M21 and M22
+closed on, and named in the milestone file rather than blurred. **A third is
+ticked with its failures named rather than as an unqualified green:**
+`test:e2e:ci-like` ran 153 passed / 2 failed, both map specs, both KI-49 (the
+browser does not trust the agent proxy's CA, so MapLibre never draws) — a
+container fact, not a code one.
+
+**M13's preflight is DONE — 2026-09-21, and it is no longer a risk to carry.**
+The activity-field descriptor refactor (`KI-20260905-o`) ran once, before this
+milestone, as its own piece of work at Mitchell's request. ~21 non-test files
+hand-enumerated activity fields and nothing went red when one was missed; now
+`ActivitySnapshot` declares the set once and a ninth field is a compile error
+at every site. It was shared with M19 link 1 and M24, so both are unblocked
+too. It had been scheduled once before, on 2026-08-29 as *"one overnight
+batch"*, and did not happen — which is why it was a gate box rather than a
+promise, and that box is now ticked.
+
+**M23's gate closed at 11 of 11 and SHIPPED** the same day (#192, merged as
+`7763913`), with its migration dispatched and production verified; the note is
+below. **M25's gate closed 2026-09-19**, 14 of 14. **M22's gate closed
+2026-09-19 at 19 of 19 and M21's at 17 of 17**, both on Mitchell's attestation
+rather than on agent-recorded evidence — the note is below.
+Order from here:
+`M11a ✓ → M11b ✓ → M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M12 → M24 → M14 → M19`.
+**Reordered and widened 2026-09-18 by Mitchell** — three milestones minted (M23, M24, M25), M13 moved ahead of M12, and two pieces of non-milestone work placed inside that order: see the 2026-09-18 note below.
+**M22 was placed 2026-09-16 and moved ahead of M21 the same day** — both notes
+below. The second one also records a cost it first got wrong.
+**This line then moved to M25 on 2026-09-18** — the third time it has moved by
+decision rather than by a gate close, and the note recording it is directly
+below.
+
+**M26 was minted, scoped AND placed on 2026-09-19** — it is now in that order,
+ahead of M13, and the note below records both the scoping and the placement.
+The argument for this position is the one the milestone file already carried:
+M13 adds a second actor to the surfaces M26 rebuilds, so the other order
+rebuilds them twice. What it owes forward is unchanged — M12 renders reviews
+into two surfaces M26 rebuilds, and going first means M12 adds rows to a
+finished layout.
+
+### Superseded reorder notes
+
+- **Reorder (2026-08-08), ADR-018.** M10 "Visual craft pass" executes *before*
+  M9, not after, despite its higher number — an external design-team handoff
+  specified M9's (and M11's) not-yet-built surfaces, removing the
+  design-uncertainty reason the original M9-then-M10 ordering existed for. New
+  execution order: `M8 ✓ → [Phase 1 gate review ✓] → M10 → M9 → M11 → M12 →
+  M13 → M14`. *(Amended 2026-08-23 by ADR-021, which inserts M15 between M10 and
+  M9: `M8 ✓ → [Phase 1 gate review ✓] → M10 → M15 → M9 → M11 → M12 → M13 → M14`.)*
+  Milestone *numbers* are unchanged — this is an execution-order
+  swap, not a renumbering — see `docs/milestones/M10-visual-craft.md` and the
+  ADR for the full argument.
+
+- **Reorder (2026-08-25), ADR-022.** **M16 "The assistant answers questions"**
+  is added and executes right after M10's Wave-2 gate, ahead of M15; **M9 moves
+  to last, after M14.** Mitchell declined to open M9 on the grounds that the data
+  layer beneath a planning partner is not strong enough yet and that UI polish
+  and sharing come first. Scoping the smaller ask surfaced why it is not a
+  styling task: the AI endpoint derives its reply from *committed commands*, so a
+  question that changes nothing returns "I couldn't turn that into any changes",
+  and the context envelope carries no activity time windows — a question about
+  free time is unanswerable twice over. M16 builds the read half on its own
+  endpoint, leaving the command pipeline untouched. New execution order:
+  `M8 ✓ → [Phase 1 gate review ✓] → M10 → M16 → M15 → M11 → M12 → M13 → M14 → M9`.
+  Milestone *numbers* are unchanged — the same placement-not-renumbering shape as
+  ADR-018 and ADR-021.
+
+- **Reorder (2026-08-26), M15 decision 1 — supersedes ADR-021/ADR-022's stated
+  order.** **M15 "Front door" ran ahead of M10's Phase 9 gate and ahead of
+  M16**, and its own gate closed 2026-08-26 (PR #56) while M10's Phase 9 gate
+  was still open. ADR-021 had placed M15 after M10's gate and before M9;
+  ADR-022 then placed M16 ahead of M15 on the same "after M10's gate" footing.
+  Neither anticipated M15 executing — and finishing — *before* M10's own gate
+  closed. Mitchell accepted M10 staying open meanwhile (`M15-front-door.md`
+  decision 1). Execution order, reflecting what actually happened rather than
+  what was planned: `M8 ✓ → [Phase 1 gate review ✓] → M10 (Wave 2, Phase 9
+  gate open) → M15 ✓ → M16 → M11 → M12 → M13 → M14 → M9`. Milestone *numbers*
+  are unchanged — the same placement-not-renumbering shape as ADR-018,
+  ADR-021 and ADR-022.
+
+  **Superseded twice since, both on 2026-08-26:** M18 was approved and
+  scheduled between M10's gate and M16 (see M18's row above), and M10's own
+  Phase 9 gate then closed on 2026-08-27. **Superseded again 2026-08-27**, when
+  M11 was scheduled ahead of both M18's remaining surfaces and M16. Current
+  order is `M11 → M18 (surfaces) → M16 → M12 → M13 → M14 → M9`, with **M17
+  approved and unplaced** — *superseded 2026-08-29, when M17 was re-scoped and
+  placed after M18b; see Current milestone below.*
+
+- **Gate reopened (2026-08-14).** M10's Wave-1 gate closed 2026-08-10 on branch
+  `claude/m10-trip-planner-visual-7bbacf` (PR #23, still unmerged). An external
+  review that Mitchell requested — `docs/design-feedback/2026-08-14-M10-redesign-
+  external-review.md` — found two things the gate could not have caught: the
+  design handoff had advanced **two** generations since the version Wave 1 was
+  built from (1,412 → 2,048 → 2,623 lines), and Wave 1's own new assistant rail
+  introduced three blocking defects, the worst of which the e2e suite is
+  structurally blind to (`playwright.config.ts` sets no `viewport`, so every spec
+  runs at 1280px, above the 1179px breakpoint where the page-blocking scrim turns
+  on). **Wave 2** closes the delta; plan at `docs/plans/2026-08-14-M10-redesign-
+  delta.md`. Milestone numbers and order are unchanged.
