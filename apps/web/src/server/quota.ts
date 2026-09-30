@@ -285,6 +285,34 @@ export function geocodeQuota(): QuotaPolicy[] {
 }
 
 /**
+ * The per-TOKEN ceiling on `GET /v1/geocode`, the public place search (Mitchell,
+ * 2026-09-30): 100 lookups a day per token, below the app's 300 per user.
+ *
+ * **Charged by token id, and never instead of `geocodeQuota`.** The route charges
+ * this first and `geocodeQuota` second, so a lookup through a token counts
+ * against the owner's own daily allowance and the shared global one exactly as
+ * an in-app search does — an API caller can never exceed what the app would let
+ * them spend. This policy only narrows it per credential, so one leaked or
+ * runaway token cannot use a person's whole allowance.
+ *
+ * `consumeQuota` keys `perUser` by whatever identity it is handed; here that is
+ * the token id, the same trick `API_TOKEN_QUOTA` uses. Its `global` is the
+ * counter column's maximum on purpose, i.e. no ceiling at all: the shared
+ * ceiling is `geocodeQuota`'s, and a second, different global number would be a
+ * second answer to one question.
+ */
+export function placeSearchTokenQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "place-search-token-daily",
+      windowMs: DAY_MS,
+      perUser: envCeiling("PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY", 100),
+      global: MAX_COUNTER_HITS,
+    },
+  ];
+}
+
+/**
  * Outside-data quota (ADR-052 decision 8): our own ceiling on calls to MET
  * Norway and NASA POWER, charged per upstream call and **only on a cache
  * miss** — a notebook served from `external_data_cache` costs nothing here. A

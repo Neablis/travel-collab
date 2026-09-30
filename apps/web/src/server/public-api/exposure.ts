@@ -40,6 +40,8 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   // ── Published ────────────────────────────────────────────────────────────
   "account/plan": { status: "public", v1: ["account"] },
   cities: { status: "public", v1: ["cities"] },
+  // The tripless place search (Mitchell, 2026-09-30; API feedback item 12).
+  geocode: { status: "public", v1: ["geocode"] },
   playbooks: { status: "public", v1: ["discover/playbooks"] },
   "saved-days": { status: "public", v1: ["library", "playbooks"] },
   "saved-days/[savedDayId]": { status: "public", v1: ["library/[savedDayId]", "playbooks/[playbookId]"] },
@@ -76,7 +78,6 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "admin/grants": PLANNED("Undecided — admin scope if ever"),
   "admin/overview": PLANNED("Undecided — admin scope if ever"),
   // Undecided (Mitchell, 2026-09-30): these start as planned, not never.
-  geocode: PLANNED("Undecided — a global place search (API feedback item 12)"),
   places: PLANNED("Undecided — place search over the published library"),
   "trips/[tripId]/events": PLANNED("Undecided — the live event stream"),
   "invites/[token]": PLANNED("Undecided — reading an invite by its token"),

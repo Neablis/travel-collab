@@ -13,6 +13,33 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-30 — Public API 1.2.0: `places:read` and `GET /v1/geocode`, the tripless place search
+
+- **Added:** `places:read` to `ApiScope` and `SCOPE_CATALOGUE` (`packages/contracts/src/publicApi.ts`)
+  — the ninth scope, and the one read that spends money: its sentence says every search counts
+  against the account's daily geocoding allowance and a budget every account shares, capped at 100
+  a day per token. **Added:** `GET /v1/geocode?q=&countryCode=`, answering the existing
+  `GeocodeCandidates` (up to five `Location`s) — the tripless twin of
+  `GET /v1/trips/{tripId}/geocode`. `openapi.json` regenerated; `info.version` `1.2.0`, new
+  `API_FINGERPRINT`.
+- **Spend:** charged before the vendor, first against a new per-token daily policy
+  (`placeSearchTokenQuota`, `PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY`, default 100) and then against
+  the existing `geocodeQuota` (per user 300, global 4000), so a token never spends past its owner's
+  app allowance. An empty `q` answers `{ results: [] }` with no charge and no lookup. A token confined
+  to named trips is refused (`trip-out-of-scope`), as on every tripless endpoint.
+- **Behaviour, same release (no contract change):** a trip-scoped name lookup with no `countryCode`
+  — v1 stop writes, `GET /v1/trips/{tripId}/geocode`, and the assistant's approval-path enrichment —
+  now prefers the countries of the trip's already-located stops: searched inside them first
+  (LocationIQ `countrycodes`) and, on a miss, retried unrestricted, so a trip's first stop in a new
+  country still resolves. An explicit `countryCode` still wins and is never widened; a trip with
+  nothing located is unrestricted.
+- Why: Mitchell, 2026-09-30 (API feedback item 12, and the country-hint decision, option A).
+- Consumers updated: `apps/web` (new `app/api/v1/geocode/route.ts`, `server/quota.ts`,
+  `server/public-api/{locations,exposure,openapi}.ts` — `geocode` moves from `planned` to `public`),
+  the token screen renders the new scope from the catalogue; `docs/guidelines/using-the-api.md`
+  (Scopes table, trip-scoped tokens, the place-search section); `.env.example`.
+- **Breaking?** No — additive (minor).
+
 ## 2026-09-30 — Public API 1.2.0: a `startingAt` merge places stops by start time
 
 - **Changed (behaviour):** `POST /v1/trips/{tripId}/playbook-applications` with `placement: {

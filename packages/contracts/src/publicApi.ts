@@ -64,6 +64,7 @@ export const ApiScope = z.enum([
   "library:write",
   "sharing:write",
   "account:read",
+  "places:read",
 ]);
 export type ApiScope = z.infer<typeof ApiScope>;
 
@@ -81,10 +82,10 @@ export interface ApiScopeDescription {
 /**
  * What each scope means, in the words the token-creation UI has to use.
  *
- * **Exhaustive over `ApiScope`, and that is the entire point.** A ninth scope
+ * **Exhaustive over `ApiScope`, and that is the entire point.** A new scope
  * **fails to compile** until somebody writes the sentence a person reads when
  * deciding whether to grant it. The alternative — writing the copy when the UI
- * is built — means eight sentences get drafted in a hurry by whoever happens to
+ * is built — means the sentences get drafted in a hurry by whoever happens to
  * be building a form, long after the person who knew what the scope was for.
  *
  * **Copy in a contracts package is deliberate here**, and it has precedent:
@@ -135,6 +136,13 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   "account:read": {
     title: "Read your account",
     description: "See who you are and what plan you hold.",
+  },
+  // Honest about the spend (Mitchell, 2026-09-30): it reads nothing of yours,
+  // but every lookup costs a geocoding budget everyone shares.
+  "places:read": {
+    title: "Search places",
+    description:
+      "Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day.",
   },
 });
 

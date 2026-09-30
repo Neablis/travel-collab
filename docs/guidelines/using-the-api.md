@@ -92,6 +92,7 @@ A token holds a set of scopes and nothing is implied by anything else —
 | `library:read` / `library:write` | Read / write your saved-days library **and your Playbooks** — a Playbook is a view over saved days (ADR-050), so the same two scopes cover `/v1/library`, `/v1/playbooks/**` and `/v1/discover/playbooks` — including publishing to Discover |
 | `sharing:write` | Invites (create, revoke) and share links (create, revoke). No v1 endpoint removes a member |
 | `account:read` | Who you are and what plan you hold |
+| `places:read` | Search real places by name outside any trip (`GET /v1/geocode`). **The one read that spends money**: every search counts against your daily geocoding allowance and a budget shared by every account, and one token may make at most 100 a day |
 
 **Inviting someone is `sharing:write`, not `trips:write`**, even though an invite
 is a write against a trip. Letting another person into your trip is a materially
@@ -110,7 +111,7 @@ A token is either account-wide or confined to named trips.
 
 **A confined token is refused on any request that is not about one trip**
 (`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`, an inline
-`POST /v1/playbooks`). Creating a new trip from a credential restricted to two
+`POST /v1/playbooks`, `GET /v1/geocode`). Creating a new trip from a credential restricted to two
 existing ones is a widening.
 
 **A write that names its trip in the body is about that trip.**
@@ -283,8 +284,33 @@ field existed reads as.
 `countryCode`, restricted to the trip's countries by the same rule as above. Each is a complete
 `location`: send one back as-is and the write costs no second lookup. Needs
 `trips:write` — a lookup spends the operator's geocoding allowance, so a
-read-only token cannot make one. A spent allowance answers `429` with
+`trips:read` token cannot make one (the tripless search below has its own
+scope and a per-token ceiling for the same reason). A spent allowance answers `429` with
 `Retry-After`; a geocoder that is down answers `503`.
+
+### Searching for a place outside a trip
+
+`GET /v1/geocode?q=…` (optionally `&countryCode=JP`) is the same search as the
+trip one above, without the trip: up to five candidates, each a complete
+`location` you can send back on a stop unchanged. There is no trip, so nothing
+biases it — send `countryCode` if you know the country.
+
+- **Scope `places:read`**, and an account-wide token: a token confined to named
+  trips is refused (`trip-out-of-scope`) like on every other tripless endpoint.
+  Such a token has `GET /v1/trips/{tripId}/geocode` for its own trips.
+- **Two daily ceilings, both charged before the lookup.** This token's own
+  place-search day — **100 searches per token** — and then your account's
+  geocoding allowance, the same one the app's own place search and the trip
+  search above draw on, inside a daily budget every account shares. So a token
+  can never spend more than you could in the app, and one runaway token cannot
+  spend all of yours. Either one spent answers `429` with `Retry-After`; the
+  message says which. A geocoder that is down answers `503`.
+- **An empty `q` (or only spaces) answers `{"results": []}` and costs nothing.**
+  A missing `q` is a `400`.
+
+The per-token number is `PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY` on the
+server (default 100); the account's is `GEOCODE_RATE_LIMIT_PER_USER_DAILY`
+(default 300).
 
 ### Taking a trip out, and putting one back
 

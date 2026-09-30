@@ -550,7 +550,7 @@ export function TokensSection() {
               {/* **Two buttons rather than one that flips its label.** A single
                   toggle reading "Select all" until everything is on cannot clear
                   a partial selection in one click — you would have to select all
-                  first. With eight scopes the common shape is "most of them", so
+                  first. With nine scopes the common shape is "most of them", so
                   both directions are worth one click each.
 
                   `ghost`/`sm`, which is the lightest the design system offers:
@@ -582,7 +582,7 @@ export function TokensSection() {
               </div>
             </div>
             {/* **Every scope, in the sentence somebody decided it needed.**
-                `SCOPE_CATALOGUE` is exhaustive over `ApiScope`, so a ninth scope
+                `SCOPE_CATALOGUE` is exhaustive over `ApiScope`, so a new scope
                 cannot compile until that sentence exists — which is why this
                 list can be generated rather than hand-kept. */}
             {API_SCOPES.map((scope) => (
