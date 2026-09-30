@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ActivityMode, type ActivityKind, type Location, type TripDetail } from "@tc/contracts";
 import { legVariant, longestLeg, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
 import type { MapStop } from "./mapRailData";
+import { activityFactory, locationFactory } from "@tc/factories";
 import { haversineKm } from "@/lib/geo";
 
 function detailWith(days: { dayId: string; date: string | null; activityIds: string[] }[], activities: Record<string, unknown>): TripDetail {
@@ -298,6 +299,25 @@ describe("mapDays distances — the same route routeLegs draws", () => {
     expect(day.totalKm).toBe(total);
     expect(day.bars).toEqual(kms.map((km) => ({ grow: km / total, color: day.accent })));
     expect(day.longest).toEqual({ km: kms[1], from: "t", to: "p" });
+  });
+});
+
+// Mitchell, 2026-09-30 (option "B"): a leg's destination is named on the
+// cards, not left to the line on the map.
+describe("mapDays legs", () => {
+  const odawara = locationFactory.build({ name: "Odawara Station, Odawara, Japan", city: "Odawara", area: "Odawara" });
+  const kyoto = locationFactory.build({ name: "Kyoto Station, Shimogyō, Kyoto, Japan", city: "Kyoto", area: "Shimogyō" });
+
+  it("labels each leg with a destination by its mode and both ends, in day order", () => {
+    const day = dayOf({
+      museum: activityFactory.build({ activityId: "museum", kind: "planned", location: kyoto }),
+      out: activityFactory.build({ activityId: "out", kind: "transit", mode: "train", location: odawara, endLocation: kyoto }),
+      // Unlocated at the origin: the label needs no coordinate, so it still counts.
+      back: activityFactory.build({ activityId: "back", kind: "transit", mode: null, location: null, endLocation: odawara }),
+      noEnd: activityFactory.build({ activityId: "noEnd", kind: "transit", mode: "bus", location: kyoto, endLocation: null }),
+      stray: activityFactory.build({ activityId: "stray", kind: "planned", location: kyoto, endLocation: odawara }),
+    });
+    expect(day.legs).toEqual(["Train · Odawara → Kyoto", "Travel · → Odawara"]);
   });
 });
 

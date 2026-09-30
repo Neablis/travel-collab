@@ -1,4 +1,4 @@
-import type { Location } from "@tc/contracts";
+import type { ActivityView, Location } from "@tc/contracts";
 
 // A short, honest label for a Location — for the timeline's route line and
 // activity place line, which used to render the full geocoded `name` (e.g.
@@ -30,15 +30,65 @@ import type { Location } from "@tc/contracts";
 // places are `location` (origin) and `endLocation` (destination), and every
 // caller passes `location`, so a leg is labelled by where it leaves from. A
 // surface that wants the leg as a leg renders `shortPlace` on each end
-// ("Odawara → Kyoto"). It should not teach this function about `endLocation`,
-// because its one-token slot has room for one place. It takes a `Location`
-// rather than an activity, so it cannot read the destination by accident.
+// ("Odawara → Kyoto"), and `legRoute` below is that rendering. It should not
+// teach this function about `endLocation`, because its one-token slot has room
+// for one place. It takes a `Location` rather than an activity, so it cannot
+// read the destination by accident.
 export function shortPlace(location: Location | null | undefined): string | null {
   if (!location) return null;
   if (location.area) return location.area;
   if (location.city) return location.city;
   const [first] = location.name.split(",");
   return first?.trim() ?? null;
+}
+
+// A stop's destination, read through the one check every surface needs: only
+// a `kind: "transit"` stop has one. The contract's refinement guards commands,
+// not stored rows (`travelLegFieldsOffTransit`), so a stored non-transit stop
+// may still carry an `endLocation`, and a surface that trusted it would draw a
+// route the map (`mapRailData.ts`) refuses to. KI-2026-09-25-q asks for this
+// same function in `@tc/contracts`, taking "start" | "end", so `@tc/pages`
+// can share it; until then the web app's surfaces go through this one.
+/** A transit stop's `endLocation`, or `null` for any other kind and for a leg with no destination. */
+export function legEnd(stop: Pick<ActivityView, "kind" | "endLocation">): Location | null {
+  return stop.kind === "transit" ? (stop.endLocation ?? null) : null;
+}
+
+// Mitchell, 2026-09-30 (option "B"): a leg's destination shows everywhere the
+// stop does, not only as the map's line. This is that label, short enough for
+// a 100px river lane: "Taipei → Tainan".
+//
+// **City first, the opposite of `shortPlace`.** A leg answers "from where to
+// where", and between two cities the cities are the answer; two stations'
+// wards ("Shimogyō → Kita") name the platforms and lose the trip. An end with
+// no city takes `shortPlace`'s chain from there (area, then the name's first
+// segment).
+//
+// **One city at both ends falls back to `shortPlace`**, the case `shortPlace`
+// leads with `area` for ("Tokyo → Tokyo" says nothing; "Asakusa → Shibuya" is
+// the leg), and to the venue names when even those agree.
+//
+// No origin reads "→ Kyoto": the destination is the half this label exists to
+// add, so it is kept even when the stop never said where it leaves from.
+/** "Origin → Destination" for a transit stop that has a destination, or `null` when it is not a leg. */
+export function legRoute(stop: Pick<ActivityView, "kind" | "location" | "endLocation">): string | null {
+  const end = legEnd(stop);
+  if (end === null) return null;
+  const start = stop.location;
+  if (start === null) return `→ ${townOf(end)}`;
+  const [fromTown, toTown] = [townOf(start), townOf(end)];
+  if (fromTown !== toTown) return `${fromTown} → ${toTown}`;
+  const [fromArea, toArea] = [shortPlace(start), shortPlace(end)];
+  if (fromArea !== toArea) return `${fromArea} → ${toArea}`;
+  return `${venueOf(start)} → ${venueOf(end)}`;
+}
+
+function townOf(location: Location): string {
+  return location.city ?? shortPlace(location) ?? location.name;
+}
+
+function venueOf(location: Location): string {
+  return location.name.split(",")[0]?.trim() || location.name;
 }
 
 // The full label a geocoder hands back is an address, not a place name:

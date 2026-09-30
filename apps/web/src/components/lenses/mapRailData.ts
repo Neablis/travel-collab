@@ -2,6 +2,9 @@ import type { ActivityKind, ActivityMode, Location, TripDetail } from "@tc/contr
 import { chipModel } from "@/lib/dayChips";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { haversineKm } from "@/lib/geo";
+import { KIND_LABEL } from "@tc/pages";
+import { legRoute } from "@/lib/place";
+import { MODE_LABEL } from "@/lib/travelMode";
 
 // `kind` rides along so the map can draw travel legs differently from the
 // rest of the day (Mitchell, 2026-08-30 design pass: "Travel activity kinds
@@ -59,7 +62,26 @@ export type MapDay = {
    * fact about a day's shape that "5 stops · 40 km" cannot carry.
    */
   longest: LongestLeg | null;
+  /**
+   * The day's travel legs that name a destination, in the day's order, each
+   * as its mode and both ends ("Train · Odawara → Kyoto"). The focus and
+   * hover cards list them: the map's line shows where a leg goes only to a
+   * reader who can tell which line it is (Mitchell, 2026-09-30, option "B").
+   * Read from every stop on the day, located or not, since the label needs no
+   * coordinate.
+   */
+  legs: string[];
 };
+
+// The leg leads with the word the river block and the transit badge lead with:
+// its mode ("Train"), or the kind's own word when it has none. `MODE_LABEL`
+// is the badge's own table, so the map cannot spell a mode differently.
+function legLabel(activity: TripDetail["activities"][string]): string | null {
+  const route = legRoute(activity);
+  if (route === null) return null;
+  const mode = activity.mode == null ? KIND_LABEL.transit : MODE_LABEL[activity.mode];
+  return `${mode} · ${route}`;
+}
 
 function locatedStops(day: TripDetail["days"][number], activities: TripDetail["activities"]): MapStop[] {
   const stops: MapStop[] = [];
@@ -242,6 +264,11 @@ export function mapDays(detail: TripDetail): MapDay[] {
       isEmpty: day.activityIds.length === 0,
       flagText,
       longest: longestLeg(stops),
+      legs: day.activityIds.flatMap((activityId) => {
+        const activity = detail.activities[activityId];
+        const label = activity === undefined ? null : legLabel(activity);
+        return label === null ? [] : [label];
+      }),
     };
   });
 }

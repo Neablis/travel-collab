@@ -26,7 +26,7 @@ const day = (over: Partial<MapDay> = {}): MapDay => ({
   index: 0, dayId: "d1", label: "Day 1", date: "2026-09-05", city: "Kyoto",
   accent: "warning", stops: [stop("A"), stop("B")], unlocatedCount: 0, totalKm: 4.2,
   bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null,
-  longest: { km: 3.1, from: "A", to: "B" }, ...over,
+  longest: { km: 3.1, from: "A", to: "B" }, legs: [], ...over,
 });
 
 // The clamp is the part worth asserting here: jsdom has no layout, so this
@@ -98,6 +98,23 @@ describe("MapHoverCard", () => {
     );
     const card = screen.getByTestId("map-hover-card");
     expect(card.textContent).toMatch(/^Day 1Longest hop/);
+  });
+
+  it("lists the day's legs, and leaves them to the focus card when trimmed", () => {
+    const legs = ["Train · Odawara → Kyoto"];
+    const { unmount } = render(
+      <PreferencesProvider>
+        <MapHoverCard day={day({ legs })} top={120} />
+      </PreferencesProvider>,
+    );
+    expect(screen.getByText("Train · Odawara → Kyoto")).toBeTruthy();
+    unmount();
+    render(
+      <PreferencesProvider>
+        <MapHoverCard day={day({ legs })} top={120} trimmed />
+      </PreferencesProvider>,
+    );
+    expect(screen.queryByText("Train · Odawara → Kyoto")).toBeNull();
   });
 
   // **It must never eat a click.** The card overlaps the map and, low in the
