@@ -268,6 +268,7 @@ against its own destination at ~273 km. This is KI-60's explicitly rejected
 weaker variant, added *alongside* the rule that replaced it rather than instead
 of it; KI-60's entry now records that. The cost: a mistyped coordinate on a
 transit stop is no longer caught by any rule.
+*(2026-09-30: widened again — any `kind: "transit"` stop on a day now excuses every distance on that day (timed or not, located or not, `endLocation` ignored); a day with no transit stop is unchanged. Mitchell's decision, 2026-09-30 (option "B", over a list-order heuristic), after an API user's untimed stops kept every travel day flagging. Trade-off: a wrong geocode on a day with a transit leg is no longer caught. `transitExcusesDistance` is gone; rationale lives in `geographyRule`'s comment (`packages/domain/src/trip/conflicts.ts`).)*
 
 **M22's last gate box closed 2026-09-19 on Mitchell's attestation**, but the
 problem that blocked an agent from walking it is still open, and the next
@@ -348,7 +349,9 @@ and `docs/retros/2026-09-11-status-archive.md`.
   stops. The rule now excuses a distance a transit stop crosses **in time**, on
   time order rather than stored order, and never excuses an untimed stop. Full
   reasoning, including the weaker rule that was rejected with evidence:
-  `docs/known-issues/` KI-60.
+  `docs/known-issues/` KI-60. *(Superseded 2026-09-30: any transit stop on a
+  day now excuses every distance on it — Mitchell's decision; see
+  `geographyRule` in `packages/domain/src/trip/conflicts.ts`.)*
 - **One canonical Japan fixture, 2026-08-28 — ADR-030 (PR #74).**
   `@tc/fixtures` owns the 14-day/68-stop trip; the seed script, the preview
   branch's demo reset and `@tc/factories` all call the same commands, and
